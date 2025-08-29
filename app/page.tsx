@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import PrescriptionChecker from '../components/PrescriptionChecker';
 
 type BannerItem = { title:string; source:string; time:string; url:string };
 
@@ -56,8 +57,9 @@ export default function Home(){
           </select>
           <button className="btn primary" onClick={ask} disabled={loading}>{loading?'Thinking…':'Ask'}</button>
         </div>
-        <pre style={{whiteSpace:'pre-wrap', marginTop:12}}>{answer}</pre>
+        <div className="response" style={{whiteSpace:'pre-wrap', marginTop:12}}>{answer}</div>
       </section>
+      <PrescriptionChecker />
     </main>
   );
 }
