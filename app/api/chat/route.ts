@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchWithTimeout } from '@/lib/http';
 export async function POST(req: NextRequest){
   const { question, role } = await req.json();
   const base = process.env.LLM_BASE_URL;
@@ -14,7 +15,7 @@ If CONTEXT contains codes or trials, add a "Sources" section with clickable link
 Do NOT provide medical advice; suggest speaking with a clinician.`;
 
   // OpenAI-compatible completion (v1/chat/completions)
-  const res = await fetch(`${base.replace(/\/$/,'')}/chat/completions`, {
+  const res = await fetchWithTimeout(`${base.replace(/\/$/,'')}/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -25,7 +26,7 @@ Do NOT provide medical advice; suggest speaking with a clinician.`;
       ],
       temperature: 0.2
     })
-  });
+  }, { timeoutMs: 15000 });
   if(!res.ok){
     const t = await res.text();
     return new NextResponse(`LLM error: ${t}`, { status: 500 });
