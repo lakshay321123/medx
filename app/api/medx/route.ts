@@ -4,6 +4,28 @@ const BASE = process.env.LLM_BASE_URL!;
 const MODEL = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
 const KEY   = process.env.LLM_API_KEY!;
 
+function makeFollowups(intent:string, sections:any, mode:'patient'|'doctor', query:string): string[] {
+  const out: string[] = [];
+  if (intent === 'NEARBY') {
+    out.push('Show more within 10 km', 'Open now', 'Directions to the closest');
+  }
+  if (intent === 'DRUGS_LIST' && (sections?.interactions?.length || 0) > 0) {
+    out.push('Explain these interactions simply', 'Are there safer alternatives?', 'What should I ask my doctor?');
+  }
+  if (intent === 'DIAGNOSIS_QUERY') {
+    if (mode === 'doctor') {
+      out.push('Latest clinical trials', 'Common ICD-10 codes', 'SNOMED terms');
+    } else {
+      out.push('Simple explanation', 'What tests are usually done?', 'Questions to ask my doctor');
+    }
+  }
+  if ((sections?.trials?.length || 0) > 0) {
+    out.push('Summarize trial eligibility', 'Any phase 3 results?');
+  }
+  if (!out.length) out.push('Explain in simpler words', 'Show trusted sources');
+  return Array.from(new Set(out)).slice(0, 5);
+}
+
 async function classifyIntent(query: string, mode: 'patient'|'doctor') {
   const sys = `Classify a medical query into ONE:
 - DIAGNOSIS_QUERY (map to ICD-10, SNOMED; trials if doctor)
@@ -91,5 +113,5 @@ export async function POST(req: NextRequest){
     }
   } catch(e:any){ sections.error = String(e?.message || e); }
 
-  return NextResponse.json({ intent, sections });
+  return NextResponse.json({ intent, sections, followups: makeFollowups(intent, sections, (mode==='doctor'?'doctor':'patient'), query) });
 }
