@@ -9,15 +9,45 @@ export default function Home(){
   const [answer,setAnswer]=useState('');
   const [loading,setLoading]=useState(false);
   const [banner,setBanner]=useState<BannerItem[]>([]);
+  const [coords,setCoords]=useState<{lat:number,lng:number}|null>(null);
+  const [locNote,setLocNote]=useState('');
+
+  const nearbyOn = process.env.NEXT_PUBLIC_FEATURE_NEARBY === 'on';
 
   useEffect(()=>{ fetch('/api/banner').then(r=>r.json()).then(setBanner).catch(()=>{}); },[]);
+
+  function requestLocation(){
+    if(!navigator.geolocation){
+      setLocNote('Geolocation not supported');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos=>{
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setLocNote('Location set');
+      },
+      ()=>setLocNote('Location denied')
+    );
+  }
 
   async function ask(){
     setLoading(true);
     setAnswer('');
-    const r = await fetch('/api/chat',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ role, question: term })});
-    const txt = await r.text();
-    setAnswer(txt);
+    const body:any = { q: term, role };
+    if(nearbyOn && coords) body.coords = coords;
+    const r = await fetch('/api/medx',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    const json = await r.json();
+    if(json.sections?.nearby){
+      setAnswer(JSON.stringify(json.sections.nearby, null, 2));
+    }else if(json.answer){
+      setAnswer(json.answer);
+    }else if(json.sections?.needsLocation){
+      setAnswer('Location required');
+    }else if(json.sections?.nearby?.disabled){
+      setAnswer('Nearby search disabled');
+    }else{
+      setAnswer('');
+    }
     setLoading(false);
   }
 
@@ -56,6 +86,12 @@ export default function Home(){
           </select>
           <button className="btn primary" onClick={ask} disabled={loading}>{loading?'Thinking…':'Ask'}</button>
         </div>
+        {nearbyOn && (
+          <div style={{ marginTop:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <button className="item" onClick={requestLocation}>📍 Set location</button>
+            {locNote && <span style={{ color:'var(--muted)', fontSize:12 }}>{locNote}</span>}
+          </div>
+        )}
         <pre style={{whiteSpace:'pre-wrap', marginTop:12}}>{answer}</pre>
       </section>
     </main>
