@@ -1,15 +1,43 @@
-:root{ --bg:#0b1220; --fg:#e6f0ff; --muted:#9db1c7; --card:#121a2b; --accent:#41f0d2; }
-:root.light{ --bg:#f7fafc; --fg:#111827; --muted:#475569; --card:#ffffff; --accent:#0ea5e9; }
-html,body{ margin:0; padding:0; height:100%; }
-body{ background:var(--bg); color:var(--fg); font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-button,input,select{ font:inherit }
-.container{ max-width:1000px; margin:0 auto; padding:20px; }
-.row{ display:flex; gap:8px; flex-wrap:wrap; }
-.btn{ background:var(--card); color:var(--fg); border:1px solid #22304a; padding:10px 12px; border-radius:10px; cursor:pointer; }
-.btn.primary{ background:var(--accent); color:#001b1a; border:none; }
-.card{ background:var(--card); border:1px solid #1f2a44; border-radius:12px; padding:14px; }
-.headline{ color:var(--fg); font-weight:600; }
-.muted{ color:var(--muted); font-size:13px; }
-.toggle{ position:fixed; top:12px; right:12px; }
-.twoCol{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
-@media (max-width:900px){ .twoCol{ grid-template-columns: 1fr; } }
+:root{ --bg:#0b1220; --fg:#e6f0ff; --muted:#9db1c7; --card:#0f172a; --border:#20304f; --accent:#41f0d2; }
+:root.light{ --bg:#f8fafc; --fg:#0b1220; --muted:#475569; --card:#ffffff; --border:#e5e7eb; --accent:#0ea5e9; }
+
+*{ box-sizing:border-box }
+html,body{ margin:0; padding:0; height:100% }
+body{ background:var(--bg); color:var(--fg); font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif }
+
+.app{ display:flex; height:100vh; }
+.sidebar{ width:280px; border-right:1px solid var(--border); padding:12px; display:flex; flex-direction:column; gap:10px; background:var(--card) }
+.sidebar .title{ font-weight:700; margin-bottom:4px }
+.sidebar .group{ display:flex; flex-direction:column; gap:8px }
+.sidebar .item{ display:flex; align-items:center; gap:8px; padding:8px; border:1px solid var(--border); border-radius:10px; cursor:pointer; background:transparent }
+.sidebar .item:hover{ background:rgba(255,255,255,0.04) }
+.sidebar input{ width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:10px; background:transparent; color:inherit; outline:none }
+
+.main{ flex:1; display:flex; flex-direction:column; }
+.header{ height:56px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 16px }
+.wrap{ max-width:840px; margin:0 auto; width:100%; padding:0 16px; flex:1; display:flex; flex-direction:column }
+
+.hero{ margin:auto; max-width:680px; text-align:center; }
+.hero h1{ margin:8px 0 4px }
+.hero p{ color:var(--muted); margin:0 0 20px }
+
+.chat{ flex:1; overflow:auto; padding:16px 0; }
+.msg{ display:flex; gap:12px; margin:12px 0; }
+.msg .bubble{ border:1px solid var(--border); background:var(--card); border-radius:14px; padding:12px 14px; width:100%; }
+.msg.user .bubble{ background:transparent }
+.msg .role{ font-size:12px; color:var(--muted); margin-bottom:6px }
+.msg .content a{ color:var(--accent); text-decoration:underline; word-break:break-word }
+
+.followups{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px }
+.chip{ padding:6px 10px; border:1px solid var(--border); border-radius:999px; background:transparent; cursor:pointer }
+.chip:hover{ background:rgba(255,255,255,0.06) }
+
+.inputDock{ padding:12px 0 18px; position:sticky; bottom:0; background:linear-gradient(180deg, rgba(0,0,0,0), var(--bg) 30%) }
+.inputRow{ display:flex; align-items:center; gap:8px; border:1px solid var(--border); border-radius:14px; padding:8px; background:var(--card) }
+.inputRow textarea{ flex:1; min-height:24px; max-height:160px; resize:vertical; border:none; outline:none; background:transparent; color:inherit; padding:8px 10px }
+.iconBtn{ width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:var(--accent); color:#00302c; border:none; cursor:pointer }
+.toolTray{ display:flex; gap:8px; margin-top:8px; flex-wrap:wrap }
+
+.markdown h1,.markdown h2,.markdown h3{ margin:12px 0 6px }
+.markdown p{ margin:8px 0 }
+.markdown ul{ padding-left:20px }
