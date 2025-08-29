@@ -21,17 +21,30 @@ export async function GET(){
     }
   } catch(e){}
 
-  // openFDA label updates
+  // openFDA label updates  ➜  link to DailyMed if we have an SPL set_id
   try {
     const key = process.env.OPENFDA_API_KEY || '';
-    const r = await fetch(`https://api.fda.gov/drug/label.json?search=effective_time:[20240101+TO+20251231]&limit=5${key?`&api_key=${key}`:''}`);
-    if(r.ok){
+    const url = `https://api.fda.gov/drug/label.json?search=effective_time:[20240101+TO+20251231]&limit=5${key ? `&api_key=${key}` : ''}`;
+    const r = await fetch(url);
+    if (r.ok) {
       const j = await r.json();
-      (j.results || []).forEach((s:any)=>{
-        items.push({ title: (s.openfda?.brand_name||['Drug label update']).join(', '), url: 'https://api.fda.gov/drug/label.json', source:'openFDA', time: String(s.effective_time) });
+      (j.results || []).forEach((s: any) => {
+        const brand = (s.openfda?.brand_name || s.openfda?.generic_name || ['Drug label update']).join(', ');
+        // Prefer SPL set_id if present; openFDA field is usually "set_id" (UUID-like)
+        const setid = s.set_id || s.id; // fallback to id if set_id missing
+        // DailyMed human page (best UX). If no setid, fall back to openFDA docs page.
+        const humanUrl = setid
+          ? `https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=${encodeURIComponent(setid)}`
+          : 'https://open.fda.gov/apis/drug/drug-label/';
+        items.push({
+          title: brand,
+          url: humanUrl,
+          source: 'openFDA / DailyMed',
+          time: String(s.effective_time || '')
+        });
       });
     }
-  } catch(e){}
+  } catch {}
 
   // PubMed recent (example general query)
   try {
