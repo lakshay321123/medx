@@ -5,6 +5,14 @@ export async function POST(req: NextRequest){
   const model = process.env.LLM_MODEL_ID || 'llama3-8b-instruct';
   if(!base) return new NextResponse("LLM_BASE_URL not set", { status: 500 });
 
+  const sys = role==='clinician'
+    ? `You are a clinical assistant. Use concise markdown with headings and bullet lists.
+If CONTEXT contains codes or trials, include a "Sources" section with clickable links.
+Do NOT provide diagnosis or treatment. Add a plain-language caution to consult a clinician.`
+    : `You are a patient-friendly explainer. Short paragraphs, simple words.
+If CONTEXT contains codes or trials, add a "Sources" section with clickable links.
+Do NOT provide medical advice; suggest speaking with a clinician.`;
+
   // OpenAI-compatible completion (v1/chat/completions)
   const res = await fetch(`${base.replace(/\/$/,'')}/chat/completions`, {
     method: 'POST',
@@ -12,7 +20,7 @@ export async function POST(req: NextRequest){
     body: JSON.stringify({
       model,
       messages: [
-        { role: 'system', content: role==='clinician' ? 'You are a clinical assistant. Be precise, cite sources if mentioned. Avoid medical advice; provide evidence and guideline pointers.' : 'You explain in simple, friendly language for patients. Avoid medical advice; encourage consulting a doctor.' },
+        { role: 'system', content: sys },
         { role: 'user', content: question }
       ],
       temperature: 0.2

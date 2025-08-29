@@ -9,8 +9,37 @@ export default function Home(){
   const [answer,setAnswer]=useState('');
   const [loading,setLoading]=useState(false);
   const [banner,setBanner]=useState<BannerItem[]>([]);
+  const [pendingMeds, setPendingMeds] = useState<{token:string;rxcui:string}[]|null>(null);
 
   useEffect(()=>{ fetch('/api/banner').then(r=>r.json()).then(setBanner).catch(()=>{}); },[]);
+
+  function MedsReview({ meds, onConfirm, onCancel }:{ meds:{token:string;rxcui:string}[]; onConfirm:(m:{token:string;rxcui:string}[])=>void; onCancel:()=>void }) {
+    const [list, setList] = useState(meds);
+    return (
+      <div className="bubble" style={{ border:'1px dashed var(--border)' }}>
+        <div className="role">Check recognized medications</div>
+        {list.map((m, i)=>(
+          <div key={i} style={{ display:'flex', gap:8, alignItems:'center', margin:'6px 0' }}>
+            <input
+              value={m.token}
+              onChange={e=>{
+                const copy=[...list]; copy[i]={...copy[i], token:e.target.value}; setList(copy);
+              }}
+              style={{ flex:1, padding:'6px 8px', border:'1px solid var(--border)', borderRadius:8, background:'transparent', color:'inherit' }}
+            />
+            <a href={`https://rxnav.nlm.nih.gov/REST/rxcui/${m.rxcui}`} target="_blank" rel="noreferrer" style={{ color:'var(--accent)' }}>
+              {m.rxcui}
+            </a>
+            <button className="item" onClick={()=>{ const copy=[...list]; copy.splice(i,1); setList(copy); }}>Remove</button>
+          </div>
+        ))}
+        <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:8 }}>
+          <button className="item" onClick={onCancel}>Cancel</button>
+          <button className="item" onClick={()=>onConfirm(list)}>Confirm</button>
+        </div>
+      </div>
+    );
+  }
 
   async function ask(){
     setLoading(true);
@@ -19,6 +48,13 @@ export default function Home(){
     const txt = await r.text();
     setAnswer(txt);
     setLoading(false);
+  }
+
+  async function handleUpload(file: File){
+    // Placeholder OCR flow
+    const meds: {token:string;rxcui:string}[] = [];
+    setPendingMeds(meds);
+    setAnswer(`Parsed **${file.name}**.\n\nRecognized **${meds.length}** medication name(s). Please review below.`);
   }
 
   return (
