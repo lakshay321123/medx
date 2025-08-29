@@ -9,15 +9,65 @@ export default function Home(){
   const [answer,setAnswer]=useState('');
   const [loading,setLoading]=useState(false);
   const [banner,setBanner]=useState<BannerItem[]>([]);
+  const [coords, setCoords] = useState<{lat:number; lng:number} | null>(null);
+  const [locNote, setLocNote] = useState<string | null>(null);
+  const [followups, setFollowups] = useState<string[]>([]);
+
+  const nearbyOn = process.env.NEXT_PUBLIC_FEATURE_NEARBY === 'on';
 
   useEffect(()=>{ fetch('/api/banner').then(r=>r.json()).then(setBanner).catch(()=>{}); },[]);
 
-  async function ask(){
+  function saveCoords(c:{lat:number;lng:number}) {
+    setCoords(c);
+    try { localStorage.setItem('medx_coords', JSON.stringify(c)); } catch {}
+  }
+
+  async function loadSavedCoords() {
+    try {
+      const s = localStorage.getItem('medx_coords');
+      if (s) setCoords(JSON.parse(s));
+    } catch {}
+  }
+
+  async function requestLocation(auto=false) {
+    setLocNote(auto ? 'Setting location…' : null);
+    const useIPFallback = async () => {
+      try {
+        const r = await fetch('/api/locate'); const j = await r.json();
+        if (j?.lat && j?.lng) { saveCoords({ lat: j.lat, lng: j.lng }); setLocNote(`Location set${j.city ? `: ${j.city}` : ''}.`); return; }
+      } catch {}
+      setLocNote('Location unavailable. You can still type a place, e.g., "pharmacy near Connaught Place".');
+    };
+
+    if (!('geolocation' in navigator)) return useIPFallback();
+    navigator.geolocation.getCurrentPosition(
+      (pos)=>{ saveCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocNote('Location set.'); setTimeout(()=>setLocNote(null), 1500); },
+      async ()=>{ await useIPFallback(); },
+      { enableHighAccuracy: true, maximumAge: 60000, timeout: 8000 }
+    );
+  }
+
+  useEffect(()=>{ loadSavedCoords().then(()=>requestLocation(true)); },[]);
+
+  async function ask(text=term){
     setLoading(true);
     setAnswer('');
-    const r = await fetch('/api/chat',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ role, question: term })});
-    const txt = await r.text();
-    setAnswer(txt);
+    const body:any = { q: text, role };
+    if(nearbyOn && coords) body.coords = coords;
+    const r = await fetch('/api/medx',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    const json = await r.json();
+    setFollowups(Array.isArray(json.followups) ? json.followups : []);
+    if(json.sections?.nearby){
+      setAnswer(JSON.stringify(json.sections.nearby, null, 2));
+    }else if(json.answer){
+      setAnswer(json.answer);
+    }else if(json.sections?.needsLocation){
+      setAnswer('Location required');
+    }else if(json.sections?.nearby?.disabled){
+      setAnswer('Nearby search disabled');
+    }else{
+      setAnswer('');
+    }
     setLoading(false);
   }
 
@@ -54,9 +104,22 @@ export default function Home(){
             <option value="patient">Patient view</option>
             <option value="clinician">Clinician view</option>
           </select>
-          <button className="btn primary" onClick={ask} disabled={loading}>{loading?'Thinking…':'Ask'}</button>
+          <button className="btn primary" onClick={()=>ask()} disabled={loading}>{loading?'Thinking…':'Ask'}</button>
         </div>
+        {nearbyOn && (
+          <div style={{ marginTop:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <button className="item" onClick={()=>requestLocation(false)}>📍 Set location</button>
+            {locNote && <span style={{ color:'var(--muted)', fontSize:12 }}>{locNote}</span>}
+          </div>
+        )}
         <pre style={{whiteSpace:'pre-wrap', marginTop:12}}>{answer}</pre>
+        {followups.length > 0 && (
+          <div style={{ display:'flex', flexWrap:'wrap', gap:8, margin:'8px 0 4px 0' }}>
+            {followups.map((f,i)=>(
+              <button key={i} className="item" onClick={()=>{ setTerm(f); ask(f); }}>{f}</button>
+            ))}
+          </div>
+        )}
       </section>
     </main>
   );
