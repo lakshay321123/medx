@@ -1,0 +1,15 @@
+:root{ --bg:#0b1220; --fg:#e6f0ff; --muted:#9db1c7; --card:#121a2b; --accent:#41f0d2; }
+:root.light{ --bg:#f7fafc; --fg:#111827; --muted:#475569; --card:#ffffff; --accent:#0ea5e9; }
+html,body{ margin:0; padding:0; height:100%; }
+body{ background:var(--bg); color:var(--fg); font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+button,input,select{ font:inherit }
+.container{ max-width:1000px; margin:0 auto; padding:20px; }
+.row{ display:flex; gap:8px; flex-wrap:wrap; }
+.btn{ background:var(--card); color:var(--fg); border:1px solid #22304a; padding:10px 12px; border-radius:10px; cursor:pointer; }
+.btn.primary{ background:var(--accent); color:#001b1a; border:none; }
+.card{ background:var(--card); border:1px solid #1f2a44; border-radius:12px; padding:14px; }
+.headline{ color:var(--fg); font-weight:600; }
+.muted{ color:var(--muted); font-size:13px; }
+.toggle{ position:fixed; top:12px; right:12px; }
+.twoCol{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+@media (max-width:900px){ .twoCol{ grid-template-columns: 1fr; } }

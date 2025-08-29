@@ -1,0 +1,1 @@
+export async function getWhoNews(){const url="https://www.who.int/feeds/entity/news/en/rss.xml";const res=await fetch(url,{next:{revalidate:900}});if(!res.ok) throw new Error("WHO RSS fetch error");return res.text();}
