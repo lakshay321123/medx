@@ -29,22 +29,25 @@ export default function Home(){
     } catch {}
   }
 
-  async function requestLocation(auto=false) {
+  async function requestLocation(auto=false): Promise<{lat:number;lng:number}|null> {
     setLocNote(auto ? 'Setting location…' : null);
-    const useIPFallback = async () => {
+    const useIPFallback = async (): Promise<{lat:number;lng:number}|null> => {
       try {
         const r = await fetch('/api/locate'); const j = await r.json();
-        if (j?.lat && j?.lng) { saveCoords({ lat: j.lat, lng: j.lng }); setLocNote(`Location set${j.city ? `: ${j.city}` : ''}.`); return; }
+        if (j?.lat && j?.lng) { const c={ lat: j.lat, lng: j.lng }; saveCoords(c); setLocNote(`Location set${j.city ? `: ${j.city}` : ''}.`); return c; }
       } catch {}
       setLocNote('Location unavailable. You can still type a place, e.g., "pharmacy near Connaught Place".');
+      return null;
     };
 
     if (!('geolocation' in navigator)) return useIPFallback();
-    navigator.geolocation.getCurrentPosition(
-      (pos)=>{ saveCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocNote('Location set.'); setTimeout(()=>setLocNote(null), 1500); },
-      async ()=>{ await useIPFallback(); },
-      { enableHighAccuracy: true, maximumAge: 60000, timeout: 8000 }
-    );
+    return new Promise(resolve => {
+      navigator.geolocation.getCurrentPosition(
+        (pos)=>{ const c={ lat: pos.coords.latitude, lng: pos.coords.longitude }; saveCoords(c); setLocNote('Location set.'); setTimeout(()=>setLocNote(null), 1500); resolve(c); },
+        async ()=>{ const c=await useIPFallback(); resolve(c); },
+        { enableHighAccuracy: true, maximumAge: 60000, timeout: 8000 }
+      );
+    });
   }
 
   useEffect(()=>{ loadSavedCoords().then(()=>requestLocation(true)); },[]);
@@ -52,8 +55,17 @@ export default function Home(){
   async function ask(text=term){
     setLoading(true);
     setAnswer('');
+    let currentCoords = coords;
+    if(/near (me|by)/i.test(text) && !currentCoords){
+      currentCoords = await requestLocation(false);
+      if(!currentCoords){
+        setAnswer('Location unavailable');
+        setLoading(false);
+        return;
+      }
+    }
     const body:any = { q: text, role };
-    if(nearbyOn && coords) body.coords = coords;
+    if(nearbyOn && currentCoords) body.coords = currentCoords;
     const r = await fetch('/api/medx',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
     const json = await r.json();
     setFollowups(Array.isArray(json.followups) ? json.followups : []);
