@@ -1,63 +1,90 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Markdown from '../components/Markdown';
 
-type BannerItem = { title:string; source:string; time:string; url:string };
+type BannerItem = { title: string; source: string; time: string; url: string };
 
-export default function Home(){
-  const [term,setTerm]=useState('thyroid cancer');
-  const [role,setRole]=useState<'patient'|'clinician'>('patient');
-  const [answer,setAnswer]=useState('');
-  const [loading,setLoading]=useState(false);
-  const [banner,setBanner]=useState<BannerItem[]>([]);
+export default function Home() {
+  const [q, setQ] = useState('weight loss medications');
+  const [role, setRole] = useState<'patient' | 'clinician'>('clinician');
+  const [out, setOut] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [banner, setBanner] = useState<BannerItem[]>([]);
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
-  useEffect(()=>{ fetch('/api/banner').then(r=>r.json()).then(setBanner).catch(()=>{}); },[]);
+  useEffect(() => {
+    fetch('/api/banner').then(r => r.json()).then(setBanner).catch(() => {});
+  }, []);
 
-  async function ask(){
+  async function ask() {
     setLoading(true);
-    setAnswer('');
-    const r = await fetch('/api/chat',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ role, question: term })});
-    const txt = await r.text();
-    setAnswer(txt);
+    setOut('');
+    const r = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role, question: q })
+    });
+    const t = await r.text();
+    setOut(t);
     setLoading(false);
   }
 
   return (
-    <main className="container">
-      <div className="toggle">
-        <select onChange={e=>document.documentElement.className = e.target.value==='light'?'light':''} className="btn">
+    <div className="wrap">
+      <header>
+        <h1 style={{ margin: 0 }}>MedX</h1>
+        <select
+          className="pill"
+          onChange={e => {
+            document.documentElement.className = e.target.value === 'light' ? 'light' : '';
+            setTheme(e.target.value as any);
+          }}
+          value={theme}
+        >
           <option value="dark">Dark</option>
           <option value="light">Light</option>
         </select>
-      </div>
-      <h1>MedX</h1>
-      <p className="muted">Global medical companion • Patient/Clinician dual answers • Secure by design</p>
+      </header>
 
-      <section className="card" style={{marginTop:12}}>
-        <div className="row" style={{justifyContent:'space-between'}}>
-          <div className="headline">Latest trusted updates</div>
-          <a className="muted" href="/api/banner" target="_blank">See JSON</a>
+      <div className="banner">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontWeight: 600 }}>Latest trusted updates</div>
+          <a href="/api/banner" className="pill" target="_blank">See JSON</a>
         </div>
-        <div className="row" style={{marginTop:8, overflowX:'auto'}}>
-          {banner.slice(0,6).map((b,i)=>(
-            <a key={i} href={b.url} target="_blank" className="card" style={{minWidth:260}}>
-              <div className="muted">{b.source} • {b.time}</div>
+        <div className="tiles">
+          {banner.map((b, i) => (
+            <a key={i} className="tile" href={b.url} target="_blank" rel="noreferrer">
+              <div className="src">{b.source} • {b.time || ''}</div>
               <div>{b.title}</div>
             </a>
           ))}
         </div>
-      </section>
+      </div>
 
-      <section style={{marginTop:16}} className="card">
-        <div className="row">
-          <input value={term} onChange={e=>setTerm(e.target.value)} style={{flex:1, padding:12, borderRadius:8, border:'1px solid #22304a', background:'transparent', color:'inherit'}} placeholder="Ask MedX… (e.g., best trials for thyroid cancer in India)" />
-          <select value={role} onChange={e=>setRole(e.target.value as any)} className="btn">
-            <option value="patient">Patient view</option>
-            <option value="clinician">Clinician view</option>
-          </select>
-          <button className="btn primary" onClick={ask} disabled={loading}>{loading?'Thinking…':'Ask'}</button>
+      <div style={{ height: 12 }} />
+
+      <div className="searchBar">
+        <input
+          value={q}
+          onChange={e => setQ(e.target.value)}
+          placeholder="Ask anything medical…"
+        />
+        <div className="seg">
+          <button className={role === 'patient' ? 'active' : ''} onClick={() => setRole('patient')}>Patient</button>
+          <button className={role === 'clinician' ? 'active' : ''} onClick={() => setRole('clinician')}>Clinician</button>
         </div>
-        <pre style={{whiteSpace:'pre-wrap', marginTop:12}}>{answer}</pre>
-      </section>
-    </main>
+        <button className="btn" onClick={ask} disabled={loading}>{loading ? 'Thinking…' : 'Ask'}</button>
+      </div>
+
+      <div className="response">
+        {out ? (
+          <Markdown text={out} />
+        ) : (
+          <div className="markdown" style={{ color: 'var(--muted)' }}>
+            Your answer will appear here with **bold**, lists, and clickable links.
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
