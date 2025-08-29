@@ -13,3 +13,13 @@ button,input,select{ font:inherit }
 .toggle{ position:fixed; top:12px; right:12px; }
 .twoCol{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
 @media (max-width:900px){ .twoCol{ grid-template-columns: 1fr; } }
+
+/* Role-aware tints */
+:root[data-role="doctor"] {
+  --accent:#7c3aed;             /* purple accent for doctor */
+  --bg: #0e0a18;                 /* slightly deeper bg */
+}
+:root.light[data-role="doctor"] {
+  --accent:#7c3aed;
+  --bg:#f6f2ff;                  /* lilac tint in light */
+}

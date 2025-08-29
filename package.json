@@ -14,7 +14,8 @@
     "react-dom": "18.2.0",
     "rss-parser": "3.13.0",
     "xml2js": "0.6.2",
-    "next-themes": "0.3.0"
+    "next-themes": "0.3.0",
+    "lucide-react": "0.424.0"
   },
   "devDependencies": {
     "typescript": "5.4.5",
