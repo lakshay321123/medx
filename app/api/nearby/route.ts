@@ -78,6 +78,58 @@ function buildFilters(kind?: string) {
   ];
 }
 
+function specialtyRegex(s?: string) {
+  if (!s) return null;
+  if (s.toLowerCase() === 'gynecology') {
+    return /(gyn|gyne|gynaec|gynecol|ob[-\/ ]?gyn|obgyn|obstetric|women|matern)/i;
+  }
+  return new RegExp(s.replace(/[^a-z0-9_+-]/gi, ''), 'i');
+}
+
+function looksLikeBadName(s?: string) {
+  if (!s) return true;
+  const t = s.trim();
+  if (t.length < 4) return true;
+  if (/^unknown$/i.test(t)) return true;
+  return false;
+}
+
+function distanceKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
+  const R = 6371,
+    toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat),
+    dLon = toRad(b.lon - a.lon);
+  const A =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) *
+      Math.cos(toRad(b.lat)) *
+      Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(A));
+}
+
+function scoreItemForSpecialty(it: any, spec?: string) {
+  if (!spec) return 0;
+  const re = specialtyRegex(spec);
+  if (!re) return 0;
+  const tags = it.tags || {};
+  const blob = [
+    it.name,
+    it.type,
+    it.address,
+    tags['healthcare:specialty'],
+    tags['healthcare:speciality'],
+    tags['specialty'],
+    tags['speciality'],
+  ]
+    .filter(Boolean)
+    .join(' | ');
+  let score = 0;
+  if (re.test(blob)) score += 5;
+  if (/gyne|ob[-\/ ]?gyn|obgyn|obstetric/i.test(it.name || '')) score += 4;
+  if (/doctor|doctors|clinic/i.test(it.type || '')) score += 1;
+  return score;
+}
+
 function overpassQuery(lat: number, lon: number, radius: number, kind?: string) {
   const filters = buildFilters(kind)
     .map((f) => `${f}(around:${radius},${lat},${lon})`)
@@ -94,10 +146,12 @@ out center 60;
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const lat = parseFloat(searchParams.get('lat') || '');
-    const lon = parseFloat(searchParams.get('lon') || '');
-    const kind = searchParams.get('kind') || undefined;
-    const debug = searchParams.get('debug') === '1';
+      const lat = parseFloat(searchParams.get('lat') || '');
+      const lon = parseFloat(searchParams.get('lon') || '');
+      const kind = searchParams.get('kind') || undefined;
+      const debug = searchParams.get('debug') === '1';
+      const specialty = searchParams.get('specialty') || undefined;
+      const limit = Math.min(parseInt(searchParams.get('limit') || '24', 10), 50);
     const initialRadius = Math.min(
       parseInt(searchParams.get('radius') || '3000', 10),
       12000
@@ -167,19 +221,93 @@ export async function GET(req: NextRequest) {
               .join(', '),
             lat: center?.lat,
             lon: center?.lon,
+            tags,
           };
         }) ?? [];
+
+      for (const it of items) {
+        if (it.lat && it.lon) {
+          const d = distanceKm(coords, { lat: it.lat, lon: it.lon });
+          (it as any).distance_km = Math.round(d * 10) / 10;
+        }
+      }
 
       if (items.length > 0 || radius >= 12000) break;
       radius = Math.min(radius * 2, 12000);
     }
 
-    const response: any = { coords, items };
-    if (debug) {
-      response.overpassStatus = overpassStatus;
-      response.elementCount = json?.elements?.length ?? 0;
-    }
-    return NextResponse.json(response);
+      // Results shaping
+      let results = items.filter((it: any) => !looksLikeBadName(it.name));
+
+      // EXCLUDE pharmacies for doctor/clinic/hospital paths earlier in buildFilters()
+
+      if (specialty === 'gynecology') {
+        // STRICT: require specialty hit in tags/name/address; exclude obvious mismatches
+        const re = specialtyRegex(specialty)!;
+        const strict = results.filter((it: any) => {
+          const tags = it.tags || {};
+          const blob = [
+            it.name,
+            it.type,
+            it.address,
+            tags['healthcare:specialty'],
+            tags['healthcare:speciality'],
+            tags['specialty'],
+            tags['speciality'],
+          ]
+            .filter(Boolean)
+            .join(' | ');
+          const name = (it.name || '').toLowerCase();
+          if (/(beauty|salon|hair replacement|physio|skin clinic|path ?lab)/i.test(name))
+            return false;
+          return re.test(blob);
+        });
+
+        if (strict.length >= 6) {
+          results = strict;
+        } else {
+          // Not enough strict hits → blend by specialty score + proximity
+          for (const it of results) {
+            (it as any)._score =
+              scoreItemForSpecialty(it, specialty) +
+              (typeof it.distance_km === 'number'
+                ? it.distance_km <= 2
+                  ? 3
+                  : it.distance_km <= 5
+                  ? 2
+                  : it.distance_km <= 10
+                  ? 1
+                  : 0
+                : 0);
+          }
+          results.sort((a: any, b: any) => (b._score || 0) - (a._score || 0));
+        }
+      }
+
+      // Prefer entries that have contact info
+      results.sort((a: any, b: any) => {
+        const A = (a.address ? 1 : 0) + (a.phone ? 1 : 0);
+        const B = (b.address ? 1 : 0) + (b.phone ? 1 : 0);
+        return B - A;
+      });
+
+      // Deduplicate by name+address and limit
+      const seen = new Set<string>();
+      results = results
+        .filter((it: any) => {
+          const k = `${(it.name || '').toLowerCase()}|${(it.address || '').toLowerCase()}`;
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        })
+        .slice(0, limit);
+
+      const response: any = { coords, items: results };
+      if (debug) {
+        response.overpassStatus = overpassStatus;
+        response.elementCount = json?.elements?.length ?? 0;
+      }
+      return NextResponse.json(response);
   } catch (e: any) {
     return NextResponse.json({ error: 'nearby_unhandled', message: e?.message }, { status: 500 });
   }

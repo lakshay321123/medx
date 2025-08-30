@@ -9,7 +9,14 @@ export function NearbyCards({ items }: { items: Array<any> }) {
           <div className="text-sm mt-2 flex gap-3">
             {it.phone && <a className="underline" href={`tel:${it.phone}`}>Call</a>}
             {it.website && <a className="underline" href={it.website} target="_blank">Website</a>}
-            <a className="underline" href={it.mapsUrl} target="_blank">Open in Maps</a>
+            <a
+              className="underline"
+              href={it.mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Directions
+            </a>
           </div>
         </div>
       ))}

@@ -6,6 +6,10 @@ import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
 import { parseNearbyIntent } from '@/lib/intent';
 import { NearbyCards } from '../components/NearbyCards';
 
+function prettyType(t?: string) {
+  return t ? t.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '';
+}
+
 type ChatMsg = {
   role: 'user' | 'assistant';
   content?: string;
@@ -21,10 +25,14 @@ export default function Home(){
   const [busy, setBusy] = useState(false);
   const [coords, setCoords] = useState<{lat:number; lng:number} | null>(null);
   const [locNote, setLocNote] = useState<string | null>(null);
-  const [followups, setFollowups] = useState<string[]>([]);
-  const chatRef = useRef<HTMLDivElement>(null);
+    const [followups, setFollowups] = useState<string[]>([]);
+    const chatRef = useRef<HTMLDivElement>(null);
 
-  function saveCoords(c:{lat:number;lng:number}) {
+    function addAssistantMessage(m: Omit<ChatMsg, 'role'>) {
+      setMessages(prev => [...prev, { role: 'assistant', ...m }]);
+    }
+
+    function saveCoords(c:{lat:number;lng:number}) {
     setCoords(c);
     try { localStorage.setItem('medx_coords', JSON.stringify(c)); } catch {}
   }
@@ -103,21 +111,18 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
         return;
       }
 
-      setMessages(prev => [
-        ...prev,
-        {
-          role: 'assistant',
+        addAssistantMessage({
           type: 'nearby-cards',
           payload: data.items.map((it: any) => ({
             title: it.name,
-            subtitle: it.type,
-            address: it.address,
-            phone: it.phone,
-            website: it.website,
+            subtitle: prettyType(it.type),
+            address: it.address || undefined,
+            phone: it.phone || undefined,
+            website: it.website || undefined,
             mapsUrl: `https://www.google.com/maps?q=${it.lat},${it.lon}`,
+            distanceKm: typeof it.distance_km === 'number' ? it.distance_km : undefined,
           })),
-        },
-      ]);
+        });
     } catch {
       setMessages(prev => [
         ...prev,
