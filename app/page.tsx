@@ -4,7 +4,31 @@ import Sidebar from '../components/Sidebar';
 import Markdown from '../components/Markdown';
 import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
 
-type ChatMsg = { role: 'user'|'assistant'; content: string };
+type ChatMsg = { role: 'user'|'assistant'; content: string; trials?: Array<any> };
+
+function TrialsBlock({ trials }: { trials: Array<any> }) {
+  if (!Array.isArray(trials) || trials.length === 0) return null;
+  return (
+    <div style={{ marginTop: 8 }}>
+      {trials.map((t, i) => (
+        <div key={t.id || i} style={{ marginBottom: 10 }}>
+          <div style={{ fontWeight: 600 }}>{t.title}</div>
+          {t.nctId && <div style={{ fontSize: 12, opacity: 0.8 }}>NCT: {t.nctId}</div>}
+          {Array.isArray(t.eligibilityBullets) && t.eligibilityBullets.length > 0 && (
+            <ul style={{ margin: '6px 0 4px 20px' }}>
+              {t.eligibilityBullets.slice(0, 6).map((b: string, j: number) => <li key={j}>{b}</li>)}
+            </ul>
+          )}
+          {t.link && (
+            <a href={t.link} target="_blank" rel="noopener noreferrer" className="item">
+              View on {t.source || 'source'}
+            </a>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function Home(){
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -66,6 +90,7 @@ export default function Home(){
       if (!planRes.ok) throw new Error(`MedX API error ${planRes.status}`);
       const plan = await planRes.json();
       setFollowups(Array.isArray(plan.followups) ? plan.followups : []);
+      const trials = Array.isArray(plan.sections?.trials) ? plan.sections.trials : [];
 
       const sys = mode==='doctor'
         ? `You are a clinical assistant. Write clean markdown with headings and bullet lists.
@@ -75,7 +100,7 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
 
       const contextBlock = "CONTEXT:\n" + JSON.stringify(plan.sections || {}, null, 2);
 
-      setMessages(prev=>[...prev, { role:'user', content:text }, { role:'assistant', content:'' }]);
+      setMessages(prev=>[...prev, { role:'user', content:text }, { role:'assistant', content:'', trials }]);
       setInput('');
 
       const res = await fetch('/api/chat/stream', {
@@ -108,7 +133,7 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
               acc += delta;
               setMessages(prev=>{
                 const copy = [...prev];
-                copy[copy.length-1] = { role:'assistant', content: acc };
+                copy[copy.length-1] = { ...copy[copy.length-1], content: acc };
                 return copy;
               });
             }
@@ -245,6 +270,7 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                     <div className="bubble">
                       <div className="role">{m.role==='user'?'You':'MedX'}</div>
                       <div className="content markdown"><Markdown text={m.content}/></div>
+                      {m.trials && <TrialsBlock trials={m.trials} />}
                     </div>
                   </div>
                 ))}

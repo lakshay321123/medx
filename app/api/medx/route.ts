@@ -4,6 +4,60 @@ const BASE = process.env.LLM_BASE_URL!;
 const MODEL = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
 const KEY   = process.env.LLM_API_KEY!;
 
+// --- Trial link utilities ---
+
+function extractNctId(s?: string) {
+  if (!s) return '';
+  const m = /NCT\d{8}/i.exec(s);
+  return m ? m[0].toUpperCase() : '';
+}
+
+function toCtgovLink(nctId?: string) {
+  const id = (nctId || '').toUpperCase();
+  return /^NCT\d{8}$/.test(id)
+    ? `https://clinicaltrials.gov/ct2/show/${id}`
+    : '';
+}
+
+function toPubmedLink(pmidOrUrl?: string) {
+  if (!pmidOrUrl) return '';
+  if (/^https?:\/\//i.test(pmidOrUrl)) return pmidOrUrl;
+  // Assume numeric PMID
+  const pmid = (pmidOrUrl.match(/\d+/) || [''])[0];
+  return pmid ? `https://pubmed.ncbi.nlm.nih.gov/${pmid}/` : '';
+}
+
+function cleanTrialLink(trial: any) {
+  // Prefer ClinicalTrials.gov
+  if (trial.nctId && /^NCT\d{8}$/i.test(trial.nctId)) {
+    return toCtgovLink(trial.nctId);
+  }
+  // If we only have a link string, pass it through
+  if (trial.link) {
+    // Try to detect NCT inside link text
+    const nct = extractNctId(trial.link);
+    if (nct) return toCtgovLink(nct);
+    // Else, if it looks like PubMed or a URL, normalize it
+    if (/pubmed/i.test(trial.link)) return toPubmedLink(trial.link);
+    if (/^https?:\/\//i.test(trial.link)) return trial.link;
+  }
+  return '';
+}
+
+// Ensure each trial object carries a normalized nctId + link
+function finalizeTrialItem(raw: any, index: number, query: string) {
+  const nct = raw.nctId || extractNctId(raw.link) || '';
+  const link = cleanTrialLink({ ...raw, nctId: nct });
+  return {
+    id: `trial-${index + 1}`,
+    nctId: nct || undefined,
+    title: raw.title || 'Untitled trial',
+    eligibilityBullets: Array.isArray(raw.eligibilityBullets) ? raw.eligibilityBullets : [],
+    link,
+    source: nct ? 'ClinicalTrials.gov' : (/pubmed/i.test(link) ? 'PubMed' : (raw.source || 'ClinicalTrials.gov'))
+  };
+}
+
 function makeFollowups(intent:string, sections:any, mode:'patient'|'doctor', query:string): string[] {
   const out: string[] = [];
   if (intent === 'NEARBY') {
@@ -100,7 +154,10 @@ export async function POST(req: NextRequest){
         const snomed = await umlsCrosswalk(cui,'SNOMEDCT_US');
         sections.codes = { cui, icd: icd.mappings?.slice(0,6), snomed: snomed.mappings?.slice(0,6) };
       }
-      if (mode==='doctor') sections.trials = await pubmedTrials(term);
+      if (mode==='doctor') {
+        const rawTrials = await pubmedTrials(term);
+        sections.trials = rawTrials.map((t:any,i:number)=>finalizeTrialItem(t,i,term));
+      }
     } else if (intent === 'DRUGS_LIST') {
       const rx = await rxnormNormalize(query);
       sections.meds = rx.meds;
@@ -109,7 +166,8 @@ export async function POST(req: NextRequest){
       }
     } else if (intent === 'CLINICAL_TRIALS_QUERY') {
       const term = keywords[0] || query;
-      sections.trials = await pubmedTrials(term);
+      const rawTrials = await pubmedTrials(term);
+      sections.trials = rawTrials.map((t:any,i:number)=>finalizeTrialItem(t,i,term));
     }
   } catch(e:any){ sections.error = String(e?.message || e); }
 
