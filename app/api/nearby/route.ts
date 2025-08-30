@@ -5,6 +5,19 @@ const UA = process.env.NOMINATIM_USER_AGENT || 'MedX/1.0 (contact: ops@medx.ai)'
 
 type LatLon = { lat: number; lon: number };
 
+function distanceKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const A =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) *
+      Math.cos(toRad(b.lat)) *
+      Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(A));
+}
+
 async function ipLookup(req: NextRequest): Promise<LatLon | null> {
   try {
     const ip =
@@ -151,10 +164,10 @@ export async function GET(req: NextRequest) {
         (json?.elements || []).map((el: any) => {
           const center = el.type === 'node' ? { lat: el.lat, lon: el.lon } : el.center;
           const tags = el.tags || {};
-          return {
+          const item = {
             id: `${el.type}/${el.id}`,
-            name: tags.name || tags['operator'] || 'Unknown',
-            type: tags.amenity || tags.healthcare || tags.shop || 'facility',
+            name: tags.name || tags.operator || 'Unknown',
+            type: tags.amenity || tags.healthcare || 'facility',
             phone: tags.phone || tags['contact:phone'] || null,
             website: tags.website || tags['contact:website'] || null,
             address: [
@@ -167,11 +180,20 @@ export async function GET(req: NextRequest) {
               .join(', '),
             lat: center?.lat,
             lon: center?.lon,
+            tags,
           };
+          return item;
         }) ?? [];
 
       if (items.length > 0 || radius >= 12000) break;
       radius = Math.min(radius * 2, 12000);
+    }
+
+    for (const it of items) {
+      if (it.lat && it.lon) {
+        const d = distanceKm(coords, { lat: it.lat, lon: it.lon });
+        (it as any).distance_km = Math.round(d * 10) / 10;
+      }
     }
 
     const response: any = { coords, items };

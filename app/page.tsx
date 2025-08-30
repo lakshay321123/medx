@@ -4,7 +4,7 @@ import Sidebar from '../components/Sidebar';
 import Markdown from '../components/Markdown';
 import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
 import { parseNearbyIntent } from '@/lib/intent';
-import { NearbyCards } from '../components/NearbyCards';
+import NearbyCards from '@/components/NearbyCards';
 
 type ChatMsg = {
   role: 'user' | 'assistant';
@@ -110,11 +110,13 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
           type: 'nearby-cards',
           payload: data.items.map((it: any) => ({
             title: it.name,
-            subtitle: it.type,
+            subtitle: prettyType(it.type),
             address: it.address,
             phone: it.phone,
             website: it.website,
             mapsUrl: `https://www.google.com/maps?q=${it.lat},${it.lon}`,
+            distanceKm:
+              typeof it.distance_km === 'number' ? it.distance_km : undefined,
           })),
         },
       ]);
@@ -366,4 +368,14 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
       </main>
     </div>
   );
+}
+
+function prettyType(t?: string) {
+  if (!t) return '';
+  const s = String(t).toLowerCase();
+  if (s === 'doctors' || s === 'doctor') return 'Doctor';
+  if (s === 'clinic') return 'Clinic';
+  if (s === 'hospital') return 'Hospital';
+  if (s === 'pharmacy') return 'Pharmacy';
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
