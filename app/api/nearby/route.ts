@@ -18,10 +18,19 @@ async function ipLookup(req: NextRequest): Promise<LatLon | null> {
   return null;
 }
 
+const ALLOWED_KINDS = ['doctors', 'clinic', 'hospital', 'pharmacy'];
+
+function sanitizeKinds(kinds?: string) {
+  if (!kinds || kinds === 'any') return ALLOWED_KINDS.join('|');
+  return kinds
+    .split('|')
+    .map(k => k.trim().toLowerCase())
+    .filter(k => ALLOWED_KINDS.includes(k))
+    .join('|') || ALLOWED_KINDS.join('|');
+}
+
 function overpassQuery(lat: number, lon: number, radius = 3000, kinds?: string) {
-  const amenity = kinds && kinds !== 'any'
-    ? kinds
-    : 'doctors|clinic|hospital|pharmacy';
+  const amenity = sanitizeKinds(kinds);
   return `
 [out:json][timeout:25];
 (
