@@ -19,16 +19,75 @@ async function ipLookup(req: NextRequest): Promise<LatLon | null> {
   return null;
 }
 
-function overpassQuery(lat: number, lon: number, radius = 3000) {
-  // amenity=doctors, clinic, hospital, pharmacy
+function buildFilters(kind?: string) {
+  const k = (kind || 'any').toLowerCase();
+  if (k === 'doctor') {
+    return [
+      `node["amenity"="doctors"]`,
+      `way["amenity"="doctors"]`,
+      `relation["amenity"="doctors"]`,
+      `node["healthcare"="doctor"]`,
+      `way["healthcare"="doctor"]`,
+      `relation["healthcare"="doctor"]`,
+    ];
+  }
+  if (k === 'clinic') {
+    return [
+      `node["amenity"="clinic"]`,
+      `way["amenity"="clinic"]`,
+      `relation["amenity"="clinic"]`,
+      `node["healthcare"="clinic"]`,
+      `way["healthcare"="clinic"]`,
+      `relation["healthcare"="clinic"]`,
+    ];
+  }
+  if (k === 'hospital') {
+    return [
+      `node["amenity"="hospital"]`,
+      `way["amenity"="hospital"]`,
+      `relation["amenity"="hospital"]`,
+      `node["healthcare"="hospital"]`,
+      `way["healthcare"="hospital"]`,
+      `relation["healthcare"="hospital"]`,
+    ];
+  }
+  if (k === 'pharmacy') {
+    return [
+      `node["amenity"="pharmacy"]`,
+      `way["amenity"="pharmacy"]`,
+      `relation["amenity"="pharmacy"]`,
+      `node["healthcare"="pharmacy"]`,
+      `way["healthcare"="pharmacy"]`,
+      `relation["healthcare"="pharmacy"]`,
+      `node["shop"="chemist"]`,
+      `way["shop"="chemist"]`,
+      `relation["shop"="chemist"]`,
+    ];
+  }
+  // any: union of all common health POIs
+  return [
+    `node["amenity"~"doctors|clinic|hospital|pharmacy"]`,
+    `way["amenity"~"doctors|clinic|hospital|pharmacy"]`,
+    `relation["amenity"~"doctors|clinic|hospital|pharmacy"]`,
+    `node["healthcare"~"doctor|clinic|hospital|pharmacy"]`,
+    `way["healthcare"~"doctor|clinic|hospital|pharmacy"]`,
+    `relation["healthcare"~"doctor|clinic|hospital|pharmacy"]`,
+    `node["shop"="chemist"]`,
+    `way["shop"="chemist"]`,
+    `relation["shop"="chemist"]`,
+  ];
+}
+
+function overpassQuery(lat: number, lon: number, radius: number, kind?: string) {
+  const filters = buildFilters(kind)
+    .map((f) => `${f}(around:${radius},${lat},${lon})`)
+    .join(';');
   return `
 [out:json][timeout:25];
 (
-  node["amenity"~"doctors|clinic|hospital|pharmacy"](around:${radius},${lat},${lon});
-  way["amenity"~"doctors|clinic|hospital|pharmacy"](around:${radius},${lat},${lon});
-  relation["amenity"~"doctors|clinic|hospital|pharmacy"](around:${radius},${lat},${lon});
+  ${filters};
 );
-out center 20;
+out center 60;
 `;
 }
 
@@ -37,7 +96,12 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const lat = parseFloat(searchParams.get('lat') || '');
     const lon = parseFloat(searchParams.get('lon') || '');
-    const radius = Math.min(parseInt(searchParams.get('radius') || '3000', 10), 20000);
+    const kind = searchParams.get('kind') || undefined;
+    const debug = searchParams.get('debug') === '1';
+    const initialRadius = Math.min(
+      parseInt(searchParams.get('radius') || '3000', 10),
+      12000
+    );
 
     let coords: LatLon | null =
       Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : await ipLookup(req);
@@ -49,50 +113,73 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const q = overpassQuery(coords.lat, coords.lon, radius);
-    // Respect Overpass with POST + UA, gentler than GET
-    const res = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'User-Agent': UA,
-      },
-      body: new URLSearchParams({ data: q }),
-      // Don’t cache: places can change
-      cache: 'no-store',
-    });
+    let radius = initialRadius;
+    let res: Response;
+    let json: any;
+    let items: any[] = [];
+    let overpassStatus = 0;
 
-    if (!res.ok) {
-      const text = await res.text();
-      return NextResponse.json({ error: 'overpass_error', status: res.status, text }, { status: 502 });
+    while (true) {
+      const q = overpassQuery(coords.lat, coords.lon, radius, kind);
+      const options = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          'User-Agent': UA,
+        },
+        body: new URLSearchParams({ data: q }),
+        cache: 'no-store',
+      } as const;
+
+      res = await fetch('https://overpass-api.de/api/interpreter', options).catch(
+        () => null as any
+      );
+      if (!res || !res.ok) {
+        res = await fetch('https://overpass.kumi.systems/api/interpreter', options);
+      }
+      overpassStatus = res.status;
+      if (!res.ok) {
+        const text = await res.text();
+        return NextResponse.json(
+          { error: 'overpass_error', status: res.status, text },
+          { status: 502 }
+        );
+      }
+
+      json = await res.json();
+      items =
+        (json?.elements || []).map((el: any) => {
+          const center = el.type === 'node' ? { lat: el.lat, lon: el.lon } : el.center;
+          const tags = el.tags || {};
+          return {
+            id: `${el.type}/${el.id}`,
+            name: tags.name || tags['operator'] || 'Unknown',
+            type: tags.amenity || tags.healthcare || tags.shop || 'facility',
+            phone: tags.phone || tags['contact:phone'] || null,
+            website: tags.website || tags['contact:website'] || null,
+            address: [
+              tags['addr:housenumber'],
+              tags['addr:street'],
+              tags['addr:city'],
+              tags['addr:state'],
+            ]
+              .filter(Boolean)
+              .join(', '),
+            lat: center?.lat,
+            lon: center?.lon,
+          };
+        }) ?? [];
+
+      if (items.length > 0 || radius >= 12000) break;
+      radius = Math.min(radius * 2, 12000);
     }
 
-    const json = await res.json();
-    // Normalize nodes/ways/relations to simple cards
-    const items =
-      (json?.elements || []).map((el: any) => {
-        const center = el.type === 'node' ? { lat: el.lat, lon: el.lon } : el.center;
-        const tags = el.tags || {};
-        return {
-          id: `${el.type}/${el.id}`,
-          name: tags.name || tags['operator'] || 'Unknown',
-          type: tags.amenity || 'facility',
-          phone: tags.phone || tags['contact:phone'] || null,
-          website: tags.website || tags['contact:website'] || null,
-          address: [
-            tags['addr:housenumber'],
-            tags['addr:street'],
-            tags['addr:city'],
-            tags['addr:state'],
-          ]
-            .filter(Boolean)
-            .join(', '),
-          lat: center?.lat,
-          lon: center?.lon,
-        };
-      }) ?? [];
-
-    return NextResponse.json({ coords, items });
+    const response: any = { coords, items };
+    if (debug) {
+      response.overpassStatus = overpassStatus;
+      response.elementCount = json?.elements?.length ?? 0;
+    }
+    return NextResponse.json(response);
   } catch (e: any) {
     return NextResponse.json({ error: 'nearby_unhandled', message: e?.message }, { status: 500 });
   }
