@@ -5,12 +5,16 @@ import Markdown from '../components/Markdown';
 import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
 import { parseNearbyIntent } from '@/lib/intent';
 import NearbyCards from '@/components/NearbyCards';
+import { clientLocale } from '@/lib/locale';
+import { detectClarification } from '@/lib/dialogue';
+import { cleanUrl, pubmedUrl, ctgovUrl } from '@/lib/links';
 
 type ChatMsg = {
   role: 'user' | 'assistant';
   content?: string;
   type?: 'note' | 'nearby-cards';
   payload?: any;
+  chips?: { id: string; label: string }[];
 };
 
 export default function Home(){
@@ -65,20 +69,23 @@ export default function Home(){
     return [...messages.map(m => ({ role: m.role, content: m.content || '' })), { role: 'user', content: userText }];
   }
 
-  function addAssistantMessage(msg: { type: 'note' | 'markdown'; text: string }) {
+  function addAssistantMessage(msg: { type: 'note' | 'markdown'; text: string; chips?: {id:string;label:string}[] }) {
     setMessages(prev => [
       ...prev,
       msg.type === 'note'
-        ? { role: 'assistant', type: 'note', content: msg.text }
+        ? { role: 'assistant', type: 'note', content: msg.text, chips: msg.chips }
         : { role: 'assistant', content: msg.text },
     ]);
   }
 
   async function sendToLLM(userText: string, meta?: any) {
+    const localePrefix = `User country: ${meta?.countryCode}. Language: ${meta?.language}. Prefer local regulator sources and names.\n\n`;
+    const userMessage = localePrefix + userText;
+
     const res = await fetch('/api/medx', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: buildMessages(userText), meta }),
+      body: JSON.stringify({ messages: buildMessages(userMessage), meta }),
     });
 
     let payload: any = null;
@@ -99,13 +106,28 @@ export default function Home(){
     if (payload.data.citations?.length) {
       addAssistantMessage({
         type: 'note',
-        text: payload.data.citations.map((c: any) => `[${c.title || 'Source'}](${c.url})`).join('\\n'),
+        text: payload.data.citations
+          .map((c: any) => {
+            const pm = c.pmid ? pubmedUrl(c.pmid) : c.pubmed ? pubmedUrl(c.pubmed) : undefined;
+            const ct = c.nct ? ctgovUrl(c.nct) : c.ctgov ? ctgovUrl(c.ctgov) : undefined;
+            if (pm) return `[View on PubMed](${pm})`;
+            if (ct) return `[View on ClinicalTrials.gov](${ct})`;
+            const u = cleanUrl(c.url);
+            return `[${c.title || 'Source'}](${u})`;
+          })
+          .join('\\n'),
       });
     }
   }
 
   async function send(text: string){
     if(!text.trim() || busy) return;
+  const loc = clientLocale();
+  const clarify = detectClarification(text);
+  if (clarify?.ask) {
+    addAssistantMessage({ type: 'note', text: clarify.ask, chips: clarify.chips?.map(c => ({ id: `clarify:${c}`, label: c })) });
+    return;
+  }
 
   const intent = parseNearbyIntent(text);
   if (intent.type === 'nearby') {
@@ -177,7 +199,7 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
     setBusy(true);
     setMessages(prev=>[...prev, { role:'user', content:text }]);
     setInput('');
-    await sendToLLM(text, { mode, coords });
+    await sendToLLM(text, { mode, coords, countryCode: loc.countryCode, language: loc.language });
     setBusy(false);
   }
 
@@ -307,6 +329,13 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
                           <NearbyCards items={m.payload} />
                         ) : (
                           <div className="markdown"><Markdown text={m.content || ''}/></div>
+                        )}
+                        {m.chips && (
+                          <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginTop:8 }}>
+                            {m.chips.map(c => (
+                              <button key={c.id} className="item" onClick={() => send(c.label)}>{c.label}</button>
+                            ))}
+                          </div>
                         )}
                       </div>
                     </div>

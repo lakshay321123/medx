@@ -49,11 +49,21 @@ export default function NearbyCards({ items }: { items: Item[] }) {
               </a>
             )}
             {it.website && (
-              <a className="underline" href={it.website} target="_blank">
+              <a
+                className="underline"
+                href={it.website}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 Website
               </a>
             )}
-            <a className="underline" href={it.mapsUrl} target="_blank">
+            <a
+              className="underline"
+              href={it.mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               Directions
             </a>
           </div>

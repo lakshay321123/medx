@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { serverLocale } from '@/lib/locale';
+import { pickRegulators } from '@/lib/regulators';
 
 type MedxSuccess = { ok: true; data: { role: 'assistant'; content: string; citations?: Array<{title:string; url:string}> } };
 type MedxError   = { ok: false; error: { code: string; message: string } };
@@ -26,13 +28,16 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => null);
     if (!body) return jerror('bad_request', 'Invalid JSON payload');
 
+    const loc = serverLocale(req.headers);
+
     const BASE = process.env.LLM_BASE_URL?.trim();
     const KEY  = process.env.LLM_API_KEY?.trim();
     const MODEL= process.env.LLM_MODEL?.trim() || 'llama-3.1-8b-instant';
     if (!BASE) return jerror('missing_base_url', 'LLM_BASE_URL not set');
     if (!KEY)  return jerror('missing_api_key', 'LLM_API_KEY not set');
 
-    const country = body?.meta?.countryCode ?? 'Unknown';
+    const country = body?.meta?.countryCode || loc.countryCode;
+    const regs = pickRegulators(country).map(r => r.short).join(', ');
     const audience = body?.meta?.mode === 'doctor'
       ? 'Audience is a clinician. Prefer codes, succinct bullets.'
       : 'Audience is a general user. Avoid jargon; keep it actionable and safe.';
@@ -40,7 +45,7 @@ export async function POST(req: NextRequest) {
     const system = `You are MedX, a careful medical assistant.
 Country: ${country}.
 ${audience}
-Medication guidance: prefer generics; cite local regulators when useful; avoid dosing unless safe & asked; flag red-flags.`;
+Medication guidance: prefer generics; cite local regulators when useful; avoid dosing unless safe & asked; flag red-flags. Prefer sources: ${regs}.`;
 
     const llmBody = {
       model: MODEL,
