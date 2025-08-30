@@ -1,17 +1,3 @@
-export function haversineKm(lat1:number, lon1:number, lat2:number, lon2:number){
-  const R = 6371; // Earth radius in km
-  const toRad = (d:number)=>d*Math.PI/180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
-  const c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R*c;
-}
+export function haversineKm(a:{lat:number;lng:number}, b:{lat:number;lng:number}){const r=Math.PI/180,R=6371,dLat=(b.lat-a.lat)*r,dLng=(b.lng-a.lng)*r,la1=a.lat*r,la2=b.lat*r;const h=Math.sin(dLat/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.min(1,Math.sqrt(h)));}
 
-export function osmAmenityFor(term:string):string[]{
-  const t = term.toLowerCase();
-  if(t.includes('pharm')) return ['pharmacy'];
-  if(t.includes('doctor') || t.includes('physician') || t.includes('clinic') || t.includes('hospital')) return ['clinic','doctors','hospital'];
-  if(t.includes('dentist')) return ['dentist'];
-  return [];
-}
+export function osmAmenityFor(kind:string){const k=(kind||'').toLowerCase();if(k.includes('pharm'))return['pharmacy'];if(k.includes('dent'))return['dentist'];if(k.includes('hospital'))return['hospital'];if(k.includes('ent'))return['clinic','doctors','hospital'];if(k.includes('doctor')||k.includes('physician')||k.includes('gp'))return['doctors','clinic','hospital'];if(k.includes('clinic'))return['clinic','doctors'];return['clinic','doctors','hospital','pharmacy'];}

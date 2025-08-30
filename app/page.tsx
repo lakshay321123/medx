@@ -14,6 +14,7 @@ export default function Home(){
   const [busy, setBusy] = useState(false);
   const [coords, setCoords] = useState<{lat:number; lng:number} | null>(null);
   const [locNote, setLocNote] = useState<string | null>(null);
+  const [lastPlan, setLastPlan] = useState<any | null>(null);
   const [followups, setFollowups] = useState<string[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
 
@@ -59,12 +60,19 @@ export default function Home(){
     setBusy(true);
 
     try {
+      const payload:any = { query: text, mode, coords };
+      if (lastPlan?.sections) payload.prior = lastPlan.sections;
+      if (/\b(near me|around me|nearby)\b/i.test(text) && /\b(doctor|clinic|hospital|pharmacy|dentist|ent|gp)\b/i.test(text)) {
+        payload.forceIntent = 'NEARBY';
+      }
+
       const planRes = await fetch('/api/medx', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ query: text, mode, coords })
+        body: JSON.stringify(payload)
       });
       if (!planRes.ok) throw new Error(`MedX API error ${planRes.status}`);
       const plan = await planRes.json();
+      setLastPlan(plan);
       setFollowups(Array.isArray(plan.followups) ? plan.followups : []);
 
       const sys = mode==='doctor'
@@ -251,9 +259,11 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
               </div>
 
               {followups.length > 0 && (
-                <div style={{ display:'flex', flexWrap:'wrap', gap:8, margin:'8px 0 4px 0' }}>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:8, margin:'8px 0 6px' }}>
                   {followups.map((f, i)=>(
-                    <button key={i} className="item" onClick={()=>send(f)}>{f}</button>
+                    <button key={i} className="item" onClick={()=>{ setFollowups([]); send(f); }}>
+                      {f}
+                    </button>
                   ))}
                 </div>
               )}
