@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import Markdown from '../components/Markdown';
 import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
+import CountryPill from '../components/CountryPill';
+import { useLocale } from '@/lib/locale';
 
 type ChatMsg = { role: 'user'|'assistant'; content: string };
 
@@ -16,6 +18,7 @@ export default function Home(){
   const [locNote, setLocNote] = useState<string | null>(null);
   const [followups, setFollowups] = useState<string[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
+  const { locale } = useLocale();
 
   function saveCoords(c:{lat:number;lng:number}) {
     setCoords(c);
@@ -84,7 +87,8 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
           messages:[
             { role:'system', content: sys },
             { role:'user', content: `${text}\n\n${contextBlock}` }
-          ]
+          ],
+          meta: { countryCode: locale.countryCode }
         })
       });
       if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
@@ -206,6 +210,7 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
           <button className="item" onClick={()=>setTheme(theme==='dark'?'light':'dark')}>
             {theme==='dark'? <><Sun size={16}/> Light</> : <><Moon size={16}/> Dark</>}
           </button>
+          <CountryPill />
         </div>
 
         <div className="wrap">
