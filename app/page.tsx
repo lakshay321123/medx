@@ -12,11 +12,45 @@ export default function Home(){
   const [mode, setMode] = useState<'patient'|'doctor'>('patient');
   const [theme, setTheme] = useState<'dark'|'light'>('dark');
   const [busy, setBusy] = useState(false);
+  const [coords, setCoords] = useState<{lat:number; lng:number} | null>(null);
+  const [locNote, setLocNote] = useState<string | null>(null);
+  const [followups, setFollowups] = useState<string[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
+
+  function saveCoords(c:{lat:number;lng:number}) {
+    setCoords(c);
+    try { localStorage.setItem('medx_coords', JSON.stringify(c)); } catch {}
+  }
+
+  async function loadSavedCoords() {
+    try {
+      const s = localStorage.getItem('medx_coords');
+      if (s) setCoords(JSON.parse(s));
+    } catch {}
+  }
+
+  async function requestLocation(auto=false) {
+    setLocNote(auto ? 'Setting location…' : null);
+    const useIPFallback = async () => {
+      try {
+        const r = await fetch('/api/locate'); const j = await r.json();
+        if (j?.lat && j?.lng) { saveCoords({ lat: j.lat, lng: j.lng }); setLocNote(`Location set${j.city ? `: ${j.city}` : ''}.`); return; }
+      } catch {}
+      setLocNote('Location unavailable. You can still type a place, e.g., "pharmacy near Connaught Place".');
+    };
+
+    if (!('geolocation' in navigator)) return useIPFallback();
+    navigator.geolocation.getCurrentPosition(
+      (pos)=>{ saveCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocNote('Location set.'); setTimeout(()=>setLocNote(null), 1500); },
+      async ()=>{ await useIPFallback(); },
+      { enableHighAccuracy: true, maximumAge: 60000, timeout: 8000 }
+    );
+  }
 
   useEffect(()=>{ document.documentElement.className = theme==='light'?'light':''; },[theme]);
   useEffect(()=>{ document.body.setAttribute('data-role', mode==='doctor'?'doctor':''); },[mode]);
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
+  useEffect(()=>{ loadSavedCoords().then(()=>requestLocation(true)); },[]);
 
   const showHero = messages.length===0;
 
@@ -27,10 +61,11 @@ export default function Home(){
     try {
       const planRes = await fetch('/api/medx', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ query: text, mode })
+        body: JSON.stringify({ query: text, mode, coords })
       });
       if (!planRes.ok) throw new Error(`MedX API error ${planRes.status}`);
       const plan = await planRes.json();
+      setFollowups(Array.isArray(plan.followups) ? plan.followups : []);
 
       const sys = mode==='doctor'
         ? `You are a clinical assistant. Write clean markdown with headings and bullet lists.
@@ -187,6 +222,10 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                 />
                 <button className="iconBtn" onClick={()=>send(input)} aria-label="Send" disabled={busy}><Send size={18}/></button>
               </div>
+              <div style={{ marginTop:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <button className="item" onClick={()=>requestLocation(false)}>📍 Set location</button>
+                {locNote && <span style={{ color:'var(--muted)', fontSize:12 }}>{locNote}</span>}
+              </div>
               <div style={{ marginTop:10, textAlign:'right' }}>
                 <label className="item" style={{ cursor:'pointer' }}>
                   📄 Upload Prescription
@@ -211,6 +250,14 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                 ))}
               </div>
 
+              {followups.length > 0 && (
+                <div style={{ display:'flex', flexWrap:'wrap', gap:8, margin:'8px 0 4px 0' }}>
+                  {followups.map((f, i)=>(
+                    <button key={i} className="item" onClick={()=>send(f)}>{f}</button>
+                  ))}
+                </div>
+              )}
+
               <div className="inputDock">
                 <div className="inputRow">
                   <textarea
@@ -220,6 +267,10 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                     onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(input);} }}
                   />
                   <button className="iconBtn" onClick={()=>send(input)} aria-label="Send" disabled={busy}>➤</button>
+                </div>
+                <div style={{ marginTop:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                  <button className="item" onClick={()=>requestLocation(false)}>📍 Set location</button>
+                  {locNote && <span style={{ color:'var(--muted)', fontSize:12 }}>{locNote}</span>}
                 </div>
                 <div style={{ marginTop:8, textAlign:'right' }}>
                   <label className="item" style={{ cursor:'pointer' }}>
