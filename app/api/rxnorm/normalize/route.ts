@@ -27,8 +27,7 @@ function ngrams(words: string[], nMax=3) {
 
 async function approx(term: string) {
   const url = `https://rxnav.nlm.nih.gov/REST/approximateTerm.json?term=${encodeURIComponent(term)}&maxEntries=3`;
-  const r = await fetchWithTimeout(url, {}, { timeoutMs: 12000 });
-  const j = await r.json();
+  const { body: j } = await fetchWithTimeout(url, {}, 12000);
   const cand = j?.approximateGroup?.candidate || [];
   return cand
     .filter((c:any)=>Number(c?.score) >= 70)   // threshold; adjust if needed
@@ -36,9 +35,12 @@ async function approx(term: string) {
 }
 
 async function rxcuiToName(rxcui: string) {
-  const r = await fetchWithTimeout(`https://rxnav.nlm.nih.gov/REST/rxcui/${rxcui}/property.json?propName=RxNorm%20Name`,{}, {timeoutMs: 12000});
-  const j = await r.json();
-  return j?.propConceptGroup?.propConcept?.[0]?.propValue || rxcui;
+  const { body: j } = await fetchWithTimeout(
+    `https://rxnav.nlm.nih.gov/REST/rxcui/${rxcui}/property.json?propName=RxNorm%20Name`,
+    {},
+    12000
+  );
+  return (j as any)?.propConceptGroup?.propConcept?.[0]?.propValue || rxcui;
 }
 
 export async function POST(req: NextRequest) {
