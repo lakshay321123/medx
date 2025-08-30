@@ -65,6 +65,15 @@ export default function Home(){
     return [...messages.map(m => ({ role: m.role, content: m.content || '' })), { role: 'user', content: userText }];
   }
 
+  function addAssistantMessage(msg: { type: 'note' | 'markdown'; text: string }) {
+    setMessages(prev => [
+      ...prev,
+      msg.type === 'note'
+        ? { role: 'assistant', type: 'note', content: msg.text }
+        : { role: 'assistant', content: msg.text },
+    ]);
+  }
+
   async function sendToLLM(userText: string, meta?: any) {
     const res = await fetch('/api/medx', {
       method: 'POST',
@@ -75,36 +84,23 @@ export default function Home(){
     let payload: any = null;
     try { payload = await res.json(); }
     catch {
-      setMessages(prev => [
-        ...prev,
-        { role: 'assistant', type: 'note', content: 'Sorry — I could not process that response. Please try again.' },
-      ]);
+      addAssistantMessage({ type: 'note', text: 'Sorry — I could not process that response. Please try again.' });
       return;
     }
 
     if (!payload?.ok) {
       const msg = payload?.error?.message || 'The AI service returned an error.';
-      setMessages(prev => [
-        ...prev,
-        { role: 'assistant', type: 'note', content: `⚠️ ${msg}` },
-      ]);
+      addAssistantMessage({ type: 'note', text: `⚠️ ${msg}` });
       return;
     }
 
-    setMessages(prev => [
-      ...prev,
-      { role: 'assistant', content: payload.data.content },
-    ]);
+    addAssistantMessage({ type: 'markdown', text: payload.data.content });
 
     if (payload.data.citations?.length) {
-      setMessages(prev => [
-        ...prev,
-        {
-          role: 'assistant',
-          type: 'note',
-          content: payload.data.citations.map((c: any) => `[${c.title || 'Source'}](${c.url})`).join('\n'),
-        },
-      ]);
+      addAssistantMessage({
+        type: 'note',
+        text: payload.data.citations.map((c: any) => `[${c.title || 'Source'}](${c.url})`).join('\\n'),
+      });
     }
   }
 
