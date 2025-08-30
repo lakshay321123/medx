@@ -64,60 +64,70 @@ export default function Home(){
   async function send(text: string){
     if(!text.trim() || busy) return;
 
-    const intent = parseNearbyIntent(text);
-    if (intent.type === 'nearby') {
-      setMessages(prev => [...prev, { role: 'user', content: text }]);
-      setInput('');
-      setBusy(true);
+  const intent = parseNearbyIntent(text);
+  if (intent.type === 'nearby') {
+    setMessages(prev => [
+      ...prev,
+      { role: 'user', content: text } as ChatMsg,
+      ...(intent.corrected && intent.suggestion
+        ? [{ role: 'assistant', type: 'note', content: `Did you mean **${intent.suggestion.replace(' near me','')}** near you?
+Okay — searching ${intent.suggestion}…` } as ChatMsg]
+        : []),
+    ]);
+    setInput('');
+    setBusy(true);
+    try {
+      let lat: number | undefined, lon: number | undefined;
       try {
-        let lat: number | undefined, lon: number | undefined;
-        try {
-          const p = await new Promise<GeolocationPosition>((resolve, reject) =>
-            navigator.geolocation
-              ? navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 8000 })
-              : reject(new Error('no geo'))
-          );
-          lat = p.coords.latitude; lon = p.coords.longitude;
-        } catch {}
+        const p = await new Promise<GeolocationPosition>((resolve, reject) =>
+          navigator.geolocation
+            ? navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 8000 })
+            : reject(new Error('no geo'))
+        );
+        lat = p.coords.latitude; lon = p.coords.longitude;
+      } catch {}
 
-        const url = `/api/nearby?kind=${encodeURIComponent(intent.kind)}${
-          lat && lon ? `&lat=${lat}&lon=${lon}` : ''
-        }`;
-        const res = await fetch(url);
-        const data = await res.json();
+      const params = new URLSearchParams({
+        kind: intent.kind,
+        ...(intent.specialty ? { specialty: intent.specialty } : {}),
+        ...(lat && lon ? { lat: String(lat), lon: String(lon) } : {}),
+      });
+      const res = await fetch(`/api/nearby?${params.toString()}`);
+      const data = await res.json().catch(() => null);
 
-        if (!res.ok || !data?.items?.length) {
-          setMessages(prev => [
-            ...prev,
-            { role: 'assistant', type: 'note', content: 'Couldn’t find places nearby. Tap **Set location** and try again.' },
-          ]);
-        } else {
-          setMessages(prev => [
-            ...prev,
-            {
-              role: 'assistant',
-              type: 'nearby-cards',
-              payload: data.items.map((it: any) => ({
-                title: it.name,
-                subtitle: it.type,
-                address: it.address,
-                phone: it.phone,
-                website: it.website,
-                mapsUrl: `https://www.google.com/maps?q=${it.lat},${it.lon}`,
-              })),
-            },
-          ]);
-        }
-      } catch {
+      if (!res.ok || !data?.items?.length) {
         setMessages(prev => [
           ...prev,
-          { role: 'assistant', type: 'note', content: 'Couldn’t find places nearby. Tap **Set location** and try again.' },
+          { role: 'assistant', type: 'note', content: 'No matching places found. Try widening the radius or tap **Set location**.' },
         ]);
-      } finally {
-        setBusy(false);
+        return;
       }
-      return;
+
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          type: 'nearby-cards',
+          payload: data.items.map((it: any) => ({
+            title: it.name,
+            subtitle: it.type,
+            address: it.address,
+            phone: it.phone,
+            website: it.website,
+            mapsUrl: `https://www.google.com/maps?q=${it.lat},${it.lon}`,
+          })),
+        },
+      ]);
+    } catch {
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', type: 'note', content: 'No matching places found. Try widening the radius or tap **Set location**.' },
+      ]);
+    } finally {
+      setBusy(false);
     }
+    return;
+  }
 
     setBusy(true);
     try {
