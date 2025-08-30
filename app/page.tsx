@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import Markdown from '../components/Markdown';
 import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
+import { api } from '@/lib/base';
 
 type ChatMsg = { role: 'user'|'assistant'; content: string };
 
@@ -59,6 +60,38 @@ export default function Home(){
     setBusy(true);
 
     try {
+      const nearbyMatch = text.trim().match(/(.+)\s+near me$/i);
+      if (nearbyMatch) {
+        try {
+          const kind = nearbyMatch[1].trim().toLowerCase() || 'any';
+          setMessages(prev => [...prev, { role:'user', content:text }]);
+          setInput('');
+          const params = new URLSearchParams({ kind });
+          if (coords) {
+            params.set('lat', String(coords.lat));
+            params.set('lon', String(coords.lng));
+          }
+          console.time('nearby');
+          const r = await fetch(api(`/api/nearby?${params.toString()}`));
+          console.timeEnd('nearby');
+          if (!r.ok) {
+            const t = await r.text();
+            console.error('Nearby error', r.status, t);
+            setMessages(prev=>[...prev, { role:'assistant', content:`⚠️ Couldn't get nearby places. Tap Set location and try again.` }]);
+          } else {
+            const j = await r.json();
+            console.log('Nearby JSON', j);
+            const items = j.items || [];
+            const lines = items.map((it:any)=>`- ${it.name}${it.address?` — ${it.address}`:''}`).join('\n');
+            setMessages(prev=>[...prev, { role:'assistant', content: lines || 'No nearby places found.' }]);
+          }
+        } catch (e) {
+          console.error('Nearby fetch failed', e);
+          setMessages(prev=>[...prev, { role:'assistant', content:`⚠️ Couldn't get nearby places. Tap Set location and try again.` }]);
+        }
+        return;
+      }
+
       const planRes = await fetch('/api/medx', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ query: text, mode, coords })
