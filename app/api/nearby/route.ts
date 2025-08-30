@@ -19,39 +19,80 @@ async function ipLookup(req: NextRequest): Promise<LatLon | null> {
   return null;
 }
 
-function buildFilters(kind?: string) {
+function esc(s: string) {
+  return s.replace(/[^a-z0-9_+-]/gi, '');
+}
+
+function specialtyRegex(s?: string) {
+  if (!s) return '';
+  // cover both English spellings and OSM variants:
+  if (s === 'gynecology')
+    return '(gyn|gyne|gynaecology|gynecology|obstetrics|ob-gyn|obgyn|ob\\/gyn|women|maternity)';
+  // add more specialties here as you expand:
+  if (s === 'cardiology') return '(cardio|cardiology)';
+  if (s === 'dermatology') return '(derma|dermatology|skin)';
+  return `(${esc(s)})`;
+}
+
+function buildFilters(kind?: string, specialty?: string) {
+  const sp = specialtyRegex(specialty);
+  const anyBlocks = [
+    `node["amenity"~"doctors|clinic|hospital|pharmacy"]`,
+    `way["amenity"~"doctors|clinic|hospital|pharmacy"]`,
+    `relation["amenity"~"doctors|clinic|hospital|pharmacy"]`,
+    `node["healthcare"~"doctor|clinic|hospital|pharmacy"]`,
+    `way["healthcare"~"doctor|clinic|hospital|pharmacy"]`,
+    `relation["healthcare"~"doctor|clinic|hospital|pharmacy"]`,
+    `node["shop"="chemist"]`,
+    `way["shop"="chemist"]`,
+    `relation["shop"="chemist"]`,
+  ];
+
+  const withSpecialty = (blocks: string[]) => {
+    if (!specialty) return blocks;
+    const specTag = [
+      `["healthcare:specialty"~"${sp}", i]`,
+      `["healthcare:speciality"~"${sp}", i]`,
+      `["specialty"~"${sp}", i]`,
+      `["speciality"~"${sp}", i]`,
+      `["name"~"${sp}", i]`,
+    ];
+    return blocks.map((b) => `${b}${specTag.join('')}`);
+  };
+
   const k = (kind || 'any').toLowerCase();
   if (k === 'doctor') {
-    return [
+    return withSpecialty([
       `node["amenity"="doctors"]`,
       `way["amenity"="doctors"]`,
       `relation["amenity"="doctors"]`,
       `node["healthcare"="doctor"]`,
       `way["healthcare"="doctor"]`,
       `relation["healthcare"="doctor"]`,
-    ];
+    ]);
   }
   if (k === 'clinic') {
-    return [
+    return withSpecialty([
       `node["amenity"="clinic"]`,
       `way["amenity"="clinic"]`,
       `relation["amenity"="clinic"]`,
       `node["healthcare"="clinic"]`,
       `way["healthcare"="clinic"]`,
       `relation["healthcare"="clinic"]`,
-    ];
+    ]);
   }
   if (k === 'hospital') {
-    return [
+    return withSpecialty([
       `node["amenity"="hospital"]`,
       `way["amenity"="hospital"]`,
       `relation["amenity"="hospital"]`,
       `node["healthcare"="hospital"]`,
       `way["healthcare"="hospital"]`,
       `relation["healthcare"="hospital"]`,
-    ];
+    ]);
   }
   if (k === 'pharmacy') {
+    // pharmacies + chemists
     return [
       `node["amenity"="pharmacy"]`,
       `way["amenity"="pharmacy"]`,
@@ -64,30 +105,25 @@ function buildFilters(kind?: string) {
       `relation["shop"="chemist"]`,
     ];
   }
-  // any: union of all common health POIs
-  return [
-    `node["amenity"~"doctors|clinic|hospital|pharmacy"]`,
-    `way["amenity"~"doctors|clinic|hospital|pharmacy"]`,
-    `relation["amenity"~"doctors|clinic|hospital|pharmacy"]`,
-    `node["healthcare"~"doctor|clinic|hospital|pharmacy"]`,
-    `way["healthcare"~"doctor|clinic|hospital|pharmacy"]`,
-    `relation["healthcare"~"doctor|clinic|hospital|pharmacy"]`,
-    `node["shop"="chemist"]`,
-    `way["shop"="chemist"]`,
-    `relation["shop"="chemist"]`,
-  ];
+  return withSpecialty(anyBlocks);
 }
 
-function overpassQuery(lat: number, lon: number, radius: number, kind?: string) {
-  const filters = buildFilters(kind)
+function overpassQuery(
+  lat: number,
+  lon: number,
+  radius: number,
+  kind?: string,
+  specialty?: string
+) {
+  const filters = buildFilters(kind, specialty)
     .map((f) => `${f}(around:${radius},${lat},${lon})`)
-    .join(';');
+    .join(';\n  ');
   return `
 [out:json][timeout:25];
 (
   ${filters};
 );
-out center 60;
+out center 80;
 `;
 }
 
@@ -97,6 +133,7 @@ export async function GET(req: NextRequest) {
     const lat = parseFloat(searchParams.get('lat') || '');
     const lon = parseFloat(searchParams.get('lon') || '');
     const kind = searchParams.get('kind') || undefined;
+    const specialty = searchParams.get('specialty') || undefined;
     const debug = searchParams.get('debug') === '1';
     const initialRadius = Math.min(
       parseInt(searchParams.get('radius') || '3000', 10),
@@ -120,7 +157,7 @@ export async function GET(req: NextRequest) {
     let overpassStatus = 0;
 
     while (true) {
-      const q = overpassQuery(coords.lat, coords.lon, radius, kind);
+      const q = overpassQuery(coords.lat, coords.lon, radius, kind, specialty);
       const options = {
         method: 'POST',
         headers: {
@@ -172,6 +209,15 @@ export async function GET(req: NextRequest) {
 
       if (items.length > 0 || radius >= 12000) break;
       radius = Math.min(radius * 2, 12000);
+    }
+
+    if (specialty) {
+      const re = new RegExp(specialtyRegex(specialty), 'i');
+      items.sort((a: any, b: any) => {
+        const am = re.test(a.name || '') || re.test(a.type || '');
+        const bm = re.test(b.name || '') || re.test(b.type || '');
+        return (bm ? 1 : 0) - (am ? 1 : 0);
+      });
     }
 
     const response: any = { coords, items };

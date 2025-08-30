@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import Markdown from '../components/Markdown';
 import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
+import { parseNearbyIntent } from '@/lib/intent';
 
 type ChatMsg = { role: 'user'|'assistant'; content: string };
 
@@ -57,6 +58,71 @@ export default function Home(){
   async function send(text: string){
     if(!text.trim() || busy) return;
     setBusy(true);
+
+    const intent = parseNearbyIntent(text);
+    if (intent.type === 'nearby') {
+      setMessages(prev => [...prev, { role: 'user', content: text }]);
+      setInput('');
+      setFollowups([]);
+
+      let lat: number | undefined, lon: number | undefined;
+      try {
+        const pos = await new Promise<GeolocationPosition>((res, rej) =>
+          navigator.geolocation
+            ? navigator.geolocation.getCurrentPosition(res, rej, {
+                enableHighAccuracy: true,
+                timeout: 8000,
+              })
+            : rej(new Error('no geo'))
+        );
+        lat = pos.coords.latitude;
+        lon = pos.coords.longitude;
+      } catch {}
+
+      const params = new URLSearchParams({
+        kind: intent.kind,
+        ...(intent.specialty ? { specialty: intent.specialty } : {}),
+        ...(lat && lon ? { lat: String(lat), lon: String(lon) } : {}),
+      });
+
+      try {
+        const r = await fetch(`/api/nearby?${params.toString()}`);
+        const j = await r.json();
+
+        if (!r.ok || !j?.items?.length) {
+          setMessages(prev => [
+            ...prev,
+            {
+              role: 'assistant',
+              content:
+                'No matching places found. Try widening the search or tap **Set location**.',
+            },
+          ]);
+        } else {
+          const lines = j.items
+            .map((it: any) => {
+              const phone = it.phone ? `\nPhone: ${it.phone}` : '';
+              const website = it.website ? ` | [Website](${it.website})` : '';
+              const map = `[Map](https://www.google.com/maps?q=${it.lat},${it.lon})`;
+              return `- **${it.name}** (${it.type})\n${it.address}${phone}\n${map}${website}`;
+            })
+            .join('\n');
+          setMessages(prev => [...prev, { role: 'assistant', content: lines }]);
+        }
+      } catch {
+        setMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content:
+              'No matching places found. Try widening the search or tap **Set location**.',
+          },
+        ]);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
 
     try {
       const planRes = await fetch('/api/medx', {
