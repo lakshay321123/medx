@@ -4,6 +4,43 @@ const BASE = process.env.LLM_BASE_URL!;
 const MODEL = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
 const KEY   = process.env.LLM_API_KEY!;
 
+// Ensure trial relevance
+function isRelevantTrial(trial:any, query:string) {
+  const q = (query || '').toLowerCase();
+  const title = (trial?.title || '').toLowerCase();
+  const conds = (trial?.conditions || []).map((c:string)=>c.toLowerCase()).join(' ');
+  return title.includes(q) || conds.includes(q);
+}
+
+// Normalize PubMed links
+function cleanPubmedLink(link:string) {
+  if (!link) return '';
+  let url = link.trim();
+  if (!url.startsWith('http')) url = 'https://' + url.replace(/^https?/, '');
+  if (url.includes('pubmed')) return url;
+  return 'https://pubmed.ncbi.nlm.nih.gov/';
+}
+
+// Format trials for output
+function formatTrials(trials:any[], query:string) {
+  const filtered = trials.filter(t => isRelevantTrial(t, query));
+  return filtered.map((t, i) => ({
+    id: `trial-${i+1}`,
+    title: t.title || 'Untitled trial',
+    eligibility: t.eligibility || 'See source',
+    link: cleanPubmedLink(t.link),
+    source: 'PubMed'
+  }));
+}
+
+// Format SNOMED terms
+function formatSNOMED(terms:any[]) {
+  return (terms || []).map(t => ({
+    name: t.name || 'Unknown term',
+    code: t.code || ''
+  }));
+}
+
 function makeFollowups(intent:string, sections:any, mode:'patient'|'doctor', query:string): string[] {
   const out: string[] = [];
   if (intent === 'NEARBY') {
@@ -98,9 +135,13 @@ export async function POST(req: NextRequest){
       if (cui) {
         const icd = await umlsCrosswalk(cui,'ICD10CM');
         const snomed = await umlsCrosswalk(cui,'SNOMEDCT_US');
-        sections.codes = { cui, icd: icd.mappings?.slice(0,6), snomed: snomed.mappings?.slice(0,6) };
+        sections.codes = { cui, icd: icd.mappings?.slice(0,6) };
+        sections.snomed = formatSNOMED((snomed.mappings || []).slice(0,6).map((m:any)=>({ name: m.term, code: m.code })));
       }
-      if (mode==='doctor') sections.trials = await pubmedTrials(term);
+      if (mode==='doctor') {
+        const rawTrials = await pubmedTrials(term);
+        sections.trials = formatTrials(rawTrials, query);
+      }
     } else if (intent === 'DRUGS_LIST') {
       const rx = await rxnormNormalize(query);
       sections.meds = rx.meds;
@@ -109,7 +150,8 @@ export async function POST(req: NextRequest){
       }
     } else if (intent === 'CLINICAL_TRIALS_QUERY') {
       const term = keywords[0] || query;
-      sections.trials = await pubmedTrials(term);
+      const rawTrials = await pubmedTrials(term);
+      sections.trials = formatTrials(rawTrials, query);
     }
   } catch(e:any){ sections.error = String(e?.message || e); }
 
