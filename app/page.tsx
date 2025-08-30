@@ -5,6 +5,7 @@ import Markdown from '../components/Markdown';
 import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
 import { parseNearbyIntent, normalizeBestDoctorQuery } from '@/lib/intent';
 import { officialBodiesFor } from '@/lib/regulators';
+import { sendChat } from '@/lib/sendChat';
 import NearbyCards from '@/components/NearbyCards';
 
 type ChatMsg = {
@@ -64,8 +65,11 @@ export default function Home(){
 
   const showHero = messages.length===0;
 
-  function buildMessages(userText: string) {
-    return [...messages.map(m => ({ role: m.role, content: m.content || '' })), { role: 'user', content: userText }];
+  function buildMessages(userText: string): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
+    return [
+      ...messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content || '' })),
+      { role: 'user', content: userText }
+    ];
   }
 
   function addAssistantMessage(msg: { type: 'note' | 'markdown'; text: string; chips?: Followup[] }) {
@@ -101,31 +105,21 @@ export default function Home(){
     setFollowups([{ id: `nearby:${specialty}`, label: `${specialty.charAt(0).toUpperCase() + specialty.slice(1)} near me` }]);
   }
 
-  async function submitMessage(rawText: string, meta?: any) {
+  async function submitMessage(rawText: string) {
     const cc = (window as any).__COUNTRY__ || 'US';
     const bodies = officialBodiesFor(cc).map(b => `- ${b.name}: ${b.url}`).join('\n');
     const normalized = normalizeBestDoctorQuery(rawText, cc);
     const userText = normalized ? normalized + `\n\nConsider these official bodies for ${cc}:\n${bodies}` : rawText;
 
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: buildMessages(userText), meta }),
-    });
+    const payload = await sendChat(buildMessages(userText));
 
-    let json: any = null;
-    try { json = await res.json(); }
-    catch {
-      addAssistantMessage({ type: 'note', text: '⚠️ Could not process the response.' });
-      return;
-    }
-    if (!json?.ok) {
-      addAssistantMessage({ type: 'note', text: `⚠️ ${json?.error?.message || 'AI service error'}` });
+    if (!payload?.ok) {
+      addAssistantMessage({ type: 'note', text: `⚠️ ${payload?.error?.message || 'AI service error'}` });
       suggestNearbyFallback(rawText);
       return;
     }
 
-    const text = json.data?.content || json.choices?.[0]?.message?.content || '';
+    const text = payload.data?.content || '';
     addAssistantMessage({ type: 'markdown', text });
     addFollowUpsForBestDoctor(rawText, cc);
   }
@@ -204,7 +198,7 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
     setBusy(true);
     setMessages(prev=>[...prev, { role:'user', content:text }]);
     setInput('');
-    await submitMessage(text, { mode, coords });
+    await submitMessage(text);
     setBusy(false);
   }
 
