@@ -50,12 +50,12 @@ Return JSON: {"intent":"...","keywords":["..."]}`;
   catch { return { intent:'GENERAL_HEALTH', keywords:[] }; }
 }
 
-async function umlsSearch(term: string){
-  const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/umls/search?q=${encodeURIComponent(term)}`);
+async function umlsSearch(term: string, api:(p:string)=>string){
+  const res = await fetch(api(`/api/umls/search?q=${encodeURIComponent(term)}`));
   return res.ok ? res.json() : { results: [] };
 }
-async function umlsCrosswalk(cui: string, target:'ICD10CM'|'SNOMEDCT_US'|'RXNORM'){
-  const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/umls/crosswalk?cui=${encodeURIComponent(cui)}&target=${target}`);
+async function umlsCrosswalk(cui: string, target:'ICD10CM'|'SNOMEDCT_US'|'RXNORM', api:(p:string)=>string){
+  const res = await fetch(api(`/api/umls/crosswalk?cui=${encodeURIComponent(cui)}&target=${target}`));
   return res.ok ? res.json() : { mappings: [] };
 }
 async function pubmedTrials(q: string){
@@ -68,44 +68,52 @@ async function pubmedTrials(q: string){
   const j = await sum.json();
   return ids.map((id:string)=>({ id, title: j.result?.[id]?.title, link: `https://pubmed.ncbi.nlm.nih.gov/${id}/`, source:'PubMed' }));
 }
-async function rxnormNormalize(text: string){
-  const r = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/rxnorm/normalize`,{
+async function rxnormNormalize(text: string, api:(p:string)=>string){
+  const r = await fetch(api('/api/rxnorm/normalize'),{
     method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text })
   });
   return r.ok ? r.json() : { meds: [] };
 }
-async function rxnavInteractions(rxcuis: string[]){
-  const r = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/interactions`,{
+async function rxnavInteractions(rxcuis: string[], api:(p:string)=>string){
+  const r = await fetch(api('/api/interactions'),{
     method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ rxcuis })
   });
   return r.ok ? r.json() : { interactions: [] };
 }
 
 export async function POST(req: NextRequest){
-  const { query, mode } = await req.json();
+  const origin = req.nextUrl?.origin || process.env.NEXT_PUBLIC_BASE_URL || '';
+  const api = (path: string) => /^https?:\/\//i.test(path) ? path : new URL(path, origin).toString();
+
+  const { query, mode, coords, forceIntent, prior } = await req.json();
   if(!query) return NextResponse.json({ intent:'GENERAL_HEALTH', sections:{} });
 
-  const cls = await classifyIntent(query, mode==='doctor'?'doctor':'patient');
+  const cls = forceIntent ? { intent: forceIntent, keywords: [] } : await classifyIntent(query, mode==='doctor'?'doctor':'patient');
   const intent = cls.intent || 'GENERAL_HEALTH';
   const keywords: string[] = cls.keywords || [];
   const sections: any = {};
 
   try {
-    if (intent === 'DIAGNOSIS_QUERY') {
+    if (intent === 'NEARBY') {
+      const r = await fetch(api('/api/nearby'),{
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ query, coords })
+      });
+      sections.nearby = r.ok ? (await r.json()).results : [];
+    } else if (intent === 'DIAGNOSIS_QUERY') {
       const term = keywords[0] || query;
-      const s = await umlsSearch(term);
+      const s = await umlsSearch(term, api);
       const cui = s.results?.[0]?.ui || null;
       if (cui) {
-        const icd = await umlsCrosswalk(cui,'ICD10CM');
-        const snomed = await umlsCrosswalk(cui,'SNOMEDCT_US');
+        const icd = await umlsCrosswalk(cui,'ICD10CM', api);
+        const snomed = await umlsCrosswalk(cui,'SNOMEDCT_US', api);
         sections.codes = { cui, icd: icd.mappings?.slice(0,6), snomed: snomed.mappings?.slice(0,6) };
       }
       if (mode==='doctor') sections.trials = await pubmedTrials(term);
     } else if (intent === 'DRUGS_LIST') {
-      const rx = await rxnormNormalize(query);
+      const rx = await rxnormNormalize(query, api);
       sections.meds = rx.meds;
       if ((rx.meds||[]).length >= 2) {
-        sections.interactions = (await rxnavInteractions(rx.meds.map((m:any)=>m.rxcui))).interactions;
+        sections.interactions = (await rxnavInteractions(rx.meds.map((m:any)=>m.rxcui), api)).interactions;
       }
     } else if (intent === 'CLINICAL_TRIALS_QUERY') {
       const term = keywords[0] || query;

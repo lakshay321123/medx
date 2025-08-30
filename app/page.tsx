@@ -6,6 +6,13 @@ import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
 
 type ChatMsg = { role: 'user'|'assistant'; content: string };
 
+function isNearbyQuery(q: string) {
+  const s = q.toLowerCase();
+  const near = /\b(near me|around me|nearby)\b/.test(s);
+  const kind = /\b(doctor|doctors|dr|physician|clinic|clinics|hospital|hospitals|pharmacy|pharmacies|dentist|ent|gp|doc|docs)\b/.test(s);
+  return near && kind;
+}
+
 export default function Home(){
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
@@ -59,9 +66,11 @@ export default function Home(){
     setBusy(true);
 
     try {
+      const payload:any = { query: text, mode, coords };
+      if (isNearbyQuery(text)) payload.forceIntent = 'NEARBY';
       const planRes = await fetch('/api/medx', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ query: text, mode, coords })
+        body: JSON.stringify(payload)
       });
       if (!planRes.ok) throw new Error(`MedX API error ${planRes.status}`);
       const plan = await planRes.json();
