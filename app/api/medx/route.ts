@@ -4,6 +4,19 @@ const BASE = process.env.LLM_BASE_URL!;
 const MODEL = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
 const KEY   = process.env.LLM_API_KEY!;
 
+const NCT_RE = /\bNCT\d{8}\b/i;
+
+function extractNctId(s: string): string | null {
+  const m = NCT_RE.exec(s || '');
+  return m ? m[0].toUpperCase() : null;
+}
+
+function extractNctFromLink(link?: string) {
+  if (!link) return '';
+  const m = /NCT\d{8}/i.exec(link);
+  return m ? m[0].toUpperCase() : '';
+}
+
 function makeFollowups(intent:string, sections:any, mode:'patient'|'doctor', query:string): string[] {
   const out: string[] = [];
   if (intent === 'NEARBY') {
@@ -20,7 +33,11 @@ function makeFollowups(intent:string, sections:any, mode:'patient'|'doctor', que
     }
   }
   if ((sections?.trials?.length || 0) > 0) {
-    out.push('Summarize trial eligibility', 'Any phase 3 results?');
+    const top = sections.trials.find((t:any)=>t.nctId) || sections.trials[0];
+    if (top?.nctId) {
+      out.push(`Show eligibility for ${top.nctId}`, `Contact sites for ${top.nctId}`);
+    }
+    out.push('View more trials on ClinicalTrials.gov');
   }
   if (!out.length) out.push('Explain in simpler words', 'Show trusted sources');
   return Array.from(new Set(out)).slice(0, 5);
@@ -66,7 +83,13 @@ async function pubmedTrials(q: string){
   if (!ids.length) return [];
   const sum = await fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(',')}${apiKey?`&api_key=${apiKey}`:''}&retmode=json`);
   const j = await sum.json();
-  return ids.map((id:string)=>({ id, title: j.result?.[id]?.title, link: `https://pubmed.ncbi.nlm.nih.gov/${id}/`, source:'PubMed' }));
+  return ids.map((id:string, i:number)=>({
+    id: `trial-${i+1}`,
+    nctId: extractNctFromLink(`https://pubmed.ncbi.nlm.nih.gov/${id}/`),
+    title: j.result?.[id]?.title || 'Untitled trial',
+    link: `https://pubmed.ncbi.nlm.nih.gov/${id}/`,
+    source:'PubMed'
+  }));
 }
 async function rxnormNormalize(text: string){
   const r = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/rxnorm/normalize`,{
@@ -82,7 +105,41 @@ async function rxnavInteractions(rxcuis: string[]){
 }
 
 export async function POST(req: NextRequest){
-  const { query, mode } = await req.json();
+  const origin = req.nextUrl?.origin || process.env.NEXT_PUBLIC_BASE_URL || '';
+  const api = (path: string) => /^https?:\/\//i.test(path) ? path : new URL(path, origin).toString();
+
+  const { query, mode, coords: _coords, forceIntent: _forceIntent, prior: _prior } = await req.json();
+
+  // --- Trial deep-dive follow-ups ---
+  if (/show (full )?eligibility/i.test(query) && NCT_RE.test(query)) {
+    const nctId = extractNctId(query)!;
+    const r = await fetch(api(`/api/trials/${nctId}`));
+    const details = await r.json();
+    return NextResponse.json({
+      intent: 'TRIAL_ELIGIBILITY',
+      sections: { trial: details },
+      followups: [
+        `Contact sites for ${nctId}`,
+        `View ${nctId} on ClinicalTrials.gov`,
+      ]
+    });
+  }
+
+  if (/contact (site|sites|locations)/i.test(query) && NCT_RE.test(query)) {
+    const nctId = extractNctId(query)!;
+    const r = await fetch(api(`/api/trials/${nctId}`));
+    const details = await r.json();
+    const locs = Array.isArray(details?.locations) ? details.locations.slice(0, 10) : [];
+    return NextResponse.json({
+      intent: 'TRIAL_CONTACTS',
+      sections: { trialContacts: { nctId, locations: locs } },
+      followups: [
+        `Show eligibility for ${nctId}`,
+        `View ${nctId} on ClinicalTrials.gov`,
+      ]
+    });
+  }
+
   if(!query) return NextResponse.json({ intent:'GENERAL_HEALTH', sections:{} });
 
   const cls = await classifyIntent(query, mode==='doctor'?'doctor':'patient');
