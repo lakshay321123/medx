@@ -4,6 +4,52 @@ const BASE = process.env.LLM_BASE_URL!;
 const MODEL = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
 const KEY   = process.env.LLM_API_KEY!;
 
+// ===== Doctor-mode planning & policies =====
+const TRIAL_KEYWORDS = /\b(trial|nct\d{8}|phase\s*[1-4]|randomi[sz]ed|enrol(l)?|eligibilit(y|ies)|arm[s]?|investigational|intervention|cohort)\b/i;
+const CODES_KEYWORDS = /\b(icd|icd-10|icd10|icd-11|icd11|snomed|snomed ct|coding|codes?)\b/i;
+
+function normalizeTopic(q: string) {
+  return (q || '').replace(/\b(latest|recent|new|info|about|detail|explain|overview)\b/gi,'').trim();
+}
+
+function decideDoctorIntent(query: string) {
+  const q = query || '';
+  const topic = normalizeTopic(q);
+  if (TRIAL_KEYWORDS.test(q)) return { intent: 'TRIALS_QUERY', topic, wantTrials: true, wantCodes: true };
+  if (CODES_KEYWORDS.test(q)) return { intent: 'CODES_QUERY', topic, wantTrials: false, wantCodes: true };
+  return { intent: 'DOCTOR_OVERVIEW', topic, wantTrials: false, wantCodes: true };
+}
+
+// Stronger topic relevance for cancer (prevents liver/hemophilia/etc)
+function isCancerTrial(trial:any) {
+  const title = (trial?.title || '').toLowerCase();
+  const conds = (trial?.conditions || []).join(' ').toLowerCase();
+  return /(cancer|oncology|tumou?r|carcinoma|sarcoma|lymphoma|leukemia|myeloma)/.test(title + ' ' + conds);
+}
+
+// Add a prose policy to stop the LLM from listing trials in text
+function prosePolicy({ mode, planner, trialsPresent }: { mode: string; planner?: any; trialsPresent?: boolean }) {
+  const lines = [
+    "General Policy:",
+    "- Be concise, structured, and clinically neutral.",
+  ];
+  if (mode === 'doctor') {
+    lines.push(
+      "Doctor-Mode Policy:",
+      "- Prioritize overview, differentials when relevant, and standardized coding (ICD-10/11, SNOMED)."
+    );
+    if (!planner?.wantTrials) {
+      lines.push("- The user did NOT ask about clinical trials: DO NOT include trials in your prose.");
+    }
+  }
+  if (trialsPresent) {
+    lines.push("- Trials are rendered separately below; DO NOT list trials again in prose. You may reference them as 'see trials below'.");
+  }
+  return lines.join("\n");
+}
+
+const baseSystemPrompt = 'You are a clinical assistant. Be precise and clinically neutral.';
+
 function makeFollowups(intent:string, sections:any, mode:'patient'|'doctor', query:string): string[] {
   const out: string[] = [];
   if (intent === 'NEARBY') {
@@ -24,6 +70,16 @@ function makeFollowups(intent:string, sections:any, mode:'patient'|'doctor', que
   }
   if (!out.length) out.push('Explain in simpler words', 'Show trusted sources');
   return Array.from(new Set(out)).slice(0, 5);
+}
+
+function makeDoctorFollowups(topic: string) {
+  const t = topic || 'this condition';
+  return [
+    `Common ICD-10 codes for ${t}`,
+    `SNOMED terms for ${t}`,
+    `Trusted guidelines for ${t}`,
+    `Show latest clinical trials for ${t}`
+  ];
 }
 
 async function classifyIntent(query: string, mode: 'patient'|'doctor') {
@@ -82,13 +138,45 @@ async function rxnavInteractions(rxcuis: string[]){
 }
 
 export async function POST(req: NextRequest){
-  const { query, mode } = await req.json();
-  if(!query) return NextResponse.json({ intent:'GENERAL_HEALTH', sections:{} });
+  // (keep your absolute URL helper here)
+  const origin = req.nextUrl?.origin || process.env.NEXT_PUBLIC_BASE_URL || '';
+  const api = (path: string) => /^https?:\/\//i.test(path) ? path : new URL(path, origin).toString();
+
+  const { query, mode, coords, forceIntent, prior } = await req.json();
+
+  // --- Doctor planner ---
+  let planner: null | { intent:string; topic:string; wantTrials:boolean; wantCodes:boolean } = null;
+  if (mode === 'doctor') {
+    planner = decideDoctorIntent(query);
+  }
+
+  if(!query) return NextResponse.json({ intent: planner?.intent || 'GENERAL_HEALTH', sections:{} });
 
   const cls = await classifyIntent(query, mode==='doctor'?'doctor':'patient');
   const intent = cls.intent || 'GENERAL_HEALTH';
   const keywords: string[] = cls.keywords || [];
   const sections: any = {};
+
+  // Prefer codes in Doctor mode (best-effort)
+  if (mode === 'doctor' && planner?.wantCodes) {
+    try {
+      sections.topic = planner.topic || query;
+      const cuiRes = await fetch(api(`/api/umls/search?q=${encodeURIComponent(sections.topic)}`));
+      const cuiJson = await cuiRes.json();
+      const cui = cuiJson?.results?.[0]?.cui || cuiJson?.cui;
+
+      if (cui) {
+        const icdRes = await fetch(api(`/api/umls/crosswalk?cui=${encodeURIComponent(cui)}&target=ICD10CM`));
+        const snomedRes = await fetch(api(`/api/umls/crosswalk?cui=${encodeURIComponent(cui)}&target=SNOMEDCT`));
+        const icd = await icdRes.json().catch(()=>null);
+        const snomed = await snomedRes.json().catch(()=>null);
+        sections.codes = {
+          icd: Array.isArray(icd?.codes) ? icd.codes.slice(0,6) : [],
+          snomed: Array.isArray(snomed?.codes) ? snomed.codes.slice(0,6) : []
+        };
+      }
+    } catch { /* silent */ }
+  }
 
   try {
     if (intent === 'DIAGNOSIS_QUERY') {
@@ -98,9 +186,24 @@ export async function POST(req: NextRequest){
       if (cui) {
         const icd = await umlsCrosswalk(cui,'ICD10CM');
         const snomed = await umlsCrosswalk(cui,'SNOMEDCT_US');
-        sections.codes = { cui, icd: icd.mappings?.slice(0,6), snomed: snomed.mappings?.slice(0,6) };
+        sections.codes = sections.codes || { cui };
+        sections.codes.icd = sections.codes.icd || icd.mappings?.slice(0,6);
+        sections.codes.snomed = sections.codes.snomed || snomed.mappings?.slice(0,6);
       }
-      if (mode==='doctor') sections.trials = await pubmedTrials(term);
+      // Example placement where you build trials
+      if (mode === 'doctor') {
+        if (planner?.wantTrials) {
+          let rawTrials = await pubmedTrials(term);
+          if (/^cancer$/i.test(planner.topic || term || '')) {
+            rawTrials = Array.isArray(rawTrials) ? rawTrials.filter(isCancerTrial) : [];
+          }
+          sections.trials = rawTrials;
+        } else {
+          // sections.trials remains undefined
+        }
+      } else {
+        sections.trials = await pubmedTrials(term);
+      }
     } else if (intent === 'DRUGS_LIST') {
       const rx = await rxnormNormalize(query);
       sections.meds = rx.meds;
@@ -109,9 +212,49 @@ export async function POST(req: NextRequest){
       }
     } else if (intent === 'CLINICAL_TRIALS_QUERY') {
       const term = keywords[0] || query;
-      sections.trials = await pubmedTrials(term);
+      if (mode === 'doctor') {
+        if (planner?.wantTrials) {
+          let rawTrials = await pubmedTrials(term);
+          if (/^cancer$/i.test(planner.topic || term || '')) {
+            rawTrials = Array.isArray(rawTrials) ? rawTrials.filter(isCancerTrial) : [];
+          }
+          sections.trials = rawTrials;
+        }
+      } else {
+        sections.trials = await pubmedTrials(term);
+      }
     }
   } catch(e:any){ sections.error = String(e?.message || e); }
 
-  return NextResponse.json({ intent, sections, followups: makeFollowups(intent, sections, (mode==='doctor'?'doctor':'patient'), query) });
+  const mergedContext = { ...(prior || {}), ...(sections || {}) };
+  const contextBlock = "CONTEXT:\n" + JSON.stringify(mergedContext, null, 2);
+
+  let sys = baseSystemPrompt;
+  sys += "\n\n" + prosePolicy({
+    mode: mode || 'patient',
+    planner,
+    trialsPresent: Array.isArray(sections?.trials) && sections.trials.length > 0
+  });
+
+  const messages = [
+    { role: 'system', content: sys },
+    { role: 'user', content: `${query}\n\n${contextBlock}` }
+  ];
+
+  const completion = await fetch(`${BASE.replace(/\/$/,'')}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${KEY}` },
+    body: JSON.stringify({ model: MODEL, temperature: 0, messages })
+  });
+  const completionJson = await completion.json();
+  const answer = completionJson?.choices?.[0]?.message?.content || '';
+
+  let followups: string[] = [];
+  if (mode === 'doctor' && planner) {
+    followups = makeDoctorFollowups(planner.topic);
+  } else {
+    followups = makeFollowups(intent, sections, (mode==='doctor'?'doctor':'patient'), query);
+  }
+
+  return NextResponse.json({ intent: planner?.intent || intent, sections, followups, answer });
 }
