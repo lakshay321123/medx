@@ -3,14 +3,18 @@ import { useEffect, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import Markdown from '../components/Markdown';
 import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
-import { parseNearbyIntent } from '@/lib/intent';
 import { NearbyCards } from '../components/NearbyCards';
+import { inferIntentAndSlots } from '@/lib/nlu';
+import { clarificationPrompt, confirmLine, followUps } from '@/lib/dialogue';
+import { useLocale } from '@/lib/locale';
+import FollowUpChips from '../components/FollowUpChips';
 
 type ChatMsg = {
   role: 'user' | 'assistant';
   content?: string;
-  type?: 'note' | 'nearby-cards';
+  type?: 'note' | 'nearby-cards' | 'chips';
   payload?: any;
+  chips?: string[];
 };
 
 export default function Home(){
@@ -21,8 +25,17 @@ export default function Home(){
   const [busy, setBusy] = useState(false);
   const [coords, setCoords] = useState<{lat:number; lng:number} | null>(null);
   const [locNote, setLocNote] = useState<string | null>(null);
-  const [followups, setFollowups] = useState<string[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
+  const { locale } = useLocale();
+
+  function addAssistantMessage(m: Omit<ChatMsg,'role'>){
+    setMessages(prev=>[...prev, { role:'assistant', ...m }]);
+  }
+
+  function prettyType(s?: string){
+    if(!s) return '';
+    return s.split('_').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
+  }
 
   function saveCoords(c:{lat:number;lng:number}) {
     setCoords(c);
@@ -64,134 +77,105 @@ export default function Home(){
   async function send(text: string){
     if(!text.trim() || busy) return;
 
-  const intent = parseNearbyIntent(text);
-  if (intent.type === 'nearby') {
-    setMessages(prev => [
-      ...prev,
-      { role: 'user', content: text } as ChatMsg,
-      ...(intent.corrected && intent.suggestion
-        ? [{ role: 'assistant', type: 'note', content: `Did you mean **${intent.suggestion.replace(' near me','')}** near you?
-Okay — searching ${intent.suggestion}…` } as ChatMsg]
-        : []),
-    ]);
+    setMessages(prev=>[...prev, { role:'user', content:text }]);
     setInput('');
+
+    const state = inferIntentAndSlots(mode, text, locale.countryCode);
+
+    const clarify = clarificationPrompt(state);
+    if (clarify) {
+      addAssistantMessage({ type:'note', content: clarify, chips:['Gynecologist','Cardiologist','Orthopedic','Spine clinic'] });
+      return;
+    }
+
+    const confirm = confirmLine(state);
+    if (confirm) addAssistantMessage({ type:'note', content: confirm });
+
     setBusy(true);
     try {
-      let lat: number | undefined, lon: number | undefined;
-      try {
-        const p = await new Promise<GeolocationPosition>((resolve, reject) =>
-          navigator.geolocation
-            ? navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 8000 })
-            : reject(new Error('no geo'))
-        );
-        lat = p.coords.latitude; lon = p.coords.longitude;
-      } catch {}
-
-      const params = new URLSearchParams({
-        kind: intent.kind,
-        ...(intent.specialty ? { specialty: intent.specialty } : {}),
-        ...(lat && lon ? { lat: String(lat), lon: String(lon) } : {}),
-      });
-      const res = await fetch(`/api/nearby?${params.toString()}`);
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok || !data?.items?.length) {
-        setMessages(prev => [
-          ...prev,
-          { role: 'assistant', type: 'note', content: 'No matching places found. Try widening the radius or tap **Set location**.' },
-        ]);
+      if (state.intent === 'nearby' || state.intent === 'doc_finder_spine_group') {
+        let lat:number|undefined, lon:number|undefined;
+        try {
+          const pos = await new Promise<GeolocationPosition>((res, rej)=>
+            navigator.geolocation ? navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy:true, timeout:8000 }) : rej('no geo')
+          );
+          lat = pos.coords.latitude; lon = pos.coords.longitude;
+        } catch {}
+        const params = new URLSearchParams({
+          kind: 'doctor',
+          ...(state.slots.specialty ? { specialty: state.slots.specialty } : {}),
+          ...(state.slots.specialtyGroup ? { specialtyGroup: state.slots.specialtyGroup } : {}),
+          ...(lat && lon ? { lat:String(lat), lon:String(lon) } : {}),
+        });
+        const r = await fetch(`/api/nearby?${params.toString()}`);
+        const j = await r.json();
+        if (!r.ok || !j?.items?.length) {
+          addAssistantMessage({ type:'note', content: `No matching places found. Try “Increase radius” or set a location.` });
+        } else {
+          addAssistantMessage({
+            type:'nearby-cards',
+            payload: j.items.map((it:any)=>({
+              title: it.name,
+              subtitle: prettyType(it.type),
+              address: it.address || undefined,
+              phone: it.phone || undefined,
+              website: it.website || undefined,
+              mapsUrl: `https://www.google.com/maps?q=${it.lat},${it.lon}`,
+              distanceKm: typeof it.distance_km === 'number' ? it.distance_km : undefined,
+            })),
+            chips: followUps(state),
+          });
+        }
         return;
       }
 
-      setMessages(prev => [
-        ...prev,
-        {
-          role: 'assistant',
-          type: 'nearby-cards',
-          payload: data.items.map((it: any) => ({
-            title: it.name,
-            subtitle: it.type,
-            address: it.address,
-            phone: it.phone,
-            website: it.website,
-            mapsUrl: `https://www.google.com/maps?q=${it.lat},${it.lon}`,
-          })),
-        },
-      ]);
-    } catch {
-      setMessages(prev => [
-        ...prev,
-        { role: 'assistant', type: 'note', content: 'No matching places found. Try widening the radius or tap **Set location**.' },
-      ]);
-    } finally {
-      setBusy(false);
-    }
-    return;
-  }
+      if (state.intent === 'clinical_trials') {
+        await askTrials(state.slots.condition);
+        addAssistantMessage({ type:'chips', payload: followUps(state) });
+        return;
+      }
 
-    setBusy(true);
-    try {
-      const planRes = await fetch('/api/medx', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ query: text, mode, coords })
-      });
-      if (!planRes.ok) throw new Error(`MedX API error ${planRes.status}`);
-      const plan = await planRes.json();
-      setFollowups(Array.isArray(plan.followups) ? plan.followups : []);
-
-      const sys = mode==='doctor'
-        ? `You are a clinical assistant. Write clean markdown with headings and bullet lists.
-If CONTEXT has codes, interactions, or trials, summarize and add clickable links. Avoid medical advice.`
-        : `You are a patient-friendly explainer. Use simple markdown and short paragraphs.
-If CONTEXT has codes or trials, explain them in plain words and add links. Avoid medical advice.`;
-
-      const contextBlock = "CONTEXT:\n" + JSON.stringify(plan.sections || {}, null, 2);
-
-      setMessages(prev=>[...prev, { role:'user', content:text }, { role:'assistant', content:'' }]);
-      setInput('');
-
-      const res = await fetch('/api/chat/stream', {
-        method:'POST', headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({
-          messages:[
-            { role:'system', content: sys },
-            { role:'user', content: `${text}\n\n${contextBlock}` }
-          ]
-        })
-      });
-      if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let acc = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream:true });
-        const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
-        for (const line of lines) {
-          if (line.trim() === 'data: [DONE]') continue;
-          try {
-            const payload = JSON.parse(line.replace(/^data:\s*/, ''));
-            const delta = payload?.choices?.[0]?.delta?.content;
-            if (delta) {
-              acc += delta;
-              setMessages(prev=>{
-                const copy = [...prev];
-                copy[copy.length-1] = { role:'assistant', content: acc };
-                return copy;
-              });
-            }
-          } catch {}
-        }
+      if (state.intent === 'medication_advice' || state.intent === 'condition_overview' || state.intent === 'unknown') {
+        await sendToLLM(text, { countryCode: locale.countryCode, mode: state.mode, condition: state.slots.condition });
+        addAssistantMessage({ type:'chips', payload: followUps(state) });
+        return;
       }
     } catch (e:any) {
       console.error(e);
-      setMessages(prev=>[...prev, { role:'assistant', content:`⚠️ ${String(e?.message || e)}` }]);
+      addAssistantMessage({ content:`⚠️ ${String(e?.message || e)}` });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function askTrials(condition?: string){
+    if(!condition) {
+      addAssistantMessage({ type:'note', content:'No condition specified.' });
+      return;
+    }
+    addAssistantMessage({ type:'note', content:`Searching clinical trials for **${condition}**…` });
+    try {
+      const r = await fetch(`/api/trials?condition=${encodeURIComponent(condition)}`);
+      const j = await r.json();
+      if (!r.ok || !j?.items?.length) {
+        addAssistantMessage({ type:'note', content:'No matching clinical trials found.' });
+        return;
+      }
+      const lines = j.items.map((it:any)=>`- [${it.title}](${it.link}) — ${it.source}`);
+      addAssistantMessage({ content: lines.join('\n') });
+    } catch (e:any) {
+      addAssistantMessage({ content:`⚠️ ${String(e?.message || e)}` });
+    }
+  }
+
+  async function sendToLLM(query: string, meta: any){
+    try {
+      const res = await fetch('/api/medx', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ query, meta }) });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j?.error || 'LLM error');
+      addAssistantMessage({ content: j.text });
+    } catch(e:any){
+      addAssistantMessage({ content:`⚠️ ${String(e?.message || e)}` });
     }
   }
 
@@ -319,22 +303,17 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                       <div className="content">
                         {m.type === 'nearby-cards' ? (
                           <NearbyCards items={m.payload} />
+                        ) : m.type === 'chips' ? (
+                          <FollowUpChips items={m.payload || []} onClick={t=>send(t)} />
                         ) : (
                           <div className="markdown"><Markdown text={m.content || ''}/></div>
                         )}
+                        {m.chips && <FollowUpChips items={m.chips} onClick={t=>send(t)} />}
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
-
-              {followups.length > 0 && (
-                <div style={{ display:'flex', flexWrap:'wrap', gap:8, margin:'8px 0 4px 0' }}>
-                  {followups.map((f, i)=>(
-                    <button key={i} className="item" onClick={()=>send(f)}>{f}</button>
-                  ))}
-                </div>
-              )}
 
               <div className="inputDock">
                 <div className="inputRow">
