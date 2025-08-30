@@ -3,8 +3,15 @@ import { useEffect, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import Markdown from '../components/Markdown';
 import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
+import { parseNearbyIntent } from '@/lib/intent';
+import { NearbyCards } from '../components/NearbyCards';
 
-type ChatMsg = { role: 'user'|'assistant'; content: string };
+type ChatMsg = {
+  role: 'user' | 'assistant';
+  content?: string;
+  type?: 'note' | 'nearby-cards';
+  payload?: any;
+};
 
 export default function Home(){
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -56,8 +63,63 @@ export default function Home(){
 
   async function send(text: string){
     if(!text.trim() || busy) return;
-    setBusy(true);
 
+    const intent = parseNearbyIntent(text);
+    if (intent.type === 'nearby') {
+      setMessages(prev => [...prev, { role: 'user', content: text }]);
+      setInput('');
+      setBusy(true);
+      try {
+        let lat: number | undefined, lon: number | undefined;
+        try {
+          const p = await new Promise<GeolocationPosition>((resolve, reject) =>
+            navigator.geolocation
+              ? navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 8000 })
+              : reject(new Error('no geo'))
+          );
+          lat = p.coords.latitude; lon = p.coords.longitude;
+        } catch {}
+
+        const url = `/api/nearby?kind=${encodeURIComponent(intent.kind)}${
+          lat && lon ? `&lat=${lat}&lon=${lon}` : ''
+        }`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (!res.ok || !data?.items?.length) {
+          setMessages(prev => [
+            ...prev,
+            { role: 'assistant', type: 'note', content: 'Couldn’t find places nearby. Tap **Set location** and try again.' },
+          ]);
+        } else {
+          setMessages(prev => [
+            ...prev,
+            {
+              role: 'assistant',
+              type: 'nearby-cards',
+              payload: data.items.map((it: any) => ({
+                title: it.name,
+                subtitle: it.type,
+                address: it.address,
+                phone: it.phone,
+                website: it.website,
+                mapsUrl: `https://www.google.com/maps?q=${it.lat},${it.lon}`,
+              })),
+            },
+          ]);
+        }
+      } catch {
+        setMessages(prev => [
+          ...prev,
+          { role: 'assistant', type: 'note', content: 'Couldn’t find places nearby. Tap **Set location** and try again.' },
+        ]);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    setBusy(true);
     try {
       const planRes = await fetch('/api/medx', {
         method:'POST', headers:{'Content-Type':'application/json'},
@@ -244,7 +306,13 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                     <div className="avatar">{m.role==='user'?'U':'M'}</div>
                     <div className="bubble">
                       <div className="role">{m.role==='user'?'You':'MedX'}</div>
-                      <div className="content markdown"><Markdown text={m.content}/></div>
+                      <div className="content">
+                        {m.type === 'nearby-cards' ? (
+                          <NearbyCards items={m.payload} />
+                        ) : (
+                          <div className="markdown"><Markdown text={m.content || ''}/></div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
