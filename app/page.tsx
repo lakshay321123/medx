@@ -61,6 +61,53 @@ export default function Home(){
 
   const showHero = messages.length===0;
 
+  function buildMessages(userText: string) {
+    return [...messages.map(m => ({ role: m.role, content: m.content || '' })), { role: 'user', content: userText }];
+  }
+
+  async function sendToLLM(userText: string, meta?: any) {
+    const res = await fetch('/api/medx', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: buildMessages(userText), meta }),
+    });
+
+    let payload: any = null;
+    try { payload = await res.json(); }
+    catch {
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', type: 'note', content: 'Sorry — I could not process that response. Please try again.' },
+      ]);
+      return;
+    }
+
+    if (!payload?.ok) {
+      const msg = payload?.error?.message || 'The AI service returned an error.';
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', type: 'note', content: `⚠️ ${msg}` },
+      ]);
+      return;
+    }
+
+    setMessages(prev => [
+      ...prev,
+      { role: 'assistant', content: payload.data.content },
+    ]);
+
+    if (payload.data.citations?.length) {
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          type: 'note',
+          content: payload.data.citations.map((c: any) => `[${c.title || 'Source'}](${c.url})`).join('\n'),
+        },
+      ]);
+    }
+  }
+
   async function send(text: string){
     if(!text.trim() || busy) return;
 
@@ -132,69 +179,10 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
   }
 
     setBusy(true);
-    try {
-      const planRes = await fetch('/api/medx', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ query: text, mode, coords })
-      });
-      if (!planRes.ok) throw new Error(`MedX API error ${planRes.status}`);
-      const plan = await planRes.json();
-      setFollowups(Array.isArray(plan.followups) ? plan.followups : []);
-
-      const sys = mode==='doctor'
-        ? `You are a clinical assistant. Write clean markdown with headings and bullet lists.
-If CONTEXT has codes, interactions, or trials, summarize and add clickable links. Avoid medical advice.`
-        : `You are a patient-friendly explainer. Use simple markdown and short paragraphs.
-If CONTEXT has codes or trials, explain them in plain words and add links. Avoid medical advice.`;
-
-      const contextBlock = "CONTEXT:\n" + JSON.stringify(plan.sections || {}, null, 2);
-
-      setMessages(prev=>[...prev, { role:'user', content:text }, { role:'assistant', content:'' }]);
-      setInput('');
-
-      const res = await fetch('/api/chat/stream', {
-        method:'POST', headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({
-          messages:[
-            { role:'system', content: sys },
-            { role:'user', content: `${text}\n\n${contextBlock}` }
-          ]
-        })
-      });
-      if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let acc = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream:true });
-        const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
-        for (const line of lines) {
-          if (line.trim() === 'data: [DONE]') continue;
-          try {
-            const payload = JSON.parse(line.replace(/^data:\s*/, ''));
-            const delta = payload?.choices?.[0]?.delta?.content;
-            if (delta) {
-              acc += delta;
-              setMessages(prev=>{
-                const copy = [...prev];
-                copy[copy.length-1] = { role:'assistant', content: acc };
-                return copy;
-              });
-            }
-          } catch {}
-        }
-      }
-    } catch (e:any) {
-      console.error(e);
-      setMessages(prev=>[...prev, { role:'assistant', content:`⚠️ ${String(e?.message || e)}` }]);
-    } finally {
-      setBusy(false);
-    }
+    setMessages(prev=>[...prev, { role:'user', content:text }]);
+    setInput('');
+    await sendToLLM(text, { mode, coords });
+    setBusy(false);
   }
 
   async function handleUpload(file: File) {
