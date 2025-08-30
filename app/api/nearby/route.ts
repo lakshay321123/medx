@@ -50,14 +50,8 @@ function buildFilters(kind?: string, specialty?: string) {
 
   const withSpecialty = (blocks: string[]) => {
     if (!specialty) return blocks;
-    const specTag = [
-      `["healthcare:specialty"~"${sp}", i]`,
-      `["healthcare:speciality"~"${sp}", i]`,
-      `["specialty"~"${sp}", i]`,
-      `["speciality"~"${sp}", i]`,
-      `["name"~"${sp}", i]`,
-    ];
-    return blocks.map((b) => `${b}${specTag.join('')}`);
+    const specTag = `[~"^(healthcare:specialty|healthcare:speciality|specialty|speciality|name)$"~"${sp}", i]`;
+    return blocks.map((b) => `${b}${specTag}`);
   };
 
   const k = (kind || 'any').toLowerCase();
