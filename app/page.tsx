@@ -62,7 +62,13 @@ export default function Home(){
   const showHero = messages.length===0;
 
   function buildMessages(userText: string) {
-    return [...messages.map(m => ({ role: m.role, content: m.content || '' })), { role: 'user', content: userText }];
+    let text = userText;
+    // Handle "best doc" or award-seeking queries
+    if (/best.*doc/i.test(userText) || /most.*award/i.test(userText)) {
+      const cc = (window as any).__COUNTRY__ || 'US';
+      text = `Find the top award-winning or nationally recognized cancer specialists in ${cc}.\nIf no official list exists, say so clearly and instead provide links to trusted oncology societies, government health portals, or leading cancer institutes.\nDo not invent individual names.`;
+    }
+    return [...messages.map(m => ({ role: m.role, content: m.content || '' })), { role: 'user', content: text }];
   }
 
   function addAssistantMessage(msg: { type: 'note' | 'markdown'; text: string }) {
@@ -74,11 +80,11 @@ export default function Home(){
     ]);
   }
 
-  async function sendToLLM(userText: string, meta?: any) {
-    const res = await fetch('/api/medx', {
+  async function sendToLLM(userText: string) {
+    const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: buildMessages(userText), meta }),
+      body: JSON.stringify({ messages: buildMessages(userText) }),
     });
 
     let payload: any = null;
@@ -177,7 +183,7 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
     setBusy(true);
     setMessages(prev=>[...prev, { role:'user', content:text }]);
     setInput('');
-    await sendToLLM(text, { mode, coords });
+    await sendToLLM(text);
     setBusy(false);
   }
 
