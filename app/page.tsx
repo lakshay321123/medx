@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import Markdown from '../components/Markdown';
 import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
-import { parseNearbyIntent } from '@/lib/intent';
+import { parseNearbyIntent, normalizeBestDoctorQuery } from '@/lib/intent';
+import { officialBodiesFor } from '@/lib/regulators';
 import NearbyCards from '@/components/NearbyCards';
 
 type ChatMsg = {
@@ -13,6 +14,8 @@ type ChatMsg = {
   payload?: any;
 };
 
+type Followup = { id: string; label: string };
+
 export default function Home(){
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
@@ -21,7 +24,7 @@ export default function Home(){
   const [busy, setBusy] = useState(false);
   const [coords, setCoords] = useState<{lat:number; lng:number} | null>(null);
   const [locNote, setLocNote] = useState<string | null>(null);
-  const [followups, setFollowups] = useState<string[]>([]);
+  const [followups, setFollowups] = useState<Followup[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
 
   function saveCoords(c:{lat:number;lng:number}) {
@@ -65,48 +68,72 @@ export default function Home(){
     return [...messages.map(m => ({ role: m.role, content: m.content || '' })), { role: 'user', content: userText }];
   }
 
-  function addAssistantMessage(msg: { type: 'note' | 'markdown'; text: string }) {
+  function addAssistantMessage(msg: { type: 'note' | 'markdown'; text: string; chips?: Followup[] }) {
     setMessages(prev => [
       ...prev,
       msg.type === 'note'
         ? { role: 'assistant', type: 'note', content: msg.text }
         : { role: 'assistant', content: msg.text },
     ]);
+    setFollowups(msg.chips || []);
   }
 
-  async function sendToLLM(userText: string, meta?: any) {
-    const res = await fetch('/api/medx', {
+  function detectSpecialty(t: string) {
+    const s = t.toLowerCase();
+    return /\bcardiolog/.test(s) ? 'cardiology'
+      : /\boncolog/.test(s) ? 'oncology'
+      : /\bgyn(ec|ae|a|o)/.test(s) ? 'gynecology'
+      : 'oncology';
+  }
+
+  function suggestNearbyFallback(rawText: string) {
+    const specialty = detectSpecialty(rawText);
+    addAssistantMessage({
+      type: 'note',
+      text: `Shall I show ${specialty} specialists near you?`,
+      chips: [{ id: `nearby:${specialty}`, label: `${specialty.charAt(0).toUpperCase() + specialty.slice(1)} near me` }],
+    });
+  }
+
+  function addFollowUpsForBestDoctor(rawText: string, cc: string) {
+    if (!normalizeBestDoctorQuery(rawText, cc)) return;
+    const specialty = detectSpecialty(rawText);
+    setFollowups([{ id: `nearby:${specialty}`, label: `${specialty.charAt(0).toUpperCase() + specialty.slice(1)} near me` }]);
+  }
+
+  async function submitMessage(rawText: string, meta?: any) {
+    const cc = (window as any).__COUNTRY__ || 'US';
+    const bodies = officialBodiesFor(cc).map(b => `- ${b.name}: ${b.url}`).join('\n');
+    const normalized = normalizeBestDoctorQuery(rawText, cc);
+    const userText = normalized ? normalized + `\n\nConsider these official bodies for ${cc}:\n${bodies}` : rawText;
+
+    const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: buildMessages(userText), meta }),
     });
 
-    let payload: any = null;
-    try { payload = await res.json(); }
+    let json: any = null;
+    try { json = await res.json(); }
     catch {
-      addAssistantMessage({ type: 'note', text: 'Sorry — I could not process that response. Please try again.' });
+      addAssistantMessage({ type: 'note', text: '⚠️ Could not process the response.' });
+      return;
+    }
+    if (!json?.ok) {
+      addAssistantMessage({ type: 'note', text: `⚠️ ${json?.error?.message || 'AI service error'}` });
+      suggestNearbyFallback(rawText);
       return;
     }
 
-    if (!payload?.ok) {
-      const msg = payload?.error?.message || 'The AI service returned an error.';
-      addAssistantMessage({ type: 'note', text: `⚠️ ${msg}` });
-      return;
-    }
-
-    addAssistantMessage({ type: 'markdown', text: payload.data.content });
-
-    if (payload.data.citations?.length) {
-      addAssistantMessage({
-        type: 'note',
-        text: payload.data.citations.map((c: any) => `[${c.title || 'Source'}](${c.url})`).join('\\n'),
-      });
-    }
+    const text = json.data?.content || json.choices?.[0]?.message?.content || '';
+    addAssistantMessage({ type: 'markdown', text });
+    addFollowUpsForBestDoctor(rawText, cc);
   }
 
   async function send(text: string){
     if(!text.trim() || busy) return;
 
+  setFollowups([]);
   const intent = parseNearbyIntent(text);
   if (intent.type === 'nearby') {
     setMessages(prev => [
@@ -177,8 +204,16 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
     setBusy(true);
     setMessages(prev=>[...prev, { role:'user', content:text }]);
     setInput('');
-    await sendToLLM(text, { mode, coords });
+    await submitMessage(text, { mode, coords });
     setBusy(false);
+  }
+
+  async function onChipClick(id: string, label?: string) {
+    if (id.startsWith('nearby:')) {
+      const spec = id.split(':')[1];
+      return send(`${spec} near me`);
+    }
+    return send(label || id);
   }
 
   async function handleUpload(file: File) {
@@ -317,7 +352,7 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
               {followups.length > 0 && (
                 <div style={{ display:'flex', flexWrap:'wrap', gap:8, margin:'8px 0 4px 0' }}>
                   {followups.map((f, i)=>(
-                    <button key={i} className="item" onClick={()=>send(f)}>{f}</button>
+                    <button key={f.id} className="item" onClick={()=>onChipClick(f.id, f.label)}>{f.label}</button>
                   ))}
                 </div>
               )}

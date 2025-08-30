@@ -1,5 +1,20 @@
 import { bestFuzzyMatch } from '@/lib/fuzzy';
 
+export function normalizeBestDoctorQuery(userText: string, countryCode: string) {
+  const t = userText.toLowerCase();
+  const isBest = /\b(best|top|most awarded|award[- ]?winning)\b/.test(t) && /\b(doc|doctor|oncolog|cardiolog|surgeon|specialist)\b/.test(t);
+  if (!isBest) return null;
+
+  // Don’t ask the model to name individuals. Ask it to guide to verifiable sources.
+  return `User asked for "best doctor". Provide a safe, verifiable path in ${countryCode}.
+1) Explain there is no single official 'best doctor' list.
+2) Offer actions:
+   • Show nearby relevant specialists (e.g., oncology, cardiology) with directions.
+   • Link to official bodies in ${countryCode} (national medical council/registries, major specialty societies, government portals).
+   • Suggest criteria (board certification, years of experience, academic affiliations, volume, outcomes where published).
+3) Do not name specific individuals unless an official, citable source exists. Provide links only to official bodies and hospital finders. Keep concise.`;
+}
+
 export type NearbyKind = 'doctor' | 'clinic' | 'hospital' | 'pharmacy' | 'any';
 export type NearbyIntent =
   | { type: 'nearby'; kind: NearbyKind; specialty?: string; corrected?: boolean; suggestion?: string }
