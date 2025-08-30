@@ -6,6 +6,16 @@ import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
 import { parseNearbyIntent } from '@/lib/intent';
 import { NearbyCards } from '../components/NearbyCards';
 
+function prettyType(s?: string) {
+  if (!s) return '';
+  const t = s.toLowerCase();
+  if (t.includes('doctor')) return 'Doctor';
+  if (t.includes('clinic')) return 'Clinic';
+  if (t.includes('hospital')) return 'Hospital';
+  if (t.includes('pharmacy') || t.includes('chemist')) return 'Pharmacy';
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
 type ChatMsg = {
   role: 'user' | 'assistant';
   content?: string;
@@ -23,6 +33,10 @@ export default function Home(){
   const [locNote, setLocNote] = useState<string | null>(null);
   const [followups, setFollowups] = useState<string[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
+
+  const addAssistantMessage = (msg: Omit<ChatMsg, 'role'>) => {
+    setMessages(prev => [...prev, { role: 'assistant', ...msg }]);
+  };
 
   function saveCoords(c:{lat:number;lng:number}) {
     setCoords(c);
@@ -96,33 +110,30 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
       const data = await res.json().catch(() => null);
 
       if (!res.ok || !data?.items?.length) {
-        setMessages(prev => [
-          ...prev,
-          { role: 'assistant', type: 'note', content: 'No matching places found. Try widening the radius or tap **Set location**.' },
-        ]);
+        addAssistantMessage({
+          type: 'note',
+          content: 'No matching places found. Try widening the radius or tap **Set location**.',
+        });
         return;
       }
 
-      setMessages(prev => [
-        ...prev,
-        {
-          role: 'assistant',
-          type: 'nearby-cards',
-          payload: data.items.map((it: any) => ({
-            title: it.name,
-            subtitle: it.type,
-            address: it.address,
-            phone: it.phone,
-            website: it.website,
-            mapsUrl: `https://www.google.com/maps?q=${it.lat},${it.lon}`,
-          })),
-        },
-      ]);
+      addAssistantMessage({
+        type: 'nearby-cards',
+        payload: data.items.map((it: any) => ({
+          title: it.name,
+          subtitle: prettyType(it.type),
+          address: it.address || undefined,
+          phone: it.phone || undefined,
+          website: it.website || undefined,
+          mapsUrl: `https://www.google.com/maps?q=${it.lat},${it.lon}`,
+          distanceKm: typeof it.distance_km === 'number' ? it.distance_km : undefined,
+        })),
+      });
     } catch {
-      setMessages(prev => [
-        ...prev,
-        { role: 'assistant', type: 'note', content: 'No matching places found. Try widening the radius or tap **Set location**.' },
-      ]);
+      addAssistantMessage({
+        type: 'note',
+        content: 'No matching places found. Try widening the radius or tap **Set location**.',
+      });
     } finally {
       setBusy(false);
     }

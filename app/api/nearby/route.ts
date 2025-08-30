@@ -19,6 +19,59 @@ async function ipLookup(req: NextRequest): Promise<LatLon | null> {
   return null;
 }
 
+function specialtyRegex(s?: string) {
+  if (!s) return null;
+  if (s.toLowerCase() === 'gynecology') {
+    return /(gyn|gyne|gynaec|gynecol|ob[-\/ ]?gyn|obgyn|obstetric|women|matern)/i;
+  }
+  return new RegExp(s.replace(/[^a-z0-9_+-]/gi, ''), 'i');
+}
+
+function looksLikeBadName(s?: string) {
+  if (!s) return true;
+  const t = s.trim();
+  if (t.length < 4) return true; // e.g., "Dr.", "upta"
+  if (/^unknown$/i.test(t)) return true;
+  return false;
+}
+
+function distanceKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
+  const R = 6371,
+    toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat),
+    dLon = toRad(b.lon - a.lon);
+  const A =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(A));
+}
+
+function scoreItemForSpecialty(it: any, spec?: string) {
+  if (!spec) return 0;
+  const re = specialtyRegex(spec);
+  if (!re) return 0;
+  const name = it.name || '';
+  const type = it.type || '';
+  const addr = it.address || '';
+  const tags = it.tags || {};
+  const blob = [
+    name,
+    type,
+    addr,
+    tags['healthcare:specialty'],
+    tags['healthcare:speciality'],
+    tags['specialty'],
+    tags['speciality'],
+  ]
+    .filter(Boolean)
+    .join(' | ');
+  let score = 0;
+  if (re.test(blob)) score += 5; // strong specialty signal
+  if (/gyne|ob[-\/ ]?gyn|obgyn|obstetric/i.test(name)) score += 4; // name hit
+  if (/doctor|doctors|clinic/i.test(type)) score += 1; // reasonable type
+  return score;
+}
+
 function buildFilters(kind?: string) {
   const k = (kind || 'any').toLowerCase();
   if (k === 'doctor') {
@@ -97,7 +150,6 @@ export async function GET(req: NextRequest) {
     const lat = parseFloat(searchParams.get('lat') || '');
     const lon = parseFloat(searchParams.get('lon') || '');
     const kind = searchParams.get('kind') || undefined;
-    const debug = searchParams.get('debug') === '1';
     const initialRadius = Math.min(
       parseInt(searchParams.get('radius') || '3000', 10),
       12000
@@ -117,7 +169,6 @@ export async function GET(req: NextRequest) {
     let res: Response;
     let json: any;
     let items: any[] = [];
-    let overpassStatus = 0;
 
     while (true) {
       const q = overpassQuery(coords.lat, coords.lon, radius, kind);
@@ -137,7 +188,6 @@ export async function GET(req: NextRequest) {
       if (!res || !res.ok) {
         res = await fetch('https://overpass.kumi.systems/api/interpreter', options);
       }
-      overpassStatus = res.status;
       if (!res.ok) {
         const text = await res.text();
         return NextResponse.json(
@@ -167,6 +217,7 @@ export async function GET(req: NextRequest) {
               .join(', '),
             lat: center?.lat,
             lon: center?.lon,
+            tags,
           };
         }) ?? [];
 
@@ -174,12 +225,96 @@ export async function GET(req: NextRequest) {
       radius = Math.min(radius * 2, 12000);
     }
 
-    const response: any = { coords, items };
-    if (debug) {
-      response.overpassStatus = overpassStatus;
-      response.elementCount = json?.elements?.length ?? 0;
+    for (const it of items) {
+      if (it.lat && it.lon) {
+        (it as any).distance_km = distanceKm(coords!, { lat: it.lat, lon: it.lon });
+      }
     }
-    return NextResponse.json(response);
+
+    const specialty = searchParams.get('specialty') || undefined;
+    const limit = Math.min(parseInt(searchParams.get('limit') || '24', 10), 50);
+
+    // Drop junk names
+    let results = items.filter((it: any) => !looksLikeBadName(it.name));
+
+    // STRICT mode for gynecology: require a specialty hit
+    if (specialty === 'gynecology') {
+      const re = specialtyRegex(specialty)!;
+      const strict = results.filter((it: any) => {
+        const tags = it.tags || {};
+        const blob = [
+          it.name,
+          it.type,
+          it.address,
+          tags['healthcare:specialty'],
+          tags['healthcare:speciality'],
+          tags['specialty'],
+          tags['speciality'],
+        ]
+          .filter(Boolean)
+          .join(' | ');
+        // also exclude obvious mismatches
+        const n = (it.name || '').toLowerCase();
+        if (/(beauty|salon|hair replacement|physio|skin clinic|path ?lab)/i.test(n))
+          return false;
+        return re.test(blob);
+      });
+
+      if (strict.length >= 6) {
+        results = strict;
+      } else {
+        // Not enough strict hits → blend: strict first, then top-scored nearby doctors/clinics
+        for (const it of results) {
+          (it as any)._score =
+            scoreItemForSpecialty(it, specialty) +
+            (typeof it.distance_km === 'number'
+              ? it.distance_km <= 2
+                ? 3
+                : it.distance_km <= 5
+                ? 2
+                : it.distance_km <= 10
+                ? 1
+                : 0
+              : 0);
+        }
+        results.sort((a: any, b: any) => (b._score || 0) - (a._score || 0));
+      }
+    } else if (specialty) {
+      // other specialties (future)
+      for (const it of results) {
+        (it as any)._score = scoreItemForSpecialty(it, specialty);
+      }
+      results.sort((a: any, b: any) => (b._score || 0) - (a._score || 0));
+    }
+
+    // Prefer items that have contact info
+    results.sort((a: any, b: any) => {
+      const A = (a.address ? 1 : 0) + (a.phone ? 1 : 0);
+      const B = (b.address ? 1 : 0) + (b.phone ? 1 : 0);
+      return B - A;
+    });
+
+    // Deduplicate by name+address
+    const seen = new Set<string>();
+    results = results
+      .filter((it: any) => {
+        const k = `${(it.name || '').toLowerCase()}|${(it.address || '').toLowerCase()}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      })
+      .slice(0, limit);
+
+    // Debug aid
+    if (searchParams.get('debug') === '1') {
+      return NextResponse.json({
+        coords,
+        count: results.length,
+        items: results.map((x: any) => ({ ...x, _score: x._score })),
+      });
+    }
+
+    return NextResponse.json({ coords, items: results });
   } catch (e: any) {
     return NextResponse.json({ error: 'nearby_unhandled', message: e?.message }, { status: 500 });
   }
