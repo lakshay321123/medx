@@ -60,16 +60,31 @@ async function rxnavInteractions(rxcuis: string[]){
 }
 
 export async function POST(req: NextRequest){
-  const { query, mode } = await req.json();
+  const { query, mode, coords, forceIntent, prior } = await req.json();
   if(!query) return NextResponse.json({ intent:'GENERAL_HEALTH', sections:{} });
 
-  const cls = await classifyIntent(query, mode==='doctor'?'doctor':'patient');
+  const cls = forceIntent
+    ? { intent: forceIntent, keywords: [] }
+    : await classifyIntent(query, mode==='doctor'?'doctor':'patient');
   const intent = cls.intent || 'GENERAL_HEALTH';
   const keywords: string[] = cls.keywords || [];
   const sections: any = {};
 
   try {
-    if (intent === 'DIAGNOSIS_QUERY') {
+    if (intent === 'NEARBY') {
+      const kind = (cls.keywords?.[0] || query || '').toString();
+      if (process.env.FEATURE_NEARBY !== 'on') {
+        sections.nearby = { disabled: true, reason: 'FEATURE_NEARBY is off' };
+      } else if (!coords || typeof coords.lat !== 'number' || typeof coords.lng !== 'number') {
+        sections.needsLocation = true; sections.kind = kind;
+      } else {
+        const r = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/nearby`, {
+          method:'POST', headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify({ lat: coords.lat, lng: coords.lng, kind })
+        });
+        sections.nearby = await r.json();
+      }
+    } else if (intent === 'DIAGNOSIS_QUERY') {
       const term = keywords[0] || query;
       const s = await umlsSearch(term);
       const cui = s.results?.[0]?.ui || null;
@@ -91,5 +106,15 @@ export async function POST(req: NextRequest){
     }
   } catch(e:any){ sections.error = String(e?.message || e); }
 
-  return NextResponse.json({ intent, sections });
+  const mergedContext = { ...(prior || {}), ...(sections || {}) };
+  return NextResponse.json({ intent, sections: mergedContext, followups: makeFollowups(intent, mergedContext, mode==='doctor'?'doctor':'patient', query) });
+}
+
+function makeFollowups(intent:string, sections:any, mode:'patient'|'doctor', query:string): string[] {
+  const topic = sections?.codes?.cuiTitle || sections?.topic || query;
+  const out: string[] = [];
+  if (intent === 'DIAGNOSIS_QUERY') {
+    out.push(`Show trusted sources for ${topic}`);
+  }
+  return Array.from(new Set(out)).slice(0,5);
 }

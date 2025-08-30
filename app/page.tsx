@@ -4,6 +4,12 @@ import Sidebar from '../components/Sidebar';
 import Markdown from '../components/Markdown';
 import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
 
+function isNearbyQuery(q: string) {
+  const s = q.toLowerCase();
+  return /\b(near me|around me|nearby)\b/.test(s) &&
+         /\b(doctor|doctors|clinic|clinics|hospital|hospitals|pharmacy|pharmacies|dentist|ent|gp)\b/.test(s);
+}
+
 type ChatMsg = { role: 'user'|'assistant'; content: string };
 
 export default function Home(){
@@ -12,11 +18,14 @@ export default function Home(){
   const [mode, setMode] = useState<'patient'|'doctor'>('patient');
   const [theme, setTheme] = useState<'dark'|'light'>('dark');
   const [busy, setBusy] = useState(false);
+  const [coords, setCoords] = useState<{lat:number; lng:number} | null>(null);
+  const [lastPlan, setLastPlan] = useState<any | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(()=>{ document.documentElement.className = theme==='light'?'light':''; },[theme]);
   useEffect(()=>{ document.body.setAttribute('data-role', mode==='doctor'?'doctor':''); },[mode]);
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
+  useEffect(()=>{ if(navigator.geolocation){ navigator.geolocation.getCurrentPosition(p=>setCoords({lat:p.coords.latitude,lng:p.coords.longitude})); } },[]);
 
   const showHero = messages.length===0;
 
@@ -25,12 +34,20 @@ export default function Home(){
     setBusy(true);
 
     try {
+      const payload: any = { query: text, mode, coords };
+      if (isNearbyQuery(text)) {
+        payload.forceIntent = 'NEARBY';
+      }
+      if (lastPlan?.sections) {
+        payload.prior = lastPlan.sections;
+      }
       const planRes = await fetch('/api/medx', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ query: text, mode })
+        body: JSON.stringify(payload)
       });
       if (!planRes.ok) throw new Error(`MedX API error ${planRes.status}`);
       const plan = await planRes.json();
+      setLastPlan(plan);
 
       const sys = mode==='doctor'
         ? `You are a clinical assistant. Write clean markdown with headings and bullet lists.
