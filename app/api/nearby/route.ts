@@ -110,6 +110,7 @@ export async function GET(req: NextRequest) {
     const lat = parseFloat(searchParams.get('lat') || '');
     const lon = parseFloat(searchParams.get('lon') || '');
     const kind = searchParams.get('kind') || undefined;
+    const query = searchParams.get('query') || '';
     const debug = searchParams.get('debug') === '1';
     const initialRadius = Math.min(
       parseInt(searchParams.get('radius') || '3000', 10),
@@ -188,6 +189,24 @@ export async function GET(req: NextRequest) {
       if (items.length > 0 || radius >= 12000) break;
       radius = Math.min(radius * 2, 12000);
     }
+
+    if ((kind === 'doctor' || !kind) && !/pharm/i.test(query)) {
+      items = items.filter((it: any) => (it.type || '').toLowerCase() !== 'pharmacy');
+    }
+
+    items.sort((a: any, b: any) => {
+      const A = (a.address ? 1 : 0) + (a.phone ? 1 : 0);
+      const B = (b.address ? 1 : 0) + (b.phone ? 1 : 0);
+      return B - A;
+    });
+
+    const seen = new Set<string>();
+    items = items.filter((it: any) => {
+      const k = `${(it.name || '').toLowerCase()}|${(it.address || '').toLowerCase()}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
 
     for (const it of items) {
       if (it.lat && it.lon) {
