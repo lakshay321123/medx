@@ -5,6 +5,7 @@ import Markdown from '../components/Markdown';
 import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
 import { parseNearbyIntent } from '@/lib/intent';
 import NearbyCards from '@/components/NearbyCards';
+import FollowUpChips from '@/components/FollowUpChips';
 
 type ChatMsg = {
   role: 'user' | 'assistant';
@@ -21,7 +22,7 @@ export default function Home(){
   const [busy, setBusy] = useState(false);
   const [coords, setCoords] = useState<{lat:number; lng:number} | null>(null);
   const [locNote, setLocNote] = useState<string | null>(null);
-  const [followups, setFollowups] = useState<string[]>([]);
+  const [followups, setFollowups] = useState<Array<{id:string; label:string}>>([]);
   const chatRef = useRef<HTMLDivElement>(null);
 
   function saveCoords(c:{lat:number;lng:number}) {
@@ -106,6 +107,7 @@ export default function Home(){
 
   async function send(text: string){
     if(!text.trim() || busy) return;
+    setFollowups([]);
 
   const intent = parseNearbyIntent(text);
   if (intent.type === 'nearby') {
@@ -179,6 +181,52 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
     setInput('');
     await sendToLLM(text, { mode, coords });
     setBusy(false);
+  }
+
+  async function handleChip(id: string, label?: string) {
+    if (busy) return;
+    let userText = label || id;
+    if (id === 'search.national.awards' || /award/i.test(label || '')) {
+      const cc = (window as any).__COUNTRY__ || 'US';
+      userText = `Search nationally recognized award-winning cancer specialists in ${cc}.
+If no official national award registry exists, say so briefly and point to reputable sources like national oncology societies, government health awards, or major cancer centers. Do not name individuals unless a verifiable official source is available. Provide links where possible.`;
+    }
+
+    setFollowups([]);
+    setMessages(prev => [...prev, { role: 'user', content: userText }]);
+
+    setBusy(true);
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: buildMessages(userText),
+          meta: { mode, coords },
+        }),
+      });
+
+      let payload: any = null;
+      try {
+        payload = await res.json();
+      } catch {
+        addAssistantMessage({ type: 'note', text: '⚠️ Sorry, I could not process that response.' });
+        return;
+      }
+
+      if (!payload?.ok) {
+        const msg = payload?.error?.message || payload?.error?.detail || 'The AI service returned an error.';
+        addAssistantMessage({ type: 'note', text: `⚠️ ${msg}` });
+        return;
+      }
+
+      const text = payload.data?.content || payload.choices?.[0]?.message?.content || '';
+      addAssistantMessage({ type: 'markdown', text });
+    } catch (e: any) {
+      addAssistantMessage({ type: 'note', text: `⚠️ Network error: ${e?.message || 'please try again'}` });
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleUpload(file: File) {
@@ -314,13 +362,7 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
                 ))}
               </div>
 
-              {followups.length > 0 && (
-                <div style={{ display:'flex', flexWrap:'wrap', gap:8, margin:'8px 0 4px 0' }}>
-                  {followups.map((f, i)=>(
-                    <button key={i} className="item" onClick={()=>send(f)}>{f}</button>
-                  ))}
-                </div>
-              )}
+              <FollowUpChips items={followups} onClick={handleChip} />
 
               <div className="inputDock">
                 <div className="inputRow">
