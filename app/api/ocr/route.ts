@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60; // keep long OCR calls alive
 
 const OCR_ENDPOINT = 'https://api.ocr.space/parse/image';
 
@@ -21,43 +22,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'No file' }, { status: 400 });
     }
 
-    // Forward the uploaded file to OCR.space
     const fd = new FormData();
     fd.append('file', file, (file as any).name || 'upload.pdf');
-    // Recommended params for PDFs; OCREngine=2 is fast & accurate for English
     fd.append('isOverlayRequired', 'false');
     fd.append('scale', 'true');
     fd.append('isTable', 'true');
-    fd.append('OCREngine', '2'); // 1/2/3 per OCR.space docs
+    fd.append('OCREngine', '2');
 
     const res = await fetch(OCR_ENDPOINT, {
       method: 'POST',
       headers: { apikey: apiKey },
       body: fd,
-      // Avoid Vercel cache for API calls
       cache: 'no-store',
     });
 
+    const raw = await res.text();
+    // Always return JSON to the client even if provider responds non-JSON
+    let body: any = null;
+    try { body = JSON.parse(raw); } catch { /* leave as null */ }
+
     if (!res.ok) {
-      const t = await res.text();
       return NextResponse.json(
-        { ok: false, error: `OCR HTTP ${res.status}: ${t}` },
+        { ok: false, error: `OCR HTTP ${res.status}`, provider: raw?.slice(0, 300) },
         { status: 502 }
       );
     }
 
-    const j = await res.json();
+    if (!body) {
+      return NextResponse.json(
+        { ok: false, error: 'OCR provider returned non-JSON', provider: raw?.slice(0, 300) },
+        { status: 502 }
+      );
+    }
 
-    // OCR.space success flag
-    if (j?.IsErroredOnProcessing) {
-      const msg =
-        j?.ErrorMessage?.[0] ||
-        j?.ErrorMessage ||
-        'OCR provider reported an error';
+    if (body?.IsErroredOnProcessing) {
+      const msg = body?.ErrorMessage?.[0] || body?.ErrorMessage || 'OCR provider reported an error';
       return NextResponse.json({ ok: false, error: String(msg) }, { status: 200 });
     }
 
-    const parsed = Array.isArray(j?.ParsedResults) ? j.ParsedResults : [];
+    const parsed = Array.isArray(body?.ParsedResults) ? body.ParsedResults : [];
     const text = parsed.map((p: any) => p?.ParsedText || '').join('\n').trim();
 
     return NextResponse.json({ ok: true, text });
