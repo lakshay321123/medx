@@ -3,8 +3,15 @@ import { useEffect, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import Markdown from '../components/Markdown';
 import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
+import { parseNearbyIntent } from '@/lib/intent';
+import NearbyCards from '@/components/NearbyCards';
 
-type ChatMsg = { role: 'user'|'assistant'; content: string };
+type ChatMsg = {
+  role: 'user' | 'assistant';
+  content?: string;
+  type?: 'note' | 'nearby-cards';
+  payload?: any;
+};
 
 export default function Home(){
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -12,80 +19,172 @@ export default function Home(){
   const [mode, setMode] = useState<'patient'|'doctor'>('patient');
   const [theme, setTheme] = useState<'dark'|'light'>('dark');
   const [busy, setBusy] = useState(false);
+  const [coords, setCoords] = useState<{lat:number; lng:number} | null>(null);
+  const [locNote, setLocNote] = useState<string | null>(null);
+  const [followups, setFollowups] = useState<string[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
+
+  function saveCoords(c:{lat:number;lng:number}) {
+    setCoords(c);
+    try { localStorage.setItem('medx_coords', JSON.stringify(c)); } catch {}
+  }
+
+  async function loadSavedCoords() {
+    try {
+      const s = localStorage.getItem('medx_coords');
+      if (s) setCoords(JSON.parse(s));
+    } catch {}
+  }
+
+  async function requestLocation(auto=false) {
+    setLocNote(auto ? 'Setting location…' : null);
+    const useIPFallback = async () => {
+      try {
+        const r = await fetch('/api/locate'); const j = await r.json();
+        if (j?.lat && j?.lng) { saveCoords({ lat: j.lat, lng: j.lng }); setLocNote(`Location set${j.city ? `: ${j.city}` : ''}.`); return; }
+      } catch {}
+      setLocNote('Location unavailable. You can still type a place, e.g., "pharmacy near Connaught Place".');
+    };
+
+    if (!('geolocation' in navigator)) return useIPFallback();
+    navigator.geolocation.getCurrentPosition(
+      (pos)=>{ saveCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocNote('Location set.'); setTimeout(()=>setLocNote(null), 1500); },
+      async ()=>{ await useIPFallback(); },
+      { enableHighAccuracy: true, maximumAge: 60000, timeout: 8000 }
+    );
+  }
 
   useEffect(()=>{ document.documentElement.className = theme==='light'?'light':''; },[theme]);
   useEffect(()=>{ document.body.setAttribute('data-role', mode==='doctor'?'doctor':''); },[mode]);
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
+  useEffect(()=>{ loadSavedCoords().then(()=>requestLocation(true)); },[]);
 
   const showHero = messages.length===0;
 
+  function buildMessages(userText: string) {
+    let text = userText;
+    // Handle "best doc" or award-seeking queries
+    if (/best.*doc/i.test(userText) || /most.*award/i.test(userText)) {
+      const cc = (window as any).__COUNTRY__ || 'US';
+      text = `Find the top award-winning or nationally recognized cancer specialists in ${cc}.\nIf no official list exists, say so clearly and instead provide links to trusted oncology societies, government health portals, or leading cancer institutes.\nDo not invent individual names.`;
+    }
+    return [...messages.map(m => ({ role: m.role, content: m.content || '' })), { role: 'user', content: text }];
+  }
+
+  function addAssistantMessage(msg: { type: 'note' | 'markdown'; text: string }) {
+    setMessages(prev => [
+      ...prev,
+      msg.type === 'note'
+        ? { role: 'assistant', type: 'note', content: msg.text }
+        : { role: 'assistant', content: msg.text },
+    ]);
+  }
+
+  async function sendToLLM(userText: string) {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: buildMessages(userText) }),
+    });
+
+    let payload: any = null;
+    try { payload = await res.json(); }
+    catch {
+      addAssistantMessage({ type: 'note', text: 'Sorry — I could not process that response. Please try again.' });
+      return;
+    }
+
+    if (!payload?.ok) {
+      const msg = payload?.error?.message || 'The AI service returned an error.';
+      addAssistantMessage({ type: 'note', text: `⚠️ ${msg}` });
+      return;
+    }
+
+    addAssistantMessage({ type: 'markdown', text: payload.data.content });
+
+    if (payload.data.citations?.length) {
+      addAssistantMessage({
+        type: 'note',
+        text: payload.data.citations.map((c: any) => `[${c.title || 'Source'}](${c.url})`).join('\\n'),
+      });
+    }
+  }
+
   async function send(text: string){
     if(!text.trim() || busy) return;
+
+  const intent = parseNearbyIntent(text);
+  if (intent.type === 'nearby') {
+    setMessages(prev => [
+      ...prev,
+      { role: 'user', content: text } as ChatMsg,
+      ...(intent.corrected && intent.suggestion
+        ? [{ role: 'assistant', type: 'note', content: `Did you mean **${intent.suggestion.replace(' near me','')}** near you?
+Okay — searching ${intent.suggestion}…` } as ChatMsg]
+        : []),
+    ]);
+    setInput('');
     setBusy(true);
-
     try {
-      const planRes = await fetch('/api/medx', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ query: text, mode })
+      let lat: number | undefined, lon: number | undefined;
+      try {
+        const p = await new Promise<GeolocationPosition>((resolve, reject) =>
+          navigator.geolocation
+            ? navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 8000 })
+            : reject(new Error('no geo'))
+        );
+        lat = p.coords.latitude; lon = p.coords.longitude;
+      } catch {}
+
+      const params = new URLSearchParams({
+        kind: intent.kind,
+        ...(intent.specialty ? { specialty: intent.specialty } : {}),
+        ...(lat && lon ? { lat: String(lat), lon: String(lon) } : {}),
       });
-      if (!planRes.ok) throw new Error(`MedX API error ${planRes.status}`);
-      const plan = await planRes.json();
+      const res = await fetch(`/api/nearby?${params.toString()}`);
+      const data = await res.json().catch(() => null);
 
-      const sys = mode==='doctor'
-        ? `You are a clinical assistant. Write clean markdown with headings and bullet lists.
-If CONTEXT has codes, interactions, or trials, summarize and add clickable links. Avoid medical advice.`
-        : `You are a patient-friendly explainer. Use simple markdown and short paragraphs.
-If CONTEXT has codes or trials, explain them in plain words and add links. Avoid medical advice.`;
-
-      const contextBlock = "CONTEXT:\n" + JSON.stringify(plan.sections || {}, null, 2);
-
-      setMessages(prev=>[...prev, { role:'user', content:text }, { role:'assistant', content:'' }]);
-      setInput('');
-
-      const res = await fetch('/api/chat/stream', {
-        method:'POST', headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({
-          messages:[
-            { role:'system', content: sys },
-            { role:'user', content: `${text}\n\n${contextBlock}` }
-          ]
-        })
-      });
-      if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let acc = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream:true });
-        const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
-        for (const line of lines) {
-          if (line.trim() === 'data: [DONE]') continue;
-          try {
-            const payload = JSON.parse(line.replace(/^data:\s*/, ''));
-            const delta = payload?.choices?.[0]?.delta?.content;
-            if (delta) {
-              acc += delta;
-              setMessages(prev=>{
-                const copy = [...prev];
-                copy[copy.length-1] = { role:'assistant', content: acc };
-                return copy;
-              });
-            }
-          } catch {}
-        }
+      if (!res.ok || !data?.items?.length) {
+        setMessages(prev => [
+          ...prev,
+          { role: 'assistant', type: 'note', content: 'No matching places found. Try widening the radius or tap **Set location**.' },
+        ]);
+        return;
       }
-    } catch (e:any) {
-      console.error(e);
-      setMessages(prev=>[...prev, { role:'assistant', content:`⚠️ ${String(e?.message || e)}` }]);
+
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          type: 'nearby-cards',
+          payload: data.items.map((it: any) => ({
+            title: it.name,
+            subtitle: prettyType(it.type),
+            address: it.address,
+            phone: it.phone,
+            website: it.website,
+            mapsUrl: `https://www.google.com/maps?q=${it.lat},${it.lon}`,
+            distanceKm:
+              typeof it.distance_km === 'number' ? it.distance_km : undefined,
+          })),
+        },
+      ]);
+    } catch {
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', type: 'note', content: 'No matching places found. Try widening the radius or tap **Set location**.' },
+      ]);
     } finally {
       setBusy(false);
     }
+    return;
+  }
+
+    setBusy(true);
+    setMessages(prev=>[...prev, { role:'user', content:text }]);
+    setInput('');
+    await sendToLLM(text);
+    setBusy(false);
   }
 
   async function handleUpload(file: File) {
@@ -187,6 +286,10 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                 />
                 <button className="iconBtn" onClick={()=>send(input)} aria-label="Send" disabled={busy}><Send size={18}/></button>
               </div>
+              <div style={{ marginTop:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <button className="item" onClick={()=>requestLocation(false)}>📍 Set location</button>
+                {locNote && <span style={{ color:'var(--muted)', fontSize:12 }}>{locNote}</span>}
+              </div>
               <div style={{ marginTop:10, textAlign:'right' }}>
                 <label className="item" style={{ cursor:'pointer' }}>
                   📄 Upload Prescription
@@ -205,11 +308,25 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                     <div className="avatar">{m.role==='user'?'U':'M'}</div>
                     <div className="bubble">
                       <div className="role">{m.role==='user'?'You':'MedX'}</div>
-                      <div className="content markdown"><Markdown text={m.content}/></div>
+                      <div className="content">
+                        {m.type === 'nearby-cards' ? (
+                          <NearbyCards items={m.payload} />
+                        ) : (
+                          <div className="markdown"><Markdown text={m.content || ''}/></div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
+
+              {followups.length > 0 && (
+                <div style={{ display:'flex', flexWrap:'wrap', gap:8, margin:'8px 0 4px 0' }}>
+                  {followups.map((f, i)=>(
+                    <button key={i} className="item" onClick={()=>send(f)}>{f}</button>
+                  ))}
+                </div>
+              )}
 
               <div className="inputDock">
                 <div className="inputRow">
@@ -220,6 +337,10 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                     onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(input);} }}
                   />
                   <button className="iconBtn" onClick={()=>send(input)} aria-label="Send" disabled={busy}>➤</button>
+                </div>
+                <div style={{ marginTop:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                  <button className="item" onClick={()=>requestLocation(false)}>📍 Set location</button>
+                  {locNote && <span style={{ color:'var(--muted)', fontSize:12 }}>{locNote}</span>}
                 </div>
                 <div style={{ marginTop:8, textAlign:'right' }}>
                   <label className="item" style={{ cursor:'pointer' }}>
@@ -237,4 +358,14 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
       </main>
     </div>
   );
+}
+
+function prettyType(t?: string) {
+  if (!t) return '';
+  const s = String(t).toLowerCase();
+  if (s === 'doctors' || s === 'doctor') return 'Doctor';
+  if (s === 'clinic') return 'Clinic';
+  if (s === 'hospital') return 'Hospital';
+  if (s === 'pharmacy') return 'Pharmacy';
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
