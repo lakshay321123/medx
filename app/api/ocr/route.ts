@@ -18,13 +18,24 @@ export async function POST(req: NextRequest) {
     body.append('file', file);
     body.append('language', 'eng');
     body.append('isTable', 'true');
-    body.append('OCREngine', '2'); // better quality
+    body.append('OCREngine', '2');
 
     const res = await fetch('https://api.ocr.space/parse/image', { method: 'POST', body, cache: 'no-store' });
-    const j = await res.json().catch(() => ({} as any));
 
-    const text = j?.ParsedResults?.[0]?.ParsedText || '';
-    return NextResponse.json({ ok:true, text });
+    const text = await res.text();           // provider might return HTML on error
+    let j: any;
+    try { j = JSON.parse(text); } catch { j = null; }
+
+    if (!res.ok) {
+      return NextResponse.json({ ok:false, error:`OCR HTTP ${res.status}`, provider:text.slice(0,300) }, { status: 502 });
+    }
+    if (!j) {
+      return NextResponse.json({ ok:false, error:'OCR provider non-JSON', provider:text.slice(0,300) }, { status: 502 });
+    }
+
+    const parsed = Array.isArray(j?.ParsedResults) ? j.ParsedResults : [];
+    const out = parsed.map((p: any) => p?.ParsedText || '').join('\n').trim();
+    return NextResponse.json({ ok:true, text: out });
   } catch (e:any) {
     return NextResponse.json({ ok:false, error:String(e?.message||e) }, { status: 500 });
   }
