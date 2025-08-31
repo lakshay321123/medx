@@ -24,12 +24,8 @@ async function rxcuiForName(name: string): Promise<string | null> {
 export async function POST(req: NextRequest) {
   const form = await req.formData();
   const file = form.get('file') as File | null;
-  if (!file) {
-    return NextResponse.json({ ok: false, error: 'No file provided' }, { status: 400 });
-  }
-  if (file.type !== 'application/pdf') {
-    return NextResponse.json({ ok: false, error: 'File must be a PDF' }, { status: 415 });
-  }
+  if (!file) return NextResponse.json({ ok: false, error: 'No file provided' }, { status: 400 });
+  if (file.type !== 'application/pdf') return NextResponse.json({ ok: false, error: 'File must be a PDF' }, { status: 415 });
 
   try {
     const pdf = (await import('pdf-parse')).default;
@@ -38,21 +34,11 @@ export async function POST(req: NextRequest) {
     const text: string = (out.text || '').replace(/\u0000/g, '').trim();
 
     if (!text) {
-      return NextResponse.json({
-        ok: true,
-        text: '',
-        meds: [],
-        note: 'No selectable text found (might be a scan).'
-      });
+      return NextResponse.json({ ok: true, text: '', meds: [], note: 'No selectable text found (might be a scan).' });
     }
 
-    const words: string[] = text
-      .split(/[^A-Za-z0-9-]+/)
-      .filter((w: string) => w.length > 2);
-
-    const cleaned: string[] = words
-      .map((w: string) => cleanToken(w))
-      .filter((v: string) => Boolean(v));
+    const words: string[] = text.split(/[^A-Za-z0-9-]+/).filter((w: string) => w.length > 2);
+    const cleaned: string[] = words.map((w: string) => cleanToken(w)).filter((v: string) => Boolean(v));
 
     const grams = new Set<string>();
     for (let i = 0; i < cleaned.length; i++) {
@@ -62,7 +48,6 @@ export async function POST(req: NextRequest) {
     }
 
     const candidates: string[] = Array.from(grams).slice(0, 200);
-
     const found: Array<{ token: string; rxcui: string }> = [];
     for (const token of candidates) {
       try {
@@ -78,16 +63,8 @@ export async function POST(req: NextRequest) {
       }, {})
     );
 
-    return NextResponse.json({
-      ok: true,
-      text,
-      meds,
-      note: meds.length ? undefined : 'No clear medicines detected.'
-    });
+    return NextResponse.json({ ok: true, text, meds, note: meds.length ? undefined : 'No clear medicines detected.' });
   } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, error: `PDF parse error: ${e?.message || String(e)}` },
-      { status: 200 }
-    );
+    return NextResponse.json({ ok: false, error: `PDF parse error: ${e?.message || String(e)}` }, { status: 200 });
   }
 }
