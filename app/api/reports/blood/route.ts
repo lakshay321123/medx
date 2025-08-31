@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
-// Basic adult ranges (illustrative). Extend as needed.
+// Basic adult ref ranges (illustrative). Extend as needed.
 const RANGES: Record<string, {unit: string, min: number, max: number, label: string}> = {
   hemoglobin:{unit:'g/dL',min:12,max:17.5,label:'Hemoglobin'},
   hb:{unit:'g/dL',min:12,max:17.5,label:'Hemoglobin'},
