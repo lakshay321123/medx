@@ -32,8 +32,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const pdf = (await import('pdf-parse')).default; // default import
-    const buf = Buffer.from(await file.arrayBuffer()); // uploaded buffer
+    const pdf = (await import('pdf-parse')).default;
+    const buf = Buffer.from(await file.arrayBuffer());
     const out = await pdf(buf);
     const text: string = (out.text || '').replace(/\u0000/g, '').trim();
 
@@ -68,12 +68,9 @@ export async function POST(req: NextRequest) {
       try {
         const rxcui = await rxcuiForName(token);
         if (rxcui) found.push({ token, rxcui });
-      } catch {
-        // ignore individual lookup errors
-      }
+      } catch {}
     }
 
-    // Deduplicate by RXCUI (keep first token)
     const meds = Object.values(
       found.reduce<Record<string, { token: string; rxcui: string }>>((acc, m) => {
         if (!acc[m.rxcui]) acc[m.rxcui] = m;
