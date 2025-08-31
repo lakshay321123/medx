@@ -1,208 +1,132 @@
 // app/api/nearby/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
-const UA = process.env.NOMINATIM_USER_AGENT || 'MedX/1.0 (contact: ops@medx.ai)';
+export const runtime = 'nodejs';
 
-type LatLon = { lat: number; lon: number };
+type Item = {
+  id: number;
+  title: string;
+  subtitle?: string;
+  address?: string;
+  phone?: string;
+  website?: string;
+  mapsUrl: string;
+  lat: number;
+  lon: number;
+  distanceKm: number;
+};
 
-function distanceKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
+function haversineKm(aLat: number, aLon: number, bLat: number, bLon: number) {
   const R = 6371;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLon = toRad(b.lon - a.lon);
-  const A =
+  const dLat = (bLat - aLat) * Math.PI / 180;
+  const dLon = (bLon - aLon) * Math.PI / 180;
+  const sa =
     Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(a.lat)) *
-      Math.cos(toRad(b.lat)) *
+    Math.cos(aLat * Math.PI / 180) *
+      Math.cos(bLat * Math.PI / 180) *
       Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(A));
+  return 2 * R * Math.asin(Math.sqrt(sa));
 }
 
-async function ipLookup(req: NextRequest): Promise<LatLon | null> {
-  try {
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-      // Vercel edge might not expose req.ip; that’s ok.
-      undefined;
-    // Free, no API key: fallback accuracy is city-ish
-    const r = await fetch(`https://ipapi.co/${ip || ''}/json/`, { cache: 'no-store' });
-    const j = await r.json();
-    if (j?.latitude && j?.longitude) return { lat: j.latitude, lon: j.longitude };
-  } catch {}
-  return null;
+function pickName(tags: any) {
+  return tags?.name || tags?.['alt_name'] || tags?.['official_name'] || '';
 }
 
-function buildFilters(kind?: string) {
-  const k = (kind || 'any').toLowerCase();
-  if (k === 'doctor') {
-    return [
-      `node["amenity"="doctors"]`,
-      `way["amenity"="doctors"]`,
-      `relation["amenity"="doctors"]`,
-      `node["healthcare"="doctor"]`,
-      `way["healthcare"="doctor"]`,
-      `relation["healthcare"="doctor"]`,
-    ];
-  }
-  if (k === 'clinic') {
-    return [
-      `node["amenity"="clinic"]`,
-      `way["amenity"="clinic"]`,
-      `relation["amenity"="clinic"]`,
-      `node["healthcare"="clinic"]`,
-      `way["healthcare"="clinic"]`,
-      `relation["healthcare"="clinic"]`,
-    ];
-  }
-  if (k === 'hospital') {
-    return [
-      `node["amenity"="hospital"]`,
-      `way["amenity"="hospital"]`,
-      `relation["amenity"="hospital"]`,
-      `node["healthcare"="hospital"]`,
-      `way["healthcare"="hospital"]`,
-      `relation["healthcare"="hospital"]`,
-    ];
-  }
-  if (k === 'pharmacy') {
-    return [
-      `node["amenity"="pharmacy"]`,
-      `way["amenity"="pharmacy"]`,
-      `relation["amenity"="pharmacy"]`,
-      `node["healthcare"="pharmacy"]`,
-      `way["healthcare"="pharmacy"]`,
-      `relation["healthcare"="pharmacy"]`,
-      `node["shop"="chemist"]`,
-      `way["shop"="chemist"]`,
-      `relation["shop"="chemist"]`,
-    ];
-  }
-  // any: union of all common health POIs
-  return [
-    `node["amenity"~"doctors|clinic|hospital|pharmacy"]`,
-    `way["amenity"~"doctors|clinic|hospital|pharmacy"]`,
-    `relation["amenity"~"doctors|clinic|hospital|pharmacy"]`,
-    `node["healthcare"~"doctor|clinic|hospital|pharmacy"]`,
-    `way["healthcare"~"doctor|clinic|hospital|pharmacy"]`,
-    `relation["healthcare"~"doctor|clinic|hospital|pharmacy"]`,
-    `node["shop"="chemist"]`,
-    `way["shop"="chemist"]`,
-    `relation["shop"="chemist"]`,
-  ];
+function pickAddress(tags: any) {
+  const parts = [
+    tags?.['addr:housenumber'],
+    tags?.['addr:street'],
+    tags?.['addr:city'],
+    tags?.['addr:state'],
+    tags?.['addr:postcode'],
+    tags?.['addr:country'],
+  ].filter(Boolean);
+  return parts.join(', ');
 }
 
-function overpassQuery(lat: number, lon: number, radius: number, kind?: string) {
-  const filters = buildFilters(kind)
-    .map((f) => `${f}(around:${radius},${lat},${lon})`)
-    .join(';');
-  return `
-[out:json][timeout:25];
-(
-  ${filters};
-);
-out center 60;
-`;
+function cleanPhone(p?: string) {
+  if (!p) return undefined;
+  return String(p).replace(/;/g, ', ').trim();
+}
+
+function mapsUrl(lat: number, lon: number) {
+  return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=18/${lat}/${lon}`;
 }
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const lat = parseFloat(searchParams.get('lat') || '');
-    const lon = parseFloat(searchParams.get('lon') || '');
-    const kind = searchParams.get('kind') || undefined;
-    const debug = searchParams.get('debug') === '1';
-    const initialRadius = Math.min(
-      parseInt(searchParams.get('radius') || '3000', 10),
-      12000
-    );
+    const kind = (searchParams.get('kind') || 'doctor').toLowerCase(); // 'doctor' | 'pharmacy'
+    const lat = Number(searchParams.get('lat'));
+    const lon = Number(searchParams.get('lon'));
+    const q = (searchParams.get('q') || '').trim(); // optional name filter
+    const radius = Math.min(Number(searchParams.get('radius') || 5000), 20000); // meters
+    const limit = Math.min(Number(searchParams.get('limit') || 20), 50);
 
-    let coords: LatLon | null =
-      Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : await ipLookup(req);
-
-    if (!coords) {
-      return NextResponse.json(
-        { error: 'location_unavailable', hint: 'Call Set location, then try again.' },
-        { status: 400 }
-      );
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      return NextResponse.json({ ok: false, error: 'lat/lon required' }, { status: 400 });
     }
 
-    let radius = initialRadius;
-    let res: Response;
-    let json: any;
-    let items: any[] = [];
-    let overpassStatus = 0;
-
-    while (true) {
-      const q = overpassQuery(coords.lat, coords.lon, radius, kind);
-      const options = {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-          'User-Agent': UA,
-        },
-        body: new URLSearchParams({ data: q }),
-        cache: 'no-store',
-      } as const;
-
-      res = await fetch('https://overpass-api.de/api/interpreter', options).catch(
-        () => null as any
-      );
-      if (!res || !res.ok) {
-        res = await fetch('https://overpass.kumi.systems/api/interpreter', options);
-      }
-      overpassStatus = res.status;
-      if (!res.ok) {
-        const text = await res.text();
-        return NextResponse.json(
-          { error: 'overpass_error', status: res.status, text },
-          { status: 502 }
-        );
-      }
-
-      json = await res.json();
-      items =
-        (json?.elements || []).map((el: any) => {
-          const center = el.type === 'node' ? { lat: el.lat, lon: el.lon } : el.center;
-          const tags = el.tags || {};
-          const item = {
-            id: `${el.type}/${el.id}`,
-            name: tags.name || tags.operator || 'Unknown',
-            type: tags.amenity || tags.healthcare || 'facility',
-            phone: tags.phone || tags['contact:phone'] || null,
-            website: tags.website || tags['contact:website'] || null,
-            address: [
-              tags['addr:housenumber'],
-              tags['addr:street'],
-              tags['addr:city'],
-              tags['addr:state'],
-            ]
-              .filter(Boolean)
-              .join(', '),
-            lat: center?.lat,
-            lon: center?.lon,
-            tags,
-          };
-          return item;
-        }) ?? [];
-
-      if (items.length > 0 || radius >= 12000) break;
-      radius = Math.min(radius * 2, 12000);
+    let filters = '';
+    if (kind === 'pharmacy') {
+      filters = '(node["amenity"="pharmacy"];way["amenity"="pharmacy"];relation["amenity"="pharmacy"];);';
+    } else {
+      filters = '('
+        + 'node["amenity"="doctors"];way["amenity"="doctors"];relation["amenity"="doctors"];'
+        + 'node["amenity"="clinic"];way["amenity"="clinic"];relation["amenity"="clinic"];'
+        + 'node["amenity"="hospital"];way["amenity"="hospital"];relation["amenity"="hospital"];'
+        + ');';
     }
 
-    for (const it of items) {
-      if (it.lat && it.lon) {
-        const d = distanceKm(coords, { lat: it.lat, lon: it.lon });
-        (it as any).distance_km = Math.round(d * 10) / 10;
-      }
+    const overpassQL =
+`[out:json][timeout:25];
+(
+  ${filters}
+)(around:${radius},${lat},${lon});
+out center ${limit};
+`;
+
+    const res = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({ data: overpassQL }),
+      cache: 'no-store',
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      return NextResponse.json({ ok: false, error: `Overpass error ${res.status}`, detail: text.slice(0, 2000) }, { status: 502 });
     }
 
-    const response: any = { coords, items };
-    if (debug) {
-      response.overpassStatus = overpassStatus;
-      response.elementCount = json?.elements?.length ?? 0;
+    const json = await res.json() as { elements?: any[] };
+    const elements = json.elements || [];
+
+    const items: Item[] = [];
+    for (const el of elements) {
+      const tags = el.tags || {};
+      const name = pickName(tags);
+      const center = el.center || el;
+      const eLat = center.lat, eLon = center.lon;
+      if (!Number.isFinite(eLat) || !Number.isFinite(eLon)) continue;
+      if (q && name && !name.toLowerCase().includes(q.toLowerCase())) continue;
+
+      items.push({
+        id: el.id,
+        title: name || (kind === 'pharmacy' ? 'Pharmacy' : (tags['amenity'] || 'Clinic')),
+        subtitle: tags['operator'] || tags['brand'] || undefined,
+        address: pickAddress(tags) || undefined,
+        phone: cleanPhone(tags['phone'] || tags['contact:phone']),
+        website: tags['website'] || tags['contact:website'] || undefined,
+        mapsUrl: mapsUrl(eLat, eLon),
+        lat: eLat,
+        lon: eLon,
+        distanceKm: Math.round(haversineKm(lat, lon, eLat, eLon) * 10) / 10,
+      });
     }
-    return NextResponse.json(response);
+
+    items.sort((a, b) => a.distanceKm - b.distanceKm);
+    return NextResponse.json({ ok: true, items: items.slice(0, limit) });
   } catch (e: any) {
-    return NextResponse.json({ error: 'nearby_unhandled', message: e?.message }, { status: 500 });
+    return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 });
   }
 }
