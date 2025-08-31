@@ -6,14 +6,15 @@ export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
+    // forward the original body stream & headers
     const origin = new URL(req.url).origin;
     const upstream = await fetch(`${origin}/api/analyze-doc`, {
       method: 'POST',
-      body: req.body,  // directly forward stream
-      headers: req.headers,
+      body: req.body,      // IMPORTANT: forward stream
+      headers: req.headers // preserves multipart boundary
     });
 
-    const text = await upstream.text();
+    const text = await upstream.text(); // might be JSON text or error text
     return new NextResponse(text, {
       status: upstream.status,
       headers: { 'content-type': 'application/json; charset=utf-8' },
