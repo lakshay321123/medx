@@ -1,40 +1,43 @@
 // components/UploadPanel.tsx
 'use client';
 import React, { useRef, useState } from 'react';
-import { safeJson } from '@/lib/safeJson';
+
+async function safeJson(res: Response) {
+  const txt = await res.text();
+  try { return JSON.parse(txt); } catch { return { ok: res.ok, raw: txt }; }
+}
 
 type DetectedType = 'blood' | 'prescription' | 'other';
 
 export default function UploadPanel() {
   const [busy, setBusy] = useState(false);
-  const [detected, setDetected] = useState<{type:DetectedType, preview:string, note?:string} | null>(null);
+  const [detected, setDetected] = useState<{type:DetectedType, preview?:string, note?:string} | null>(null);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const lastFileRef = useRef<File | null>(null);
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
+    lastFileRef.current = f;
     setBusy(true); setError(null); setResult(null); setDetected(null);
 
     try {
-      const fd = new FormData();
-      fd.append('file', f);
+      const fd = new FormData(); fd.append('file', f);
 
-      // Always hit the analyzer. It always returns JSON (or a safe fallback via safeJson).
-      const res = await fetch('/api/analyze-doc', { method:'POST', body: fd });
-      const data = await safeJson(res);             // <-- key change: never use res.json()
+      // Use the proxy that guarantees JSON
+      const res = await fetch('/api/upload', { method:'POST', body: fd });
+      const data = await safeJson(res);
 
-      if (!data.ok) throw new Error(data.error || 'Analyze failed');
+      if (!data || data.ok === false) {
+        throw new Error(data?.error || 'Analyze failed');
+      }
 
-      setDetected({
-        type: (data.detectedType || 'other') as DetectedType,
-        preview: data.preview || '',
-        note: data.note
-      });
+      setDetected({ type: (data.detectedType || 'other') as DetectedType, preview: data.preview, note: data.note });
       setResult(data);
-    } catch (err: any) {
-      setError(String(err?.message || err));
+    } catch (err:any) {
+      setError(String(err?.message||err));
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -49,14 +52,7 @@ export default function UploadPanel() {
           border:'1px solid #ccc', borderRadius:8, cursor: busy ? 'default' : 'pointer',
           background: busy ? '#f0f0f0' : 'white', opacity: busy ? 0.7 : 1 }}>
           <span>{busy ? 'Processing…' : 'Choose PDF'}</span>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="application/pdf"
-            onChange={onFile}
-            style={{ display:'none' }}
-            disabled={busy}
-          />
+          <input ref={fileRef} type="file" accept="application/pdf" onChange={onFile} style={{ display:'none' }} disabled={busy}/>
         </label>
       </div>
 
@@ -64,7 +60,7 @@ export default function UploadPanel() {
 
       {detected && (
         <p style={{ margin:'0 0 8px' }}>
-          <strong>Detected:</strong> {detected.type} {detected.note ? <em style={{color:'#666'}}>— {detected.note}</em> : null}
+          <strong>Detected:</strong> {detected.type}{detected.note ? ` — ${detected.note}` : ''}
         </p>
       )}
 
@@ -76,13 +72,11 @@ export default function UploadPanel() {
               <h3 style={{ margin:'0 0 8px' }}>Prescription analysis</h3>
               {result.meds.length > 0 ? (
                 <ul style={{ margin:0, paddingLeft:18 }}>
-                  {result.meds.map((m: any, idx: number) => (
-                    <li key={m.rxcui || idx}>
-                      <strong>{m.token || m.name || m.rxcui}</strong> → RXCUI: <code>{m.rxcui}</code>
-                    </li>
+                  {result.meds.map((m: any, i:number) => (
+                    <li key={`${m.rxcui}-${i}`}><strong>{m.token || m.name || m.rxcui}</strong> — RXCUI: <code>{m.rxcui}</code></li>
                   ))}
                 </ul>
-              ) : <p style={{ margin:0 }}>No medications confidently recognized.</p>}
+              ) : <p style={{ margin:0 }}>No medications confidently recognized. You can type them manually (one per line).</p>}
               {result.note && <p style={{ marginTop:8, color:'#666' }}>{result.note}</p>}
             </>
           )}
@@ -109,9 +103,7 @@ export default function UploadPanel() {
                       <td style={{borderBottom:'1px solid #f2f2f2',padding:'6px 4px',color:'#555'}}>
                         {v.ref ? `${v.ref.min}–${v.ref.max} ${v.ref.unit}` : '—'}
                       </td>
-                      <td style={{borderBottom:'1px solid #f2f2f2',padding:'6px 4px'}}>
-                        {v.status}
-                      </td>
+                      <td style={{borderBottom:'1px solid #f2f2f2',padding:'6px 4px'}}>{v.status}</td>
                     </tr>
                   ))}
                 </tbody>
