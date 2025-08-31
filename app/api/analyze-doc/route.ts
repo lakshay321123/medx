@@ -174,27 +174,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok:false, error:'Only PDF supported' }, { status: 415 });
     }
 
+    // 1) Try extracting text directly
     const pdf = (await import('pdf-parse')).default;
     const buf = Buffer.from(await file.arrayBuffer());
     let text = '';
     try {
       const out = await pdf(buf);
       text = (out.text || '').replace(/\u0000/g, '').trim();
-    } catch (e:any) {
-      // If pdf-parse fails, still continue to OCR fallback below
+    } catch {
       text = '';
     }
 
-    // OCR fallback if no extractable text
+    // 2) OCR fallback (scanned PDFs)
     if (!text) {
       const origin = new URL(req.url).origin;
       const fd = new FormData();
       fd.append('file', new Blob([buf], { type: 'application/pdf' }), 'upload.pdf');
-      const ocr = await fetch(`${origin}/api/ocr`, { method: 'POST', body: fd, cache: 'no-store' });
-      const ocrData = await ocr.json().catch(() => ({ ok:false }));
-      if (ocrData?.ok && ocrData.text) {
-        text = String(ocrData.text || '').trim();
-      }
+      try {
+        const ocrRes = await fetch(`${origin}/api/ocr`, { method: 'POST', body: fd, cache: 'no-store' });
+        const ocrJson = await ocrRes.json().catch(() => ({ ok:false }));
+        if (ocrJson?.ok && ocrJson.text) text = String(ocrJson.text || '').trim();
+      } catch {/* noop */}
     }
 
     if (!text) {
@@ -202,10 +202,11 @@ export async function POST(req: NextRequest) {
         ok: true,
         detectedType: 'other' as DetectedType,
         preview: '',
-        note: 'No selectable text found (likely a scanned PDF). OCR also returned empty.'
+        note: 'No selectable text found (likely scanned). OCR also returned empty.'
       });
     }
 
+    // 3) Classify & analyze
     let detectedType: DetectedType = 'other';
     if (looksLikeBloodReport(text)) detectedType = 'blood';
     else if (looksLikePrescription(text)) detectedType = 'prescription';
@@ -225,7 +226,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // other
     const preview = text.replace(/\s+/g, ' ').slice(0, 1000);
     return NextResponse.json({ ok:true, detectedType, preview });
   } catch (e:any) {
