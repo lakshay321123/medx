@@ -6,7 +6,7 @@ export const maxDuration = 60;
 
 type DetectedType = 'blood' | 'prescription' | 'other';
 
-/* ---------- Heuristics ---------- */
+// ---------- Heuristics ----------
 function looksLikeBloodReport(text: string): boolean {
   const t = text.toLowerCase();
   const labHints = [
@@ -34,7 +34,7 @@ function looksLikePrescription(text: string): boolean {
   return score >= 2;
 }
 
-/* ---------- RxNorm ---------- */
+// ---------- Prescription (RxNorm) ----------
 function cleanToken(t: string): string {
   return t
     .replace(/[^\w\s\-\+\/\.]/g, ' ')
@@ -50,7 +50,8 @@ async function rxcuiForName(name: string): Promise<string | null> {
   const res = await fetch(url, { cache: 'no-store' });
   if (!res.ok) return null;
   const j = await res.json();
-  return (j?.idGroup?.rxnormId?.[0] as string | undefined) ?? null;
+  const id = (j?.idGroup?.rxnormId?.[0] as string | undefined) ?? null;
+  return id;
 }
 
 async function analyzePrescription(text: string) {
@@ -70,7 +71,7 @@ async function analyzePrescription(text: string) {
     try {
       const rxcui = await rxcuiForName(token);
       if (rxcui) found.push({ token, rxcui });
-    } catch {/* ignore */}
+    } catch { /* noop */ }
   }
   const meds = Object.values(
     found.reduce<Record<string, { token: string; rxcui: string }>>((acc, m) => {
@@ -81,7 +82,7 @@ async function analyzePrescription(text: string) {
   return { meds };
 }
 
-/* ---------- Blood ---------- */
+// ---------- Blood report ----------
 const RANGES: Record<string, {unit: string, min: number, max: number, label: string}> = {
   hemoglobin:{unit:'g/dL',min:12,max:17.5,label:'Hemoglobin'},
   hb:{unit:'g/dL',min:12,max:17.5,label:'Hemoglobin'},
@@ -163,7 +164,7 @@ async function analyzeBlood(text: string) {
   };
 }
 
-/* ---------- Main ---------- */
+// ---------- Main ----------
 export async function POST(req: NextRequest) {
   try {
     const form = await req.formData();
@@ -176,31 +177,23 @@ export async function POST(req: NextRequest) {
     const pdf = (await import('pdf-parse')).default;
     const buf = Buffer.from(await file.arrayBuffer());
     let text = '';
-
-    // 1) Try native text
     try {
       const out = await pdf(buf);
       text = (out.text || '').replace(/\u0000/g, '').trim();
     } catch (e:any) {
-      // keep going – we still return JSON below
+      // If pdf-parse fails, still continue to OCR fallback below
+      text = '';
     }
 
-    // 2) OCR fallback if no text
+    // OCR fallback if no extractable text
     if (!text) {
       const origin = new URL(req.url).origin;
-      const fd2 = new FormData();
-      fd2.append('file', new Blob([buf], { type:'application/pdf' }), 'upload.pdf');
-
-      try {
-        const ocrRes = await fetch(`${origin}/api/ocr`, { method: 'POST', body: fd2, cache: 'no-store' });
-        const ocrRaw = await ocrRes.text();
-        let ocrData: any = null;
-        try { ocrData = JSON.parse(ocrRaw); } catch { /* non-JSON from provider handled in /api/ocr */ }
-        if (ocrData?.ok && typeof ocrData?.text === 'string') {
-          text = ocrData.text.trim();
-        }
-      } catch (e) {
-        // swallow – we still return JSON
+      const fd = new FormData();
+      fd.append('file', new Blob([buf], { type: 'application/pdf' }), 'upload.pdf');
+      const ocr = await fetch(`${origin}/api/ocr`, { method: 'POST', body: fd, cache: 'no-store' });
+      const ocrData = await ocr.json().catch(() => ({ ok:false }));
+      if (ocrData?.ok && ocrData.text) {
+        text = String(ocrData.text || '').trim();
       }
     }
 
@@ -209,11 +202,10 @@ export async function POST(req: NextRequest) {
         ok: true,
         detectedType: 'other' as DetectedType,
         preview: '',
-        note: 'No text could be extracted (scanned/non-selectable).',
+        note: 'No selectable text found (likely a scanned PDF). OCR also returned empty.'
       });
     }
 
-    // 3) Classify & analyze
     let detectedType: DetectedType = 'other';
     if (looksLikeBloodReport(text)) detectedType = 'blood';
     else if (looksLikePrescription(text)) detectedType = 'prescription';
@@ -233,6 +225,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // other
     const preview = text.replace(/\s+/g, ' ').slice(0, 1000);
     return NextResponse.json({ ok:true, detectedType, preview });
   } catch (e:any) {
