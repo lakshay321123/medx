@@ -17,6 +17,24 @@ type ChatMsg = {
   chips?: { id: string; label: string }[];
 };
 
+async function safeJson(res: Response) {
+  const text = await res.text();
+  try { return JSON.parse(text); } catch { return { ok: res.ok, raw: text }; }
+}
+
+async function uploadFile(file: File) {
+  const fd = new FormData();
+  fd.append('file', file);
+
+  const res = await fetch('/api/upload', { method: 'POST', body: fd });
+  const data = await safeJson(res);
+
+  if (!res.ok || !data?.ok) {
+    throw new Error(data?.error || `Upload failed (${res.status})`);
+  }
+  return data;
+}
+
 export default function Home(){
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
@@ -208,6 +226,10 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
     setBusy(true);
 
     try {
+      console.log('Processing', file.name);
+      const uploaded = await uploadFile(file);
+      console.log('Uploaded:', uploaded);
+
       const idx = messages.length;
       setMessages(prev=>[...prev, { role:'assistant', content:`Processing "${file.name}"…` }]);
 
@@ -216,14 +238,14 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
         const fd = new FormData();
         fd.append('file', file);
         const r = await fetch('/api/rxnorm/normalize-pdf', { method: 'POST', body: fd });
-        const j = await r.json();
+        const j = await safeJson(r);
         if (!r.ok) throw new Error(j?.error || 'PDF parse error');
         extractedText = String(j.text || '').trim();
       } else {
         const fd = new FormData();
         fd.append('file', file);
         const o = await fetch('/api/ocr', { method: 'POST', body: fd });
-        const oj = await o.json();
+        const oj = await safeJson(o);
         if (!o.ok) throw new Error(oj?.error || 'OCR failed');
         extractedText = String(oj.text || '').trim();
       }
@@ -232,7 +254,7 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
         method:'POST', headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({ text: extractedText })
       });
-      const rx = await rxRes.json();
+      const rx = await safeJson(rxRes);
       const meds = rx.meds || [];
 
       let interactions: any[] = [];
@@ -241,7 +263,7 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
           method:'POST', headers:{ 'Content-Type':'application/json' },
           body: JSON.stringify({ rxcuis: meds.map((m:any)=>m.rxcui) })
         });
-        const j = await r.json();
+        const j = await safeJson(r);
         interactions = j.interactions || [];
       }
 
@@ -310,7 +332,7 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
                 <label className="item" style={{ cursor:'pointer' }}>
                   📄 Upload Prescription
                   <input
-                    type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display:'none' }}
+                    type="file" accept=".pdf,image/png,image/jpeg,.txt" style={{ display:'none' }}
                     onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleUpload(f); e.currentTarget.value=''; }}
                   />
                 </label>
@@ -369,7 +391,7 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
                   <label className="item" style={{ cursor:'pointer' }}>
                     📄 Upload Prescription
                     <input
-                      type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display:'none' }}
+                      type="file" accept=".pdf,image/png,image/jpeg,.txt" style={{ display:'none' }}
                       onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleUpload(f); e.currentTarget.value=''; }}
                     />
                   </label>
