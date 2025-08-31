@@ -33,12 +33,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Only PDF supported' }, { status: 415 });
     }
 
-    const buf = await file.arrayBuffer();
+    const buf = Buffer.from(await file.arrayBuffer());
     let text = '';
     try {
       text = await extractTextFromPDF(buf);
     } catch (e: any) {
-      return NextResponse.json({ ok: false, error: `PDF.js parse error: ${e?.message}` }, { status: 200 });
+      return NextResponse.json(
+        { ok: false, error: `PDF parse error: ${e?.message || e}` },
+        { status: 200 }
+      );
     }
 
     if (!text) {
