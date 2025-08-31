@@ -5,6 +5,7 @@ export const runtime = 'nodejs';
 
 type DetectedType = 'blood' | 'prescription' | 'other';
 
+// ---------- Heuristics ----------
 function looksLikeBloodReport(text: string): boolean {
   const t = text.toLowerCase();
   const labHints = [
@@ -32,7 +33,7 @@ function looksLikePrescription(text: string): boolean {
   return score >= 2;
 }
 
-// ----------------- Prescription (RxNorm) helpers -----------------
+// ---------- Prescription (RxNorm) ----------
 function cleanToken(t: string): string {
   return t
     .replace(/[^\w\s\-\+\/\.]/g, ' ')
@@ -69,7 +70,7 @@ async function analyzePrescription(text: string) {
     try {
       const rxcui = await rxcuiForName(token);
       if (rxcui) found.push({ token, rxcui });
-    } catch {}
+    } catch {/* swallow */}
   }
   const meds = Object.values(
     found.reduce<Record<string, { token: string; rxcui: string }>>((acc, m) => {
@@ -80,7 +81,7 @@ async function analyzePrescription(text: string) {
   return { meds };
 }
 
-// ----------------- Blood report helpers -----------------
+// ---------- Blood report ----------
 const RANGES: Record<string, {unit: string, min: number, max: number, label: string}> = {
   hemoglobin:{unit:'g/dL',min:12,max:17.5,label:'Hemoglobin'},
   hb:{unit:'g/dL',min:12,max:17.5,label:'Hemoglobin'},
@@ -155,11 +156,14 @@ function labSummary(items: any[]) {
 async function analyzeBlood(text: string) {
   const items = labMap(labCandidates(text));
   const summary = labSummary(items);
-  return { values: items, summary,
-    disclaimer: 'Automated summary for education only; not medical advice. Please consult your clinician.' };
+  return {
+    values: items,
+    summary,
+    disclaimer: 'Automated summary for education only; not medical advice. Please consult your clinician.'
+  };
 }
 
-// ----------------- Main handler -----------------
+// ---------- Main ----------
 export async function POST(req: NextRequest) {
   try {
     const form = await req.formData();
@@ -171,7 +175,6 @@ export async function POST(req: NextRequest) {
 
     const pdf = (await import('pdf-parse')).default;
     const buf = Buffer.from(await file.arrayBuffer());
-
     let text = '';
     try {
       const out = await pdf(buf);
