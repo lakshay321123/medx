@@ -1,5 +1,5 @@
+// app/upload/page.tsx
 import UploadPanel from '@/components/UploadPanel';
-
 export const dynamic = 'force-dynamic';
 
 export default function UploadPage() {
