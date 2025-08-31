@@ -13,7 +13,7 @@ export async function uploadFile(file: File) {
 
   const res = await fetch('/api/upload', {
     method: 'POST',
-    body: fd // DO NOT set Content-Type; the browser will set proper boundary
+    body: fd // DO NOT set Content-Type manually
   });
 
   const data = await safeJson(res);
