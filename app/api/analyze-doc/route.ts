@@ -9,13 +9,10 @@ type DetectedType = 'blood' | 'prescription' | 'other';
 function looksLikeBloodReport(text: string): boolean {
   const t = text.toLowerCase();
   const labHints = [
-    'hemoglobin','hematocrit','hct','hb','wbc','rbc','platelet','esr',
+    'hemoglobin','hematocrit','hct','hb','wbc','rbc','platelet','platelets',
     'mcv','mch','mchc','rdw','neutrophil','lymphocyte','monocyte','eosinophil','basophil',
-    'glucose','hba1c','cholesterol','ldl','hdl','vldl','triglyceride',
-    'sgpt','alt','sgot','ast','alkaline phosphatase','bilirubin',
-    'creatinine','bun','egfr','uric acid',
-    'sodium','potassium','chloride','bicarbonate','calcium',
-    'tsh','t3','t4','vitamin d','vitamin b12','ggt','lipase','amylase'
+    'glucose','creatinine','bun','sodium','potassium','chloride','bicarbonate','calcium',
+    'alt','ast','alkaline phosphatase','bilirubin','tsh','t3','t4','ldl','hdl','triglycerides'
   ];
   let hits = 0;
   for (const h of labHints) if (t.includes(h)) hits++;
@@ -36,7 +33,7 @@ function looksLikePrescription(text: string): boolean {
   return score >= 2;
 }
 
-/* ---------------- Prescription analysis ---------------- */
+/* ---------------- Prescription (RxNorm) ---------------- */
 function cleanToken(t: string): string {
   return t
     .replace(/[^\w\s\-\+\/\.]/g, ' ')
@@ -52,12 +49,13 @@ async function rxcuiForName(name: string): Promise<string | null> {
   const res = await fetch(url, { cache: 'no-store' });
   if (!res.ok) return null;
   const j = await res.json();
-  return j?.idGroup?.rxnormId?.[0] ?? null;
+  const id = (j?.idGroup?.rxnormId?.[0] as string | undefined) ?? null;
+  return id;
 }
 
 async function analyzePrescription(text: string) {
-  const words = text.split(/[^A-Za-z0-9-]+/).filter(w => w.length > 2);
-  const cleaned = words.map(cleanToken).filter(Boolean);
+  const words: string[] = text.split(/[^A-Za-z0-9-]+/).filter((w: string) => w.length > 2);
+  const cleaned: string[] = words.map((w: string) => cleanToken(w)).filter((v: string) => Boolean(v));
 
   const grams = new Set<string>();
   for (let i = 0; i < cleaned.length; i++) {
@@ -65,17 +63,15 @@ async function analyzePrescription(text: string) {
     if (i + 1 < cleaned.length) grams.add(`${cleaned[i]} ${cleaned[i + 1]}`);
     if (i + 2 < cleaned.length) grams.add(`${cleaned[i]} ${cleaned[i + 1]} ${cleaned[i + 2]}`);
   }
+  const candidates: string[] = Array.from(grams).slice(0, 200);
 
-  const candidates = Array.from(grams).slice(0, 200);
   const found: Array<{ token: string; rxcui: string }> = [];
-
   for (const token of candidates) {
     try {
       const rxcui = await rxcuiForName(token);
       if (rxcui) found.push({ token, rxcui });
-    } catch { /* ignore */ }
+    } catch {/* swallow */}
   }
-
   const meds = Object.values(
     found.reduce<Record<string, { token: string; rxcui: string }>>((acc, m) => {
       if (!acc[m.rxcui]) acc[m.rxcui] = m;
@@ -85,45 +81,40 @@ async function analyzePrescription(text: string) {
   return { meds };
 }
 
-/* ---------------- Blood report analysis ---------------- */
+/* ---------------- Blood report ---------------- */
 const RANGES: Record<string, {unit: string, min: number, max: number, label: string}> = {
   hemoglobin:{unit:'g/dL',min:12,max:17.5,label:'Hemoglobin'},
   hb:{unit:'g/dL',min:12,max:17.5,label:'Hemoglobin'},
   wbc:{unit:'/µL',min:4000,max:11000,label:'WBC'},
   platelet:{unit:'/µL',min:150000,max:450000,label:'Platelet'},
+  platelets:{unit:'/µL',min:150000,max:450000,label:'Platelet'},
   rbc:{unit:'M/µL',min:4,max:6,label:'RBC'},
   hct:{unit:'%',min:36,max:52,label:'Hematocrit'},
+  mcv:{unit:'fL',min:80,max:100,label:'MCV'},
+  mch:{unit:'pg',min:27,max:34,label:'MCH'},
+  mchc:{unit:'g/dL',min:32,max:36,label:'MCHC'},
   glucose:{unit:'mg/dL',min:70,max:100,label:'Fasting Glucose'},
-  hba1c:{unit:'%',min:4,max:5.6,label:'HbA1c'},
-  cholesterol:{unit:'mg/dL',min:0,max:200,label:'Total Cholesterol'},
-  ldl:{unit:'mg/dL',min:0,max:100,label:'LDL'},
-  hdl:{unit:'mg/dL',min:40,max:100,label:'HDL'},
-  vldl:{unit:'mg/dL',min:5,max:40,label:'VLDL'},
-  triglycerides:{unit:'mg/dL',min:0,max:150,label:'Triglycerides'},
-  sgpt:{unit:'U/L',min:7,max:56,label:'ALT / SGPT'},
-  alt:{unit:'U/L',min:7,max:56,label:'ALT'},
-  sgot:{unit:'U/L',min:10,max:40,label:'AST / SGOT'},
-  ast:{unit:'U/L',min:10,max:40,label:'AST'},
-  ggt:{unit:'U/L',min:8,max:61,label:'GGT'},
-  bilirubin:{unit:'mg/dL',min:0.1,max:1.2,label:'Bilirubin'},
   creatinine:{unit:'mg/dL',min:0.6,max:1.3,label:'Creatinine'},
   bun:{unit:'mg/dL',min:7,max:20,label:'BUN'},
-  egfr:{unit:'mL/min/1.73m2',min:90,max:120,label:'eGFR'},
-  uricacid:{unit:'mg/dL',min:3.5,max:7.2,label:'Uric Acid'},
   sodium:{unit:'mmol/L',min:135,max:145,label:'Sodium'},
   potassium:{unit:'mmol/L',min:3.5,max:5.1,label:'Potassium'},
   chloride:{unit:'mmol/L',min:98,max:107,label:'Chloride'},
+  bicarbonate:{unit:'mmol/L',min:22,max:29,label:'Bicarbonate'},
   calcium:{unit:'mg/dL',min:8.5,max:10.5,label:'Calcium'},
+  alt:{unit:'U/L',min:7,max:56,label:'ALT'},
+  ast:{unit:'U/L',min:10,max:40,label:'AST'},
+  'alkaline phosphatase':{unit:'U/L',min:44,max:147,label:'Alkaline phosphatase'},
+  bilirubin:{unit:'mg/dL',min:0.1,max:1.2,label:'Bilirubin (total)'},
   tsh:{unit:'µIU/mL',min:0.4,max:4.5,label:'TSH'},
   t3:{unit:'ng/dL',min:80,max:180,label:'T3'},
   t4:{unit:'µg/dL',min:5,max:12,label:'T4'},
-  vitaminD:{unit:'ng/mL',min:30,max:100,label:'Vitamin D'},
-  vitaminB12:{unit:'pg/mL',min:200,max:900,label:'Vitamin B12'},
-  esr:{unit:'mm/hr',min:0,max:20,label:'ESR'},
+  ldl:{unit:'mg/dL',min:0,max:100,label:'LDL (calc)'},
+  hdl:{unit:'mg/dL',min:40,max:100,label:'HDL'},
+  triglycerides:{unit:'mg/dL',min:0,max:150,label:'Triglycerides'},
 };
 
 const VAL_RE = /([A-Za-z][A-Za-z \-\/%()]*[A-Za-z])[^0-9\-]*(-?\d+(?:\.\d+)?)\s*([a-zA-Zµ\/%]+)?/g;
-const normKey = (k: string) => k.toLowerCase().replace(/[^a-z0-9]/g, '');
+const normKey = (k: string) => k.toLowerCase().replace(/[^a-z]/g, '');
 
 function labCandidates(text: string) {
   const out: { name: string; value: number; unit?: string }[] = [];
@@ -146,7 +137,7 @@ function labMap(cs: ReturnType<typeof labCandidates>) {
     const unit = c.unit || ref.unit;
     let status: 'low'|'normal'|'high' = 'normal';
     if (c.value < ref.min) status = 'low'; else if (c.value > ref.max) status = 'high';
-    return { label: ref.label, key: rk, value: c.value, unit, ref, status };
+    return { label: ref.label, key: rk, value: c.value, unit, ref: { min: ref.min, max: ref.max, unit: ref.unit }, status };
   });
 }
 
@@ -154,7 +145,7 @@ function labSummary(items: any[]) {
   if (!items.length) return 'No recognizable lab values were found in the report text.';
   const highs = items.filter(i => i.status === 'high').map(i => i.label);
   const lows  = items.filter(i => i.status === 'low').map(i => i.label);
-  if (!highs.length && !lows.length) return 'All parsed lab values are within reference ranges.';
+  if (!highs.length && !lows.length) return 'All parsed lab values are within common adult reference ranges.';
   const parts: string[] = [];
   if (highs.length) parts.push(`High: ${highs.join(', ')}`);
   if (lows.length)  parts.push(`Low: ${lows.join(', ')}`);
@@ -168,7 +159,7 @@ async function analyzeBlood(text: string) {
   return {
     values: items,
     summary,
-    disclaimer: 'Automated summary — not medical advice. Please consult your clinician.'
+    disclaimer: 'Automated summary for education only; not medical advice. Please consult your clinician.'
   };
 }
 
@@ -192,12 +183,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok:false, error:`PDF parse error: ${e?.message||e}` }, { status: 200 });
     }
 
+    // If no selectable text, try OCR via our /api/ocr route
+    if (!text) {
+      const origin = new URL(req.url).origin;        // safe absolute URL on server
+      const fd2 = new FormData();
+      fd2.append('file', new Blob([buf], { type:'application/pdf' }), 'upload.pdf');
+
+      const ocrRes = await fetch(`${origin}/api/ocr`, { method: 'POST', body: fd2, cache: 'no-store' });
+      const ocrData = await ocrRes.json().catch(() => null);
+      if (ocrData?.ok && ocrData?.text) text = String(ocrData.text).trim();
+    }
+
     if (!text) {
       return NextResponse.json({
         ok: true,
         detectedType: 'other' as DetectedType,
         preview: '',
-        note: 'No selectable text found (may be a scanned PDF). OCR support coming soon.',
+        note: 'No text could be extracted (scanned/non-selectable).',
       });
     }
 
