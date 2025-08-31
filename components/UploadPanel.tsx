@@ -1,8 +1,9 @@
+// components/UploadPanel.tsx
 'use client';
 import React, { useRef, useState } from 'react';
 
 async function safeJson(res: Response) {
-  const text = await res.text();
+  const text = await res.text();         // never throws
   try { return JSON.parse(text); } catch { return { ok: res.ok, raw: text }; }
 }
 
@@ -16,32 +17,16 @@ export default function UploadPanel() {
   const fileRef = useRef<HTMLInputElement>(null);
   const lastFileRef = useRef<File | null>(null);
 
-  async function analyze(kind: DetectedType) {
-    const file = lastFileRef.current;
-    if (!file) return;
-    setBusy(true); setError(null); setResult(null);
-    try {
-      const fd = new FormData(); fd.append('file', file);
-      const res = await fetch('/api/analyze-doc', { method:'POST', body: fd });
-      const data = await safeJson(res);
-      if (!data.ok) throw new Error(data.error || 'Analyze failed');
-      setResult(data);
-    } catch (e:any) {
-      setError(String(e?.message||e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
     lastFileRef.current = f;
     setBusy(true); setError(null); setResult(null); setDetected(null);
+
     try {
       const fd = new FormData(); fd.append('file', f);
-      const res = await fetch('/api/analyze-doc', { method:'POST', body: fd }); // detect + analyze
-      const data = await safeJson(res);
+      const res = await fetch('/api/analyze-doc', { method:'POST', body: fd });
+      const data = await safeJson(res);                 // <-- never throws JSON error
       if (!data.ok) throw new Error(data.error || 'Analyze failed');
       setDetected({ type: (data.detectedType || 'other') as DetectedType, preview: data.preview || '', note: data.note });
       setResult(data);
@@ -69,7 +54,7 @@ export default function UploadPanel() {
 
       {detected && (
         <p style={{ margin:'0 0 8px' }}>
-          <strong>Detected:</strong> {detected.type}
+          <strong>Detected:</strong> {detected.type} {detected.note ? <em style={{color:'#666'}}>— {detected.note}</em> : null}
         </p>
       )}
 
@@ -82,7 +67,9 @@ export default function UploadPanel() {
               {result.meds.length > 0 ? (
                 <ul style={{ margin:0, paddingLeft:18 }}>
                   {result.meds.map((m: any) => (
-                    <li key={m.rxcui}><strong>{m.token}</strong> → RXCUI: <code>{m.rxcui}</code></li>
+                    <li key={m.rxcui}>
+                      <strong>{m.token || m.name || m.rxcui}</strong> → RXCUI: <code>{m.rxcui}</code>
+                    </li>
                   ))}
                 </ul>
               ) : <p style={{ margin:0 }}>No medications confidently recognized.</p>}
