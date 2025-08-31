@@ -1,0 +1,1 @@
+export async function getRxCUI(drug:string){const url=`https://rxnav.nlm.nih.gov/REST/rxcui.json?name=${encodeURIComponent(drug)}`;const res=await fetch(url,{next:{revalidate:300}});if(!res.ok) throw new Error("RxNorm API error");return res.json();}

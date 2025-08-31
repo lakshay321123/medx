@@ -1,0 +1,22 @@
+async function getToken() {
+  const body = new URLSearchParams({
+    client_id: process.env.ICD11_CLIENT_ID || '',
+    client_secret: process.env.ICD11_CLIENT_SECRET || '',
+    scope: "icdapi_access",
+    grant_type: "client_credentials"
+  });
+  const res = await fetch("https://icdaccessmanagement.who.int/connect/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body
+  });
+  if (!res.ok) throw new Error("ICD-11 auth error");
+  return res.json();
+}
+export async function searchICD(term: string) {
+  const { access_token } = await getToken();
+  const url = `https://id.who.int/icd/release/11/2024-01/mms/search?q=${encodeURIComponent(term)}`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${access_token}`, Accept: "application/json" }});
+  if (!res.ok) throw new Error("ICD-11 API error");
+  return res.json();
+}
