@@ -209,66 +209,27 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
 
     try {
       const idx = messages.length;
-      setMessages(prev=>[...prev, { role:'assistant', content:`Processing "${file.name}"…` }]);
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: `Processing "${file.name}"…` },
+      ]);
 
-      let extractedText = '';
-      if (file.type === 'application/pdf') {
-        const fd = new FormData();
-        fd.append('file', file);
-        const r = await fetch('/api/rxnorm/normalize-pdf', { method: 'POST', body: fd });
-        const j = await r.json();
-        if (!r.ok) throw new Error(j?.error || 'PDF parse error');
-        extractedText = String(j.text || '').trim();
-      } else {
-        const fd = new FormData();
-        fd.append('file', file);
-        const o = await fetch('/api/ocr', { method: 'POST', body: fd });
-        const oj = await o.json();
-        if (!o.ok) throw new Error(oj?.error || 'OCR failed');
-        extractedText = String(oj.text || '').trim();
-      }
+      const result = await uploadFile(file);
 
-      const rxRes = await fetch('/api/rxnorm/normalize', {
-        method:'POST', headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ text: extractedText })
-      });
-      const rx = await rxRes.json();
-      const meds = rx.meds || [];
-
-      let interactions: any[] = [];
-      if (meds.length >= 2) {
-        const r = await fetch('/api/interactions', {
-          method:'POST', headers:{ 'Content-Type':'application/json' },
-          body: JSON.stringify({ rxcuis: meds.map((m:any)=>m.rxcui) })
-        });
-        const j = await r.json();
-        interactions = j.interactions || [];
-      }
-
-      const lines: string[] = [];
-      lines.push(`**Prescription analysis – ${file.name}**`);
-      if (extractedText) {
-        lines.push(`<details><summary>Extracted text</summary>\n\n${extractedText.slice(0,2000)}\n\n</details>`);
-      }
-      if (meds.length) {
-        lines.push('**Recognized medications (RxNorm):**');
-        meds.forEach((m:any)=> lines.push(`- ${m.token} — RXCUI [${m.rxcui}](https://rxnav.nlm.nih.gov/REST/rxcui/${m.rxcui})`));
-      } else {
-        lines.push('No medications confidently recognized. You can type them manually (one per line).');
-      }
-      if (interactions.length) {
-        lines.push('\n**Potential interactions:**');
-        interactions.forEach((it:any)=> lines.push(`- **${it.severity || 'Severity N/A'}** — ${it.description}`));
-      }
-
-      setMessages(prev=>{
+      setMessages(prev => {
         const copy = [...prev];
-        copy[idx] = { role:'assistant', content: lines.join('\n') };
+        copy[idx] = {
+          role: 'assistant',
+          content: `Uploaded ${result.name} (${result.type || 'unknown'}, ${result.size} bytes)`,
+        };
         return copy;
       });
-    } catch (e:any) {
-      console.error(e);
-      setMessages(prev=>[...prev, { role:'assistant', content:`⚠️ Upload failed: ${String(e?.message || e)}` }]);
+    } catch (err: any) {
+      console.error('Upload error:', err.message);
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: `⚠️ Upload failed: ${err.message}` },
+      ]);
     } finally {
       setBusy(false);
     }
@@ -381,6 +342,27 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
       </main>
     </div>
   );
+}
+
+async function safeJson(res: Response) {
+  const text = await res.text();
+  try { return JSON.parse(text); } catch { return { ok: res.ok, raw: text }; }
+}
+
+async function uploadFile(file: File) {
+  const fd = new FormData();
+  fd.append('file', file);
+
+  const res = await fetch('/api/upload', {
+    method: 'POST',
+    body: fd // no manual Content-Type
+  });
+
+  const data = await safeJson(res);
+  if (!res.ok || !data?.ok) {
+    throw new Error(data?.error || `Upload failed (${res.status})`);
+  }
+  return data;
 }
 
 function prettyType(t?: string) {
