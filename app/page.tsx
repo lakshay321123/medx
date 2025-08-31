@@ -5,12 +5,22 @@ import Markdown from '../components/Markdown';
 import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
 import { parseNearbyIntent } from '@/lib/intent';
 import NearbyCards from '@/components/NearbyCards';
+<<<<<<< HEAD
+=======
+import { clientLocale } from '@/lib/locale';
+import { detectClarification } from '@/lib/dialogue';
+import { cleanUrl, pubmedUrl, ctgovUrl } from '@/lib/links';
+>>>>>>> 9f1ebfc8f7123c8bee6dc20e18eafec211bd1e44
 
 type ChatMsg = {
   role: 'user' | 'assistant';
   content?: string;
   type?: 'note' | 'nearby-cards';
   payload?: any;
+<<<<<<< HEAD
+=======
+  chips?: { id: string; label: string }[];
+>>>>>>> 9f1ebfc8f7123c8bee6dc20e18eafec211bd1e44
 };
 
 export default function Home(){
@@ -62,6 +72,7 @@ export default function Home(){
   const showHero = messages.length===0;
 
   function buildMessages(userText: string) {
+<<<<<<< HEAD
     let text = userText;
     // Handle "best doc" or award-seeking queries
     if (/best.*doc/i.test(userText) || /most.*award/i.test(userText)) {
@@ -76,15 +87,36 @@ export default function Home(){
       ...prev,
       msg.type === 'note'
         ? { role: 'assistant', type: 'note', content: msg.text }
+=======
+    return [...messages.map(m => ({ role: m.role, content: m.content || '' })), { role: 'user', content: userText }];
+  }
+
+  function addAssistantMessage(msg: { type: 'note' | 'markdown'; text: string; chips?: {id:string;label:string}[] }) {
+    setMessages(prev => [
+      ...prev,
+      msg.type === 'note'
+        ? { role: 'assistant', type: 'note', content: msg.text, chips: msg.chips }
+>>>>>>> 9f1ebfc8f7123c8bee6dc20e18eafec211bd1e44
         : { role: 'assistant', content: msg.text },
     ]);
   }
 
+<<<<<<< HEAD
   async function sendToLLM(userText: string) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: buildMessages(userText) }),
+=======
+  async function sendToLLM(userText: string, meta?: any) {
+    const localePrefix = `User country: ${meta?.countryCode}. Language: ${meta?.language}. Prefer local regulator sources and names.\n\n`;
+    const userMessage = localePrefix + userText;
+
+    const res = await fetch('/api/medx', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: buildMessages(userMessage), meta }),
+>>>>>>> 9f1ebfc8f7123c8bee6dc20e18eafec211bd1e44
     });
 
     let payload: any = null;
@@ -105,13 +137,35 @@ export default function Home(){
     if (payload.data.citations?.length) {
       addAssistantMessage({
         type: 'note',
+<<<<<<< HEAD
         text: payload.data.citations.map((c: any) => `[${c.title || 'Source'}](${c.url})`).join('\\n'),
+=======
+        text: payload.data.citations
+          .map((c: any) => {
+            const pm = c.pmid ? pubmedUrl(c.pmid) : c.pubmed ? pubmedUrl(c.pubmed) : undefined;
+            const ct = c.nct ? ctgovUrl(c.nct) : c.ctgov ? ctgovUrl(c.ctgov) : undefined;
+            if (pm) return `[View on PubMed](${pm})`;
+            if (ct) return `[View on ClinicalTrials.gov](${ct})`;
+            const u = cleanUrl(c.url);
+            return `[${c.title || 'Source'}](${u})`;
+          })
+          .join('\\n'),
+>>>>>>> 9f1ebfc8f7123c8bee6dc20e18eafec211bd1e44
       });
     }
   }
 
   async function send(text: string){
     if(!text.trim() || busy) return;
+<<<<<<< HEAD
+=======
+  const loc = clientLocale();
+  const clarify = detectClarification(text);
+  if (clarify?.ask) {
+    addAssistantMessage({ type: 'note', text: clarify.ask, chips: clarify.chips?.map(c => ({ id: `clarify:${c}`, label: c })) });
+    return;
+  }
+>>>>>>> 9f1ebfc8f7123c8bee6dc20e18eafec211bd1e44
 
   const intent = parseNearbyIntent(text);
   if (intent.type === 'nearby') {
@@ -183,7 +237,11 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
     setBusy(true);
     setMessages(prev=>[...prev, { role:'user', content:text }]);
     setInput('');
+<<<<<<< HEAD
     await sendToLLM(text);
+=======
+    await sendToLLM(text, { mode, coords, countryCode: loc.countryCode, language: loc.language });
+>>>>>>> 9f1ebfc8f7123c8bee6dc20e18eafec211bd1e44
     setBusy(false);
   }
 
@@ -314,6 +372,16 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
                         ) : (
                           <div className="markdown"><Markdown text={m.content || ''}/></div>
                         )}
+<<<<<<< HEAD
+=======
+                        {m.chips && (
+                          <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginTop:8 }}>
+                            {m.chips.map(c => (
+                              <button key={c.id} className="item" onClick={() => send(c.label)}>{c.label}</button>
+                            ))}
+                          </div>
+                        )}
+>>>>>>> 9f1ebfc8f7123c8bee6dc20e18eafec211bd1e44
                       </div>
                     </div>
                   </div>
