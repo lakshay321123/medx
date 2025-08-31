@@ -1,3 +1,4 @@
+// app/api/upload/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -5,12 +6,11 @@ export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
-    const form = await req.formData();
     const origin = new URL(req.url).origin;
     const upstream = await fetch(`${origin}/api/analyze-doc`, {
       method: 'POST',
-      body: form,
-      cache: 'no-store',
+      body: req.body,  // directly forward stream
+      headers: req.headers,
     });
 
     const text = await upstream.text();
