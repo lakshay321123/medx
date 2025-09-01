@@ -173,8 +173,10 @@ export async function POST(req: NextRequest) {
           const o = await ocrBuffer(buf);
           text = (o?.text || '').trim();
           usedOCR = !!o?.usedOCR || true;
-        } catch (ee: any) {
-          return json({ ok: false, error: `PDF parse failed and OCR failed: ${String(ee?.message || ee)}` }, 200);
+        } catch {
+          // If OCR fails, treat as unreadable text rather than hard error
+          usedOCR = true;
+          text = '';
         }
       }
     } else if (type.startsWith('image/')) {
@@ -183,8 +185,10 @@ export async function POST(req: NextRequest) {
         const o = await ocrBuffer(buf);
         text = (o?.text || '').trim();
         usedOCR = !!o?.usedOCR || true;
-      } catch (e: any) {
-        return json({ ok: false, error: `Image OCR failed: ${String(e?.message || e)}` }, 200);
+      } catch {
+        // Swallow OCR errors and fall through to empty-text response
+        usedOCR = true;
+        text = '';
       }
     } else {
       return json({ ok:false, error:`Unsupported file type: ${type || 'unknown'}` }, 415);
