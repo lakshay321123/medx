@@ -135,7 +135,8 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
         );
         lat = p.coords.latitude; lon = p.coords.longitude;
       } catch {}
-
+      const loc = { lat, lon };
+      console.log('NEARBY coords', loc);
       const params = new URLSearchParams({
         kind: intent.kind,
         ...(intent.specialty ? { specialty: intent.specialty } : {}),
