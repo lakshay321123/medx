@@ -105,7 +105,10 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
         let j;
         try { j = JSON.parse(rt); }
         catch { throw new Error(`Invalid JSON from /api/rxnorm/normalize-pdf: ${r.status} ${rt}`); }
-        if (!r.ok) throw new Error(j?.error || 'PDF parse error');
+        if (!r.ok) {
+          const msg = j?.error ? `${j.error}${j.detail ? ': '+j.detail : ''}` : 'PDF parse error';
+          throw new Error(msg);
+        }
         extractedText = String(j.text || '').trim();
       } else {
         const fd = new FormData();
@@ -115,7 +118,10 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
         let oj;
         try { oj = JSON.parse(ot); }
         catch { throw new Error(`Invalid JSON from /api/ocr: ${o.status} ${ot}`); }
-        if (!o.ok) throw new Error(oj?.error || 'OCR failed');
+        if (!o.ok) {
+          const msg = oj?.error ? `${oj.error}${oj.detail ? ': '+oj.detail : ''}` : 'OCR failed';
+          throw new Error(msg);
+        }
         extractedText = String(oj.text || '').trim();
       }
 
@@ -127,6 +133,10 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
       let rx;
       try { rx = JSON.parse(rxText); }
       catch { throw new Error(`Invalid JSON from /api/rxnorm/normalize: ${rxRes.status} ${rxText}`); }
+      if (!rxRes.ok) {
+        const msg = rx?.error ? `${rx.error}${rx.detail ? ': '+rx.detail : ''}` : 'RxNorm normalize error';
+        throw new Error(msg);
+      }
       const meds = rx.meds || [];
 
       let interactions: any[] = [];
@@ -139,6 +149,10 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
         let j;
         try { j = JSON.parse(itext); }
         catch { throw new Error(`Invalid JSON from /api/interactions: ${r.status} ${itext}`); }
+        if (!r.ok) {
+          const msg = j?.error ? `${j.error}${j.detail ? ': '+j.detail : ''}` : 'Interactions lookup failed';
+          throw new Error(msg);
+        }
         interactions = j.interactions || [];
       }
 
