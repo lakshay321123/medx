@@ -189,7 +189,7 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
               </div>
               <div style={{ marginTop:10, textAlign:'right' }}>
                 <label className="item" style={{ cursor:'pointer' }}>
-                  📄 Upload Medical Doc
+                  Upload Medical Doc
                   <input
                     type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display:'none' }}
                     onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleUpload(f); e.currentTarget.value=''; }}
@@ -223,7 +223,7 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                 </div>
                 <div style={{ marginTop:8, textAlign:'right' }}>
                   <label className="item" style={{ cursor:'pointer' }}>
-                    📄 Upload Medical Doc
+                    Upload Medical Doc
                     <input
                       type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display:'none' }}
                       onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleUpload(f); e.currentTarget.value=''; }}
