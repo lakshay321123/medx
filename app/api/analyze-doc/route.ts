@@ -2,8 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractTextFromPDF } from '@/lib/pdftext';
 import { summarizeChunks, chunkText } from '@/lib/llm';
-// If you have OCR helper, keep this import; otherwise comment it out.
-// import { ocrBuffer } from '@/lib/ocr';
+import { ocrBuffer } from '@/lib/ocr';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -168,18 +167,15 @@ export async function POST(req: NextRequest) {
         // console.error('PDF.js failed:', e);
       }
 
-      // 2) Optional OCR fallback for scanned PDFs
-      if ((!text || text.length < 8)) {
-        // If you have an OCR helper, enable this:
-        // try {
-        //   const o = await ocrBuffer(buf);
-        //   text = (o?.text || '').trim();
-        //   usedOCR = !!o?.usedOCR || true;
-        // } catch (ee:any) {
-        //   return json({ ok:false, error:`PDF parse failed and OCR failed: ${String(ee?.message||ee)}` }, 200);
-        // }
-        // If you don't have OCR yet, return friendly note:
-        return json({ ok:true, detectedType:'other', usedOCR:false, preview:'', note:'No text layer found (likely scanned). Enable OCR to read images.' }, 200);
+      // 2) OCR fallback for scanned PDFs
+      if (!text || text.length < 8) {
+        try {
+          const o = await ocrBuffer(buf);
+          text = (o?.text || '').trim();
+          usedOCR = true;
+        } catch {
+          return json({ ok:false, error:'PDF parse failed and OCR not available' }, 200);
+        }
       }
     } else if (type.startsWith('image/')) {
       // Image → OCR only
