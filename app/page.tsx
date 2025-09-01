@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import Markdown from '../components/Markdown';
-import { Send, Sun, Moon, User, Stethoscope, ClipboardList } from 'lucide-react';
+import { Send, Sun, Moon, User, Stethoscope, ClipboardList, FlaskConical } from 'lucide-react';
 import { parseLabValues } from '../lib/parseLabs';
 
 type ChatMsg = { role: 'user'|'assistant'; content: string };
@@ -13,6 +13,7 @@ export default function Home(){
   const [mode, setMode] = useState<'patient'|'doctor'|'admin'>('patient');
   const [theme, setTheme] = useState<'dark'|'light'>('dark');
   const [busy, setBusy] = useState(false);
+  const [researchMode, setResearchMode] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(()=>{ document.documentElement.className = theme==='light'?'light':''; },[theme]);
@@ -21,14 +22,14 @@ export default function Home(){
 
   const showHero = messages.length===0;
 
-  async function send(text: string){
+  async function send(text: string, researchMode: boolean){
     if(!text.trim() || busy) return;
     setBusy(true);
 
     try {
       const planRes = await fetch('/api/medx', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ query: text, mode })
+        body: JSON.stringify({ query: text, mode, researchMode })
       });
       if (!planRes.ok) throw new Error(`MedX API error ${planRes.status}`);
       const plan = await planRes.json();
@@ -222,6 +223,9 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
           <button className="item" onClick={()=>setTheme(theme==='dark'?'light':'dark')}>
             {theme==='dark'? <><Sun size={16}/> Light</> : <><Moon size={16}/> Dark</>}
           </button>
+          <button className="item" onClick={()=>setResearchMode(r=>!r)}>
+            {researchMode ? <><FlaskConical size={16}/> Research On</> : <><FlaskConical size={16}/> Research Off</>}
+          </button>
         </div>
 
         <div className="wrap">
@@ -234,9 +238,9 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                   placeholder="Type your question…"
                   value={input}
                   onChange={e=>setInput(e.target.value)}
-                  onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(input);} }}
+                  onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(input, researchMode);} }}
                 />
-                <button className="iconBtn" onClick={()=>send(input)} aria-label="Send" disabled={busy}><Send size={18}/></button>
+                <button className="iconBtn" onClick={()=>send(input, researchMode)} aria-label="Send" disabled={busy}><Send size={18}/></button>
               </div>
               <div style={{ marginTop:10, textAlign:'right' }}>
                 <label className="item" style={{ cursor:'pointer' }}>
@@ -268,9 +272,9 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                     placeholder="Send a message…"
                     value={input}
                     onChange={e=>setInput(e.target.value)}
-                    onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(input);} }}
+                    onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(input, researchMode);} }}
                   />
-                  <button className="iconBtn" onClick={()=>send(input)} aria-label="Send" disabled={busy}>➤</button>
+                  <button className="iconBtn" onClick={()=>send(input, researchMode)} aria-label="Send" disabled={busy}>➤</button>
                 </div>
                 <div style={{ marginTop:8, textAlign:'right' }}>
                   <label className="item" style={{ cursor:'pointer' }}>
