@@ -1,41 +1,49 @@
 // lib/pdftext.ts
-// PDF text extraction using pdfjs-dist with a dynamic import (Next.js safe)
+// Extracts text from a PDF buffer using pdfjs-dist. Falls back to OCR if the
+// text layer is empty.
 
 export async function extractTextFromPDF(
   buf: ArrayBuffer | Buffer | Uint8Array
-): Promise<{ text: string; ocr?: boolean }> {
-  // @ts-ignore - pdfjs-dist types are partial
-  const pdfjs: any = await import('pdfjs-dist');
-  const { getDocument } = pdfjs;
+): Promise<{ text: string; ocr: boolean }> {
+  // Normalize input to Buffer for OCR and Uint8Array for pdfjs
+  const buffer: Buffer = Buffer.isBuffer(buf)
+    ? buf
+    : buf instanceof ArrayBuffer
+    ? Buffer.from(buf)
+    : Buffer.from(buf.buffer, buf.byteOffset, buf.byteLength);
 
-  const uint8 =
-    buf instanceof Uint8Array
-      ? buf
-      : Buffer.isBuffer(buf)
-      ? new Uint8Array(buf)
-      : new Uint8Array(buf);
+  try {
+    // Dynamically import legacy build which works in Node environments
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const loadingTask = pdfjs.getDocument({
+      data: new Uint8Array(buffer),
+      disableWorker: true,
+      isEvalSupported: false,
+      useSystemFonts: true,
+      disableFontFace: true,
+      disableRange: true,
+      disableStream: true,
+    } as any);
+    const pdf = await loadingTask.promise;
 
-  const task = getDocument({
-    data: uint8,
-    disableWorker: true,
-    isEvalSupported: false,
-    useSystemFonts: true,
-    disableFontFace: true,
-    disableRange: true,
-    disableStream: true,
-  });
-
-  const pdf = await task.promise;
-
-  let text = '';
-  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-    const page = await pdf.getPage(pageNum);
-    const content = await page.getTextContent();
-    const line = (content.items as any[])
-      .map((it: any) => (typeof it?.str === 'string' ? it.str : ''))
-      .join(' ');
-    text += line + '\n';
+    let text = '';
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const content = await page.getTextContent();
+      const line = (content.items as any[])
+        .map((it: any) => (typeof it?.str === 'string' ? it.str : ''))
+        .join(' ');
+      text += line + '\n';
+    }
+    text = text.replace(/\s+\n/g, '\n').trim();
+    if (text.length > 20) {
+      return { text, ocr: false };
+    }
+  } catch {
+    // ignore PDF parse errors and fall back to OCR
   }
 
-  return { text: text.replace(/\s+\n/g, '\n').trim() };
+  const { runOCR } = await import('./ocr');
+  const ocrText = await runOCR(buffer);
+  return { text: ocrText, ocr: true };
 }
