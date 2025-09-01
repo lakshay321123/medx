@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import Markdown from '../components/Markdown';
+import { safeJson } from '@/lib/safeJson';
 import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
 import { parseNearbyIntent } from '@/lib/intent';
 import NearbyCards from '@/components/NearbyCards';
@@ -40,7 +41,7 @@ export default function Home(){
     setLocNote(auto ? 'Setting location…' : null);
     const useIPFallback = async () => {
       try {
-        const r = await fetch('/api/locate'); const j = await r.json();
+        const r = await fetch('/api/locate'); const j = await safeJson(r);
         if (j?.lat && j?.lng) { saveCoords({ lat: j.lat, lng: j.lng }); setLocNote(`Location set${j.city ? `: ${j.city}` : ''}.`); return; }
       } catch {}
       setLocNote('Location unavailable. You can still type a place, e.g., "pharmacy near Connaught Place".');
@@ -88,7 +89,7 @@ export default function Home(){
     });
 
     let payload: any = null;
-    try { payload = await res.json(); }
+    try { payload = await safeJson(res); }
     catch {
       addAssistantMessage({ type: 'note', text: 'Sorry — I could not process that response. Please try again.' });
       return;
@@ -142,7 +143,7 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
         ...(lat && lon ? { lat: String(lat), lon: String(lon) } : {}),
       });
       const res = await fetch(`/api/nearby?${params.toString()}`);
-      const data = await res.json().catch(() => null);
+      const data = await safeJson(res).catch(() => null);
 
       if (!res.ok || !data?.items?.length) {
         setMessages(prev => [
@@ -200,14 +201,14 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
         const fd = new FormData();
         fd.append('file', file);
         const r = await fetch('/api/rxnorm/normalize-pdf', { method: 'POST', body: fd });
-        const j = await r.json();
+        const j = await safeJson(r);
         if (!r.ok) throw new Error(j?.error || 'PDF parse error');
         extractedText = String(j.text || '').trim();
       } else {
         const fd = new FormData();
         fd.append('file', file);
         const o = await fetch('/api/ocr', { method: 'POST', body: fd });
-        const oj = await o.json();
+        const oj = await safeJson(o);
         if (!o.ok) throw new Error(oj?.error || 'OCR failed');
         extractedText = String(oj.text || '').trim();
       }
@@ -216,7 +217,7 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
         method:'POST', headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({ text: extractedText })
       });
-      const rx = await rxRes.json();
+      const rx = await safeJson(rxRes);
       const meds = rx.meds || [];
 
       let interactions: any[] = [];
@@ -225,7 +226,7 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
           method:'POST', headers:{ 'Content-Type':'application/json' },
           body: JSON.stringify({ rxcuis: meds.map((m:any)=>m.rxcui) })
         });
-        const j = await r.json();
+        const j = await safeJson(r);
         interactions = j.interactions || [];
       }
 

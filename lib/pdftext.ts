@@ -1,16 +1,37 @@
-import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.js';
+// lib/pdftext.ts
+// Server-side text extraction for text-based PDFs using pdfjs-dist (no OCR here).
 
-export async function extractTextFromPDF(arrayBuffer: ArrayBuffer): Promise<string> {
-  try {
-    const pdf = await pdfjs.getDocument({ data: new Uint8Array(arrayBuffer), disableWorker: true }).promise;
-    let text = '';
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const content = await page.getTextContent();
-      text += content.items.map((item: any) => ('str' in item ? item.str : '')).join(' ') + '\n';
-    }
-    return text.trim();
-  } catch {
-    throw new Error('Invalid or unreadable PDF');
+export async function extractTextFromPDF(
+  buf: ArrayBuffer | Buffer | Uint8Array
+): Promise<string> {
+  // @ts-ignore - pdfjs types are partial
+  const pdfjs: any = await import('pdfjs-dist');
+  const { getDocument } = pdfjs;
+
+  const uint8 =
+    buf instanceof Uint8Array ? buf :
+    Buffer.isBuffer(buf) ? new Uint8Array(buf) :
+    new Uint8Array(buf);
+
+  const task = getDocument({
+    data: uint8,
+    disableWorker: true,
+    isEvalSupported: false,
+    useSystemFonts: true,
+    disableFontFace: true,
+    disableRange: true,
+    disableStream: true,
+  });
+
+  const pdf = await task.promise;
+  let text = '';
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const content = await page.getTextContent();
+    const line = (content.items as any[])
+      .map((it: any) => (typeof it?.str === 'string' ? it.str : ''))
+      .join(' ');
+    text += line + '\n';
   }
+  return text.replace(/\s+\n/g, '\n').trim();
 }

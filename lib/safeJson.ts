@@ -1,9 +1,4 @@
-// lib/safeJson.ts
-export async function safeJson(res: Response) {
-  const text = await res.text();     // always read full body
-  try {
-    return JSON.parse(text);         // return parsed JSON if valid
-  } catch {
-    return { ok: res.ok, raw: text }; // fallback safe object
-  }
+export async function safeJson<T = any>(res: Response): Promise<T | { ok: boolean; raw: string }> {
+  const text = await res.text();
+  try { return JSON.parse(text) as T; } catch { return { ok: res.ok, raw: text }; }
 }

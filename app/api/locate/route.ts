@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { safeJson } from '@/lib/safeJson';
 export const runtime = 'edge';
 
 /**
@@ -12,7 +13,7 @@ export async function GET(_req: NextRequest) {
   try {
     // ipapi.co uses caller IP automatically
     const r = await fetch('https://ipapi.co/json/');
-    const j = await r.json();
+    const j = await safeJson(r);
     const lat = Number(j.latitude), lng = Number(j.longitude);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error('No coords');
     return NextResponse.json({ lat, lng, city: j.city, region: j.region, country: j.country_name, source: 'ipapi' });

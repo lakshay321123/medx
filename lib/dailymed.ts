@@ -1,1 +1,2 @@
-export async function getDailyMed(drug:string){const url=`https://dailymed.nlm.nih.gov/dailymed/services/v2/spls.json?drug_name=${encodeURIComponent(drug)}&pagesize=5`;const res=await fetch(url,{next:{revalidate:300}});if(!res.ok) throw new Error("DailyMed API error");return res.json();}
+import { safeJson } from './safeJson';
+export async function getDailyMed(drug:string){const url=`https://dailymed.nlm.nih.gov/dailymed/services/v2/spls.json?drug_name=${encodeURIComponent(drug)}&pagesize=5`;const res=await fetch(url,{next:{revalidate:300}});if(!res.ok) throw new Error("DailyMed API error");return safeJson(res);}
