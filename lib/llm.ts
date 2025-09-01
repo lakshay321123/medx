@@ -8,12 +8,10 @@ export function chunkText(text: string, maxChars = 12000) {
 }
 
 function pickEnv() {
-  const base =
-    (process.env.LLM_BASE_URL?.replace(/\/+$/, '') || 'https://api.groq.com'); // default to Groq
-  const model =
-    (process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant'); // your default
-  const key =
-    (process.env.LLM_API_KEY || '');
+  const rawBase = process.env.LLM_BASE_URL || 'https://api.groq.com/openai/v1';
+  const base = rawBase.replace(/\/+$/, '').replace(/\/openai\/v1$/, '') + '/openai/v1';
+  const model = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
+  const key = process.env.LLM_API_KEY || '';
 
   return { base, model, key };
 }
@@ -43,7 +41,7 @@ export async function summarizeChunks(chunks: string[], systemPrompt: string): P
   // If key or base/model missing, skip summarization quietly.
   if (!key || !base || !model || !Array.isArray(chunks) || chunks.length === 0) return '';
 
-  const url = `${base}/v1/chat/completions`;
+  const url = `${base}/chat/completions`;
   const parts: string[] = [];
 
   for (const c of chunks) {
@@ -51,8 +49,8 @@ export async function summarizeChunks(chunks: string[], systemPrompt: string): P
       const r = await withTimeout(fetch(url, {
         method: 'POST',
         headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${key}`,
         },
         body: JSON.stringify({
           model,
