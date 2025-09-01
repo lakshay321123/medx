@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { nearbyProviders } from '../../../lib/providers';
+import { nearbyProviders } from '@/lib/providers';
 
 const BASE = process.env.LLM_BASE_URL!;
 const MODEL = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import Markdown from '../components/Markdown';
 import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
+import type { Provider } from '@/lib/providers';
 
 type ChatMsg = { role: 'user'|'assistant'; content: string };
 
@@ -12,7 +13,7 @@ export default function Home(){
   const [mode, setMode] = useState<'patient'|'doctor'>('patient');
   const [theme, setTheme] = useState<'dark'|'light'>('dark');
   const [busy, setBusy] = useState(false);
-  const [providers, setProviders] = useState<any[]>([]);
+  const [providers, setProviders] = useState<Provider[]>([]);
   const [coords, setCoords] = useState<{lat:number, lon:number}|null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
