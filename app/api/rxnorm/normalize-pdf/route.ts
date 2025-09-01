@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractTextFromPDF } from '@/lib/pdftext';
+import { ocrBuffer } from '@/lib/ocr';
 export const runtime = 'nodejs';
 
 async function rxcuiForName(name: string): Promise<string | null> {
@@ -29,14 +30,22 @@ export async function POST(req: NextRequest) {
 
   const buf = Buffer.from(await file.arrayBuffer());
   let text = '';
-  let extraction = '';
+  let usedOCR = false;
   try {
     const res = await extractTextFromPDF(buf);
     text = res.text;
-    extraction = res.ocr ? 'OCR fallback used' : 'PDF text extracted';
+    if (res.pagesWithText === 0 || text.trim().length < 20) {
+      const o = await ocrBuffer(buf);
+      text = o.text;
+      usedOCR = o.usedOCR;
+    }
   } catch (e:any){
-    return NextResponse.json({ error: 'PDF parse failed', detail: String(e) }, { status: 500 });
+    const o = await ocrBuffer(buf);
+    text = o.text;
+    usedOCR = o.usedOCR;
   }
+
+  const extraction = usedOCR ? 'OCR fallback used' : 'PDF text extracted';
 
   if (!text.trim()) return NextResponse.json({ meds: [], extraction });
 

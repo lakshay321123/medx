@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractTextFromPDF } from '@/lib/pdftext';
-import { summarizeChunks, chunkText } from '@/lib/llm';
+import { ocrBuffer } from '@/lib/ocr';
+import { chunkText, summarizeChunks } from '@/lib/llm';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 type DetectedType = 'blood' | 'prescription' | 'other';
 
+// ---------- Ranges & regex ----------
 const LAB_RANGES: Record<string, {unit: string, min: number, max: number, label: string}> = {
   hemoglobin:{unit:'g/dL',min:12,max:17.5,label:'Hemoglobin'},
   hb:{unit:'g/dL',min:12,max:17.5,label:'Hemoglobin'},
@@ -37,23 +39,21 @@ const LAB_RANGES: Record<string, {unit: string, min: number, max: number, label:
   hdl:{unit:'mg/dL',min:40,max:100,label:'HDL'},
   triglycerides:{unit:'mg/dL',min:0,max:150,label:'Triglycerides'},
 };
-
 const VAL_RE = /([A-Za-z][A-Za-z \-\/\%()]*[A-Za-z])[^0-9\-]*(-?\d+(?:\.\d+)?)\s*([a-zA-Zµ\/%]+)?/g;
 const normKey = (k: string) => k.toLowerCase().replace(/[^a-z]/g, '');
 
 function looksLikeBlood(text: string) {
   const t = text.toLowerCase();
-  const labHints = ['hemoglobin','hematocrit','hb','hct','wbc','rbc','platelet','mcv','mch','mchc','tsh','t3','t4','ldl','hdl','triglycerides','creatinine','alt','ast','bilirubin','glucose','sodium','potassium'];
-  let hits = 0;
-  for (const h of labHints) if (t.includes(h)) hits++;
+  const hints = ['hemoglobin','hematocrit','hb','hct','wbc','rbc','platelet','mcv','mch','mchc','tsh','t3','t4','ldl','hdl','triglycerides','creatinine','alt','ast','bilirubin','glucose','sodium','potassium'];
+  let hits = 0; for (const h of hints) if (t.includes(h)) hits++;
   return hits >= 3 || /\b(\d+(?:\.\d+)?)\s?(mg\/dL|g\/dL|mmol\/L|µIU\/mL|U\/L|fL|pg|%)\b/i.test(text);
 }
 function looksLikeRx(text: string) {
   const dose = /\b\d+(\.\d+)?\s?(mg|mcg|g|ml|iu)\b/i;
   const freq = /\b(qd|od|bid|tid|qid|qhs|qam|prn|po|iv|im|sc|hs|ac|pc|once daily|twice daily)\b/i;
   const medDose = /\b[A-Z][a-zA-Z\-]{2,}\s+\d+(?:\.\d+)?\s?(mg|mcg|g|ml)\b/;
-  let score = 0; if (dose.test(text)) score++; if (freq.test(text)) score++; if (medDose.test(text)) score++;
-  return score >= 2;
+  let s = 0; if (dose.test(text)) s++; if (freq.test(text)) s++; if (medDose.test(text)) s++;
+  return s >= 2;
 }
 
 function labCandidates(text: string) {
@@ -83,7 +83,7 @@ function labSummary(items: any[]) {
   if (!items.length) return 'No recognizable lab values found.';
   const highs = items.filter(i => i.status === 'high').map(i => i.label);
   const lows  = items.filter(i => i.status === 'low').map(i => i.label);
-  if (!highs.length && !lows.length) return 'All parsed lab values are within common adult reference ranges.';
+  if (!highs.length && !lows.length) return 'All parsed lab values fall within common adult reference ranges.';
   const parts: string[] = [];
   if (highs.length) parts.push(`High: ${highs.join(', ')}`);
   if (lows.length)  parts.push(`Low: ${lows.join(', ')}`);
@@ -91,12 +91,12 @@ function labSummary(items: any[]) {
   return parts.join(' • ');
 }
 
-// RxNorm helpers
+// RxNorm (simple)
 function cleanToken(t: string): string {
   return t
     .replace(/[^\w\s\-\+\/\.]/g, ' ')
     .replace(/\b(tab(?:let)?|cap(?:sule)?|syrup|susp(?:ension)?|drop(?:s)?|inj(?:ection)?|cream|gel|ointment|soln|solution)\b/gi, ' ')
-    .replace(/\b(\d+(?:\.\d+)?)(mg|mcg|g|ml|iu)\b/gi, ' ')
+    .replace(/\b(\d+(\.\d+)?)(mg|mcg|g|ml|iu)\b/gi, ' ')
     .replace(/\b(qd|od|bid|tid|qid|qhs|qam|prn|po|iv|im|sc|hs|ac|pc)\b/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -109,14 +109,14 @@ async function rxcuiForName(name: string): Promise<string | null> {
 }
 async function rxFromText(text: string) {
   const words: string[] = text.split(/[^A-Za-z0-9-]+/).filter((w: string) => w.length > 2);
-  const cleaned: string[] = words.map((w: string) => cleanToken(w)).filter((v: string) => Boolean(v));
+  const cleaned: string[] = words.map(cleanToken).filter(Boolean);
   const grams = new Set<string>();
   for (let i = 0; i < cleaned.length; i++) {
     grams.add(cleaned[i]);
     if (i + 1 < cleaned.length) grams.add(`${cleaned[i]} ${cleaned[i + 1]}`);
     if (i + 2 < cleaned.length) grams.add(`${cleaned[i]} ${cleaned[i + 1]} ${cleaned[i + 2]}`);
   }
-  const tokens = Array.from(grams).slice(0, 200);
+  const tokens = Array.from(grams).slice(0, 150);
   const found: Array<{ token: string; rxcui: string }> = [];
   for (const token of tokens) {
     try {
@@ -124,7 +124,6 @@ async function rxFromText(text: string) {
       if (r) found.push({ token, rxcui: r });
     } catch {}
   }
-  // dedupe by rxcui
   const meds = Object.values(found.reduce<Record<string, { token: string; rxcui: string }>>((acc, m) => {
     if (!acc[m.rxcui]) acc[m.rxcui] = m;
     return acc;
@@ -137,27 +136,45 @@ export async function POST(req: NextRequest) {
     const form = await req.formData();
     const file = form.get('file') as File | null;
     if (!file) return NextResponse.json({ ok:false, error:'No file' }, { status: 400 });
-    if (file.type !== 'application/pdf') {
-      return NextResponse.json({ ok:false, error:'Only PDF supported' }, { status: 415 });
+
+    const type = (file.type || '').toLowerCase();
+    const buf = Buffer.from(await file.arrayBuffer());
+
+    // 1) Try PDF.js if it's a PDF; otherwise go to OCR directly
+    let text = '';
+    let usedOCR = false;
+
+    if (type === 'application/pdf') {
+      try {
+        const out = await extractTextFromPDF(buf, 6000);
+        text = out.text;
+        if (out.pagesWithText === 0 || text.length < 30) {
+          // No text layer → OCR fallback
+          const o = await ocrBuffer(buf, 20000);
+          text = o.text;
+          usedOCR = o.usedOCR;
+        }
+      } catch {
+        // PDF.js failed → OCR fallback
+        const o = await ocrBuffer(buf, 20000);
+        text = o.text;
+        usedOCR = o.usedOCR;
+      }
+    } else if (type.startsWith('image/')) {
+      const o = await ocrBuffer(buf, 20000);
+      text = o.text;
+      usedOCR = o.usedOCR;
+    } else {
+      return NextResponse.json({ ok:false, error:`Unsupported file type: ${type||'unknown'}` }, { status: 415 });
     }
 
-    // 1) Extract full text from all pages
-    const buf = Buffer.from(await file.arrayBuffer());
-    let text = '';
-    let extractionNote = '';
-    try {
-      const res = await extractTextFromPDF(buf);
-      text = res.text;
-      extractionNote = res.ocr ? 'OCR fallback used' : 'PDF text extracted';
-    } catch (e:any) {
-      return NextResponse.json({ ok:false, error:`PDF parse error: ${e?.message||e}` }, { status: 200 });
-    }
-    if (!text) {
+    if (!text || text.length < 10) {
       return NextResponse.json({
         ok: true,
-        detectedType: 'other' as DetectedType,
+        detectedType: 'other',
         preview: '',
-        extraction: extractionNote,
+        note: 'No selectable text found (scanned/low quality). OCR attempted.',
+        usedOCR,
       });
     }
 
@@ -166,44 +183,39 @@ export async function POST(req: NextRequest) {
     if (looksLikeBlood(text)) detectedType = 'blood';
     else if (looksLikeRx(text)) detectedType = 'prescription';
 
-    // 3) Analyze accordingly
-    let payload: any = { detectedType, extraction: extractionNote };
+    // 3) Analyze
+    const payload: any = { ok:true, detectedType, usedOCR };
 
     if (detectedType === 'blood') {
       const values = labMap(labCandidates(text));
-      const summary = labSummary(values);
       payload.values = values;
-      payload.summary = summary;
+      payload.summary = labSummary(values);
       payload.disclaimer = 'Automated summary for education only; not medical advice.';
     } else if (detectedType === 'prescription') {
-      const meds = await rxFromText(text);
-      payload.meds = meds;
-      if (!meds.length) payload.note = 'No clear medicines detected.';
+      payload.meds = await rxFromText(text);
+      if (!payload.meds.length) payload.note = 'No clear medicines detected.';
     } else {
       payload.preview = text.slice(0, 2000);
     }
 
-    // 4) Doctor-style overall summary using LLM on FULL TEXT
+    // 4) Optional doctor-style summary (if env set)
     if (process.env.LLM_BASE_URL && process.env.LLM_API_KEY && process.env.LLM_MODEL_ID) {
-      const chunks = chunkText(text);
-      const systemPrompt = `
-You are a clinical assistant. Given the FULL text of a medical PDF (labs/prescription/summary), produce a concise, patient-safe summary with:
-- Patient identifiers (if present: name/age/sex/date).
-- Key sections found (e.g., Thyroid profile, Lipid profile, CBC, etc.).
-- A table-like bullet list of abnormal values: name – value (reference) – low/normal/high.
-- 2–5 "Key Findings" bullets (e.g., "Borderline hypothyroidism", "Dyslipidemia").
-- 3–6 Next Steps (generic patient-friendly; always say "Discuss with your clinician").
-Avoid diagnosis; use cautious language ("suggests", "consistent with"). Keep it under ~250 words total if possible.
-      `.trim();
       try {
-        const summary = await summarizeChunks(chunks, systemPrompt);
-        payload.doctorStyleSummary = summary.trim();
-      } catch {
-        // ignore LLM failure; return structured data anyway
-      }
+        const chunks = chunkText(text);
+        const systemPrompt = `
+You are a clinical assistant. Given the FULL text of a medical PDF or image, produce a concise, patient-safe summary with:
+- Patient identifiers (if present).
+- Key sections (e.g., Thyroid profile, Lipid profile, CBC).
+- Bullet list of abnormal values: test – value (reference) – low/normal/high.
+- 2–5 key findings (use cautious language).
+- 3–6 next steps (generic, patient-friendly, always include "Discuss with your clinician.").
+Keep under ~250 words.
+        `.trim();
+        payload.doctorStyleSummary = await summarizeChunks(chunks, systemPrompt);
+      } catch {}
     }
 
-    return NextResponse.json({ ok:true, ...payload });
+    return NextResponse.json(payload);
   } catch (e:any) {
     return NextResponse.json({ ok:false, error:String(e?.message||e) }, { status: 500 });
   }
