@@ -1,49 +1,41 @@
 // lib/pdftext.ts
-import { runOCR } from './ocr';
+// PDF text extraction using pdfjs-dist with a dynamic import (Next.js safe)
 
-/**
- * Extracts text from a PDF buffer using pdfjs-dist.
- * Falls back to OCR if no meaningful text is found or pdf parsing fails.
- */
 export async function extractTextFromPDF(
-  buf: Buffer
-): Promise<{ text: string; ocr: boolean }> {
-  // Try parsing the embedded text layer via PDF.js
-  try {
-    const pdfjs: any = await import('pdfjs-dist/legacy/build/pdf.js');
-    const getDocument = pdfjs.getDocument;
+  buf: ArrayBuffer | Buffer | Uint8Array
+): Promise<string> {
+  // @ts-ignore - pdfjs-dist types are partial
+  const pdfjs: any = await import('pdfjs-dist');
+  const { getDocument } = pdfjs;
 
-    const loadingTask = getDocument({ data: buf });
-    const doc = await loadingTask.promise;
+  const uint8 =
+    buf instanceof Uint8Array
+      ? buf
+      : Buffer.isBuffer(buf)
+      ? new Uint8Array(buf)
+      : new Uint8Array(buf);
 
-    let text = '';
-    for (let i = 1; i <= doc.numPages; i++) {
-      const page = await doc.getPage(i);
-      const content = await page.getTextContent();
-      // Join strings in reading order; add a newline between pages
-      text += content.items.map((it: any) => it.str).join(' ') + '\n';
-    }
+  const task = getDocument({
+    data: uint8,
+    disableWorker: true,
+    isEvalSupported: false,
+    useSystemFonts: true,
+    disableFontFace: true,
+    disableRange: true,
+    disableStream: true,
+  });
 
-    // If we got a reasonable amount of text, return it
-    if (text && text.trim().length > 20) {
-      return { text, ocr: false };
-    }
+  const pdf = await task.promise;
 
-    // Otherwise, try OCR (likely a scanned PDF)
-    try {
-      const ocrText = await runOCR(buf);
-      return { text: ocrText || '', ocr: true };
-    } catch {
-      // OCR not available or failed — return empty safely
-      return { text: '', ocr: false };
-    }
-  } catch {
-    // PDF.js parsing failed — try OCR as a fallback
-    try {
-      const ocrText = await runOCR(buf);
-      return { text: ocrText || '', ocr: true };
-    } catch {
-      return { text: '', ocr: false };
-    }
+  let text = '';
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const content = await page.getTextContent();
+    const line = (content.items as any[])
+      .map((it: any) => (typeof it?.str === 'string' ? it.str : ''))
+      .join(' ');
+    text += line + '\n';
   }
+
+  return text.replace(/\s+\n/g, '\n').trim();
 }
