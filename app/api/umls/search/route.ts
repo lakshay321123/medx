@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { umlsFetch } from '@/lib/umls';
+import { umlsFetch } from '../../../../lib/umls';
 export async function GET(req: NextRequest) {
   try {
     const q = new URL(req.url).searchParams.get('q') || '';
