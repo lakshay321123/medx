@@ -5,9 +5,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ interactions: [], note: 'Need at least 2 RXCUIs' });
   }
   const url = `https://rxnav.nlm.nih.gov/REST/interaction/list.json?rxcuis=${encodeURIComponent(rxcuis.join('+'))}`;
-  const res = await fetch(url);
-  if (!res.ok) return new NextResponse('RxNav interaction error', { status: 500 });
-  const data = await res.json();
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: { Accept: 'application/json' } });
+  } catch {
+    return NextResponse.json({ interactions: [], note: 'RxNav request failed' }, { status: 502 });
+  }
+  if (!res.ok) {
+    return NextResponse.json({ interactions: [], note: 'RxNav interaction error' }, { status: 502 });
+  }
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) {
+    return NextResponse.json({ interactions: [], note: 'RxNav non-JSON response' }, { status: 502 });
+  }
+  let data: any;
+  try {
+    data = await res.json();
+  } catch {
+    return NextResponse.json({ interactions: [], note: 'RxNav parse error' }, { status: 502 });
+  }
 
   const out: any[] = [];
   for (const g of data.fullInteractionTypeGroup || []) {

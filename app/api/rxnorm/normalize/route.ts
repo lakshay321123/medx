@@ -2,10 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 
 async function rxcuiForName(name: string): Promise<string | null> {
   const url = `https://rxnav.nlm.nih.gov/REST/rxcui.json?name=${encodeURIComponent(name)}&search=2`;
-  const res = await fetch(url);
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: { Accept: 'application/json' } });
+  } catch {
+    return null;
+  }
   if (!res.ok) return null;
-  const j = await res.json();
-  return j?.idGroup?.rxnormId?.[0] || null;
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) return null;
+  try {
+    const j = await res.json();
+    return j?.idGroup?.rxnormId?.[0] || null;
+  } catch {
+    return null;
+  }
 }
 
 export async function POST(req: NextRequest) {
