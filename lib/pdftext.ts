@@ -3,7 +3,7 @@ export async function extractTextFromPDF(
   buf: ArrayBuffer | Buffer | Uint8Array
 ): Promise<string> {
   // @ts-ignore - pdfjs-dist types are partial
-  const pdfjs: any = await import('pdfjs-dist');
+  const pdfjs: any = await import('pdfjs-dist/legacy/build/pdf.js');
   const { getDocument } = pdfjs;
 
   const uint8 =
