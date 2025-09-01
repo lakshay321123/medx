@@ -2,13 +2,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractTextFromPDF } from '@/lib/pdftext';
 import { summarizeChunks, chunkText } from '@/lib/llm';
+import { detectDocumentType, DocumentType } from '@/lib/detect';
 // If you have OCR helper, keep this import; otherwise comment it out.
 // import { ocrBuffer } from '@/lib/ocr';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
-
-type DetectedType = 'blood' | 'prescription' | 'other';
 
 // ---------- JSON helper (force JSON on every return) ----------
 function json(data: any, status = 200) {
@@ -53,20 +52,13 @@ const LAB_RANGES: Record<string, {unit: string, min: number, max: number, label:
 const VAL_RE = /([A-Za-z][A-Za-z \-\/%()]*[A-Za-z])[^0-9\-]*(-?\d+(?:\.\d+)?)\s*([a-zA-Zµ\/%]+)?/g;
 const normKey = (k: string) => k.toLowerCase().replace(/[^a-z]/g, '');
 
-function looksLikeBlood(text: string) {
-  const t = text.toLowerCase();
-  const labHints = ['hemoglobin','hematocrit','hb','hct','wbc','rbc','platelet','mcv','mch','mchc','tsh','t3','t4','ldl','hdl','triglycerides','creatinine','alt','ast','bilirubin','glucose','sodium','potassium'];
-  let hits = 0;
-  for (const h of labHints) if (t.includes(h)) hits++;
-  return hits >= 3 || /\b(\d+(?:\.\d+)?)\s?(mg\/dL|g\/dL|mmol\/L|µIU\/mL|U\/L|fL|pg|%)\b/i.test(text);
-}
-function looksLikeRx(text: string) {
-  const dose = /\b\d+(\.\d+)?\s?(mg|mcg|g|ml|iu)\b/i;
-  const freq = /\b(qd|od|bid|tid|qid|qhs|qam|prn|po|iv|im|sc|hs|ac|pc|once daily|twice daily)\b/i;
-  const medDose = /\b[A-Z][a-zA-Z\-]{2,}\s+\d+(?:\.\d+)?\s?(mg|mcg|g|ml)\b/;
-  let score = 0; if (dose.test(text)) score++; if (freq.test(text)) score++; if (medDose.test(text)) score++;
-  return score >= 2;
-}
+const DOC_DISPLAY: Record<DocumentType, string> = {
+  prescription: 'Prescription',
+  lab: 'Lab Report',
+  imaging: 'Imaging Report',
+  clinical: 'Clinical Note',
+  other: 'Other',
+};
 
 function labCandidates(text: string) {
   const out: { name: string; value: number; unit?: string }[] = [];
@@ -144,6 +136,44 @@ async function rxFromText(text: string) {
   return meds;
 }
 
+// --------- Pipelines ----------
+
+function prescriptionPipeline(text: string) {
+  const medRe = /([A-Z][a-zA-Z\-]{2,})\s+(\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml))\s*(od|bd|tds|qid|hs|prn)?/gi;
+  const medications: Array<{ name: string; dose: string; frequency?: string }> = [];
+  let m: RegExpExecArray | null;
+  while ((m = medRe.exec(text))) {
+    medications.push({ name: m[1], dose: m[2], frequency: m[3] });
+  }
+  return { medications };
+}
+
+function labPipeline(text: string) {
+  const measurements = labMap(labCandidates(text));
+  const redFlags = measurements
+    .filter((m: any) => m.status === 'high' || m.status === 'low')
+    .map((m: any) => `${m.label} ${m.status.toUpperCase()}`);
+  return {
+    measurements,
+    redFlags,
+    summary: labSummary(measurements),
+  };
+}
+
+function imagingPipeline(text: string) {
+  const impressions: string[] = [];
+  const impMatch = /impression[:\-]?\s*([\s\S]+?)(?:\n\s*\n|$)/i.exec(text);
+  if (impMatch) impressions.push(impMatch[1].trim());
+  return { impressions };
+}
+
+function clinicalPipeline(text: string) {
+  const diagnosis = /diagnosis[:\-]?\s*([\s\S]+?)(?:\n\s*\n|$)/i.exec(text)?.[1]?.trim();
+  const treatment = /treatment(?: given)?[:\-]?\s*([\s\S]+?)(?:\n\s*\n|$)/i.exec(text)?.[1]?.trim();
+  const plan = /plan[:\-]?\s*([\s\S]+?)(?:\n\s*\n|$)/i.exec(text)?.[1]?.trim();
+  return { diagnosis, treatment, plan };
+}
+
 // --------- Route ----------
 export async function POST(req: NextRequest) {
   try {
@@ -179,7 +209,7 @@ export async function POST(req: NextRequest) {
         //   return json({ ok:false, error:`PDF parse failed and OCR failed: ${String(ee?.message||ee)}` }, 200);
         // }
         // If you don't have OCR yet, return friendly note:
-        return json({ ok:true, detectedType:'other', usedOCR:false, preview:'', note:'No text layer found (likely scanned). Enable OCR to read images.' }, 200);
+        return json({ ok:true, documentType: DOC_DISPLAY['other'], usedOCR:false, preview:'', note:'No text layer found (likely scanned). Enable OCR to read images.' }, 200);
       }
     } else if (type.startsWith('image/')) {
       // Image → OCR only
@@ -196,26 +226,49 @@ export async function POST(req: NextRequest) {
     }
 
     if (!text || text.length < 8) {
-      return json({ ok:true, detectedType:'other', usedOCR, preview:'', note:'No readable text found.' }, 200);
+      return json({ ok: true, documentType: DOC_DISPLAY['other'], usedOCR, preview: '', note: 'No readable text found.' }, 200);
     }
 
-    // 3) Detect + analyze
-    let detectedType: DetectedType = 'other';
-    if (looksLikeBlood(text)) detectedType = 'blood';
-    else if (looksLikeRx(text)) detectedType = 'prescription';
+    // 3) Detect and route
+    const docType: DocumentType = detectDocumentType(text, type, file.name || '');
 
-    const payload: any = { ok:true, detectedType, usedOCR };
+    const payload: any = {
+      ok: true,
+      documentType: DOC_DISPLAY[docType],
+      content: { rawText: text },
+      generalSummary: '',
+      doctorSummary: '',
+      redFlags: [] as string[],
+      meta: { usedOCR, parseNotes: [] as string[] },
+      disclaimer: 'Automated summary for education only',
+    };
 
-    if (detectedType === 'blood') {
-      const values = labMap(labCandidates(text));
-      payload.values = values;
-      payload.summary = labSummary(values);
-      payload.disclaimer = 'Automated summary for education only; not medical advice.';
-    } else if (detectedType === 'prescription') {
-      payload.meds = await rxFromText(text);
-      if (!payload.meds.length) payload.note = 'No clear medicines detected.';
+    if (docType === 'lab') {
+      const lab = labPipeline(text);
+      payload.content.measurements = lab.measurements;
+      payload.generalSummary = lab.summary;
+      payload.doctorSummary = lab.summary;
+      payload.redFlags = lab.redFlags;
+    } else if (docType === 'prescription') {
+      const rx = prescriptionPipeline(text);
+      payload.content.medications = rx.medications;
+      payload.generalSummary = rx.medications.length
+        ? `Prescription with ${rx.medications.length} medication(s).`
+        : 'No medications found.';
+      payload.doctorSummary = payload.generalSummary;
+    } else if (docType === 'imaging') {
+      const im = imagingPipeline(text);
+      payload.content.impressions = im.impressions;
+      payload.generalSummary = im.impressions[0] || 'Imaging report';
+      payload.doctorSummary = payload.generalSummary;
+    } else if (docType === 'clinical') {
+      const cl = clinicalPipeline(text);
+      Object.assign(payload.content, cl);
+      payload.generalSummary = [cl.diagnosis, cl.plan].filter(Boolean).join(' | ') || 'Clinical note';
+      payload.doctorSummary = payload.generalSummary;
     } else {
-      payload.preview = text.slice(0, 3000); // show more preview for debugging
+      payload.generalSummary = 'Unrecognized document type';
+      payload.doctorSummary = payload.generalSummary;
     }
 
     // 4) Optional LLM summary on full text
@@ -232,7 +285,7 @@ Keep ≤ ~250 words.
       `.trim();
       try {
         const s = await summarizeChunks(chunks, systemPrompt);
-        if (s && s.trim()) payload.doctorStyleSummary = s.trim();
+        if (s && s.trim()) payload.doctorSummary = s.trim();
       } catch {
         // swallow LLM errors; payload remains valid
       }
