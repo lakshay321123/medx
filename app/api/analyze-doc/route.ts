@@ -1,12 +1,24 @@
+// app/api/analyze-doc/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { extractTextFromPDF } from '@/lib/pdftext';
 import { summarizeChunks, chunkText } from '@/lib/llm';
+// If you have OCR helper, keep this import; otherwise comment it out.
+// import { ocrBuffer } from '@/lib/ocr';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 type DetectedType = 'blood' | 'prescription' | 'other';
 
+// ---------- JSON helper (force JSON on every return) ----------
+function json(data: any, status = 200) {
+  return new NextResponse(JSON.stringify(data), {
+    status,
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+  });
+}
+
+// ---------- Heuristics ----------
 const LAB_RANGES: Record<string, {unit: string, min: number, max: number, label: string}> = {
   hemoglobin:{unit:'g/dL',min:12,max:17.5,label:'Hemoglobin'},
   hb:{unit:'g/dL',min:12,max:17.5,label:'Hemoglobin'},
@@ -38,7 +50,7 @@ const LAB_RANGES: Record<string, {unit: string, min: number, max: number, label:
   triglycerides:{unit:'mg/dL',min:0,max:150,label:'Triglycerides'},
 };
 
-const VAL_RE = /([A-Za-z][A-Za-z \-\/\%()]*[A-Za-z])[^0-9\-]*(-?\d+(?:\.\d+)?)\s*([a-zA-Zµ\/%]+)?/g;
+const VAL_RE = /([A-Za-z][A-Za-z \-\/%()]*[A-Za-z])[^0-9\-]*(-?\d+(?:\.\d+)?)\s*([a-zA-Zµ\/%]+)?/g;
 const normKey = (k: string) => k.toLowerCase().replace(/[^a-z]/g, '');
 
 function looksLikeBlood(text: string) {
@@ -102,14 +114,16 @@ function cleanToken(t: string): string {
     .trim();
 }
 async function rxcuiForName(name: string): Promise<string | null> {
-  const res = await fetch(`https://rxnav.nlm.nih.gov/REST/rxcui.json?name=${encodeURIComponent(name)}&search=2`, { cache: 'no-store' });
-  if (!res.ok) return null;
-  const j = await res.json().catch(()=>null);
-  return j?.idGroup?.rxnormId?.[0] ?? null;
+  try {
+    const res = await fetch(`https://rxnav.nlm.nih.gov/REST/rxcui.json?name=${encodeURIComponent(name)}&search=2`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const j = await res.json().catch(()=>null);
+    return j?.idGroup?.rxnormId?.[0] ?? null;
+  } catch { return null; }
 }
 async function rxFromText(text: string) {
   const words: string[] = text.split(/[^A-Za-z0-9-]+/).filter((w: string) => w.length > 2);
-  const cleaned: string[] = words.map((w: string) => cleanToken(w)).filter((v: string) => Boolean(v));
+  const cleaned: string[] = words.map(cleanToken).filter(Boolean);
   const grams = new Set<string>();
   for (let i = 0; i < cleaned.length; i++) {
     grams.add(cleaned[i]);
@@ -119,10 +133,8 @@ async function rxFromText(text: string) {
   const tokens = Array.from(grams).slice(0, 200);
   const found: Array<{ token: string; rxcui: string }> = [];
   for (const token of tokens) {
-    try {
-      const r = await rxcuiForName(token);
-      if (r) found.push({ token, rxcui: r });
-    } catch {}
+    const r = await rxcuiForName(token);
+    if (r) found.push({ token, rxcui: r });
   }
   // dedupe by rxcui
   const meds = Object.values(found.reduce<Record<string, { token: string; rxcui: string }>>((acc, m) => {
@@ -132,79 +144,102 @@ async function rxFromText(text: string) {
   return meds;
 }
 
+// --------- Route ----------
 export async function POST(req: NextRequest) {
   try {
-    const form = await req.formData();
+    const form = await req.formData().catch((e:any)=>{ throw new Error('Bad form-data: ' + (e?.message||e)); });
     const file = form.get('file') as File | null;
-    if (!file) return NextResponse.json({ ok:false, error:'No file' }, { status: 400 });
-    if (file.type !== 'application/pdf') {
-      return NextResponse.json({ ok:false, error:'Only PDF supported' }, { status: 415 });
-    }
+    if (!file) return json({ ok:false, error:'No file' }, 400);
 
-    // 1) Extract full text from all pages
+    const type = (file.type || '').toLowerCase();
     const buf = Buffer.from(await file.arrayBuffer());
+
     let text = '';
-    let extractionNote = '';
-    try {
-      const res = await extractTextFromPDF(buf);
-      text = res.text;
-      extractionNote = res.ocr ? 'OCR fallback used' : 'PDF text extracted';
-    } catch (e:any) {
-      return NextResponse.json({ ok:false, error:`PDF parse error: ${e?.message||e}` }, { status: 200 });
-    }
-    if (!text) {
-      return NextResponse.json({
-        ok: true,
-        detectedType: 'other' as DetectedType,
-        preview: '',
-        extraction: extractionNote,
-      });
+    let usedOCR = false;
+
+    if (type === 'application/pdf') {
+      // 1) Try PDF text layer first
+      try {
+        const res = await extractTextFromPDF(buf);
+        text = (res?.text || '').trim();
+        // If your extractTextFromPDF also sets res.ocr, you can read it here.
+      } catch (e:any) {
+        // If PDF.js fails, continue to OCR fallback (if available)
+        // console.error('PDF.js failed:', e);
+      }
+
+      // 2) Optional OCR fallback for scanned PDFs
+      if ((!text || text.length < 8)) {
+        // If you have an OCR helper, enable this:
+        // try {
+        //   const o = await ocrBuffer(buf);
+        //   text = (o?.text || '').trim();
+        //   usedOCR = !!o?.usedOCR || true;
+        // } catch (ee:any) {
+        //   return json({ ok:false, error:`PDF parse failed and OCR failed: ${String(ee?.message||ee)}` }, 200);
+        // }
+        // If you don't have OCR yet, return friendly note:
+        return json({ ok:true, detectedType:'other', usedOCR:false, preview:'', note:'No text layer found (likely scanned). Enable OCR to read images.' }, 200);
+      }
+    } else if (type.startsWith('image/')) {
+      // Image → OCR only
+      // try {
+      //   const o = await ocrBuffer(buf);
+      //   text = (o?.text || '').trim();
+      //   usedOCR = !!o?.usedOCR || true;
+      // } catch (e:any) {
+      //   return json({ ok:false, error:`Image OCR failed: ${String(e?.message||e)}` }, 200);
+      // }
+      return json({ ok:false, error:'Image OCR not enabled on this deployment' }, 200);
+    } else {
+      return json({ ok:false, error:`Unsupported file type: ${type || 'unknown'}` }, 415);
     }
 
-    // 2) Detect type
+    if (!text || text.length < 8) {
+      return json({ ok:true, detectedType:'other', usedOCR, preview:'', note:'No readable text found.' }, 200);
+    }
+
+    // 3) Detect + analyze
     let detectedType: DetectedType = 'other';
     if (looksLikeBlood(text)) detectedType = 'blood';
     else if (looksLikeRx(text)) detectedType = 'prescription';
 
-    // 3) Analyze accordingly
-    let payload: any = { detectedType, extraction: extractionNote };
+    const payload: any = { ok:true, detectedType, usedOCR };
 
     if (detectedType === 'blood') {
       const values = labMap(labCandidates(text));
-      const summary = labSummary(values);
       payload.values = values;
-      payload.summary = summary;
+      payload.summary = labSummary(values);
       payload.disclaimer = 'Automated summary for education only; not medical advice.';
     } else if (detectedType === 'prescription') {
-      const meds = await rxFromText(text);
-      payload.meds = meds;
-      if (!meds.length) payload.note = 'No clear medicines detected.';
+      payload.meds = await rxFromText(text);
+      if (!payload.meds.length) payload.note = 'No clear medicines detected.';
     } else {
-      payload.preview = text.slice(0, 2000);
+      payload.preview = text.slice(0, 3000); // show more preview for debugging
     }
 
-    // 4) Doctor-style overall summary using LLM on FULL TEXT
+    // 4) Optional LLM summary on full text
     if (process.env.LLM_BASE_URL && process.env.LLM_API_KEY && process.env.LLM_MODEL_ID) {
       const chunks = chunkText(text);
       const systemPrompt = `
-You are a clinical assistant. Given the FULL text of a medical PDF (labs/prescription/summary), produce a concise, patient-safe summary with:
-- Patient identifiers (if present: name/age/sex/date).
-- Key sections found (e.g., Thyroid profile, Lipid profile, CBC, etc.).
-- A table-like bullet list of abnormal values: name – value (reference) – low/normal/high.
-- 2–5 "Key Findings" bullets (e.g., "Borderline hypothyroidism", "Dyslipidemia").
-- 3–6 Next Steps (generic patient-friendly; always say "Discuss with your clinician").
-Avoid diagnosis; use cautious language ("suggests", "consistent with"). Keep it under ~250 words total if possible.
+You are a clinical assistant. Given the FULL text of a medical PDF, produce a concise, patient-safe summary:
+- Patient identifiers (if present).
+- Key sections.
+- Abnormal values: test – value (reference) – low/normal/high.
+- 2–5 key findings (cautious language).
+- 3–6 next steps (always include “Discuss with your clinician.”).
+Keep ≤ ~250 words.
       `.trim();
       try {
-        const summary = await summarizeChunks(chunks, systemPrompt);
-        payload.doctorStyleSummary = summary.trim();
+        const s = await summarizeChunks(chunks, systemPrompt);
+        if (s && s.trim()) payload.doctorStyleSummary = s.trim();
       } catch {
-        // ignore LLM failure; return structured data anyway
+        // swallow LLM errors; payload remains valid
       }
     }
 
-    return NextResponse.json({ ok:true, ...payload });
+    return json(payload, 200);
   } catch (e:any) {
-    return NextResponse.json({ ok:false, error:String(e?.message||e) }, { status: 500 });
+    return json({ ok:false, error:String(e?.message||e) }, 500);
   }
 }
