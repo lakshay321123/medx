@@ -144,8 +144,11 @@ export async function POST(req: NextRequest) {
     // 1) Extract full text from all pages
     const buf = Buffer.from(await file.arrayBuffer());
     let text = '';
+    let extractionNote = '';
     try {
-      text = await extractTextFromPDF(buf);
+      const res = await extractTextFromPDF(buf);
+      text = res.text;
+      extractionNote = res.ocr ? 'OCR fallback used' : 'PDF text extracted';
     } catch (e:any) {
       return NextResponse.json({ ok:false, error:`PDF parse error: ${e?.message||e}` }, { status: 200 });
     }
@@ -154,7 +157,7 @@ export async function POST(req: NextRequest) {
         ok: true,
         detectedType: 'other' as DetectedType,
         preview: '',
-        note: 'No selectable text found (may be a scanned PDF). OCR planned.',
+        extraction: extractionNote,
       });
     }
 
@@ -164,7 +167,7 @@ export async function POST(req: NextRequest) {
     else if (looksLikeRx(text)) detectedType = 'prescription';
 
     // 3) Analyze accordingly
-    let payload: any = { detectedType };
+    let payload: any = { detectedType, extraction: extractionNote };
 
     if (detectedType === 'blood') {
       const values = labMap(labCandidates(text));
