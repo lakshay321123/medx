@@ -6,56 +6,59 @@ export const maxDuration = 60;
 
 type DetectedType = 'blood' | 'prescription' | 'other';
 
-function looksLikeBloodReport(text: string) {
-  const t = text.toLowerCase();
-  return (
-    t.includes('hemoglobin') ||
-    t.includes('hematocrit') ||
-    t.includes('wbc') ||
-    t.includes('platelet') ||
-    /\b\d+\s?(mg\/dL|g\/dL|mmol\/L)\b/i.test(text)
-  );
-}
+const isBlood = (t: string) =>
+  /hemoglobin|hematocrit|wbc|platelet/i.test(t) ||
+  /\b\d+\s?(mg\/dL|g\/dL|mmol\/L|g\/L|µIU\/mL|U\/L|%|fL|pg)\b/i.test(t);
 
-function looksLikePrescription(text: string) {
-  return (
-    /\b\d+\s?(mg|mcg|ml|iu)\b/i.test(text) ||
-    /\b(bid|tid|prn|qd|od)\b/i.test(text)
-  );
+const isRx = (t: string) =>
+  /\b\d+\s?(mg|mcg|ml|iu|g)\b/i.test(t) ||
+  /\b(bid|tid|prn|qd|od|qhs|qam|po|iv|im|sc|ac|pc)\b/i.test(t);
+
+export async function GET() {
+  return NextResponse.json({ ok: true, ping: 'analyze-doc-alive' });
 }
 
 export async function POST(req: NextRequest) {
   try {
     const form = await req.formData();
     const file = form.get('file') as File | null;
-    if (!file) return NextResponse.json({ ok: false, error: 'No file' }, { status: 400 });
+
+    if (!file) return NextResponse.json({ ok:false, error:'No file' }, { status:400 });
     if (file.type !== 'application/pdf') {
-      return NextResponse.json({ ok: false, error: 'Only PDF supported' }, { status: 415 });
+      return NextResponse.json({ ok:false, error:'Only PDF supported' }, { status:415 });
     }
 
-    const buf = await file.arrayBuffer();
     let text = '';
+    let parseNote: string | undefined;
+
     try {
+      const buf = Buffer.from(await file.arrayBuffer());
       text = await extractTextFromPDF(buf);
-    } catch (e: any) {
-      return NextResponse.json({ ok: false, error: `PDF.js parse error: ${e?.message}` }, { status: 200 });
+    } catch (err: any) {
+      // Graceful fallback instead of crashing
+      parseNote = `Couldn’t extract text (possibly scanned PDF or unusual encoding). ${err?.message || String(err)}`;
     }
 
     if (!text) {
       return NextResponse.json({
         ok: true,
-        detectedType: 'other',
+        detectedType: 'other' as DetectedType,
         preview: '',
-        note: 'No selectable text found (may be scanned).',
+        note: parseNote || 'No selectable text found (likely a scanned PDF). OCR is not enabled yet.',
+        nextSteps: 'Re-upload a text-based PDF or enable OCR support later.',
       });
     }
 
     let detected: DetectedType = 'other';
-    if (looksLikeBloodReport(text)) detected = 'blood';
-    else if (looksLikePrescription(text)) detected = 'prescription';
+    if (isBlood(text)) detected = 'blood';
+    else if (isRx(text)) detected = 'prescription';
 
-    return NextResponse.json({ ok: true, detectedType: detected, preview: text.slice(0, 1000) });
+    return NextResponse.json({
+      ok: true,
+      detectedType: detected,
+      preview: text.replace(/\s+/g, ' ').slice(0, 1200),
+    });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e.message) }, { status: 500 });
+    return NextResponse.json({ ok:false, error:String(e?.message || e) }, { status:500 });
   }
 }

@@ -5,6 +5,7 @@ import Markdown from '../components/Markdown';
 import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
 import { parseNearbyIntent } from '@/lib/intent';
 import NearbyCards from '@/components/NearbyCards';
+import { safeJson } from '@/lib/safeJson';
 
 type ChatMsg = {
   role: 'user' | 'assistant';
@@ -86,10 +87,8 @@ export default function Home(){
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: buildMessages(userText) }),
     });
-
-    let payload: any = null;
-    try { payload = await res.json(); }
-    catch {
+    const payload: any = await safeJson(res);
+    if (payload?.raw) {
       addAssistantMessage({ type: 'note', text: 'Sorry — I could not process that response. Please try again.' });
       return;
     }
@@ -142,9 +141,9 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
         ...(lat && lon ? { lat: String(lat), lon: String(lon) } : {}),
       });
       const res = await fetch(`/api/nearby?${params.toString()}`);
-      const data = await res.json().catch(() => null);
+      const data: any = await safeJson(res);
 
-      if (!res.ok || !data?.items?.length) {
+      if (!res.ok || (data as any)?.raw || !data?.items?.length) {
         setMessages(prev => [
           ...prev,
           { role: 'assistant', type: 'note', content: 'No matching places found. Try widening the radius or tap **Set location**.' },
@@ -200,15 +199,15 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
         const fd = new FormData();
         fd.append('file', file);
         const r = await fetch('/api/rxnorm/normalize-pdf', { method: 'POST', body: fd });
-        const j = await r.json();
-        if (!r.ok) throw new Error(j?.error || 'PDF parse error');
+        const j: any = await safeJson(r);
+        if (!r.ok || j?.raw) throw new Error(j?.error || 'PDF parse error');
         extractedText = String(j.text || '').trim();
       } else {
         const fd = new FormData();
         fd.append('file', file);
         const o = await fetch('/api/ocr', { method: 'POST', body: fd });
-        const oj = await o.json();
-        if (!o.ok) throw new Error(oj?.error || 'OCR failed');
+        const oj: any = await safeJson(o);
+        if (!o.ok || oj?.raw) throw new Error(oj?.error || 'OCR failed');
         extractedText = String(oj.text || '').trim();
       }
 
@@ -216,8 +215,8 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
         method:'POST', headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({ text: extractedText })
       });
-      const rx = await rxRes.json();
-      const meds = rx.meds || [];
+      const rx: any = await safeJson(rxRes);
+      const meds = Array.isArray(rx.meds) ? rx.meds : [];
 
       let interactions: any[] = [];
       if (meds.length >= 2) {
@@ -225,8 +224,8 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
           method:'POST', headers:{ 'Content-Type':'application/json' },
           body: JSON.stringify({ rxcuis: meds.map((m:any)=>m.rxcui) })
         });
-        const j = await r.json();
-        interactions = j.interactions || [];
+        const j: any = await safeJson(r);
+        interactions = Array.isArray(j.interactions) ? j.interactions : [];
       }
 
       const lines: string[] = [];

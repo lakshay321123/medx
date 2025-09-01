@@ -1,13 +1,8 @@
 'use client';
 import React, { useRef, useState } from 'react';
+import { safeJson } from '@/lib/safeJson';
 
 type DetectedType = 'blood' | 'prescription' | 'other';
-
-async function safeJson(res: Response) {
-  const text = await res.text();           // never assume JSON
-  try { return JSON.parse(text); }
-  catch { return { ok: res.ok, status: res.status, raw: text }; }
-}
 
 export default function UploadPanel() {
   const [busy, setBusy] = useState(false);
