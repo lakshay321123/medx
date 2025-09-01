@@ -13,7 +13,11 @@ export async function nearbyProviders(
 ): Promise<Provider[]> {
   const radius = 5000; // meters
   const amenity = type === 'pharmacy' ? 'pharmacy' : 'doctors';
-  const query = `[out:json];node(around:${radius},${lat},${lon})[amenity=${amenity}];out;`;
+  const query =
+    `[out:json];` +
+    `(node(around:${radius},${lat},${lon})[amenity=${amenity}];` +
+    `way(around:${radius},${lat},${lon})[amenity=${amenity}];);` +
+    `out center;`;
   const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error('Provider lookup failed');
@@ -29,19 +33,24 @@ export async function nearbyProviders(
     return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
   };
   return (data.elements || [])
-    .map((e: any) => ({
-      name: e.tags?.name || 'Unnamed',
-      address: [
-        e.tags?.['addr:housenumber'],
-        e.tags?.['addr:street'],
-        e.tags?.['addr:city'],
-      ]
-        .filter(Boolean)
-        .join(' '),
-      lat: e.lat,
-      lon: e.lon,
-      distance: dist(lat, lon, e.lat, e.lon),
-    }))
-    .sort((a: any, b: any) => a.distance - b.distance)
+    .map((e: any) => {
+      const elat = e.lat ?? e.center?.lat;
+      const elon = e.lon ?? e.center?.lon;
+      return {
+        name: e.tags?.name || 'Unnamed',
+        address: [
+          e.tags?.['addr:housenumber'],
+          e.tags?.['addr:street'],
+          e.tags?.['addr:city'],
+        ]
+          .filter(Boolean)
+          .join(' '),
+        lat: elat,
+        lon: elon,
+        distance: elat && elon ? dist(lat, lon, elat, elon) : Infinity,
+      };
+    })
+    .filter((p: Provider) => isFinite(p.distance))
+    .sort((a: Provider, b: Provider) => a.distance - b.distance)
     .slice(0, 5);
 }

@@ -15,6 +15,7 @@ export default function Home(){
   const [busy, setBusy] = useState(false);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [coords, setCoords] = useState<{lat:number, lon:number}|null>(null);
+  const [locationError, setLocationError] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(()=>{ document.documentElement.className = theme==='light'?'light':''; },[theme]);
@@ -22,9 +23,16 @@ export default function Home(){
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
   useEffect(()=>{
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(pos=>{
-        setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
-      });
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        },
+        () => {
+          setLocationError(true);
+        }
+      );
+    } else {
+      setLocationError(true);
     }
   },[]);
 
@@ -211,7 +219,7 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
             </div>
           ) : (
             <>
-              {providers.length>0 && (
+              {providers.length>0 && !locationError && (
                 <div className="providers" style={{ marginBottom:16 }}>
                   <h3>Nearby Providers</h3>
                   <ul>
@@ -221,6 +229,11 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                       </li>
                     ))}
                   </ul>
+                </div>
+              )}
+              {locationError && (
+                <div className="providers" style={{ marginBottom:16 }}>
+                  <p>Enable location services to see nearby providers.</p>
                 </div>
               )}
               <div ref={chatRef} className="chat">
