@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import Markdown from '../components/Markdown';
-import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
+import { Send, Sun, Moon, User, Stethoscope, Search } from 'lucide-react';
 
 type ChatMsg = { role: 'user'|'assistant'; content: string };
 
@@ -12,6 +12,7 @@ export default function Home(){
   const [mode, setMode] = useState<'patient'|'doctor'>('patient');
   const [theme, setTheme] = useState<'dark'|'light'>('dark');
   const [busy, setBusy] = useState(false);
+  const [researchMode, setResearchMode] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(()=>{ document.documentElement.className = theme==='light'?'light':''; },[theme]);
@@ -32,15 +33,36 @@ export default function Home(){
       if (!planRes.ok) throw new Error(`MedX API error ${planRes.status}`);
       const plan = await planRes.json();
 
+      let searchResults: any[] = [];
+      if(researchMode){
+        try {
+          const r = await fetch('/api/search', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ query: text })
+          });
+          if(r.ok) searchResults = (await r.json()).results || [];
+        } catch {}
+      }
+
       const sys = mode==='doctor'
         ? `You are a clinical assistant. Write clean markdown with headings and bullet lists.
-If CONTEXT has codes, interactions, or trials, summarize and add clickable links. Avoid medical advice.`
+If CONTEXT has codes, interactions, trials, or research, summarize and add clickable links. Avoid medical advice.`
         : `You are a patient-friendly explainer. Use simple markdown and short paragraphs.
-If CONTEXT has codes or trials, explain them in plain words and add links. Avoid medical advice.`;
+If CONTEXT has codes, trials, or research, explain in plain words and add links. Avoid medical advice.`;
 
-      const contextBlock = "CONTEXT:\n" + JSON.stringify(plan.sections || {}, null, 2);
+      const ctx: any = { ...(plan.sections || {}) };
+      if (searchResults.length) ctx.research = searchResults;
+      const contextBlock = "CONTEXT:\n" + JSON.stringify(ctx, null, 2);
 
-      setMessages(prev=>[...prev, { role:'user', content:text }, { role:'assistant', content:'' }]);
+      setMessages(prev=>{
+        const next: ChatMsg[] = [...prev, { role:'user', content:text }];
+        if(searchResults.length){
+          const lines = searchResults.map((r:any)=>`- [${r.title}](${r.url}) — ${r.source}`);
+          next.push({ role:'assistant', content: lines.join('\n') });
+        }
+        next.push({ role:'assistant', content:'' });
+        return next;
+      });
       setInput('');
 
       const res = await fetch('/api/chat/stream', {
@@ -167,6 +189,9 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
         <div className="header">
           <button className="item" onClick={()=>setMode(mode==='patient'?'doctor':'patient')}>
             {mode==='patient'? <><User size={16}/> Patient</> : <><Stethoscope size={16}/> Doctor</>}
+          </button>
+          <button className="item" onClick={()=>setResearchMode(!researchMode)}>
+            {researchMode? <><Search size={16}/> Research On</> : <><Search size={16}/> Research Off</>}
           </button>
           <button className="item" onClick={()=>setTheme(theme==='dark'?'light':'dark')}>
             {theme==='dark'? <><Sun size={16}/> Light</> : <><Moon size={16}/> Dark</>}
