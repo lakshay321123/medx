@@ -3,7 +3,7 @@
 
 export async function extractTextFromPDF(
   buf: ArrayBuffer | Buffer | Uint8Array
-): Promise<string> {
+): Promise<{ text: string; ocr?: boolean }> {
   // @ts-ignore - pdfjs-dist types are partial
   const pdfjs: any = await import('pdfjs-dist');
   const { getDocument } = pdfjs;
@@ -37,5 +37,5 @@ export async function extractTextFromPDF(
     text += line + '\n';
   }
 
-  return text.replace(/\s+\n/g, '\n').trim();
+  return { text: text.replace(/\s+\n/g, '\n').trim() };
 }
