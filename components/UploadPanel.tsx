@@ -55,6 +55,13 @@ export default function UploadPanel() {
           {result.detectedType && <p style={{ marginTop:0 }}><strong>Detected:</strong> {result.detectedType}</p>}
           {result.usedOCR ? <p style={{ marginTop:0, color:'#555' }}>OCR was used.</p> : null}
 
+          {result.doctorStyleSummary && (
+            <>
+              <h3 style={{ margin:'8px 0' }}>Document summary</h3>
+              <p style={{ margin:'0 0 8px' }}>{result.doctorStyleSummary}</p>
+            </>
+          )}
+
           {/* Blood */}
           {Array.isArray(result.values) && (
             <>
