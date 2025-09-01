@@ -21,7 +21,7 @@ This project includes:
 
 ## Endpoints
 - `GET /api/banner` — aggregated headlines
-- `POST /api/chat` — body: `{question, role: "patient"|"clinician"}`
+- `POST /api/chat` — body: `{messages, role: "patient"|"clinician"}`
 - Plus wrappers: `/api/clinicaltrials`, `/api/pubmed`, `/api/who`, `/api/openfda`, `/api/dailymed`, `/api/rxnorm`, `/api/icd11`
 
 ## Notes

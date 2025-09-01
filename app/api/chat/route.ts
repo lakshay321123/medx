@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 export async function POST(req: NextRequest){
-  const { question, role } = await req.json();
+  const { messages = [], role } = await req.json();
   const base = process.env.LLM_BASE_URL;
   const model = process.env.LLM_MODEL_ID || 'llama3-8b-instruct';
   if(!base) return new NextResponse("LLM_BASE_URL not set", { status: 500 });
+
+  const system = role==='clinician'
+    ? 'You are a clinical assistant. Be precise, cite sources if mentioned. Avoid medical advice; provide evidence and guideline pointers.'
+    : 'You explain in simple, friendly language for patients. Avoid medical advice; encourage consulting a doctor.';
 
   // OpenAI-compatible completion (v1/chat/completions)
   const res = await fetch(`${base.replace(/\/$/,'')}/chat/completions`, {
@@ -12,8 +16,8 @@ export async function POST(req: NextRequest){
     body: JSON.stringify({
       model,
       messages: [
-        { role: 'system', content: role==='clinician' ? 'You are a clinical assistant. Be precise, cite sources if mentioned. Avoid medical advice; provide evidence and guideline pointers.' : 'You explain in simple, friendly language for patients. Avoid medical advice; encourage consulting a doctor.' },
-        { role: 'user', content: question }
+        { role: 'system', content: system },
+        ...messages
       ],
       temperature: 0.2
     })

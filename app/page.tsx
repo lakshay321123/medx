@@ -24,10 +24,15 @@ export default function Home(){
     if(!text.trim() || busy) return;
     setBusy(true);
 
+    // capture recent conversation before adding the new user entry
+    const history = messages.slice(-10);
+    const userHistory = history.filter(m=>m.role==='user').map(m=>m.content);
+
     try {
+      const query = [...userHistory, text].join('\n');
       const planRes = await fetch('/api/medx', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ query: text, mode })
+        body: JSON.stringify({ query, mode })
       });
       if (!planRes.ok) throw new Error(`MedX API error ${planRes.status}`);
       const plan = await planRes.json();
@@ -48,6 +53,7 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
         body: JSON.stringify({
           messages:[
             { role:'system', content: sys },
+            ...history,
             { role:'user', content: `${text}\n\n${contextBlock}` }
           ]
         })
