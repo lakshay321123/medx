@@ -16,10 +16,10 @@ export async function POST(req: NextRequest) {
     if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     if (file.type !== 'application/pdf') return NextResponse.json({ error: 'File must be a PDF' }, { status: 400 });
 
-    const pdf = (await import('pdf-parse')).default;
+    const pdfParse = (await import('pdf-parse/lib/pdf-parse.js')).default;
     const buf = Buffer.from(await file.arrayBuffer());
     let text = '';
-    try { const out = await pdf(buf); text = out.text || ''; }
+    try { const out = await pdfParse(buf); text = out.text || ''; }
     catch (e:any){ return NextResponse.json({ error: 'PDF parse failed', detail: String(e) }, { status: 500 }); }
 
     if (!text.trim()) return NextResponse.json({ meds: [], note: 'No selectable text found.' });
