@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import pdfText from '@/lib/pdftext';
+import { extractTextFromPDF } from '@/lib/pdftext';
 export const runtime = 'nodejs';
 
 async function rxcuiForName(name: string): Promise<string | null> {
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
   const buf = Buffer.from(await file.arrayBuffer());
   let text = '';
-  try { text = await pdfText(buf); }
+  try { text = await extractTextFromPDF(buf); }
   catch (e:any){ return NextResponse.json({ error: 'PDF parse failed', detail: String(e) }, { status: 500 }); }
 
   if (!text.trim()) return NextResponse.json({ meds: [], note: 'No selectable text found.' });
