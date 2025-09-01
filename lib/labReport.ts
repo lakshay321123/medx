@@ -314,5 +314,4 @@ export function analyzeLabText(text: string, patientHints?: PatientHints) {
   };
 }
 
-export const DISCLAIMER =
-  'Automated analysis; verify findings with a licensed clinician.';
+export const DISCLAIMER = 'Automated summary for educational use only.';
