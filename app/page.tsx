@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import Markdown from '../components/Markdown';
+import UploadPanel from '../components/UploadPanel';
 import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
 
 type ChatMsg = { role: 'user'|'assistant'; content: string };
@@ -188,13 +189,7 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                 <button className="iconBtn" onClick={()=>send(input)} aria-label="Send" disabled={busy}><Send size={18}/></button>
               </div>
               <div style={{ marginTop:10, textAlign:'right' }}>
-                <label className="item" style={{ cursor:'pointer' }}>
-                  Upload Medical Doc
-                  <input
-                    type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display:'none' }}
-                    onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleUpload(f); e.currentTarget.value=''; }}
-                  />
-                </label>
+                <UploadPanel onUpload={handleUpload} />
               </div>
             </div>
           ) : (
@@ -222,13 +217,7 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                   <button className="iconBtn" onClick={()=>send(input)} aria-label="Send" disabled={busy}>➤</button>
                 </div>
                 <div style={{ marginTop:8, textAlign:'right' }}>
-                  <label className="item" style={{ cursor:'pointer' }}>
-                    Upload Medical Doc
-                    <input
-                      type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display:'none' }}
-                      onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleUpload(f); e.currentTarget.value=''; }}
-                    />
-                  </label>
+                  <UploadPanel onUpload={handleUpload} />
                 </div>
               </div>
             </>
