@@ -13,40 +13,43 @@ function looksLikeBloodReport(text: string) {
     t.includes('hematocrit') ||
     t.includes('wbc') ||
     t.includes('platelet') ||
-    /\b\d+\s?(mg\/dL|g\/dL|mmol\/L)\b/i.test(text)
+    /\b\d+\s?(mg\/dL|g\/dL|mmol\/L|g\/L|µIU\/mL|U\/L|%|fL|pg)\b/i.test(text)
+  );
+}
+function looksLikePrescription(text: string) {
+  return (
+    /\b\d+\s?(mg|mcg|ml|iu|g)\b/i.test(text) ||
+    /\b(bid|tid|prn|qd|od|qhs|qam|po|iv|im|sc|ac|pc)\b/i.test(text)
   );
 }
 
-function looksLikePrescription(text: string) {
-  return (
-    /\b\d+\s?(mg|mcg|ml|iu)\b/i.test(text) ||
-    /\b(bid|tid|prn|qd|od)\b/i.test(text)
-  );
+export async function GET() {
+  return NextResponse.json({ ok: true, ping: 'analyze-doc-alive' });
 }
 
 export async function POST(req: NextRequest) {
   try {
     const form = await req.formData();
     const file = form.get('file') as File | null;
-    if (!file) return NextResponse.json({ ok: false, error: 'No file' }, { status: 400 });
-    if (file.type !== 'application/pdf') {
-      return NextResponse.json({ ok: false, error: 'Only PDF supported' }, { status: 415 });
-    }
 
-    const buf = await file.arrayBuffer();
+    if (!file) return NextResponse.json({ ok:false, error:'No file' }, { status:400 });
+    if (file.type !== 'application/pdf')
+      return NextResponse.json({ ok:false, error:'Only PDF supported' }, { status:415 });
+
     let text = '';
     try {
+      const buf = Buffer.from(await file.arrayBuffer());
       text = await extractTextFromPDF(buf);
-    } catch (e: any) {
-      return NextResponse.json({ ok: false, error: `PDF.js parse error: ${e?.message}` }, { status: 200 });
+    } catch (err: any) {
+      return NextResponse.json({ ok:false, error:`PDF parse error: ${err?.message || String(err)}` }, { status:200 });
     }
 
     if (!text) {
       return NextResponse.json({
-        ok: true,
-        detectedType: 'other',
-        preview: '',
-        note: 'No selectable text found (may be scanned).',
+        ok:true,
+        detectedType:'other' as DetectedType,
+        preview:'',
+        note:'No selectable text found (may be a scanned PDF).',
       });
     }
 
@@ -54,8 +57,12 @@ export async function POST(req: NextRequest) {
     if (looksLikeBloodReport(text)) detected = 'blood';
     else if (looksLikePrescription(text)) detected = 'prescription';
 
-    return NextResponse.json({ ok: true, detectedType: detected, preview: text.slice(0, 1000) });
+    return NextResponse.json({
+      ok:true,
+      detectedType: detected,
+      preview: text.replace(/\s+/g, ' ').slice(0, 1200),
+    });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e.message) }, { status: 500 });
+    return NextResponse.json({ ok:false, error:String(e?.message || e) }, { status:500 });
   }
 }

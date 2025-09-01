@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { extractTextFromPDF } from '@/lib/pdftext';
 
 export const runtime = 'nodejs';
 
@@ -80,10 +81,8 @@ export async function POST(req: NextRequest) {
   if (file.type !== 'application/pdf') return NextResponse.json({ ok: false, error: 'File must be a PDF' }, { status: 415 });
 
   try {
-    const pdf = (await import('pdf-parse')).default;
     const buf = Buffer.from(await file.arrayBuffer());
-    const out = await pdf(buf);
-    const text = (out.text || '').replace(/\u0000/g, '').trim();
+    const text = (await extractTextFromPDF(buf)).replace(/\u0000/g, '').trim();
 
     if (!text) {
       return NextResponse.json({ ok: true, text: '', values: [], summary: 'No selectable text found (may be a scan).' });
