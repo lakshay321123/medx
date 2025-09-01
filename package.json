@@ -8,7 +8,6 @@
     "start": "next start"
   },
   "dependencies": {
-    "canvas": "^2.11.2",
     "isomorphic-dompurify": "2.13.0",
     "lucide-react": "0.441.0",
     "marked": "12.0.2",
@@ -21,6 +20,7 @@
     "tesseract.js": "5.0.5"
   },
   "devDependencies": {
+    "@next/swc-linux-x64-gnu": "14.2.4",
     "@types/node": "20.11.30",
     "@types/react": "18.2.66",
     "@types/react-dom": "18.2.23",
