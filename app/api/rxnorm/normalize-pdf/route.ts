@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractTextFromPDF } from '@/lib/pdftext';
+import { safeJson } from '@/lib/safeJson';
 export const runtime = 'nodejs';
 
 async function rxcuiForName(name: string): Promise<string | null> {
@@ -14,8 +15,8 @@ async function rxcuiForName(name: string): Promise<string | null> {
   const ct = res.headers.get('content-type') || '';
   if (!ct.includes('application/json')) return null;
   try {
-    const j = await res.json();
-    return j?.idGroup?.rxnormId?.[0] || null;
+    const j = await safeJson(res);
+    return (j as any)?.idGroup?.rxnormId?.[0] || null;
   } catch {
     return null;
   }
@@ -31,9 +32,8 @@ export async function POST(req: NextRequest) {
   let text = '';
   let extraction = '';
   try {
-    const res = await extractTextFromPDF(buf);
-    text = res.text;
-    extraction = res.ocr ? 'OCR fallback used' : 'PDF text extracted';
+    text = await extractTextFromPDF(buf);
+    extraction = text.trim() ? 'PDF text extracted' : 'no text found';
   } catch (e:any){
     return NextResponse.json({ error: 'PDF parse failed', detail: String(e) }, { status: 500 });
   }

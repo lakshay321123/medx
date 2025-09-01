@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { safeJson } from '@/lib/safeJson';
+
 export async function POST(req: NextRequest) {
   const form = await req.formData();
   const file = form.get('file') as File | null;
@@ -18,7 +20,7 @@ export async function POST(req: NextRequest) {
     const t = await resp.text();
     return NextResponse.json({ error: `OCR error ${resp.status}`, detail: t }, { status: 500 });
   }
-  const j = await resp.json();
-  const text = j?.ParsedResults?.[0]?.ParsedText || '';
+  const j = await safeJson(resp);
+  const text = (j as any)?.ParsedResults?.[0]?.ParsedText || '';
   return NextResponse.json({ text });
 }

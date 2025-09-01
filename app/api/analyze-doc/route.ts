@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractTextFromPDF } from '@/lib/pdftext';
 import { summarizeChunks, chunkText } from '@/lib/llm';
+import { safeJson } from '@/lib/safeJson';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -104,8 +105,8 @@ function cleanToken(t: string): string {
 async function rxcuiForName(name: string): Promise<string | null> {
   const res = await fetch(`https://rxnav.nlm.nih.gov/REST/rxcui.json?name=${encodeURIComponent(name)}&search=2`, { cache: 'no-store' });
   if (!res.ok) return null;
-  const j = await res.json().catch(()=>null);
-  return j?.idGroup?.rxnormId?.[0] ?? null;
+  const j = await safeJson(res);
+  return (j as any)?.idGroup?.rxnormId?.[0] ?? null;
 }
 async function rxFromText(text: string) {
   const words: string[] = text.split(/[^A-Za-z0-9-]+/).filter((w: string) => w.length > 2);
@@ -146,13 +147,20 @@ export async function POST(req: NextRequest) {
     let text = '';
     let extractionNote = '';
     try {
-      const res = await extractTextFromPDF(buf);
-      text = res.text;
-      extractionNote = res.ocr ? 'OCR fallback used' : 'PDF text extracted';
-    } catch (e:any) {
-      return NextResponse.json({ ok:false, error:`PDF parse error: ${e?.message||e}` }, { status: 200 });
+      const out = await Promise.race([
+        extractTextFromPDF(buf),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 60000)),
+      ]);
+      text = (out as string) || '';
+      extractionNote = text.trim() ? 'PDF text extracted' : 'no text found';
+    } catch (err: any) {
+      console.error('PDF parse error', err);
+      return NextResponse.json(
+        { ok: false, error: `PDF parse failed: ${String(err?.message || err)}` },
+        { status: 200 },
+      );
     }
-    if (!text) {
+    if (!text.trim()) {
       return NextResponse.json({
         ok: true,
         detectedType: 'other' as DetectedType,
