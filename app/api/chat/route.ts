@@ -4,7 +4,8 @@ export async function POST(req: NextRequest){
   const body = await req.json();
   const base = process.env.LLM_BASE_URL;
   const model = process.env.LLM_MODEL_ID || 'llama3-8b-instruct';
-  if(!base) return new NextResponse("LLM_BASE_URL not set", { status: 500 });
+  const key = process.env.LLM_API_KEY;
+  if(!base || !key) return new NextResponse("LLM_BASE_URL or LLM_API_KEY not set", { status: 500 });
 
   // Allow either a raw question/role pair or full chat messages
   let messages = body.messages;
@@ -22,9 +23,9 @@ export async function POST(req: NextRequest){
   }
 
   // OpenAI-compatible completion (v1/chat/completions)
-  const res = await fetch(`${base.replace(/\/$/,'')}/chat/completions`, {
+  const res = await fetch(`${base.replace(/\/+$/,'')}/chat/completions`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
     body: JSON.stringify({ model, messages, temperature: 0.2 })
   });
   if(!res.ok){
