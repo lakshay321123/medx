@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { umlsFetch } from '@/lib/umls';
+import { umlsFetch } from '../../../../lib/umls';
 export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams;
   const cui = sp.get('cui') || ''; const target = sp.get('target') || 'ICD10CM';
