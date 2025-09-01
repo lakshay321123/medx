@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import Markdown from '../components/Markdown';
-import { Send, Sun, Moon, User, Stethoscope, ClipboardList } from 'lucide-react';
+import { Send, Sun, Moon, User, Stethoscope, ClipboardList, Search } from 'lucide-react';
 import { parseLabValues } from '../lib/parseLabs';
 
 type ChatMsg = { role: 'user'|'assistant'; content: string };
@@ -13,6 +13,7 @@ export default function Home(){
   const [mode, setMode] = useState<'patient'|'doctor'|'admin'>('patient');
   const [theme, setTheme] = useState<'dark'|'light'>('dark');
   const [busy, setBusy] = useState(false);
+  const [researchMode, setResearchMode] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(()=>{ document.documentElement.className = theme==='light'?'light':''; },[theme]);
@@ -39,9 +40,35 @@ If CONTEXT has codes, interactions, or trials, summarize and add clickable links
         : `You are a patient-friendly explainer. Use simple markdown and short paragraphs.
 If CONTEXT has codes or trials, explain them in plain words and add links. Avoid medical advice.`;
 
-      const contextBlock = "CONTEXT:\n" + JSON.stringify(plan.sections || {}, null, 2);
+      let context = JSON.stringify(plan.sections || {}, null, 2);
+      let sources: any[] = [];
 
-      setMessages(prev=>[...prev, { role:'user', content:text }, { role:'assistant', content:'' }]);
+      if (researchMode) {
+        try {
+          const searchRes = await fetch('/api/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: text })
+          });
+          if (searchRes.ok) {
+            const sj = await searchRes.json();
+            sources = (sj.results || []).slice(0, 3);
+            context = sources.map((r:any)=>`${r.title || ''}\n${r.content || ''}\nSOURCE: ${r.url || ''}`).join('\n\n');
+          }
+        } catch {}
+      }
+
+      const contextBlock = `CONTEXT:\n${context}`;
+
+      setMessages(prev=>{
+        const next = [...prev, { role:'user', content: text }];
+        if (sources.length) {
+          const srcLines = sources.map((s:any)=>`- [${s.title || s.url}](${s.url})`).join('\n');
+          next.push({ role:'assistant', content: `**Sources:**\n${srcLines}` });
+        }
+        next.push({ role:'assistant', content: '' });
+        return next;
+      });
       setInput('');
 
       const res = await fetch('/api/chat/stream', {
@@ -49,7 +76,7 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
         body: JSON.stringify({
           messages:[
             { role:'system', content: sys },
-            { role:'user', content: `${text}\n\n${contextBlock}` }
+            { role:'user', content: `${contextBlock}\n\n${text}` }
           ]
         })
       });
@@ -218,6 +245,9 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
               : mode==='doctor'
                 ? <><Stethoscope size={16}/> Doctor</>
                 : <><ClipboardList size={16}/> Admin</>}
+          </button>
+          <button className="item" onClick={()=>setResearchMode(r=>!r)}>
+            {researchMode ? <><Search size={16}/> Research</> : <><Search size={16}/> No Research</>}
           </button>
           <button className="item" onClick={()=>setTheme(theme==='dark'?'light':'dark')}>
             {theme==='dark'? <><Sun size={16}/> Light</> : <><Moon size={16}/> Dark</>}
