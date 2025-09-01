@@ -2,20 +2,21 @@
 import { useEffect, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import Markdown from '../components/Markdown';
-import { Send, Sun, Moon, User, Stethoscope } from 'lucide-react';
+import { Send, Sun, Moon, User, Stethoscope, ClipboardList } from 'lucide-react';
+import { parseLabValues } from '../lib/parseLabs';
 
 type ChatMsg = { role: 'user'|'assistant'; content: string };
 
 export default function Home(){
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
-  const [mode, setMode] = useState<'patient'|'doctor'>('patient');
+  const [mode, setMode] = useState<'patient'|'doctor'|'admin'>('patient');
   const [theme, setTheme] = useState<'dark'|'light'>('dark');
   const [busy, setBusy] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(()=>{ document.documentElement.className = theme==='light'?'light':''; },[theme]);
-  useEffect(()=>{ document.body.setAttribute('data-role', mode==='doctor'?'doctor':''); },[mode]);
+  useEffect(()=>{ document.body.setAttribute('data-role', mode==='doctor'? 'doctor' : mode==='admin' ? 'admin' : ''); },[mode]);
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
 
   const showHero = messages.length===0;
@@ -113,6 +114,37 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
         extractedText = String(oj.text || '').trim();
       }
 
+      // Classify document type
+      const classRes = await fetch('/api/chat', {
+        method:'POST', headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({
+          messages:[
+            { role:'system', content:'You are a medical document classifier. Respond with one word: prescription, lab_report, or other.' },
+            { role:'user', content: extractedText.slice(0,4000) }
+          ]
+        })
+      });
+      const docTypeRaw = (await classRes.text()).trim().toLowerCase();
+      const docType = /lab/.test(docTypeRaw) ? 'lab_report' : /prescription/.test(docTypeRaw) ? 'prescription' : 'other';
+
+      // Summarize document for current mode
+      const summaryPrompt = mode==='doctor'
+        ? `You are a clinical summarizer. Provide a concise summary of this ${docType.replace('_',' ')} for physicians.`
+        : mode==='admin'
+          ? `You summarize medical documents for administrative staff. Provide a brief summary of this ${docType.replace('_',' ')} focusing on logistics and coding.`
+          : `You summarize medical documents for patients in simple language. Provide a short summary of this ${docType.replace('_',' ')}.`;
+      const sumRes = await fetch('/api/chat', {
+        method:'POST', headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({
+          messages:[
+            { role:'system', content: summaryPrompt },
+            { role:'user', content: extractedText.slice(0,4000) }
+          ]
+        })
+      });
+      const summary = (await sumRes.text()).trim();
+
+      // Normalize medications via RxNorm
       const rxRes = await fetch('/api/rxnorm/normalize', {
         method:'POST', headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({ text: extractedText })
@@ -130,10 +162,22 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
         interactions = j.interactions || [];
       }
 
+      // Parse lab values
+      const labs = parseLabValues(extractedText);
+
+      const docLabel = docType==='lab_report'? 'Lab report' : docType==='prescription'? 'Prescription' : 'Document';
       const lines: string[] = [];
-      lines.push(`**Prescription analysis – ${file.name}**`);
-      if (extractedText) {
-        lines.push(`<details><summary>Extracted text</summary>\n\n${extractedText.slice(0,2000)}\n\n</details>`);
+      lines.push(`**${docLabel} analysis – ${file.name}**`);
+      if (summary) {
+        lines.push(`**Summary:**\n${summary}`);
+      }
+      if (labs.length) {
+        lines.push('**Lab results:**');
+        labs.forEach(l => {
+          const range = `${l.normalLow}-${l.normalHigh} ${l.unit}`;
+          const flag = l.flag==='normal' ? '' : ` **${l.flag.toUpperCase()}**`;
+          lines.push(`- ${l.name}: ${l.value} ${l.unit}${flag} (normal ${range})`);
+        });
       }
       if (meds.length) {
         lines.push('**Recognized medications (RxNorm):**');
@@ -144,6 +188,9 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
       if (interactions.length) {
         lines.push('\n**Potential interactions:**');
         interactions.forEach((it:any)=> lines.push(`- **${it.severity || 'Severity N/A'}** — ${it.description}`));
+      }
+      if (extractedText) {
+        lines.push(`<details><summary>Extracted text</summary>\n\n${extractedText.slice(0,2000)}\n\n</details>`);
       }
 
       setMessages(prev=>{
@@ -165,8 +212,12 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
 
       <main className="main">
         <div className="header">
-          <button className="item" onClick={()=>setMode(mode==='patient'?'doctor':'patient')}>
-            {mode==='patient'? <><User size={16}/> Patient</> : <><Stethoscope size={16}/> Doctor</>}
+          <button className="item" onClick={()=>setMode(mode==='patient'?'doctor':mode==='doctor'?'admin':'patient')}>
+            {mode==='patient'
+              ? <><User size={16}/> Patient</>
+              : mode==='doctor'
+                ? <><Stethoscope size={16}/> Doctor</>
+                : <><ClipboardList size={16}/> Admin</>}
           </button>
           <button className="item" onClick={()=>setTheme(theme==='dark'?'light':'dark')}>
             {theme==='dark'? <><Sun size={16}/> Light</> : <><Moon size={16}/> Dark</>}
