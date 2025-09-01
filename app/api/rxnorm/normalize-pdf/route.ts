@@ -36,14 +36,17 @@ export async function POST(req: NextRequest) {
 
   const tokens = Array.from(
     new Set(String(text).split(/[^A-Za-z0-9-]+/).filter(t => t.length > 2))
-  ).slice(0, 120);
+  );
   const meds: { token: string; rxcui: string }[] = [];
-  for (const token of tokens) {
-    try {
-      const rxcui = await rxcuiForName(token);
-      if (rxcui) meds.push({ token, rxcui });
-    } catch {
-      // ignore failed lookups
+  for (let i = 0; i < tokens.length; i += 120) {
+    const batch = tokens.slice(i, i + 120);
+    for (const token of batch) {
+      try {
+        const rxcui = await rxcuiForName(token);
+        if (rxcui) meds.push({ token, rxcui });
+      } catch {
+        // ignore failed lookups
+      }
     }
   }
   const dedup = Object.values(
