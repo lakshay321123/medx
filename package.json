@@ -13,8 +13,7 @@
     "marked": "12.0.2",
     "next": "14.2.4",
     "next-themes": "0.3.0",
-    "pdf-parse": "1.1.1",
-    "pdfjs-dist": "^4.10.38",
+    "pdfjs-dist": "^4.6.82",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "tesseract.js": "^5.0.5"
