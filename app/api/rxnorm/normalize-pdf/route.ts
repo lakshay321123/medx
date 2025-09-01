@@ -29,10 +29,16 @@ export async function POST(req: NextRequest) {
 
   const buf = Buffer.from(await file.arrayBuffer());
   let text = '';
-  try { text = await extractTextFromPDF(buf); }
-  catch (e:any){ return NextResponse.json({ error: 'PDF parse failed', detail: String(e) }, { status: 500 }); }
+  let extraction = '';
+  try {
+    const res = await extractTextFromPDF(buf);
+    text = res.text;
+    extraction = res.ocr ? 'OCR fallback used' : 'PDF text extracted';
+  } catch (e:any){
+    return NextResponse.json({ error: 'PDF parse failed', detail: String(e) }, { status: 500 });
+  }
 
-  if (!text.trim()) return NextResponse.json({ meds: [], note: 'No selectable text found.' });
+  if (!text.trim()) return NextResponse.json({ meds: [], extraction });
 
   const tokens = Array.from(
     new Set(String(text).split(/[^A-Za-z0-9-]+/).filter(t => t.length > 2))
@@ -52,5 +58,5 @@ export async function POST(req: NextRequest) {
   const dedup = Object.values(
     meds.reduce((acc: any, m) => ((acc[m.rxcui] = m), acc), {})
   );
-  return NextResponse.json({ text, meds: dedup });
+  return NextResponse.json({ text, meds: dedup, extraction });
 }
