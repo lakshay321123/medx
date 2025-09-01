@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { nearbyProviders } from '../../../lib/providers';
 
 const BASE = process.env.LLM_BASE_URL!;
 const MODEL = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
@@ -9,9 +10,10 @@ async function classifyIntent(query: string, mode: 'patient'|'doctor') {
 - DIAGNOSIS_QUERY (map to ICD-10, SNOMED; trials if doctor)
 - DRUGS_LIST (extract meds; check interactions)
 - CLINICAL_TRIALS_QUERY (fetch trials)
+- NEARBY_PROVIDER (find nearby doctor or pharmacy)
 - GENERAL_HEALTH (explain simply)
 
-Return JSON: {"intent":"...","keywords":["..."]}`;
+Return JSON: {"intent":"...","keywords":["..."]} (for NEARBY_PROVIDER, keywords[0] is doctor or pharmacy)`;
   const r = await fetch(`${BASE.replace(/\/$/,'')}/chat/completions`,{
     method:'POST',
     headers:{'Content-Type':'application/json',Authorization:`Bearer ${KEY}`},
@@ -60,7 +62,7 @@ async function rxnavInteractions(rxcuis: string[]){
 }
 
 export async function POST(req: NextRequest){
-  const { query, mode } = await req.json();
+  const { query, mode, lat, lon } = await req.json();
   if(!query) return NextResponse.json({ intent:'GENERAL_HEALTH', sections:{} });
 
   const cls = await classifyIntent(query, mode==='doctor'?'doctor':'patient');
@@ -88,6 +90,13 @@ export async function POST(req: NextRequest){
     } else if (intent === 'CLINICAL_TRIALS_QUERY') {
       const term = keywords[0] || query;
       sections.trials = await pubmedTrials(term);
+    } else if (intent === 'NEARBY_PROVIDER') {
+      if (typeof lat === 'number' && typeof lon === 'number') {
+        const type = keywords[0] === 'pharmacy' ? 'pharmacy' : 'doctor';
+        sections.providers = await nearbyProviders(lat, lon, type);
+      } else {
+        sections.providers = [];
+      }
     }
   } catch(e:any){ sections.error = String(e?.message || e); }
 

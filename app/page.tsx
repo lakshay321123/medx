@@ -12,11 +12,20 @@ export default function Home(){
   const [mode, setMode] = useState<'patient'|'doctor'>('patient');
   const [theme, setTheme] = useState<'dark'|'light'>('dark');
   const [busy, setBusy] = useState(false);
+  const [providers, setProviders] = useState<any[]>([]);
+  const [coords, setCoords] = useState<{lat:number, lon:number}|null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(()=>{ document.documentElement.className = theme==='light'?'light':''; },[theme]);
   useEffect(()=>{ document.body.setAttribute('data-role', mode==='doctor'?'doctor':''); },[mode]);
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
+  useEffect(()=>{
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos=>{
+        setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+      });
+    }
+  },[]);
 
   const showHero = messages.length===0;
 
@@ -27,10 +36,12 @@ export default function Home(){
     try {
       const planRes = await fetch('/api/medx', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ query: text, mode })
+        body: JSON.stringify({ query: text, mode, lat: coords?.lat, lon: coords?.lon })
       });
       if (!planRes.ok) throw new Error(`MedX API error ${planRes.status}`);
       const plan = await planRes.json();
+      if (plan.sections?.providers) setProviders(plan.sections.providers);
+      else setProviders([]);
 
       const sys = mode==='doctor'
         ? `You are a clinical assistant. Write clean markdown with headings and bullet lists.
@@ -199,6 +210,18 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
             </div>
           ) : (
             <>
+              {providers.length>0 && (
+                <div className="providers" style={{ marginBottom:16 }}>
+                  <h3>Nearby Providers</h3>
+                  <ul>
+                    {providers.map((p,i)=>(
+                      <li key={i}>
+                        <strong>{p.name}</strong> — {p.address} ({p.distance?.toFixed(1)} km)
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div ref={chatRef} className="chat">
                 {messages.map((m,i)=>(
                   <div key={i} className={`msg ${m.role}`}>
