@@ -9,8 +9,14 @@ export async function POST(req: NextRequest) {
     const url = `https://rxnav.nlm.nih.gov/REST/interaction/list.json?rxcuis=${encodeURIComponent(rxcuis.join('+'))}`;
     const res = await fetch(url);
     if (!res.ok) {
+      if (res.status === 404) {
+        return NextResponse.json({ interactions: [] });
+      }
       const t = await res.text();
-      return NextResponse.json({ error: 'RxNav interaction error', detail: t }, { status: 500 });
+      return NextResponse.json(
+        { error: 'RxNav interaction error', detail: t || res.status },
+        { status: 500 }
+      );
     }
     const data = await res.json();
 
