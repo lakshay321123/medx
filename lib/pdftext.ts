@@ -3,6 +3,8 @@ export default async function pdfText(data: Buffer): Promise<string> {
   const pdfjs: any = await import('pdf-parse/lib/pdf.js/v1.10.100/build/pdf.js');
   const doc = await pdfjs.getDocument({ data, disableWorker: true }).promise;
   const allLines: string[] = [];
+  let prevHeader: string[] = [];
+  let prevFooter: string[] = [];
 
   for (let i = 1; i <= doc.numPages; i++) {
     try {
@@ -26,7 +28,17 @@ export default async function pdfText(data: Buffer): Promise<string> {
         )
         .filter(Boolean);
 
-      allLines.push(...pageLines);
+      const header = pageLines.slice(0, 3).map(l => l.replace(/\s+/g, ' ').toLowerCase());
+      const footer = pageLines.slice(-3).map(l => l.replace(/\s+/g, ' ').toLowerCase());
+
+      for (const line of pageLines) {
+        const norm = line.replace(/\s+/g, ' ').toLowerCase();
+        if (prevHeader.includes(norm) || prevFooter.includes(norm)) continue;
+        allLines.push(line);
+      }
+
+      prevHeader = header;
+      prevFooter = footer;
     } catch (err) {
       console.error('Failed to parse page', i, err);
     }
@@ -34,28 +46,18 @@ export default async function pdfText(data: Buffer): Promise<string> {
 
   doc.destroy?.();
 
-  const uniqueLines: string[] = [];
-  const seen = new Set<string>();
-  for (const line of allLines) {
-    const key = line.replace(/\s+/g, ' ').toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    uniqueLines.push(line);
-  }
+  const cleanedLines = allLines.map(line => {
+    const tokens = line.split(/[^A-Za-z0-9.-]+/).filter(Boolean);
+    const cleaned: string[] = [];
+    for (let token of tokens) {
+      token = token.replace(/([A-Za-z]+)\1+/gi, '$1');
+      token = token.replace(/(\d+(?:\.\d+)?)(?:\1)+/g, '$1');
+      const last = cleaned[cleaned.length - 1];
+      if (last && last.toLowerCase() === token.toLowerCase()) continue;
+      cleaned.push(token);
+    }
+    return cleaned.join(' ');
+  });
 
-  const rawTokens = uniqueLines
-    .join(' ')
-    .split(/[^A-Za-z0-9.-]+/)
-    .filter(Boolean);
-
-  const cleanedTokens: string[] = [];
-  for (let token of rawTokens) {
-    token = token.replace(/([A-Za-z]+)\1+/gi, '$1');
-    token = token.replace(/(\d+(?:\.\d+)?)(?:\1)+/g, '$1');
-    const last = cleanedTokens[cleanedTokens.length - 1];
-    if (last && last.toLowerCase() === token.toLowerCase()) continue;
-    cleanedTokens.push(token);
-  }
-
-  return cleanedTokens.join(' ');
+  return cleanedLines.join('\n');
 }
