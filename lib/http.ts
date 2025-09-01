@@ -1,4 +1,6 @@
 // lib/http.ts
+import { safeJson } from '@/lib/safeJson';
+
 export class HttpError extends Error {
   status: number;
   body?: any;
@@ -23,7 +25,7 @@ export async function fetchWithTimeout(
     const ct = res.headers.get('content-type') || '';
     let body: any = null;
     if (ct.includes('application/json')) {
-      body = await res.json().catch(() => null);
+      body = await safeJson(res).catch(() => null);
     } else if (ct.includes('text/')) {
       body = await res.text().catch(() => null);
     } else {

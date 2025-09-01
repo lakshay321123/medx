@@ -1,3 +1,5 @@
+import { safeJson } from '@/lib/safeJson';
+
 async function getToken() {
   const body = new URLSearchParams({
     client_id: process.env.ICD11_CLIENT_ID || '',
@@ -10,13 +12,17 @@ async function getToken() {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body
   });
-  if (!res.ok) throw new Error("ICD-11 auth error");
-  return res.json();
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error("ICD-11 auth error: " + t);
+  }
+  return safeJson(res);
 }
+
 export async function searchICD(term: string) {
   const { access_token } = await getToken();
   const url = `https://id.who.int/icd/release/11/2024-01/mms/search?q=${encodeURIComponent(term)}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${access_token}`, Accept: "application/json" }});
   if (!res.ok) throw new Error("ICD-11 API error");
-  return res.json();
+  return safeJson(res);
 }

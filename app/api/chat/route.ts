@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { safeJson } from '@/lib/safeJson';
 
 export async function POST(req: NextRequest) {
   const { messages } = await req.json();
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const json = await res.json();
-  const text = json.choices?.[0]?.message?.content || '';
-  return Response.json({ ok: true, data: { role: 'assistant', content: text, citations: json.citations ?? undefined } });
+  const json = await safeJson(res) as any;
+  const text = json?.choices?.[0]?.message?.content || '';
+  return Response.json({ ok: true, data: { role: 'assistant', content: text, citations: json?.citations ?? undefined } });
 }

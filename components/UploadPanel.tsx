@@ -1,13 +1,8 @@
 'use client';
 import React, { useRef, useState } from 'react';
+import { safeJson } from '@/lib/safeJson';
 
 type DetectedType = 'blood' | 'prescription' | 'other';
-
-async function safeJson(res: Response) {
-  const text = await res.text();           // never assume JSON
-  try { return JSON.parse(text); }
-  catch { return { ok: res.ok, status: res.status, raw: text }; }
-}
 
 export default function UploadPanel() {
   const [busy, setBusy] = useState(false);
@@ -33,19 +28,19 @@ export default function UploadPanel() {
       const res = await fetch('/api/upload', { method: 'POST', body: fd });
       const data = await safeJson(res);
 
-      if (!data || data.ok === false) {
-        const msg = data?.error || `Upload failed (status ${data?.status ?? res.status})`;
+      if (!data || (data as any).ok === false) {
+        const msg = (data as any)?.error || `Upload failed (status ${res.status})`;
         setError(msg);
-        if (data?.raw) {
+        if ((data as any)?.raw) {
           // surface raw upstream response for debugging
-          setResult({ raw: data.raw });
+          setResult({ raw: (data as any).raw });
         }
         return;
       }
 
       // best-effort UI fields
-      const dtype: DetectedType = (data.detectedType ?? 'other') as DetectedType;
-      setDetected({ type: dtype, preview: data.preview, note: data.note });
+      const dtype: DetectedType = ((data as any).detectedType ?? 'other') as DetectedType;
+      setDetected({ type: dtype, preview: (data as any).preview, note: (data as any).note });
       setResult(data);
     } catch (err: any) {
       setError(String(err?.message || err));

@@ -1,5 +1,6 @@
 // app/api/nearby/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { safeJson } from '@/lib/safeJson';
 
 export const runtime = 'nodejs';
 
@@ -98,8 +99,8 @@ out center ${limit};
       return NextResponse.json({ ok: false, error: `Overpass error ${res.status}`, detail: text.slice(0, 2000) }, { status: 502 });
     }
 
-    const json = await res.json() as { elements?: any[] };
-    const elements = json.elements || [];
+    const json = await safeJson(res) as any;
+    const elements = json?.elements || [];
 
     const items: Item[] = [];
     for (const el of elements) {
