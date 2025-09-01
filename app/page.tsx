@@ -99,16 +99,20 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
       setMessages(prev=>[...prev, { role:'assistant', content:`Processing "${file.name}"…` }]);
 
       let extractedText = '';
-      if (file.type === 'application/pdf') {
-        const fd = new FormData();
-        fd.append('file', file);
-        const r = await fetch('/api/rxnorm/normalize-pdf', { method: 'POST', body: fd });
+      const isPdf =
+        file.type.toLowerCase().includes('pdf') ||
+        file.name.toLowerCase().endsWith('.pdf');
+      const fd = new FormData();
+      fd.append('file', file);
+      if (isPdf) {
+        const r = await fetch('/api/rxnorm/normalize-pdf', {
+          method: 'POST',
+          body: fd,
+        });
         const j = await r.json();
         if (!r.ok) throw new Error(j?.error || 'PDF parse error');
         extractedText = String(j.text || '').trim();
       } else {
-        const fd = new FormData();
-        fd.append('file', file);
         const o = await fetch('/api/ocr', { method: 'POST', body: fd });
         const oj = await o.json();
         if (!o.ok) throw new Error(oj?.error || 'OCR failed');
