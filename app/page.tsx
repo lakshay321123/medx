@@ -310,7 +310,7 @@ Okay — searching ${intent.suggestion}…` } as ChatMsg]
                       <div className="role">{m.role==='user'?'You':'MedX'}</div>
                       <div className="content">
                         {m.type === 'nearby-cards' ? (
-                          <NearbyCards items={m.payload} />
+                          <NearbyCards />
                         ) : (
                           <div className="markdown"><Markdown text={m.content || ''}/></div>
                         )}
