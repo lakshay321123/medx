@@ -6,9 +6,12 @@ import { Send, Sun, Moon, User, Stethoscope, ClipboardList } from 'lucide-react'
 import { parseLabValues } from '../lib/parseLabs';
 
 type ChatMsg = { role: 'user'|'assistant'; content: string };
+type Chat = { id:number; title:string; messages: ChatMsg[] };
 
 export default function Home(){
   const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [results, setResults] = useState<{id:number; title:string; snippet:string}[]>([]);
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<'patient'|'doctor'|'admin'>('patient');
   const [theme, setTheme] = useState<'dark'|'light'>('dark');
@@ -19,7 +22,42 @@ export default function Home(){
   useEffect(()=>{ document.body.setAttribute('data-role', mode==='doctor'? 'doctor' : mode==='admin' ? 'admin' : ''); },[mode]);
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
 
+  useEffect(()=>{
+    try{
+      const stored = localStorage.getItem('medx_chats');
+      if(stored) setChats(JSON.parse(stored));
+    }catch{}
+  },[]);
+  useEffect(()=>{ localStorage.setItem('medx_chats', JSON.stringify(chats)); },[chats]);
+
   const showHero = messages.length===0;
+
+  function startNewChat(){
+    if(messages.length){
+      const title = messages.find(m=>m.role==='user')?.content || 'Untitled';
+      setChats(prev=>[...prev, { id: Date.now(), title, messages }]);
+    }
+    setMessages([]);
+    setInput('');
+  }
+
+  function handleSearch(q:string){
+    const term = q.toLowerCase();
+    if(!term){ setResults([]); return; }
+    const all = [...chats];
+    if(messages.length){
+      const title = messages.find(m=>m.role==='user')?.content || 'Untitled';
+      all.push({ id:-1, title, messages });
+    }
+    const res = all.map(c=>{
+      const match = c.messages.find(m=>m.content.toLowerCase().includes(term));
+      if(c.title.toLowerCase().includes(term) || match){
+        return { id:c.id, title:c.title, snippet: match? match.content.slice(0,60): c.title.slice(0,60) };
+      }
+      return null;
+    }).filter(Boolean) as {id:number; title:string; snippet:string}[];
+    setResults(res);
+  }
 
   async function send(text: string){
     if(!text.trim() || busy) return;
@@ -208,7 +246,7 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
 
   return (
     <div className="app">
-      <Sidebar onNew={()=>{ setMessages([]); setInput(''); }} onSearch={()=>{}} />
+      <Sidebar onNew={startNewChat} onSearch={handleSearch} results={results} />
 
       <main className="main">
         <div className="header">

@@ -1,9 +1,11 @@
 'use client';
 import { Plus, Search, Settings } from 'lucide-react';
 
+type Result = { id:number; title:string; snippet:string };
+
 export default function Sidebar({
-  onNew, onSearch
-}: { onNew: ()=>void; onSearch: (q:string)=>void; }) {
+  onNew, onSearch, results
+}: { onNew: ()=>void; onSearch: (q:string)=>void; results: Result[]; }) {
   return (
     <aside className="sidebar">
       <div className="title">MedX</div>
@@ -16,6 +18,18 @@ export default function Sidebar({
           <div className="item" style={{ justifyContent:'center' }}><Search size={16}/></div>
         </div>
       </div>
+
+      {results.length>0 && (
+        <div className="group">
+          <div style={{ fontSize:12, color:'var(--muted)' }}>Matches</div>
+          {results.map(r=>(
+            <div key={r.id} className="item" style={{ flexDirection:'column', alignItems:'flex-start' }}>
+              <div>{r.title}</div>
+              {r.snippet && <div style={{ fontSize:12, color:'var(--muted)' }}>{r.snippet}</div>}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="group">
         <div style={{ fontSize:12, color:'var(--muted)' }}>Settings</div>
