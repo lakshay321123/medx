@@ -60,36 +60,40 @@ async function rxnavInteractions(rxcuis: string[]){
 }
 
 export async function POST(req: NextRequest){
-  const { query, mode } = await req.json();
-  if(!query) return NextResponse.json({ intent:'GENERAL_HEALTH', sections:{} });
-
-  const cls = await classifyIntent(query, mode==='doctor'?'doctor':'patient');
-  const intent = cls.intent || 'GENERAL_HEALTH';
-  const keywords: string[] = cls.keywords || [];
-  const sections: any = {};
-
   try {
-    if (intent === 'DIAGNOSIS_QUERY') {
-      const term = keywords[0] || query;
-      const s = await umlsSearch(term);
-      const cui = s.results?.[0]?.ui || null;
-      if (cui) {
-        const icd = await umlsCrosswalk(cui,'ICD10CM');
-        const snomed = await umlsCrosswalk(cui,'SNOMEDCT_US');
-        sections.codes = { cui, icd: icd.mappings?.slice(0,6), snomed: snomed.mappings?.slice(0,6) };
-      }
-      if (mode==='doctor') sections.trials = await pubmedTrials(term);
-    } else if (intent === 'DRUGS_LIST') {
-      const rx = await rxnormNormalize(query);
-      sections.meds = rx.meds;
-      if ((rx.meds||[]).length >= 2) {
-        sections.interactions = (await rxnavInteractions(rx.meds.map((m:any)=>m.rxcui))).interactions;
-      }
-    } else if (intent === 'CLINICAL_TRIALS_QUERY') {
-      const term = keywords[0] || query;
-      sections.trials = await pubmedTrials(term);
-    }
-  } catch(e:any){ sections.error = String(e?.message || e); }
+    const { query, mode } = await req.json();
+    if(!query) return NextResponse.json({ intent:'GENERAL_HEALTH', sections:{} });
 
-  return NextResponse.json({ intent, sections });
+    const cls = await classifyIntent(query, mode==='doctor'?'doctor':'patient');
+    const intent = cls.intent || 'GENERAL_HEALTH';
+    const keywords: string[] = cls.keywords || [];
+    const sections: any = {};
+
+    try {
+      if (intent === 'DIAGNOSIS_QUERY') {
+        const term = keywords[0] || query;
+        const s = await umlsSearch(term);
+        const cui = s.results?.[0]?.ui || null;
+        if (cui) {
+          const icd = await umlsCrosswalk(cui,'ICD10CM');
+          const snomed = await umlsCrosswalk(cui,'SNOMEDCT_US');
+          sections.codes = { cui, icd: icd.mappings?.slice(0,6), snomed: snomed.mappings?.slice(0,6) };
+        }
+        if (mode==='doctor') sections.trials = await pubmedTrials(term);
+      } else if (intent === 'DRUGS_LIST') {
+        const rx = await rxnormNormalize(query);
+        sections.meds = rx.meds;
+        if ((rx.meds||[]).length >= 2) {
+          sections.interactions = (await rxnavInteractions(rx.meds.map((m:any)=>m.rxcui))).interactions;
+        }
+      } else if (intent === 'CLINICAL_TRIALS_QUERY') {
+        const term = keywords[0] || query;
+        sections.trials = await pubmedTrials(term);
+      }
+    } catch(e:any){ sections.error = String(e?.message || e); }
+
+    return NextResponse.json({ intent, sections });
+  } catch (e:any) {
+    return NextResponse.json({ error: 'Internal server error', detail: String(e) }, { status: 500 });
+  }
 }

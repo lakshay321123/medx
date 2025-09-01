@@ -101,14 +101,20 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
         const fd = new FormData();
         fd.append('file', file);
         const r = await fetch('/api/rxnorm/normalize-pdf', { method: 'POST', body: fd });
-        const j = await r.json();
+        const rt = await r.text();
+        let j;
+        try { j = JSON.parse(rt); }
+        catch { throw new Error(`Invalid JSON from /api/rxnorm/normalize-pdf: ${r.status} ${rt}`); }
         if (!r.ok) throw new Error(j?.error || 'PDF parse error');
         extractedText = String(j.text || '').trim();
       } else {
         const fd = new FormData();
         fd.append('file', file);
         const o = await fetch('/api/ocr', { method: 'POST', body: fd });
-        const oj = await o.json();
+        const ot = await o.text();
+        let oj;
+        try { oj = JSON.parse(ot); }
+        catch { throw new Error(`Invalid JSON from /api/ocr: ${o.status} ${ot}`); }
         if (!o.ok) throw new Error(oj?.error || 'OCR failed');
         extractedText = String(oj.text || '').trim();
       }
@@ -117,7 +123,10 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
         method:'POST', headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({ text: extractedText })
       });
-      const rx = await rxRes.json();
+      const rxText = await rxRes.text();
+      let rx;
+      try { rx = JSON.parse(rxText); }
+      catch { throw new Error(`Invalid JSON from /api/rxnorm/normalize: ${rxRes.status} ${rxText}`); }
       const meds = rx.meds || [];
 
       let interactions: any[] = [];
@@ -126,7 +135,10 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
           method:'POST', headers:{ 'Content-Type':'application/json' },
           body: JSON.stringify({ rxcuis: meds.map((m:any)=>m.rxcui) })
         });
-        const j = await r.json();
+        const itext = await r.text();
+        let j;
+        try { j = JSON.parse(itext); }
+        catch { throw new Error(`Invalid JSON from /api/interactions: ${r.status} ${itext}`); }
         interactions = j.interactions || [];
       }
 
