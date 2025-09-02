@@ -81,6 +81,11 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
       <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
         <Markdown text={m.content} />
       </div>
+      {m.error && (
+        <div className="inline-flex items-center gap-2 text-xs rounded-lg px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-900/20 dark:text-rose-200 dark:border-rose-800">
+          ⚠️ {m.error}
+        </div>
+      )}
       <div className="flex flex-wrap gap-2 pt-2">
         <button className="btn-secondary" disabled={busy} onClick={() => onQuickAction("simpler", m.id)}>Explain simpler</button>
         <button className="btn-secondary" disabled={busy} onClick={() => onQuickAction("doctor", m.id)}>Doctor’s view</button>
@@ -110,6 +115,33 @@ function AssistantMessage({ m, researchOn, onQuickAction, busy }: { m: ChatMessa
   ) : (
     <ChatCard m={m} />
   );
+}
+
+async function safeJson(res: Response) {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(text ? `Invalid JSON: ${text.slice(0, 200)}` : "Empty response body");
+  }
+}
+
+async function callQuickAction(action: "simpler" | "doctor" | "next", messageId: string) {
+  const res = await fetch("/api/actions/refine", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, messageId })
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await safeJson(res);
+}
+
+function replaceFirstPendingWith(list: ChatMessage[], msg: ChatMessage) {
+  const idx = list.findIndex(m => m.pending);
+  if (idx === -1) return list;
+  const copy = [...list];
+  copy[idx] = { ...msg, pending: false };
+  return copy;
 }
 
 export default function Home() {
@@ -272,46 +304,31 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
     const targetId = messageId ?? getLastAnalysisId(messages);
     if (!targetId || busy) return;
     setBusy(true);
-    const pendingId = uid();
+    const tempId = `pending_${Date.now()}`;
     setMessages(prev => [
       ...prev,
-      { id: pendingId, role: 'assistant', kind: 'analysis', content: 'Analyzing…', pending: true }
+      { id: tempId, tempId, role: 'assistant', kind: 'analysis', content: 'Analyzing…', pending: true }
     ]);
     try {
-      const res = await fetch('/api/quick', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId: targetId, action: kind })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Quick action failed');
+      const data = await callQuickAction(kind, targetId);
       setMessages(prev =>
-        prev.map(m =>
-          m.id === pendingId
-            ? {
-                id: data.id || pendingId,
-                role: 'assistant',
-                kind: 'analysis',
-                category: data.category,
-                content: data.content,
-                pending: false
-              }
-            : m
-        )
+        replaceFirstPendingWith(prev, {
+          id: data.id ?? crypto.randomUUID(),
+          role: 'assistant',
+          kind: 'analysis',
+          content: data.report ?? data.content ?? '',
+          category: data.category
+        })
       );
-    } catch (e: any) {
-      console.error(e);
+    } catch (err: any) {
       setMessages(prev =>
-        prev.map(m =>
-          m.id === pendingId
-            ? {
-                ...m,
-                content: `⚠️ ${String(e?.message || e)}`,
-                pending: false,
-                error: String(e?.message || e)
-              }
-            : m
-        )
+        replaceFirstPendingWith(prev, {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          kind: 'analysis',
+          content: 'Sorry — that request failed. Please try again.',
+          error: err?.message || 'Request failed'
+        })
       );
     } finally {
       setBusy(false);
@@ -334,14 +351,14 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
           )}
         </div>
       </div>
-      <div className="sticky bottom-0 inset-x-0 md:ml-64 bg-gradient-to-t from-slate-50/70 to-transparent dark:from-black/40 pt-3 pb-4">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6">
-          <div className="flex items-center gap-2 rounded-full border border-slate-200 dark:border-gray-800 bg-slate-100 dark:bg-gray-900 px-2 py-1.5">
+      <div className="sticky bottom-0 inset-x-0 md:ml-64 bg-gradient-to-t from-slate-50/70 to-transparent dark:from-black/40 px-4 sm:px-6 pt-3 pb-4">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex items-center gap-3 rounded-full border border-slate-200 dark:border-gray-800 bg-slate-100 dark:bg-gray-900 px-3 py-2">
             <label className="cursor-pointer px-3 py-1.5 text-sm rounded-full bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600">
               📄
               <input type="file" accept="application/pdf,image/*" className="hidden" onChange={e=>{ const f=e.target.files?.[0]; if(f) handleFile(f); e.currentTarget.value=''; }} />
             </label>
-            <input className="flex-1 bg-transparent outline-none text-sm md:text-base placeholder:text-slate-400 dark:placeholder:text-slate-500" placeholder="Send a message..." value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(input, researchMode);} }} />
+            <input className="flex-1 bg-transparent outline-none text-sm md:text-base placeholder:text-slate-400 dark:placeholder:text-slate-500 px-2" placeholder="Send a message..." value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(input, researchMode);} }} />
             <button className="px-3 py-1.5 rounded-full bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600" onClick={()=>send(input, researchMode)} disabled={busy} aria-label="Send">
               <Send size={16}/>
             </button>
