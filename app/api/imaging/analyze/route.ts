@@ -362,6 +362,7 @@ export async function POST(req: NextRequest) {
 
     const hint = (form.get("hint") as string) || "";
     const override = (form.get("model") as string) || "";
+    const mode = (form.get("mode") as string) || "both";
     const fam = guessFamily(hint, files.map((f) => f.name).join(" "));
     const region = mapRegion(hint || files.map((f) => f.name).join(" "));
 
@@ -370,9 +371,26 @@ export async function POST(req: NextRequest) {
       const buf = Buffer.from(await file.arrayBuffer());
       const { classifiers, generators } = pickCandidates(fam, override);
       const tried: { id: string; status: number; ok: boolean }[] = [];
-      let predictions = await getPredictionsViaRouter(buf, classifiers, tried);
+      let predictions = mode !== "openai" ? await getPredictionsViaRouter(buf, classifiers, tried) : null;
+      const oaRes = mode !== "hf"
+        ? await callOpenAIVision(buf, file.type || "image/jpeg", fam, region).catch(() => null)
+        : null;
+      if (mode !== "hf") {
+        if (oaRes) {
+          tried.push({ id: `openai:${OPENAI_VISION_MODEL}`, status: 200, ok: true });
+        } else {
+          tried.push({ id: `openai:${OPENAI_VISION_MODEL}`, status: 500, ok: false });
+        }
+        if (process.env.XRAY_ENABLE_DEBUG === "true") {
+          console.log("OpenAI Vision response", {
+            ok: !!oaRes,
+            prob: oaRes?.fractured_prob,
+            model: OPENAI_VISION_MODEL,
+          });
+        }
+      }
       if (!predictions) predictions = [{ label: "Unknown", score: 0 }];
-      const genText = await getGeneratorTextViaRouter(buf, generators, tried);
+      const genText = mode !== "openai" ? await getGeneratorTextViaRouter(buf, generators, tried) : null;
       let interp = humanTemplate(fam, predictions, file.name || region);
       if (genText?.trim()) {
         interp = {
@@ -380,7 +398,6 @@ export async function POST(req: NextRequest) {
           clinicianNote: `${genText.trim()}\n\n${interp.clinicianNote}`,
         };
       }
-      const oaRes = await callOpenAIVision(buf, file.type || "image/png", fam, region).catch(() => null);
       if (oaRes?.findings?.length || oaRes?.impression) {
         const lines: string[] = [];
         if (Array.isArray(oaRes.findings) && oaRes.findings.length) {
@@ -403,8 +420,9 @@ export async function POST(req: NextRequest) {
         predictions,
         interpretation: polished || interp,
         modelsTried: tried,
-        openaiProb: oaRes?.fractured_prob,
+        openaiProb: oaRes?.fractured_prob ?? null,
         openaiModel: OPENAI_VISION_MODEL,
+        openaiResponded: !!oaRes,
       });
     }
 
