@@ -100,11 +100,8 @@ export async function POST(req: Request) {
 
   const buf = Buffer.from(await file.arrayBuffer());
   let text = "";
-  let ocr = false;
   try {
-    const res = await extractTextFromPDF(buf); // parses all pages
-    text = res.text || "";
-    ocr = res.ocr;
+    text = await extractTextFromPDF(buf); // parses all pages
   } catch (err: any) {
     return NextResponse.json(
       { ok: false, error: "PDF parse failed", detail: err?.message || String(err) },
@@ -114,12 +111,7 @@ export async function POST(req: Request) {
 
   if (!text.trim()) {
     return NextResponse.json(
-      {
-        ok: false,
-        error: ocr
-          ? "Unable to extract text from PDF via OCR"
-          : "PDF contained no extractable text",
-      },
+      { ok: false, error: "PDF contained no extractable text" },
       { status: 422 }
     );
   }

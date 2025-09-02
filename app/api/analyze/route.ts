@@ -1,42 +1,12 @@
 import { NextResponse } from "next/server";
+import { extractTextFromPDF, rasterizeFirstPage } from "@/lib/pdftext";
 
 const OAI_KEY = process.env.OPENAI_API_KEY!;
 const MODEL_TEXT = process.env.OPENAI_TEXT_MODEL || "gpt-5";
 const MODEL_VISION = process.env.OPENAI_VISION_MODEL || "gpt-5";
 
-
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-async function extractTextFromPDF(buffer: Buffer) {
-  try {
-    const pdf = (await import("pdf-parse")).default;
-    const data = await pdf(buffer);
-    return data.text || "";
-  } catch {
-    return "";
-  }
-}
-
-async function rasterizeFirstPage(buffer: Buffer): Promise<string> {
-  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  (pdfjs as any).GlobalWorkerOptions.workerSrc = false;
-  const { createCanvas } = await import("@napi-rs/canvas");
-  const doc = await pdfjs
-    .getDocument({
-      data: new Uint8Array(buffer),
-      disableWorker: true,
-      useSystemFonts: true,
-      isEvalSupported: false,
-    } as any)
-    .promise;
-  const page = await doc.getPage(1);
-  const viewport = page.getViewport({ scale: 2.0 });
-  const canvas = createCanvas(viewport.width, viewport.height);
-  const context = canvas.getContext("2d");
-  await page.render({ canvasContext: context as any, viewport }).promise;
-  return canvas.toDataURL("image/png");
-}
 
 async function classifyText(text: string): Promise<string> {
   const r = await fetch("https://api.openai.com/v1/chat/completions", {

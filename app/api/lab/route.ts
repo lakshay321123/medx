@@ -23,12 +23,12 @@ export async function POST(req: NextRequest) {
       try { hints = JSON.parse(hintsRaw); } catch {}
     }
     const buf = Buffer.from(await file.arrayBuffer());
-    const { text, ocr } = await extractTextFromPDF(buf);
+    const text = await extractTextFromPDF(buf);
     if (!text.trim()) {
-      return json({ ok: false, error: 'PDF parse failed and OCR not available' }, 200);
+      return json({ ok: false, error: 'PDF contained no extractable text' }, 200);
     }
     const analysis = analyzeLabText(text, hints || undefined);
-    return json({ ...analysis, meta: { usedOCR: ocr, parseNotes: [] }, disclaimer: DISCLAIMER }, 200);
+    return json({ ...analysis, meta: { usedOCR: false, parseNotes: [] }, disclaimer: DISCLAIMER }, 200);
   } catch (e: any) {
     return json({ ok: false, error: String(e?.message || e) }, 500);
   }
