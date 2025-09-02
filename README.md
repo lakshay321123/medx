@@ -13,6 +13,8 @@ This project includes:
    - `ICD11_CLIENT_ID` `ICD11_CLIENT_SECRET`
    - `LLM_BASE_URL` (e.g., `https://llm.your-vpc/v1` for vLLM/Ollama OpenAI-compatible API)
    - `LLM_MODEL_ID` (e.g., `llama3-8b-instruct`)
+   - `HF_API_TOKEN`
+   - optional: `HF_CHEST_MODEL` `HF_BONE_MODEL`
 2. `npm install`
 3. `npm run dev`
 
