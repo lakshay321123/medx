@@ -226,15 +226,18 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
       if (!res.ok || data.ok === false) throw new Error(data?.error || 'Imaging analysis failed');
       const lines: string[] = [];
       lines.push(`**${data.documentType || 'Imaging Report'} – ${file.name}**`);
-      if (data.family) lines.push(`**Family:** ${data.family}`);
+      lines.push(`**Patient-friendly summary**`);
+      lines.push(data.interpretation?.patientSummary || '(none)');
+      lines.push('');
+      lines.push(`**Clinician note**`);
+      lines.push(data.interpretation?.clinicianNote || '(none)');
       if (Array.isArray(data.predictions) && data.predictions.length) {
         lines.push('**Predictions:**');
-        data.predictions.forEach((p:any)=>{
+        data.predictions.slice(0,5).forEach((p:any)=>{
           const pct = Math.round((p.score || 0)*100);
-          lines.push(`- ${p.label} (${pct}%)`);
+          lines.push(`- ${p.label}: ${pct}%`);
         });
       }
-      if (data.impression) lines.push(`**Impression:** ${data.impression}`);
       if (data.disclaimer) lines.push(`_${data.disclaimer}_`);
       setMessages(prev=>{ const copy=[...prev]; copy[idx] = { role:'assistant', content: lines.join('\n') }; return copy; });
     } catch(e:any) {
