@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import Markdown from '../components/Markdown';
 import { Send, Sun, Moon, User, Stethoscope, ClipboardList, FlaskConical } from 'lucide-react';
-import { parseLabValues } from '../lib/parseLabs';
 
 type ChatMsg = { role: 'user'|'assistant'; content: string };
 
@@ -90,145 +89,37 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
     }
   }
 
-  async function handleUpload(file: File) {
-    if (!file) return;
-    setBusy(true);
-
-    try {
-      const idx = messages.length;
-      setMessages(prev=>[...prev, { role:'assistant', content:`Processing "${file.name}"…` }]);
-
-      let extractedText = '';
-      const isPdf =
-        file.type.toLowerCase().includes('pdf') ||
-        file.name.toLowerCase().endsWith('.pdf');
-      const fd = new FormData();
-      fd.append('file', file);
-      if (isPdf) {
-        const r = await fetch('/api/rxnorm/normalize-pdf', {
-          method: 'POST',
-          body: fd,
-        });
-        const j = await r.json();
-        if (!r.ok) throw new Error(j?.error || 'PDF parse error');
-        extractedText = String(j.text || '').trim();
-      } else {
-        const o = await fetch('/api/ocr', { method: 'POST', body: fd });
-        const oj = await o.json();
-        if (!o.ok) throw new Error(oj?.error || 'OCR failed');
-        extractedText = String(oj.text || '').trim();
-      }
-
-      // Classify document type
-      const classRes = await fetch('/api/chat', {
-        method:'POST', headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({
-          messages:[
-            { role:'system', content:'You are a medical document classifier. Respond with one word: prescription, lab_report, or other.' },
-            { role:'user', content: extractedText.slice(0,4000) }
-          ]
-        })
-      });
-      const docTypeRaw = (await classRes.text()).trim().toLowerCase();
-      const docType = /lab/.test(docTypeRaw) ? 'lab_report' : /prescription/.test(docTypeRaw) ? 'prescription' : 'other';
-
-      // Summarize document for current mode
-      const summaryPrompt = mode==='doctor'
-        ? `You are a clinical summarizer. Provide a concise summary of this ${docType.replace('_',' ')} for physicians.`
-        : mode==='admin'
-          ? `You summarize medical documents for administrative staff. Provide a brief summary of this ${docType.replace('_',' ')} focusing on logistics and coding.`
-          : `You summarize medical documents for patients in simple language. Provide a short summary of this ${docType.replace('_',' ')}.`;
-      const sumRes = await fetch('/api/chat', {
-        method:'POST', headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({
-          messages:[
-            { role:'system', content: summaryPrompt },
-            { role:'user', content: extractedText.slice(0,4000) }
-          ]
-        })
-      });
-      const summary = (await sumRes.text()).trim();
-
-      // Normalize medications via RxNorm
-      const rxRes = await fetch('/api/rxnorm/normalize', {
-        method:'POST', headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ text: extractedText })
-      });
-      const rx = await rxRes.json();
-      const meds = rx.meds || [];
-
-      let interactions: any[] = [];
-      if (meds.length >= 2) {
-        const r = await fetch('/api/interactions', {
-          method:'POST', headers:{ 'Content-Type':'application/json' },
-          body: JSON.stringify({ rxcuis: meds.map((m:any)=>m.rxcui) })
-        });
-        const j = await r.json();
-        interactions = j.interactions || [];
-      }
-
-      // Parse lab values
-      const labs = parseLabValues(extractedText);
-
-      const docLabel = docType==='lab_report'? 'Lab report' : docType==='prescription'? 'Prescription' : 'Document';
-      const lines: string[] = [];
-      lines.push(`**${docLabel} analysis – ${file.name}**`);
-      if (summary) {
-        lines.push(`**Summary:**\n${summary}`);
-      }
-      if (labs.length) {
-        lines.push('**Lab results:**');
-        labs.forEach(l => {
-          const range = `${l.normalLow}-${l.normalHigh} ${l.unit}`;
-          const flag = l.flag==='normal' ? '' : ` **${l.flag.toUpperCase()}**`;
-          lines.push(`- ${l.name}: ${l.value} ${l.unit}${flag} (normal ${range})`);
-        });
-      }
-      if (meds.length) {
-        lines.push('**Recognized medications (RxNorm):**');
-        meds.forEach((m:any)=> lines.push(`- ${m.token} — RXCUI [${m.rxcui}](https://rxnav.nlm.nih.gov/REST/rxcui/${m.rxcui})`));
-      } else {
-        lines.push('No medications confidently recognized. You can type them manually (one per line).');
-      }
-      if (interactions.length) {
-        lines.push('\n**Potential interactions:**');
-        interactions.forEach((it:any)=> lines.push(`- **${it.severity || 'Severity N/A'}** — ${it.description}`));
-      }
-      if (extractedText) {
-        lines.push(`<details><summary>Extracted text</summary>\n\n${extractedText.slice(0,2000)}\n\n</details>`);
-      }
-
-      setMessages(prev=>{
-        const copy = [...prev];
-        copy[idx] = { role:'assistant', content: lines.join('\n') };
-        return copy;
-      });
-    } catch (e:any) {
-      console.error(e);
-      setMessages(prev=>[...prev, { role:'assistant', content:`⚠️ Upload failed: ${String(e?.message || e)}` }]);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleImaging(file: File) {
+  async function handleFile(file: File) {
     if (!file) return;
     setBusy(true);
     try {
       const idx = messages.length;
-      setMessages(prev=>[...prev, { role:'assistant', content:`Analyzing ${file.name}…` }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: `Analyzing "${file.name}"…` }]);
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch('/api/imaging/analyze', { method:'POST', body: fd });
+      fd.append('doctorMode', String(mode === 'doctor'));
+      const res = await fetch('/api/analyze', { method: 'POST', body: fd });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Imaging analysis failed');
-      const lines: string[] = [];
-      lines.push('**Imaging Report**');
-      if (data.report) lines.push(data.report);
-      if (data.disclaimer) lines.push(`_${data.disclaimer}_`);
-      setMessages(prev=>{ const copy=[...prev]; copy[idx] = { role:'assistant', content: lines.join('\n\n') }; return copy; });
-    } catch(e:any) {
-      setMessages(prev=>[...prev, { role:'assistant', content:`⚠️ Imaging failed: ${String(e?.message || e)}` }]);
+      if (!res.ok) throw new Error(data?.error || 'Analysis failed');
+      let lines: string[] = [];
+      if (data.type === 'pdf') {
+        lines.push('**Patient Summary**');
+        lines.push(data.patient);
+        if (data.doctor) {
+          lines.push('\n**Doctor Summary**');
+          lines.push(data.doctor);
+        }
+      } else {
+        lines.push('**Imaging Report**');
+        lines.push(data.report);
+      }
+      if (data.disclaimer) {
+        lines.push(`\n_${data.disclaimer}_`);
+      }
+      setMessages(prev => { const copy = [...prev]; copy[idx] = { role: 'assistant', content: lines.join('\n\n') }; return copy; });
+    } catch (e: any) {
+      console.error(e);
+      setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ ${String(e?.message || e)}` }]);
     } finally {
       setBusy(false);
     }
@@ -271,17 +162,10 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
               </div>
               <div style={{ marginTop:10, textAlign:'right', display:'flex', justifyContent:'flex-end', gap:8 }}>
                 <label className="item" style={{ cursor:'pointer' }}>
-                  🩻 Upload X-ray
+                  📄 Upload
                   <input
-                    type="file" accept="image/*" style={{ display:'none' }}
-                    onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleImaging(f); e.currentTarget.value=''; }}
-                  />
-                </label>
-                <label className="item" style={{ cursor:'pointer' }}>
-                  📄 Upload Prescription
-                  <input
-                    type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display:'none' }}
-                    onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleUpload(f); e.currentTarget.value=''; }}
+                    type="file" accept="application/pdf,image/*" style={{ display:'none' }}
+                    onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleFile(f); e.currentTarget.value=''; }}
                   />
                 </label>
               </div>
@@ -312,17 +196,10 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                 </div>
                 <div style={{ marginTop:8, textAlign:'right', display:'flex', justifyContent:'flex-end', gap:8 }}>
                   <label className="item" style={{ cursor:'pointer' }}>
-                  🩻 Upload X-ray
+                    📄 Upload
                     <input
-                      type="file" accept="image/*" style={{ display:'none' }}
-                      onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleImaging(f); e.currentTarget.value=''; }}
-                    />
-                  </label>
-                  <label className="item" style={{ cursor:'pointer' }}>
-                    📄 Upload Prescription
-                    <input
-                      type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display:'none' }}
-                      onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleUpload(f); e.currentTarget.value=''; }}
+                      type="file" accept="application/pdf,image/*" style={{ display:'none' }}
+                      onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleFile(f); e.currentTarget.value=''; }}
                     />
                   </label>
                 </div>

@@ -43,7 +43,5 @@ export async function extractTextFromPDF(
     // ignore PDF parse errors and fall back to OCR
   }
 
-  const { runOCR } = await import('./ocr');
-  const ocrText = await runOCR(buffer);
-  return { text: ocrText, ocr: true };
+  return { text: '', ocr: false };
 }
