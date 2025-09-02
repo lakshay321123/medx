@@ -213,18 +213,20 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
 
   async function handleImaging(file: File) {
     if (!file) return;
+    const hint = window.prompt('Hint (e.g., "chest", "wrist", "tibia")') || '';
     setBusy(true);
     try {
       const idx = messages.length;
       setMessages(prev=>[...prev, { role:'assistant', content:`Analyzing "${file.name}"…` }]);
       const fd = new FormData();
       fd.append('file', file);
+      if (hint) fd.append('hint', hint);
       const res = await fetch('/api/imaging/analyze', { method:'POST', body: fd });
       const data = await res.json();
       if (!res.ok || data.ok === false) throw new Error(data?.error || 'Imaging analysis failed');
       const lines: string[] = [];
       lines.push(`**${data.documentType || 'Imaging Report'} – ${file.name}**`);
-      if (data.region) lines.push(`**Region:** ${data.region}`);
+      if (data.family) lines.push(`**Family:** ${data.family}`);
       if (Array.isArray(data.predictions) && data.predictions.length) {
         lines.push('**Predictions:**');
         data.predictions.forEach((p:any)=>{
