@@ -21,19 +21,32 @@ function pickFamily(hint = "", name = ""): "bone" | "chest" {
   return "bone"; // default
 }
 
-async function callHF(buf: Buffer, modelId: string) {
+// HF caller: raw bytes
+async function callHF_bytes(buf: Buffer, modelId: string) {
   const url = `https://api-inference.huggingface.co/models/${encodeURIComponent(modelId)}`;
-  const r = await fetch(url, { method: "POST", headers: { Authorization: `Bearer ${HF_TOKEN}` }, body: buf });
-  if (r.status === 503) {
-    await new Promise(res => setTimeout(res, 2000));
-    const r2 = await fetch(url, { method: "POST", headers: { Authorization: `Bearer ${HF_TOKEN}` }, body: buf });
-    if (!r2.ok) throw new Error(`HF ${r2.status}: ${await r2.text()}`);
-    return r2.json();
-  }
-  if (r.status === 404) throw new Error(`HF 404: model "${modelId}" not deployed for Inference API`);
-  if (r.status === 401 || r.status === 403) throw new Error(`HF auth error ${r.status}: check HF_API_TOKEN / model visibility`);
-  if (!r.ok) throw new Error(`HF ${r.status}: ${await r.text()}`);
-  return r.json();
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${HF_TOKEN}` },
+    body: buf,
+  });
+  const txt = await r.text();
+  return { ok: r.ok, status: r.status, body: txt };
+}
+
+// HF caller: JSON/base64 payload
+async function callHF_jsonBase64(buf: Buffer, modelId: string) {
+  const url = `https://api-inference.huggingface.co/models/${encodeURIComponent(modelId)}`;
+  const payload = { inputs: buf.toString("base64") };
+  const r = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${HF_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  const txt = await r.text();
+  return { ok: r.ok, status: r.status, body: txt };
 }
 
 // normalize HF outputs into [{label, score}] format
@@ -77,8 +90,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok:false, error:`Model "${modelId}" is not configured for image inputs.` }, { status: 400 });
     }
 
-    const raw = await callHF(buf, modelId);
-    const preds = normalize(raw);
+    console.log("imaging model:", modelId);
+
+    // 1) try bytes
+    let resp = await callHF_bytes(buf, modelId);
+
+    // handle cold-start
+    if (resp.status === 503) {
+      await new Promise(r => setTimeout(r, 2000));
+      resp = await callHF_bytes(buf, modelId);
+    }
+
+    // 404/401/403: clear, user-facing errors
+    if (resp.status === 404) throw new Error(`HF 404: model "${modelId}" not deployed for Inference API`);
+    if (resp.status === 401 || resp.status === 403) throw new Error(`HF auth ${resp.status}: check HF_API_TOKEN / model visibility`);
+
+    // 2) if 400 (e.g., "'NoneType'...lower"), retry JSON/base64
+    if (!resp.ok && resp.status === 400) {
+      const retry = await callHF_jsonBase64(buf, modelId);
+      if (!retry.ok) throw new Error(`HF ${retry.status}: ${retry.body}`);
+      resp = retry;
+    }
+
+    // any other non-ok
+    if (!resp.ok) throw new Error(`HF ${resp.status}: ${resp.body}`);
+
+    // parse final
+    let out: any;
+    try { out = JSON.parse(resp.body); } catch { out = resp.body; }
+
+    const preds = normalize(out);
 
     return NextResponse.json({
       ok: true,
