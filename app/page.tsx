@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import Sidebar from '../components/Sidebar';
 import Markdown from '../components/Markdown';
 import { Send, User, Stethoscope, ClipboardList, FlaskConical } from 'lucide-react';
 
@@ -16,8 +15,6 @@ export default function Home(){
 
   useEffect(()=>{ document.body.setAttribute('data-role', mode==='doctor'? 'doctor' : mode==='admin' ? 'admin' : ''); },[mode]);
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
-
-  const showHero = messages.length===0;
 
   async function send(text: string, researchMode: boolean){
     if(!text.trim() || busy) return;
@@ -124,38 +121,44 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
   }
 
   return (
-    <div className="app">
-      <Sidebar onNew={()=>{ setMessages([]); setInput(''); }} onSearch={()=>{}} />
+    <>
+      <div className="header">
+        <button className="item" onClick={()=>setMode(mode==='patient'?'doctor':mode==='doctor'?'admin':'patient')}>
+          {mode==='patient'
+            ? <><User size={16}/> Patient</>
+            : mode==='doctor'
+              ? <><Stethoscope size={16}/> Doctor</>
+              : <><ClipboardList size={16}/> Admin</>}
+        </button>
+        <button className="item" onClick={()=>setResearchMode(r=>!r)}>
+          {researchMode ? <><FlaskConical size={16}/> Research On</> : <><FlaskConical size={16}/> Research Off</>}
+        </button>
+      </div>
 
-      <main className="main">
-        <div className="header">
-          <button className="item" onClick={()=>setMode(mode==='patient'?'doctor':mode==='doctor'?'admin':'patient')}>
-            {mode==='patient'
-              ? <><User size={16}/> Patient</>
-              : mode==='doctor'
-                ? <><Stethoscope size={16}/> Doctor</>
-                : <><ClipboardList size={16}/> Admin</>}
-          </button>
-          <button className="item" onClick={()=>setResearchMode(r=>!r)}>
-            {researchMode ? <><FlaskConical size={16}/> Research On</> : <><FlaskConical size={16}/> Research Off</>}
-          </button>
-        </div>
+      <section className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12">
+        {messages.length===0 ? (
+          <div>
+            <div className="text-center">
+              <h1 className="text-3xl font-semibold">MedX</h1>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                Ask anything medical. Switch to Doctor for clinical depth.
+              </p>
+            </div>
 
-        <div className="wrap">
-          {messages.length===0 ? (
-            <div className="hero">
-              <h1>MedX</h1>
-              <p>Ask anything medical. Switch to Doctor for clinical depth.</p>
-              <div className="inputRow" style={{ marginTop:16 }}>
-                <textarea
-                  placeholder="Type your question…"
-                  value={input}
-                  onChange={e=>setInput(e.target.value)}
-                  onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(input, researchMode);} }}
-                />
-                <button className="iconBtn" onClick={()=>send(input, researchMode)} aria-label="Send" disabled={busy}><Send size={18}/></button>
+            <div className="mt-6 flex flex-col items-center gap-4">
+              <div className="w-full max-w-xl">
+                <div className="inputRow">
+                  <textarea
+                    placeholder="Type your question…"
+                    value={input}
+                    onChange={e=>setInput(e.target.value)}
+                    onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(input, researchMode);} }}
+                  />
+                  <button className="iconBtn" onClick={()=>send(input, researchMode)} aria-label="Send" disabled={busy}><Send size={18}/></button>
+                </div>
               </div>
-              <div style={{ marginTop:10, textAlign:'right', display:'flex', justifyContent:'flex-end', gap:8 }}>
+
+              <div className="w-full max-w-xl flex justify-end gap-8">
                 <label className="item" style={{ cursor:'pointer' }}>
                   📄 Upload
                   <input
@@ -165,44 +168,44 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                 </label>
               </div>
             </div>
-          ) : (
-            <>
-              <div ref={chatRef} className="chat">
-                {messages.map((m,i)=>(
-                  <div key={i} className={`msg ${m.role}`}>
-                    <div className="avatar">{m.role==='user'?'U':'M'}</div>
-                    <div className="bubble">
-                      <div className="role">{m.role==='user'?'You':'MedX'}</div>
-                      <div className="content markdown"><Markdown text={m.content}/></div>
-                    </div>
+          </div>
+        ) : (
+          <>
+            <div ref={chatRef} className="chat">
+              {messages.map((m,i)=>(
+                <div key={i} className={`msg ${m.role}`}>
+                  <div className="avatar">{m.role==='user'?'U':'M'}</div>
+                  <div className="bubble">
+                    <div className="role">{m.role==='user'?'You':'MedX'}</div>
+                    <div className="content markdown"><Markdown text={m.content}/></div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
+            </div>
 
-              <div className="inputDock">
-                <div className="inputRow">
-                  <textarea
-                    placeholder="Send a message…"
-                    value={input}
-                    onChange={e=>setInput(e.target.value)}
-                    onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(input, researchMode);} }}
-                  />
-                  <button className="iconBtn" onClick={()=>send(input, researchMode)} aria-label="Send" disabled={busy}>➤</button>
-                </div>
-                <div style={{ marginTop:8, textAlign:'right', display:'flex', justifyContent:'flex-end', gap:8 }}>
-                  <label className="item" style={{ cursor:'pointer' }}>
-                    📄 Upload
-                    <input
-                      type="file" accept="application/pdf,image/*" style={{ display:'none' }}
-                      onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleFile(f); e.currentTarget.value=''; }}
-                    />
-                  </label>
-                </div>
+            <div className="inputDock">
+              <div className="inputRow">
+                <textarea
+                  placeholder="Send a message…"
+                  value={input}
+                  onChange={e=>setInput(e.target.value)}
+                  onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(input, researchMode);} }}
+                />
+                <button className="iconBtn" onClick={()=>send(input, researchMode)} aria-label="Send" disabled={busy}>➤</button>
               </div>
-            </>
-          )}
-        </div>
-      </main>
-    </div>
+              <div className="mt-2 flex justify-end gap-8">
+                <label className="item" style={{ cursor:'pointer' }}>
+                  📄 Upload
+                  <input
+                    type="file" accept="application/pdf,image/*" style={{ display:'none' }}
+                    onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleFile(f); e.currentTarget.value=''; }}
+                  />
+                </label>
+              </div>
+            </div>
+          </>
+        )}
+      </section>
+    </>
   );
 }

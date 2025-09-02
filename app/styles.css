@@ -27,7 +27,7 @@ body{
 /* Layout */
 .app{ display:flex; min-height:100vh }
 .sidebar{
-  width:260px; padding:14px; border-right:1px solid var(--border);
+  width:100%; padding:14px;
   background:var(--card-2); display:flex; flex-direction:column; gap:10px;
 }
 .sidebar .title{ font-weight:700; letter-spacing:.2px; margin-bottom:2px }
