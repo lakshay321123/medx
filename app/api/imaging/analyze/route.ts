@@ -1,90 +1,95 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
+
 const HF_TOKEN = process.env.HF_API_TOKEN || "";
-const DEF_CHEST = process.env.HF_CHEST_MODEL || "StanfordAIMI/CheXbert";
-const DEF_BONE  = process.env.HF_BONE_MODEL  || "nibort/xray-fracture-detection";
+const BONE = process.env.HF_BONE_MODEL  || "prithivMLmods/Bone-Fracture-Detection";
+const CHEST = process.env.HF_CHEST_MODEL || "keremberke/yolov8m-chest-xray-classification";
 
-function pickModel(fileName: string = "", mime: string = "", hint?: string) {
-  const n = (fileName || "").toLowerCase();
-  const h = (hint || "").toLowerCase();
-  const chestHints = /(chest|cxr|lung|pa|ap)/;
-  const boneHints  = /(wrist|hand|elbow|shoulder|humerus|tibia|fibula|knee|ankle|finger|forearm|mura|fracture)/;
-  if (boneHints.test(n) || boneHints.test(h)) return { id: DEF_BONE, region: "Bone/Limb" };
-  if (chestHints.test(n) || chestHints.test(h)) return { id: DEF_CHEST, region: "Chest" };
-  // default to chest to avoid wildly wrong fracture calls on random images
-  return { id: DEF_CHEST, region: "Chest" };
+// allow-list to prevent text-only models being used for image inputs
+const IMAGE_MODELS = new Set([BONE, CHEST,
+  "prithivMLmods/Bone-Fracture-Detection",
+  "keremberke/yolov8m-chest-xray-classification",
+  "keremberke/yolov8s-chest-xray-classification",
+  "lxyuan/vit-xray-pneumonia-classification"
+]);
+
+function pickFamily(hint = "", name = ""): "bone" | "chest" {
+  const s = `${hint} ${name}`.toLowerCase();
+  if (/(wrist|hand|finger|elbow|shoulder|humerus|tibia|fibula|knee|ankle|forearm|mura|fracture|bone)/.test(s)) return "bone";
+  if (/(chest|cxr|lung|pa|ap|thorax)/.test(s)) return "chest";
+  return "bone"; // default
 }
 
-function impressionFrom(preds: Array<{label:string; score:number}>) {
-  if (!Array.isArray(preds) || !preds.length) return "No strong abnormality predicted by the model. Correlate clinically.";
-  const top = preds
-    .filter(p => typeof p.score === "number")
-    .sort((a,b)=>b.score - a.score)
-    .slice(0,5)
-    .filter(p => p.score >= 0.15);
-  if (!top.length) return "No strong abnormality predicted by the model. Correlate clinically.";
-  const s = top.map(p => `${p.label} (${(p.score*100).toFixed(0)}%)`).join(", ");
-  return `Model suggests: ${s}. AI assistance only — confirm with radiologist.`;
-}
-
-async function callHF(image: Buffer, modelId: string) {
-  if (!HF_TOKEN) throw new Error("HF_API_TOKEN not set");
+async function callHF(buf: Buffer, modelId: string) {
   const url = `https://api-inference.huggingface.co/models/${encodeURIComponent(modelId)}`;
-  const res = await fetch(url, { method: "POST", headers: { Authorization: `Bearer ${HF_TOKEN}` }, body: image });
-  if (res.status === 503) { // cold start retry
-    await new Promise(r => setTimeout(r, 2000));
-    const retry = await fetch(url, { method: "POST", headers: { Authorization: `Bearer ${HF_TOKEN}` }, body: image });
-    if (!retry.ok) throw new Error(`HF ${retry.status}: ${await retry.text()}`);
-    return retry.json();
+  const r = await fetch(url, { method: "POST", headers: { Authorization: `Bearer ${HF_TOKEN}` }, body: buf });
+  if (r.status === 503) {
+    await new Promise(res => setTimeout(res, 2000));
+    const r2 = await fetch(url, { method: "POST", headers: { Authorization: `Bearer ${HF_TOKEN}` }, body: buf });
+    if (!r2.ok) throw new Error(`HF ${r2.status}: ${await r2.text()}`);
+    return r2.json();
   }
-  if (!res.ok) throw new Error(`HF ${res.status}: ${await res.text()}`);
-  return res.json();
+  if (r.status === 404) throw new Error(`HF 404: model "${modelId}" not deployed for Inference API`);
+  if (r.status === 401 || r.status === 403) throw new Error(`HF auth error ${r.status}: check HF_API_TOKEN / model visibility`);
+  if (!r.ok) throw new Error(`HF ${r.status}: ${await r.text()}`);
+  return r.json();
 }
 
-// Normalize HF outputs into [{label, score}]
-function normalize(out: any) {
+// normalize HF outputs into [{label, score}] format
+function normalize(out: any): {label:string; score:number}[] {
   if (Array.isArray(out) && out[0]?.label && typeof out[0]?.score === "number") {
-    return out.map((o:any)=>({label:o.label, score:o.score})).sort((a,b)=>b.score - a.score);
+    return [...out].sort((a:any,b:any)=>b.score-a.score);
   }
-  if (Array.isArray(out) && typeof out[0] === "number") {
-    const probs = out; // already probs or logits — treat as probs
-    return probs.map((p:number, i:number)=>({ label: `label_${i}`, score: p })).sort((a,b)=>b.score - a.score);
-  }
-  const arr = out?.scores || out?.logits;
+  const arr = Array.isArray(out?.scores) ? out.scores
+           : Array.isArray(out?.logits) ? out.logits
+           : Array.isArray(out) ? out : [];
   if (Array.isArray(arr)) {
-    return arr.map((p:number, i:number)=>({ label: `label_${i}`, score: p })).sort((a,b)=>b.score - a.score);
+    return arr.map((p:number,i:number)=>({ label:`label_${i}`, score:Number(p)||0 })).sort((a,b)=>b.score-a.score);
   }
-  return [{ label: "Unknown", score: 0, raw: out }];
+  return [{ label:"Unknown", score:0 }];
+}
+
+function impression(preds:{label:string; score:number}[]) {
+  const top = preds.filter(p=>p.score>=0.15).slice(0,5);
+  if (!top.length) return "No strong abnormality predicted. Correlate clinically.";
+  const s = top.map(p=>`${p.label} ${(p.score*100).toFixed(0)}%`).join(", ");
+  return `Model suggests: ${s}. AI assistance only — confirm with radiologist.`;
 }
 
 export async function POST(req: NextRequest) {
   try {
+    if (!HF_TOKEN) return NextResponse.json({ ok:false, error:"HF_API_TOKEN not set" }, { status: 500 });
     const form = await req.formData();
     const file = form.get("file") as File | null;
-    const hint = (form.get("hint") as string) || ""; // optional body-part hint from UI
+    const hint = (form.get("hint") as string) || "";
+    const override = (form.get("model") as string) || "";
 
-    if (!file) return NextResponse.json({ ok:false, error: "No file (expect 'file')" }, { status: 400 });
-    if (!(file.type || "").toLowerCase().startsWith("image/")) {
-      return NextResponse.json({ ok:false, error: `Expected image/*, got ${file.type||"unknown"}` }, { status: 400 });
-    }
+    if (!file) return NextResponse.json({ ok:false, error:"No file (expect 'file')" }, { status: 400 });
+    if (!(file.type||"").toLowerCase().startsWith("image/"))
+      return NextResponse.json({ ok:false, error:`Expected image/*, got ${file.type||"unknown"}` }, { status: 400 });
+
     const buf = Buffer.from(await file.arrayBuffer());
 
-    const chosen = pickModel(file.name, file.type, hint);
-    const raw = await callHF(buf, chosen.id);
-    const predictions = normalize(raw);
+    // choose model: override > hint/filename > env defaults
+    let modelId = override || (pickFamily(hint, file.name) === "chest" ? CHEST : BONE);
+    if (!IMAGE_MODELS.has(modelId)) {
+      return NextResponse.json({ ok:false, error:`Model "${modelId}" is not configured for image inputs.` }, { status: 400 });
+    }
+
+    const raw = await callHF(buf, modelId);
+    const preds = normalize(raw);
 
     return NextResponse.json({
       ok: true,
       documentType: "Imaging Report",
       modality: "X-ray",
-      region: chosen.region,
-      model: chosen.id,
-      predictions,
-      impression: impressionFrom(predictions),
-      disclaimer: "AI aid — not a medical diagnosis. Always confirm with clinician."
+      family: pickFamily(hint, file.name),
+      model: modelId,
+      predictions: preds,
+      impression: impression(preds),
+      disclaimer: "AI assistance only — not a medical diagnosis."
     });
-
   } catch (e:any) {
     return NextResponse.json({ ok:false, error: e?.message || String(e) }, { status: 500 });
   }
