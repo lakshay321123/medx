@@ -3,6 +3,10 @@
   --card:#111827; --card-2:#0f172a; --border:#23324d;
   --accent:#22d3ee; --accent-ink:#002a32;
 }
+:root, .dark {
+  --tw-transition-colors: color 150ms ease, background-color 150ms ease, border-color 150ms ease, fill 150ms ease, stroke 150ms ease;
+}
+* { transition: var(--tw-transition-colors); }
 :root.light{
   --bg:#f7fafc; --fg:#0b1526; --muted:#5a6b84;
   --card:#ffffff; --card-2:#f2f6fb; --border:#e6eaf0;
@@ -44,6 +48,7 @@ body{
   height:56px; border-bottom:1px solid var(--border);
   display:flex; align-items:center; justify-content:space-between; padding:0 18px;
   backdrop-filter:saturate(120%) blur(6px);
+  background:var(--card-2);
 }
 .wrap{ max-width:860px; margin:0 auto; width:100%; padding:0 18px; flex:1; display:flex; flex-direction:column }
 

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import Markdown from '../components/Markdown';
-import { Send, Sun, Moon, User, Stethoscope, ClipboardList, FlaskConical } from 'lucide-react';
+import { Send, User, Stethoscope, ClipboardList, FlaskConical } from 'lucide-react';
 
 type ChatMsg = { role: 'user'|'assistant'; content: string };
 
@@ -10,12 +10,10 @@ export default function Home(){
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<'patient'|'doctor'|'admin'>('patient');
-  const [theme, setTheme] = useState<'dark'|'light'>('dark');
   const [busy, setBusy] = useState(false);
   const [researchMode, setResearchMode] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
-  useEffect(()=>{ document.documentElement.className = theme==='light'?'light':''; },[theme]);
   useEffect(()=>{ document.body.setAttribute('data-role', mode==='doctor'? 'doctor' : mode==='admin' ? 'admin' : ''); },[mode]);
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
 
@@ -137,9 +135,6 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
               : mode==='doctor'
                 ? <><Stethoscope size={16}/> Doctor</>
                 : <><ClipboardList size={16}/> Admin</>}
-          </button>
-          <button className="item" onClick={()=>setTheme(theme==='dark'?'light':'dark')}>
-            {theme==='dark'? <><Sun size={16}/> Light</> : <><Moon size={16}/> Dark</>}
           </button>
           <button className="item" onClick={()=>setResearchMode(r=>!r)}>
             {researchMode ? <><FlaskConical size={16}/> Research On</> : <><FlaskConical size={16}/> Research Off</>}
