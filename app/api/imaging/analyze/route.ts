@@ -7,7 +7,6 @@ const BONE =
   process.env.HF_XRAY_MODEL_ID ||
   "prithivMLmods/Bone-Fracture-Detection";
 const CHEST = process.env.HF_CHEST_MODEL || "keremberke/yolov8m-chest-xray-classification";
-const OA_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_VISION_MODEL = process.env.OPENAI_VISION_MODEL || "gpt-4o-mini";
 
 function guessFamily(hint = "", name = ""): "bone" | "chest" {
@@ -67,43 +66,54 @@ async function callOpenAIVision(
   family: "bone" | "chest",
   region: string
 ) {
-  if (!OA_KEY) return null;
+  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY missing");
   const b64 = buf.toString("base64");
-  const prompt = `You are a radiology assistant. Analyze this ${family} X-ray of the ${region}. Respond with STRICT JSON {\n  \"fractured_prob\": number between 0 and 1,\n  \"findings\": string array,\n  \"impression\": string\n} then a short explanation.`;
+  const payload = {
+    model: OPENAI_VISION_MODEL,
+    messages: [
+      {
+        role: "system",
+        content:
+          'You are a radiology assistant. Return STRICT JSON first: {"fractured_prob":0..1,"findings":"","impression":""}, then 2-4 lines explanation.',
+      },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: `Analyze this ${family} X-ray (${region}).` },
+          {
+            type: "image_url",
+            image_url: { url: `data:${mime || "image/jpeg"};base64,${b64}` },
+          },
+        ],
+      },
+    ],
+    temperature: 0.2,
+  } as const;
   const r = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${OA_KEY}`,
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model: OPENAI_VISION_MODEL,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: `data:${mime};base64,${b64}` } },
-          ],
-        },
-      ],
-      temperature: 0,
-      max_tokens: 300,
-    }),
+    body: JSON.stringify(payload),
   });
+  if (!r.ok) throw new Error(`OpenAI HTTP ${r.status}`);
   const j = await r.json();
-  const raw = j?.choices?.[0]?.message?.content || "";
-  let o: any = {};
-  try {
-    const m = raw.match(/\{[\s\S]*\}/);
-    if (m) o = JSON.parse(m[0]);
-  } catch {}
-  return {
-    fractured_prob: typeof o.fractured_prob === "number" ? o.fractured_prob : undefined,
-    findings: Array.isArray(o.findings) ? o.findings.map(String) : undefined,
-    impression: typeof o.impression === "string" ? o.impression : undefined,
-    raw,
-  };
+  const text = j?.choices?.[0]?.message?.content || "";
+  const m = String(text).match(/\{[\s\S]*?\}/);
+  let prob = 0.5,
+    findings,
+    impression;
+  if (m) {
+    try {
+      const x = JSON.parse(m[0]);
+      if (typeof x.fractured_prob === "number")
+        prob = Math.max(0, Math.min(1, x.fractured_prob));
+      findings = x.findings;
+      impression = x.impression;
+    } catch {}
+  }
+  return { fractured_prob: prob, findings, impression, raw: text };
 }
 
 // normalize HF outputs into [{label, score}] format
@@ -293,12 +303,12 @@ function overallFrom(
 ) {
   if (family === "bone") {
     const votes = perImage.map((x) => {
-      const m = Object.fromEntries(x.predictions.map((p) => [p.label.toLowerCase(), p.score]));
+      const m = Object.fromEntries(
+        x.predictions?.map((p: any) => [String(p.label).toLowerCase(), p.score]) ?? []
+      );
       let v = m["fracture"] ?? m["fractured"] ?? 0;
       const oap = (x as any).openaiProb;
-      if (typeof oap === "number") {
-        v = 0.7 * oap + 0.3 * v; // favor OpenAI
-      }
+      if (typeof oap === "number") v = 0.7 * oap + 0.3 * v; // favor OpenAI
       return v;
     });
     const highIdx = votes
@@ -350,6 +360,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "HF_API_TOKEN not set" }, { status: 500 });
 
     const form = await req.formData();
+    const DEBUG = process.env.XRAY_ENABLE_DEBUG === "true";
+    const mode = (form.get("mode") as string) || "both"; // "hf" | "openai" | "both"
     const files = form.getAll("files") as File[];
     if (!files.length)
       return NextResponse.json({ ok: false, error: "No files (expect 'files[]')" }, { status: 400 });
@@ -364,31 +376,29 @@ export async function POST(req: NextRequest) {
 
     const hint = (form.get("hint") as string) || "";
     const override = (form.get("model") as string) || "";
-    const mode = (form.get("mode") as string) || "both"; // "both" | "openai" | "hf"
     const fam = guessFamily(hint, files.map((f) => f.name).join(" "));
     const region = mapRegion(hint || files.map((f) => f.name).join(" "));
 
     const perImage: any[] = [];
+    const warnings: string[] = [];
     for (const file of files) {
       const buf = Buffer.from(await file.arrayBuffer());
       const { classifiers, generators } = pickCandidates(fam, override);
-      const tried: { id: string; status: number; ok: boolean }[] = [];
+      const tried: { id: string; status: number; ok: boolean; err?: string }[] = [];
       let predictions = mode !== "openai" ? await getPredictionsViaRouter(buf, classifiers, tried) : null;
-      const oaRes = mode !== "hf"
-        ? await callOpenAIVision(buf, file.type || "image/jpeg", fam, region).catch(() => null)
-        : null;
-      if (oaRes) {
-        tried.push({ id: `openai:${OPENAI_VISION_MODEL}`, status: 200, ok: true });
-      } else {
-        tried.push({ id: `openai:${OPENAI_VISION_MODEL}`, status: 500, ok: false });
+
+      let oaRes: any = null;
+      try {
+        oaRes = mode !== "hf" ? await callOpenAIVision(buf, file.type || "image/jpeg", fam, region) : null;
+        tried.push({ id: `openai:${OPENAI_VISION_MODEL}`, ok: !!oaRes, status: 200 });
+      } catch (e: any) {
+        tried.push({ id: `openai:${OPENAI_VISION_MODEL}`, ok: false, status: 500, err: String(e?.message || e) });
+        if (DEBUG) console.error("OpenAI Vision error:", e);
       }
-      if (process.env.XRAY_ENABLE_DEBUG === "true") {
-        console.log("OpenAI Vision", {
-          responded: !!oaRes,
-          prob: oaRes?.fractured_prob,
-          model: OPENAI_VISION_MODEL,
-        });
+      if (!oaRes) {
+        warnings.push("OpenAI Vision did not respond; using Hugging Face only.");
       }
+
       if (!predictions) predictions = [{ label: "Unknown", score: 0 }];
       const genText = mode !== "openai" ? await getGeneratorTextViaRouter(buf, generators, tried) : null;
       let interp = humanTemplate(fam, predictions, file.name || region);
@@ -424,6 +434,16 @@ export async function POST(req: NextRequest) {
         openaiModel: OPENAI_VISION_MODEL,
         openaiResponded: !!oaRes,
       });
+      if (DEBUG) {
+        console.log("XRAY DEBUG", {
+          file: file.name,
+          openaiResponded: !!oaRes,
+          openaiProb: oaRes?.fractured_prob,
+          openaiModel: process.env.OPENAI_VISION_MODEL,
+          hfFirstLabel: predictions?.[0]?.label,
+          hfFirstScore: predictions?.[0]?.score,
+        });
+      }
     }
 
     const overall = overallFrom(perImage, region, fam);
@@ -436,6 +456,7 @@ export async function POST(req: NextRequest) {
       region,
       perImage,
       overall,
+      warnings,
       disclaimer: "AI assistance only — not a medical diagnosis. Confirm with a clinician.",
     });
   } catch (e: any) {
