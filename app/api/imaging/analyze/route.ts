@@ -296,7 +296,9 @@ function overallFrom(
       const m = Object.fromEntries(x.predictions.map((p) => [p.label.toLowerCase(), p.score]));
       let v = m["fracture"] ?? m["fractured"] ?? 0;
       const oap = (x as any).openaiProb;
-      if (typeof oap === "number") v = (v + oap) / 2;
+      if (typeof oap === "number") {
+        v = 0.7 * oap + 0.3 * v; // favor OpenAI
+      }
       return v;
     });
     const highIdx = votes
@@ -362,7 +364,7 @@ export async function POST(req: NextRequest) {
 
     const hint = (form.get("hint") as string) || "";
     const override = (form.get("model") as string) || "";
-    const mode = (form.get("mode") as string) || "both";
+    const mode = (form.get("mode") as string) || "both"; // "both" | "openai" | "hf"
     const fam = guessFamily(hint, files.map((f) => f.name).join(" "));
     const region = mapRegion(hint || files.map((f) => f.name).join(" "));
 
@@ -375,19 +377,17 @@ export async function POST(req: NextRequest) {
       const oaRes = mode !== "hf"
         ? await callOpenAIVision(buf, file.type || "image/jpeg", fam, region).catch(() => null)
         : null;
-      if (mode !== "hf") {
-        if (oaRes) {
-          tried.push({ id: `openai:${OPENAI_VISION_MODEL}`, status: 200, ok: true });
-        } else {
-          tried.push({ id: `openai:${OPENAI_VISION_MODEL}`, status: 500, ok: false });
-        }
-        if (process.env.XRAY_ENABLE_DEBUG === "true") {
-          console.log("OpenAI Vision response", {
-            ok: !!oaRes,
-            prob: oaRes?.fractured_prob,
-            model: OPENAI_VISION_MODEL,
-          });
-        }
+      if (oaRes) {
+        tried.push({ id: `openai:${OPENAI_VISION_MODEL}`, status: 200, ok: true });
+      } else {
+        tried.push({ id: `openai:${OPENAI_VISION_MODEL}`, status: 500, ok: false });
+      }
+      if (process.env.XRAY_ENABLE_DEBUG === "true") {
+        console.log("OpenAI Vision", {
+          responded: !!oaRes,
+          prob: oaRes?.fractured_prob,
+          model: OPENAI_VISION_MODEL,
+        });
       }
       if (!predictions) predictions = [{ label: "Unknown", score: 0 }];
       const genText = mode !== "openai" ? await getGeneratorTextViaRouter(buf, generators, tried) : null;
