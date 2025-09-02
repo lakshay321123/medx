@@ -2,21 +2,32 @@
 import { useState } from "react";
 
 export default function UnifiedUpload() {
+  const [file, setFile] = useState<File | null>(null);
+  const [instruction, setInstruction] = useState("");
+  const [audience, setAudience] = useState<"patient" | "clinician">("patient");
   const [loading, setLoading] = useState(false);
-  const [doctorMode, setDoctorMode] = useState(true);
   const [out, setOut] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  async function onChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] || null;
+    setFile(f);
+    setErr(null);
+    setOut(null);
+  }
 
-    const name = file.name?.toLowerCase() || "";
-    const isPdf = file.type === "application/pdf" || name.endsWith(".pdf");
-    const isImage =
-      file.type.startsWith("image/") ||
-      /\.(png|jpe?g|webp|bmp|gif|tif?f)$/i.test(name);
-    if (!isPdf && !isImage) {
+  async function onAnalyze() {
+    if (!file) {
+      setErr("Please upload a file.");
+      return;
+    }
+
+    const name = (file.name || "").toLowerCase();
+    const mime = file.type || "";
+    const isPdf = mime === "application/pdf" || name.endsWith(".pdf");
+    const isImage = mime.startsWith("image/") || /\.(png|jpe?g|gif|bmp|webp)$/i.test(name);
+    const endpoint = isPdf ? "/api/analyze" : isImage ? "/api/imaging/analyze" : null;
+    if (!endpoint) {
       setErr(`Unsupported file type: ${file.type || name}. Upload a PDF or an image.`);
       return;
     }
@@ -27,9 +38,10 @@ export default function UnifiedUpload() {
 
     const fd = new FormData();
     fd.append("file", file);
-    fd.append("doctorMode", String(doctorMode));
+    if (instruction) fd.append("instruction", instruction);
+    fd.append("audience", audience);
 
-    const r = await fetch("/api/analyze", { method: "POST", body: fd });
+    const r = await fetch(endpoint, { method: "POST", body: fd });
     const j = await r.json();
     setLoading(false);
     if (!r.ok) return setErr(j.error || "Upload failed");
@@ -41,12 +53,51 @@ export default function UnifiedUpload() {
       <div className="flex items-center gap-3">
         <label className="px-4 py-2 rounded bg-black text-white cursor-pointer">
           <span>Upload</span>
-          <input type="file" accept="application/pdf,image/*" onChange={onChange} className="hidden" />
+          <input
+            type="file"
+            accept="application/pdf,image/*"
+            onChange={onFileChange}
+            className="hidden"
+          />
         </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={doctorMode} onChange={e=>setDoctorMode(e.target.checked)} />
-          <span>Doctor Mode</span>
+        {file && <span className="text-sm">{file.name}</span>}
+      </div>
+
+      <textarea
+        className="w-full p-2 border rounded text-sm"
+        placeholder="Optional instruction"
+        value={instruction}
+        onChange={e => setInstruction(e.target.value)}
+      />
+
+      <div className="flex items-center gap-2 text-sm">
+        <label className="flex items-center gap-1">
+          <input
+            type="radio"
+            name="audience"
+            value="patient"
+            checked={audience === "patient"}
+            onChange={() => setAudience("patient")}
+          />
+          <span>Patient</span>
         </label>
+        <label className="flex items-center gap-1">
+          <input
+            type="radio"
+            name="audience"
+            value="clinician"
+            checked={audience === "clinician"}
+            onChange={() => setAudience("clinician")}
+          />
+          <span>Clinician</span>
+        </label>
+        <button
+          onClick={onAnalyze}
+          className="ml-auto px-4 py-2 rounded bg-blue-600 text-white"
+          disabled={loading}
+        >
+          Analyze
+        </button>
       </div>
 
       <p className="text-xs text-gray-500">
@@ -58,26 +109,12 @@ export default function UnifiedUpload() {
 
       {out && (
         <div className="space-y-3">
-          {out.type === "pdf" && (
-            <>
-              <section className="p-3 border rounded">
-                <h3 className="font-semibold mb-1">Patient Summary</h3>
-                <p className="whitespace-pre-wrap text-sm">{out.patient}</p>
-              </section>
-              {out.doctor && (
-                <section className="p-3 border rounded">
-                  <h3 className="font-semibold mb-1">Doctor Summary</h3>
-                  <p className="whitespace-pre-wrap text-sm">{out.doctor}</p>
-                </section>
-              )}
-            </>
-          )}
-          {out.type === "image" && (
-            <section className="p-3 border rounded">
-              <h3 className="font-semibold mb-1">Imaging Report</h3>
-              <p className="whitespace-pre-wrap text-sm">{out.report}</p>
-            </section>
-          )}
+          <section className="p-3 border rounded">
+            <h3 className="font-semibold mb-1">
+              {out.type === "image" ? "Imaging Report" : "PDF Report"}
+            </h3>
+            <p className="whitespace-pre-wrap text-sm">{out.report}</p>
+          </section>
           <p className="text-xs text-gray-400">{out.disclaimer}</p>
         </div>
       )}

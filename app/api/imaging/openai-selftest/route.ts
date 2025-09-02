@@ -22,8 +22,19 @@ export async function GET() {
     const ok = r.ok;
     const data = await r.json();
 
-    return NextResponse.json({ ok, model, status: r.status, snippet: (data?.choices?.[0]?.message?.content||"").slice(0,120) });
-  } catch (e:any) {
-    return NextResponse.json({ ok:false, error:String(e?.message||e) }, { status: 500 });
+    if (ok) {
+      return NextResponse.json({
+        ok,
+        model,
+        status: r.status,
+        snippet: (data?.choices?.[0]?.message?.content || "").slice(0, 120),
+      });
+    }
+    return NextResponse.json(
+      { ok, model, status: r.status, rawError: data },
+      { status: r.status }
+    );
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 });
   }
 }
