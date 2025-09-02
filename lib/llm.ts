@@ -25,10 +25,12 @@ export async function groqChat(messages: ChatMsg[], model = GROQ_MODEL, temperat
 // --- OpenAI (text)
 export async function openaiText(messages: ChatMsg[], model = OAI_TEXT, temperature = 0.2) {
   if (!OAI_KEY) throw new Error('OPENAI_API_KEY missing');
+  const body: any = { model, messages };
+  if (!/^gpt-5/.test(model)) body.temperature = temperature;
   const r = await fetch(`${OAI_URL}/chat/completions`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${OAI_KEY}`, 'Content-Type':'application/json' },
-    body: JSON.stringify({ model, messages, temperature })
+    body: JSON.stringify(body)
   });
   const j = await r.json();
   if (!r.ok) throw new Error(`OpenAI: ${j?.error?.message || r.statusText}`);
@@ -50,10 +52,12 @@ export async function openaiVision({ system, prompt, imageDataUrl, model = OAI_V
       ]
     }
   ];
+  const body: any = { model, messages };
+  if (!/^gpt-5/.test(model)) body.temperature = temperature;
   const r = await fetch(`${OAI_URL}/chat/completions`, {
     method:'POST',
     headers: { Authorization:`Bearer ${OAI_KEY}`, 'Content-Type':'application/json' },
-    body: JSON.stringify({ model, messages, temperature })
+    body: JSON.stringify(body)
   });
   const j = await r.json();
   if (!r.ok) throw new Error(`OpenAI Vision: ${j?.error?.message || r.statusText}`);
