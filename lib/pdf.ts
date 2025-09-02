@@ -1,17 +1,16 @@
 import { runOCR } from './ocr';
+import { PDFDocument } from 'pdf-lib';
 
-export interface PDFPage {
+export interface Page {
   page: number;
   text: string;
+  ocr: boolean;
+  warnings?: string[];
 }
 
-// Extract text per page from PDF buffer. If a page has little/no text, run OCR.
-export async function extractPages(buf: Buffer): Promise<PDFPage[]> {
-  const pages: PDFPage[] = [];
-  const buffer = Buffer.isBuffer(buf)
-    ? buf
-    : Buffer.from(buf as any);
-
+export async function extractPdf(buf: Buffer): Promise<Page[]> {
+  const pages: Page[] = [];
+  const buffer = Buffer.isBuffer(buf) ? buf : Buffer.from(buf as any);
   try {
     const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
     const loadingTask = pdfjs.getDocument({
@@ -24,6 +23,7 @@ export async function extractPages(buf: Buffer): Promise<PDFPage[]> {
       disableStream: true,
     } as any);
     const pdf = await loadingTask.promise;
+    const srcDoc = await PDFDocument.load(buffer);
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
@@ -33,17 +33,32 @@ export async function extractPages(buf: Buffer): Promise<PDFPage[]> {
         .replace(/\s+\n/g, '\n')
         .trim();
       if (txt && txt.length > 10) {
-        pages.push({ page: i, text: txt });
+        pages.push({ page: i, text: txt, ocr: false });
       } else {
-        // OCR fallback for scanned pages
-        const ocr = await runOCR(buffer);
-        pages.push({ page: i, text: ocr });
+        let text = '';
+        let warnings: string[] | undefined;
+        try {
+          const out = await PDFDocument.create();
+          const [copied] = await out.copyPages(srcDoc, [i - 1]);
+          out.addPage(copied);
+          const single = await out.save();
+          text = await runOCR(Buffer.from(single), 'application/pdf');
+        } catch (e) {
+          warnings = ['ocr_failed'];
+        }
+        if (!text.trim()) {
+          warnings = ['ocr_failed'];
+          text = '[OCR failed for this page]';
+        }
+        pages.push({ page: i, text, ocr: true, warnings });
       }
     }
-  } catch {
-    // If PDF parsing fails, attempt OCR on entire document
-    const text = await runOCR(buffer);
-    if (text) pages.push({ page: 1, text });
+  } catch (e) {
+    const text = await runOCR(buffer, 'application/pdf');
+    if (text.trim()) pages.push({ page: 1, text: text.trim(), ocr: true, warnings: ['pdf_parse_failed'] });
+    else pages.push({ page: 1, text: '[OCR failed for this document]', ocr: true, warnings: ['ocr_failed', 'pdf_parse_failed'] });
   }
   return pages;
 }
+
+export { extractPdf as extractPages };
