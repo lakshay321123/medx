@@ -66,7 +66,7 @@ function PendingChatCard({ label }: { label: string }) {
   );
 }
 
-function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatMessage, { kind: "analysis" }>; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next", id?: string) => void; busy: boolean }) {
+function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatMessage, { kind: "analysis" }>; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean }) {
   const header = titleForCategory(m.category);
   if (m.pending) return <PendingAnalysisCard label="Analyzing file…" />;
   return (
@@ -87,11 +87,43 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
           ⚠️ {m.error}
         </div>
       )}
-      <div className="flex flex-wrap gap-2 pt-2">
-        <button className="btn-secondary" disabled={busy} onClick={() => onQuickAction("simpler", m.id)}>Explain simpler</button>
-        <button className="btn-secondary" disabled={busy} onClick={() => onQuickAction("doctor", m.id)}>Doctor’s view</button>
-        <button className="btn-secondary" disabled={busy} onClick={() => onQuickAction("next", m.id)}>What next?</button>
-      </div>
+      {!m.error && (
+        <div className="flex flex-wrap gap-2 pt-2">
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={busy}
+            onClick={e => {
+              e.preventDefault();
+              onQuickAction("simpler");
+            }}
+          >
+            Explain simpler
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={busy}
+            onClick={e => {
+              e.preventDefault();
+              onQuickAction("doctor");
+            }}
+          >
+            Doctor’s view
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={busy}
+            onClick={e => {
+              e.preventDefault();
+              onQuickAction("next");
+            }}
+          >
+            What next?
+          </button>
+        </div>
+      )}
       <p className="text-xs text-amber-500/90 pt-2">
         AI assistance only — not a medical diagnosis. Confirm with a clinician.
       </p>
@@ -110,7 +142,7 @@ function ChatCard({ m }: { m: Extract<ChatMessage, { kind: "chat" }> }) {
   );
 }
 
-function AssistantMessage({ m, researchOn, onQuickAction, busy }: { m: ChatMessage; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next", id?: string) => void; busy: boolean }) {
+function AssistantMessage({ m, researchOn, onQuickAction, busy }: { m: ChatMessage; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean }) {
   return m.kind === "analysis" ? (
     <AnalysisCard m={m} researchOn={researchOn} onQuickAction={onQuickAction} busy={busy} />
   ) : (
@@ -291,43 +323,45 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
     }
   }
 
-  function getLastAnalysisId(messages: ChatMessage[]) {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i];
+  function getLastAnalysis(list: ChatMessage[]) {
+    for (let i = list.length - 1; i >= 0; i--) {
+      const m = list[i];
       if (m.role === 'assistant' && m.kind === 'analysis' && !m.pending && !m.error) {
-        return m.id || m.tempId;
+        return m;
       }
     }
     return undefined;
   }
 
-  function findCategory(list: ChatMessage[], targetId: string | undefined) {
-    if (!targetId) return undefined;
-    const m = list.find(
-      x => (x.id === targetId || x.tempId === targetId) && x.kind === 'analysis'
-    ) as Extract<ChatMessage, { kind: 'analysis' }> | undefined;
-    return m?.category;
-  }
-
-  async function onQuickAction(kind: 'simpler' | 'doctor' | 'next', messageId?: string) {
-    const targetId = messageId ?? getLastAnalysisId(messages);
-    if (!targetId || busy) return;
+  async function onQuickAction(kind: 'simpler' | 'doctor' | 'next') {
+    if (busy) return;
+    const last = getLastAnalysis(messages);
+    if (!last) return;
     setBusy(true);
     const tempId = `pending_${Date.now()}`;
     setMessages(prev => [
       ...prev,
-      { id: tempId, tempId, role: 'assistant', kind: 'analysis', parentId: targetId, content: 'Analyzing…', pending: true }
+      {
+        id: tempId,
+        tempId,
+        role: 'assistant',
+        kind: 'analysis',
+        parentId: last.id,
+        category: last.category,
+        content: 'Analyzing…',
+        pending: true
+      }
     ]);
     try {
-      const data = await callQuickAction(kind, targetId);
+      const data = await callQuickAction(kind, last.id);
       setMessages(prev =>
         replaceFirstPendingWith(prev, {
           id: data.id ?? crypto.randomUUID(),
           role: 'assistant',
           kind: 'analysis',
-          parentId: targetId,
-          content: data.report ?? data.content ?? '',
-          category: data.category ?? findCategory(prev, targetId)
+          parentId: last.id,
+          category: last.category,
+          content: data.report ?? data.content ?? ''
         })
       );
     } catch (err: any) {
@@ -336,7 +370,8 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
           id: crypto.randomUUID(),
           role: 'assistant',
           kind: 'analysis',
-          parentId: targetId,
+          parentId: last.id,
+          category: last.category,
           content: 'Sorry — that request failed. Please try again.',
           error: err?.message || 'Request failed'
         })
@@ -349,8 +384,8 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
   return (
     <>
       <Header mode={mode} onModeChange={setMode} researchOn={researchMode} onResearchChange={setResearchMode} />
-      <div ref={chatRef} className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-3xl px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 pb-28 space-y-4">
+      <div ref={chatRef} className="flex-1 px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 overflow-y-auto">
+        <div className="mx-auto w-full max-w-3xl space-y-4">
           {messages.map(m =>
             m.role === 'user' ? (
               <div key={m.id} className="ml-auto max-w-[85%] rounded-2xl px-4 py-3 shadow-sm bg-slate-200 text-slate-900 dark:bg-gray-700 dark:text-gray-100">
@@ -360,6 +395,7 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
               <AssistantMessage key={m.id} m={m} researchOn={researchMode} onQuickAction={onQuickAction} busy={busy} />
             )
           )}
+          <div aria-hidden className="h-32 md:h-36" />
         </div>
       </div>
       <div className="sticky bottom-0 inset-x-0 md:ml-64 bg-gradient-to-t from-slate-50/70 to-transparent dark:from-black/40 px-4 sm:px-6 pt-3 pb-4 z-30">
