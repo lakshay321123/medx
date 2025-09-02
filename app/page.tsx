@@ -70,7 +70,7 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
   const header = titleForCategory(m.category);
   if (m.pending) return <PendingAnalysisCard label="Analyzing file…" />;
   return (
-    <article className="mr-auto max-w-[90%] rounded-2xl p-4 md:p-6 shadow-sm space-y-3 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800">
+    <article className="mr-auto max-w-[90%] rounded-2xl p-4 md:p-6 shadow-sm space-y-2 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800">
       <header className="flex items-center gap-2">
         <h2 className="text-lg md:text-xl font-semibold">{header}</h2>
         {researchOn && (
@@ -79,7 +79,7 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
           </span>
         )}
       </header>
-      <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
+      <div className="prose prose-slate dark:prose-invert max-w-none prose-medx text-sm md:text-base">
         <Markdown text={m.content} />
       </div>
       {m.error && (
@@ -134,8 +134,8 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
 function ChatCard({ m }: { m: Extract<ChatMessage, { kind: "chat" }> }) {
   if (m.pending) return <PendingChatCard label="Thinking…" />;
   return (
-    <article className="mr-auto max-w-[90%] rounded-2xl p-4 md:p-6 shadow-sm space-y-3 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800">
-      <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
+    <article className="mr-auto max-w-[90%] rounded-2xl p-4 md:p-6 shadow-sm space-y-2 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800">
+      <div className="prose prose-slate dark:prose-invert max-w-none prose-medx text-sm md:text-base">
         <Markdown text={m.content} />
       </div>
     </article>
@@ -405,7 +405,7 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
               📄
               <input type="file" accept="application/pdf,image/*" className="hidden" onChange={e=>{ const f=e.target.files?.[0]; if(f) handleFile(f); e.currentTarget.value=''; }} />
             </label>
-            <input className="flex-1 bg-transparent outline-none text-sm md:text-base placeholder:text-slate-400 dark:placeholder:text-slate-500 px-2" placeholder="Send a message..." value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(input, researchMode);} }} />
+            <input className="flex-1 bg-transparent outline-none text-sm md:text-base leading-6 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-2" placeholder="Send a message..." value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(input, researchMode);} }} />
             <button className="px-3 py-1.5 rounded-full bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600" onClick={()=>send(input, researchMode)} disabled={busy} aria-label="Send">
               <Send size={16}/>
             </button>

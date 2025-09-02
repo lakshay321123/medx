@@ -10,3 +10,45 @@
          bg-white text-slate-700 border-slate-200 hover:bg-slate-50
          dark:bg-gray-900 dark:text-slate-200 dark:border-gray-700 dark:hover:bg-gray-800;
 }
+
+/* Compact typography for AI content */
+.prose-medx {
+  /* narrower line-height than Tailwind Typography defaults */
+  line-height: 1.55; /* roughly Tailwind leading-[1.55] */
+}
+
+/* Tighten paragraph margins */
+.prose-medx :where(p):not(:where([class~="not-prose"] *)) {
+  margin-top: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+/* Tighten lists */
+.prose-medx :where(ul):not(:where([class~="not-prose"] *)) {
+  margin-top: 0.4rem;
+  margin-bottom: 0.4rem;
+  padding-left: 1.25rem;
+}
+
+.prose-medx :where(ol):not(:where([class~="not-prose"] *)) {
+  margin-top: 0.4rem;
+  margin-bottom: 0.4rem;
+  padding-left: 1.25rem;
+}
+
+/* Reduce gap between list items */
+.prose-medx :where(li):not(:where([class~="not-prose"] *)) {
+  margin-top: 0.2rem;
+  margin-bottom: 0.2rem;
+}
+
+/* Headings inside cards: smaller margins */
+.prose-medx :where(h2,h3,h4):not(:where([class~="not-prose"] *)) {
+  margin-top: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+
+/* Make bullets a touch lighter in dark mode */
+.dark .prose-medx :where(li)::marker {
+  color: rgb(148 163 184); /* slate-400 */
+}
