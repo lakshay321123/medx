@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
-
-const HF_TOKEN = process.env.HF_API_TOKEN || "";
-const BONE = process.env.HF_BONE_MODEL || "prithivMLmods/Bone-Fracture-Detection";
+const HF_TOKEN = process.env.HF_API_TOKEN || process.env.HF_API_KEY || "";
+const BONE =
+  process.env.HF_BONE_MODEL ||
+  process.env.HF_XRAY_MODEL_ID ||
+  "prithivMLmods/Bone-Fracture-Detection";
 const CHEST = process.env.HF_CHEST_MODEL || "keremberke/yolov8m-chest-xray-classification";
+const OA_KEY = process.env.OPENAI_API_KEY || "";
+const OPENAI_VISION_MODEL = process.env.OPENAI_VISION_MODEL || "gpt-4o-mini";
 
 function guessFamily(hint = "", name = ""): "bone" | "chest" {
   const s = `${hint} ${name}`.toLowerCase();
@@ -55,6 +59,51 @@ async function callHF_jsonBase64(buf: Buffer, modelId: string) {
   });
   const txt = await r.text();
   return { ok: r.ok, status: r.status, body: txt };
+}
+
+async function callOpenAIVision(
+  buf: Buffer,
+  mime: string,
+  family: "bone" | "chest",
+  region: string
+) {
+  if (!OA_KEY) return null;
+  const b64 = buf.toString("base64");
+  const prompt = `You are a radiology assistant. Analyze this ${family} X-ray of the ${region}. Respond with STRICT JSON {\n  \"fractured_prob\": number between 0 and 1,\n  \"findings\": string array,\n  \"impression\": string\n} then a short explanation.`;
+  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OA_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: OPENAI_VISION_MODEL,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: `data:${mime};base64,${b64}` } },
+          ],
+        },
+      ],
+      temperature: 0,
+      max_tokens: 300,
+    }),
+  });
+  const j = await r.json();
+  const raw = j?.choices?.[0]?.message?.content || "";
+  let o: any = {};
+  try {
+    const m = raw.match(/\{[\s\S]*\}/);
+    if (m) o = JSON.parse(m[0]);
+  } catch {}
+  return {
+    fractured_prob: typeof o.fractured_prob === "number" ? o.fractured_prob : undefined,
+    findings: Array.isArray(o.findings) ? o.findings.map(String) : undefined,
+    impression: typeof o.impression === "string" ? o.impression : undefined,
+    raw,
+  };
 }
 
 // normalize HF outputs into [{label, score}] format
@@ -245,7 +294,10 @@ function overallFrom(
   if (family === "bone") {
     const votes = perImage.map((x) => {
       const m = Object.fromEntries(x.predictions.map((p) => [p.label.toLowerCase(), p.score]));
-      return m["fracture"] ?? m["fractured"] ?? 0;
+      let v = m["fracture"] ?? m["fractured"] ?? 0;
+      const oap = (x as any).openaiProb;
+      if (typeof oap === "number") v = (v + oap) / 2;
+      return v;
     });
     const highIdx = votes
       .map((v, i) => ({ v, i }))
@@ -328,6 +380,18 @@ export async function POST(req: NextRequest) {
           clinicianNote: `${genText.trim()}\n\n${interp.clinicianNote}`,
         };
       }
+      const oaRes = await callOpenAIVision(buf, file.type || "image/png", fam, region).catch(() => null);
+      if (oaRes?.findings?.length || oaRes?.impression) {
+        const lines: string[] = [];
+        if (Array.isArray(oaRes.findings) && oaRes.findings.length) {
+          lines.push(...oaRes.findings.map((f) => `• ${f}`));
+        }
+        if (oaRes.impression) lines.push(oaRes.impression);
+        interp = {
+          patientSummary: interp.patientSummary,
+          clinicianNote: `${lines.join("\n")}\n\n${interp.clinicianNote}`,
+        };
+      }
       const polished = await llmPolish(interp, {
         family: fam,
         region,
@@ -339,6 +403,8 @@ export async function POST(req: NextRequest) {
         predictions,
         interpretation: polished || interp,
         modelsTried: tried,
+        openaiProb: oaRes?.fractured_prob,
+        openaiModel: OPENAI_VISION_MODEL,
       });
     }
 
