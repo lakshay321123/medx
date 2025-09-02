@@ -64,6 +64,9 @@ const CANONICAL_MAP: Record<string, { canonical: string; system: SystemName }> =
   rbc: { canonical: 'RBC', system: 'hematology' },
   platelet: { canonical: 'Platelet', system: 'hematology' },
   platelets: { canonical: 'Platelet', system: 'hematology' },
+  mcv: { canonical: 'MCV', system: 'hematology' },
+  rdw: { canonical: 'RDW', system: 'hematology' },
+  iron: { canonical: 'Iron', system: 'hematology' },
   esr: { canonical: 'ESR', system: 'inflammation' },
   crp: { canonical: 'CRP', system: 'inflammation' },
   potassium: { canonical: 'Potassium', system: 'electrolytes' },
@@ -97,6 +100,9 @@ const DEFAULT_RANGES: Record<string, { low: number | null; high: number | null }
   CRP: { low: 0, high: 10 },
   Potassium: { low: 3.5, high: 5.1 },
   Sodium: { low: 135, high: 145 },
+  MCV: { low: 80, high: 100 },
+  RDW: { low: 11, high: 15 },
+  Iron: { low: 60, high: 170 },
   'Vitamin D': { low: 30, high: 100 },
   'Vitamin B12': { low: 200, high: 900 },
 };
@@ -115,14 +121,17 @@ function systemFor(canonical: string): SystemName {
   return CANONICAL_MAP[k]?.system || 'other';
 }
 
+const SECTION_RE = /^(THYROID|LIPID|HEMOGRAM|CBC|URINE|GLUCOSE|SUGAR|HBA1C|APO|ELECTROLYTE|RENAL|KIDNEY|LIVER|VITAMIN|HORMONE|PROFILE)/i;
+
 function splitByHeadings(text: string): Record<string, string[]> {
-  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const lines = text.split(/\r?\n/);
   const sections: Record<string, string[]> = {};
   let current = 'general';
   sections[current] = [];
-  for (const line of lines) {
-    const isHeading = /[A-Z]/.test(line) && line === line.toUpperCase() && line.length < 80;
-    if (isHeading) {
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (SECTION_RE.test(line)) {
       current = line.replace(/\s+/g, ' ').trim();
       sections[current] = [];
     } else {
@@ -132,11 +141,13 @@ function splitByHeadings(text: string): Record<string, string[]> {
   return sections;
 }
 
+const ROW_RE = /^([A-Za-z0-9()./%+\- ]+?)\s+([<>]?\d+\.?\d*)\s*([a-zA-Z%µ/]+)?\s+(\d+\.?\d*\s*-\s*\d+\.?\d*|<\s*\d+\.?\d*|>\s*\d+\.?\d*)?/;
+
 function extractRows(sections: Record<string, string[]>): RawRow[] {
   const rows: RawRow[] = [];
   for (const secLines of Object.values(sections)) {
     for (const line of secLines) {
-      const m = line.match(/^(.+?)\s+(-?\d+(?:\.\d+)?)\s*([A-Za-zµ/%]+)?\s*(.*)$/);
+      const m = line.match(ROW_RE);
       if (!m) continue;
       rows.push({
         test: m[1].replace(/:$/, '').trim(),
@@ -174,9 +185,11 @@ function flagValue(
   if (canonical === 'ALT' && value >= 200) flag = 'CRITICAL';
   if (canonical === 'AST' && value >= 200) flag = 'CRITICAL';
   if (canonical === 'LDL' && value >= 190) flag = 'CRITICAL';
+  if (canonical === 'HbA1c' && value >= 8.5) flag = 'CRITICAL';
   if (canonical === 'ESR' && value >= 100) flag = 'CRITICAL';
   if (canonical === 'Bilirubin' && value > 2.5) flag = 'CRITICAL';
   if (canonical === 'Potassium' && (value < 3 || value > 6)) flag = 'CRITICAL';
+  if (canonical === 'Sodium' && (value < 130 || value > 150)) flag = 'CRITICAL';
   return flag;
 }
 
@@ -296,6 +309,27 @@ export function analyzeLabText(text: string, patientHints?: PatientHints) {
   const redFlags = measurements
     .filter(m => m.flag === 'CRITICAL')
     .map(m => `${m.canonical} ${m.value}${m.unit ? ' ' + m.unit : ''}`);
+
+  const hb = measurements.find(
+    (m): m is Measurement & { value: number } =>
+      m.canonical === 'Hemoglobin' && typeof m.value === 'number'
+  );
+  const mcv = measurements.find(
+    (m): m is Measurement & { value: number } =>
+      m.canonical === 'MCV' && typeof m.value === 'number'
+  );
+  const rdw = measurements.find(
+    (m): m is Measurement & { value: number } =>
+      m.canonical === 'RDW' && typeof m.value === 'number'
+  );
+  if (
+    hb && mcv && rdw &&
+    hb.value < 10 &&
+    mcv.value < 80 &&
+    rdw.value > 15
+  ) {
+    redFlags.push('Hb <10 with MCV <80 and RDW >15');
+  }
 
   return {
     patient: tryExtractPatient(text, patientHints),
