@@ -189,12 +189,16 @@ export default function Home() {
       if (!planRes.ok) throw new Error(`MedX API error ${planRes.status}`);
       const plan = await planRes.json();
 
+      const linkNudge =
+        'When adding a reference, always format as [title](https://full.url) with the full absolute URL. Never output Learn more without a URL, and never use relative links.';
       const sys =
         mode === 'doctor'
           ? `You are a clinical assistant. Write clean markdown with headings and bullet lists.
-If CONTEXT has codes, interactions, or trials, summarize and add clickable links. Avoid medical advice.`
+If CONTEXT has codes, interactions, or trials, summarize and add clickable links. Avoid medical advice.
+${linkNudge}`
           : `You are a patient-friendly explainer. Use simple markdown and short paragraphs.
-If CONTEXT has codes or trials, explain them in plain words and add links. Avoid medical advice.`;
+If CONTEXT has codes or trials, explain them in plain words and add links. Avoid medical advice.
+${linkNudge}`;
 
       const contextBlock = 'CONTEXT:\n' + JSON.stringify(plan.sections || {}, null, 2);
 
