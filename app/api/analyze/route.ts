@@ -20,8 +20,10 @@ export async function POST(req: Request) {
     const doctorMode = (fd.get("doctorMode") || "true").toString() === "true";
     const buf = Buffer.from(await file.arrayBuffer());
     const mime = file.type || "application/octet-stream";
+    const filename = file.name || "file";
+    const isPdf = mime.includes("pdf") || filename.toLowerCase().endsWith(".pdf");
 
-    if (mime.includes("pdf")) {
+    if (isPdf) {
       const dataUrl = `data:application/pdf;base64,${buf.toString("base64")}`;
 
       const pResp = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -59,8 +61,9 @@ export async function POST(req: Request) {
 
       return NextResponse.json({
         type: "pdf",
+        filename,
         patient,
-        doctor: doctorMode ? doctor : null,
+        ...(doctorMode ? { doctor } : {}),
         disclaimer: "AI assistance only — not a medical diagnosis. Confirm with a clinician.",
       });
     }
