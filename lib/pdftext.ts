@@ -1,5 +1,5 @@
 import pdf from "pdf-parse/lib/pdf-parse.js";
-import { createCanvas } from "canvas";
+import { createCanvas } from "@napi-rs/canvas";
 
 export async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   try {
