@@ -1,133 +1,117 @@
 import { NextRequest, NextResponse } from "next/server";
-import { composeImagingReport } from '@/lib/imagingReport';
+import { guessFamily, pickCandidates } from "@/lib/imaging/modelRegistry";
+import { runHF, parseHF } from "@/lib/imaging/hfClient";
+import { humanTemplate, llmPolish, mapRegion } from "@/lib/imaging/narrative";
 
 export const runtime = "nodejs";
 
-const HF_TOKEN = process.env.HF_API_TOKEN || "";
-const BONE = process.env.HF_BONE_MODEL  || "prithivMLmods/Bone-Fracture-Detection";
-const CHEST = process.env.HF_CHEST_MODEL || "keremberke/yolov8m-chest-xray-classification";
-
-// allow-list to prevent text-only models being used for image inputs
-const IMAGE_MODELS = new Set([BONE, CHEST,
-  "prithivMLmods/Bone-Fracture-Detection",
-  "keremberke/yolov8m-chest-xray-classification",
-  "keremberke/yolov8s-chest-xray-classification",
-  "lxyuan/vit-xray-pneumonia-classification"
-]);
-
-function pickFamily(hint = "", name = ""): "bone" | "chest" {
-  const s = `${hint} ${name}`.toLowerCase();
-  if (/(wrist|hand|finger|elbow|shoulder|humerus|tibia|fibula|knee|ankle|forearm|mura|fracture|bone)/.test(s)) return "bone";
-  if (/(chest|cxr|lung|pa|ap|thorax)/.test(s)) return "chest";
-  return "bone"; // default
-}
-
-// HF caller: raw bytes
-async function callHF_bytes(buf: Buffer, modelId: string) {
-  const url = `https://api-inference.huggingface.co/models/${encodeURIComponent(modelId)}`;
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${HF_TOKEN}` },
-    body: buf,
-  });
-  const txt = await r.text();
-  return { ok: r.ok, status: r.status, body: txt };
-}
-
-// HF caller: JSON/base64 payload
-async function callHF_jsonBase64(buf: Buffer, modelId: string) {
-  const url = `https://api-inference.huggingface.co/models/${encodeURIComponent(modelId)}`;
-  const payload = { inputs: buf.toString("base64") };
-  const r = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${HF_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-  const txt = await r.text();
-  return { ok: r.ok, status: r.status, body: txt };
-}
-
-// normalize HF outputs into [{label, score}] format
-function normalize(out: any): {label:string; score:number}[] {
-  if (Array.isArray(out) && out[0]?.label && typeof out[0]?.score === "number") {
-    return [...out].sort((a:any,b:any)=>b.score-a.score);
-  }
-  const arr = Array.isArray(out?.scores) ? out.scores
-           : Array.isArray(out?.logits) ? out.logits
-           : Array.isArray(out) ? out : [];
-  if (Array.isArray(arr)) {
-    return arr.map((p:number,i:number)=>({ label:`label_${i}`, score:Number(p)||0 })).sort((a,b)=>b.score-a.score);
-  }
-  return [{ label:"Unknown", score:0 }];
-}
-
-
 export async function POST(req: NextRequest) {
   try {
-    if (!HF_TOKEN) return NextResponse.json({ ok:false, error:"HF_API_TOKEN not set" }, { status: 500 });
+    if (!process.env.HF_API_TOKEN) return NextResponse.json({ ok:false, error:"HF_API_TOKEN not set" }, { status:500 });
+
     const form = await req.formData();
     const file = form.get("file") as File | null;
     const hint = (form.get("hint") as string) || "";
     const override = (form.get("model") as string) || "";
 
-    if (!file) return NextResponse.json({ ok:false, error:"No file (expect 'file')" }, { status: 400 });
-    if (!(file.type||"").toLowerCase().startsWith("image/"))
-      return NextResponse.json({ ok:false, error:`Expected image/*, got ${file.type||"unknown"}` }, { status: 400 });
+    if (!file) return NextResponse.json({ ok:false, error:"No file (expect 'file')" }, { status:400 });
+    if (!(file.type||"").toLowerCase().startsWith("image/")) return NextResponse.json({ ok:false, error:`Expected image/*, got ${file.type||"unknown"}` }, { status:400 });
 
     const buf = Buffer.from(await file.arrayBuffer());
+    const fam = guessFamily(hint, file.name);
+    const { classifiers, generators } = pickCandidates(fam);
 
-    // choose model: override > hint/filename > env defaults
-    let modelId = override || (pickFamily(hint, file.name) === "chest" ? CHEST : BONE);
-    if (!IMAGE_MODELS.has(modelId)) {
-      return NextResponse.json({ ok:false, error:`Model "${modelId}" is not configured for image inputs.` }, { status: 400 });
+    // If developer passes override, try it first
+    type Step = { id: string; input: "bytes" | "json_base64"; kind: "override" | "classifier" | "generator" };
+    const tryOrder: Step[] = override
+      ? [{ id: override, input: "bytes", kind: "override" }]
+      : [];
+
+    // 1) Classifier(s) → probabilities
+    classifiers.forEach(m => tryOrder.push({ id: m.id, input: m.input, kind: "classifier" as const }));
+
+    // 2) Generator(s) → narrative text (best effort)
+    generators.forEach(m => tryOrder.push({ id: m.id, input: m.input, kind: "generator" as const }));
+
+    const used: { id:string; status:number; ok:boolean }[] = [];
+    let predictions: { label:string; score:number }[] | null = null;
+    let genText: string | null = null;
+
+    for (const step of tryOrder) {
+      const r = await runHF(buf, step.id, step.input);
+      used.push({ id: step.id, status: r.status, ok: r.ok });
+
+      if (!r.ok) continue;
+      const parsed = parseHF(r.txt);
+
+      // Heuristic normalization
+      if (step.kind === "classifier") {
+        // A) [{label,score}]
+        if (Array.isArray(parsed) && parsed[0]?.label && typeof parsed[0]?.score === "number") {
+          predictions = parsed.map((o:any)=>({ label:o.label, score:o.score }))
+            .sort((a,b)=>b.score-a.score);
+          continue;
+        }
+        // B) [0.1,0.9] → label_i
+        if (Array.isArray(parsed) && typeof parsed[0] === "number") {
+          predictions = parsed.map((p:number,i:number)=>({ label:`label_${i}`, score:p }))
+            .sort((a,b)=>b.score-a.score);
+          continue;
+        }
+        // C) {scores|logits}
+        const arr = Array.isArray(parsed?.scores) ? parsed.scores
+                 : Array.isArray(parsed?.logits) ? parsed.logits : null;
+        if (arr) {
+          predictions = arr.map((p:number,i:number)=>({ label:`label_${i}`, score:p }))
+            .sort((a,b)=>b.score-a.score);
+          continue;
+        }
+      }
+
+      if (step.kind === "generator") {
+        // Try to read a string or HF-style array of strings
+        if (typeof parsed === "string") { genText = parsed; break; }
+        if (Array.isArray(parsed) && typeof parsed[0] === "string") { genText = parsed.join("\n"); break; }
+        if (Array.isArray(parsed) && parsed[0]?.generated_text) { genText = parsed.map((x:any)=>x.generated_text).join("\n\n"); break; }
+      }
     }
 
-    console.log("imaging model:", modelId);
-
-    // 1) try bytes
-    let resp = await callHF_bytes(buf, modelId);
-
-    // handle cold-start
-    if (resp.status === 503) {
-      await new Promise(r => setTimeout(r, 2000));
-      resp = await callHF_bytes(buf, modelId);
+    // Fallback predictions if none
+    if (!predictions) {
+      predictions = [{ label:"Unknown", score: 0 }];
     }
 
-    // 404/401/403: clear, user-facing errors
-    if (resp.status === 404) throw new Error(`HF 404: model "${modelId}" not deployed for Inference API`);
-    if (resp.status === 401 || resp.status === 403) throw new Error(`HF auth ${resp.status}: check HF_API_TOKEN / model visibility`);
+    // Build narrative
+    const region = mapRegion(hint || file.name || "");
+    const base = humanTemplate(fam, predictions, region);
+    let interpreted = base;
 
-    // 2) if 400 (e.g., "'NoneType'...lower"), retry JSON/base64
-    if (!resp.ok && resp.status === 400) {
-      const retry = await callHF_jsonBase64(buf, modelId);
-      if (!retry.ok) throw new Error(`HF ${retry.status}: ${retry.body}`);
-      resp = retry;
+    // If we got generator text, prepend/merge
+    if (genText && genText.trim()) {
+      // keep it simple: put gen text as clinician note header
+      interpreted = {
+        patientSummary: base.patientSummary,
+        clinicianNote: `${genText.trim()}\n\n${base.clinicianNote}`
+      };
     }
 
-    // any other non-ok
-    if (!resp.ok) throw new Error(`HF ${resp.status}: ${resp.body}`);
+    // Optional LLM polish
+    const llm = await llmPolish(interpreted, { family: fam, region, model: used.find(u=>u.ok)?.id || "unknown", preds: predictions }).catch(()=>null);
+    if (llm) interpreted = llm;
 
-    // parse final
-    let out: any;
-    try { out = JSON.parse(resp.body); } catch { out = resp.body; }
-
-    const preds = normalize(out);
-
-    const report = await composeImagingReport({
-      family: pickFamily(hint, file.name),
-      region: hint,
-      model: modelId,
-      predictions: preds,
-      hint,
-      fileName: file.name,
+    return NextResponse.json({
+      ok: true,
+      documentType: "Imaging Report",
+      modality: "X-ray",
+      family: fam,
+      region,
+      modelsTried: used,       // for dev visibility
+      predictions,
+      interpretation: interpreted,
+      disclaimer: "AI assistance only — not a medical diagnosis. Confirm with a clinician."
     });
 
-    return NextResponse.json(report);
   } catch (e:any) {
-    return NextResponse.json({ ok:false, error: e?.message || String(e) }, { status: 500 });
+    return NextResponse.json({ ok:false, error: e?.message || String(e) }, { status:500 });
   }
 }
-
