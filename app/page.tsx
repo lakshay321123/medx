@@ -85,6 +85,43 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
     } catch (e:any) {
       console.error(e);
       setMessages(prev=>[...prev, { role:'assistant', content:`⚠️ ${String(e?.message || e)}` }]);
+  } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleXray(file: File) {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const idx = messages.length;
+      setMessages(prev => [...prev, { role: 'assistant', content: `Analyzing "${file.name}"…` }]);
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/imaging/analyze', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok || data?.ok === false) throw new Error(data?.error || 'Imaging analysis failed');
+      const lines: string[] = [];
+      lines.push(`**Imaging analysis – ${file.name}**`);
+      if (Array.isArray(data.predictions)) {
+        lines.push('**Predictions:**');
+        data.predictions.forEach((p: any) =>
+          lines.push(`- ${p.label}: ${(Number(p.score) * 100).toFixed(0)}%`)
+        );
+      }
+      if (data.impression) lines.push(`**Impression:** ${data.impression}`);
+      if (data.disclaimer) lines.push(`_${data.disclaimer}_`);
+      setMessages(prev => {
+        const copy = [...prev];
+        copy[idx] = { role: 'assistant', content: lines.join('\n') };
+        return copy;
+      });
+    } catch (e: any) {
+      console.error(e);
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: `⚠️ Imaging upload failed: ${String(e?.message || e)}` }
+      ]);
     } finally {
       setBusy(false);
     }
@@ -246,12 +283,19 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                 />
                 <button className="iconBtn" onClick={()=>send(input, researchMode)} aria-label="Send" disabled={busy}><Send size={18}/></button>
               </div>
-              <div style={{ marginTop:10, textAlign:'right' }}>
+              <div style={{ marginTop:10, textAlign:'right', display:'flex', justifyContent:'flex-end', gap:8 }}>
                 <label className="item" style={{ cursor:'pointer' }}>
                   📄 Upload Prescription
                   <input
                     type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display:'none' }}
                     onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleUpload(f); e.currentTarget.value=''; }}
+                  />
+                </label>
+                <label className="item" style={{ cursor:'pointer' }}>
+                  🩻 Upload X-ray
+                  <input
+                    type="file" accept="image/*" style={{ display:'none' }}
+                    onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleXray(f); e.currentTarget.value=''; }}
                   />
                 </label>
               </div>
@@ -280,12 +324,19 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                   />
                   <button className="iconBtn" onClick={()=>send(input, researchMode)} aria-label="Send" disabled={busy}>➤</button>
                 </div>
-                <div style={{ marginTop:8, textAlign:'right' }}>
+                <div style={{ marginTop:8, textAlign:'right', display:'flex', justifyContent:'flex-end', gap:8 }}>
                   <label className="item" style={{ cursor:'pointer' }}>
                     📄 Upload Prescription
                     <input
                       type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display:'none' }}
                       onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleUpload(f); e.currentTarget.value=''; }}
+                    />
+                  </label>
+                  <label className="item" style={{ cursor:'pointer' }}>
+                    🩻 Upload X-ray
+                    <input
+                      type="file" accept="image/*" style={{ display:'none' }}
+                      onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleXray(f); e.currentTarget.value=''; }}
                     />
                   </label>
                 </div>
