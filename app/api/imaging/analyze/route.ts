@@ -388,12 +388,16 @@ export async function POST(req: NextRequest) {
       let predictions = mode !== "openai" ? await getPredictionsViaRouter(buf, classifiers, tried) : null;
 
       let oaRes: any = null;
-      try {
-        oaRes = mode !== "hf" ? await callOpenAIVision(buf, file.type || "image/jpeg", fam, region) : null;
-        tried.push({ id: `openai:${OPENAI_VISION_MODEL}`, ok: !!oaRes, status: 200 });
-      } catch (e: any) {
-        tried.push({ id: `openai:${OPENAI_VISION_MODEL}`, ok: false, status: 500, err: String(e?.message || e) });
-        if (DEBUG) console.error("OpenAI Vision error:", e);
+      if (mode !== "hf") {
+        try {
+          oaRes = await callOpenAIVision(buf, file.type || "image/jpeg", fam, region);
+          tried.push({ id: `openai:${OPENAI_VISION_MODEL}`, ok: true, status: 200 });
+        } catch (e: any) {
+          tried.push({ id: `openai:${OPENAI_VISION_MODEL}`, ok: false, status: 500, err: String(e?.message || e) });
+          if (DEBUG) console.error("OpenAI Vision error:", e);
+        }
+      } else {
+        tried.push({ id: `openai:${OPENAI_VISION_MODEL}`, ok: false, status: 0 });
       }
       if (!oaRes) {
         warnings.push("OpenAI Vision did not respond; using Hugging Face only.");
