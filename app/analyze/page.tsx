@@ -13,16 +13,20 @@ export default function AnalyzePage(){
     try {
       const fd = new FormData();
       fd.append('file', file);
-      if (doctorMode) fd.append('doctorMode', 'true');
-      const res = await fetch('/api/analyze', { method:'POST', body: fd });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j?.error || 'analysis failed');
-      if (j.type === 'pdf') {
+      const isPdf = file.type.toLowerCase().includes('pdf') || file.name.toLowerCase().endsWith('.pdf');
+      if (isPdf) {
+        if (doctorMode) fd.append('doctorMode', 'true');
+        const res = await fetch('/api/analyze-doc', { method:'POST', body: fd });
+        const j = await res.json();
+        if (!res.ok) throw new Error(j?.error || 'analysis failed');
         let txt = `### Patient Summary\n${j.patient}`;
         if (j.doctor) txt += `\n\n### Doctor Summary\n${j.doctor}`;
         txt += `\n\n_${j.disclaimer}_`;
         setResult(txt);
-      } else if (j.type === 'image') {
+      } else {
+        const res = await fetch('/api/imaging/analyze', { method:'POST', body: fd });
+        const j = await res.json();
+        if (!res.ok) throw new Error(j?.error || 'analysis failed');
         setResult(`${j.report}\n\n_${j.disclaimer}_`);
       }
     } catch(e:any){

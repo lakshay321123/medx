@@ -211,40 +211,22 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
     }
   }
 
-  async function handleImaging(files: File[]) {
-    if (!files.length) return;
-    const hint = window.prompt('Hint (e.g., "chest", "wrist", "tibia")') || '';
+  async function handleImaging(file: File) {
+    if (!file) return;
     setBusy(true);
     try {
       const idx = messages.length;
-      setMessages(prev=>[...prev, { role:'assistant', content:`Analyzing ${files.length} image${files.length>1?'s':''}…` }]);
+      setMessages(prev=>[...prev, { role:'assistant', content:`Analyzing ${file.name}…` }]);
       const fd = new FormData();
-      files.forEach(f=>fd.append('files', f));
-      if (hint) fd.append('hint', hint);
+      fd.append('file', file);
       const res = await fetch('/api/imaging/analyze', { method:'POST', body: fd });
       const data = await res.json();
-      if (!res.ok || data.ok === false) throw new Error(data?.error || 'Imaging analysis failed');
+      if (!res.ok) throw new Error(data?.error || 'Imaging analysis failed');
       const lines: string[] = [];
-      lines.push(`**${data.documentType || 'Imaging Report'}**`);
-      lines.push('');
-      lines.push('**Per-image findings**');
-      data.perImage.forEach((img:any,i:number)=>{
-        const tag = String.fromCharCode(97+i);
-        lines.push(`**View ${tag} — ${img.fileName}**`);
-        lines.push(img.interpretation?.patientSummary || '(none)');
-        lines.push(img.interpretation?.clinicianNote || '(none)');
-        if (Array.isArray(img.predictions) && img.predictions.length) {
-          img.predictions.slice(0,3).forEach((p:any)=>{
-            lines.push(`- ${p.label}: ${(p.score*100).toFixed(0)}%`);
-          });
-        }
-        lines.push('');
-      });
-      lines.push('**Overall impression**');
-      lines.push(data.overall?.summary || '');
-      lines.push(data.overall?.triage || '');
+      lines.push('**Imaging Report**');
+      if (data.report) lines.push(data.report);
       if (data.disclaimer) lines.push(`_${data.disclaimer}_`);
-      setMessages(prev=>{ const copy=[...prev]; copy[idx] = { role:'assistant', content: lines.join('\n') }; return copy; });
+      setMessages(prev=>{ const copy=[...prev]; copy[idx] = { role:'assistant', content: lines.join('\n\n') }; return copy; });
     } catch(e:any) {
       setMessages(prev=>[...prev, { role:'assistant', content:`⚠️ Imaging failed: ${String(e?.message || e)}` }]);
     } finally {
@@ -291,8 +273,8 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                 <label className="item" style={{ cursor:'pointer' }}>
                   🩻 Upload X-ray
                   <input
-                    type="file" accept="image/*" multiple style={{ display:'none' }}
-                    onChange={(e)=>{ const fs=Array.from(e.target.files||[]); if(fs.length) handleImaging(fs); e.currentTarget.value=''; }}
+                    type="file" accept="image/*" style={{ display:'none' }}
+                    onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleImaging(f); e.currentTarget.value=''; }}
                   />
                 </label>
                 <label className="item" style={{ cursor:'pointer' }}>
@@ -330,10 +312,10 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                 </div>
                 <div style={{ marginTop:8, textAlign:'right', display:'flex', justifyContent:'flex-end', gap:8 }}>
                   <label className="item" style={{ cursor:'pointer' }}>
-                    🩻 Upload X-ray
+                  🩻 Upload X-ray
                     <input
-                      type="file" accept="image/*" multiple style={{ display:'none' }}
-                      onChange={(e)=>{ const fs=Array.from(e.target.files||[]); if(fs.length) handleImaging(fs); e.currentTarget.value=''; }}
+                      type="file" accept="image/*" style={{ display:'none' }}
+                      onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleImaging(f); e.currentTarget.value=''; }}
                     />
                   </label>
                   <label className="item" style={{ cursor:'pointer' }}>
