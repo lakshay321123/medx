@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.78",
     "isomorphic-dompurify": "2.13.0",
     "lucide-react": "0.441.0",
     "marked": "12.0.2",
