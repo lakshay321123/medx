@@ -1,26 +1,29 @@
 'use client';
 import { Plus, Search, Settings } from 'lucide-react';
 
-export default function Sidebar({
-  onNew, onSearch
-}: { onNew: ()=>void; onSearch: (q:string)=>void; }) {
+export default function Sidebar() {
+  const handleNew = () => window.dispatchEvent(new Event('new-chat'));
+  const handleSearch = (q: string) => window.dispatchEvent(new CustomEvent('search-chats', { detail: q }));
   return (
-    <aside className="sidebar">
-      <div className="title">MedX</div>
-      <button className="item" onClick={onNew}><Plus size={16}/> New Chat</button>
+    <aside className="hidden md:flex md:flex-col fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-900 border-r border-slate-200 dark:border-gray-800">
+      <button onClick={handleNew} className="mx-3 my-3 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 flex items-center justify-center gap-2">
+        <Plus size={16} /> New Chat
+      </button>
 
-      <div className="group">
-        <div style={{ fontSize:12, color:'var(--muted)' }}>Search chats</div>
-        <div style={{ display:'flex', gap:6 }}>
-          <input placeholder="Search…" onChange={(e)=>onSearch(e.target.value)} />
-          <div className="item" style={{ justifyContent:'center' }}><Search size={16}/></div>
+      <div className="px-3">
+        <div className="relative">
+          <input className="w-full h-10 rounded-lg pl-3 pr-8 bg-slate-100 dark:bg-gray-800 placeholder:text-slate-500 dark:placeholder:text-slate-500 text-sm" placeholder="Search chats" onChange={e => handleSearch(e.target.value)} />
+          <Search size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
         </div>
       </div>
 
-      <div className="group">
-        <div style={{ fontSize:12, color:'var(--muted)' }}>Settings</div>
-        <button className="item"><Settings size={16}/> Preferences</button>
-      </div>
+      <nav className="mt-3 space-y-1 px-2 flex-1 overflow-y-auto">
+        {/* history items (keep existing) */}
+      </nav>
+
+      <button className="mx-3 mt-auto mb-3 h-10 rounded-lg px-3 text-left hover:bg-slate-100 dark:hover:bg-gray-800 flex items-center gap-2">
+        <Settings size={16} /> Preferences
+      </button>
     </aside>
   );
 }
