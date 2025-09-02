@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { composeImagingReport } from '@/lib/imagingReport';
 
 export const runtime = "nodejs";
 
@@ -63,12 +64,6 @@ function normalize(out: any): {label:string; score:number}[] {
   return [{ label:"Unknown", score:0 }];
 }
 
-function impression(preds:{label:string; score:number}[]) {
-  const top = preds.filter(p=>p.score>=0.15).slice(0,5);
-  if (!top.length) return "No strong abnormality predicted. Correlate clinically.";
-  const s = top.map(p=>`${p.label} ${(p.score*100).toFixed(0)}%`).join(", ");
-  return `Model suggests: ${s}. AI assistance only — confirm with radiologist.`;
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -121,16 +116,16 @@ export async function POST(req: NextRequest) {
 
     const preds = normalize(out);
 
-    return NextResponse.json({
-      ok: true,
-      documentType: "Imaging Report",
-      modality: "X-ray",
+    const report = await composeImagingReport({
       family: pickFamily(hint, file.name),
+      region: hint,
       model: modelId,
       predictions: preds,
-      impression: impression(preds),
-      disclaimer: "AI assistance only — not a medical diagnosis."
+      hint,
+      fileName: file.name,
     });
+
+    return NextResponse.json(report);
   } catch (e:any) {
     return NextResponse.json({ ok:false, error: e?.message || String(e) }, { status: 500 });
   }
