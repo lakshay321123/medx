@@ -10,7 +10,20 @@ export default function UnifiedUpload() {
   async function onChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setLoading(true); setErr(null); setOut(null);
+
+    const name = file.name?.toLowerCase() || "";
+    const isPdf = file.type === "application/pdf" || name.endsWith(".pdf");
+    const isImage =
+      file.type.startsWith("image/") ||
+      /\.(png|jpe?g|webp|bmp|gif|tif?f)$/i.test(name);
+    if (!isPdf && !isImage) {
+      setErr(`Unsupported file type: ${file.type || name}. Upload a PDF or an image.`);
+      return;
+    }
+
+    setLoading(true);
+    setErr(null);
+    setOut(null);
 
     const fd = new FormData();
     fd.append("file", file);
