@@ -14,7 +14,7 @@ function toDataUrl(buf: Buffer, mime: string) {
 
 async function rasterizePdfFirstPage(buf: Buffer): Promise<string> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  const { createCanvas } = await import("canvas");
+  const { createCanvas } = await import("@napi-rs/canvas");
   const pdf = await pdfjs.getDocument({
     data: new Uint8Array(buf),
     disableWorker: true,
