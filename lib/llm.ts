@@ -1,139 +1,71 @@
-// lib/llm.ts
+export type ChatMsg = { role: 'system'|'user'|'assistant'; content: string };
 
-// Split long text into manageable chunks for the LLM
-export function chunkText(text: string, maxChars = 12000) {
-  const out: string[] = [];
-  for (let i = 0; i < text.length; i += maxChars) out.push(text.slice(i, i + maxChars));
-  return out;
+const GROQ_URL   = process.env.LLM_BASE_URL || 'https://api.groq.com/openai/v1';
+const GROQ_KEY   = process.env.LLM_API_KEY!;
+const GROQ_MODEL = process.env.LLM_MODEL_ID || 'llama-3.1-70b-versatile';
+
+const OAI_URL   = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+const OAI_KEY   = process.env.OPENAI_API_KEY!;
+const OAI_TEXT  = process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini';
+const OAI_VISON = process.env.OPENAI_VISION_MODEL || 'gpt-4o-mini';
+
+// --- Groq (text)
+export async function groqChat(messages: ChatMsg[], model = GROQ_MODEL, temperature = 0.2) {
+  if (!GROQ_KEY) throw new Error('LLM_API_KEY (Groq) missing');
+  const r = await fetch(`${GROQ_URL}/chat/completions`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${GROQ_KEY}`, 'Content-Type':'application/json' },
+    body: JSON.stringify({ model, messages, temperature })
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(`Groq: ${j?.error?.message || r.statusText}`);
+  return j.choices?.[0]?.message?.content || '';
 }
 
-const DEFAULT_TIMEOUT = parseInt(process.env.DOC_TIMEOUT_MS || '30000', 10);
-const DEBUG = process.env.DOC_ENABLE_DEBUG === 'true';
-
-async function withTimeout<T>(p: Promise<T>, ms = DEFAULT_TIMEOUT, label = 'timeout'): Promise<T> {
-  let t: NodeJS.Timeout | null = null;
-  return await Promise.race([
-    p.then((v) => { if (t) clearTimeout(t); return v; }),
-    new Promise<T>((_, rej) => { t = setTimeout(() => rej(new Error(label)), ms); }),
-  ]);
+// --- OpenAI (text)
+export async function openaiText(messages: ChatMsg[], model = OAI_TEXT, temperature = 0.2) {
+  if (!OAI_KEY) throw new Error('OPENAI_API_KEY missing');
+  const r = await fetch(`${OAI_URL}/chat/completions`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${OAI_KEY}`, 'Content-Type':'application/json' },
+    body: JSON.stringify({ model, messages, temperature })
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(`OpenAI: ${j?.error?.message || r.statusText}`);
+  return j.choices?.[0]?.message?.content || '';
 }
 
-function normalizeBase(rawBase: string) {
-  return rawBase.replace(/\/+$/, '').replace(/\/openai\/v1$/, '') + '/openai/v1';
-}
-
-async function callLLM(
-  base: string,
-  model: string,
-  key: string | undefined,
-  systemPrompt: string,
-  userContent: string
-): Promise<string> {
-  if (!key || !base || !model) throw new Error('missing-credentials');
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
-  try {
-    const res = await fetch(`${base}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userContent },
-        ],
-        temperature: 0.2,
-      }),
-      signal: controller.signal,
-    });
-    if (!res.ok) throw new Error(`http-${res.status}`);
-    const j: any = await res.json().catch(() => ({}));
-    return j?.choices?.[0]?.message?.content || '';
-  } finally {
-    clearTimeout(id);
-  }
-}
-
-export const SCHEMA_PROMPT = `You are a clinical summarization assistant.\nReturn STRICT JSON first, then 2–3 sentences explanation.\n\nSchema expected:\n{\n  "labs": [ { "name":"", "value":"", "units":"", "ref_low":"", "ref_high":"", "flag":"", "page_range":"" } ],\n  "medications": [ { "drug":"", "dose":"", "route":"", "frequency":"", "duration":"", "page_range":"" } ],\n  "diagnoses": [ { "name":"", "page_range":"" } ],\n  "impressions": [ { "text":"", "page_range":"" } ],\n  "red_flags": [ { "text":"", "page_range":"" } ],\n  "followups": [ { "text":"", "page_range":"" } ]\n}`;
-
-export async function askGroq(systemPrompt: string, userContent: string): Promise<string> {
-  try {
-    const base = normalizeBase(process.env.LLM_BASE_URL || 'https://api.groq.com');
-    const model = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
-    const key = process.env.LLM_API_KEY;
-    return await callLLM(base, model, key, systemPrompt, userContent);
-  } catch (e) {
-    if (DEBUG) console.error('groq-error', e);
-    throw e;
-  }
-}
-
-export async function askOpenAI(systemPrompt: string, userContent: string): Promise<string> {
-  try {
-    const base = normalizeBase('https://api.openai.com');
-    const model = process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini';
-    const key = process.env.OPENAI_API_KEY;
-    return await callLLM(base, model, key, systemPrompt, userContent);
-  } catch (e) {
-    if (DEBUG) console.error('openai-error', e);
-    throw e;
-  }
-}
-
-async function safeJson(res: Response) {
-  const txt = await res.text();
-  try {
-    return JSON.parse(txt);
-  } catch {
-    return { ok: res.ok, raw: txt };
-  }
-}
-
-/**
- * Summarize an array of text chunks. Uses only LLM_* env vars.
- * Retained for backwards compatibility with previous code paths.
- */
-export async function summarizeChunks(chunks: string[], systemPrompt: string): Promise<string> {
-  const rawBase = process.env.LLM_BASE_URL || 'https://api.groq.com/openai/v1';
-  const base = normalizeBase(rawBase);
-  const model = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
-  const key = process.env.LLM_API_KEY || '';
-
-  if (!key || !base || !model || !Array.isArray(chunks) || chunks.length === 0) return '';
-
-  const url = `${base}/chat/completions`;
-  const parts: string[] = [];
-  for (const c of chunks) {
-    try {
-      const r = await withTimeout(
-        fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${key}`,
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: c },
-            ],
-            temperature: 0.2,
-          }),
-        }),
-        DEFAULT_TIMEOUT,
-        'llm-timeout'
-      );
-      const j: any = await safeJson(r);
-      const content = j?.choices?.[0]?.message?.content;
-      if (typeof content === 'string' && content.trim()) parts.push(content.trim());
-    } catch (e) {
-      if (DEBUG) console.error('summarize-error', e);
+// --- OpenAI Vision (image_url or base64 data URL)
+export async function openaiVision({ system, prompt, imageDataUrl, model = OAI_VISON, temperature = 0.2 }:{
+  system: string; prompt: string; imageDataUrl: string; model?: string; temperature?: number;
+}) {
+  if (!OAI_KEY) throw new Error('OPENAI_API_KEY missing');
+  const messages = [
+    { role:'system', content: system },
+    {
+      role:'user',
+      content: [
+        { type: 'text', text: prompt },
+        { type: 'image_url', image_url: { url: imageDataUrl } }
+      ]
     }
-  }
-  return parts.join('\n\n').trim();
+  ];
+  const r = await fetch(`${OAI_URL}/chat/completions`, {
+    method:'POST',
+    headers: { Authorization:`Bearer ${OAI_KEY}`, 'Content-Type':'application/json' },
+    body: JSON.stringify({ model, messages, temperature })
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(`OpenAI Vision: ${j?.error?.message || r.statusText}`);
+  return j.choices?.[0]?.message?.content || '';
+}
+
+// --- Simple merge: keep unique sentences in arrival order
+export function mergeSummaries(...texts: string[]): string {
+  const seen = new Set<string>(), keep:string[] = [];
+  texts.forEach(t => (t||'').split(/(?<=[.!?])\s+/).forEach(s=>{
+    const k = s.trim(); if (k && !seen.has(k.toLowerCase())) { seen.add(k.toLowerCase()); keep.push(k); }
+  }));
+  return keep.join(' ');
 }
 
