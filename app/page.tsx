@@ -211,33 +211,38 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
     }
   }
 
-  async function handleImaging(file: File) {
-    if (!file) return;
+  async function handleImaging(files: File[]) {
+    if (!files.length) return;
     const hint = window.prompt('Hint (e.g., "chest", "wrist", "tibia")') || '';
     setBusy(true);
     try {
       const idx = messages.length;
-      setMessages(prev=>[...prev, { role:'assistant', content:`Analyzing "${file.name}"…` }]);
+      setMessages(prev=>[...prev, { role:'assistant', content:`Analyzing ${files.length} image${files.length>1?'s':''}…` }]);
       const fd = new FormData();
-      fd.append('file', file);
+      files.forEach(f=>fd.append('files', f));
       if (hint) fd.append('hint', hint);
       const res = await fetch('/api/imaging/analyze', { method:'POST', body: fd });
       const data = await res.json();
       if (!res.ok || data.ok === false) throw new Error(data?.error || 'Imaging analysis failed');
       const lines: string[] = [];
-      lines.push(`**${data.documentType || 'Imaging Report'} – ${file.name}**`);
-      lines.push(`**Patient-friendly summary**`);
-      lines.push(data.interpretation?.patientSummary || '(none)');
+      lines.push(`**${data.documentType || 'Imaging Report'}**`);
       lines.push('');
-      lines.push(`**Clinician note**`);
-      lines.push(data.interpretation?.clinicianNote || '(none)');
-      if (Array.isArray(data.predictions) && data.predictions.length) {
-        lines.push('**Predictions:**');
-        data.predictions.slice(0,5).forEach((p:any)=>{
-          const pct = Math.round((p.score || 0)*100);
-          lines.push(`- ${p.label}: ${pct}%`);
-        });
-      }
+      lines.push('**Per-image findings**');
+      data.perImage.forEach((img:any,i:number)=>{
+        const tag = String.fromCharCode(97+i);
+        lines.push(`**View ${tag} — ${img.fileName}**`);
+        lines.push(img.interpretation?.patientSummary || '(none)');
+        lines.push(img.interpretation?.clinicianNote || '(none)');
+        if (Array.isArray(img.predictions) && img.predictions.length) {
+          img.predictions.slice(0,3).forEach((p:any)=>{
+            lines.push(`- ${p.label}: ${(p.score*100).toFixed(0)}%`);
+          });
+        }
+        lines.push('');
+      });
+      lines.push('**Overall impression**');
+      lines.push(data.overall?.summary || '');
+      lines.push(data.overall?.triage || '');
       if (data.disclaimer) lines.push(`_${data.disclaimer}_`);
       setMessages(prev=>{ const copy=[...prev]; copy[idx] = { role:'assistant', content: lines.join('\n') }; return copy; });
     } catch(e:any) {
@@ -286,8 +291,8 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                 <label className="item" style={{ cursor:'pointer' }}>
                   🩻 Upload X-ray
                   <input
-                    type="file" accept="image/*" style={{ display:'none' }}
-                    onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleImaging(f); e.currentTarget.value=''; }}
+                    type="file" accept="image/*" multiple style={{ display:'none' }}
+                    onChange={(e)=>{ const fs=Array.from(e.target.files||[]); if(fs.length) handleImaging(fs); e.currentTarget.value=''; }}
                   />
                 </label>
                 <label className="item" style={{ cursor:'pointer' }}>
@@ -327,8 +332,8 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                   <label className="item" style={{ cursor:'pointer' }}>
                     🩻 Upload X-ray
                     <input
-                      type="file" accept="image/*" style={{ display:'none' }}
-                      onChange={(e)=>{ const f=e.target.files?.[0]; if(f) handleImaging(f); e.currentTarget.value=''; }}
+                      type="file" accept="image/*" multiple style={{ display:'none' }}
+                      onChange={(e)=>{ const fs=Array.from(e.target.files||[]); if(fs.length) handleImaging(fs); e.currentTarget.value=''; }}
                     />
                   </label>
                   <label className="item" style={{ cursor:'pointer' }}>
