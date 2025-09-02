@@ -35,6 +35,20 @@ type ChatMessage =
 
 const uid = () => Math.random().toString(36).slice(2);
 
+function getLastAnalysis(list: ChatMessage[]) {
+  for (let i = list.length - 1; i >= 0; i--) {
+    const m = list[i];
+    if (m.role === "assistant" && m.kind === "analysis" && !m.pending && !m.error) return m;
+  }
+}
+
+function replaceFirstPendingWith(list: ChatMessage[], finalMsg: ChatMessage) {
+  const copy = [...list];
+  const idx = copy.findIndex(m => m.pending);
+  if (idx >= 0) copy[idx] = finalMsg;
+  return copy;
+}
+
 function titleForCategory(c?: AnalysisCategory) {
   switch (c) {
     case "xray":
@@ -91,34 +105,25 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
         <div className="flex flex-wrap gap-2 pt-2">
           <button
             type="button"
-            className="btn-secondary"
+            className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={busy}
-            onClick={e => {
-              e.preventDefault();
-              onQuickAction("simpler");
-            }}
+            onClick={() => onQuickAction("simpler")}
           >
             Explain simpler
           </button>
           <button
             type="button"
-            className="btn-secondary"
+            className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={busy}
-            onClick={e => {
-              e.preventDefault();
-              onQuickAction("doctor");
-            }}
+            onClick={() => onQuickAction("doctor")}
           >
             Doctor’s view
           </button>
           <button
             type="button"
-            className="btn-secondary"
+            className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={busy}
-            onClick={e => {
-              e.preventDefault();
-              onQuickAction("next");
-            }}
+            onClick={() => onQuickAction("next")}
           >
             What next?
           </button>
@@ -150,39 +155,13 @@ function AssistantMessage({ m, researchOn, onQuickAction, busy }: { m: ChatMessa
   );
 }
 
-async function safeJson(res: Response) {
-  const text = await res.text();
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error(text ? `Invalid JSON: ${text.slice(0, 200)}` : "Empty response body");
-  }
-}
-
-async function callQuickAction(action: "simpler" | "doctor" | "next", messageId: string) {
-  const res = await fetch("/api/actions/refine", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, messageId })
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return await safeJson(res);
-}
-
-function replaceFirstPendingWith(list: ChatMessage[], msg: ChatMessage) {
-  const idx = list.findIndex(m => m.pending);
-  if (idx === -1) return list;
-  const copy = [...list];
-  copy[idx] = { ...msg, pending: false };
-  return copy;
-}
-
 export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<'patient'|'doctor'>('patient');
   const [busy, setBusy] = useState(false);
   const [researchMode, setResearchMode] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
@@ -323,21 +302,13 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
     }
   }
 
-  function getLastAnalysis(list: ChatMessage[]) {
-    for (let i = list.length - 1; i >= 0; i--) {
-      const m = list[i];
-      if (m.role === 'assistant' && m.kind === 'analysis' && !m.pending && !m.error) {
-        return m;
-      }
-    }
-    return undefined;
-  }
-
-  async function onQuickAction(kind: 'simpler' | 'doctor' | 'next') {
-    if (busy) return;
+  async function onQuickAction(action: 'simpler' | 'doctor' | 'next') {
+    if (loadingAction) return;
     const last = getLastAnalysis(messages);
     if (!last) return;
-    setBusy(true);
+
+    setLoadingAction(action);
+
     const tempId = `pending_${Date.now()}`;
     setMessages(prev => [
       ...prev,
@@ -346,38 +317,44 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
         tempId,
         role: 'assistant',
         kind: 'analysis',
-        parentId: last.id,
         category: last.category,
         content: 'Analyzing…',
         pending: true
       }
     ]);
+
     try {
-      const data = await callQuickAction(kind, last.id);
+      const res = await fetch('/api/actions/refine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, mode, text: last.content })
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
+      const data = JSON.parse(text);
+
       setMessages(prev =>
         replaceFirstPendingWith(prev, {
-          id: data.id ?? crypto.randomUUID(),
+          id: data.id || crypto.randomUUID(),
           role: 'assistant',
           kind: 'analysis',
-          parentId: last.id,
           category: last.category,
-          content: data.report ?? data.content ?? ''
+          content: data.report || data.content || ''
         })
       );
-    } catch (err: any) {
+    } catch (e: any) {
       setMessages(prev =>
         replaceFirstPendingWith(prev, {
           id: crypto.randomUUID(),
           role: 'assistant',
           kind: 'analysis',
-          parentId: last.id,
           category: last.category,
           content: 'Sorry — that request failed. Please try again.',
-          error: err?.message || 'Request failed'
+          error: e?.message || 'Request failed'
         })
       );
     } finally {
-      setBusy(false);
+      setLoadingAction(null);
     }
   }
 
@@ -392,7 +369,7 @@ If CONTEXT has codes or trials, explain them in plain words and add links. Avoid
                 <Markdown text={m.content} />
               </div>
             ) : (
-              <AssistantMessage key={m.id} m={m} researchOn={researchMode} onQuickAction={onQuickAction} busy={busy} />
+              <AssistantMessage key={m.id} m={m} researchOn={researchMode} onQuickAction={onQuickAction} busy={loadingAction !== null} />
             )
           )}
           <div aria-hidden className="h-32 md:h-36" />

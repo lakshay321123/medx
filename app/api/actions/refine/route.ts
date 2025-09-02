@@ -1,30 +1,53 @@
 import { NextResponse } from "next/server";
+import OpenAI from "openai";
 
-interface RefineParams { action: string; messageId: string }
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
-async function refineAnalysis({ action, messageId }: RefineParams) {
-  // TODO: implement refine logic based on `action` and `messageId`
-  return { id: crypto.randomUUID(), report: "", category: undefined };
-}
+const REFINE_TEMPLATES: Record<"simpler"|"doctor"|"next", (mode: string) => string> = {
+  simpler: () => "Rewrite for a layperson, shorter, same facts, keep headings.",
+  doctor: () => "Rewrite for a clinician; concise medical terms; keep structure.",
+  next: () => "Output only a concise 'Next steps' section.",
+};
 
 export async function POST(req: Request) {
   try {
-    const { action, messageId } = await req.json();
-    if (!action || !messageId) {
-      return NextResponse.json({ error: "Missing action or messageId" }, { status: 400 });
+    const { action, mode, text } = await req.json();
+
+    if (!action || !text) {
+      return NextResponse.json({ error: "Missing action or text" }, { status: 400 });
     }
 
-    const result = await refineAnalysis({ action, messageId });
+    const system =
+      (mode === "doctor"
+        ? "You are a clinical assistant summarizing medical documents."
+        : "You explain medical information in plain language for patients.");
 
-    return NextResponse.json({
-      id: result.id ?? crypto.randomUUID(),
-      report: result.report ?? "",
-      category: result.category,
+    const template = REFINE_TEMPLATES[action as keyof typeof REFINE_TEMPLATES];
+    if (!template) {
+      return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+    }
+
+    const user = `${template(mode || "patient")}\n\n---\nPrevious analysis:\n${text}`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0.2,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
     });
+
+    const report =
+      completion.choices?.[0]?.message?.content?.trim() ||
+      "No content produced.";
+
+    return NextResponse.json({ id: crypto.randomUUID(), report });
   } catch (e: any) {
     return NextResponse.json(
-      { error: e?.message || "Refine action failed" },
+      { error: e?.message || "Refine failed" },
       { status: 500 }
     );
   }
 }
+
