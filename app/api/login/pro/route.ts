@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { setSessionCookie, sessionExpiryDate } from "@/lib/auth/local-session";
+import { setSessionCookie, expiry } from "@/lib/auth/local-session";
 
 export async function POST(req: Request) {
   try {
@@ -23,8 +23,7 @@ export async function POST(req: Request) {
     if (!ok) return NextResponse.json({ error: "Invalid credentials." }, { status: 401 });
 
     const token = crypto.randomBytes(32).toString("hex");
-    const expiresAt = sessionExpiryDate();
-
+    const expiresAt = expiry(30);
     await prisma.session.create({ data: { userId: user.id, token, expiresAt } });
     await setSessionCookie(token, expiresAt);
 
