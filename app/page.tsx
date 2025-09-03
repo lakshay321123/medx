@@ -5,13 +5,7 @@ import Markdown from '../components/Markdown';
 import { Send } from 'lucide-react';
 import { useCountry } from '@/lib/country';
 import { getRandomWelcome } from '@/lib/welcomeMessages';
-import {
-  setActiveFromAnalysis,
-  setActiveFromChat,
-  getActiveContext,
-  useActiveContext,
-  clearActiveContext,
-} from '@/lib/context';
+import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
 import type {
   ChatMessage as BaseChatMessage,
@@ -149,7 +143,7 @@ function AssistantMessage({ m, researchOn, onQuickAction, busy }: { m: ChatMessa
 
 export default function Home() {
   const { country } = useCountry();
-  const activeContext = useActiveContext();
+  const { active, setFromAnalysis, setFromChat, clear } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [note, setNote] = useState('');
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -194,7 +188,23 @@ export default function Home() {
 
     try {
       const follow = isFollowUp(text);
-      const ctx = getActiveContext();
+      const ctx = active;
+
+      if (follow && !ctx) {
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === pendingId
+              ? {
+                  ...m,
+                  pending: false,
+                  content:
+                    "I don't have context from earlier in this session. Please reattach or restate it if you'd like me to use it.",
+                }
+              : m
+          )
+        );
+        return;
+      }
 
       const linkNudge =
         'When adding a reference, always format as [title](https://full.url) with the full absolute URL. Never output Learn more without a URL, and never use relative links.';
@@ -267,7 +277,7 @@ ${linkNudge}`;
       }
       setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, pending: false } : m)));
       if (acc.length > 400) {
-        setActiveFromChat({ id: pendingId, role: 'assistant', kind: 'chat', content: acc });
+        setFromChat({ id: pendingId, content: acc });
       }
     } catch (e: any) {
       console.error(e);
@@ -324,13 +334,7 @@ ${linkNudge}`;
             : m
         )
       );
-      setActiveFromAnalysis({
-        id: pendingId,
-        role: 'assistant',
-        kind: 'analysis',
-        category: data.category,
-        content: data.report,
-      });
+      setFromAnalysis({ id: pendingId, category: data.category, content: data.report });
     } catch (e: any) {
       console.error(e);
       setMessages(prev =>
@@ -399,7 +403,7 @@ ${linkNudge}`;
         content: data.report || data.content || ''
       };
       setMessages(prev => replaceFirstPendingWith(prev, finalMsg));
-      setActiveFromAnalysis(finalMsg);
+      setFromAnalysis({ id: finalMsg.id, category: last.category, content: finalMsg.content });
     } catch (e: any) {
       setMessages(prev =>
         replaceFirstPendingWith(prev, {
@@ -420,12 +424,12 @@ ${linkNudge}`;
     <>
       <Header mode={mode} onModeChange={setMode} researchOn={researchMode} onResearchChange={setResearchMode} />
       <div ref={chatRef} className="flex-1 px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 overflow-y-auto">
-        {activeContext && (
+        {active && (
           <div className="mx-auto mb-2 max-w-3xl px-4 sm:px-6">
             <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs bg-white dark:bg-gray-900 border-slate-200 dark:border-gray-800">
               <span className="opacity-70">Using context from:</span>
-              <strong>{activeContext.title}</strong>
-              <button onClick={clearActiveContext} className="opacity-60 hover:opacity-100">Clear</button>
+              <strong>{active.title}</strong>
+              <button onClick={clear} className="opacity-60 hover:opacity-100">Clear</button>
             </div>
           </div>
         )}
