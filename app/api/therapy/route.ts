@@ -24,10 +24,13 @@ function sanitizeMessages(raw:any[] = []) {
 }
 
 async function openaiChat(messages:any[]) {
+  const maxParam = MODEL.startsWith("gpt-5") ? "max_completion_tokens" : "max_tokens";
+  const payload: any = { model: MODEL, messages, temperature: 0.7 };
+  payload[maxParam] = 512;
   const r = await fetch(`${OAI_URL}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${OAI_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: MODEL, messages, temperature: 0.7, max_tokens: 512 })
+    body: JSON.stringify(payload)
   });
   return r;
 }
