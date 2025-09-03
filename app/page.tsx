@@ -4,6 +4,7 @@ import Header from '../components/Header';
 import Markdown from '../components/Markdown';
 import { Send } from 'lucide-react';
 import { useCountry } from '@/lib/country';
+import { getRandomWelcome } from '@/lib/welcomeMessages';
 
 type AnalysisCategory =
   | "xray"
@@ -167,7 +168,23 @@ export default function Home() {
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
-  useEffect(()=>{ const h=()=>{ setMessages([]); setInput(''); }; window.addEventListener('new-chat', h); return ()=>window.removeEventListener('new-chat', h); },[]);
+  useEffect(() => {
+    const init = () => {
+      const msg = getRandomWelcome();
+      setMessages([
+        {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          kind: 'chat',
+          content: msg,
+        },
+      ]);
+      setInput('');
+    };
+    init();
+    window.addEventListener('new-chat', init);
+    return () => window.removeEventListener('new-chat', init);
+  }, []);
 
   async function send(text: string, researchMode: boolean) {
     if (!text.trim() || busy) return;
