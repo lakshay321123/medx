@@ -26,7 +26,7 @@ export default function TherapyToggle({ onChange, initial=false }: Props) {
   return (
     <button
       onClick={toggle}
-      className={`fixed top-4 right-4 z-40 rounded-full px-4 py-2 text-sm font-medium shadow ${on ? 'bg-blue-100 text-blue-900 border border-blue-300' : 'bg-white border border-neutral-300'}`}
+      className={`fixed top-4 right-4 z-50 rounded-full px-4 py-2 text-sm font-medium shadow ${on ? 'bg-blue-100 text-blue-900 border border-blue-300' : 'bg-white border border-neutral-300'}`}
       title="Therapy Mode"
       aria-pressed={on}
     >
