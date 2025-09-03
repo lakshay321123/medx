@@ -34,18 +34,19 @@ function makePayload(messages:any[]) {
 }
 
 async function callOpenAI(messages:any[]) {
-  const r = await fetch(`${OAI_URL}/chat/completions`, {
+  const res = await fetch(`${OAI_URL}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${OAI_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify(makePayload(messages))
   });
 
-  const raw = await r.text();
+  const raw = await res.text();
   let data: any = {};
   try { data = raw ? JSON.parse(raw) : {}; } catch { data = { parseError: true, raw }; }
 
-  if (!r.ok) return { error: `OpenAI ${r.status}`, detail: raw.slice(0, 200) };
-  return { text: data?.choices?.[0]?.message?.content || "" };
+  if (!res.ok) return { error: `OpenAI ${res.status}`, detail: raw.slice(0, 200), raw };
+  const text = data?.choices?.[0]?.message?.content || "";
+  return { text, raw };
 }
 
 export async function POST(req: NextRequest) {
@@ -75,21 +76,21 @@ export async function POST(req: NextRequest) {
     const crisis = crisisCheck(userText);
     const sys = [{ role:"system", content: SYSTEM }];
 
-    const first = await callOpenAI([...sys, ...clean]);
-    let content = first.text;
-    if (first.error || !content) {
+    let result = await callOpenAI([...sys, ...clean]);
+
+    if (!result.text) {
       const lastUser = [...clean].reverse().find(m => m.role === "user") || clean[clean.length-1];
-      const retry = await callOpenAI([...sys, { role:"user", content: lastUser.content }]);
-      content = retry.text;
-      if (retry.error || !content) {
-        return NextResponse.json(
-          { error: retry.error || first.error || "Empty response", detail: retry.detail || first.detail },
-          { status: 500 }
-        );
-      }
+      result = await callOpenAI([...sys, { role:"user", content: lastUser.content }]);
     }
 
-    return NextResponse.json({ ok: true, completion: content, crisis });
+    if (!result.text) {
+      return NextResponse.json(
+        { error: result.error || "Empty response from OpenAI", detail: result.detail || result.raw || "" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ ok: true, completion: result.text, crisis });
   } catch (e:any) {
     // Always return JSON, even on unexpected exceptions
     return NextResponse.json({ error: "Server error", detail: String(e?.message || e) }, { status: 500 });
