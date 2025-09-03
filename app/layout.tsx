@@ -4,6 +4,7 @@ import Sidebar from "../components/Sidebar";
 import { CountryProvider } from "@/lib/country";
 import { ContextProvider } from "@/lib/context";
 import { TopicProvider } from "@/lib/topic";
+import SignUpModal from "@/components/auth/SignUpModal";
 
 export const metadata = { title: "MedX", description: "Global medical AI" };
 
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     {children}
                   </main>
                 </div>
+                <SignUpModal />
               </ThemeProvider>
             </TopicProvider>
           </ContextProvider>

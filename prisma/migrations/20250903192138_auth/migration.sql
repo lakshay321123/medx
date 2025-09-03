@@ -1,0 +1,10 @@
+-- CreateEnum
+CREATE TYPE "Role" AS ENUM ('USER', 'ADMIN', 'GUEST');
+
+-- AlterTable
+ALTER TABLE "User" 
+  ADD COLUMN "passwordHash" TEXT,
+  ADD COLUMN "guest" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  DROP COLUMN "role",
+  ADD COLUMN "role" "Role" NOT NULL DEFAULT 'USER';

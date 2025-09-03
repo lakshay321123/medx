@@ -8,19 +8,29 @@
  }
 
  model User {
-   id           String   @id @default(cuid())
-   name         String?
-   email        String? @unique
-   image        String?
-   role         String   @default("patient")
-   consentFlags Json?
-   createdAt    DateTime @default(now())
-   accounts     Account[]
-   sessions     Session[]
-   threads      Thread[]
-   observations Observation[]
-   alerts       Alert[]
- }
+  id           String   @id @default(cuid())
+  name         String?
+  email        String? @unique
+  image        String?
+  // local auth
+  passwordHash String?
+  role         Role     @default(USER)
+  guest        Boolean  @default(false)
+  consentFlags Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  accounts     Account[]
+  sessions     Session[]
+  threads      Thread[]
+  observations Observation[]
+  alerts       Alert[]
+}
+
+enum Role {
+  USER
+  ADMIN
+  GUEST
+}
 
  model Account {
    id                String   @id @default(cuid())
