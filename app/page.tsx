@@ -7,6 +7,8 @@ import { useCountry } from '@/lib/country';
 import { getRandomWelcome } from '@/lib/welcomeMessages';
 import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
+import { useTopic } from '@/lib/topic';
+import { detectFollowupIntent } from '@/lib/intents';
 import type {
   ChatMessage as BaseChatMessage,
   AnalysisCategory,
@@ -48,6 +50,55 @@ function titleForCategory(c?: AnalysisCategory) {
     default:
       return "Medical Document Summary";
   }
+}
+
+function isNewTopic(text: string) {
+  const q = text.trim();
+  return (
+    /\b[a-z][a-z\s-]{1,40}\b/i.test(q) &&
+    !/\b(what|how|why|best|top|latest|near|which|who|when)\b/i.test(q) &&
+    q.split(/\s+/).length <= 3
+  );
+}
+
+function inferTopicFromDoc(report: string) {
+  const h1 = (report.match(/^#\s*(.+)$/m) || [, ""])[1];
+  const hits = report.match(/\b(cancer|fracture|pneumonia|diabetes|hypertension|asthma|arthritis|kidney|liver|anemia)\b/i);
+  return h1 && h1.length <= 40 ? h1 : hits?.[0] || "medical report";
+}
+
+function buildMedicinesPrompt(topic: string, country: { code3: string; name: string }) {
+  const system = `You are MedX. Provide medicine options for the topic below.
+TOPIC: ${topic}
+User country: ${country.code3} (${country.name}). Prefer local OTC examples; if unsure, use generic names and say availability varies.
+Safety: do not prescribe; advise to confirm with a clinician; contraindications only if well-established.`.trim();
+  const user = "Best medicines for this condition.";
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: user }
+  ];
+}
+
+function buildHospitalsPrompt(topic: string, country: { code2: string; code3: string; name: string }) {
+  const system = `You are MedX. List top hospitals/centres in ${country.name} that treat: ${topic}.
+Prefer nationally recognized or government/teaching institutions.
+Provide city + short note. Output 5–10 items max.`.trim();
+  const user = "Top hospitals for this condition.";
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: user }
+  ];
+}
+
+function buildTrialsPrompt(topic: string, country: { code3: string; name: string }) {
+  const system = `You are MedX. Summarize the latest clinical trial directions for: ${topic}.
+If exact current trials are needed, direct users to authoritative registries (e.g., ClinicalTrials.gov, WHO ICTRP; for India: CTRI).
+No fabricated IDs. Provide themes, not specific trial numbers unless confident.`.trim();
+  const user = `Latest clinical trials for ${topic} (brief overview).`;
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: user }
+  ];
 }
 
 function PendingAnalysisCard({ label }: { label: string }) {
@@ -143,7 +194,8 @@ function AssistantMessage({ m, researchOn, onQuickAction, busy }: { m: ChatMessa
 
 export default function Home() {
   const { country } = useCountry();
-  const { active, setFromAnalysis, setFromChat, clear } = useActiveContext();
+  const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
+  const { topic, setTopic, clearTopic } = useTopic();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [note, setNote] = useState('');
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -187,10 +239,13 @@ export default function Home() {
     setNote('');
 
     try {
+      const intent = detectFollowupIntent(text);
       const follow = isFollowUp(text);
       const ctx = active;
+      if (!topic && !intent) setTopic(text);
+      else if (isNewTopic(text)) setTopic(text);
 
-      if (follow && !ctx) {
+      if (follow && !ctx && !(intent && topic)) {
         setMessages(prev =>
           prev.map(m =>
             m.id === pendingId
@@ -217,11 +272,19 @@ ${linkNudge}`
 If CONTEXT has codes or trials, explain them in plain words and add links. Avoid medical advice.
 ${linkNudge}`;
       const systemCommon = `\nUser country: ${country.code3} (${country.name}). Prefer local examples/guidelines. If unsure, use generics and say availability varies.\n`;
+      const topicHint = topic ? `ACTIVE TOPIC: ${topic.text}\nKeep answers scoped to this topic unless the user changes it.\n` : "";
 
       let chatMessages: { role: string; content: string }[];
 
-      if (follow && ctx) {
-        const system = `\nYou are MedX. This is a FOLLOW-UP question. Use the ACTIVE CONTEXT below; do not reset topic unless user asks.\nACTIVE CONTEXT TITLE: ${ctx.title}\nACTIVE CONTEXT SUMMARY:\n${ctx.summary}\n\nWhen the user asks for latest/clinical trials/guidelines, stay on the same topic/entities: ${ctx.entities?.join(', ') || 'n/a'}.\n${systemCommon}` + baseSys;
+      if (intent && topic) {
+        chatMessages =
+          intent === 'hospitals'
+            ? buildHospitalsPrompt(topic.text, country)
+            : intent === 'trials'
+            ? buildTrialsPrompt(topic.text, country)
+            : buildMedicinesPrompt(topic.text, country);
+      } else if (follow && ctx) {
+        const system = `\nYou are MedX. This is a FOLLOW-UP question. Use the ACTIVE CONTEXT below; do not reset topic unless user asks.\n${topicHint}ACTIVE CONTEXT TITLE: ${ctx.title}\nACTIVE CONTEXT SUMMARY:\n${ctx.summary}\n\nWhen the user asks for latest/clinical trials/guidelines, stay on the same topic/entities: ${ctx.entities?.join(', ') || 'n/a'}.\n${systemCommon}` + baseSys;
         const userMsg = `Follow-up: ${text}\nIf the question is ambiguous, ask one concise disambiguation question and then answer briefly using the context.`;
         chatMessages = [
           { role: 'system', content: system },
@@ -236,7 +299,7 @@ ${linkNudge}`;
         if (!planRes.ok) throw new Error(`MedX API error ${planRes.status}`);
         const plan = await planRes.json();
 
-        const sys = systemCommon + baseSys;
+        const sys = topicHint + systemCommon + baseSys;
         const contextBlock = 'CONTEXT:\n' + JSON.stringify(plan.sections || {}, null, 2);
         chatMessages = [
           { role: 'system', content: sys },
@@ -335,6 +398,7 @@ ${linkNudge}`;
         )
       );
       setFromAnalysis({ id: pendingId, category: data.category, content: data.report });
+      setTopic(inferTopicFromDoc(data.report), "doc");
     } catch (e: any) {
       console.error(e);
       setMessages(prev =>
@@ -424,12 +488,21 @@ ${linkNudge}`;
     <>
       <Header mode={mode} onModeChange={setMode} researchOn={researchMode} onResearchChange={setResearchMode} />
       <div ref={chatRef} className="flex-1 px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 overflow-y-auto">
+        {topic && (
+          <div className="mx-auto mb-2 max-w-3xl px-4 sm:px-6">
+            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs bg-white dark:bg-gray-900 border-slate-200 dark:border-gray-800">
+              <span className="opacity-70">Topic:</span>
+              <strong className="truncate max-w-[16rem]">{topic.text}</strong>
+              <button onClick={clearTopic} className="opacity-60 hover:opacity-100">Clear</button>
+            </div>
+          </div>
+        )}
         {active && (
           <div className="mx-auto mb-2 max-w-3xl px-4 sm:px-6">
             <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs bg-white dark:bg-gray-900 border-slate-200 dark:border-gray-800">
               <span className="opacity-70">Using context from:</span>
               <strong>{active.title}</strong>
-              <button onClick={clear} className="opacity-60 hover:opacity-100">Clear</button>
+              <button onClick={clearContext} className="opacity-60 hover:opacity-100">Clear</button>
             </div>
           </div>
         )}
