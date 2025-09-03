@@ -8,6 +8,9 @@ const ENABLED = String(process.env.THERAPY_MODE_ENABLED||"").toLowerCase()==="tr
 
 const SYSTEM = `You are a supportive CBT-style coach. Do not diagnose or prescribe. Keep it short, warm, practical.`;
 
+const isGpt5 = MODEL.startsWith("gpt-5");
+const maxParam = isGpt5 ? "max_completion_tokens" : "max_tokens";
+
 function crisisCheck(t:string){
   return /\b(suicide|kill myself|end my life|no reason to live|hurt myself|hurt someone)\b/i.test(t||"");
 }
@@ -23,16 +26,11 @@ function sanitizeMessages(raw:any[] = []) {
     .map((m:any)=> ({ role: m.role, content: m.content.trim() }));
 }
 
-async function openaiChat(messages:any[]) {
-  const maxParam = MODEL.startsWith("gpt-5") ? "max_completion_tokens" : "max_tokens";
-  const payload: any = { model: MODEL, messages, temperature: 0.7 };
-  payload[maxParam] = 512;
-  const r = await fetch(`${OAI_URL}/chat/completions`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${OAI_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-  return r;
+function makePayload(messages:any[]) {
+  const p:any = { model: MODEL, messages };
+  if (!isGpt5) p.temperature = 0.7;
+  p[maxParam] = 512;
+  return p;
 }
 
 export async function POST(req: NextRequest) {
@@ -62,12 +60,22 @@ export async function POST(req: NextRequest) {
     const crisis = crisisCheck(userText);
     const sys = [{ role:"system", content: SYSTEM }];
 
-    let r = await openaiChat([...sys, ...clean]);
+    const payload = makePayload([...sys, ...clean]);
+    let r = await fetch(`${OAI_URL}/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${OAI_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
 
     // Retry once with minimal last-turn if OpenAI rejects the thread
     if (!r.ok) {
       const lastUser = [...clean].reverse().find(m => m.role === "user") || clean[clean.length-1];
-      r = await openaiChat([...sys, { role:"user", content: lastUser.content }]);
+      const retryPayload = makePayload([...sys, { role:"user", content: lastUser.content }]);
+      r = await fetch(`${OAI_URL}/chat/completions`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${OAI_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify(retryPayload)
+      });
       if (!r.ok) {
         const detail = await r.text().catch(()=> "");
         return NextResponse.json({ error: `OpenAI ${r.status}`, detail }, { status: r.status });
