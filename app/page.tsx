@@ -232,13 +232,17 @@ export default function Home() {
       root.classList.add('therapy-mode');
       const kicked = sessionStorage.getItem('therapyStarter');
       if (!kicked) {
-        fetch('/api/therapy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ wantStarter: true })
-        })
-          .then(r => r.json())
-          .then(j => {
+        (async () => {
+          try {
+            const res = await fetch('/api/therapy', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ wantStarter: true })
+            });
+            const raw = await res.text();
+            let j: any;
+            try { j = raw ? JSON.parse(raw) : {}; } catch { j = { error: 'Invalid JSON from server', raw }; }
+            if (!res.ok) return;
             sessionStorage.setItem('therapyStarter', '1');
             const starter = j?.starter || 'Hi, I’m here with you. What would you like to talk about?';
             // @ts-ignore
@@ -246,8 +250,10 @@ export default function Home() {
               ...prev,
               { id: `t-${Date.now()}`, role: 'assistant', kind: 'chat', content: starter }
             ]);
-          })
-          .catch(() => {});
+          } catch {
+            /* ignore */
+          }
+        })();
       }
     } else {
       root.classList.remove('therapy-mode');
@@ -275,20 +281,40 @@ export default function Home() {
             content: String((m as any).content ?? (m as any).text ?? '').trim()
           }))
           .filter(m => m.content);
-        const r = await fetch('/api/therapy', {
+        const res = await fetch('/api/therapy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ messages: thread })
         });
-        const j = await r.json();
-        if (!r.ok || !j?.completion) {
-          throw new Error(j?.error || `Therapy API error ${r.status}`);
+        const raw = await res.text();
+        let j: any;
+        try { j = raw ? JSON.parse(raw) : {}; } catch { j = { error: 'Invalid JSON from server', raw }; }
+        if (!res.ok) {
+          const msg = j?.error || `HTTP ${res.status}`;
+          const detail = j?.detail || (typeof j?.raw === 'string' ? j.raw.slice(0, 500) : '');
+          setMessages(prev => prev.map(m =>
+            m.id === pendingId
+              ? { ...m, content: `⚠ ${msg}\n${detail}`, pending: false, error: msg }
+              : m
+          ));
+          return;
         }
-        setMessages(prev =>
-          prev.map(m =>
+
+        if (j?.completion) {
+          setMessages(prev => prev.map(m =>
             m.id === pendingId ? { ...m, content: j.completion, pending: false } : m
-          )
-        );
+          ));
+        } else if (j?.starter) {
+          setMessages(prev => prev.map(m =>
+            m.id === pendingId ? { ...m, content: j.starter, pending: false } : m
+          ));
+        } else {
+          setMessages(prev => prev.map(m =>
+            m.id === pendingId
+              ? { ...m, content: '⚠ Empty response from server.', pending: false, error: 'Empty response from server.' }
+              : m
+          ));
+        }
         return;
       }
       const intent = detectFollowupIntent(text);
