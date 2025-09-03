@@ -33,6 +33,21 @@ function makePayload(messages:any[]) {
   return p;
 }
 
+async function callOpenAI(messages:any[]) {
+  const r = await fetch(`${OAI_URL}/chat/completions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${OAI_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(makePayload(messages))
+  });
+
+  const raw = await r.text();
+  let data: any = {};
+  try { data = raw ? JSON.parse(raw) : {}; } catch { data = { parseError: true, raw }; }
+
+  if (!r.ok) return { error: `OpenAI ${r.status}`, detail: raw.slice(0, 200) };
+  return { text: data?.choices?.[0]?.message?.content || "" };
+}
+
 export async function POST(req: NextRequest) {
   try {
     if (!ENABLED) {
@@ -60,33 +75,20 @@ export async function POST(req: NextRequest) {
     const crisis = crisisCheck(userText);
     const sys = [{ role:"system", content: SYSTEM }];
 
-    const payload = makePayload([...sys, ...clean]);
-    let r = await fetch(`${OAI_URL}/chat/completions`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${OAI_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    // Retry once with minimal last-turn if OpenAI rejects the thread
-    if (!r.ok) {
+    const first = await callOpenAI([...sys, ...clean]);
+    let content = first.text;
+    if (first.error || !content) {
       const lastUser = [...clean].reverse().find(m => m.role === "user") || clean[clean.length-1];
-      const retryPayload = makePayload([...sys, { role:"user", content: lastUser.content }]);
-      r = await fetch(`${OAI_URL}/chat/completions`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${OAI_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify(retryPayload)
-      });
-      if (!r.ok) {
-        const detail = await r.text().catch(()=> "");
-        return NextResponse.json({ error: `OpenAI ${r.status}`, detail }, { status: r.status });
+      const retry = await callOpenAI([...sys, { role:"user", content: lastUser.content }]);
+      content = retry.text;
+      if (retry.error || !content) {
+        return NextResponse.json(
+          { error: retry.error || first.error || "Empty response", detail: retry.detail || first.detail },
+          { status: 500 }
+        );
       }
     }
 
-    const txt = await r.text(); // protect against malformed body
-    let data: any = {};
-    try { data = txt ? JSON.parse(txt) : {}; } catch { data = { parseError: true, raw: txt }; }
-
-    const content = data?.choices?.[0]?.message?.content || "";
     return NextResponse.json({ ok: true, completion: content, crisis });
   } catch (e:any) {
     // Always return JSON, even on unexpected exceptions
