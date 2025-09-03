@@ -32,6 +32,10 @@ const CATEGORY_LABELS: Record<NearCategory, string> = {
   doctor: 'doctors',
   gynecologist: 'gynecologists',
   chiropractor: 'chiropractors',
+  cardiovascular: 'cardiologists',
+  pediatrician: 'pediatricians',
+  dermatologist: 'dermatologists',
+  neurologist: 'neurologists',
 };
 
 function getLastAnalysis(list: ChatMessage[]) {
