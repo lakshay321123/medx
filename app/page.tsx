@@ -9,6 +9,8 @@ import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
 import { useTopic } from '@/lib/topic';
 import { detectFollowupIntent } from '@/lib/intents';
+import { detectNearIntent } from '@/lib/nearIntents';
+import { useGeolocate } from '@/hooks/useGeolocate';
 import type {
   ChatMessage as BaseChatMessage,
   AnalysisCategory,
@@ -227,16 +229,72 @@ export default function Home() {
 
   async function send(text: string, researchMode: boolean) {
     if (!text.trim() || busy) return;
+    const nearType = detectNearIntent(text);
     setBusy(true);
 
     const userId = uid();
     const pendingId = uid();
+    const pendingContent = nearType
+      ? `Finding ${nearType === 'pharmacy' ? 'pharmacies' : 'hospitals'} within 5 km…`
+      : '';
     setMessages(prev => [
       ...prev,
       { id: userId, role: 'user', kind: 'chat', content: text },
-      { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true }
+      { id: pendingId, role: 'assistant', kind: 'chat', content: pendingContent, pending: true }
     ]);
     setNote('');
+
+    function replacePendingWith(content: string) {
+      setMessages(prev => {
+        const copy = [...prev];
+        const idx = copy.findIndex(m => m.id === pendingId);
+        if (idx >= 0) copy[idx] = { id: uid(), role: 'assistant', kind: 'chat', content };
+        return copy;
+      });
+    }
+    function replacePendingWithError(msg: string) {
+      replacePendingWith(`⚠️ ${msg}`);
+    }
+
+    if (nearType) {
+      try {
+        const { getCoords } = useGeolocate();
+        let coords: { lat: number; lng: number } | null = null;
+        try {
+          coords = await getCoords();
+        } catch {
+          const city = window.prompt('Location access blocked. Enter your city or pincode:');
+          if (!city) return replacePendingWithError('Location unavailable.');
+          const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}&limit=1`);
+          const j = await r.json();
+          if (!j?.length) return replacePendingWithError('Could not resolve that location.');
+          coords = { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon) };
+        }
+
+        const res = await fetch('/api/nearby', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat: coords!.lat, lng: coords!.lng, type: nearType, radiusKm: 5 })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+
+        const items = (data.items || []) as any[];
+        const lines = items.map((p: any, i: number) =>
+          `${i + 1}. **${p.name}** — ${p.address ?? 'address not listed'}  \n` +
+          `${p.distanceKm?.toFixed(1)} km · [Open in Maps](${p.mapsUrl})`
+        );
+        const header = nearType === 'pharmacy' ? 'Pharmacies near you (≤ 5 km)' : 'Hospitals near you (≤ 5 km)';
+        const md = lines.length ? `### ${header}\n\n${lines.join('\n')}` : `No results within 5 km. Try widening the radius.`;
+
+        replacePendingWith(md);
+      } catch (e: any) {
+        replacePendingWithError(e?.message || 'Nearby search failed.');
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
 
     try {
       const intent = detectFollowupIntent(text);
