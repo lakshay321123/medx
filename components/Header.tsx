@@ -2,6 +2,7 @@
 import { User, Stethoscope } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 import { ResearchToggle } from './ResearchToggle';
+import CountryGlobe from '@/components/CountryGlobe';
 
 export default function Header({
   mode,
@@ -17,7 +18,10 @@ export default function Header({
   return (
     <header className="sticky top-0 z-40 h-14 md:h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-gray-900/60 border-b border-slate-200 dark:border-gray-800">
       <div className="max-w-6xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between">
-        <div className="text-base md:text-lg font-semibold">MedX</div>
+        <div className="flex items-center gap-2 text-base md:text-lg font-semibold">
+          <div>MedX</div>
+          <CountryGlobe />
+        </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => onModeChange(mode === 'patient' ? 'doctor' : 'patient')}

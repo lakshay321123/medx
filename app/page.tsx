@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import Header from '../components/Header';
 import Markdown from '../components/Markdown';
 import { Send } from 'lucide-react';
+import { useCountry } from '@/lib/country';
 
 type AnalysisCategory =
   | "xray"
@@ -156,6 +157,7 @@ function AssistantMessage({ m, researchOn, onQuickAction, busy }: { m: ChatMessa
 }
 
 export default function Home() {
+  const { country } = useCountry();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<'patient'|'doctor'>('patient');
@@ -191,7 +193,7 @@ export default function Home() {
 
       const linkNudge =
         'When adding a reference, always format as [title](https://full.url) with the full absolute URL. Never output Learn more without a URL, and never use relative links.';
-      const sys =
+      const baseSys =
         mode === 'doctor'
           ? `You are a clinical assistant. Write clean markdown with headings and bullet lists.
 If CONTEXT has codes, interactions, or trials, summarize and add clickable links. Avoid medical advice.
@@ -199,6 +201,10 @@ ${linkNudge}`
           : `You are a patient-friendly explainer. Use simple markdown and short paragraphs.
 If CONTEXT has codes or trials, explain them in plain words and add links. Avoid medical advice.
 ${linkNudge}`;
+      const sys = `\nYou are MedX. User country: ${country.code3}.
+Prefer local guidelines, availability, dosing units, and OTC product examples used in ${country.name}.
+If country-specific examples are uncertain, give generic names and note availability varies by region.
+` + baseSys;
 
       const contextBlock = 'CONTEXT:\n' + JSON.stringify(plan.sections || {}, null, 2);
 
@@ -270,6 +276,7 @@ ${linkNudge}`;
       const fd = new FormData();
       fd.append('file', file);
       fd.append('doctorMode', String(mode === 'doctor'));
+      fd.append('country', country.code3);
       const res = await fetch('/api/analyze', { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Analysis failed');
@@ -331,7 +338,7 @@ ${linkNudge}`;
       const res = await fetch('/api/actions/refine', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, mode, text: last.content })
+        body: JSON.stringify({ action, mode, text: last.content, country: country.code3 })
       });
       const text = await res.text();
       if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
