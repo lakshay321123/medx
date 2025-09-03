@@ -1,66 +1,56 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
+export const runtime = "edge";
 
 const OAI_KEY = process.env.OPENAI_API_KEY!;
-const OAI_URL = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
-const MODEL   = process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini';
-const ENABLED = String(process.env.THERAPY_MODE_ENABLED||'').toLowerCase()==='true';
+const OAI_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(new RegExp('/+$'), "");
+const MODEL   = process.env.OPENAI_TEXT_MODEL || "gpt-5";
+const ENABLED = String(process.env.THERAPY_MODE_ENABLED||"").toLowerCase()==="true";
 
-import { crisisCheck } from '@/lib/therapy/crisis';
-import { THERAPY_SYSTEM, friendlyStarter } from '@/lib/therapy/scripts';
-import { moderate } from '@/lib/therapy/moderation';
+const SYSTEM = `
+You are a supportive CBT-style coach. 
+Do not diagnose or prescribe. Encourage professional help for ongoing concerns. 
+If self-harm risk appears, advise contacting emergency services immediately.
+`;
 
-export const runtime = 'edge';
+function crisisCheck(t: string){
+  if(!t) return false;
+  return /\b(suicide|kill myself|end my life|no reason to live|hurt myself|hurt someone)\b/i.test(t);
+}
 
 export async function POST(req: NextRequest) {
-  if (!ENABLED) return NextResponse.json({ error: 'Therapy mode disabled' }, { status: 403 });
-  try {
-    const { messages, wantStarter } = await req.json();
+  if (!ENABLED) return NextResponse.json({ error: "Therapy mode disabled" }, { status: 403 });
 
-    // Optionally kick off with a friendly starter
-    if (wantStarter) {
-      return NextResponse.json({
-        starter: friendlyStarter(),
-        disclaimer: process.env.THERAPY_DISCLAIMER || '',
-        crisisBanner: process.env.CRISIS_BANNER_TEXT || ''
-      });
-    }
-
-    const userText = (messages || []).map((m: any) => m.content || '').join('\n').slice(-2000);
-    const crisisFlag = crisisCheck(userText);
-    const moderation = await moderate(userText).catch(() => null);
-
-    const sys = [
-      { role: 'system', content: THERAPY_SYSTEM },
-      ...(process.env.THERAPY_DISCLAIMER ? [{ role: 'system', content: `DISCLAIMER: ${process.env.THERAPY_DISCLAIMER}` }] : [])
-    ];
-
-    const r = await fetch(`${OAI_URL}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${OAI_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          ...sys,
-          ...messages
-        ],
-        temperature: 0.7
-      })
-    });
-
-    if (!r.ok) {
-      const err = await r.text().catch(() => '');
-      return NextResponse.json({ error: `OpenAI ${r.status}`, detail: err }, { status: r.status });
-    }
-    const data = await r.json();
-
-    return NextResponse.json({
-      ok: true,
-      completion: data?.choices?.[0]?.message?.content || '',
-      crisis: crisisFlag,
-      moderation
-    });
-  } catch (e: any) {
-    return NextResponse.json({ error: String(e?.message || e) }, { status: 500 });
+  const body = await req.json().catch(()=> ({}));
+  if (body?.wantStarter) {
+    return NextResponse.json({ starter: "Hi, I’m here with you. What would you like to talk about?" });
   }
+
+  const validRoles = new Set(["user","assistant","system"]);
+  const raw = Array.isArray(body?.messages) ? body.messages : [];
+  const clean = raw.map((m:any)=>({
+    role: validRoles.has(m?.role) ? m.role : "user",
+    content: String(m?.content ?? "").trim()
+  })).filter((m:any)=> m.content);
+
+  if (clean.length === 0) return NextResponse.json({ error: "No valid messages" }, { status: 400 });
+
+  const userText = clean.map((m:any)=>m.content).join("\n").slice(-2000);
+  const crisis = crisisCheck(userText);
+
+  const sys = [{ role:"system", content: SYSTEM }];
+
+  const r = await fetch(`${OAI_URL}/chat/completions`, {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${OAI_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ model: MODEL, messages: [...sys, ...clean], temperature: 0.7, max_tokens: 512 })
+  });
+
+  if (!r.ok) {
+    const detail = await r.text().catch(() => "");
+    return NextResponse.json({ error: `OpenAI ${r.status}`, detail }, { status: r.status });
+  }
+
+  const data = await r.json();
+  return NextResponse.json({ ok: true, completion: data?.choices?.[0]?.message?.content || "", crisis });
 }
 

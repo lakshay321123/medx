@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import Header from '../components/Header';
 import Markdown from '../components/Markdown';
 import { Send } from 'lucide-react';
-import TherapyToggle from '@/components/TherapyToggle';
 import { useCountry } from '@/lib/country';
 import { getRandomWelcome } from '@/lib/welcomeMessages';
 import { useActiveContext } from '@/lib/context';
@@ -537,8 +536,13 @@ ${linkNudge}`;
 
   return (
     <>
-      <TherapyToggle onChange={setTherapyMode} />
-      <Header mode={mode} onModeChange={setMode} researchOn={researchMode} onResearchChange={setResearchMode} />
+      <Header
+        mode={mode}
+        onModeChange={setMode}
+        researchOn={researchMode}
+        onResearchChange={setResearchMode}
+        onTherapyChange={setTherapyMode}
+      />
       <div ref={chatRef} className="flex-1 px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 overflow-y-auto">
         {topic && (
           <div className="mx-auto mb-2 max-w-3xl px-4 sm:px-6">

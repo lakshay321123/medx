@@ -4,17 +4,24 @@ import { useEffect, useState } from 'react';
 type Props = {
   onChange: (enabled: boolean) => void;
   initial?: boolean;
+  variant?: 'inline' | 'floating';
+  className?: string;
 };
 
-export default function TherapyToggle({ onChange, initial=false }: Props) {
+export default function TherapyToggle({
+  onChange,
+  initial = false,
+  variant = 'inline',
+  className = '',
+}: Props) {
   const [on, setOn] = useState<boolean>(initial);
 
   useEffect(() => {
     const saved = localStorage.getItem('therapyMode') === 'on';
-    setOn(saved);
-    onChange(saved);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const val = saved ?? initial;
+    setOn(val);
+    onChange(val);
+  }, [initial, onChange]);
 
   function toggle() {
     const next = !on;
@@ -23,12 +30,29 @@ export default function TherapyToggle({ onChange, initial=false }: Props) {
     onChange(next);
   }
 
+  const baseChip = 'rounded-full px-3 h-9 inline-flex items-center gap-2 border text-sm font-medium';
+  const onChip = 'bg-blue-100 text-blue-900 border-blue-300';
+  const offChip = 'bg-white text-neutral-900 border-neutral-300';
+
+  if (variant === 'floating') {
+    return (
+      <button
+        onClick={toggle}
+        aria-pressed={on}
+        title="Therapy Mode"
+        className={`fixed top-4 right-4 z-40 shadow ${baseChip} ${on ? onChip : offChip} ${className}`}
+      >
+        {on ? 'Therapy Mode: ON' : 'Therapy Mode'}
+      </button>
+    );
+  }
+
   return (
     <button
       onClick={toggle}
-      className={`fixed top-4 right-4 z-50 rounded-full px-4 py-2 text-sm font-medium shadow ${on ? 'bg-blue-100 text-blue-900 border border-blue-300' : 'bg-white border border-neutral-300'}`}
-      title="Therapy Mode"
       aria-pressed={on}
+      title="Therapy Mode"
+      className={`${baseChip} ${on ? onChip : offChip} ${className}`}
     >
       {on ? 'Therapy Mode: ON' : 'Therapy Mode'}
     </button>
