@@ -269,10 +269,12 @@ export default function Home() {
 
     try {
       if (therapyMode) {
-        const thread = [...messages, { role: 'user', content: text }].map(m => ({
-          role: m.role,
-          content: m.content
-        }));
+        const thread = [...messages, { role: 'user', content: text }]
+          .map(m => ({
+            role: m.role === 'assistant' ? 'assistant' : (m.role === 'system' ? 'system' : 'user'),
+            content: String((m as any).content ?? (m as any).text ?? '').trim()
+          }))
+          .filter(m => m.content);
         const r = await fetch('/api/therapy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
