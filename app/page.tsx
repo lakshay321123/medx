@@ -3,6 +3,11 @@ import { useEffect, useRef, useState } from 'react';
 import Header from '../components/Header';
 import Markdown from '../components/Markdown';
 import { Send } from 'lucide-react';
+import MedicalProfile from '@/components/panels/MedicalProfile';
+import Timeline from '@/components/panels/Timeline';
+import AlertsPane from '@/components/panels/AlertsPane';
+import SettingsPane from '@/components/panels/SettingsPane';
+import { useSearchParams } from 'next/navigation';
 import { useCountry } from '@/lib/country';
 import { getRandomWelcome } from '@/lib/welcomeMessages';
 import { useActiveContext } from '@/lib/context';
@@ -193,6 +198,23 @@ function AssistantMessage({ m, researchOn, onQuickAction, busy }: { m: ChatMessa
 }
 
 export default function Home() {
+  const sp = useSearchParams();
+  const panel = sp.get('panel') ?? 'chat';
+  if (panel !== 'chat') {
+    switch (panel) {
+      case 'profile':
+        return <MedicalProfile />;
+      case 'timeline':
+        return <Timeline />;
+      case 'alerts':
+        return <AlertsPane />;
+      case 'settings':
+        return <SettingsPane />;
+      default:
+        return null;
+    }
+  }
+
   const { country } = useCountry();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const { topic, setTopic, clearTopic } = useTopic();

@@ -1,5 +1,6 @@
 'use client';
 import { Plus, Search, Settings } from 'lucide-react';
+import Tabs from './sidebar/Tabs';
 
 export default function Sidebar() {
   const handleNew = () => window.dispatchEvent(new Event('new-chat'));
@@ -15,6 +16,7 @@ export default function Sidebar() {
           <input className="w-full h-10 rounded-lg pl-3 pr-8 bg-slate-100 dark:bg-gray-800 placeholder:text-slate-500 dark:placeholder:text-slate-500 text-sm" placeholder="Search chats" onChange={e => handleSearch(e.target.value)} />
           <Search size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
         </div>
+        <Tabs />
       </div>
 
       <nav className="mt-3 space-y-1 px-2 flex-1 overflow-y-auto">
