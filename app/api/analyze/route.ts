@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { extractTextFromPDF, rasterizeFirstPage } from "@/lib/pdftext";
+import { COUNTRIES } from "@/data/countries";
 
 const OAI_KEY = process.env.OPENAI_API_KEY!;
 const MODEL_TEXT = process.env.OPENAI_TEXT_MODEL || "gpt-5";
@@ -84,6 +85,10 @@ export async function POST(req: Request) {
     const fd = await req.formData();
     const file = fd.get("file") as File | null;
     const doctorMode = fd.get("doctorMode") === "true";
+    const code = (fd.get("country") as string) || "USA";
+    const country =
+      COUNTRIES.find(c => c.code3 === code) ||
+      COUNTRIES.find(c => c.code3 === "USA")!;
 
     if (!file) return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
 
@@ -99,7 +104,8 @@ export async function POST(req: Request) {
       const text = await extractTextFromPDF(buf);
       if (text.length > 100) {
         category = await classifyText(text);
-        const systemPrompt = promptForCategory(category, doctorMode);
+        const basePrompt = promptForCategory(category, doctorMode);
+        const systemPrompt = `User country: ${country.code3} (${country.name}).\nLocalize counseling, OTC examples, and triage advice to this country when relevant.\nDo not invent brand names; use generics if uncertain.\n` + basePrompt;
         const r = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -128,7 +134,8 @@ export async function POST(req: Request) {
     }
 
     if (dataUrl && !report) {
-      const systemPrompt = promptForCategory(category, doctorMode);
+      const basePrompt = promptForCategory(category, doctorMode);
+      const systemPrompt = `User country: ${country.code3} (${country.name}).\nLocalize counseling, OTC examples, and triage advice to this country when relevant.\nDo not invent brand names; use generics if uncertain.\n` + basePrompt;
       const r = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {

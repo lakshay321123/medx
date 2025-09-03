@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { COUNTRIES } from '@/data/countries';
 
 export async function POST(req: NextRequest){
   const body = await req.json();
@@ -10,12 +11,14 @@ export async function POST(req: NextRequest){
   // Allow either a raw question/role pair or full chat messages
   let messages = body.messages;
   if(!messages){
-    const { question, role } = body;
-    const sys = role==='clinician'
+    const { question, role, country: code } = body;
+    const country = COUNTRIES.find(c => c.code3 === code) || COUNTRIES.find(c => c.code3 === 'USA')!;
+    const base = role==='clinician'
       ? 'You are a clinical assistant. Be precise, cite sources if mentioned. Avoid medical advice; provide evidence and guideline pointers.'
       : role==='admin'
         ? 'You help administrative staff with medical documents. Summarize logistics and coding info. Avoid medical advice.'
         : 'You explain in simple, friendly language for patients. Avoid medical advice; encourage consulting a doctor.';
+    const sys = `You are MedX. User country: ${country.code3}.\nPrefer local guidelines, availability, dosing units, and OTC product examples used in ${country.name}.\nIf country-specific examples are uncertain, give generic names and note availability varies by region.\n` + base;
     messages = [
       { role: 'system', content: sys },
       { role: 'user', content: question }
