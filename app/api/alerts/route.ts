@@ -7,13 +7,14 @@ export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return new NextResponse('Unauthorized', { status: 401 });
+  const userId = (session?.user as { id?: string })?.id;
+  if (!userId) return new NextResponse('Unauthorized', { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const status = searchParams.get('status') || undefined;
 
   const alerts = await prisma.alert.findMany({
-    where: { userId: session.user.id, ...(status ? { status } : {}) },
+    where: { userId, ...(status ? { status } : {}) },
     orderBy: { createdAt: 'desc' },
   });
 
