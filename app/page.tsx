@@ -5,6 +5,15 @@ import Markdown from '../components/Markdown';
 import { Send } from 'lucide-react';
 import { useCountry } from '@/lib/country';
 import { getRandomWelcome } from '@/lib/welcomeMessages';
+import {
+  setActiveFromAnalysis,
+  setActiveFromChat,
+  getActiveContext,
+  useActiveContext,
+  clearActiveContext,
+} from '@/lib/context';
+import { isFollowUp } from '@/lib/followup';
+import type { ChatMessage as BaseChatMessage } from '@/lib/context';
 
 type AnalysisCategory =
   | "xray"
@@ -12,28 +21,12 @@ type AnalysisCategory =
   | "prescription"
   | "discharge_summary"
   | "other_medical_doc";
-
-type ChatMessage =
-  | {
-      id: string;
-      tempId?: string;
-      role: "assistant" | "user";
-      kind: "analysis";
-      parentId?: string;
-      category?: AnalysisCategory;
-      content: string;
-      pending?: boolean;
-      error?: string | null;
-    }
-  | {
-      id: string;
-      tempId?: string;
-      role: "assistant" | "user";
-      kind: "chat";
-      content: string;
-      pending?: boolean;
-      error?: string | null;
-    };
+type ChatMessage = BaseChatMessage & {
+  tempId?: string;
+  parentId?: string;
+  pending?: boolean;
+  error?: string | null;
+};
 
 const uid = () => Math.random().toString(36).slice(2);
 
@@ -159,6 +152,7 @@ function AssistantMessage({ m, researchOn, onQuickAction, busy }: { m: ChatMessa
 
 export default function Home() {
   const { country } = useCountry();
+  const activeContext = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [note, setNote] = useState('');
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -202,13 +196,8 @@ export default function Home() {
     setNote('');
 
     try {
-      const planRes = await fetch('/api/medx', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: text, mode, researchMode })
-      });
-      if (!planRes.ok) throw new Error(`MedX API error ${planRes.status}`);
-      const plan = await planRes.json();
+      const follow = isFollowUp(text);
+      const ctx = getActiveContext();
 
       const linkNudge =
         'When adding a reference, always format as [title](https://full.url) with the full absolute URL. Never output Learn more without a URL, and never use relative links.';
@@ -220,22 +209,38 @@ ${linkNudge}`
           : `You are a patient-friendly explainer. Use simple markdown and short paragraphs.
 If CONTEXT has codes or trials, explain them in plain words and add links. Avoid medical advice.
 ${linkNudge}`;
-      const sys = `\nYou are MedX. User country: ${country.code3}.
-Prefer local guidelines, availability, dosing units, and OTC product examples used in ${country.name}.
-If country-specific examples are uncertain, give generic names and note availability varies by region.
-` + baseSys;
+      const systemCommon = `\nUser country: ${country.code3} (${country.name}). Prefer local examples/guidelines. If unsure, use generics and say availability varies.\n`;
 
-      const contextBlock = 'CONTEXT:\n' + JSON.stringify(plan.sections || {}, null, 2);
+      let chatMessages: { role: string; content: string }[];
+
+      if (follow && ctx) {
+        const system = `\nYou are MedX. This is a FOLLOW-UP question. Use the ACTIVE CONTEXT below; do not reset topic unless user asks.\nACTIVE CONTEXT TITLE: ${ctx.title}\nACTIVE CONTEXT SUMMARY:\n${ctx.summary}\n\nWhen the user asks for latest/clinical trials/guidelines, stay on the same topic/entities: ${ctx.entities?.join(', ') || 'n/a'}.\n${systemCommon}` + baseSys;
+        const userMsg = `Follow-up: ${text}\nIf the question is ambiguous, ask one concise disambiguation question and then answer briefly using the context.`;
+        chatMessages = [
+          { role: 'system', content: system },
+          { role: 'user', content: userMsg }
+        ];
+      } else {
+        const planRes = await fetch('/api/medx', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: text, mode, researchMode })
+        });
+        if (!planRes.ok) throw new Error(`MedX API error ${planRes.status}`);
+        const plan = await planRes.json();
+
+        const sys = systemCommon + baseSys;
+        const contextBlock = 'CONTEXT:\n' + JSON.stringify(plan.sections || {}, null, 2);
+        chatMessages = [
+          { role: 'system', content: sys },
+          { role: 'user', content: `${text}\n\n${contextBlock}` }
+        ];
+      }
 
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [
-            { role: 'system', content: sys },
-            { role: 'user', content: `${text}\n\n${contextBlock}` }
-          ]
-        })
+        body: JSON.stringify({ messages: chatMessages })
       });
       if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
 
@@ -264,6 +269,9 @@ If country-specific examples are uncertain, give generic names and note availabi
         }
       }
       setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, pending: false } : m)));
+      if (acc.length > 400) {
+        setActiveFromChat({ id: pendingId, role: 'assistant', kind: 'chat', content: acc });
+      }
     } catch (e: any) {
       console.error(e);
       setMessages(prev =>
@@ -319,6 +327,13 @@ If country-specific examples are uncertain, give generic names and note availabi
             : m
         )
       );
+      setActiveFromAnalysis({
+        id: pendingId,
+        role: 'assistant',
+        kind: 'analysis',
+        category: data.category,
+        content: data.report,
+      });
     } catch (e: any) {
       console.error(e);
       setMessages(prev =>
@@ -379,16 +394,15 @@ If country-specific examples are uncertain, give generic names and note availabi
       const text = await res.text();
       if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
       const data = JSON.parse(text);
-
-      setMessages(prev =>
-        replaceFirstPendingWith(prev, {
-          id: data.id || crypto.randomUUID(),
-          role: 'assistant',
-          kind: 'analysis',
-          category: last.category,
-          content: data.report || data.content || ''
-        })
-      );
+      const finalMsg = {
+        id: data.id || crypto.randomUUID(),
+        role: 'assistant',
+        kind: 'analysis',
+        category: last.category,
+        content: data.report || data.content || ''
+      };
+      setMessages(prev => replaceFirstPendingWith(prev, finalMsg));
+      setActiveFromAnalysis(finalMsg);
     } catch (e: any) {
       setMessages(prev =>
         replaceFirstPendingWith(prev, {
@@ -409,6 +423,15 @@ If country-specific examples are uncertain, give generic names and note availabi
     <>
       <Header mode={mode} onModeChange={setMode} researchOn={researchMode} onResearchChange={setResearchMode} />
       <div ref={chatRef} className="flex-1 px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 overflow-y-auto">
+        {activeContext && (
+          <div className="mx-auto mb-2 max-w-3xl px-4 sm:px-6">
+            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs bg-white dark:bg-gray-900 border-slate-200 dark:border-gray-800">
+              <span className="opacity-70">Using context from:</span>
+              <strong>{activeContext.title}</strong>
+              <button onClick={clearActiveContext} className="opacity-60 hover:opacity-100">Clear</button>
+            </div>
+          </div>
+        )}
         <div className="mx-auto w-full max-w-3xl space-y-4">
           {messages.map(m =>
             m.role === 'user' ? (
