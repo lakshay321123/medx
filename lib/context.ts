@@ -9,10 +9,23 @@ export type ActiveContext = {
   createdAt: number;
 };
 
+export type AnalysisCategory =
+  | 'xray'
+  | 'lab_report'
+  | 'prescription'
+  | 'discharge_summary'
+  | 'other_medical_doc';
+
 export type ChatMessage =
   | { id: string; role: 'user'; kind: 'chat'; content: string }
   | { id: string; role: 'assistant'; kind: 'chat'; content: string }
-  | { id: string; role: 'assistant'; kind: 'analysis'; category?: string; content: string };
+  | {
+      id: string;
+      role: 'assistant';
+      kind: 'analysis';
+      category?: AnalysisCategory;
+      content: string;
+    };
 
 const listeners = new Set<() => void>();
 

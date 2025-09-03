@@ -13,14 +13,11 @@ import {
   clearActiveContext,
 } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
-import type { ChatMessage as BaseChatMessage } from '@/lib/context';
+import type {
+  ChatMessage as BaseChatMessage,
+  AnalysisCategory,
+} from '@/lib/context';
 
-type AnalysisCategory =
-  | "xray"
-  | "lab_report"
-  | "prescription"
-  | "discharge_summary"
-  | "other_medical_doc";
 type ChatMessage = BaseChatMessage & {
   tempId?: string;
   parentId?: string;
@@ -394,7 +391,7 @@ ${linkNudge}`;
       const text = await res.text();
       if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
       const data = JSON.parse(text);
-      const finalMsg = {
+      const finalMsg: ChatMessage = {
         id: data.id || crypto.randomUUID(),
         role: 'assistant',
         kind: 'analysis',
