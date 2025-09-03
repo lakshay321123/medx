@@ -9,7 +9,7 @@ import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
 import { useTopic } from '@/lib/topic';
 import { detectFollowupIntent } from '@/lib/intents';
-import { detectNearIntent, type NearCategory } from '@/lib/nearIntents';
+import { parseNearIntent } from '@/lib/nearIntents';
 import { useGeolocate } from '@/hooks/useGeolocate';
 import type {
   ChatMessage as BaseChatMessage,
@@ -25,18 +25,6 @@ type ChatMessage = BaseChatMessage & {
 
 const uid = () => Math.random().toString(36).slice(2);
 
-const CATEGORY_LABELS: Record<NearCategory, string> = {
-  pharmacy: 'pharmacies',
-  hospital: 'hospitals',
-  lab: 'labs',
-  doctor: 'doctors',
-  gynecologist: 'gynecologists',
-  chiropractor: 'chiropractors',
-  cardiovascular: 'cardiologists',
-  pediatrician: 'pediatricians',
-  dermatologist: 'dermatologists',
-  neurologist: 'neurologists',
-};
 
 function getLastAnalysis(list: ChatMessage[]) {
   for (let i = list.length - 1; i >= 0; i--) {
@@ -242,13 +230,13 @@ export default function Home() {
 
   async function send(text: string, researchMode: boolean) {
     if (!text.trim() || busy) return;
-    const category = detectNearIntent(text);
+    const near = parseNearIntent(text);
     setBusy(true);
 
     const userId = uid();
     const pendingId = uid();
-    const pendingContent = category
-      ? `Finding ${CATEGORY_LABELS[category]} within 5 km…`
+    const pendingContent = near
+      ? `Finding ${near.specialtyQuery || 'medical services'} within 5 km…`
       : '';
     setMessages(prev => [
       ...prev,
@@ -269,7 +257,7 @@ export default function Home() {
       replacePendingWith(`⚠️ ${msg}`);
     }
 
-    if (category) {
+    if (near) {
       try {
         const { getCoords } = useGeolocate();
         let coords: { lat: number; lng: number } | null = null;
@@ -287,7 +275,7 @@ export default function Home() {
         const res = await fetch('/api/nearby', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lat: coords!.lat, lng: coords!.lng, category, radiusKm: 5 })
+          body: JSON.stringify({ lat: coords!.lat, lng: coords!.lng, radiusKm: near.radiusKm, specialtyQuery: near.specialtyQuery })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
@@ -299,7 +287,7 @@ export default function Home() {
           `${p.phone ? ` · 📞 ${p.phone}` : ''}` +
           ` · [Open in Maps](${p.mapsUrl})`
         );
-        const header = CATEGORY_LABELS[category].replace(/^./, c => c.toUpperCase()) + ' near you (≤ 5 km)';
+        const header = (near.specialtyQuery ? near.specialtyQuery : 'Medical services') + ' near you (≤ 5 km)';
         const md = lines.length ? `### ${header}\n\n${lines.join('\n')}` : `No results within 5 km. Try widening the radius.`;
 
         replacePendingWith(md);

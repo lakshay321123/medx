@@ -4,7 +4,7 @@ type Body = {
   lat: number;
   lng: number;
   radiusKm?: number;
-  category?: string; // e.g. "pharmacy", "doctor", "gynecologist"
+  specialtyQuery?: string;
 };
 
 const BASE_SELECTORS = [
@@ -13,6 +13,14 @@ const BASE_SELECTORS = [
   'amenity="clinic"',
   'amenity="hospital"',
   'healthcare="hospital"',
+  'healthcare="laboratory"',
+  'amenity="pharmacy"',
+  'healthcare="dentist"',
+  'amenity="dentist"',
+  'healthcare="physiotherapist"',
+  'healthcare="optometrist"',
+  'shop="optician"',
+  'healthcare="alternative"',
 ];
 
 function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
@@ -38,7 +46,8 @@ function buildAddress(tags: any): string | null {
 
 function pickPhone(tags: any): string | null {
   const cands = [tags?.phone, tags?.["contact:phone"], tags?.["contact:mobile"], tags?.["contact:tel"]];
-  return cands.find(Boolean) || null;
+  const v = cands.find(Boolean);
+  return v ? String(v).split(";")[0].trim() : null;
 }
 
 function tidyName(raw?: string): string {
@@ -49,46 +58,86 @@ function tidyName(raw?: string): string {
     .replace(/\b([A-Za-z][a-z']*)\b/g, m => m[0].toUpperCase() + m.slice(1));
 }
 
+function normalizeTokens(s: string): string[] {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9\s+&\/\-]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 5);
+}
+
+const SYNONYMS: Record<string, string[]> = {
+  gyn: ["gyn", "gyno", "gyne", "gynaec", "gynecologist", "gynaecologist", "obgyn", "ob-gyn", "obstetric", "maternity", "women"],
+  cardio: ["cardio", "cardiology", "cardiologist", "heart", "cardiovascular", "ctvs", "cardiothoracic"],
+  neuro: ["neuro", "neurology", "neurologist", "nerve", "brain", "stroke", "epilepsy"],
+  ortho: ["ortho", "orthopedic", "orthopaedic", "bone", "joint", "spine"],
+  derma: ["derma", "derm", "dermatology", "dermatologist", "skin"],
+  ent: ["ent", "otolaryngology", "ear", "nose", "throat"],
+  uro: ["uro", "urology", "urologist", "kidney", "andrology"],
+  onco: ["onco", "oncology", "oncologist", "cancer", "chemotherapy", "radiation oncology"],
+  ped: ["ped", "pediatrics", "paediatrics", "child"],
+  endo: ["endo", "endocrinology", "endocrinologist", "diabetes", "thyroid"],
+  gastro: ["gastro", "gastroenterology", "hepatology", "liver", "gi"],
+  psych: ["psych", "psychiatry", "psychiatrist", "mental health"],
+  physio: ["physio", "physiotherapy", "physiotherapist", "rehab"],
+  chiro: ["chiro", "chiropractor", "chiropractic"],
+  ivf: ["ivf", "fertility", "reproductive", "ivf centre", "ivf center", "iui", "icsi"],
+};
+
+function escapeRegExp(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function matchesAnyField(item: any, rxList: RegExp[]): boolean {
+  const fields = [
+    item.name || "",
+    item.tags?.["healthcare:speciality"] || "",
+    item.tags?.speciality || "",
+    item.tags?.description || "",
+    item.tags?.department || "",
+    item.tags?.["medical_specialty"] || "",
+  ]
+    .join(" | ")
+    .toLowerCase();
+  return rxList.every(rx => rx.test(fields));
+}
+
+function dedupe(items: any[]) {
+  const out: any[] = [];
+  for (const it of items) {
+    const dup = out.find(o =>
+      o.name.toLowerCase() === it.name.toLowerCase() &&
+      Math.abs(o.lat - it.lat) < 0.001 &&
+      Math.abs(o.lng - it.lng) < 0.001
+    );
+    if (!dup) out.push(it);
+  }
+  return out;
+}
+
 export async function POST(req: Request) {
   try {
-    const { lat, lng, category, radiusKm = 5 } = (await req.json()) as Body;
+    const { lat, lng, radiusKm = 5, specialtyQuery } = (await req.json()) as Body;
     if (typeof lat !== "number" || typeof lng !== "number") {
       return NextResponse.json({ error: "Invalid input" }, { status: 400 });
     }
 
     const radiusM = Math.round(radiusKm * 1000);
-    let q: string;
-
-    if (category === "pharmacy") {
-      const around = `around:${radiusM},${lat},${lng}`;
-      const sel = 'amenity="pharmacy"';
-      const union = `
-  node[${sel}](${around});
-  way[${sel}](${around});
-  relation[${sel}](${around});
-`;
-      q = `
-  [out:json][timeout:25];
-  (
-    ${union}
-  );
-  out center tags;
-`.trim();
-    } else {
-      const around = `around:${radiusM},${lat},${lng}`;
-      const union = BASE_SELECTORS.map(sel => `
+    const around = `around:${radiusM},${lat},${lng}`;
+    const union = BASE_SELECTORS.map(sel => `
   node[${sel}](${around});
   way[${sel}](${around});
   relation[${sel}](${around});
 `).join("\n");
-      q = `
-  [out:json][timeout:25];
-  (
-    ${union}
-  );
-  out center tags;
+
+    const q = `
+[out:json][timeout:25];
+(
+  ${union}
+);
+out center tags;
 `.trim();
-    }
 
     const endpoint = process.env.OVERPASS_ENDPOINT?.trim() || "https://overpass-api.de/api/interpreter";
     const apiKey = process.env.OVERPASS_API_KEY?.trim();
@@ -110,56 +159,41 @@ export async function POST(req: Request) {
     const json = await res.json();
     const elements = Array.isArray(json?.elements) ? json.elements : [];
 
-    function mapOverpassResults(els: any[]) {
-      return els
-        .map(e => {
-          const center = e.center || (e.lat && e.lon ? { lat: e.lat, lon: e.lon } : null);
-          if (!center) return null;
-          const name = tidyName(e.tags?.name);
-          const address = buildAddress(e.tags);
-          const phone = pickPhone(e.tags);
-          const lat2 = center.lat, lng2 = center.lon;
-          const distKm = haversineKm({ lat, lng }, { lat: lat2, lng: lng2 });
-          const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat2},${lng2}`;
-          return { name, address, phone, distanceKm: distKm, mapsUrl, tags: e.tags || {} };
-        })
-        .filter(Boolean)
-        .sort((a: any, b: any) => a.distanceKm - b.distanceKm)
-        .slice(0, 10);
+    let items = elements
+      .map((e: any) => {
+        const center = e.center || (e.lat && e.lon ? { lat: e.lat, lon: e.lon } : null);
+        if (!center) return null;
+        const name = tidyName(e.tags?.name);
+        const address = buildAddress(e.tags);
+        const phone = pickPhone(e.tags);
+        const lat2 = center.lat, lng2 = center.lon;
+        const distanceKm = haversineKm({ lat, lng }, { lat: lat2, lng: lng2 });
+        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat2},${lng2}`;
+        return { id: `${e.type}/${e.id}`, name, address, phone, lat: lat2, lng: lng2, distanceKm, mapsUrl, tags: e.tags || {} };
+      })
+      .filter(Boolean)
+      .sort((a: any, b: any) => a.distanceKm - b.distanceKm);
+
+    if (specialtyQuery) {
+      const tokens = normalizeTokens(specialtyQuery);
+      const rxList = tokens.map(t => {
+        const synKey = Object.keys(SYNONYMS).find(k => t.startsWith(k) || k.startsWith(t));
+        const syns = synKey ? SYNONYMS[synKey] : [];
+        const opts = [t, ...syns].map(escapeRegExp).join("|");
+        return new RegExp(`\b(${opts})\b`, "i");
+      });
+      const filtered = items.filter(it => matchesAnyField(it, rxList));
+      if (filtered.length) items = filtered;
     }
 
-    let results = mapOverpassResults(elements);
+    items = dedupe(items);
+    const named = items.filter((x: any) => x.name !== "(Unnamed)");
+    const unnamed = items.filter((x: any) => x.name === "(Unnamed)").slice(0, 2);
+    items = [...named, ...unnamed].slice(0, 10);
 
-    const specialityMap: Record<string, RegExp> = {
-      gynecologist: /\b(gyn|obgyn|ob[-\s]?gyn|obstetric|maternity|women)\b/i,
-      chiropractor: /\b(chiro|chiropractic)\b/i,
-      cardiovascular: /\b(cardio|heart|vascular|angioplasty)\b/i,
-      pediatrician: /\b(pediatric|paediatric|child)\b/i,
-      dermatologist: /\b(derma|skin)\b/i,
-      neurologist: /\b(neuro|brain|nerve)\b/i,
-    };
+    const itemsOut = items.map(({ tags, ...rest }) => rest);
 
-    if (category && specialityMap[category]) {
-      const regex = specialityMap[category];
-      const filtered = results.filter(r =>
-        regex.test(r.name) ||
-        regex.test(r.tags?.speciality || "") ||
-        regex.test(r.tags?.description || "")
-      );
-      if (filtered.length > 0) results = filtered;
-    } else if (category === "hospital") {
-      const regex = /hospital/i;
-      const filtered = results.filter(r =>
-        regex.test(r.name) ||
-        regex.test(r.tags?.amenity || "") ||
-        regex.test(r.tags?.healthcare || "")
-      );
-      if (filtered.length > 0) results = filtered;
-    }
-
-    const items = results.map(({ tags, ...rest }) => rest);
-
-    return NextResponse.json({ items, center: { lat, lng }, radiusKm });
+    return NextResponse.json({ items: itemsOut, center: { lat, lng }, radiusKm });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "nearby failed" }, { status: 500 });
   }
