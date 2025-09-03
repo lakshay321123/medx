@@ -86,6 +86,7 @@ export async function POST(req: Request) {
     const file = fd.get("file") as File | null;
     const doctorMode = fd.get("doctorMode") === "true";
     const code = (fd.get("country") as string) || "USA";
+    const note = (fd.get("note") as string | null)?.trim() || "";
     const country =
       COUNTRIES.find(c => c.code3 === code) ||
       COUNTRIES.find(c => c.code3 === "USA")!;
@@ -116,7 +117,10 @@ export async function POST(req: Request) {
             model: MODEL_TEXT,
             messages: [
               { role: "system", content: systemPrompt },
-              { role: "user", content: text.slice(0, 15000) },
+              {
+                role: "user",
+                content: `User note (optional): ${note || "not provided"}\n---\n${text.slice(0, 15000)}`,
+              },
             ],
           }),
         });
@@ -146,7 +150,13 @@ export async function POST(req: Request) {
           model: MODEL_VISION,
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: [{ type: "image_url", image_url: { url: dataUrl } }] },
+            {
+              role: "user",
+              content: [
+                ...(note ? [{ type: "text", text: note }] : []),
+                { type: "image_url", image_url: { url: dataUrl } },
+              ],
+            },
           ],
         }),
       });

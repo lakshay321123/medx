@@ -160,12 +160,14 @@ function AssistantMessage({ m, researchOn, onQuickAction, busy }: { m: ChatMessa
 export default function Home() {
   const { country } = useCountry();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState('');
+  const [note, setNote] = useState('');
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [mode, setMode] = useState<'patient'|'doctor'>('patient');
   const [busy, setBusy] = useState(false);
   const [researchMode, setResearchMode] = useState(false);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const chatRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
   useEffect(() => {
@@ -179,7 +181,7 @@ export default function Home() {
           content: msg,
         },
       ]);
-      setInput('');
+      setNote('');
     };
     init();
     window.addEventListener('new-chat', init);
@@ -197,7 +199,7 @@ export default function Home() {
       { id: userId, role: 'user', kind: 'chat', content: text },
       { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true }
     ]);
-    setInput('');
+    setNote('');
 
     try {
       const planRes = await fetch('/api/medx', {
@@ -281,19 +283,25 @@ If country-specific examples are uncertain, give generic names and note availabi
     }
   }
 
-  async function handleFile(file: File) {
+  function onFileSelected(file: File) {
+    setPendingFile(file);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
+  async function analyzeFile(file: File, note: string) {
     if (!file || busy) return;
     setBusy(true);
     const pendingId = uid();
     setMessages(prev => [
       ...prev,
-      { id: pendingId, role: 'assistant', kind: 'analysis', content: `Analyzing "${file.name}"…`, pending: true }
+      { id: pendingId, role: 'assistant', kind: 'analysis', content: 'Analyzing…', pending: true }
     ]);
     try {
       const fd = new FormData();
       fd.append('file', file);
       fd.append('doctorMode', String(mode === 'doctor'));
       fd.append('country', country.code3);
+      if (note.trim()) fd.append('note', note.trim());
       const res = await fetch('/api/analyze', { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Analysis failed');
@@ -327,6 +335,17 @@ If country-specific examples are uncertain, give generic names and note availabi
       );
     } finally {
       setBusy(false);
+      setPendingFile(null);
+      setNote('');
+    }
+  }
+
+  async function onSubmit() {
+    if (!pendingFile && !note.trim()) return;
+    if (pendingFile) {
+      await analyzeFile(pendingFile, note);
+    } else {
+      await send(note, researchMode);
     }
   }
 
@@ -408,10 +427,28 @@ If country-specific examples are uncertain, give generic names and note availabi
           <div className="flex items-center gap-3 rounded-full border border-slate-200 dark:border-gray-800 bg-slate-100 dark:bg-gray-900 px-3 py-2">
             <label className="cursor-pointer px-3 py-1.5 text-sm rounded-full bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600">
               📄
-              <input type="file" accept="application/pdf,image/*" className="hidden" onChange={e=>{ const f=e.target.files?.[0]; if(f) handleFile(f); e.currentTarget.value=''; }} />
+              <input type="file" accept="application/pdf,image/*" className="hidden" onChange={e=>{ const f=e.target.files?.[0]; if(f) onFileSelected(f); e.currentTarget.value=''; }} />
             </label>
-            <input className="flex-1 bg-transparent outline-none text-sm md:text-base leading-6 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-2" placeholder="Send a message..." value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(input, researchMode);} }} />
-            <button className="px-3 py-1.5 rounded-full bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600" onClick={()=>send(input, researchMode)} disabled={busy} aria-label="Send">
+            {pendingFile && (
+              <div className="flex items-center gap-2 rounded-full bg-white/70 dark:bg-gray-800/70 px-3 py-1 text-xs">
+                <span className="truncate max-w-[8rem]">{pendingFile.name}</span>
+                <button type="button" onClick={()=>setPendingFile(null)} className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300" aria-label="Remove file">✕</button>
+              </div>
+            )}
+            <input
+              ref={inputRef}
+              className="flex-1 bg-transparent outline-none text-sm md:text-base leading-6 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-2"
+              placeholder={pendingFile ? "Add a note or question for this document (optional)..." : "Send a message..."}
+              value={note}
+              onChange={e=>setNote(e.target.value)}
+              onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); onSubmit(); } }}
+            />
+            <button
+              className="px-3 py-1.5 rounded-full bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 disabled:opacity-50"
+              onClick={onSubmit}
+              disabled={busy || (!pendingFile && !note.trim())}
+              aria-label="Send"
+            >
               <Send size={16}/>
             </button>
           </div>
