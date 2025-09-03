@@ -52,3 +52,16 @@
 .dark .prose-medx :where(li)::marker {
   color: rgb(148 163 184); /* slate-400 */
 }
+
+:root.therapy-mode, .therapy-mode body {
+  /* keep it gentle and readable */
+  background: #f0f6ff;
+}
+.therapy-mode .card, .therapy-mode .panel, .therapy-mode .container {
+  background: #ffffff;
+  border-color: #cfe0ff;
+}
+.therapy-mode .btn-primary {
+  background: #dbe9ff;
+  color: #0b3d91;
+}

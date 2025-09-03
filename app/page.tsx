@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import Header from '../components/Header';
 import Markdown from '../components/Markdown';
 import { Send } from 'lucide-react';
+import TherapyToggle from '@/components/TherapyToggle';
 import { useCountry } from '@/lib/country';
 import { getRandomWelcome } from '@/lib/welcomeMessages';
 import { useActiveContext } from '@/lib/context';
@@ -202,6 +203,7 @@ export default function Home() {
   const [mode, setMode] = useState<'patient'|'doctor'>('patient');
   const [busy, setBusy] = useState(false);
   const [researchMode, setResearchMode] = useState(false);
+  const [therapyMode, setTherapyMode] = useState(false);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -225,6 +227,34 @@ export default function Home() {
     return () => window.removeEventListener('new-chat', init);
   }, []);
 
+  useEffect(() => {
+    const root = document.documentElement;
+    if (therapyMode) {
+      root.classList.add('therapy-mode');
+      const kicked = sessionStorage.getItem('therapyStarter');
+      if (!kicked) {
+        fetch('/api/therapy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ wantStarter: true })
+        })
+          .then(r => r.json())
+          .then(j => {
+            sessionStorage.setItem('therapyStarter', '1');
+            const starter = j?.starter || 'Hi, I’m here with you. What would you like to talk about?';
+            // @ts-ignore
+            setMessages((prev: any[]) => [
+              ...prev,
+              { id: `t-${Date.now()}`, role: 'assistant', kind: 'chat', content: starter }
+            ]);
+          })
+          .catch(() => {});
+      }
+    } else {
+      root.classList.remove('therapy-mode');
+    }
+  }, [therapyMode]);
+
   async function send(text: string, researchMode: boolean) {
     if (!text.trim() || busy) return;
     setBusy(true);
@@ -239,6 +269,27 @@ export default function Home() {
     setNote('');
 
     try {
+      if (therapyMode) {
+        const thread = [...messages, { role: 'user', content: text }].map(m => ({
+          role: m.role,
+          content: m.content
+        }));
+        const r = await fetch('/api/therapy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: thread })
+        });
+        const j = await r.json();
+        if (!r.ok || !j?.completion) {
+          throw new Error(j?.error || `Therapy API error ${r.status}`);
+        }
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === pendingId ? { ...m, content: j.completion, pending: false } : m
+          )
+        );
+        return;
+      }
       const intent = detectFollowupIntent(text);
       const follow = isFollowUp(text);
       const ctx = active;
@@ -486,6 +537,7 @@ ${linkNudge}`;
 
   return (
     <>
+      <TherapyToggle onChange={setTherapyMode} />
       <Header mode={mode} onModeChange={setMode} researchOn={researchMode} onResearchChange={setResearchMode} />
       <div ref={chatRef} className="flex-1 px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 overflow-y-auto">
         {topic && (
