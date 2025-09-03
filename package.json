@@ -5,7 +5,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "lint": "next lint",
+    "test": "echo \"No tests specified\"",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.78",
