@@ -1,21 +1,22 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { signIn } from 'next-auth/react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { signIn, useSession } from 'next-auth/react';
 
 type Tab = 'google' | 'email' | 'signup' | 'guest';
 
-export default function SignUpModal() {
-  const sp = useSearchParams();
-  const router = useRouter();
-  const shouldShow = sp.get('showSignup') === '1';
-  const [open, setOpen] = useState(shouldShow);
+export default function SignUpModal({ forceOpen = false }: { forceOpen?: boolean }) {
+  const { status } = useSession();
+  const [open, setOpen] = useState<boolean>(forceOpen);
   const [tab, setTab] = useState<Tab>('google');
 
   useEffect(() => {
-    setOpen(shouldShow);
-  }, [shouldShow]);
+    if (forceOpen) setOpen(true);
+  }, [forceOpen]);
+
+  useEffect(() => {
+    if (status === 'authenticated') setOpen(false);
+  }, [status]);
 
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -44,13 +45,6 @@ export default function SignUpModal() {
 
   async function handleGuest() {
     await signIn('guest', { redirect: true });
-  }
-
-  function close() {
-    const params = new URLSearchParams(sp.toString());
-    params.delete('showSignup');
-    router.replace(`?${params.toString()}`, { scroll: false });
-    setOpen(false);
   }
 
   if (!open) return null;
@@ -97,9 +91,6 @@ export default function SignUpModal() {
           </div>
         )}
 
-        <div className="mt-6 flex justify-end">
-          <button className="btn" onClick={close}>Close</button>
-        </div>
       </div>
     </div>
   );
