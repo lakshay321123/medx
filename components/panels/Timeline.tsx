@@ -1,13 +1,11 @@
-'use client';
-import { useEffect, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+"use client";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type Prediction = { id: string; createdAt: string; riskScore: number; band: string };
 
-export default function Timeline() {
-  const searchParams = useSearchParams();
+export default function Timeline({ threadId = "" }: { threadId?: string }) {
   const router = useRouter();
-  const threadId = searchParams.get('threadId') || '';
   const [data, setData] = useState<Prediction[]>([]);
 
   useEffect(() => {
@@ -22,9 +20,10 @@ export default function Timeline() {
   const points = data.map((p, i) => `${(i / Math.max(data.length - 1, 1)) * 100},${100 - (p.riskScore / max) * 100}`).join(' ');
 
   const goChat = (id: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('panel', 'chat');
-    router.push('?' + params.toString());
+    const params = new URLSearchParams(window.location.search);
+    if (threadId) params.set("threadId", threadId);
+    params.set("panel", "chat");
+    router.push("?" + params.toString());
     // scroll logic could be added here
   };
 

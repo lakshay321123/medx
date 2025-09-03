@@ -15,7 +15,7 @@ export default function Page({ searchParams }: { searchParams: Search }) {
     case "profile":
       return <MedicalProfile />;
     case "timeline":
-      return <Timeline />;
+      return <Timeline threadId={searchParams.threadId} />;
     case "alerts":
       return <AlertsPane />;
     case "settings":
