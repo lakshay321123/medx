@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { readSessionCookie } from '@/lib/auth/local-session';
 
 export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const userId = (session?.user as { id?: string })?.id;
+  const token = await readSessionCookie();
+  if (!token) return new NextResponse('Unauthorized', { status: 401 });
+  const session = await prisma.session.findFirst({
+    where: { token, expiresAt: { gt: new Date() } },
+  });
+  const userId = session?.userId;
   if (!userId) return new NextResponse('Unauthorized', { status: 401 });
 
   const { searchParams } = new URL(req.url);
