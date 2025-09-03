@@ -1,9 +1,7 @@
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
-import { PrismaClient } from '@prisma/client';
 import type { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/db';
 
 export const baseUrl =
   process.env.NEXTAUTH_URL ??
