@@ -9,7 +9,7 @@ import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
 import { useTopic } from '@/lib/topic';
 import { detectFollowupIntent } from '@/lib/intents';
-import { detectNearIntent } from '@/lib/nearIntents';
+import { detectNearIntent, type NearCategory } from '@/lib/nearIntents';
 import { useGeolocate } from '@/hooks/useGeolocate';
 import type {
   ChatMessage as BaseChatMessage,
@@ -24,6 +24,15 @@ type ChatMessage = BaseChatMessage & {
 };
 
 const uid = () => Math.random().toString(36).slice(2);
+
+const CATEGORY_LABELS: Record<NearCategory, string> = {
+  pharmacy: 'pharmacies',
+  hospital: 'hospitals',
+  lab: 'labs',
+  doctor: 'doctors',
+  gynecologist: 'gynecologists',
+  chiropractor: 'chiropractors',
+};
 
 function getLastAnalysis(list: ChatMessage[]) {
   for (let i = list.length - 1; i >= 0; i--) {
@@ -229,13 +238,13 @@ export default function Home() {
 
   async function send(text: string, researchMode: boolean) {
     if (!text.trim() || busy) return;
-    const nearType = detectNearIntent(text);
+    const category = detectNearIntent(text);
     setBusy(true);
 
     const userId = uid();
     const pendingId = uid();
-    const pendingContent = nearType
-      ? `Finding ${nearType === 'pharmacy' ? 'pharmacies' : 'hospitals'} within 5 km…`
+    const pendingContent = category
+      ? `Finding ${CATEGORY_LABELS[category]} within 5 km…`
       : '';
     setMessages(prev => [
       ...prev,
@@ -256,7 +265,7 @@ export default function Home() {
       replacePendingWith(`⚠️ ${msg}`);
     }
 
-    if (nearType) {
+    if (category) {
       try {
         const { getCoords } = useGeolocate();
         let coords: { lat: number; lng: number } | null = null;
@@ -274,7 +283,7 @@ export default function Home() {
         const res = await fetch('/api/nearby', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lat: coords!.lat, lng: coords!.lng, type: nearType, radiusKm: 5 })
+          body: JSON.stringify({ lat: coords!.lat, lng: coords!.lng, category, radiusKm: 5 })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
@@ -282,9 +291,11 @@ export default function Home() {
         const items = (data.items || []) as any[];
         const lines = items.map((p: any, i: number) =>
           `${i + 1}. **${p.name}** — ${p.address ?? 'address not listed'}  \n` +
-          `${p.distanceKm?.toFixed(1)} km · [Open in Maps](${p.mapsUrl})`
+          `${p.distanceKm?.toFixed(1)} km` +
+          `${p.phone ? ` · 📞 ${p.phone}` : ''}` +
+          ` · [Open in Maps](${p.mapsUrl})`
         );
-        const header = nearType === 'pharmacy' ? 'Pharmacies near you (≤ 5 km)' : 'Hospitals near you (≤ 5 km)';
+        const header = CATEGORY_LABELS[category].replace(/^./, c => c.toUpperCase()) + ' near you (≤ 5 km)';
         const md = lines.length ? `### ${header}\n\n${lines.join('\n')}` : `No results within 5 km. Try widening the radius.`;
 
         replacePendingWith(md);
