@@ -1,48 +1,42 @@
 "use client";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useUI } from "@/lib/store/ui";
+import { useEffect } from "react";
 
 const tabs = [
-  { key: 'chat', label: 'Chat' },
-  { key: 'profile', label: 'Medical Profile' },
-  { key: 'timeline', label: 'Timeline' },
-  { key: 'alerts', label: 'Alerts' },
-  { key: 'settings', label: 'Settings' },
-];
+  { key: "chat", label: "Chat" },
+  { key: "profile", label: "Medical Profile" },
+  { key: "timeline", label: "Timeline" },
+  { key: "alerts", label: "Alerts" },
+  { key: "settings", label: "Settings" },
+] as const;
 
 export default function Tabs() {
   const router = useRouter();
-  const [current, setCurrent] = useState("chat");
+  const sp = useSearchParams();
+  const { setPanel, hydrate } = useUI();
 
-  useEffect(() => {
-    const updateCurrent = () => {
-      const params = new URLSearchParams(window.location.search);
-      setCurrent((params.get("panel") ?? "chat").toLowerCase());
-    };
-    updateCurrent();
-    window.addEventListener("popstate", updateCurrent);
-    return () => window.removeEventListener("popstate", updateCurrent);
-  }, []);
+  useEffect(() => { hydrate(); }, [hydrate]);
 
-  const onSelect = (key: string) => {
-    const params = new URLSearchParams(window.location.search);
-    params.set("panel", key);
-    router.push("?" + params.toString());
-    setCurrent(key);
-  };
+  function go(key: typeof tabs[number]["key"]) {
+    const threadId = sp.get("threadId") ?? "default";
+    setPanel(key as any);
+    router.replace(`/?panel=${key}&threadId=${threadId}`, { scroll: false });
+  }
+
+  const active = sp.get("panel") ?? "chat";
 
   return (
-    <ul className="mt-3 space-y-1">
-      {tabs.map((t) => (
-        <li key={t.key}>
-          <button
-            onClick={() => onSelect(t.key)}
-            className={`w-full text-left px-3 py-2 rounded-md text-sm hover:bg-slate-100 dark:hover:bg-gray-800 ${current === t.key ? "bg-slate-100 dark:bg-gray-800 font-medium" : ""}`}
-          >
-            {t.label}
-          </button>
-        </li>
+    <div className="mt-2 flex flex-col gap-1">
+      {tabs.map(t => (
+        <button
+          key={t.key}
+          onClick={() => go(t.key)}
+          className={`text-left px-3 py-2 rounded ${active === t.key ? "bg-neutral-200 dark:bg-neutral-800" : "hover:bg-neutral-100 dark:hover:bg-neutral-900"}`}
+        >
+          {t.label}
+        </button>
       ))}
-    </ul>
+    </div>
   );
 }

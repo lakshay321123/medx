@@ -4,23 +4,17 @@ import Timeline from "@/components/panels/Timeline";
 import AlertsPane from "@/components/panels/AlertsPane";
 import SettingsPane from "@/components/panels/SettingsPane";
 
-type Search = { panel?: string; threadId?: string };
+export default function Page({ searchParams }: { searchParams: { panel?: string; threadId?: string } }) {
+  const panel = (searchParams.panel ?? "chat") as "chat"|"profile"|"timeline"|"alerts"|"settings";
+  const threadId = searchParams.threadId ?? "default";
 
-export default function Page({ searchParams }: { searchParams: Search }) {
-  const panel = (searchParams.panel ?? "chat").toLowerCase();
-
-  switch (panel) {
-    case "chat":
-      return <ChatPane />;
-    case "profile":
-      return <MedicalProfile />;
-    case "timeline":
-      return <Timeline threadId={searchParams.threadId} />;
-    case "alerts":
-      return <AlertsPane />;
-    case "settings":
-      return <SettingsPane />;
-    default:
-      return <ChatPane />;
-  }
+  return (
+    <>
+      {panel === "chat" && <ChatPane threadId={threadId} />}
+      {panel === "profile" && <MedicalProfile />}
+      {panel === "timeline" && <Timeline threadId={threadId} />}
+      {panel === "alerts" && <AlertsPane />}
+      {panel === "settings" && <SettingsPane />}
+    </>
+  );
 }
