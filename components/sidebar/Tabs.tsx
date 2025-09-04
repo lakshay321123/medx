@@ -1,46 +1,48 @@
 "use client";
-import Link from "next/link";
+import { useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
+import ChatPane from "@/components/panels/ChatPane";
+import MedicalProfile from "@/components/panels/MedicalProfile";
+import Timeline from "@/components/panels/Timeline";
+import AlertsPane from "@/components/panels/AlertsPane";
+import SettingsPane from "@/components/panels/SettingsPane";
 
-const tabs = [
-  { key: "chat", label: "Chat" },
-  { key: "profile", label: "Medical Profile" },
-  { key: "timeline", label: "Timeline" },
-  { key: "alerts", label: "Alerts" },
-  { key: "settings", label: "Settings" },
-];
-
-function NavLink({ panel, children }: { panel: string; children: React.ReactNode }) {
+export default function Page() {
   const params = useSearchParams();
-  const threadId = params.get("threadId");
-  const qp = new URLSearchParams();
-  qp.set("panel", panel);
-  if (threadId) qp.set("threadId", threadId);
-  const active = (params.get("panel") ?? "chat") === panel;
+  const panelRaw = (params.get("panel") ?? "chat").toLowerCase();
+  const allowed = new Set(["chat", "profile", "timeline", "alerts", "settings"]);
+  const panel = allowed.has(panelRaw) ? panelRaw : "chat";
+  const threadId = params.get("threadId") ?? undefined;
+
+  const chatInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handler = () => chatInputRef.current?.focus();
+    window.addEventListener("focus-chat-input", handler);
+    return () => window.removeEventListener("focus-chat-input", handler);
+  }, []);
 
   return (
-    <Link
-      href={"?" + qp.toString()}
-      prefetch={false}
-      className={`block w-full text-left rounded-md px-3 py-2 hover:bg-muted text-sm ${active ? "bg-muted font-medium" : ""}`}
-      data-testid={`nav-${panel}`}
-      onClick={() => {
-        if (panel === "chat") window.dispatchEvent(new Event("focus-chat-input"));
-      }}
-    >
-      {children}
-    </Link>
-  );
-}
+    <>
+      <section className={panel === "chat" ? "block h-full" : "hidden"}>
+        <ChatPane inputRef={chatInputRef} />
+      </section>
 
-export default function Tabs() {
-  return (
-    <ul className="mt-3 space-y-1">
-      {tabs.map((t) => (
-        <li key={t.key}>
-          <NavLink panel={t.key}>{t.label}</NavLink>
-        </li>
-      ))}
-    </ul>
+      <section className={panel === "profile" ? "block" : "hidden"}>
+        <MedicalProfile />
+      </section>
+
+      <section className={panel === "timeline" ? "block" : "hidden"}>
+        <Timeline threadId={threadId} />
+      </section>
+
+      <section className={panel === "alerts" ? "block" : "hidden"}>
+        <AlertsPane />
+      </section>
+
+      <section className={panel === "settings" ? "block" : "hidden"}>
+        <SettingsPane />
+      </section>
+    </>
   );
 }
