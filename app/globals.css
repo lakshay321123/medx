@@ -11,12 +11,6 @@
          dark:bg-gray-900 dark:text-slate-200 dark:border-gray-700 dark:hover:bg-gray-800;
 }
 
-/* Ensures sidebar sits above content and accepts clicks */
-.sidebar-click-guard {
-  position: relative;
-  z-index: 9999;
-  pointer-events: auto;
-}
 
 /* Compact typography for AI content */
 .prose-medx {
@@ -71,4 +65,18 @@
 .therapy-mode .btn-primary {
   background: #dbe9ff;
   color: #0b3d91;
+}
+
+/* Kill overlay behavior if any utility slips back in */
+.sidebar-click-guard {
+  position: static !important;
+  z-index: auto !important;
+  pointer-events: auto !important;
+}
+@media (min-width: 768px) {
+  .sidebar-click-guard {
+    position: sticky !important;
+    top: 0;
+    height: 100vh;
+  }
 }
