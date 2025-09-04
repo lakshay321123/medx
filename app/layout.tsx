@@ -17,12 +17,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <TopicProvider>
               <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
                 <div className="flex">
-                  <aside className="hidden md:block fixed inset-y-0 left-0 w-64 border-r border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-                    <Suspense fallback={null}>
-                      <Sidebar />
-                    </Suspense>
-                  </aside>
-                  <main className="flex-1 md:ml-64 min-h-dvh flex flex-col">
+                  <Suspense fallback={null}>
+                    <Sidebar />
+                  </Suspense>
+                  <main className="flex-1 md:ml-64 min-h-dvh flex flex-col relative z-0">
                     {children}
                   </main>
                 </div>

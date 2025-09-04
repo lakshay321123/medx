@@ -6,8 +6,8 @@ export default function Sidebar() {
   const handleNew = () => window.dispatchEvent(new Event('new-chat'));
   const handleSearch = (q: string) => window.dispatchEvent(new CustomEvent('search-chats', { detail: q }));
   return (
-    <aside className="hidden md:flex md:flex-col fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-900 border-r border-slate-200 dark:border-gray-800">
-      <button onClick={handleNew} className="mx-3 my-3 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 flex items-center justify-center gap-2">
+    <nav className="sidebar-click-guard hidden md:flex md:flex-col !fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-900 border-r border-slate-200 dark:border-gray-800">
+      <button type="button" onClick={handleNew} className="mx-3 my-3 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 flex items-center justify-center gap-2">
         <Plus size={16} /> New Chat
       </button>
 
@@ -19,13 +19,13 @@ export default function Sidebar() {
         <Tabs />
       </div>
 
-      <nav className="mt-3 space-y-1 px-2 flex-1 overflow-y-auto">
+      <div className="mt-3 space-y-1 px-2 flex-1 overflow-y-auto">
         {/* history items (keep existing) */}
-      </nav>
+      </div>
 
-      <button className="mx-3 mt-auto mb-3 h-10 rounded-lg px-3 text-left hover:bg-slate-100 dark:hover:bg-gray-800 flex items-center gap-2">
+      <button type="button" className="mx-3 mt-auto mb-3 h-10 rounded-lg px-3 text-left hover:bg-slate-100 dark:hover:bg-gray-800 flex items-center gap-2">
         <Settings size={16} /> Preferences
       </button>
-    </aside>
+    </nav>
   );
 }
