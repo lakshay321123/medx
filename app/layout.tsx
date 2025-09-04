@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <Suspense fallback={null}>
                     <Sidebar />
                   </Suspense>
-                  <main className="flex-1 md:ml-64 min-h-dvh flex flex-col relative z-0">
+                  <main className="main-pane relative z-50 flex-1 md:ml-64 pointer-events-auto min-h-dvh flex flex-col">
                     {children}
                   </main>
                 </div>

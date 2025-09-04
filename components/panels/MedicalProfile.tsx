@@ -60,6 +60,8 @@ export default function MedicalProfile() {
   const [predis, setPredis] = useState<string[]>([]);
   const [chronic, setChronic] = useState<string[]>([]);
 
+  const stopAll = (e: React.SyntheticEvent) => e.stopPropagation();
+
   async function loadProfile() {
     setErr(null);
     try {
@@ -190,6 +192,8 @@ export default function MedicalProfile() {
               value={fullName}
               onChange={e => setFullName(e.target.value)}
               placeholder="Full name"
+              onMouseDown={stopAll}
+              onFocus={stopAll}
             />
           </label>
 
@@ -200,6 +204,8 @@ export default function MedicalProfile() {
               className="rounded-md border px-3 py-2"
               value={dob || ""}
               onChange={e => setDob(e.target.value)}
+              onMouseDown={stopAll}
+              onFocus={stopAll}
             />
             <span className="text-xs text-muted-foreground">Age: {ageFromDob(dob)}</span>
           </label>
@@ -210,6 +216,8 @@ export default function MedicalProfile() {
               className="rounded-md border px-3 py-2"
               value={sex}
               onChange={e => setSex(e.target.value)}
+              onMouseDown={stopAll}
+              onFocus={stopAll}
             >
               <option value="">—</option>
               {SEXES.map(s => (
@@ -226,6 +234,8 @@ export default function MedicalProfile() {
               className="rounded-md border px-3 py-2"
               value={bloodGroup}
               onChange={e => setBloodGroup(e.target.value)}
+              onMouseDown={stopAll}
+              onFocus={stopAll}
             >
               <option value="">—</option>
               {BLOOD_GROUPS.map(bg => (

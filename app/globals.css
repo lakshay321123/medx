@@ -11,13 +11,6 @@
          dark:bg-gray-900 dark:text-slate-200 dark:border-gray-700 dark:hover:bg-gray-800;
 }
 
-/* Ensures sidebar sits above content and accepts clicks */
-.sidebar-click-guard {
-  position: relative;
-  z-index: 9999;
-  pointer-events: auto;
-}
-
 /* Compact typography for AI content */
 .prose-medx {
   /* narrower line-height than Tailwind Typography defaults */
@@ -71,4 +64,15 @@
 .therapy-mode .btn-primary {
   background: #dbe9ff;
   color: #0b3d91;
+}
+
+/* The app's main work area is isolated and interactive */
+.main-pane {
+  isolation: isolate;         /* new stacking context */
+  pointer-events: auto;
+}
+
+/* sidebar should never sit on top of .main-pane */
+.sidebar-click-guard {
+  z-index: 10;
 }
