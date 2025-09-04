@@ -256,3 +256,29 @@ export async function GET(_req: NextRequest) {
   return NextResponse.json({ profile, groups, latest });
 }
 
+export async function PUT(req: NextRequest) {
+  const userId = await getUserId();
+  if (!userId) return new NextResponse("Unauthorized", { status: 401 });
+
+  const body = await req.json().catch(() => ({}));
+  const allowed = [
+    "full_name",
+    "dob",
+    "sex",
+    "blood_group",
+    "conditions_predisposition",
+    "chronic_conditions",
+  ] as const;
+
+  const patch: Record<string, any> = {};
+  for (const k of allowed) if (k in body) patch[k] = body[k];
+
+  const { error } = await supabaseAdmin()
+    .from("profiles")
+    .update(patch)
+    .eq("id", userId);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ ok: true });
+}
+

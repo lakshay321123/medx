@@ -2,6 +2,34 @@
 import { useEffect, useState } from "react";
 import { safeJson } from "@/lib/safeJson";
 
+const SEXES = ["male", "female", "other"] as const;
+const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+
+const PRESET_CONDITIONS = [
+  "Diabetes mellitus",
+  "Hypertension",
+  "Coronary artery disease",
+  "Asthma",
+  "COPD",
+  "Hypothyroidism",
+  "Hyperthyroidism",
+  "CKD",
+  "Anemia",
+  "Arthritis",
+  "Depression",
+  "Anxiety",
+  "Obesity",
+  "Dyslipidemia",
+];
+
+function ageFromDob(dob?: string | null) {
+  if (!dob) return "";
+  const d = new Date(dob);
+  if (isNaN(d.getTime())) return "";
+  const diff = Date.now() - d.getTime();
+  return String(Math.floor(diff / (365.25 * 24 * 3600 * 1000)));
+}
+
 type Observation = { kind: string; value: any; observedAt: string };
 
 type Item = {
@@ -22,6 +50,17 @@ export default function MedicalProfile() {
   const [obs, setObs] = useState<Observation[]>([]);
   const [data, setData] = useState<ProfilePayload | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState<null | "obs" | "all" | "zero">(null);
+
+  // derive form defaults from data?.profile
+  const prof = data?.profile || {};
+  const [fullName, setFullName] = useState<string>("");
+  const [dob, setDob] = useState<string>("");
+  const [sex, setSex] = useState<string>("");
+  const [bloodGroup, setBloodGroup] = useState<string>("");
+  const [predis, setPredis] = useState<string[]>([]);
+  const [chronic, setChronic] = useState<string[]>([]);
 
   async function loadProfile() {
     setErr(null);
@@ -42,6 +81,16 @@ export default function MedicalProfile() {
     return () => window.removeEventListener("observations-updated", h);
   }, []);
 
+  useEffect(() => {
+    if (!prof) return;
+    setFullName(prof.full_name || "");
+    setDob(prof.dob || "");
+    setSex(prof.sex || "");
+    setBloodGroup(prof.blood_group || "");
+    setPredis(prof.conditions_predisposition || []);
+    setChronic(prof.chronic_conditions || []);
+  }, [prof]);
+
   const latestObs = (k: string) => obs.find(o => o.kind === k);
 
   const ORDER: Array<keyof Groups> = [
@@ -61,6 +110,188 @@ export default function MedicalProfile() {
 
   return (
     <div className="p-4 space-y-4">
+      <section className="rounded-xl border p-4">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold">Patient Info</h2>
+          <div className="flex items-center gap-2">
+            <div className="relative inline-block">
+              <button
+                className="text-sm rounded-md border px-3 py-1.5 hover:bg-muted"
+                onClick={async () => {
+                  const choice = window.prompt(
+                    "Reset options:\n1 = Clear observations\n2 = Clear everything (obs+pred+alerts)\n3 = Zero-out demo values\n\nEnter 1/2/3 or Cancel"
+                  );
+                  if (!choice) return;
+                  const map: any = { "1": "obs", "2": "all", "3": "zero" };
+                  const sel = map[choice];
+                  if (!sel) return;
+                  setResetting(sel);
+                  try {
+                    const body =
+                      sel === "obs"
+                        ? { scope: "observations", mode: "clear" }
+                        : sel === "all"
+                        ? { scope: "all", mode: "clear" }
+                        : { scope: "observations", mode: "zero" };
+                    const r = await fetch("/api/admin/reset", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(body),
+                    });
+                    if (!r.ok) throw new Error(await r.text());
+                    window.dispatchEvent(new Event("observations-updated"));
+                    await loadProfile();
+                  } catch (e: any) {
+                    alert(e.message || "Reset failed");
+                  } finally {
+                    setResetting(null);
+                  }
+                }}
+              >
+                {resetting ? "Resetting…" : "Reset"}
+              </button>
+            </div>
+            <button
+              className="text-sm rounded-md border px-3 py-1.5 hover:bg-muted disabled:opacity-50"
+              disabled={saving}
+              onClick={async () => {
+                setSaving(true);
+                try {
+                  const r = await fetch("/api/profile", {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      full_name: fullName || null,
+                      dob: dob || null,
+                      sex: sex || null,
+                      blood_group: bloodGroup || null,
+                      conditions_predisposition: predis,
+                      chronic_conditions: chronic,
+                    }),
+                  });
+                  if (!r.ok) throw new Error(await r.text());
+                  await loadProfile();
+                } catch (e: any) {
+                  alert(e.message || "Save failed");
+                } finally {
+                  setSaving(false);
+                }
+              }}
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+          <label className="flex flex-col gap-1">
+            <span>Name</span>
+            <input
+              className="rounded-md border px-3 py-2"
+              value={fullName}
+              onChange={e => setFullName(e.target.value)}
+              placeholder="Full name"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span>DOB</span>
+            <input
+              type="date"
+              className="rounded-md border px-3 py-2"
+              value={dob || ""}
+              onChange={e => setDob(e.target.value)}
+            />
+            <span className="text-xs text-muted-foreground">
+              Age: {ageFromDob(dob)}
+            </span>
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span>Sex</span>
+            <select
+              className="rounded-md border px-3 py-2"
+              value={sex}
+              onChange={e => setSex(e.target.value)}
+            >
+              <option value="">—</option>
+              {SEXES.map(s => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span>Blood Group</span>
+            <select
+              className="rounded-md border px-3 py-2"
+              value={bloodGroup}
+              onChange={e => setBloodGroup(e.target.value)}
+            >
+              <option value="">—</option>
+              {BLOOD_GROUPS.map(bg => (
+                <option key={bg} value={bg}>
+                  {bg}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-1 md:col-span-1">
+            <span>Predispositions</span>
+            <input
+              className="rounded-md border px-3 py-2"
+              placeholder="Type to add (Enter)…"
+              onKeyDown={(e) => {
+                const v = (e.target as HTMLInputElement).value.trim();
+                if (e.key === "Enter" && v) {
+                  setPredis(Array.from(new Set([...predis, v])));
+                  (e.target as HTMLInputElement).value = "";
+                }
+              }}
+              list="condlist"
+            />
+            <datalist id="condlist">
+              {PRESET_CONDITIONS.map(c => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+            <div className="flex flex-wrap gap-2 mt-1">
+              {predis.map(c => (
+                <span key={c} className="text-xs border rounded-full px-2 py-0.5">
+                  {c} <button className="ml-1" onClick={() => setPredis(predis.filter(x => x !== c))}>×</button>
+                </span>
+              ))}
+            </div>
+          </label>
+
+          <label className="flex flex-col gap-1 md:col-span-1">
+            <span>Chronic conditions</span>
+            <input
+              className="rounded-md border px-3 py-2"
+              placeholder="Type to add (Enter)…"
+              onKeyDown={(e) => {
+                const v = (e.target as HTMLInputElement).value.trim();
+                if (e.key === "Enter" && v) {
+                  setChronic(Array.from(new Set([...chronic, v])));
+                  (e.target as HTMLInputElement).value = "";
+                }
+              }}
+              list="condlist"
+            />
+            <div className="flex flex-wrap gap-2 mt-1">
+              {chronic.map(c => (
+                <span key={c} className="text-xs border rounded-full px-2 py-0.5">
+                  {c} <button className="ml-1" onClick={() => setChronic(chronic.filter(x => x !== c))}>×</button>
+                </span>
+              ))}
+            </div>
+          </label>
+        </div>
+      </section>
+
       {/* Existing fixed sections (unchanged) */}
       <section className="rounded-xl border p-4">
         <h2 className="font-semibold mb-2">Vitals</h2>
