@@ -1,13 +1,14 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { safeJson } from '@/lib/safeJson';
 
 export default function SettingsPane() {
   const [consent, setConsent] = useState(false);
 
   useEffect(() => {
-    fetch('/api/auth/session')
-      .then(r => (r.ok ? r.json() : null))
-      .then(s => setConsent(Boolean(s?.user?.consentFlags?.process)));
+    safeJson(fetch('/api/auth/session'))
+      .then(s => setConsent(Boolean(s?.user?.consentFlags?.process)))
+      .catch(() => setConsent(false));
   }, []);
 
   const toggle = async () => {

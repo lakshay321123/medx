@@ -9,6 +9,7 @@ import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
 import { useTopic } from '@/lib/topic';
 import { detectFollowupIntent } from '@/lib/intents';
+import { safeJson } from '@/lib/safeJson';
 import type {
   ChatMessage as BaseChatMessage,
   AnalysisCategory,
@@ -235,15 +236,13 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       if (!kicked) {
         (async () => {
           try {
-            const res = await fetch('/api/therapy', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ wantStarter: true })
-            });
-            const raw = await res.text();
-            let j: any;
-            try { j = raw ? JSON.parse(raw) : {}; } catch { j = { error: 'Invalid JSON from server', raw }; }
-            if (!res.ok) return;
+            const j = await safeJson(
+              fetch('/api/therapy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ wantStarter: true })
+              })
+            );
             sessionStorage.setItem('therapyStarter', '1');
             const starter = j?.starter || 'Hi, I’m here with you. What would you like to talk about?';
             // @ts-ignore
@@ -282,20 +281,20 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             content: String((m as any).content ?? (m as any).text ?? '').trim()
           }))
           .filter(m => m.content);
-        const res = await fetch('/api/therapy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: thread })
-        });
-        const raw = await res.text();
         let j: any;
-        try { j = raw ? JSON.parse(raw) : {}; } catch { j = { error: 'Invalid JSON from server', raw }; }
-        if (!res.ok) {
-          const msg = j?.error || `HTTP ${res.status}`;
-          const detail = j?.detail || (typeof j?.raw === 'string' ? j.raw.slice(0, 500) : '');
+        try {
+          j = await safeJson(
+            fetch('/api/therapy', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ messages: thread })
+            })
+          );
+        } catch (e: any) {
+          const msg = String(e?.message || 'HTTP error');
           setMessages(prev => prev.map(m =>
             m.id === pendingId
-              ? { ...m, content: `⚠ ${msg}\n${detail}`, pending: false, error: msg }
+              ? { ...m, content: `⚠ ${msg}`, pending: false, error: msg }
               : m
           ));
           return;
@@ -370,13 +369,13 @@ ${linkNudge}`;
           { role: 'user', content: userMsg }
         ];
       } else {
-        const planRes = await fetch('/api/medx', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: text, mode, researchMode })
-        });
-        if (!planRes.ok) throw new Error(`MedX API error ${planRes.status}`);
-        const plan = await planRes.json();
+        const plan = await safeJson(
+          fetch('/api/medx', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: text, mode, researchMode })
+          })
+        );
 
         const sys = topicHint + systemCommon + baseSys;
         const contextBlock = 'CONTEXT:\n' + JSON.stringify(plan.sections || {}, null, 2);
@@ -459,9 +458,9 @@ ${linkNudge}`;
       fd.append('doctorMode', String(mode === 'doctor'));
       fd.append('country', country.code3);
       if (note.trim()) fd.append('note', note.trim());
-      const res = await fetch('/api/analyze', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Analysis failed');
+      const data = await safeJson(
+        fetch('/api/analyze', { method: 'POST', body: fd })
+      );
       setMessages(prev =>
         prev.map(m =>
           m.id === pendingId
@@ -530,14 +529,13 @@ ${linkNudge}`;
     ]);
 
     try {
-      const res = await fetch('/api/actions/refine', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, mode, text: last.content, country: country.code3 })
-      });
-      const text = await res.text();
-      if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
-      const data = JSON.parse(text);
+      const data = await safeJson(
+        fetch('/api/actions/refine', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, mode, text: last.content, country: country.code3 })
+        })
+      );
       const finalMsg: ChatMessage = {
         id: data.id || crypto.randomUUID(),
         role: 'assistant',

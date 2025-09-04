@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { safeJson } from '@/lib/safeJson';
 
 interface Alert { id: string; severity: string; title: string; createdAt: string; status: string; }
 
@@ -7,9 +8,9 @@ export default function AlertsPane() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
 
   const load = () => {
-    fetch('/api/alerts?status=open')
-      .then(r => (r.ok ? r.json() : []))
-      .then(setAlerts);
+    safeJson(fetch('/api/alerts?status=open'))
+      .then(setAlerts)
+      .catch(() => setAlerts([]));
   };
 
   useEffect(() => { load(); }, []);

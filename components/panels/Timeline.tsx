@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { safeJson } from "@/lib/safeJson";
 import { useRouter } from "next/navigation";
 
 type Prediction = { id: string; createdAt: string; riskScore: number; band: string };
@@ -10,9 +11,9 @@ export default function Timeline({ threadId = "" }: { threadId?: string }) {
 
   useEffect(() => {
     if (!threadId) return;
-    fetch(`/api/predictions?threadId=${threadId}`)
-      .then(r => (r.ok ? r.json() : []))
-      .then(setData);
+    safeJson(fetch(`/api/predictions?threadId=${threadId}`))
+      .then(setData)
+      .catch(() => setData([]));
   }, [threadId]);
 
   const scores = data.map(p => p.riskScore);

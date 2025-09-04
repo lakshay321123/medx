@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { safeJson } from "@/lib/safeJson";
 
 export default function UnifiedUpload() {
   const [loading, setLoading] = useState(false);
@@ -29,11 +30,14 @@ export default function UnifiedUpload() {
     fd.append("file", file);
     fd.append("doctorMode", String(doctorMode));
 
-    const r = await fetch("/api/analyze", { method: "POST", body: fd });
-    const j = await r.json();
-    setLoading(false);
-    if (!r.ok) return setErr(j.error || "Upload failed");
-    setOut(j);
+    try {
+      const j = await safeJson(fetch("/api/analyze", { method: "POST", body: fd }));
+      setOut(j);
+    } catch (e: any) {
+      setErr(String(e?.message || e) || "Upload failed");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
