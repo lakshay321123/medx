@@ -2,10 +2,7 @@
 import { useEffect, useState } from "react";
 import { safeJson } from "@/lib/safeJson";
 
-// Existing observation type for legacy profile sections
 type Observation = { kind: string; value: any; observedAt: string };
-
-// Types for latest labs card
 type LatestRow = { value: string | number | null; unit: string | null; observedAt: string } | null;
 type Latest = Record<string, LatestRow>;
 type ProfilePayload = { profile: any; latest: Latest };
@@ -27,21 +24,19 @@ export default function MedicalProfile() {
   }
 
   useEffect(() => {
-    safeJson(fetch("/api/observations?userId=me"))
-      .then(setObs)
-      .catch(() => setObs([]));
+    safeJson(fetch("/api/observations")).then(setObs).catch(() => setObs([]));
     loadProfile();
     const h = () => loadProfile();
     window.addEventListener("observations-updated", h);
     return () => window.removeEventListener("observations-updated", h);
   }, []);
 
-  const latestLabs = data?.latest;
   const latestObs = (kind: string) => obs.find((o) => o.kind === kind);
+  const latest = data?.latest;
 
   return (
     <div className="p-4 space-y-4">
-      {/* Existing profile sections */}
+      {/* Existing sections */}
       <section className="rounded-xl border p-4">
         <h2 className="font-semibold mb-2">Vitals</h2>
         <ul className="text-sm space-y-1">
@@ -51,6 +46,7 @@ export default function MedicalProfile() {
           })}
         </ul>
       </section>
+
       <section className="rounded-xl border p-4">
         <h2 className="font-semibold mb-2">Labs</h2>
         <ul className="text-sm space-y-1">
@@ -60,6 +56,7 @@ export default function MedicalProfile() {
           })}
         </ul>
       </section>
+
       <section className="rounded-xl border p-4">
         <h2 className="font-semibold mb-2">Symptoms/notes</h2>
         <ul className="text-sm space-y-1">
@@ -69,7 +66,8 @@ export default function MedicalProfile() {
         </ul>
       </section>
 
-      {latestLabs && (
+      {/* Latest Labs from /api/profile */}
+      {latest && (
         <div className="rounded-lg border p-4">
           <div className="mb-2 font-medium">Latest Labs (from uploads)</div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
@@ -82,7 +80,7 @@ export default function MedicalProfile() {
               ["Smoking", "smoking"],
               ["Family History", "family_history"],
             ] as const).map(([label, key]) => {
-              const row = latestLabs[key];
+              const row = latest[key];
               return (
                 <div key={key} className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2">
                   <span>{label}</span>
