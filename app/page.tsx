@@ -1,26 +1,28 @@
-import ChatPane from "@/components/panels/ChatPane";
-import MedicalProfile from "@/components/panels/MedicalProfile";
-import Timeline from "@/components/panels/Timeline";
-import AlertsPane from "@/components/panels/AlertsPane";
-import SettingsPane from "@/components/panels/SettingsPane";
+"use client";
 
-type Search = { panel?: string; threadId?: string };
+export const dynamic = "force-dynamic";
 
-export default function Page({ searchParams }: { searchParams: Search }) {
-  const panel = (searchParams.panel ?? "chat").toLowerCase();
+import { useEffect, useRef } from "react";
+import { usePanel } from "@/hooks/usePanel";
+import Chat from "@/components/Chat/Chat";
+import ImagingPanel from "@/components/Imaging/ImagingPanel";
+import DocsPanel from "@/components/Docs/DocsPanel";
+import SettingsPanel from "@/components/Settings/SettingsPanel";
 
-  switch (panel) {
-    case "chat":
-      return <ChatPane />;
-    case "profile":
-      return <MedicalProfile />;
-    case "timeline":
-      return <Timeline threadId={searchParams.threadId} />;
-    case "alerts":
-      return <AlertsPane />;
-    case "settings":
-      return <SettingsPane />;
-    default:
-      return <ChatPane />;
-  }
+export default function HomePage() {
+  const { panel } = usePanel("chat");
+  const chatInputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (panel === "chat" && chatInputRef.current) chatInputRef.current.focus();
+  }, [panel]);
+
+  return (
+    <>
+      {panel === "chat" && <Chat inputRef={chatInputRef} />}
+      {panel === "imaging" && <ImagingPanel />}
+      {panel === "docs" && <DocsPanel />}
+      {panel === "settings" && <SettingsPanel />}
+    </>
+  );
 }
