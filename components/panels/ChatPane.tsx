@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { useAppState } from '@/lib/context/AppState';
 import Header from '../Header';
 import Markdown from '../Markdown';
 import { Send } from 'lucide-react';
@@ -193,6 +194,13 @@ function AssistantMessage({ m, researchOn, onQuickAction, busy }: { m: ChatMessa
 }
 
 export default function ChatPane({ threadId }: { threadId: string }) {
+  const { state, dispatch } = useAppState();
+  const firstLoad = useRef(true);
+
+  useEffect(() => {
+    dispatch({ type: 'SET_ACTIVE_THREAD', id: threadId || 'default' });
+    firstLoad.current = true;
+  }, [threadId, dispatch]);
 
   const { country } = useCountry();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
@@ -211,21 +219,38 @@ export default function ChatPane({ threadId }: { threadId: string }) {
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
   useEffect(() => {
     const init = () => {
-      const msg = getRandomWelcome();
-      setMessages([
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          kind: 'chat',
-          content: msg,
-        },
-      ]);
+      const t = state.threads[threadId];
+      if (t && t.messages.length) {
+        setMessages(
+          t.messages.map(m => ({ id: m.id, role: m.role, kind: 'chat', content: m.content })) as any
+        );
+      } else {
+        const msg = getRandomWelcome();
+        setMessages([
+          {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            kind: 'chat',
+            content: msg,
+          },
+        ]);
+      }
       setNote('');
     };
     init();
     window.addEventListener('new-chat', init);
     return () => window.removeEventListener('new-chat', init);
-  }, []);
+  }, [threadId, state.threads]);
+
+  useEffect(() => {
+    const simple = messages
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .map(m => ({ id: m.id, role: m.role as any, content: (m as any).content, ts: Date.now() }));
+    dispatch({
+      type: 'HYDRATE',
+      payload: { threads: { [threadId]: { messages: simple, updatedAt: Date.now() } } }
+    });
+  }, [messages, threadId, dispatch]);
 
   useEffect(() => {
     const root = document.documentElement;
