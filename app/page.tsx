@@ -1,17 +1,22 @@
 "use client";
 import { useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import ChatPane from "@/components/panels/ChatPane";
 import MedicalProfile from "@/components/panels/MedicalProfile";
 import Timeline from "@/components/panels/Timeline";
 import AlertsPane from "@/components/panels/AlertsPane";
 import SettingsPane from "@/components/panels/SettingsPane";
 
-type Search = { panel?: string; threadId?: string };
+export default function Page() {
+  const params = useSearchParams();
 
-export default function Page({ searchParams }: { searchParams: Search }) {
-  const panel = (searchParams.panel ?? "chat").toLowerCase();
+  const panelRaw = (params.get("panel") ?? "chat").toLowerCase();
+  const allowed = new Set(["chat", "profile", "timeline", "alerts", "settings"]);
+  const panel = allowed.has(panelRaw) ? panelRaw : "chat";
+
+  const threadId = params.get("threadId") ?? undefined;
+
   const chatInputRef = useRef<HTMLInputElement>(null);
-
   useEffect(() => {
     const handler = () => chatInputRef.current?.focus();
     window.addEventListener("focus-chat-input", handler);
@@ -29,7 +34,7 @@ export default function Page({ searchParams }: { searchParams: Search }) {
       </section>
 
       <section className={panel === "timeline" ? "block" : "hidden"}>
-        <Timeline threadId={searchParams.threadId} />
+        <Timeline threadId={threadId} />
       </section>
 
       <section className={panel === "alerts" ? "block" : "hidden"}>
@@ -42,3 +47,4 @@ export default function Page({ searchParams }: { searchParams: Search }) {
     </>
   );
 }
+

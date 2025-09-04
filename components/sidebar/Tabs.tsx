@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
 const tabs = [
   { key: "chat", label: "Chat" },
@@ -11,22 +11,29 @@ const tabs = [
 ];
 
 function NavLink({ panel, children }: { panel: string; children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const params = useSearchParams();
-  const threadId = params.get("threadId");
-  const qp = new URLSearchParams();
-  qp.set("panel", panel);
-  if (threadId) qp.set("threadId", threadId);
-  const active = (params.get("panel") ?? "chat") === panel;
+
+  const threadId = params.get("threadId") ?? undefined;
+  const href = { pathname, query: threadId ? { panel, threadId } : { panel } };
+
+  const active = ((params.get("panel") ?? "chat").toLowerCase()) === panel;
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();                         // ensure client-side nav fires
+    router.push(href as any, { scroll: false });
+    if (panel === "chat") window.dispatchEvent(new Event("focus-chat-input"));
+  };
 
   return (
     <Link
-      href={"?" + qp.toString()}
+      href={href}
       prefetch={false}
+      onClick={handleClick}
       className={`block w-full text-left rounded-md px-3 py-2 hover:bg-muted text-sm ${active ? "bg-muted font-medium" : ""}`}
       data-testid={`nav-${panel}`}
-      onClick={() => {
-        if (panel === "chat") window.dispatchEvent(new Event("focus-chat-input"));
-      }}
+      aria-current={active ? "page" : undefined}
     >
       {children}
     </Link>
@@ -44,3 +51,4 @@ export default function Tabs() {
     </ul>
   );
 }
+
