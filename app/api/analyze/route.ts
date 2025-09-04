@@ -106,6 +106,27 @@ export async function POST(req: Request) {
 
     if (mime === "application/pdf" || name.toLowerCase().endsWith(".pdf")) {
       text = await extractTextFromPDF(buf);
+      if (text) {
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+        const cookie = req.headers.get("cookie") || undefined;
+        try {
+          await fetch(new URL("/api/ingest/from-text", baseUrl), {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(cookie ? { cookie } : {}),
+            },
+            body: JSON.stringify({
+              threadId,
+              text,
+              sourceHash,
+              defaults: { meta: { source_type: "pdf" } },
+            }),
+          });
+        } catch (e) {
+          console.error("ingest failed", e);
+        }
+      }
       if (text.length > 100) {
         category = await classifyText(text);
         const basePrompt = promptForCategory(category, doctorMode);
@@ -165,28 +186,6 @@ export async function POST(req: Request) {
       });
       const data = await r.json();
       report = data?.choices?.[0]?.message?.content || "";
-    }
-
-    if (text) {
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-      const cookie = req.headers.get("cookie") || undefined;
-      try {
-        await fetch(new URL("/api/ingest/from-text", baseUrl), {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(cookie ? { cookie } : {}),
-          },
-          body: JSON.stringify({
-            threadId,
-            text,
-            sourceHash,
-            defaults: { meta: { source_type: mime.startsWith("image/") ? "image" : "pdf" } },
-          }),
-        });
-      } catch (e) {
-        console.error("ingest failed", e);
-      }
     }
 
     return NextResponse.json({

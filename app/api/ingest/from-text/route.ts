@@ -5,7 +5,8 @@ import { getUserId } from "@/lib/getUserId";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import OpenAI from "openai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+const HAVE_OPENAI = !!process.env.OPENAI_API_KEY;
+const openai = HAVE_OPENAI ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY! }) : null;
 
 type OutObs = {
   kind: string;
@@ -16,6 +17,42 @@ type OutObs = {
   meta?: Record<string, any> | null;
 };
 
+function crudeRegexExtract(text: string): OutObs[] {
+  // Very simple regex fallbacks so something gets stored immediately
+  // Extend as you like; safe and deterministic.
+  const items: OutObs[] = [];
+  const add = (kind: string, value_text: string | null, value_num?: number | null, unit?: string | null) =>
+    items.push({ kind, value_text, value_num: value_num ?? null, unit: unit ?? null, meta: { category: "lab" } });
+
+  const num = (s: string) => (s ? parseFloat(s) : NaN);
+
+  const hb = text.match(/hemoglobin[^0-9]*([\d.]+)/i);
+  if (hb) add("hemoglobin", null, num(hb[1]), "g/dL");
+
+  const alt = text.match(/\bALT[^0-9]*([\d.]+)/i);
+  if (alt) add("alt", null, num(alt[1]), "U/L");
+
+  const ast = text.match(/\bAST[^0-9]*([\d.]+)/i);
+  if (ast) add("ast", null, num(ast[1]), "U/L");
+
+  const hba1c = text.match(/\b(HbA1c|HBA1C)[^0-9]*([\d.]+)/i);
+  if (hba1c) add("hba1c", null, num(hba1c[2]), "%");
+
+  const egfr = text.match(/\begfr[^0-9]*([\d.]+)/i);
+  if (egfr) add("egfr", null, num(egfr[1]), "mL/min/1.73m²");
+
+  const mri = text.match(/\bMRI\b.*?(normal|unremarkable|no (significant )?abnormalit(y|ies))/i);
+  if (mri) items.push({ kind: "mri_report", value_text: mri[0].slice(0, 160), meta: { category: "imaging", modality: "MRI" } });
+
+  const rx = text.match(/\b(Rx|Prescription|Take)\b.*?$/im);
+  if (rx) items.push({ kind: "medication_note", value_text: rx[0].slice(0, 160), meta: { category: "medication" } });
+
+  if (items.length === 0) {
+    items.push({ kind: "document_note", value_text: text.slice(0, 160), meta: { category: "note" } });
+  }
+  return items;
+}
+
 export async function POST(req: NextRequest) {
   const userId = await getUserId();
   if (!userId) return new NextResponse("Unauthorized", { status: 401 });
@@ -25,37 +62,44 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "text is required" }, { status: 400 });
   }
 
-  const system = `You extract clinical observations from arbitrary medical documents.
-Return JSON { "items": OutObs[] } (no commentary). Rules:
-- "kind": short snake_case key (e.g., "hba1c","alt","mri_brain_report","rx_amoxicillin","diagnosis_diabetes").
-- Numerical values -> value_num; textual -> value_text (keep BP "120/80" in value_text).
-- category one of: lab|vital|imaging|medication|diagnosis|procedure|immunization|note|other.
-- Include imaging findings, prescriptions, diagnoses, procedures, vaccines, vitals, and notes when present.
-- Prefer explicit dates for observed_at if present; else null.`;
-
-  const user = `Document text:\n"""${text.slice(0, 100000)}"""`;
-
-  const resp = await openai.chat.completions.create({
-    model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-    temperature: 0,
-    response_format: { type: "json_object" },
-    messages: [{ role: "system", content: system }, { role: "user", content: user }],
-  });
-
   let items: OutObs[] = [];
-  try {
-    const parsed = JSON.parse(resp.choices[0]?.message?.content || "{}");
-    items = Array.isArray(parsed.items) ? parsed.items : [];
-  } catch {
-    items = [];
+  let usedFallback = false;
+
+  if (HAVE_OPENAI) {
+    try {
+      const system = `Extract clinical observations from arbitrary medical documents.
+Return JSON { "items": OutObs[] } only. Fields:
+kind (snake_case), value_num, value_text, unit, observed_at (ISO|null),
+meta.category in {lab|vital|imaging|medication|diagnosis|procedure|immunization|note|other}, meta.modality/meta.source_type if known.`;
+      const user = `Document text:\n"""${text.slice(0, 100000)}"""`;
+
+      const resp = await openai!.chat.completions.create({
+        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [{ role: "system", content: system }, { role: "user", content: user }],
+      });
+
+      const parsed = JSON.parse(resp.choices[0]?.message?.content || "{}");
+      items = Array.isArray(parsed.items) ? parsed.items : [];
+    } catch (e) {
+      console.error("LLM extraction failed, using fallback:", e);
+      usedFallback = true;
+      items = crudeRegexExtract(text);
+    }
+  } else {
+    usedFallback = true;
+    items = crudeRegexExtract(text);
   }
 
-  if (!items.length) return NextResponse.json({ ok: true, inserted: 0, items: [] });
+  if (!items.length) {
+    items = [{ kind: "document_note", value_text: text.slice(0, 160), meta: { category: "note" } }];
+  }
 
   const nowISO = new Date().toISOString();
   const sb = supabaseAdmin();
 
-  // Idempotency: if a sourceHash is provided, clear prior rows for this user/thread/sourceHash first.
+  // Idempotency by sourceHash (optional)
   if (sourceHash) {
     await sb
       .from("observations")
@@ -78,12 +122,12 @@ Return JSON { "items": OutObs[] } (no commentary). Rules:
       ...(defaults?.meta || {}),
       source_type: x.meta?.source_type || defaults?.meta?.source_type || "text",
       ...(sourceHash ? { source_hash: sourceHash } : {}),
+      ...(usedFallback ? { extracted_by: "fallback" } : {}),
     },
   }));
 
   const { error, count } = await sb.from("observations").insert(rows, { count: "exact" });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ ok: true, inserted: count ?? rows.length });
+  return NextResponse.json({ ok: true, inserted: count ?? rows.length, usedFallback });
 }
-
