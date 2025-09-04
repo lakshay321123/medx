@@ -52,7 +52,8 @@ export default function MedicalProfile() {
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState<null | "obs" | "all" | "zero">(null);
 
-  const prof = data?.profile || {};
+  const prof = data?.profile ?? null;
+  const [bootstrapped, setBootstrapped] = useState(false);
   const [fullName, setFullName] = useState("");
   const [dob, setDob] = useState("");
   const [sex, setSex] = useState("");
@@ -80,13 +81,15 @@ export default function MedicalProfile() {
   }, []);
 
   useEffect(() => {
+    if (!prof || bootstrapped) return;
     setFullName(prof.full_name || "");
     setDob(prof.dob || "");
     setSex(prof.sex || "");
     setBloodGroup(prof.blood_group || "");
     setPredis(prof.conditions_predisposition || []);
     setChronic(prof.chronic_conditions || []);
-  }, [prof]);
+    setBootstrapped(true);
+  }, [prof, bootstrapped]);
 
   const latestObs = (k: string) => obs.find(o => o.kind === k);
 
@@ -198,7 +201,8 @@ export default function MedicalProfile() {
             <input
               type="date"
               className="rounded-md border px-3 py-2"
-              value={dob || ""}
+              value={/^\d{4}-\d{2}-\d{2}$/.test(dob) ? dob : ""}
+              max={new Date().toISOString().slice(0,10)}
               onChange={e => setDob(e.target.value)}
             />
             <span className="text-xs text-muted-foreground">Age: {ageFromDob(dob)}</span>
@@ -208,7 +212,7 @@ export default function MedicalProfile() {
             <span>Sex</span>
             <select
               className="rounded-md border px-3 py-2"
-              value={sex}
+              value={sex || ""}
               onChange={e => setSex(e.target.value)}
             >
               <option value="">—</option>
@@ -224,7 +228,7 @@ export default function MedicalProfile() {
             <span>Blood Group</span>
             <select
               className="rounded-md border px-3 py-2"
-              value={bloodGroup}
+              value={bloodGroup || ""}
               onChange={e => setBloodGroup(e.target.value)}
             >
               <option value="">—</option>
