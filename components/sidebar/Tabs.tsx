@@ -14,13 +14,15 @@ function NavLink({ panel, children }: { panel: string; children: React.ReactNode
   const params = useSearchParams();
   const pathname = usePathname();
   const threadId = params.get("threadId");
-  const query: Record<string, string> = { panel };
-  if (threadId) query.threadId = threadId;
+  const qp = new URLSearchParams();
+  qp.set("panel", panel);
+  if (threadId) qp.set("threadId", threadId);
+  const href = `${pathname}?${qp.toString()}`;
   const active = (params.get("panel") ?? "chat") === panel;
 
   return (
     <Link
-      href={{ pathname, query }}
+      href={href}
       prefetch={false}
       className={`block w-full text-left rounded-md px-3 py-2 hover:bg-muted text-sm ${
         active ? "bg-muted font-medium" : ""
