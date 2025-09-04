@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 const tabs = [
   { key: 'chat', label: 'Chat' },
@@ -12,24 +12,21 @@ const tabs = [
 
 export default function Tabs() {
   const router = useRouter();
-  const [current, setCurrent] = useState("chat");
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const [current, setCurrent] = useState(params.get("panel") ?? "chat");
 
   useEffect(() => {
-    const updateCurrent = () => {
-      const params = new URLSearchParams(window.location.search);
-      setCurrent((params.get("panel") ?? "chat").toLowerCase());
-    };
-    updateCurrent();
-    window.addEventListener("popstate", updateCurrent);
-    return () => window.removeEventListener("popstate", updateCurrent);
-  }, []);
+    setCurrent(params.get("panel") ?? "chat");
+  }, [params]);
 
-  const onSelect = (key: string) => {
-    const params = new URLSearchParams(window.location.search);
-    params.set("panel", key);
-    router.push("?" + params.toString());
+  function onSelect(key: string) {
+    const usp = new URLSearchParams(params);
+    usp.set("panel", key);
+    router.replace(`${pathname}?${usp.toString()}`, { scroll: false });
     setCurrent(key);
-  };
+    if (key === "chat") window.dispatchEvent(new Event("focus-chat-input"));
+  }
 
   return (
     <ul className="mt-3 space-y-1">
