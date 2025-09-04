@@ -1,13 +1,25 @@
-'use client';
-import { Plus, Search, Settings } from 'lucide-react';
-import Tabs from './sidebar/Tabs';
+"use client";
+import { Plus, Search, Settings } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { nanoid } from "nanoid";
+import Tabs from "./sidebar/Tabs";
 
 export default function Sidebar() {
-  const handleNew = () => window.dispatchEvent(new Event('new-chat'));
-  const handleSearch = (q: string) => window.dispatchEvent(new CustomEvent('search-chats', { detail: q }));
+  const router = useRouter();
+  const handleNew = () => {
+    const id = nanoid(10);
+    router.push(`/?panel=chat&threadId=${id}`);
+    window.dispatchEvent(new CustomEvent("init-chat", { detail: { threadId: id } }));
+  };
+  const handleSearch = (q: string) =>
+    window.dispatchEvent(new CustomEvent("search-chats", { detail: q }));
   return (
     <nav className="sidebar-click-guard hidden md:flex md:flex-col !fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-900 border-r border-slate-200 dark:border-gray-800">
-      <button type="button" onClick={handleNew} className="mx-3 my-3 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 flex items-center justify-center gap-2">
+      <button
+        type="button"
+        onClick={handleNew}
+        className="mx-3 my-3 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 flex items-center justify-center gap-2"
+      >
         <Plus size={16} /> New Chat
       </button>
 

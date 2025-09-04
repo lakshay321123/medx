@@ -13,20 +13,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-gray-100">
         <CountryProvider>
-          <ContextProvider>
-            <TopicProvider>
-              <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-                <div className="flex">
-                  <Suspense fallback={null}>
-                    <Sidebar />
-                  </Suspense>
-                  <main className="flex-1 md:ml-64 min-h-dvh flex flex-col relative z-0">
-                    {children}
-                  </main>
-                </div>
-              </ThemeProvider>
-            </TopicProvider>
-          </ContextProvider>
+          <Suspense fallback={null}>
+            <ContextProvider>
+              <TopicProvider>
+                <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+                  <div className="flex">
+                    <Suspense fallback={null}>
+                      <Sidebar />
+                    </Suspense>
+                    <main className="flex-1 md:ml-64 min-h-dvh flex flex-col relative z-0">
+                      {children}
+                    </main>
+                  </div>
+                </ThemeProvider>
+              </TopicProvider>
+            </ContextProvider>
+          </Suspense>
         </CountryProvider>
       </body>
     </html>

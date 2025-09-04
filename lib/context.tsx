@@ -1,5 +1,6 @@
 "use client";
-import { createContext, useContext, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 export type ActiveContext = {
   id: string;
@@ -37,6 +38,8 @@ type Ctx = {
 
 const Context = createContext<Ctx | null>(null);
 
+const key = (threadId: string) => `chat:${threadId}:ctx`;
+
 function trimToChars(s: string, max = 6400) {
   return s.length > max ? s.slice(0, max) + "…" : s;
 }
@@ -53,8 +56,28 @@ function extractEntitiesHeuristic(text: string): string[] {
 }
 
 export function ContextProvider({ children }: { children: React.ReactNode }) {
+  const params = useSearchParams();
+  const threadId = params.get("threadId") || "default";
   const [active, setActive] = useState<ActiveContext | null>(null);
   const lastSet = useRef<number>(0);
+
+  // Load active context for current thread
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(key(threadId));
+      setActive(raw ? (JSON.parse(raw) as ActiveContext) : null);
+    } catch {
+      setActive(null);
+    }
+  }, [threadId]);
+
+  // Persist per-thread active context
+  useEffect(() => {
+    try {
+      if (active) localStorage.setItem(key(threadId), JSON.stringify(active));
+      else localStorage.removeItem(key(threadId));
+    } catch {}
+  }, [threadId, active]);
 
   const setFromAnalysis: Ctx["setFromAnalysis"] = msg => {
     const title =

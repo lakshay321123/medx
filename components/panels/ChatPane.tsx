@@ -224,7 +224,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
   useEffect(() => {
     const init = (e?: Event) => {
-      if (!e) {
+      if (e) {
+        clearContext();
+        clearTopic();
+      } else {
         const saved = loadSavedMessages<ChatMessage[]>();
         if (saved && Array.isArray(saved) && saved.length) {
           setMessages(saved);
@@ -244,8 +247,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       setNote('');
     };
     init();
-    window.addEventListener('new-chat', init);
-    return () => window.removeEventListener('new-chat', init);
+    window.addEventListener('init-chat', init as EventListener);
+    return () => window.removeEventListener('init-chat', init as EventListener);
   }, []);
 
   useEffect(() => {
