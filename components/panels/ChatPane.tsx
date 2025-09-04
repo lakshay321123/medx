@@ -458,6 +458,11 @@ ${linkNudge}`;
       fd.append('doctorMode', String(mode === 'doctor'));
       fd.append('country', country.code3);
       if (note.trim()) fd.append('note', note.trim());
+      const search = new URLSearchParams(window.location.search);
+      const threadId = search.get('threadId');
+      if (threadId) fd.append('threadId', threadId);
+      const sourceHash = `${file?.name ?? 'doc'}:${file?.size ?? ''}:${(file as any)?.lastModified ?? ''}`;
+      fd.append('sourceHash', sourceHash);
       const data = await safeJson(
         fetch('/api/analyze', { method: 'POST', body: fd })
       );
