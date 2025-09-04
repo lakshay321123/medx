@@ -16,11 +16,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ContextProvider>
             <TopicProvider>
               <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-                <div className="flex">
+                <div className="flex min-h-screen">
                   <Suspense fallback={null}>
                     <Sidebar />
                   </Suspense>
-                  <main className="flex-1 md:ml-64 min-h-dvh flex flex-col relative z-0">
+                  <main className="relative z-0 flex-1 md:ml-64 min-h-dvh flex flex-col">
                     {children}
                   </main>
                 </div>
