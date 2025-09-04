@@ -47,6 +47,9 @@ export default function Timeline(props: { threadId?: string }) {
       });
       if (!r.ok) throw new Error(await r.text());
       await fetchPredictions();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("observations-updated"));
+      }
     } catch (e: any) {
       setError(e.message || "Recompute failed");
     } finally {
