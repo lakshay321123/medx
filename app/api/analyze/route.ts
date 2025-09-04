@@ -87,6 +87,8 @@ export async function POST(req: Request) {
     const doctorMode = fd.get("doctorMode") === "true";
     const code = (fd.get("country") as string) || "USA";
     const note = (fd.get("note") as string | null)?.trim() || "";
+    const threadId = (fd.get("threadId") as string) || null;
+    const sourceHash = (fd.get("sourceHash") as string) || undefined;
     const country =
       COUNTRIES.find(c => c.code3 === code) ||
       COUNTRIES.find(c => c.code3 === "USA")!;
@@ -100,9 +102,10 @@ export async function POST(req: Request) {
     let category = "other_medical_doc";
     let report = "";
     let dataUrl: string | null = null;
+    let text = "";
 
     if (mime === "application/pdf" || name.toLowerCase().endsWith(".pdf")) {
-      const text = await extractTextFromPDF(buf);
+      text = await extractTextFromPDF(buf);
       if (text.length > 100) {
         category = await classifyText(text);
         const basePrompt = promptForCategory(category, doctorMode);
@@ -162,6 +165,28 @@ export async function POST(req: Request) {
       });
       const data = await r.json();
       report = data?.choices?.[0]?.message?.content || "";
+    }
+
+    if (text) {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+      const cookie = req.headers.get("cookie") || undefined;
+      try {
+        await fetch(new URL("/api/ingest/from-text", baseUrl), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(cookie ? { cookie } : {}),
+          },
+          body: JSON.stringify({
+            threadId,
+            text,
+            sourceHash,
+            defaults: { meta: { source_type: mime.startsWith("image/") ? "image" : "pdf" } },
+          }),
+        });
+      } catch (e) {
+        console.error("ingest failed", e);
+      }
     }
 
     return NextResponse.json({

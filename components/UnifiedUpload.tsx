@@ -26,9 +26,15 @@ export default function UnifiedUpload() {
     setErr(null);
     setOut(null);
 
+    const search = new URLSearchParams(window.location.search);
+    const threadId = search.get("threadId");
+    const sourceHash = `${file.name}:${file.size}:${(file as any).lastModified ?? ""}`;
+
     const fd = new FormData();
     fd.append("file", file);
     fd.append("doctorMode", String(doctorMode));
+    if (threadId) fd.append("threadId", threadId);
+    fd.append("sourceHash", sourceHash);
 
     try {
       const j = await safeJson(fetch("/api/analyze", { method: "POST", body: fd }));
