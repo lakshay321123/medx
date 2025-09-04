@@ -6,7 +6,18 @@ export default function Sidebar() {
   const handleNew = () => window.dispatchEvent(new Event('new-chat'));
   const handleSearch = (q: string) => window.dispatchEvent(new CustomEvent('search-chats', { detail: q }));
   return (
-    <nav className="sidebar-click-guard hidden md:flex md:flex-col !fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-900 border-r border-slate-200 dark:border-gray-800">
+    <nav
+      className="
+    sidebar-click-guard
+    hidden md:flex md:flex-col
+    w-72 shrink-0
+    md:sticky md:top-0 md:h-screen
+    bg-white dark:bg-gray-900
+    border-r border-slate-200 dark:border-gray-800
+    z-20
+  "
+      role="navigation"
+    >
       <button type="button" onClick={handleNew} className="mx-3 my-3 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 flex items-center justify-center gap-2">
         <Plus size={16} /> New Chat
       </button>
