@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import ChatPane from "@/components/panels/ChatPane";
 import MedicalProfile from "@/components/panels/MedicalProfile";
@@ -7,7 +7,7 @@ import Timeline from "@/components/panels/Timeline";
 import AlertsPane from "@/components/panels/AlertsPane";
 import SettingsPane from "@/components/panels/SettingsPane";
 
-export default function Page() {
+function PageContent() {
   const params = useSearchParams();
   const panelParam = (params.get("panel") ?? "chat").toLowerCase();
   const allowed = new Set(["chat", "profile", "timeline", "alerts", "settings"]);
@@ -43,5 +43,13 @@ export default function Page() {
         <SettingsPane />
       </section>
     </>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <PageContent />
+    </Suspense>
   );
 }
