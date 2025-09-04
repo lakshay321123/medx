@@ -1,25 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/db';
+import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+const TEST_USER = process.env.MEDX_TEST_USER_ID!;
 
-export const runtime = 'nodejs';
-
-export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const userId = (session?.user as { id?: string })?.id;
-  if (!userId) return new NextResponse('Unauthorized', { status: 401 });
-
-  const { searchParams } = new URL(req.url);
-  const threadId = searchParams.get('threadId');
-  if (!threadId) return new NextResponse('Missing threadId', { status: 400 });
-
-  const data = await prisma.prediction.findMany({
-    where: { threadId, thread: { userId } },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-    select: { id: true, createdAt: true, riskScore: true, band: true },
-  });
-
-  return NextResponse.json(data);
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const threadId = url.searchParams.get("threadId") || undefined;
+  const sb = supabaseAdmin();
+  let q = sb
+    .from("predictions")
+    .select("*")
+    .eq("user_id", TEST_USER)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (threadId) q = q.eq("thread_id", threadId);
+  const { data, error } = await q;
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ predictions: data });
 }
+

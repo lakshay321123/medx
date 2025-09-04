@@ -1,22 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/db';
+import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+const TEST_USER = process.env.MEDX_TEST_USER_ID!;
 
-export const runtime = 'nodejs';
-
-export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const userId = (session?.user as { id?: string })?.id;
-  if (!userId) return new NextResponse('Unauthorized', { status: 401 });
-
-  const { searchParams } = new URL(req.url);
-  const status = searchParams.get('status') || undefined;
-
-  const alerts = await prisma.alert.findMany({
-    where: { userId, ...(status ? { status } : {}) },
-    orderBy: { createdAt: 'desc' },
-  });
-
-  return NextResponse.json(alerts);
+export async function GET() {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from("alerts")
+    .select("*")
+    .eq("user_id", TEST_USER)
+    .eq("status", "open")
+    .order("created_at", { ascending: false });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ alerts: data });
 }
+

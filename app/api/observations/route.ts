@@ -1,24 +1,32 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/db';
+import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+const TEST_USER = process.env.MEDX_TEST_USER_ID!;
 
-export const runtime = 'nodejs';
-
-export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const userId = (session?.user as { id?: string })?.id;
-  if (!userId) return new NextResponse('Unauthorized', { status: 401 });
-
-  const { searchParams } = new URL(req.url);
-  const limit = parseInt(searchParams.get('limit') || '100', 10);
-
-  const observations = await prisma.observation.findMany({
-    where: { userId },
-    orderBy: { observedAt: 'desc' },
-    take: Math.min(limit, 1000),
-    select: { kind: true, value: true, observedAt: true },
-  });
-
-  return NextResponse.json(observations);
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const threadId = url.searchParams.get("threadId") || undefined;
+  const sb = supabaseAdmin();
+  let q = sb
+    .from("observations")
+    .select("*")
+    .eq("user_id", TEST_USER)
+    .order("observed_at", { ascending: false })
+    .limit(50);
+  if (threadId) q = q.eq("thread_id", threadId);
+  const { data, error } = await q;
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ observations: data });
 }
+
+export async function POST(req: Request) {
+  const body = await req.json(); // {thread_id, kind, value_num/value_text, unit, observed_at, source, raw}
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from("observations")
+    .insert({ user_id: TEST_USER, ...body })
+    .select()
+    .single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ observation: data });
+}
+
