@@ -564,7 +564,7 @@ ${linkNudge}`;
   }
 
   return (
-    <>
+    <div className="relative flex h-full flex-col">
       <Header
         mode={mode}
         onModeChange={setMode}
@@ -572,7 +572,10 @@ ${linkNudge}`;
         onResearchChange={setResearchMode}
         onTherapyChange={setTherapyMode}
       />
-      <div ref={chatRef} className="flex-1 px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 overflow-y-auto">
+      <div
+        ref={chatRef}
+        className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 pb-28"
+      >
         {topic && (
           <div className="mx-auto mb-2 max-w-3xl px-4 sm:px-6">
             <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs bg-white dark:bg-gray-900 border-slate-200 dark:border-gray-800">
@@ -594,36 +597,75 @@ ${linkNudge}`;
         <div className="mx-auto w-full max-w-3xl space-y-4">
           {messages.map(m =>
             m.role === 'user' ? (
-              <div key={m.id} className="ml-auto max-w-[85%] rounded-2xl px-4 py-3 shadow-sm bg-slate-200 text-slate-900 dark:bg-gray-700 dark:text-gray-100">
+              <div
+                key={m.id}
+                className="ml-auto max-w-[85%] rounded-2xl px-4 py-3 shadow-sm bg-slate-200 text-slate-900 dark:bg-gray-700 dark:text-gray-100"
+              >
                 <Markdown text={m.content} />
               </div>
             ) : (
-              <AssistantMessage key={m.id} m={m} researchOn={researchMode} onQuickAction={onQuickAction} busy={loadingAction !== null} />
+              <AssistantMessage
+                key={m.id}
+                m={m}
+                researchOn={researchMode}
+                onQuickAction={onQuickAction}
+                busy={loadingAction !== null}
+              />
             )
           )}
-          <div aria-hidden className="h-32 md:h-36" />
         </div>
       </div>
-      <div className="sticky bottom-0 inset-x-0 md:ml-64 bg-gradient-to-t from-slate-50/70 to-transparent dark:from-black/40 px-4 sm:px-6 pt-3 pb-4 z-30">
-        <div className="max-w-3xl mx-auto">
-          <div className="flex items-center gap-3 rounded-full border border-slate-200 dark:border-gray-800 bg-slate-100 dark:bg-gray-900 px-3 py-2">
+      <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+        <div className="w-full max-w-3xl px-4">
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              onSubmit();
+            }}
+            className="w-full flex items-center gap-3 rounded-full border border-slate-200 dark:border-gray-800 bg-slate-100 dark:bg-gray-900 px-3 py-2"
+          >
             <label className="cursor-pointer px-3 py-1.5 text-sm rounded-full bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600">
               📄
-              <input type="file" accept="application/pdf,image/*" className="hidden" onChange={e=>{ const f=e.target.files?.[0]; if(f) onFileSelected(f); e.currentTarget.value=''; }} />
+              <input
+                type="file"
+                accept="application/pdf,image/*"
+                className="hidden"
+                onChange={e => {
+                  const f = e.target.files?.[0];
+                  if (f) onFileSelected(f);
+                  e.currentTarget.value = '';
+                }}
+              />
             </label>
             {pendingFile && (
               <div className="flex items-center gap-2 rounded-full bg-white/70 dark:bg-gray-800/70 px-3 py-1 text-xs">
                 <span className="truncate max-w-[8rem]">{pendingFile.name}</span>
-                <button type="button" onClick={()=>setPendingFile(null)} className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300" aria-label="Remove file">✕</button>
+                <button
+                  type="button"
+                  onClick={() => setPendingFile(null)}
+                  className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                  aria-label="Remove file"
+                >
+                  ✕
+                </button>
               </div>
             )}
             <input
               ref={inputRef}
               className="flex-1 bg-transparent outline-none text-sm md:text-base leading-6 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-2"
-              placeholder={pendingFile ? "Add a note or question for this document (optional)..." : "Send a message..."}
+              placeholder={
+                pendingFile
+                  ? 'Add a note or question for this document (optional)...'
+                  : 'Send a message...'
+              }
               value={note}
-              onChange={e=>setNote(e.target.value)}
-              onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); onSubmit(); } }}
+              onChange={e => setNote(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  onSubmit();
+                }
+              }}
             />
             <button
               className="px-3 py-1.5 rounded-full bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 disabled:opacity-50"
@@ -631,11 +673,11 @@ ${linkNudge}`;
               disabled={busy || (!pendingFile && !note.trim())}
               aria-label="Send"
             >
-              <Send size={16}/>
+              <Send size={16} />
             </button>
-          </div>
+          </form>
         </div>
       </div>
-    </>
+    </div>
   );
 }
