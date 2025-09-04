@@ -72,3 +72,21 @@
   background: #dbe9ff;
   color: #0b3d91;
 }
+
+/* Ensure the main content can receive input even if siblings stack above */
+.main-pane {
+  position: relative;
+  isolation: isolate;
+  pointer-events: auto;
+}
+
+/* If you use a floating FAB/backdrop, keep it narrowly clickable */
+.fab, .floating-btn {
+  pointer-events: auto;
+}
+.fab, .floating-btn,
+.drawer-overlay,
+[data-overlay="true"] {
+  /* overlays must not cover the whole app unless explicitly open */
+  pointer-events: none;
+}

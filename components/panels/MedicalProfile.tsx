@@ -1,6 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
+import type { SyntheticEvent } from "react";
 import { safeJson } from "@/lib/safeJson";
+
+const stopAll = (e: SyntheticEvent) => {
+  // Prevent any outer handlers or overlays from hijacking click/focus/keys
+  e.stopPropagation();
+};
 
 const SEXES = ["male", "female", "other"] as const;
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -106,10 +112,11 @@ export default function MedicalProfile() {
   };
 
   return (
-    <div className="p-4 space-y-4">
-      <section className="rounded-xl border p-4">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Patient Info</h2>
+    <section className="relative pointer-events-auto isolate">
+      <div className="p-4 space-y-4">
+        <section className="rounded-xl border p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold">Patient Info</h2>
           <div className="flex items-center gap-2">
             {/* Reset (sidebar-safe) */}
             <button
@@ -189,6 +196,9 @@ export default function MedicalProfile() {
               className="rounded-md border px-3 py-2"
               value={fullName}
               onChange={e => setFullName(e.target.value)}
+              onMouseDown={stopAll}
+              onFocus={stopAll}
+              onKeyDown={stopAll}
               placeholder="Full name"
             />
           </label>
@@ -200,6 +210,9 @@ export default function MedicalProfile() {
               className="rounded-md border px-3 py-2"
               value={dob || ""}
               onChange={e => setDob(e.target.value)}
+              onMouseDown={stopAll}
+              onFocus={stopAll}
+              placeholder="YYYY-MM-DD"
             />
             <span className="text-xs text-muted-foreground">Age: {ageFromDob(dob)}</span>
           </label>
@@ -210,6 +223,8 @@ export default function MedicalProfile() {
               className="rounded-md border px-3 py-2"
               value={sex}
               onChange={e => setSex(e.target.value)}
+              onMouseDown={stopAll}
+              onFocus={stopAll}
             >
               <option value="">—</option>
               {SEXES.map(s => (
@@ -226,6 +241,8 @@ export default function MedicalProfile() {
               className="rounded-md border px-3 py-2"
               value={bloodGroup}
               onChange={e => setBloodGroup(e.target.value)}
+              onMouseDown={stopAll}
+              onFocus={stopAll}
             >
               <option value="">—</option>
               {BLOOD_GROUPS.map(bg => (
@@ -366,6 +383,7 @@ export default function MedicalProfile() {
 
       {err && <div className="text-sm text-red-600">{err}</div>}
     </div>
+    </section>
   );
 }
 
