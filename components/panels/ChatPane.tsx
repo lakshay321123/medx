@@ -207,7 +207,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [therapyMode, setTherapyMode] = useState(false);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const chatRef = useRef<HTMLDivElement>(null);
-  const inputRef = externalInputRef ?? useRef<HTMLInputElement>(null);
+  const internalInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = externalInputRef ?? internalInputRef;
 
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
   useEffect(() => {
