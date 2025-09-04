@@ -192,7 +192,7 @@ function AssistantMessage({ m, researchOn, onQuickAction, busy }: { m: ChatMessa
   );
 }
 
-export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: RefObject<HTMLInputElement | HTMLTextAreaElement> } = {}) {
+export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: RefObject<HTMLInputElement> } = {}) {
 
   const { country } = useCountry();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
@@ -206,7 +206,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [therapyMode, setTherapyMode] = useState(false);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const chatRef = useRef<HTMLDivElement>(null);
-  const inputRef = externalInputRef ?? useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  const inputRef = externalInputRef ?? useRef<HTMLInputElement>(null);
 
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
   useEffect(() => {
