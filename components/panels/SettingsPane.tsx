@@ -1,32 +1,33 @@
-'use client';
-import { useEffect, useState } from 'react';
+"use client";
+import { useEffect, useState } from "react";
+
+const KEY = "medx:v1:settings";
 
 export default function SettingsPane() {
-  const [consent, setConsent] = useState(false);
+  const [process, setProcess] = useState(false);
 
   useEffect(() => {
-    fetch('/api/auth/session')
-      .then(r => (r.ok ? r.json() : null))
-      .then(s => setConsent(Boolean(s?.user?.consentFlags?.process)));
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) setProcess(!!JSON.parse(raw).processHealthData);
+    } catch {}
   }, []);
 
-  const toggle = async () => {
-    const next = !consent;
-    setConsent(next);
+  useEffect(() => {
     try {
-      await fetch('/api/user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ consentFlags: { process: next } }),
-      });
+      localStorage.setItem(KEY, JSON.stringify({ processHealthData: process }));
     } catch {}
-  };
+  }, [process]);
 
   return (
     <div className="p-4">
       <label className="flex items-center gap-2">
-        <input type="checkbox" checked={consent} onChange={toggle} />
-        <span className="text-sm">Process my health data</span>
+        <input
+          type="checkbox"
+          checked={process}
+          onChange={(e) => setProcess(e.target.checked)}
+        />
+        <span>Process my health data</span>
       </label>
     </div>
   );

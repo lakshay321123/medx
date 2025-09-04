@@ -192,7 +192,7 @@ function AssistantMessage({ m, researchOn, onQuickAction, busy }: { m: ChatMessa
   );
 }
 
-export default function ChatPane() {
+export default function ChatPane({ threadId }: { threadId: string }) {
 
   const { country } = useCountry();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
