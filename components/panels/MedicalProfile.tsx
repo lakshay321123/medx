@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { safeJson } from '@/lib/safeJson';
 
 type Observation = { kind: string; value: any; observedAt: string };
 
@@ -7,8 +8,7 @@ export default function MedicalProfile() {
   const [obs, setObs] = useState<Observation[]>([]);
 
   useEffect(() => {
-    fetch('/api/observations?userId=me')
-      .then(r => (r.ok ? r.json() : []))
+    safeJson(fetch('/api/observations?userId=me'))
       .then(setObs)
       .catch(() => setObs([]));
   }, []);

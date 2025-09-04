@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/db';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export const runtime = 'nodejs';
 
@@ -14,12 +14,14 @@ export async function GET(req: NextRequest) {
   const threadId = searchParams.get('threadId');
   if (!threadId) return new NextResponse('Missing threadId', { status: 400 });
 
-  const data = await prisma.prediction.findMany({
-    where: { threadId, thread: { userId } },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-    select: { id: true, createdAt: true, riskScore: true, band: true },
-  });
-
-  return NextResponse.json(data);
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from('predictions')
+    .select('id, createdAt, riskScore, band')
+    .eq('threadId', threadId)
+    .eq('userId', userId)
+    .order('createdAt', { ascending: false })
+    .limit(50);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data ?? []);
 }

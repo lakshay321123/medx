@@ -33,14 +33,6 @@ This project includes:
 - OpenAI models power the `/api/analyze` endpoint for PDF and image summaries.
 - Images for banner should follow source licenses; this demo just returns text/meta.
 
-### Setup
-1) Copy `.env.example` -> `.env` and fill values.
-2) Install: `npm install`
-3) Generate Prisma client: `npx prisma generate`
-4) Apply schema (choose one):
-   - Local dev: `npx prisma migrate dev`
-   - Deploy (Vercel): `npx prisma migrate deploy`
-
 ### Diagnostics
 - /api/health -> { ok: true }
 - /api/diag   -> env presence flags
