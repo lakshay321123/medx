@@ -11,6 +11,9 @@
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.78",
+    "@supabase/auth-helpers-nextjs": "^0.10.0",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.57.0",
     "isomorphic-dompurify": "2.13.0",
     "lucide-react": "0.441.0",
     "marked": "12.0.2",
