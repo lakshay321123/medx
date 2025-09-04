@@ -15,6 +15,18 @@ import type {
   AnalysisCategory,
 } from '@/lib/context';
 
+const STORAGE_KEY = 'medx:chat:messages';
+
+function loadSavedMessages<T = any[]>(): T | null {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
 type ChatMessage = BaseChatMessage & {
   tempId?: string;
   parentId?: string;
@@ -211,7 +223,15 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
   useEffect(() => {
-    const init = () => {
+    const init = (e?: Event) => {
+      if (!e) {
+        const saved = loadSavedMessages<ChatMessage[]>();
+        if (saved && Array.isArray(saved) && saved.length) {
+          setMessages(saved);
+          setNote('');
+          return;
+        }
+      }
       const msg = getRandomWelcome();
       setMessages([
         {
@@ -259,6 +279,14 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       root.classList.remove('therapy-mode');
     }
   }, [therapyMode]);
+
+  useEffect(() => {
+    try {
+      if (messages && messages.length) {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+      }
+    } catch {}
+  }, [messages]);
 
   async function send(text: string, researchMode: boolean) {
     if (!text.trim() || busy) return;
