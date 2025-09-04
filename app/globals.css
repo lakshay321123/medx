@@ -11,11 +11,11 @@
          dark:bg-gray-900 dark:text-slate-200 dark:border-gray-700 dark:hover:bg-gray-800;
 }
 
-/* Ensures sidebar sits above content and accepts clicks */
+/* Sidebar should not overlay the app; keep pointer events normal */
 .sidebar-click-guard {
-  position: relative;
-  z-index: 9999;
-  pointer-events: auto;
+  position: relative;   /* was fixed elsewhere */
+  z-index: 20;          /* not 9999 */
+  pointer-events: auto; /* allow links to receive clicks */
 }
 
 /* Compact typography for AI content */
