@@ -1,16 +1,14 @@
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { deriveInputs } from "@/lib/predict/derive";
 import { scoreRisk } from "@/lib/predict/score";
+import { getUserId } from "@/lib/getUserId";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    const userId = (session?.user as { id?: string })?.id;
+    const userId = await getUserId();
     if (!userId) return new NextResponse("Unauthorized", { status: 401 });
 
     const { threadId } = await req.json().catch(() => ({} as any));

@@ -8,7 +8,7 @@ export default function MedicalProfile() {
   const [obs, setObs] = useState<Observation[]>([]);
 
   useEffect(() => {
-    safeJson(fetch('/api/observations?userId=me'))
+    safeJson(fetch('/api/observations'))
       .then(setObs)
       .catch(() => setObs([]));
   }, []);
