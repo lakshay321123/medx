@@ -33,6 +33,9 @@ export default function UnifiedUpload() {
     try {
       const j = await safeJson(fetch("/api/analyze", { method: "POST", body: fd }));
       setOut(j);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("observations-updated"));
+      }
     } catch (e: any) {
       setErr(String(e?.message || e) || "Upload failed");
     } finally {
