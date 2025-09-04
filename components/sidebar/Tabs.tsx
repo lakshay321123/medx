@@ -22,7 +22,8 @@ function NavLink({ panel, children }: { panel: string; children: React.ReactNode
     <Link
       href={"?" + qp.toString()}
       prefetch={false}
-      className={`block w-full text-left px-3 py-2 rounded-md text-sm hover:bg-slate-100 dark:hover:bg-gray-800 ${active ? "bg-slate-100 dark:bg-gray-800 font-medium" : ""}`}
+      className={`block w-full text-left rounded-md px-3 py-2 hover:bg-muted text-sm ${active ? "bg-muted font-medium" : ""}`}
+      data-testid={`nav-${panel}`}
       onClick={() => {
         if (panel === "chat") window.dispatchEvent(new Event("focus-chat-input"));
       }}
