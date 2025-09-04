@@ -209,7 +209,16 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = externalInputRef ?? useRef<HTMLInputElement>(null);
 
-  useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
+  useEffect(() => {
+    chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight });
+  }, [messages]);
+
+  useEffect(() => {
+    const handler = () => inputRef.current?.focus();
+    window.addEventListener('focus-chat-input', handler);
+    return () => window.removeEventListener('focus-chat-input', handler);
+  }, []);
+
   useEffect(() => {
     const init = () => {
       const msg = getRandomWelcome();
