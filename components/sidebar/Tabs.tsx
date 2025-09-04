@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
 const tabs = [
   { key: "chat", label: "Chat" },
@@ -11,22 +11,46 @@ const tabs = [
 ];
 
 function NavLink({ panel, children }: { panel: string; children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const params = useSearchParams();
-  const threadId = params.get("threadId");
-  const qp = new URLSearchParams();
-  qp.set("panel", panel);
-  if (threadId) qp.set("threadId", threadId);
-  const active = (params.get("panel") ?? "chat") === panel;
+
+  const threadId = params.get("threadId") ?? undefined;
+  const query = threadId ? { panel, threadId } : { panel };
+
+  const hrefObj = { pathname, query };
+  const hrefStr = `${pathname}?panel=${panel}${threadId ? `&threadId=${encodeURIComponent(threadId)}` : ""}`;
+
+  const active = ((params.get("panel") ?? "chat").toLowerCase()) === panel;
+
+  const softNav = () => {
+    try {
+      router.push(hrefObj as any, { scroll: false });
+      // verify panel changed soon; otherwise hard-fallback
+      requestAnimationFrame(() => {
+        const now = (new URLSearchParams(location.search).get("panel") ?? "chat").toLowerCase();
+        if (now !== panel.toLowerCase()) location.assign(hrefStr);
+      });
+    } catch {
+      location.assign(hrefStr);
+    }
+  };
+
+  const onClickCapture = (e: React.MouseEvent) => {
+    // primary click only; allow cmd/ctrl/shift/alt & middle/right clicks
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();          // force client-side nav to preserve state
+    softNav();
+  };
 
   return (
     <Link
-      href={"?" + qp.toString()}
+      href={hrefObj}
       prefetch={false}
+      onClickCapture={onClickCapture}
       className={`block w-full text-left rounded-md px-3 py-2 hover:bg-muted text-sm ${active ? "bg-muted font-medium" : ""}`}
       data-testid={`nav-${panel}`}
-      onClick={() => {
-        if (panel === "chat") window.dispatchEvent(new Event("focus-chat-input"));
-      }}
+      aria-current={active ? "page" : undefined}
     >
       {children}
     </Link>
