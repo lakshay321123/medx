@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import ChatPane from "@/components/panels/ChatPane";
 import MedicalProfile from "@/components/panels/MedicalProfile";
@@ -7,13 +7,15 @@ import Timeline from "@/components/panels/Timeline";
 import AlertsPane from "@/components/panels/AlertsPane";
 import SettingsPane from "@/components/panels/SettingsPane";
 
-export default function Page() {
+// Make the page dynamic so Vercel doesn’t try to SSG it
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+function PageInner() {
   const params = useSearchParams();
-
   const panelRaw = (params.get("panel") ?? "chat").toLowerCase();
-  const allowed = new Set(["chat", "profile", "timeline", "alerts", "settings"]);
+  const allowed = new Set(["chat","profile","timeline","alerts","settings"]);
   const panel = allowed.has(panelRaw) ? panelRaw : "chat";
-
   const threadId = params.get("threadId") ?? undefined;
 
   const chatInputRef = useRef<HTMLInputElement>(null);
@@ -45,6 +47,14 @@ export default function Page() {
         <SettingsPane />
       </section>
     </>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <PageInner />
+    </Suspense>
   );
 }
 
