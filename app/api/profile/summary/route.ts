@@ -18,7 +18,7 @@ export async function GET() {
       .select("full_name, dob, sex, blood_group, conditions_predisposition, chronic_conditions")
       .eq("id", userId)
       .maybeSingle(),
-    supa.from("observations").select("*").eq("user_id", userId),
+    supa.from("observations").select("*").eq("user_id", userId).eq('meta->>committed','true'),
     supa.from("predictions").select("*").eq("user_id", userId),
   ]);
 
@@ -79,7 +79,7 @@ export async function GET() {
   for (const a of analytes) {
     const r = pickLatest(a.rx);
     if (r) {
-      const s = `${a.label}: ${vStr(r)}`;
+      const s = `${a.label}: ${vStr(r)} (${new Date(when(r)).toLocaleDateString()})`;
       lines.push(s);
       reasons.push(s);
     }

@@ -169,14 +169,19 @@ meta.category in {lab|vital|imaging|medication|diagnosis|procedure|immunization|
       tags,
       meds,
       patient_fields: patient,
+      committed: threadId === 'med-profile',
       source_type: x.meta?.source_type || defaults?.meta?.source_type || 'text',
       ...(sourceHash ? { source_hash: sourceHash } : {}),
       ...(usedFallback ? { extracted_by: 'fallback' } : {}),
     },
   }));
 
-  const { error, count } = await sb.from("observations").insert(rows, { count: "exact" });
+  const { data: inserted, error } = await sb
+    .from("observations")
+    .insert(rows)
+    .select("id");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ ok: true, inserted: count ?? rows.length, usedFallback });
+  const ids = (inserted || []).map((r: any) => r.id);
+  return NextResponse.json({ ok: true, ids, inserted: ids.length, usedFallback });
 }

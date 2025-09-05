@@ -36,7 +36,7 @@ export async function GET() {
 
   const [predRes, obsRes] = await Promise.all([
     supa.from("predictions").select("*").eq("user_id", userId),
-    supa.from("observations").select("*").eq("user_id", userId),
+    supa.from("observations").select("*").eq("user_id", userId).eq('meta->>committed','true'),
   ]);
   if (predRes.error)
     return NextResponse.json(

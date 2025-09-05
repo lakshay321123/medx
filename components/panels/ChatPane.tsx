@@ -236,6 +236,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const isProfileThread = threadId === 'med-profile' || context === 'profile';
   const [stickySystem, setStickySystem] = useState<any | null>(null);
   const shouldShowGlobalWelcome = !isProfileThread;
+  const [pendingCommitIds, setPendingCommitIds] = useState<string[]>([]);
 
   const [ui, setUi] = useState<ChatUiState>(UI_DEFAULTS);
 
@@ -248,6 +249,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       setUi(UI_DEFAULTS);
     }
   }, [threadId]);
+  useEffect(() => { setPendingCommitIds([]); }, [threadId]);
 
   // Persist per-thread UI on change
   useEffect(() => {
@@ -661,6 +663,9 @@ ${linkNudge}`;
         contextFrom: titleForCategory(data.category),
         topic: inferTopicFromDoc(data.report),
       }));
+      if (!isProfileThread && Array.isArray(data.obsIds) && data.obsIds.length) {
+        setPendingCommitIds(data.obsIds.map(String));
+      }
     } catch (e: any) {
       console.error(e);
       setMessages(prev =>
@@ -777,8 +782,8 @@ ${linkNudge}`;
             </div>
           </div>
         )}
-        <div className="mx-auto w-full max-w-3xl space-y-4">
-          {messages.filter((m: any) => m.role !== 'system' && m.id !== 'medx-profile-sticky').map(m =>
+      <div className="mx-auto w-full max-w-3xl space-y-4">
+        {messages.filter((m: any) => m.role !== 'system' && m.id !== 'medx-profile-sticky').map(m =>
             m.role === 'user' ? (
               <div
                 key={m.id}
@@ -795,10 +800,45 @@ ${linkNudge}`;
                 busy={loadingAction !== null}
               />
             )
-          )}
-        </div>
+        )}
       </div>
-      <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+      {pendingCommitIds.length > 0 && (
+        <div className="mx-auto my-4 max-w-3xl px-4 sm:px-6">
+          <div className="rounded-lg border p-3 text-sm flex items-center gap-2 bg-white dark:bg-gray-800">
+            <span>Add this to your Medical Profile?</span>
+            <button
+              onClick={async () => {
+                for (const id of pendingCommitIds) {
+                  await fetch('/api/observations/commit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id }),
+                  });
+                }
+                setPendingCommitIds([]);
+                window.dispatchEvent(new Event('observations-updated'));
+              }}
+              className="text-xs px-2 py-1 rounded-md border"
+            >Save</button>
+            <button
+              onClick={async () => {
+                for (const id of pendingCommitIds) {
+                  await fetch('/api/observations/discard', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id }),
+                  });
+                }
+                setPendingCommitIds([]);
+                window.dispatchEvent(new Event('observations-updated'));
+              }}
+              className="text-xs px-2 py-1 rounded-md border"
+            >Discard</button>
+          </div>
+        </div>
+      )}
+    </div>
+    <div className="absolute bottom-4 left-0 right-0 flex justify-center">
         <div className="w-full max-w-3xl px-4">
           <form
             onSubmit={e => {

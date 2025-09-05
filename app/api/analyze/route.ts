@@ -103,6 +103,7 @@ export async function POST(req: Request) {
     let report = "";
     let dataUrl: string | null = null;
     let text = "";
+    let obsIds: string[] = [];
 
     if (mime === "application/pdf" || name.toLowerCase().endsWith(".pdf")) {
       text = await extractTextFromPDF(buf);
@@ -110,7 +111,7 @@ export async function POST(req: Request) {
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
         const cookie = req.headers.get("cookie") || undefined;
         try {
-          await fetch(new URL("/api/ingest/from-text", baseUrl), {
+          const ingestResp = await fetch(new URL("/api/ingest/from-text", baseUrl), {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -123,6 +124,8 @@ export async function POST(req: Request) {
               defaults: { meta: { source_type: "pdf" } },
             }),
           });
+          const ingestJson = await ingestResp.json().catch(() => ({}));
+          obsIds = Array.isArray(ingestJson.ids) ? ingestJson.ids : [];
         } catch (e) {
           console.error("ingest failed", e);
         }
@@ -194,6 +197,7 @@ export async function POST(req: Request) {
       category,
       report,
       disclaimer: "AI assistance only — not a medical diagnosis. Confirm with a clinician.",
+      obsIds,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message || "analyze failed" }, { status: 500 });

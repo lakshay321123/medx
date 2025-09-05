@@ -122,21 +122,32 @@ export default function Timeline(){
             <div className="flex items-center justify-between">
               <div className="font-medium truncate">{active.name || active.meta?.file_name || "Report"}</div>
               <div className="flex gap-2">
-                {signedUrl && <button onClick={()=>window.open(signedUrl, "_blank")} className="text-xs px-2 py-1 rounded-md border">Open</button>}
-                {signedUrl && <a href={signedUrl} download className="text-xs px-2 py-1 rounded-md border">Download</a>}
+                {(active.file?.path || active.file?.upload_id) && signedUrl && <button onClick={()=>window.open(signedUrl, "_blank")} className="text-xs px-2 py-1 rounded-md border">Open</button>}
+                {(active.file?.path || active.file?.upload_id) && signedUrl && <a href={signedUrl} download className="text-xs px-2 py-1 rounded-md border">Download</a>}
+                {!(active.file?.path || active.file?.upload_id) && <a href={`/api/observations/${active.id}/export`} className="text-xs px-2 py-1 rounded-md border">Download Summary</a>}
                 <button onClick={()=>setOpen(false)} className="text-xs px-2 py-1 rounded-md border">Close</button>
               </div>
             </div>
-            <div className="mt-3 h-[calc(100%-56px)] overflow-auto rounded-lg border bg-muted/10 flex items-center justify-center">
-              {!signedUrl && <div className="text-xs text-muted-foreground p-4">Fetching file…</div>}
-              {signedUrl && (
-                /\.pdf(\?|$)/i.test(signedUrl) ? (
+            <div className="mt-3 h-[calc(100%-56px)] overflow-auto rounded-lg border bg-muted/10 flex items-center justify-center p-4 text-sm whitespace-pre-wrap">
+              {active.file?.path || active.file?.upload_id ? (
+                !signedUrl ? (
+                  <div className="text-xs text-muted-foreground">Fetching file…</div>
+                ) : /\.pdf(\?|$)/i.test(signedUrl) ? (
                   <iframe src={signedUrl} className="w-full h-full rounded-lg" />
                 ) : /\.(png|jpe?g|gif|webp)(\?|$)/i.test(signedUrl) ? (
                   <img src={signedUrl} className="max-w-full max-h-full object-contain rounded-lg" />
                 ) : (
-                  <div className="text-sm text-muted-foreground p-6 text-center">Preview unavailable. Use <b>Open</b> or <b>Download</b>.</div>
+                  <div className="text-sm text-muted-foreground text-center">Preview unavailable. Use <b>Open</b> or <b>Download</b>.</div>
                 )
+              ) : (
+                <div className="w-full">
+                  {active.meta?.summary && <p className="mb-2">{active.meta.summary}</p>}
+                  {active.meta?.patient_fields && (
+                    <div className="mb-2 text-xs text-muted-foreground">
+                      {Object.entries(active.meta.patient_fields).map(([k,v]) => v ? <div key={k}>{k}: {String(v)}</div> : null)}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>
