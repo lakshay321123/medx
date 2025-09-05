@@ -49,7 +49,7 @@ export function parseAndValidateFromReply(reply: string) {
   }
 
   const validated = validateStructured(parsed.data);
-  if (!validated.ok) {
+  if ("issues" in validated) {
     return { ok: false as const, where: "validate", message: validated.issues.join("; ") };
   }
 
