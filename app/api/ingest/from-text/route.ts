@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { getUserId } from "@/lib/getUserId";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { extractReportDate } from "@/lib/reportDate";
 import OpenAI from "openai";
 
 const HAVE_OPENAI = !!process.env.OPENAI_API_KEY;
@@ -97,6 +98,7 @@ meta.category in {lab|vital|imaging|medication|diagnosis|procedure|immunization|
   }
 
   const nowISO = new Date().toISOString();
+  const reportDate = extractReportDate(text || "");
   const sb = supabaseAdmin();
 
   // Idempotency by sourceHash (optional)
@@ -116,10 +118,11 @@ meta.category in {lab|vital|imaging|medication|diagnosis|procedure|immunization|
     value_num: x.value_num ?? null,
     value_text: x.value_text ?? null,
     unit: x.unit ?? null,
-    observed_at: x.observed_at || defaults?.observed_at || nowISO,
+    observed_at: reportDate || x.observed_at || defaults?.observed_at || nowISO,
     meta: {
       ...(x.meta || {}),
       ...(defaults?.meta || {}),
+      report_date: reportDate || null,
       source_type: x.meta?.source_type || defaults?.meta?.source_type || "text",
       ...(sourceHash ? { source_hash: sourceHash } : {}),
       ...(usedFallback ? { extracted_by: "fallback" } : {}),

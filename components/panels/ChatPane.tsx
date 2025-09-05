@@ -230,6 +230,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const params = useSearchParams();
   const threadId = params.get('threadId') || 'default';
+  const prefillRaw = params.get('prefill');
 
   const [ui, setUi] = useState<ChatUiState>(UI_DEFAULTS);
 
@@ -276,6 +277,19 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     window.addEventListener('new-chat', init);
     return () => window.removeEventListener('new-chat', init);
   }, []);
+
+  useEffect(() => {
+    if (!prefillRaw) return;
+    try {
+      const payload = JSON.parse(decodeURIComponent(prefillRaw));
+      if (payload?.kind === "profileSummary" && payload.summary) {
+        setMessages(prev => [
+          ...prev,
+          { id: crypto.randomUUID(), role: "system", content: `Medical Profile Summary:\n\n${payload.summary}\n\nIf anything is missing or incorrect, tell me and I will update your profile and re-summarize.` },
+        ]);
+      }
+    } catch {}
+  }, [prefillRaw]);
 
   useEffect(() => {
     const root = document.documentElement;
