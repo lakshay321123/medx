@@ -64,9 +64,10 @@ export default function MedicalProfile() {
   async function loadProfile() {
     setErr(null);
     try {
-      const r = await fetch("/api/profile", { cache: "no-store" });
-      if (!r.ok) throw new Error(await r.text());
-      setData(await r.json());
+      const res = await fetch("/api/profile", { cache: "no-store" });
+      if (!res.ok) throw new Error(await res.text());
+      const json = await res.json();
+      setData(json);
     } catch (e: any) {
       setErr(e.message || "Failed to load profile");
     }
