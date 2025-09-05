@@ -1,10 +1,12 @@
 import { MedxResponseSchema, type MedxResponse } from "@/schemas/medx";
+import { normalizeTopic } from "@/lib/topic/normalize";
+import { searchTrials } from "@/lib/trials/search";
 
 const BASE = process.env.LLM_BASE_URL!;
 const MODEL = process.env.LLM_MODEL_ID || "llama-3.1-8b-instant";
 const KEY = process.env.LLM_API_KEY!;
 
-const SYSTEM_PROMPT = `India-aware; metric units.
+const BASE_PROMPT = `India-aware; metric units.
 Patient = simple + home care + ≥3 red flags + when_to_test.
 Doctor = DDx + tests + initial management + ICD examples.
 If research requested: fill evidence (patient/doctor voice) or Research schema.
@@ -36,9 +38,18 @@ function stripSentinel(text: string): string {
 
 export async function v2Generate(body: any): Promise<MedxResponse> {
   const max = body.mode === "patient" ? 800 : 1200;
+  const topic = normalizeTopic(body.condition || "");
+  let trials: any[] = [];
+  if (body.research || body.mode === "research") {
+    trials = await searchTrials(topic);
+  }
+  const sys = (body.research || body.mode === "research")
+    ? `${BASE_PROMPT}\nTopic-Lock: The topic is ${topic.canonical}. Exclude results that do not clearly match this topic and anatomy. If no on-topic results remain, say so and suggest 2–3 synonyms users can try. Do not include unrelated studies.`
+    : BASE_PROMPT;
+  const userPayload = { ...body, topic: topic.canonical, synonyms: topic.synonyms, trials };
   const messages = [
-    { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: JSON.stringify(body) },
+    { role: "system", content: sys },
+    { role: "user", content: JSON.stringify(userPayload) },
   ];
   const raw = await groq(messages, max);
   const txt = stripSentinel(raw.choices?.[0]?.message?.content || "");
