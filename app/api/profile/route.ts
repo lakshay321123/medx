@@ -257,7 +257,7 @@ export async function GET(_req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const userId = await getUserId();
+  const userId = await getUserId();                  // must be a UUID (see Option B if testing)
   if (!userId) return new NextResponse("Unauthorized", { status: 401 });
 
   const body = await req.json().catch(() => ({}));
@@ -273,8 +273,14 @@ export async function PUT(req: NextRequest) {
   const patch: Record<string, any> = {};
   for (const k of allowed) if (k in body) patch[k] = body[k];
 
-  const { error } = await supabaseAdmin().from("profiles").update(patch).eq("id", userId);
+  // Create-or-update by primary key id
+  const { data, error } = await supabaseAdmin()
+    .from("profiles")
+    .upsert({ id: userId, ...patch }, { onConflict: "id" })
+    .select()
+    .single();
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, profile: data });
 }
 
