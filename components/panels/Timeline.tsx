@@ -121,6 +121,11 @@ export default function Timeline(){
               {it.kind==="prediction" && typeof it.probability==="number" && <> — {(it.probability*100).toFixed(0)}%</>}
               {it.kind==="observation" && it.value!=null && <> — {String(it.value)}{it.unit?` ${it.unit}`:""}</>}
             </div>
+            {it.meta?.summary && (
+              <div className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+                {it.meta.summary}
+              </div>
+            )}
           </li>
         ))}
       </ul>

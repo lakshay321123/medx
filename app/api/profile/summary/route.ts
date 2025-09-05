@@ -68,7 +68,7 @@ export async function GET() {
   const [pRes, oRes, prRes] = await Promise.all([
     db
       .from("profiles")
-      .select("full_name,dob,sex,blood_group,chronic_conditions")
+      .select("full_name,dob,sex,blood_group,chronic_conditions,conditions_predisposition")
       .eq("id", userId)
       .maybeSingle(),
     db
@@ -99,6 +99,12 @@ export async function GET() {
   const chronicLine = `Chronic Conditions: ${
     Array.isArray(prof.chronic_conditions) && prof.chronic_conditions.length
       ? prof.chronic_conditions.join(', ')
+      : '—'
+  }`;
+
+  const predisLine = `Predispositions: ${
+    Array.isArray(prof.conditions_predisposition) && prof.conditions_predisposition.length
+      ? prof.conditions_predisposition.join(', ')
       : '—'
   }`;
 
@@ -189,6 +195,7 @@ export async function GET() {
   const lines = [
     patientLine,
     chronicLine,
+    predisLine,
     medsLine,
     labsLine,
     predLine,
