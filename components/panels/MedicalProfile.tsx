@@ -193,6 +193,7 @@ export default function MedicalProfile() {
                   });
                   if (!r.ok) throw new Error(await r.text());
                   await loadProfile();
+                  await loadSummary(); // ensure visible summary reflects just-saved arrays
                 } catch (e: any) {
                   alert(e.message || "Save failed");
                 } finally {
