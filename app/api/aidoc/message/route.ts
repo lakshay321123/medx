@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Greeting / continuity
+  // Greeting on boot (empty text) → includes summary
   if (intent === "greet" && !String(text || "").trim()) {
     const lastLine = lastSymptom?.value_text
       ? `Last time you mentioned **${lastSymptom.value_text}**—how are you feeling now?`
@@ -98,6 +98,18 @@ export async function POST(req: NextRequest) {
         content:
           `${summaryText ? `Here’s a quick summary I have:\n${summaryText}\n\n` : ""}` +
           `Hi ${name}, I’m here to help. ${lastLine}\n\n` +
+          `This is educational info, not a medical diagnosis. Please consult a clinician.`,
+      }],
+    });
+  }
+
+  // User explicitly asks for summary (no boot)
+  if (intent === "summary_request") {
+    return NextResponse.json({
+      messages: [{
+        role: "assistant",
+        content:
+          `${summaryText ? `Here’s a quick summary I have:\n${summaryText}` : "I don’t have enough info to summarize yet."}\n\n` +
           `This is educational info, not a medical diagnosis. Please consult a clinician.`,
       }],
     });
@@ -151,10 +163,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ messages: [{ role: "assistant", content }] });
   }
 
-  // General small talk / fallback with summary + gentle prompt
+  // General small talk / fallback — NO summary repeat
   const fallback =
-    `${summaryText ? `Here’s a quick summary I have:\n${summaryText}\n\n` : ""}` +
-    `How can I help today, ${name}? You can describe symptoms, ask about general care, or request to research in **Research Mode**.\n\n` +
+    `How can I help today, ${name}? You can describe symptoms, ask about general care, or switch to **Research Mode** for literature.\n\n` +
     `This is educational info, not a medical diagnosis. Please consult a clinician.`;
   return NextResponse.json({ messages: [{ role: "assistant", content: fallback }] });
 }
