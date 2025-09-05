@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/getUserId";
 import { classifyIntent } from "@/lib/aidoc/intents";
-import { detectRedFlags, RED_FLAGS_MAP } from "@/lib/aidoc/triage";
+import { getFlagList, textMentionsAnyFlag } from "@/lib/aidoc/triage";
+import type { SymptomKey } from "@/lib/aidoc/triage";
 import { detectSymptomKey, SELF_CARE_EDU, SUGGESTED_TESTS } from "@/lib/aidoc/checks";
 
 interface StateRow {
@@ -80,8 +81,39 @@ export async function POST(req: NextRequest) {
     });
   };
 
-  const intent = classifyIntent(String(text || ""));
+  const userText = String(text || "");
   const safety = "\n\nThis is educational info, not a medical diagnosis. Please consult a clinician.";
+
+  // If awaiting red-flag response, handle stateful flow before reclassifying
+  if (state.step === 'awaiting_red_flags' && state.symptom_key) {
+    const key = state.symptom_key as SymptomKey;
+    const saidNo = /^\s*(no|nope|nah|none|nothing|not really)\b/i.test(userText);
+    const mentionsFlag = textMentionsAnyFlag(userText, key);
+    if (!saidNo && mentionsFlag) {
+      await upsertState({ step: 'resolved' });
+      const content =
+        `Given possible red flags, please seek urgent care or contact a clinician soon.${safety}`;
+      return NextResponse.json({ messages: [{ role: 'assistant', content }] });
+    }
+    if (saidNo) {
+      await saveObservationSymptom(state.symptom_text || '');
+      await saveObservationNote(`Self-care and tests discussed for ${key}`);
+      await upsertState({ step: 'resolved' });
+      const selfCare = SELF_CARE_EDU[key] || '';
+      const tests = SUGGESTED_TESTS[key] || [];
+      const plan =
+        `${selfCare ? `${selfCare}\n` : ''}` +
+        `${tests.length ? `If it persists/worsens, consider discussing these with a clinician: ${tests.join(', ')}.\n` : ''}` +
+        `If symptoms escalate or you’re worried, please seek care.${safety}`;
+      return NextResponse.json({ messages: [{ role: 'assistant', content: plan }] });
+    }
+    const flags = getFlagList(key).join(', ');
+    const content =
+      `Before I suggest next steps—any of these: ${flags}?${safety}`;
+    return NextResponse.json({ messages: [{ role: 'assistant', content }] });
+  }
+
+  const intent = classifyIntent(userText);
 
   // Boot greeting
   if (intent === 'boot') {
@@ -135,36 +167,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ messages: [{ role: 'assistant', content }] });
   }
 
-  // Stateful symptom flow
-  if (state.step === 'awaiting_red_flags') {
-    const key = state.symptom_key || detectSymptomKey(state.symptom_text || '') || 'back_pain';
-    const redMentioned = detectRedFlags(key, String(text || ''));
-    const saidNo = /^\s*(no|nope|nah|none|nothing|not really)\b/i.test(String(text));
-    if (redMentioned.length && !saidNo) {
-      await upsertState({ step: 'resolved' });
-      const content =
-        `Those symptoms with ${key.replace('_', ' ')} could be serious. Please seek urgent medical care or emergency services.${safety}`;
-      return NextResponse.json({ messages: [{ role: 'assistant', content }] });
-    }
-    await saveObservationSymptom(state.symptom_text || '');
-    await saveObservationNote(`Self-care and tests discussed for ${key}`);
-    await upsertState({ step: 'resolved' });
-    const selfCare = SELF_CARE_EDU[key];
-    const tests = SUGGESTED_TESTS[key] || [];
-    const content =
-      `Thanks for the update, ${name}.` +
-      `${selfCare ? `\n${selfCare}` : ''}` +
-      `${tests.length ? `\nTests to discuss with a clinician: ${tests.join(', ')}.` : ''}` +
-      `\nSee a clinician if symptoms persist, worsen, or any red flags appear.${safety}`;
-    return NextResponse.json({ messages: [{ role: 'assistant', content }] });
-  }
-
   if (intent === 'symptom') {
-    const key = detectSymptomKey(String(text || '')) || 'back_pain';
-    await upsertState({ step: 'awaiting_red_flags', symptom_key: key, symptom_text: text });
-    const list = RED_FLAGS_MAP[key] || [];
+    const key: SymptomKey = detectSymptomKey(userText) || 'back_pain';
+    await upsertState({ step: 'awaiting_red_flags', symptom_key: key, symptom_text: userText });
+    const list = getFlagList(key).join(', ');
     const content =
-      `Thanks for sharing, ${name}. Before I suggest next steps—any of these: ${list.join(', ')}?${safety}`;
+      `Thanks for sharing, ${name}. Before I suggest next steps—any of these: ${list}?${safety}`;
     return NextResponse.json({ messages: [{ role: 'assistant', content }] });
   }
 
