@@ -1,8 +1,14 @@
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/getUserId";
+
+function noStoreHeaders() {
+  return { "Cache-Control": "no-store, max-age=0" };
+}
 
 // Group types for the UI
 type GroupKey =
@@ -173,26 +179,35 @@ function classify(kindRaw: string, meta: any): GroupKey {
 
 export async function GET(_req: NextRequest) {
   const userId = await getUserId();
-  if (!userId) return new NextResponse("Unauthorized", { status: 401 });
+  if (!userId) {
+    return NextResponse.json(
+      { profile: null },
+      { status: 200, headers: noStoreHeaders() }
+    );
+  }
 
   const sb = supabaseAdmin();
 
-  // Profile row (unchanged)
   const { data: profile, error: perr } = await sb
     .from("profiles")
-    .select("*")
+    .select(
+      "id, full_name, dob, sex, blood_group, conditions_predisposition, chronic_conditions"
+    )
     .eq("id", userId)
     .maybeSingle();
-  if (perr) return NextResponse.json({ error: perr.message }, { status: 500 });
+  if (perr) {
+    return NextResponse.json({ error: perr.message }, { status: 500, headers: noStoreHeaders() });
+  }
 
-  // Pull a window of observations; newest first
   const { data: rows, error: oerr } = await sb
     .from("observations")
     .select("kind, value_num, value_text, unit, observed_at, meta")
     .eq("user_id", userId)
     .order("observed_at", { ascending: false })
     .limit(600);
-  if (oerr) return NextResponse.json({ error: oerr.message }, { status: 500 });
+  if (oerr) {
+    return NextResponse.json({ error: oerr.message }, { status: 500, headers: noStoreHeaders() });
+  }
 
   // Keep only latest per kind
   const latestByKind = new Map<
@@ -253,7 +268,7 @@ export async function GET(_req: NextRequest) {
     latest[k] = { value: v.value, unit: v.unit, observedAt: v.observedAt };
   }
 
-  return NextResponse.json({ profile, groups, latest });
+  return NextResponse.json({ profile: profile ?? null, groups, latest }, { headers: noStoreHeaders() });
 }
 
 export async function PUT(req: NextRequest) {
