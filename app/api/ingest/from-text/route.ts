@@ -5,6 +5,7 @@ import { getUserId } from "@/lib/getUserId";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { extractReportDate } from "@/lib/reportDate";
 import { summarizeMedicalDoc } from "@/lib/summarizeDoc";
+import { buildShortSummaryFromText } from "@/lib/shortSummary";
 import OpenAI from "openai";
 
 const HAVE_OPENAI = !!process.env.OPENAI_API_KEY;
@@ -93,18 +94,6 @@ function crudeRegexExtract(text: string): OutObs[] {
   }
   return items;
 }
-
-function summarizeText(text: string): string {
-  return text
-    .replace(/\s+/g, ' ')
-    .trim()
-    .split(/(?<=[.!?])\s+/)
-    .slice(0, 3)
-    .join(' ')
-    .slice(0, 500);
-}
-
-
 function extractPatientFields(text: string) {
   const name = text.match(/(?:patient|name)[:\s]+([A-Z][A-Za-z\s]+)/i)?.[1]?.trim();
   const age = text.match(/(?:age)[:\s]+(\d{1,3})/i)?.[1];
@@ -180,8 +169,8 @@ meta.category in {lab|vital|imaging|medication|diagnosis|procedure|immunization|
       .eq("meta->>source_hash", sourceHash);
   }
 
-  const summary = summarizeText(text);
   const summaryLong = text && text.length > 2000 ? summarizeMedicalDoc(text) : undefined;
+  const summaryShort = buildShortSummaryFromText(text, summaryLong);
   const meds = extractMedsFromText(text);
   const patient = extractPatientFields(text);
   const tags = deriveTags(text, defaults?.meta?.mime);
@@ -205,8 +194,8 @@ meta.category in {lab|vital|imaging|medication|diagnosis|procedure|immunization|
       ...(defaults?.meta || {}),
       report_date: reportDate,
       text,
-      summary,
-      summary_long: summaryLong,
+      summary: summaryShort ?? x.meta?.summary ?? defaults?.meta?.summary,
+      summary_long: summaryLong ?? x.meta?.summary_long ?? defaults?.meta?.summary_long,
       tags,
       meds,
       patient_fields: patient,

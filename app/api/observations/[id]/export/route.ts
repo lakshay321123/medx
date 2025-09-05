@@ -4,6 +4,7 @@ export const revalidate = 0;
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/getUserId";
+import { buildShortSummaryFromText } from "@/lib/shortSummary";
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const userId = await getUserId();
@@ -18,6 +19,9 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     .maybeSingle();
   if (error || !data) return new NextResponse("Not found", { status: 404 });
   const meta = data.meta || {};
+  if (!meta.summary) {
+    meta.summary = buildShortSummaryFromText(meta.text, meta.summary_long);
+  }
   const fields = meta.patient_fields
     ? Object.entries(meta.patient_fields)
         .map(([k, v]) => (v ? `<p><b>${k}:</b> ${v}</p>` : ""))

@@ -280,7 +280,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         try {
           const r = await fetch('/api/profile/summary');
           const j = await r.json();
-          const text = j?.summary?.text || j?.summary;
+          const text = j?.summary?.text || j?.summary || j?.text;
           if (text) addOnce('summary:med-profile', text);
         } catch {}
       })();
