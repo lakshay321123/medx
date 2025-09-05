@@ -39,15 +39,24 @@ export default function Timeline(){
     return undefined;
   },[range,from]);
 
-  const filtered = useMemo(()=> (items||[]).filter((it:any)=>{
-    if (cat!=="ALL" && catOf(it)!==cat) return false;
-    if (fromDate && new Date(it.observed_at) < fromDate) return false;
-    if (q.trim()){
-      const hay = `${(it.name||"")} ${JSON.stringify(it.meta||{})}`.toLowerCase();
-      if (!hay.includes(q.trim().toLowerCase())) return false;
-    }
-    return true;
-  }),[items,cat,fromDate,q]);
+  const filtered = useMemo(() =>
+    (items || []).filter((it: any) => {
+      if (cat !== "ALL" && catOf(it) !== cat) return false;
+      if (fromDate && new Date(it.observed_at) < fromDate) return false;
+      if (q.trim()) {
+        const norm = (s: any) =>
+          (typeof s === "string" ? s : JSON.stringify(s || {}))
+            .normalize("NFKD")
+            .replace(/[^\w]+/g, "")
+            .toLowerCase();
+        const hay = norm([it.name, it.value ?? "", it.unit ?? "", it.meta, it.details].join(" "));
+        const needle = norm(q.trim());
+        if (!hay.includes(needle)) return false;
+      }
+      return true;
+    }),
+  [items, cat, fromDate, q]
+  );
 
   return (
     <div className="p-4">

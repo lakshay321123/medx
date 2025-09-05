@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, RefObject } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { profileChatSystem } from '@/lib/profileChatSystem';
 import Header from '../Header';
 import Markdown from '../Markdown';
 import { Send } from 'lucide-react';
@@ -230,7 +231,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const params = useSearchParams();
   const threadId = params.get('threadId') || 'default';
+  const context = params.get('context');
   const prefillRaw = params.get('prefill');
+  const isProfileThread = threadId === 'med-profile' || context === 'profile';
+  const [stickySystem, setStickySystem] = useState<any | null>(null);
 
   const [ui, setUi] = useState<ChatUiState>(UI_DEFAULTS);
 
@@ -279,17 +283,37 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, []);
 
   useEffect(() => {
-    if (!prefillRaw) return;
+    if (!isProfileThread) return;
     try {
-      const payload = JSON.parse(decodeURIComponent(prefillRaw));
-      if (payload?.kind === "profileSummary" && payload.summary) {
-        setMessages(prev => [
-          ...prev,
-          { id: crypto.randomUUID(), role: "system", content: `Medical Profile Summary:\n\n${payload.summary}\n\nIf anything is missing or incorrect, tell me and I will update your profile and re-summarize.` } as any,
-        ]);
-      }
+      const payload = prefillRaw ? JSON.parse(decodeURIComponent(prefillRaw)) : {};
+      const sys = {
+        id: "medx-profile-sticky",
+        role: "system",
+        content: profileChatSystem({
+          summary: payload?.summary,
+          reasons: payload?.reasons,
+          profile: payload?.profile,
+        }),
+      } as any;
+      setStickySystem(sys);
+      setMessages(prev => {
+        const withoutOld = prev.filter(m => m.id !== "medx-profile-sticky");
+        const intro = payload?.summary
+          ? [
+              {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                kind: "chat",
+                content:
+                  "I’ve loaded your medical profile summary above. Tell me what needs correction or add anything new (symptoms, meds, diagnoses) and I’ll adjust and explain why.",
+              },
+            ]
+          : [];
+        return [sys, ...intro, ...withoutOld];
+      });
     } catch {}
-  }, [prefillRaw]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isProfileThread, prefillRaw]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -335,16 +359,61 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     if (!text.trim() || busy) return;
     setBusy(true);
 
+    const normalize = (s: string) =>
+      s
+        .replace(/\bnp\b/gi, "neutrophil percentage")
+        .replace(/\bsgpt\b/gi, "ALT (SGPT)")
+        .replace(/\bsgot\b/gi, "AST (SGOT)");
+    const userText = isProfileThread ? normalize(text) : text;
+
     const userId = uid();
     const pendingId = uid();
     setMessages(prev => [
       ...prev,
-      { id: userId, role: 'user', kind: 'chat', content: text },
+      { id: userId, role: 'user', kind: 'chat', content: userText },
       { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true }
     ]);
     setNote('');
 
     try {
+      if (isProfileThread) {
+        const base = stickySystem
+          ? [stickySystem, ...messages.filter(m => m.id !== 'medx-profile-sticky')]
+          : messages;
+        const thread = [
+          ...base.filter(m => !m.pending).map(m => ({ role: m.role, content: (m as any).content || '' })),
+          { role: 'user', content: userText }
+        ];
+
+        const res = await fetch('/api/chat/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: thread })
+        });
+        if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let acc = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
+          for (const line of lines) {
+            if (line.trim() === 'data: [DONE]') continue;
+            try {
+              const payload = JSON.parse(line.replace(/^data:\s*/, ''));
+              const delta = payload?.choices?.[0]?.delta?.content;
+              if (delta) {
+                acc += delta;
+                setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m)));
+              }
+            } catch {}
+          }
+        }
+        setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, pending: false } : m)));
+        return;
+      }
       if (therapyMode) {
         const thread = [...messages, { role: 'user', content: text }]
           .map(m => ({

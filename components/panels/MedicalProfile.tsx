@@ -394,8 +394,29 @@ export default function MedicalProfile() {
           <div className="flex gap-2">
             <button
               onClick={async () => {
-                const prefill = encodeURIComponent(JSON.stringify({ kind: "profileSummary", summary, reasons }));
-                router.push(`/?panel=chat&threadId=med-profile&prefill=${prefill}`);
+                try {
+                  const prof = await fetch("/api/profile", { cache: "no-store" })
+                    .then(r => r.json())
+                    .catch(() => null);
+                  const prefill = encodeURIComponent(
+                    JSON.stringify({
+                      kind: "profileSummary",
+                      summary,
+                      reasons,
+                      profile: prof?.profile || prof || null,
+                    })
+                  );
+                  router.push(
+                    `/?panel=chat&threadId=med-profile&context=profile&prefill=${prefill}`
+                  );
+                } catch {
+                  const prefill = encodeURIComponent(
+                    JSON.stringify({ kind: "profileSummary", summary, reasons })
+                  );
+                  router.push(
+                    `/?panel=chat&threadId=med-profile&context=profile&prefill=${prefill}`
+                  );
+                }
               }}
               className="text-xs px-2 py-1 rounded-md border"
             >Discuss & Correct in Chat</button>

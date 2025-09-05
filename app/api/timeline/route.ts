@@ -26,28 +26,67 @@ export async function GET() {
   if (predRes.error) return NextResponse.json({ error: predRes.error.message }, { status: 500, headers: noStore });
   if (obsRes.error)  return NextResponse.json({ error: obsRes.error.message },  { status: 500, headers: noStore });
 
-  const preds = (predRes.data||[]).map((r:any)=>{
-    const d=r.details??r.meta??null;
-    const name=r.name??r.label??r.finding??r.type??d?.label??d?.name??d?.task??"Prediction";
-    const prob= typeof r.probability==="number"?r.probability:
-                typeof d?.fractured==="number"?d.fractured:
-                typeof d?.probability==="number"?d.probability:null;
+  const preds = (predRes.data || []).map((r: any) => {
+    const d = r.details ?? r.meta ?? null;
+    const name =
+      r.name ??
+      r.label ??
+      r.finding ??
+      r.type ??
+      d?.analyte ??
+      d?.test_name ??
+      d?.label ??
+      d?.name ??
+      d?.task ??
+      "Prediction";
+    const prob =
+      typeof r.probability === "number"
+        ? r.probability
+        : typeof d?.fractured === "number"
+        ? d.fractured
+        : typeof d?.probability === "number"
+        ? d.probability
+        : null;
     return {
-      id:String(r.id), kind:"prediction", name, probability:prob,
-      observed_at: pickObserved(r), uploaded_at: iso(r.created_at??r.createdAt),
-      source_upload_id: r.source_upload_id??r.upload_id??null, meta:d
+      id: String(r.id),
+      kind: "prediction",
+      name,
+      probability: prob,
+      observed_at: pickObserved(r),
+      uploaded_at: iso(r.created_at ?? r.createdAt),
+      source_upload_id: r.source_upload_id ?? r.upload_id ?? null,
+      meta: d,
     };
   });
 
-  const obs = (obsRes.data||[]).map((r:any)=>{
-    const m=r.meta??r.details??null;
-    const name=r.name??r.metric??r.test??"Observation";
-    const value=r.value??m?.value??null, unit=r.unit??m?.unit??null;
-    const flags = Array.isArray(r.flags)?r.flags:Array.isArray(m?.flags)?m.flags:null;
+  const obs = (obsRes.data || []).map((r: any) => {
+    const m = r.meta ?? r.details ?? null;
+    const name =
+      r.name ??
+      r.metric ??
+      r.test ??
+      m?.analyte ??
+      m?.test_name ??
+      m?.label ??
+      "Observation";
+    const value = r.value ?? m?.value ?? null;
+    const unit = r.unit ?? m?.unit ?? null;
+    const flags = Array.isArray(r.flags)
+      ? r.flags
+      : Array.isArray(m?.flags)
+      ? m.flags
+      : null;
     return {
-      id:String(r.id), kind:"observation", name, value, unit, flags,
-      observed_at: pickObserved(r), uploaded_at: iso(r.created_at??r.createdAt),
-      source_upload_id: r.source_upload_id??r.upload_id??null, meta:m
+      id: String(r.id),
+      kind: "observation",
+      name,
+      value,
+      unit,
+      flags,
+      observed_at: pickObserved(r),
+      uploaded_at: iso(r.created_at ?? r.createdAt),
+      source_upload_id: r.source_upload_id ?? r.upload_id ?? null,
+      meta: m,
     };
   });
 
