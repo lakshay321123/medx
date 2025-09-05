@@ -9,6 +9,45 @@ import OpenAI from "openai";
 const HAVE_OPENAI = !!process.env.OPENAI_API_KEY;
 const openai = HAVE_OPENAI ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY! }) : null;
 
+const STOPWORDS = [
+  "PHYSICAL EXAMINATION",
+  "VISUAL EXAMINATION",
+  "QUANTITY",
+  "SPECIMEN",
+  "DEPARTMENT",
+  "INVESTIGATION",
+  "REMARK",
+  "REFERENCE INTERVAL",
+  "OBSERVED VALUE",
+  "UNIT",
+  "BIOLOGICAL",
+];
+const cues = /(mg|mcg|µg|g|iu|ml|tablet|tab|capsule|cap|syrup|injection|drop|ointment|cream|patch)\b/i;
+const looksLikeMed = (s: string) =>
+  /[A-Za-z]/.test(s) &&
+  /\d/.test(s) &&
+  cues.test(s) &&
+  !STOPWORDS.some((w) => s.toUpperCase().includes(w));
+
+function extractMedsFromText(text: string) {
+  const raw = text
+    .split(/\n|,|;/)
+    .map((s) => s.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  const meds = raw.filter(looksLikeMed);
+  const seen = new Set<string>();
+  const uniq: string[] = [];
+  for (const m of meds) {
+    const k = m.toLowerCase().replace(/[^a-z0-9]+/g, "");
+    if (!seen.has(k)) {
+      seen.add(k);
+      uniq.push(m);
+    }
+    if (uniq.length >= 20) break;
+  }
+  return uniq;
+}
+
 type OutObs = {
   kind: string;
   value_num?: number | null;
@@ -64,23 +103,6 @@ function summarizeText(text: string): string {
     .slice(0, 500);
 }
 
-function extractMeds(text: string): string[] {
-  const lines = text.split(/\n+/);
-  const out: string[] = [];
-  const dose = /\b\d+\s*(?:mg|mcg|g|ml|iu|units?)\b/i;
-  const form = /\b(tablet|tab|capsule|cap|syrup|patch|drop|injection|inj|cream|spray)\b/i;
-  const stop = /^(patient|name|age|sex|history|physical|examination|diagnosis|impression)$/i;
-  for (const line of lines) {
-    const l = line.trim();
-    if (!l) continue;
-    if (stop.test(l.toLowerCase())) continue;
-    const hasDose = dose.test(l);
-    const hasForm = form.test(l);
-    if (!hasDose && !hasForm) continue;
-    out.push(l.replace(/\s+/g, ' ').trim());
-  }
-  return Array.from(new Set(out)).slice(0, 15);
-}
 
 function extractPatientFields(text: string) {
   const name = text.match(/(?:patient|name)[:\s]+([A-Z][A-Za-z\s]+)/i)?.[1]?.trim();
@@ -158,7 +180,7 @@ meta.category in {lab|vital|imaging|medication|diagnosis|procedure|immunization|
   }
 
   const summary = summarizeText(text);
-  const meds = extractMeds(text);
+  const meds = extractMedsFromText(text);
   const patient = extractPatientFields(text);
   const tags = deriveTags(text, defaults?.meta?.mime);
 

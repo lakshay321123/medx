@@ -14,6 +14,7 @@ import type {
   ChatMessage as BaseChatMessage,
   AnalysisCategory,
 } from '@/lib/context';
+import { ensureThread, loadMessages, saveMessages, renameThread } from '@/lib/chatThreads';
 
 type ChatUiState = {
   topic: string | null;
@@ -23,18 +24,6 @@ type ChatUiState = {
 const UI_DEFAULTS: ChatUiState = { topic: null, contextFrom: null };
 const uiKey = (threadId: string) => `chat:${threadId}:ui`;
 
-const STORAGE_KEY = 'medx:chat:messages';
-
-function loadSavedMessages<T = any[]>(): T | null {
-  try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
-}
-
 type ChatMessage = BaseChatMessage & {
   tempId?: string;
   parentId?: string;
@@ -43,6 +32,8 @@ type ChatMessage = BaseChatMessage & {
 };
 
 const uid = () => Math.random().toString(36).slice(2);
+const addAssistant = (text: string) =>
+  setMessages(prev => [...prev, { id: uid(), role: 'assistant', kind: 'chat', content: text } as any]);
 
 function getLastAnalysis(list: ChatMessage[]) {
   for (let i = list.length - 1; i >= 0; i--) {
@@ -229,7 +220,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const inputRef = externalInputRef ?? useRef<HTMLInputElement>(null);
 
   const params = useSearchParams();
-  const threadId = params.get('threadId') || 'default';
+  const threadId = params.get('threadId');
   const context = params.get('context');
   const isProfileThread = threadId === 'med-profile' || context === 'profile';
   const [pendingCommitIds, setPendingCommitIds] = useState<string[]>([]);
@@ -242,6 +233,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   // Load per-thread UI whenever threadId changes
   useEffect(() => {
+    if (!threadId) { setUi(UI_DEFAULTS); return; }
     try {
       const raw = localStorage.getItem(uiKey(threadId));
       setUi(raw ? JSON.parse(raw) : UI_DEFAULTS);
@@ -253,60 +245,51 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   // Persist per-thread UI on change
   useEffect(() => {
+    if (!threadId) return;
     try {
       localStorage.setItem(uiKey(threadId), JSON.stringify(ui));
     } catch {}
   }, [threadId, ui]);
 
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
+
   useEffect(() => {
     setIntroShown(false);
     setWelcomeShown(false);
-  }, [threadId, context]);
+    if (!isProfileThread && threadId) {
+      ensureThread(threadId);
+      const saved = loadMessages(threadId) as any[];
+      setMessages(saved);
+      if (saved.length > 0) setWelcomeShown(true);
+    } else if (!threadId) {
+      setMessages([]);
+    } else {
+      setMessages([]);
+    }
+  }, [threadId, isProfileThread]);
 
   useEffect(() => {
-    if (!isProfileThread) return;
-    if (introShown) return;
-    setMessages(prev => {
-      const without = prev.filter(m => m.id !== 'medx-profile-intro');
-      return [
-        {
-          id: 'medx-profile-intro',
-          role: 'assistant',
-          kind: 'chat',
-          content:
-            'Loaded your packet. Tell me what to correct or add, and I’ll update with reasons.',
-        },
-        ...without,
-      ];
-    });
-    setIntroShown(true);
-  }, [isProfileThread, threadId, context, introShown]);
-
-  useEffect(() => {
-    if (isProfileThread) return;
-    if (welcomeShown) return;
-    const init = (e?: Event) => {
-      if (!e) {
-        const saved = loadSavedMessages<ChatMessage[]>();
-        if (saved && Array.isArray(saved) && saved.length) {
-          setMessages(saved);
-          setNote('');
-          setWelcomeShown(true);
-          return;
-        }
+    if (isProfileThread) {
+      if (!introShown) {
+        addAssistant('Loaded your packet. Tell me what to correct or add, and I’ll update with reasons.');
+        setIntroShown(true);
       }
-      const msg = getRandomWelcome();
-      setMessages([
-        { id: crypto.randomUUID(), role: 'assistant', kind: 'chat', content: msg },
-      ]);
-      setNote('');
+      (async () => {
+        try {
+          const r = await fetch('/api/profile/summary');
+          const j = await r.json();
+          if (j?.summary) addAssistant(j.summary);
+        } catch {}
+      })();
+    } else if (!welcomeShown && messages.length === 0) {
+      addAssistant(getRandomWelcome());
       setWelcomeShown(true);
-    };
-    init();
-    window.addEventListener('new-chat', init);
-    return () => window.removeEventListener('new-chat', init);
-  }, [isProfileThread, threadId, context, welcomeShown]);
+    }
+  }, [isProfileThread, threadId, welcomeShown, introShown]);
+
+  useEffect(() => {
+    if (!isProfileThread && threadId) saveMessages(threadId, messages as any);
+  }, [messages, threadId, isProfileThread]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -340,13 +323,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     }
   }, [therapyMode]);
 
-  useEffect(() => {
-    try {
-      if (!isProfileThread && messages && messages.length) {
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-      }
-    } catch {}
-  }, [messages, isProfileThread]);
 
   async function send(text: string, researchMode: boolean) {
     if (!text.trim() || busy) return;
@@ -361,12 +337,18 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
     const userId = uid();
     const pendingId = uid();
-    setMessages(prev => [
-      ...prev,
+    const nextMsgs = [
+      ...messages,
       { id: userId, role: 'user', kind: 'chat', content: userText },
-      { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true }
-    ]);
+      { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true },
+    ];
+    setMessages(nextMsgs);
     setNote('');
+    if (!isProfileThread && threadId) {
+      const t = ensureThread(threadId);
+      const title = messages.length === 0 ? userText.slice(0, 60) : t.title;
+      renameThread(threadId, title);
+    }
 
     try {
       if (isProfileThread) {

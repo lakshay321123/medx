@@ -120,7 +120,15 @@ export async function GET() {
     };
   });
 
-  const items = [...preds, ...obs].sort(
+  const dedup = new Map<string, any>();
+  for (const it of [...preds, ...obs]) {
+    const key =
+      it.file?.upload_id ||
+      it.meta?.source_hash ||
+      `${it.name}|${it.observed_at}|${it.value ?? ""}`;
+    if (!dedup.has(key)) dedup.set(key, it);
+  }
+  const items = Array.from(dedup.values()).sort(
     (a, b) =>
       new Date(b.observed_at).getTime() - new Date(a.observed_at).getTime()
   );
