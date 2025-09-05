@@ -6,13 +6,28 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/getUserId";
 
 const noStore = { "Cache-Control": "no-store, max-age=0" };
-const iso = (ts:any) => { const d=new Date(ts||Date.now()); return isNaN(+d)?new Date().toISOString():d.toISOString(); };
-const pickObserved = (r:any) => iso(
-  r.report_date ?? r.meta?.report_date ?? r.details?.report_date ??
-  r.observed_at ?? r.observedAt ?? r.recorded_at ?? r.measured_at ??
-  r.taken_at ?? r.sampled_at ?? r.timestamp ?? r.created_at ?? r.createdAt ??
-  r.meta?.observed_at ?? r.details?.observed_at
-);
+const iso = (ts: any) => {
+  const d = new Date(ts || Date.now());
+  return isNaN(+d) ? new Date().toISOString() : d.toISOString();
+};
+
+const pickObserved = (r: any) =>
+  iso(
+    r.report_date ??
+      r.meta?.report_date ??
+      r.details?.report_date ??
+      r.observed_at ??
+      r.observedAt ??
+      r.recorded_at ??
+      r.measured_at ??
+      r.taken_at ??
+      r.sampled_at ??
+      r.timestamp ??
+      r.created_at ??
+      r.createdAt ??
+      r.meta?.observed_at ??
+      r.details?.observed_at
+  );
 
 export async function GET() {
   const userId = await getUserId();
@@ -23,11 +38,19 @@ export async function GET() {
     supa.from("predictions").select("*").eq("user_id", userId),
     supa.from("observations").select("*").eq("user_id", userId),
   ]);
-  if (predRes.error) return NextResponse.json({ error: predRes.error.message }, { status: 500, headers: noStore });
-  if (obsRes.error)  return NextResponse.json({ error: obsRes.error.message },  { status: 500, headers: noStore });
+  if (predRes.error)
+    return NextResponse.json(
+      { error: predRes.error.message },
+      { status: 500, headers: noStore }
+    );
+  if (obsRes.error)
+    return NextResponse.json(
+      { error: obsRes.error.message },
+      { status: 500, headers: noStore }
+    );
 
   const preds = (predRes.data || []).map((r: any) => {
-    const d = r.details ?? r.meta ?? null;
+    const d = r.details ?? r.meta ?? {};
     const name =
       r.name ??
       r.label ??
@@ -54,13 +77,13 @@ export async function GET() {
       probability: prob,
       observed_at: pickObserved(r),
       uploaded_at: iso(r.created_at ?? r.createdAt),
-      source_upload_id: r.source_upload_id ?? r.upload_id ?? null,
-      meta: d,
+      meta: d || {},
+      file: null,
     };
   });
 
   const obs = (obsRes.data || []).map((r: any) => {
-    const m = r.meta ?? r.details ?? null;
+    const m = r.meta ?? r.details ?? {};
     const name =
       r.name ??
       r.metric ??
@@ -76,6 +99,13 @@ export async function GET() {
       : Array.isArray(m?.flags)
       ? m.flags
       : null;
+    const file = {
+      upload_id: r.source_upload_id ?? r.upload_id ?? m?.upload_id ?? null,
+      bucket: m?.bucket ?? null,
+      path: m?.storage_path ?? m?.path ?? null,
+      name: m?.file_name ?? m?.name ?? null,
+      mime: m?.mime ?? null,
+    };
     return {
       id: String(r.id),
       kind: "observation",
@@ -85,11 +115,14 @@ export async function GET() {
       flags,
       observed_at: pickObserved(r),
       uploaded_at: iso(r.created_at ?? r.createdAt),
-      source_upload_id: r.source_upload_id ?? r.upload_id ?? null,
-      meta: m,
+      meta: m || {},
+      file,
     };
   });
 
-  const items=[...preds,...obs].sort((a,b)=>new Date(b.observed_at).getTime()-new Date(a.observed_at).getTime());
+  const items = [...preds, ...obs].sort(
+    (a, b) =>
+      new Date(b.observed_at).getTime() - new Date(a.observed_at).getTime()
+  );
   return NextResponse.json({ items }, { headers: noStore });
 }

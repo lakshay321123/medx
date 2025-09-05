@@ -58,6 +58,21 @@ export default function Timeline(){
   [items, cat, fromDate, q]
   );
 
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState<any|null>(null);
+  const [signedUrl, setSignedUrl] = useState<string|null>(null);
+  useEffect(()=>{
+    if (!open || !active?.file) { setSignedUrl(null); return; }
+    const f = active.file;
+    const qs = f.upload_id
+      ? `?uploadId=${encodeURIComponent(f.upload_id)}`
+      : f.bucket && f.path
+      ? `?bucket=${encodeURIComponent(f.bucket)}&path=${encodeURIComponent(f.path)}`
+      : "";
+    if (!qs) return;
+    fetch(`/api/uploads/signed-url${qs}`).then(r=>r.json()).then(d=>{ if (d?.url) setSignedUrl(d.url); });
+  }, [open, active]);
+
   return (
     <div className="p-4">
       <h2 className="text-lg font-semibold mb-3">Timeline</h2>
@@ -75,11 +90,12 @@ export default function Timeline(){
       </div>
       <ul className="space-y-2 text-sm">
         {filtered.map((it:any)=>(
-          <li key={`${it.kind}:${it.id}`} className="rounded-xl border p-3">
+          <li key={`${it.kind}:${it.id}`} className="rounded-xl border p-3 hover:bg-muted/40 cursor-pointer"
+              onClick={()=>{ if (it.kind==="observation") { setActive(it); setOpen(true); }}}>
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <div><span className="font-medium">Test date:</span> {new Date(it.observed_at).toLocaleString()}
               {it.uploaded_at && <> · <span className="font-medium">Uploaded:</span> {new Date(it.uploaded_at).toLocaleString()}</>}</div>
-              <div><span className="text-[10px] px-2 py-0.5 rounded-full bg-muted">{it.kind==="prediction"?"AI":"Obs"}</span></div>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted">{it.kind==="prediction"?"AI":"Obs"}</span>
             </div>
             <div className="mt-1 font-medium">
               {it.name}
@@ -89,6 +105,33 @@ export default function Timeline(){
           </li>
         ))}
       </ul>
+
+      {open && active && (
+        <div className="fixed inset-0 bg-black/40 z-50" onClick={()=>setOpen(false)}>
+          <div className="absolute right-0 top-0 h-full w-full max-w-3xl bg-background shadow-xl p-4 overflow-hidden" onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div className="font-medium truncate">{active.name || active.meta?.file_name || "Report"}</div>
+              <div className="flex gap-2">
+                {signedUrl && <button onClick={()=>window.open(signedUrl, "_blank")} className="text-xs px-2 py-1 rounded-md border">Open</button>}
+                {signedUrl && <a href={signedUrl} download className="text-xs px-2 py-1 rounded-md border">Download</a>}
+                <button onClick={()=>setOpen(false)} className="text-xs px-2 py-1 rounded-md border">Close</button>
+              </div>
+            </div>
+            <div className="mt-3 h-[calc(100%-56px)] overflow-auto rounded-lg border bg-muted/10 flex items-center justify-center">
+              {!signedUrl && <div className="text-xs text-muted-foreground p-4">Fetching file…</div>}
+              {signedUrl && (
+                /\.pdf(\?|$)/i.test(signedUrl) ? (
+                  <iframe src={signedUrl} className="w-full h-full rounded-lg" />
+                ) : /\.(png|jpe?g|gif|webp)(\?|$)/i.test(signedUrl) ? (
+                  <img src={signedUrl} className="max-w-full max-h-full object-contain rounded-lg" />
+                ) : (
+                  <div className="text-sm text-muted-foreground p-6 text-center">Preview unavailable. Use <b>Open</b> or <b>Download</b>.</div>
+                )
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

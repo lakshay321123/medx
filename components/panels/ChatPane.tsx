@@ -235,6 +235,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const prefillRaw = params.get('prefill');
   const isProfileThread = threadId === 'med-profile' || context === 'profile';
   const [stickySystem, setStickySystem] = useState<any | null>(null);
+  const shouldShowGlobalWelcome = !isProfileThread;
 
   const [ui, setUi] = useState<ChatUiState>(UI_DEFAULTS);
 
@@ -266,6 +267,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           return;
         }
       }
+      if (!shouldShowGlobalWelcome) {
+        setMessages([]);
+        setNote('');
+        return;
+      }
       const msg = getRandomWelcome();
       setMessages([
         {
@@ -280,7 +286,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     init();
     window.addEventListener('new-chat', init);
     return () => window.removeEventListener('new-chat', init);
-  }, []);
+  }, [shouldShowGlobalWelcome]);
 
   useEffect(() => {
     if (!isProfileThread) return;
@@ -297,7 +303,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       } as any;
       setStickySystem(sys);
       setMessages(prev => {
-        const withoutOld = prev.filter(m => m.id !== "medx-profile-sticky");
+        const without = prev.filter(
+          (m: any) => m.id !== "medx-profile-sticky" && m.role !== "system"
+        );
         const intro = payload?.summary
           ? [
               {
@@ -309,7 +317,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               },
             ]
           : [];
-        return [sys, ...intro, ...withoutOld];
+        return [sys, ...intro, ...without];
       });
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -378,7 +386,12 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     try {
       if (isProfileThread) {
         const base = stickySystem
-          ? [stickySystem, ...messages.filter(m => m.id !== 'medx-profile-sticky')]
+          ? [
+              stickySystem,
+              ...messages.filter(
+                (m: any) => m.id !== 'medx-profile-sticky' && m.role !== 'system'
+              )
+            ]
           : messages;
         const thread = [
           ...base.filter(m => !m.pending).map(m => ({ role: m.role, content: (m as any).content || '' })),
@@ -744,7 +757,7 @@ ${linkNudge}`;
           </div>
         )}
         <div className="mx-auto w-full max-w-3xl space-y-4">
-          {messages.map(m =>
+          {messages.filter((m: any) => m.role !== 'system' && m.id !== 'medx-profile-sticky').map(m =>
             m.role === 'user' ? (
               <div
                 key={m.id}

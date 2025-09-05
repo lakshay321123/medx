@@ -98,7 +98,7 @@ meta.category in {lab|vital|imaging|medication|diagnosis|procedure|immunization|
   }
 
   const nowISO = new Date().toISOString();
-  const reportDate = extractReportDate(text || "");
+  const reportDate = extractReportDate(text || defaults?.meta?.text || "") || null;
   const sb = supabaseAdmin();
 
   // Idempotency by sourceHash (optional)
@@ -122,7 +122,7 @@ meta.category in {lab|vital|imaging|medication|diagnosis|procedure|immunization|
     meta: {
       ...(x.meta || {}),
       ...(defaults?.meta || {}),
-      report_date: reportDate || null,
+      report_date: reportDate,
       source_type: x.meta?.source_type || defaults?.meta?.source_type || "text",
       ...(sourceHash ? { source_hash: sourceHash } : {}),
       ...(usedFallback ? { extracted_by: "fallback" } : {}),

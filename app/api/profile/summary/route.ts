@@ -15,39 +15,33 @@ export async function GET() {
   const [prof, obs, preds] = await Promise.all([
     supa
       .from("profiles")
-      .select(
-        "full_name, dob, sex, blood_group, conditions_predisposition, chronic_conditions"
-      )
+      .select("full_name, dob, sex, blood_group, conditions_predisposition, chronic_conditions")
       .eq("id", userId)
       .maybeSingle(),
     supa.from("observations").select("*").eq("user_id", userId),
     supa.from("predictions").select("*").eq("user_id", userId),
   ]);
-  if (prof.error) return NextResponse.json({ summary: "", reasons: "" }, { headers: noStore });
 
   const p: any = prof.data || {};
   const observations = obs.data || [];
   const predictions = preds.data || [];
 
-  const textOf = (r: any) => `${(r.name || "").toLowerCase()} ${JSON.stringify(r.meta || {}).toLowerCase()}`;
+  const textOf = (r: any) =>
+    `${(r.name || "").toLowerCase()} ${JSON.stringify(r.meta || {}).toLowerCase()} ${JSON.stringify(r.details || {}).toLowerCase()}`;
   const when = (r: any) =>
     new Date(
       r.observed_at ||
         r.meta?.report_date ||
         r.details?.report_date ||
         r.created_at ||
-        r.createdAt ||
-        Date.now()
+        0
     ).getTime();
   const pickLatest = (rx: RegExp) =>
-    observations
-      .filter((r: any) => rx.test(textOf(r)))
-      .sort((a: any, b: any) => when(b) - when(a))[0];
-  const vStr = (r: any) => {
-    const v = r?.value ?? r?.meta?.value ?? r?.details?.value ?? "?";
-    const u = r?.unit ?? r?.meta?.unit ?? r?.details?.unit;
-    return `${v}${u ? ` ${u}` : ""}`;
-  };
+    observations.filter((r: any) => rx.test(textOf(r))).sort((a: any, b: any) => when(b) - when(a))[0];
+  const vStr = (r: any) =>
+    `${r?.value ?? r?.meta?.value ?? r?.details?.value ?? "?"}${
+      r?.unit ?? r?.meta?.unit ?? r?.details?.unit ? ` ${r?.unit ?? r?.meta?.unit ?? r?.details?.unit}` : ""
+    }`;
 
   const analytes: { label: string; rx: RegExp }[] = [
     { label: "HbA1c", rx: /\bhba1c\b/i },
@@ -72,10 +66,7 @@ export async function GET() {
   if (idBits) lines.push(idBits);
   if (Array.isArray(p.chronic_conditions) && p.chronic_conditions.length)
     lines.push(`Chronic: ${p.chronic_conditions.join(", ")}`);
-  if (
-    Array.isArray(p.conditions_predisposition) &&
-    p.conditions_predisposition.length
-  )
+  if (Array.isArray(p.conditions_predisposition) && p.conditions_predisposition.length)
     lines.push(`Predispositions: ${p.conditions_predisposition.join(", ")}`);
 
   const reasons: string[] = [];
@@ -104,18 +95,13 @@ export async function GET() {
     })
     .sort((a, b) => (b.prob ?? 0) - (a.prob ?? 0))[0];
   if (topPred?.name) {
-    const s = `AI risk focus: ${topPred.name}$${""}`.replace(
-      '$',
-      typeof topPred.prob === "number"
-        ? ` (${Math.round(topPred.prob * 100)}%)`
-        : ""
+    lines.push(
+      `AI risk focus: ${topPred.name}${
+        typeof topPred.prob === "number" ? ` (${Math.round(topPred.prob * 100)}%)` : ""
+      }`
     );
-    lines.push(s);
     reasons.push(`Prediction signal: ${topPred.name}`);
   }
 
-  return NextResponse.json(
-    { summary: lines.join("\n"), reasons: reasons.join("; ") },
-    { headers: noStore }
-  );
+  return NextResponse.json({ summary: lines.join("\n"), reasons: reasons.join("; ") }, { headers: noStore });
 }
