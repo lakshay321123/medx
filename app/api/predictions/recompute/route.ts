@@ -5,7 +5,7 @@ export const revalidate = 0;
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/getUserId";
-import { computeReadiness } from "../readiness/route";
+import { computeReadiness } from "@/lib/readiness";
 
 const noStore = { "Cache-Control": "no-store, max-age=0" };
 
