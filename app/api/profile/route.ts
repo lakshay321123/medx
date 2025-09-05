@@ -198,6 +198,10 @@ export async function GET(_req: NextRequest) {
   if (perr) {
     return NextResponse.json({ error: perr.message }, { status: 500, headers: noStoreHeaders() });
   }
+  const prof: any = profile || {};
+  if (!Array.isArray(prof.chronic_conditions)) prof.chronic_conditions = [];
+  if (!Array.isArray(prof.conditions_predisposition))
+    prof.conditions_predisposition = [];
 
   const { data: rows, error: oerr } = await sb
     .from("observations")
@@ -268,11 +272,11 @@ export async function GET(_req: NextRequest) {
     latest[k] = { value: v.value, unit: v.unit, observedAt: v.observedAt };
   }
 
-  return NextResponse.json({ profile: profile ?? null, groups, latest }, { headers: noStoreHeaders() });
+  return NextResponse.json({ profile: prof, groups, latest }, { headers: noStoreHeaders() });
 }
 
-export async function PUT(req: NextRequest) {
-  const userId = await getUserId();                  // must be a UUID (see Option B if testing)
+export async function PATCH(req: NextRequest) {
+  const userId = await getUserId();
   if (!userId) return new NextResponse("Unauthorized", { status: 401 });
 
   const body = await req.json().catch(() => ({}));
@@ -286,16 +290,51 @@ export async function PUT(req: NextRequest) {
   ] as const;
 
   const patch: Record<string, any> = {};
-  for (const k of allowed) if (k in body) patch[k] = body[k];
+  for (const k of allowed) if (body[k] !== undefined && body[k] !== null) patch[k] = body[k];
 
-  // Create-or-update by primary key id
+  if (patch.chronic_conditions || patch.conditions_predisposition) {
+    const { data: existing } = await supabaseAdmin()
+      .from("profiles")
+      .select("chronic_conditions, conditions_predisposition")
+      .eq("id", userId)
+      .maybeSingle();
+    if (Array.isArray(patch.chronic_conditions)) {
+      const prev = Array.isArray(existing?.chronic_conditions)
+        ? existing!.chronic_conditions
+        : [];
+      patch.chronic_conditions = Array.from(
+        new Set([...(prev as string[]), ...patch.chronic_conditions])
+      );
+    }
+    if (Array.isArray(patch.conditions_predisposition)) {
+      const prev = Array.isArray(existing?.conditions_predisposition)
+        ? existing!.conditions_predisposition
+        : [];
+      patch.conditions_predisposition = Array.from(
+        new Set([...(prev as string[]), ...patch.conditions_predisposition])
+      );
+    }
+  }
+
   const { data, error } = await supabaseAdmin()
     .from("profiles")
     .upsert({ id: userId, ...patch }, { onConflict: "id" })
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, profile: data });
+  if (error)
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500, headers: noStoreHeaders() }
+    );
+
+  if (!Array.isArray(data.chronic_conditions)) data.chronic_conditions = [];
+  if (!Array.isArray(data.conditions_predisposition))
+    data.conditions_predisposition = [];
+
+  return NextResponse.json(
+    { ok: true, profile: data },
+    { headers: noStoreHeaders() }
+  );
 }
 

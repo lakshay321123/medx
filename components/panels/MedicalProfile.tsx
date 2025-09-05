@@ -180,7 +180,7 @@ export default function MedicalProfile() {
                 setSaving(true);
                 try {
                   const r = await fetch("/api/profile", {
-                    method: "PUT",
+                    method: "PATCH",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                       full_name: fullName || null,
@@ -264,7 +264,7 @@ export default function MedicalProfile() {
             <span>Predispositions</span>
             <input
               className="rounded-md border px-3 py-2"
-              placeholder="Type to add (Enter)…"
+              placeholder="Family history (who — condition). E.g., ‘Mother — breast cancer; Father — type-2 diabetes’."
               onKeyDown={e => {
                 const v = (e.target as HTMLInputElement).value.trim();
                 if (e.key === "Enter" && v) {

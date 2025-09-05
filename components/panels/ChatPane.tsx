@@ -10,6 +10,8 @@ import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
 import { detectFollowupIntent } from '@/lib/intents';
 import { safeJson } from '@/lib/safeJson';
+import { extractMeds } from '@/lib/meds';
+import { computeGaps } from '@/lib/gaps';
 import type {
   ChatMessage as BaseChatMessage,
   AnalysisCategory,
@@ -216,6 +218,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = externalInputRef ?? useRef<HTMLInputElement>(null);
+  const [pendingMed, setPendingMed] = useState<any | null>(null);
+  const [currentGap, setCurrentGap] = useState<any | null>(null);
 
   const params = useSearchParams();
   const threadId = params.get('threadId');
@@ -235,6 +239,25 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     if (posted.current.has(id)) return;
     posted.current.add(id);
     addAssistant(content, { id });
+  }
+
+  async function checkGaps() {
+    if (!isProfileThread) return;
+    try {
+      const [p, t] = await Promise.all([
+        fetch('/api/profile', { cache: 'no-store' }).then(r => r.json()),
+        fetch('/api/timeline', { cache: 'no-store' }).then(r => r.json())
+      ]);
+      fetch('/api/predictions/readiness', { cache: 'no-store' }).catch(() => {});
+      const gaps = computeGaps({ profile: p.profile, timeline: t.items });
+      if (gaps.length) {
+        const g = gaps[0];
+        if (!messages.length || messages[messages.length - 1].id !== `gap:${g.key}`) {
+          setMessages(prev => [...prev, { id: `gap:${g.key}`, role: 'assistant', kind: 'chat', content: g.prompt } as any]);
+          setCurrentGap(g);
+        }
+      }
+    } catch {}
   }
 
   // Load per-thread UI whenever threadId changes
@@ -284,10 +307,24 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           if (text) addOnce('summary:med-profile', text);
         } catch {}
       })();
+      (async () => {
+        try {
+          const j = await safeJson(fetch('/api/timeline', { cache: 'no-store' }));
+          const notes = (j.items || []).filter((it: any) => it.kind === 'observation' && it.meta?.kind === 'note' && it.meta?.source === 'ai_doc');
+          if (notes.length) {
+            setMessages((prev: any[]) => [...notes.reverse().map((n: any) => ({ id: String(n.id), role: 'user', kind: 'chat', content: n.meta?.text || '' })), ...prev]);
+          }
+        } catch {}
+      })();
+      checkGaps();
     } else if (messages.length === 0) {
       addOnce('welcome:chat', getRandomWelcome());
     }
   }, [isProfileThread, threadId, messages.length]);
+
+  useEffect(() => {
+    if (isProfileThread) checkGaps();
+  }, [messages.length, isProfileThread]);
 
   useEffect(() => {
     if (!isProfileThread && threadId) saveMessages(threadId, messages as any);
@@ -328,6 +365,51 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   async function send(text: string, researchMode: boolean) {
     if (!text.trim() || busy) return;
+    if (isProfileThread) {
+      if (currentGap?.key === 'predispositions') {
+        setMessages(prev => [...prev, { id: uid(), role: 'user', kind: 'chat', content: text } as any]);
+        fetch('/api/ai-doc/note', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        }).catch(() => {});
+        await fetch('/api/profile', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conditions_predisposition: [text] })
+        });
+        setCurrentGap(null);
+        setBusy(false);
+        checkGaps();
+        return;
+      }
+      if (currentGap?.key === 'weight') {
+        setMessages(prev => [...prev, { id: uid(), role: 'user', kind: 'chat', content: text } as any]);
+        const m = text.match(/(\d{2,3})\s?kg/i);
+        if (m) {
+          await fetch('/api/observations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              kind: 'weight',
+              value_num: +m[1],
+              unit: 'kg',
+              observed_at: new Date().toISOString(),
+              meta: { source: 'ai_doc', committed: true },
+            })
+          });
+        }
+        fetch('/api/ai-doc/note', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        }).catch(() => {});
+        setCurrentGap(null);
+        setBusy(false);
+        checkGaps();
+        return;
+      }
+    }
     setBusy(true);
 
     const normalize = (s: string) =>
@@ -348,6 +430,31 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     setNote('');
     if (!isProfileThread && threadId && messages.filter(m => m.role === 'user').length === 0) {
       updateThreadTitle(threadId, generateTitle(text));
+    }
+
+    if (isProfileThread) {
+      const meds = extractMeds(userText);
+      const low = meds.find(m => m.confidence < 0.8);
+      if (low) {
+        setMessages(prev => prev.filter(m => m.id !== pendingId));
+        fetch('/api/ai-doc/note', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: userText })
+        }).catch(() => {});
+        setMessages(prev => [...prev, { id: uid(), role: 'assistant', kind: 'chat', content: `Did you mean ${low.norm || low.raw}? Please confirm or correct the name & dose.` } as any]);
+        setPendingMed(low);
+        setBusy(false);
+        return;
+      }
+      const payload: any = { text: userText };
+      if (meds.length) payload.meds = meds.map(m => m.norm || m.raw);
+      fetch('/api/ai-doc/note', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).catch(() => {});
+      if (pendingMed) setPendingMed(null);
     }
 
     try {
