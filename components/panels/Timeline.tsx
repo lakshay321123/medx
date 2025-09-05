@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 type Cat = "ALL"|"LABS"|"VITALS"|"IMAGING"|"AI"|"NOTES";
 const catOf = (it:any):Cat => {
@@ -62,8 +63,6 @@ export default function Timeline(){
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<any|null>(null);
   const [signedUrl, setSignedUrl] = useState<string|null>(null);
-  const [drawerReady, setDrawerReady] = useState(false);
-  useEffect(()=>{ if (open) setTimeout(()=>setDrawerReady(true),10); else setDrawerReady(false); },[open]);
   useEffect(()=>{
     if (!open || !active?.file) { setSignedUrl(null); return; }
     const f = active.file;
@@ -75,6 +74,10 @@ export default function Timeline(){
     if (!qs) return;
     fetch(`/api/uploads/signed-url${qs}`).then(r=>r.json()).then(d=>{ if (d?.url) setSignedUrl(d.url); });
   }, [open, active]);
+
+  const long = active?.meta?.summary_long;
+  const short = active?.meta?.summary;
+  const text = active?.meta?.text;
 
   return (
     <div className="p-4">
@@ -123,41 +126,60 @@ export default function Timeline(){
       </ul>
 
       {open && active && (
-        <div className={`fixed inset-0 bg-black/40 z-50 ${drawerReady?'':'pointer-events-none'}`} onClick={()=>setOpen(false)}>
-          <div className="absolute right-0 top-0 h-full w-full max-w-3xl bg-background shadow-xl p-4 overflow-hidden" onClick={e=>e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <div className="font-medium truncate">{active.name || active.meta?.file_name || "Report"}</div>
-              <div className="flex gap-2">
-                {(active.file?.path || active.file?.upload_id) && signedUrl && <button onClick={()=>window.open(signedUrl, "_blank")} className="text-xs px-2 py-1 rounded-md border">Open</button>}
-                {(active.file?.path || active.file?.upload_id) && signedUrl && <a href={signedUrl} download className="text-xs px-2 py-1 rounded-md border">Download</a>}
-                {!(active.file?.path || active.file?.upload_id) && <a href={`/api/observations/${active.id}/export`} className="text-xs px-2 py-1 rounded-md border">Download Summary</a>}
-                <button onClick={()=>setOpen(false)} className="text-xs px-2 py-1 rounded-md border">Close</button>
+        <>
+          <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setOpen(false)} />
+          <aside className="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-[640px] bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-2xl ring-1 ring-black/5 overflow-y-auto">
+            <header className="sticky top-0 bg-white/90 dark:bg-zinc-900/90 backdrop-blur border-b border-zinc-200/70 dark:border-zinc-800/70 px-4 py-3 flex items-center gap-2">
+              <h3 className="font-semibold truncate">{active.name || active.meta?.file_name || "Observation"}</h3>
+              <div className="ml-auto flex gap-2">
+                {(active.file?.path || active.file?.upload_id) && signedUrl && (
+                  <button onClick={() => window.open(signedUrl, '_blank')} className="text-xs px-2 py-1 rounded-md border">Open</button>
+                )}
+                {(active.file?.path || active.file?.upload_id) && signedUrl && (
+                  <a href={signedUrl} download className="text-xs px-2 py-1 rounded-md border">Download</a>
+                )}
+                {!(active.file?.path || active.file?.upload_id) && (
+                  <a href={`/api/observations/${active.id}/export`} className="text-xs px-2 py-1 rounded-md border">Download Summary</a>
+                )}
+                <button onClick={() => setOpen(false)} className="text-xs px-2 py-1 rounded-md border">Close</button>
               </div>
-            </div>
-            <div className="mt-3 h-[calc(100%-56px)] overflow-auto rounded-lg border bg-muted/10 flex items-center justify-center p-4 text-sm whitespace-pre-wrap">
+            </header>
+            <div className="px-5 py-4">
               {active.file?.path || active.file?.upload_id ? (
                 !signedUrl ? (
                   <div className="text-xs text-muted-foreground">Fetching file…</div>
                 ) : /\.pdf(\?|$)/i.test(signedUrl) ? (
-                  <iframe src={signedUrl} className="w-full h-full rounded-lg" />
+                  <iframe src={signedUrl} className="w-full h-[80vh] bg-white" />
                 ) : /\.(png|jpe?g|gif|webp)(\?|$)/i.test(signedUrl) ? (
-                  <img src={signedUrl} className="max-w-full max-h-full object-contain rounded-lg" />
+                  <img src={signedUrl} className="max-w-full max-h-[80vh] object-contain" />
                 ) : (
                   <div className="text-sm text-muted-foreground text-center">Preview unavailable. Use <b>Open</b> or <b>Download</b>.</div>
                 )
               ) : (
-                <div className="w-full">
-                  {active.meta?.summary && <p className="mb-2">{active.meta.summary}</p>}
-                  {active.meta?.patient_fields && (
-                    <div className="mb-2 text-xs text-muted-foreground">
-                      {Object.entries(active.meta.patient_fields).map(([k,v]) => v ? <div key={k}>{k}: {String(v)}</div> : null)}
-                    </div>
+                <Tabs defaultValue={long ? 'summary' : (short ? 'summary' : 'text')}>
+                  {(long || short) && (
+                    <TabsList className="mb-3">
+                      <TabsTrigger value="summary">Summary</TabsTrigger>
+                      {text && <TabsTrigger value="text">Full text</TabsTrigger>}
+                    </TabsList>
                   )}
-                </div>
+                  {(long || short) && (
+                    <TabsContent value="summary">
+                      <article className="prose prose-zinc dark:prose-invert max-w-none whitespace-pre-wrap select-text">
+                        {(long || short) as string}
+                      </article>
+                    </TabsContent>
+                  )}
+                  {text && (
+                    <TabsContent value="text">
+                      <pre className="whitespace-pre-wrap break-words text-sm leading-6 select-text">{text}</pre>
+                    </TabsContent>
+                  )}
+                </Tabs>
               )}
             </div>
-          </div>
-        </div>
+          </aside>
+        </>
       )}
     </div>
   );

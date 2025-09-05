@@ -13,11 +13,11 @@ export default function Sidebar() {
   useEffect(() => {
     const load = () => setThreads(listThreads());
     load();
-    window.addEventListener('threads-updated', load);
     window.addEventListener('storage', load);
+    window.addEventListener('chat-threads-updated', load);
     return () => {
-      window.removeEventListener('threads-updated', load);
       window.removeEventListener('storage', load);
+      window.removeEventListener('chat-threads-updated', load);
     };
   }, []);
 

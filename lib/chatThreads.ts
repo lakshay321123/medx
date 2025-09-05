@@ -11,7 +11,7 @@ export function listThreads(): Thread[] {
 }
 export function saveThreads(list: Thread[]) {
   localStorage.setItem(LS_KEY, JSON.stringify(list.slice(0,200)));
-  window.dispatchEvent(new Event('threads-updated'));
+  window.dispatchEvent(new Event('chat-threads-updated'));
 }
 export function loadMessages(id: string): ChatMsg[] {
   try { return JSON.parse(localStorage.getItem(LS_MSG(id)) || "[]"); } catch { return []; }
@@ -30,4 +30,20 @@ export function ensureThread(id: string, initialTitle = "New chat"): Thread {
 export function renameThread(id:string, title:string){
   const all = listThreads().map(t=>t.id===id?{...t,title,updatedAt:Date.now()}:t);
   saveThreads(all);
+}
+
+export function generateTitle(text: string) {
+  const t = (text || "").trim().replace(/\s+/g, " ").replace(/^[\s"'`]+|[\s"'`]+$/g, "");
+  const strip = t.replace(/^(tell me about|explain|research (on|about)|what is|how to|help with)\s+/i, "");
+  return strip.length <= 48 ? strip : strip.slice(0, 48).replace(/\s+\S*$/, "") + "…";
+}
+
+export function updateThreadTitle(id: string, title: string) {
+  const all = listThreads();
+  const idx = all.findIndex(t => t.id === id);
+  if (idx >= 0) {
+    all[idx] = { ...all[idx], title, updatedAt: Date.now() };
+    saveThreads(all);
+    window.dispatchEvent(new Event("chat-threads-updated"));
+  }
 }

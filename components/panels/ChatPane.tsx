@@ -14,7 +14,7 @@ import type {
   ChatMessage as BaseChatMessage,
   AnalysisCategory,
 } from '@/lib/context';
-import { ensureThread, loadMessages, saveMessages, renameThread } from '@/lib/chatThreads';
+import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle } from '@/lib/chatThreads';
 
 type ChatUiState = {
   topic: string | null;
@@ -222,15 +222,20 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const context = params.get('context');
   const isProfileThread = threadId === 'med-profile' || context === 'profile';
   const [pendingCommitIds, setPendingCommitIds] = useState<string[]>([]);
-  const [introShown, setIntroShown] = useState(false);
-  const [welcomeShown, setWelcomeShown] = useState(false);
   const [commitBusy, setCommitBusy] = useState<null | 'save' | 'discard'>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
+  const posted = useRef(new Set<string>());
 
   const [ui, setUi] = useState<ChatUiState>(UI_DEFAULTS);
 
-  const addAssistant = (text: string) =>
-    setMessages(prev => [...prev, { id: uid(), role: 'assistant', kind: 'chat', content: text } as any]);
+  const addAssistant = (text: string, opts?: Partial<ChatMessage>) =>
+    setMessages(prev => [...prev, { id: uid(), role: 'assistant', kind: 'chat', content: text, ...opts } as any]);
+
+  function addOnce(id: string, content: string) {
+    if (posted.current.has(id)) return;
+    posted.current.add(id);
+    addAssistant(content, { id });
+  }
 
   // Load per-thread UI whenever threadId changes
   useEffect(() => {
@@ -255,13 +260,12 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
 
   useEffect(() => {
-    setIntroShown(false);
-    setWelcomeShown(false);
+    posted.current.clear();
     if (!isProfileThread && threadId) {
       ensureThread(threadId);
       const saved = loadMessages(threadId) as any[];
       setMessages(saved);
-      if (saved.length > 0) setWelcomeShown(true);
+      posted.current = new Set(saved.filter(m => m.role === 'assistant').map((m: any) => m.id));
     } else if (!threadId) {
       setMessages([]);
     } else {
@@ -271,22 +275,19 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   useEffect(() => {
     if (isProfileThread) {
-      if (!introShown) {
-        addAssistant('Loaded your packet. Tell me what to correct or add, and I’ll update with reasons.');
-        setIntroShown(true);
-      }
+      addOnce('intro:med-profile', 'Loaded your packet. Tell me what to correct or add, and I’ll update with reasons.');
       (async () => {
         try {
           const r = await fetch('/api/profile/summary');
           const j = await r.json();
-          if (j?.summary) addAssistant(j.summary);
+          const text = j?.summary?.text || j?.summary;
+          if (text) addOnce('summary:med-profile', text);
         } catch {}
       })();
-    } else if (!welcomeShown && messages.length === 0) {
-      addAssistant(getRandomWelcome());
-      setWelcomeShown(true);
+    } else if (messages.length === 0) {
+      addOnce('welcome:chat', getRandomWelcome());
     }
-  }, [isProfileThread, threadId, welcomeShown, introShown]);
+  }, [isProfileThread, threadId, messages.length]);
 
   useEffect(() => {
     if (!isProfileThread && threadId) saveMessages(threadId, messages as any);
@@ -345,10 +346,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     ];
     setMessages(nextMsgs);
     setNote('');
-    if (!isProfileThread && threadId) {
-      const t = ensureThread(threadId);
-      const title = messages.length === 0 ? userText.slice(0, 60) : t.title;
-      renameThread(threadId, title);
+    if (!isProfileThread && threadId && messages.filter(m => m.role === 'user').length === 0) {
+      updateThreadTitle(threadId, generateTitle(text));
     }
 
     try {

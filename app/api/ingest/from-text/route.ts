@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserId } from "@/lib/getUserId";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { extractReportDate } from "@/lib/reportDate";
+import { summarizeMedicalDoc } from "@/lib/summarizeDoc";
 import OpenAI from "openai";
 
 const HAVE_OPENAI = !!process.env.OPENAI_API_KEY;
@@ -180,6 +181,7 @@ meta.category in {lab|vital|imaging|medication|diagnosis|procedure|immunization|
   }
 
   const summary = summarizeText(text);
+  const summaryLong = text && text.length > 2000 ? summarizeMedicalDoc(text) : undefined;
   const meds = extractMedsFromText(text);
   const patient = extractPatientFields(text);
   const tags = deriveTags(text, defaults?.meta?.mime);
@@ -204,6 +206,7 @@ meta.category in {lab|vital|imaging|medication|diagnosis|procedure|immunization|
       report_date: reportDate,
       text,
       summary,
+      summary_long: summaryLong,
       tags,
       meds,
       patient_fields: patient,
