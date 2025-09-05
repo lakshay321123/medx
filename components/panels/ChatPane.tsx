@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, RefObject } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Header from '../Header';
 import Markdown from '../Markdown';
 import { Send } from 'lucide-react';
@@ -10,10 +10,7 @@ import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
 import { detectFollowupIntent } from '@/lib/intents';
 import { safeJson } from '@/lib/safeJson';
-import type {
-  ChatMessage as BaseChatMessage,
-  AnalysisCategory,
-} from '@/lib/context';
+import type { AnalysisCategory } from '@/lib/context';
 import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle } from '@/lib/chatThreads';
 
 type ChatUiState = {
@@ -24,11 +21,17 @@ type ChatUiState = {
 const UI_DEFAULTS: ChatUiState = { topic: null, contextFrom: null };
 const uiKey = (threadId: string) => `chat:${threadId}:ui`;
 
-type ChatMessage = BaseChatMessage & {
+type ChatMessage = {
+  id: string;
+  role: 'user' | 'assistant';
+  kind: 'chat' | 'analysis' | 'action';
+  content: string;
+  category?: AnalysisCategory;
   tempId?: string;
   parentId?: string;
   pending?: boolean;
   error?: string | null;
+  meta?: any;
 };
 
 const uid = () => Math.random().toString(36).slice(2);
@@ -194,9 +197,25 @@ function ChatCard({ m }: { m: Extract<ChatMessage, { kind: "chat" }> }) {
   );
 }
 
-function AssistantMessage({ m, researchOn, onQuickAction, busy }: { m: ChatMessage; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean }) {
+function ActionCard({ m, onAction }: { m: Extract<ChatMessage, { kind: "action" }>; onAction: (m: ChatMessage) => void }) {
+  return (
+    <div className="mr-auto max-w-[90%]">
+      <button
+        type="button"
+        className="btn-secondary"
+        onClick={() => onAction(m)}
+      >
+        {m.content.replace(/^\[|\]$/g, '')}
+      </button>
+    </div>
+  );
+}
+
+function AssistantMessage({ m, researchOn, onQuickAction, busy, onAction }: { m: ChatMessage; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean; onAction: (m: ChatMessage) => void }) {
   return m.kind === "analysis" ? (
     <AnalysisCard m={m} researchOn={researchOn} onQuickAction={onQuickAction} busy={busy} />
+  ) : m.kind === 'action' ? (
+    <ActionCard m={m} onAction={onAction} />
   ) : (
     <ChatCard m={m} />
   );
@@ -218,6 +237,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const inputRef = externalInputRef ?? useRef<HTMLInputElement>(null);
 
   const params = useSearchParams();
+  const router = useRouter();
   const threadId = params.get('threadId');
   const context = params.get('context');
   const isProfileThread = threadId === 'med-profile' || context === 'profile';
@@ -230,6 +250,13 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const addAssistant = (text: string, opts?: Partial<ChatMessage>) =>
     setMessages(prev => [...prev, { id: uid(), role: 'assistant', kind: 'chat', content: text, ...opts } as any]);
+
+  function onActionMessage(message: ChatMessage) {
+    if (message.kind === 'action' && message.meta?.action === 'open_research') {
+      router.push('/chat/new?mode=research');
+      return;
+    }
+  }
 
   function addOnce(id: string, content: string) {
     if (posted.current.has(id)) return;
@@ -275,13 +302,26 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   useEffect(() => {
     if (isProfileThread) {
-      addOnce('intro:med-profile', 'Loaded your packet. Tell me what to correct or add, and I’ll update with reasons.');
       (async () => {
         try {
-          const r = await fetch('/api/profile/summary');
+          const r = await fetch('/api/aidoc/message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: '' }),
+          });
           const j = await r.json();
-          const text = j?.summary?.text || j?.summary || j?.text;
-          if (text) addOnce('summary:med-profile', text);
+          if (Array.isArray(j.messages)) {
+            setMessages(prev => [
+              ...prev,
+              ...j.messages.map((m: any) => ({ id: uid(), role: m.role, kind: 'chat', content: m.content, pending: false, meta: m.meta })),
+            ]);
+          }
+          if (j?.handoff?.mode === 'research') {
+            setMessages(prev => [
+              ...prev,
+              { id: uid(), role: 'assistant', kind: 'action', content: 'Open Research Mode', pending: false, meta: { action: 'open_research' } } as any,
+            ]);
+          }
         } catch {}
       })();
     } else if (messages.length === 0) {
@@ -626,10 +666,48 @@ ${linkNudge}`;
   }
 
   async function onSubmit() {
+    if (busy) return;
     if (!pendingFile && !note.trim()) return;
+    const text = note.trim();
     if (pendingFile) {
       await analyzeFile(pendingFile, note);
     } else {
+      if (isProfileThread) {
+        setBusy(true);
+        setMessages(prev => [
+          ...prev,
+          { id: uid(), role: 'user', kind: 'chat', content: text, pending: false } as any,
+        ]);
+        setNote('');
+        try {
+          const r = await fetch('/api/aidoc/message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text }),
+          });
+          const j = await r.json();
+          if (Array.isArray(j.messages)) {
+            setMessages(prev => [
+              ...prev,
+              ...j.messages.map((m: any) => ({ id: uid(), role: m.role, kind: 'chat', content: m.content, pending: false, meta: m.meta })),
+            ]);
+          }
+          if (j?.handoff?.mode === 'research') {
+            setMessages(prev => [
+              ...prev,
+              { id: uid(), role: 'assistant', kind: 'action', content: 'Open Research Mode', pending: false, meta: { action: 'open_research' } } as any,
+            ]);
+          }
+        } catch (e) {
+          setMessages(prev => [
+            ...prev,
+            { id: uid(), role: 'assistant', kind: 'chat', content: 'Sorry, I had trouble responding just now.', pending: false } as any,
+          ]);
+        } finally {
+          setBusy(false);
+        }
+        return;
+      }
       await send(note, researchMode);
     }
   }
@@ -736,6 +814,7 @@ ${linkNudge}`;
                 researchOn={researchMode}
                 onQuickAction={onQuickAction}
                 busy={loadingAction !== null}
+                onAction={onActionMessage}
               />
             )
         )}
