@@ -7,20 +7,39 @@ import { getUserId } from "@/lib/getUserId";
 
 const noStore = { "Cache-Control": "no-store, max-age=0" };
 
-function sanitizeMeds(list: any[]): string[] {
-  const dose = /\b\d+\s*(?:mg|mcg|g|ml|iu|units?)\b/i;
-  const form = /\b(tablet|tab|capsule|cap|syrup|patch|drop|injection|inj|cream|spray)\b/i;
-  const stop = /^(patient|name|age|sex|history|physical|examination|diagnosis|impression)$/i;
-  const out = new Set<string>();
-  for (const item of list) {
-    const t = String(item || '').replace(/\s+/g, ' ').trim();
-    if (!t) continue;
-    if (stop.test(t.toLowerCase())) continue;
-    if (!dose.test(t) && !form.test(t)) continue;
-    out.add(t);
-  }
-  return Array.from(out);
-}
+const STOPWORDS = [
+  "PHYSICAL EXAMINATION",
+  "VISUAL EXAMINATION",
+  "QUANTITY",
+  "SPECIMEN",
+  "DEPARTMENT",
+  "INVESTIGATION",
+  "REMARK",
+  "REFERENCE INTERVAL",
+  "OBSERVED VALUE",
+  "UNIT",
+  "BIOLOGICAL",
+];
+const cues = /(mg|mcg|µg|g|iu|ml|tablet|tab|capsule|cap|syrup|injection|drop|ointment|cream|patch)\b/i;
+const looksLikeMed = (s: string) =>
+  /[A-Za-z]/.test(s) &&
+  /\d/.test(s) &&
+  cues.test(s) &&
+  !STOPWORDS.some((w) => s.toUpperCase().includes(w));
+const sanitizeMeds = (list: any[]): string[] =>
+  Array.from(
+    new Map(
+      (list || [])
+        .map((s: any) => String(s).replace(/\s+/g, " ").trim())
+        .filter(looksLikeMed)
+        .map((m: string) => [m.toLowerCase().replace(/[^a-z0-9]+/g, ""), m])
+    ).values()
+  );
+
+const toTitle = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 
 function when(r: any) {
   return new Date(
@@ -72,7 +91,8 @@ export async function GET() {
   const age = prof.dob
     ? Math.floor((Date.now() - new Date(prof.dob).getTime()) / (365.25 * 864e5))
     : null;
-  const patientLine = `Patient: ${prof.full_name || '—'} (${prof.sex || 'Unknown'}${
+  const patientName = prof.full_name ? toTitle(prof.full_name) : '—';
+  const patientLine = `Patient: ${patientName} (${prof.sex || 'Unknown'}${
     age ? `, ${age} y` : ''
   }${prof.blood_group ? `, ${prof.blood_group}` : ''})`;
 
@@ -91,7 +111,7 @@ export async function GET() {
   const medsLine = `Active Meds: ${
     medsClean.length
       ? medsClean.slice(0, 4).join('; ') +
-        (medsClean.length > 4 ? `, +${medsClean.length - 4} more` : '')
+        (medsClean.length > 4 ? `, +${medsClean.length - 4}` : '')
       : '—'
   }`;
 
@@ -145,7 +165,15 @@ export async function GET() {
     .slice(0, 2)
     .map((r) => (r.value_text || r.meta?.summary || r.meta?.text || '').toString().trim())
     .filter(Boolean);
-  const notesLine = `Symptoms/Notes: ${notes.length ? notes.join('; ') : '—'}`;
+
+  const nextSteps = (() => {
+    const arr = Array.isArray(pred?.details?.next_steps)
+      ? pred.details.next_steps
+      : Array.isArray(pred?.meta?.next_steps)
+      ? pred.meta.next_steps
+      : null;
+    return arr && arr.length ? arr.slice(0, 2).join('; ') : '—';
+  })();
 
   const uploadsCount = obs.length;
   const latestUpload = obs.map(when).sort((a, b) => b - a)[0];
@@ -164,9 +192,10 @@ export async function GET() {
     medsLine,
     labsLine,
     predLine,
-    notesLine,
-    'Next Steps: —',
+    `Symptoms/Notes: ${notes.length ? notes.join('; ') : '—'}`,
+    `Next Steps: ${nextSteps}`,
     uploadsLine,
+    'AI assistance only — not a medical diagnosis. Confirm with a clinician.',
   ].join('\n');
 
   return NextResponse.json(

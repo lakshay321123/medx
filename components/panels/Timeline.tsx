@@ -14,6 +14,7 @@ const catOf = (it:any):Cat => {
 
 export default function Timeline(){
   const [items, setItems] = useState<any[]>([]);
+  const [resetError, setResetError] = useState<string|null>(null);
 
   const refresh = async () => {
     try {
@@ -61,6 +62,8 @@ export default function Timeline(){
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<any|null>(null);
   const [signedUrl, setSignedUrl] = useState<string|null>(null);
+  const [drawerReady, setDrawerReady] = useState(false);
+  useEffect(()=>{ if (open) setTimeout(()=>setDrawerReady(true),10); else setDrawerReady(false); },[open]);
   useEffect(()=>{
     if (!open || !active?.file) { setSignedUrl(null); return; }
     const f = active.file;
@@ -80,12 +83,15 @@ export default function Timeline(){
         <button
           onClick={async () => {
             if (!confirm('Reset all observations and predictions?')) return;
-            await fetch('/api/observations/reset', { method: 'POST' });
+            setResetError(null);
+            const res = await fetch('/api/observations/reset', { method: 'POST' });
+            if (res.status === 401) { setResetError('Please sign in'); return; }
             refresh();
           }}
           className="text-xs px-2 py-1 rounded-md border"
         >Reset</button>
       </div>
+      {resetError && <div className="mb-2 text-xs text-rose-600">{resetError}</div>}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {(["ALL","LABS","VITALS","IMAGING","AI","NOTES"] as Cat[]).map(c=>(
           <button key={c} onClick={()=>setCat(c)} className={`text-xs px-2.5 py-1 rounded-full border ${cat===c?"bg-muted font-medium":"hover:bg-muted"}`}>{c}</button>
@@ -117,7 +123,7 @@ export default function Timeline(){
       </ul>
 
       {open && active && (
-        <div className="fixed inset-0 bg-black/40 z-50" onClick={()=>setOpen(false)}>
+        <div className={`fixed inset-0 bg-black/40 z-50 ${drawerReady?'':'pointer-events-none'}`} onClick={()=>setOpen(false)}>
           <div className="absolute right-0 top-0 h-full w-full max-w-3xl bg-background shadow-xl p-4 overflow-hidden" onClick={e=>e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <div className="font-medium truncate">{active.name || active.meta?.file_name || "Report"}</div>
