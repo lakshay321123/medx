@@ -64,7 +64,8 @@ export default function MedicalProfile() {
     try {
       const r = await fetch("/api/profile/summary", { cache: "no-store" });
       const j = await r.json();
-      if (j?.summary) setSummary(j.summary);
+      if (j?.text) setSummary(j.text);
+      else if (j?.summary) setSummary(j.summary);
       if (j?.reasons) setReasons(j.reasons);
     } catch {}
   };
@@ -434,7 +435,6 @@ export default function MedicalProfile() {
           </div>
         </div>
         <p className="mt-2 text-sm whitespace-pre-wrap">{summary || "No summary yet."}</p>
-        {reasons && <div className="mt-2 text-xs text-muted-foreground"><span className="font-medium">Why:</span> {reasons}</div>}
         <div className="mt-3 text-[11px] text-muted-foreground">
           ⚠️ This is AI-generated support, not a medical diagnosis. Always consult a qualified clinician.
         </div>

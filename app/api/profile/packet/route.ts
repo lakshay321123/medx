@@ -7,6 +7,21 @@ import { getUserId } from "@/lib/getUserId";
 
 const noStore = { "Cache-Control": "no-store, max-age=0" };
 
+function sanitizeMeds(list: any[]): string[] {
+  const dose = /\b\d+\s*(?:mg|mcg|g|ml|iu|units?)\b/i;
+  const form = /\b(tablet|tab|capsule|cap|syrup|patch|drop|injection|inj|cream|spray)\b/i;
+  const stop = /^(patient|name|age|sex|history|physical|examination|diagnosis|impression)$/i;
+  const out = new Set<string>();
+  for (const item of list) {
+    const t = String(item || '').replace(/\s+/g, ' ').trim();
+    if (!t) continue;
+    if (stop.test(t.toLowerCase())) continue;
+    if (!dose.test(t) && !form.test(t)) continue;
+    out.add(t);
+  }
+  return Array.from(out).slice(0, 15);
+}
+
 export async function GET() {
   const uid = await getUserId();
   if (!uid) return NextResponse.json({ text: "" }, { headers: noStore });
@@ -34,11 +49,15 @@ export async function GET() {
         new Date(a.observed_at || a.created_at).getTime()
     )[0];
 
-  const meds = by(/(prescription|rx|medication|tablet|dose|mg|ml|qd|bid|tid|qhs|prn)/i).flatMap((r: any) => {
-    const m = r.meta || r.details || {};
-    const list = m.meds || m.medicines || m.medications || [];
-    return Array.isArray(list) ? list : typeof list === "string" ? [list] : [];
-  });
+  const meds = sanitizeMeds(
+    by(/(prescription|rx|medication|tablet|dose|mg|ml|qd|bid|tid|qhs|prn)/i).flatMap(
+      (r: any) => {
+        const m = r.meta || r.details || {};
+        const list = m.meds || m.medicines || m.medications || [];
+        return Array.isArray(list) ? list : typeof list === "string" ? [list] : [];
+      }
+    )
+  );
   const hb = latest(by(/\bhba1c\b/i));
   const fpg = latest(by(/(fasting (blood )?sugar|fpg|fbs|glucose fasting)/i));
   const egfr = latest(by(/\begfr\b/i));
