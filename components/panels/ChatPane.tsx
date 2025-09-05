@@ -251,8 +251,21 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const [ui, setUi] = useState<ChatUiState>(UI_DEFAULTS);
 
+  const bootedRef = useRef<{ [k: string]: boolean }>({});
+  const stamp = () => Date.now();
+  const bootKey = (thread?: string | null) => `aidoc:${thread || 'med-profile'}:bootedAt`;
+  const askedKey = (thread?: string | null) => `aidoc:${thread || 'med-profile'}:proactiveAskedAt`;
+
+  const within = (t: number, mins: number) => (stamp() - t) < mins * 60 * 1000;
+  const getNum = (k: string) => { try { return Number(localStorage.getItem(k) || 0); } catch { return 0; } };
+  const setNum = (k: string, v: number) => { try { localStorage.setItem(k, String(v)); } catch {} };
+
+  const [proactive, setProactive] = useState<{ kind: 'predispositions' | 'medications' | 'weight' } | null>(null);
+
   const addAssistant = (text: string, opts?: Partial<ChatMessage>) =>
     setMessages(prev => [...prev, { id: uid(), role: 'assistant', kind: 'chat', content: text, ...opts } as any]);
+
+  const ack = (text: string) => addAssistant(text);
 
   function onActionMessage(message: ChatMessage) {
     if (message.kind === 'action' && message.meta?.action === 'open_research') {
@@ -305,25 +318,46 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   useEffect(() => {
     if (isProfileThread) {
+      if (!threadId) return;
+      if (bootedRef.current[threadId]) return;
+      bootedRef.current[threadId] = true;
+
+      const lastBoot = getNum(bootKey(threadId));
+      if (lastBoot && within(lastBoot, 10)) return;
+      setNum(bootKey(threadId), stamp());
+
       (async () => {
         try {
-          const r = await fetch('/api/aidoc/message', {
+          const boot = await fetch('/api/aidoc/message', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: '' }),
-          });
-          const j = await r.json();
-          if (Array.isArray(j.messages)) {
+            body: JSON.stringify({ text: '' })
+          }).then(r => r.json()).catch(() => null);
+          if (boot?.messages?.length) {
             setMessages(prev => [
               ...prev,
-              ...j.messages.map((m: any) => ({ id: uid(), role: m.role, kind: 'chat', content: m.content, pending: false, meta: m.meta })),
+              ...boot.messages.map((m: any) => ({ id: uid(), role: m.role, kind: 'chat', content: m.content, pending: false }))
             ]);
           }
-          if (j?.handoff?.mode === 'research') {
-            setMessages(prev => [
-              ...prev,
-              { id: uid(), role: 'assistant', kind: 'action', content: 'Open Research Mode', pending: false, meta: { action: 'open_research' } } as any,
-            ]);
+          const lastAsk = getNum(askedKey(threadId));
+          if (!lastAsk || !within(lastAsk, 60)) {
+            const rd = await safeJson(fetch('/api/predictions/readiness'));
+            const miss = rd?.missing || [];
+            const pick = miss[0] as ('predispositions' | 'medications' | 'weight' | undefined);
+            if (pick) {
+              const q =
+                pick === 'predispositions'
+                  ? 'Quick check: any family history/predispositions (e.g., diabetes, hypertension)? List comma-separated.'
+                  : pick === 'medications'
+                  ? 'Quick check: do you take any regular meds? Please share name + dose (e.g., Metformin 500 mg).'
+                  : 'Quick check: what is your current weight (kg)?';
+              setMessages(prev => [
+                ...prev,
+                { id: uid(), role: 'assistant', kind: 'chat', content: q, pending: false } as any
+              ]);
+              setProactive({ kind: pick });
+              setNum(askedKey(threadId), stamp());
+            }
           }
         } catch {}
       })();
@@ -682,6 +716,56 @@ ${linkNudge}`;
           { id: uid(), role: 'user', kind: 'chat', content: text, pending: false } as any,
         ]);
         setNote('');
+        if (proactive) {
+          try {
+            if (proactive.kind === 'predispositions') {
+              await fetch('/api/profile', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ conditions_predisposition: text })
+              });
+              await fetch('/api/profile/summary', { cache: 'no-store' });
+              ack('Noted.');
+            } else if (proactive.kind === 'medications') {
+              await fetch('/api/observations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  kind: 'medications',
+                  value_text: text,
+                  observed_at: new Date().toISOString(),
+                  meta: { source: 'aidoc' }
+                })
+              });
+              ack('Noted.');
+            } else {
+              const kg = parseFloat(text.replace(/[^0-9.]/g, ''));
+              if (!isNaN(kg)) {
+                await fetch('/api/observations', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    kind: 'weight',
+                    value_num: kg,
+                    unit: 'kg',
+                    observed_at: new Date().toISOString(),
+                    meta: { source: 'aidoc' }
+                  })
+                });
+                ack(`Noted — weight set to ${kg} kg.`);
+              } else {
+                ack('Please provide weight in kg.');
+              }
+            }
+            setNum(askedKey(threadId), stamp());
+          } catch {
+            /* ignore */
+          } finally {
+            setBusy(false);
+            setProactive(null);
+          }
+          return;
+        }
         try {
           const r = await fetch('/api/aidoc/message', {
             method: 'POST',
