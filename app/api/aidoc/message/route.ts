@@ -6,6 +6,7 @@ import { AIDOC_SYSTEM } from "@/lib/aidoc/policy";
 import { classifyIntent } from "@/lib/aidoc/intents";
 import { matchRedFlags } from "@/lib/aidoc/triage";
 import { detectSymptomKey, SUGGESTED_TESTS, SELF_CARE_EDU } from "@/lib/aidoc/checks";
+import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
 // Optional LLM (kept behind env; otherwise template text)
 const useLLM = !!process.env.OPENAI_API_KEY;
@@ -15,9 +16,12 @@ async function llmReply(user: string, system: string, profileSummary: string, te
   try {
     const OpenAI = (await import("openai")).default;
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
-    const messages = [
+    const messages: ChatCompletionMessageParam[] = [
       { role: "system", content: system },
-      { role: "user", content: `Profile summary:\n${profileSummary}\n\nUser (${user}): ${text}` },
+      {
+        role: "user",
+        content: `Profile summary:\n${profileSummary}\n\nUser (${user}): ${text}`,
+      },
     ];
     const r = await openai.chat.completions.create({
       model: process.env.OPENAI_TEXT_MODEL || "gpt-5",
