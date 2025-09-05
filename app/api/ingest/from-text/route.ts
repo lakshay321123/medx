@@ -65,11 +65,21 @@ function summarizeText(text: string): string {
 }
 
 function extractMeds(text: string): string[] {
-  const meds = new Set<string>();
-  const rx = /(\b[A-Z][A-Za-z0-9\-/]+(?:\s+[A-Za-z0-9\-/]+)*\s+\d+(?:mg|ml|mcg|g)\b)/gi;
-  let m: RegExpExecArray | null;
-  while ((m = rx.exec(text))) meds.add(m[1].trim());
-  return Array.from(meds);
+  const lines = text.split(/\n+/);
+  const out: string[] = [];
+  const dose = /\b\d+\s*(?:mg|mcg|g|ml|iu|units?)\b/i;
+  const form = /\b(tablet|tab|capsule|cap|syrup|patch|drop|injection|inj|cream|spray)\b/i;
+  const stop = /^(patient|name|age|sex|history|physical|examination|diagnosis|impression)$/i;
+  for (const line of lines) {
+    const l = line.trim();
+    if (!l) continue;
+    if (stop.test(l.toLowerCase())) continue;
+    const hasDose = dose.test(l);
+    const hasForm = form.test(l);
+    if (!hasDose && !hasForm) continue;
+    out.push(l.replace(/\s+/g, ' ').trim());
+  }
+  return Array.from(new Set(out)).slice(0, 15);
 }
 
 function extractPatientFields(text: string) {
@@ -159,7 +169,13 @@ meta.category in {lab|vital|imaging|medication|diagnosis|procedure|immunization|
     value_num: x.value_num ?? null,
     value_text: x.value_text ?? null,
     unit: x.unit ?? null,
-    observed_at: reportDate || x.observed_at || defaults?.observed_at || nowISO,
+    observed_at:
+      reportDate ||
+      defaults?.measuredAt ||
+      defaults?.details?.observed_at ||
+      x.observed_at ||
+      defaults?.observed_at ||
+      nowISO,
     meta: {
       ...(x.meta || {}),
       ...(defaults?.meta || {}),

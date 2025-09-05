@@ -1,7 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, RefObject } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { profileChatSystem } from '@/lib/profileChatSystem';
 import Header from '../Header';
 import Markdown from '../Markdown';
 import { Send } from 'lucide-react';
@@ -232,11 +231,12 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const params = useSearchParams();
   const threadId = params.get('threadId') || 'default';
   const context = params.get('context');
-  const prefillRaw = params.get('prefill');
   const isProfileThread = threadId === 'med-profile' || context === 'profile';
-  const [stickySystem, setStickySystem] = useState<any | null>(null);
-  const shouldShowGlobalWelcome = !isProfileThread;
   const [pendingCommitIds, setPendingCommitIds] = useState<string[]>([]);
+  const [introShown, setIntroShown] = useState(false);
+  const [welcomeShown, setWelcomeShown] = useState(false);
+  const [commitBusy, setCommitBusy] = useState<null | 'save' | 'discard'>(null);
+  const [commitError, setCommitError] = useState<string | null>(null);
 
   const [ui, setUi] = useState<ChatUiState>(UI_DEFAULTS);
 
@@ -260,94 +260,53 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
   useEffect(() => {
+    setIntroShown(false);
+    setWelcomeShown(false);
+  }, [threadId, context]);
+
+  useEffect(() => {
+    if (!isProfileThread) return;
+    if (introShown) return;
+    setMessages(prev => {
+      const without = prev.filter(m => m.id !== 'medx-profile-intro');
+      return [
+        {
+          id: 'medx-profile-intro',
+          role: 'assistant',
+          kind: 'chat',
+          content:
+            'Loaded your packet. Tell me what to correct or add, and I’ll update with reasons.',
+        },
+        ...without,
+      ];
+    });
+    setIntroShown(true);
+  }, [isProfileThread, threadId, context, introShown]);
+
+  useEffect(() => {
+    if (isProfileThread) return;
+    if (welcomeShown) return;
     const init = (e?: Event) => {
       if (!e) {
         const saved = loadSavedMessages<ChatMessage[]>();
         if (saved && Array.isArray(saved) && saved.length) {
           setMessages(saved);
           setNote('');
+          setWelcomeShown(true);
           return;
         }
       }
-      if (!shouldShowGlobalWelcome) {
-        setMessages([]);
-        setNote('');
-        return;
-      }
       const msg = getRandomWelcome();
       setMessages([
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          kind: 'chat',
-          content: msg,
-        },
+        { id: crypto.randomUUID(), role: 'assistant', kind: 'chat', content: msg },
       ]);
       setNote('');
+      setWelcomeShown(true);
     };
     init();
     window.addEventListener('new-chat', init);
     return () => window.removeEventListener('new-chat', init);
-  }, [shouldShowGlobalWelcome]);
-
-  useEffect(() => {
-    if (!isProfileThread) return;
-    (async () => {
-      try {
-        const payload = prefillRaw ? JSON.parse(decodeURIComponent(prefillRaw)) : {};
-        if (!payload.summary || !payload.reasons) {
-          const s = await fetch('/api/profile/summary', { cache: 'no-store' })
-            .then(r => r.json())
-            .catch(() => ({}));
-          if (!payload.summary) payload.summary = s.summary;
-          if (!payload.reasons) payload.reasons = s.reasons;
-        }
-        if (!payload.profile) {
-          const p = await fetch('/api/profile', { cache: 'no-store' })
-            .then(r => r.json())
-            .catch(() => null);
-          payload.profile = p?.profile || p || null;
-        }
-        if (!payload.packet) {
-          const pk = await fetch('/api/profile/packet', { cache: 'no-store' })
-            .then(r => r.json())
-            .catch(() => ({ text: '' }));
-          payload.packet = pk.text || '';
-        }
-        const sys = {
-          id: 'medx-profile-sticky',
-          role: 'system',
-          content: profileChatSystem({
-            summary: payload?.summary,
-            reasons: payload?.reasons,
-            profile: payload?.profile,
-            packet: payload?.packet,
-          }),
-        } as any;
-        setStickySystem(sys);
-        setMessages(prev => {
-          const without = prev.filter(
-            (m: any) =>
-              m.id !== 'medx-profile-sticky' &&
-              m.id !== 'medx-profile-intro' &&
-              m.role !== 'system'
-          );
-          return [
-            sys,
-            {
-              id: 'medx-profile-intro',
-              role: 'assistant',
-              kind: 'chat',
-              content:
-                'Loaded your packet. Tell me what to correct or add, and I’ll update with reasons.',
-            },
-            ...without,
-          ];
-        });
-      } catch {}
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isProfileThread, prefillRaw]);
+  }, [isProfileThread, threadId, context, welcomeShown]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -383,11 +342,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   useEffect(() => {
     try {
-      if (messages && messages.length) {
+      if (!isProfileThread && messages && messages.length) {
         sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
       }
     } catch {}
-  }, [messages]);
+  }, [messages, isProfileThread]);
 
   async function send(text: string, researchMode: boolean) {
     if (!text.trim() || busy) return;
@@ -411,23 +370,17 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
     try {
       if (isProfileThread) {
-        const base = stickySystem
-          ? [
-              stickySystem,
-              ...messages.filter(
-                (m: any) => m.id !== 'medx-profile-sticky' && m.role !== 'system'
-              )
-            ]
-          : messages;
         const thread = [
-          ...base.filter(m => !m.pending).map(m => ({ role: m.role, content: (m as any).content || '' })),
+          ...messages
+            .filter(m => !m.pending)
+            .map(m => ({ role: m.role, content: (m as any).content || '' })),
           { role: 'user', content: userText }
         ];
 
         const res = await fetch('/api/chat/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: thread })
+          body: JSON.stringify({ messages: thread, threadId, context })
         });
         if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
         const reader = res.body.getReader();
@@ -567,7 +520,7 @@ ${linkNudge}`;
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: chatMessages })
+        body: JSON.stringify({ messages: chatMessages, threadId, context })
       });
       if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
 
@@ -786,7 +739,7 @@ ${linkNudge}`;
           </div>
         )}
       <div className="mx-auto w-full max-w-3xl space-y-4">
-        {messages.filter((m: any) => m.role !== 'system' && m.id !== 'medx-profile-sticky').map(m =>
+        {messages.filter((m: any) => m.role !== 'system').map(m =>
             m.role === 'user' ? (
               <div
                 key={m.id}
@@ -809,34 +762,55 @@ ${linkNudge}`;
         <div className="mx-auto my-4 max-w-3xl px-4 sm:px-6">
           <div className="rounded-lg border p-3 text-sm flex items-center gap-2 bg-white dark:bg-gray-800">
             <span>Add this to your Medical Profile?</span>
+            {commitError && <span className="text-xs text-rose-600">{commitError}</span>}
             <button
               onClick={async () => {
-                for (const id of pendingCommitIds) {
-                  await fetch('/api/observations/commit', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id }),
-                  });
+                setCommitBusy('save');
+                setCommitError(null);
+                try {
+                  for (const id of pendingCommitIds) {
+                    const res = await fetch('/api/observations/commit', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ id }),
+                    });
+                    if (!res.ok) throw new Error('commit');
+                  }
+                  setPendingCommitIds([]);
+                  window.dispatchEvent(new Event('observations-updated'));
+                } catch {
+                  setCommitError('Could not save. Are you signed in?');
+                } finally {
+                  setCommitBusy(null);
                 }
-                setPendingCommitIds([]);
-                window.dispatchEvent(new Event('observations-updated'));
               }}
-              className="text-xs px-2 py-1 rounded-md border"
-            >Save</button>
+              disabled={commitBusy !== null}
+              className="text-xs px-2 py-1 rounded-md border disabled:opacity-50 disabled:cursor-not-allowed"
+            >{commitBusy === 'save' ? 'Saving…' : 'Save'}</button>
             <button
               onClick={async () => {
-                for (const id of pendingCommitIds) {
-                  await fetch('/api/observations/discard', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id }),
-                  });
+                setCommitBusy('discard');
+                setCommitError(null);
+                try {
+                  for (const id of pendingCommitIds) {
+                    const res = await fetch('/api/observations/discard', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ id }),
+                    });
+                    if (!res.ok) throw new Error('discard');
+                  }
+                  setPendingCommitIds([]);
+                  window.dispatchEvent(new Event('observations-updated'));
+                } catch {
+                  setCommitError('Could not discard. Are you signed in?');
+                } finally {
+                  setCommitBusy(null);
                 }
-                setPendingCommitIds([]);
-                window.dispatchEvent(new Event('observations-updated'));
               }}
-              className="text-xs px-2 py-1 rounded-md border"
-            >Discard</button>
+              disabled={commitBusy !== null}
+              className="text-xs px-2 py-1 rounded-md border disabled:opacity-50 disabled:cursor-not-allowed"
+            >{commitBusy === 'discard' ? 'Discarding…' : 'Discard'}</button>
           </div>
         </div>
       )}
