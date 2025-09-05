@@ -1,113 +1,61 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
-type Prediction = { id: string; createdAt: string; riskScore: number; band: string };
-
-export default function Timeline(props: { threadId?: string }) {
-  const params = useSearchParams();
-  const urlThreadId = params.get("threadId") || undefined;
-  const threadId = props.threadId || urlThreadId || "";
-
-  const router = useRouter();
-  const [preds, setPreds] = useState<Prediction[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [recomputing, setRecomputing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchPredictions = useCallback(async () => {
-    if (!threadId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const r = await fetch(`/api/predictions?threadId=${encodeURIComponent(threadId)}`, { cache: "no-store" });
-      if (!r.ok) throw new Error(await r.text());
-      const data = await r.json();
-      setPreds(data || []);
-    } catch (e: any) {
-      setError(e.message || "Failed to load predictions");
-    } finally {
-      setLoading(false);
-    }
-  }, [threadId]);
+export default function Timeline(_props: { threadId?: string }) {
+  const [items, setItems] = useState<any[] | null>(null);
+  const [error, setError] = useState<any>(null);
 
   useEffect(() => {
-    if (threadId) fetchPredictions();
-  }, [threadId, fetchPredictions]);
-
-  const onRecompute = useCallback(async () => {
-    if (!threadId) return;
-    setRecomputing(true);
-    setError(null);
-    try {
-      const r = await fetch("/api/predictions/compute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ threadId }),
+    let alive = true;
+    fetch("/api/timeline", { cache: "no-store" })
+      .then(res => res.json())
+      .then(data => {
+        if (!alive) return;
+        if (data.error) setError(data.error);
+        setItems(data.items || []);
+      })
+      .catch(err => {
+        if (alive) setError(err?.message || String(err));
       });
-      if (!r.ok) throw new Error(await r.text());
-      await fetchPredictions();
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new Event("observations-updated"));
-      }
-    } catch (e: any) {
-      setError(e.message || "Recompute failed");
-    } finally {
-      setRecomputing(false);
-    }
-  }, [threadId, fetchPredictions]);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
-  const scores = useMemo(() => preds.map((p) => p.riskScore), [preds]);
-  const max = Math.max(100, ...scores);
-  const points = useMemo(
-    () => preds.map((p, i) => `${(i / Math.max(preds.length - 1, 1)) * 100},${100 - (p.riskScore / max) * 100}`).join(" "),
-    [preds, max]
-  );
+  if (error) {
+    return <div className="p-4 text-red-600 text-sm">{JSON.stringify({ error })}</div>;
+  }
 
-  const goChat = (id: string) => {
-    const search = new URLSearchParams(window.location.search);
-    if (threadId) search.set("threadId", threadId);
-    search.set("panel", "chat");
-    router.push("?" + search.toString());
-  };
+  if (!items) {
+    return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
+  }
+
+  if (!items.length) {
+    return <div className="p-6 text-sm text-muted-foreground">No timeline items yet</div>;
+  }
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Timeline</h2>
-        <button
-          onClick={onRecompute}
-          disabled={recomputing || !threadId}
-          className="rounded-md border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
-          aria-busy={recomputing}
-        >
-          {recomputing ? "Recomputing…" : "Recompute Risk"}
-        </button>
-      </div>
-
-      {error && <div className="text-sm text-red-600">{error}</div>}
-
-      {loading ? (
-        <div className="text-sm text-muted-foreground">Loading…</div>
-      ) : preds.length > 0 ? (
-        <>
-          <svg viewBox="0 0 100 100" className="w-full h-24" preserveAspectRatio="none">
-            <polyline points={points} fill="none" stroke="currentColor" strokeWidth="2" />
-          </svg>
-          <ul className="text-sm space-y-1">
-            {preds.map((p) => (
-              <li key={p.id} className="flex items-center gap-2">
-                <button onClick={() => goChat(p.id)} className="underline">
-                  {new Date(p.createdAt).toLocaleDateString()}
-                </button>
-                <span className="px-2 py-0.5 rounded-full text-xs border">{p.band}</span>
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : (
-        <p className="text-sm text-muted-foreground">No predictions yet.</p>
-      )}
-    </div>
+    <ul className="space-y-2">
+      {items.map((it: any) => (
+        <li key={`${it.kind}:${it.id}`} className="rounded-md border p-3">
+          <div className="text-xs text-muted-foreground">
+            {new Date(it.observed_at).toLocaleString()}
+          </div>
+          <div className="font-medium">
+            {it.name}
+            {it.kind === "prediction" && typeof it.probability === "number" ? (
+              <> — {(it.probability * 100).toFixed(0)}%</>
+            ) : null}
+            {it.kind === "observation" && it.value != null ? (
+              <> — {String(it.value)}{it.unit ? ` ${it.unit}` : ""}</>
+            ) : null}
+          </div>
+          {it.flags?.length ? (
+            <div className="text-xs">{it.flags.join(", ")}</div>
+          ) : null}
+        </li>
+      ))}
+    </ul>
   );
 }
+
