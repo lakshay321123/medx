@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, RefObject } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { profileChatSystem } from '@/lib/profileChatSystem';
 import Header from '../Header';
 import Markdown from '../Markdown';
 import { Send } from 'lucide-react';
@@ -230,6 +231,12 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const params = useSearchParams();
   const threadId = params.get('threadId') || 'default';
+  const context = params.get('context');
+  const prefillRaw = params.get('prefill');
+  const isProfileThread = threadId === 'med-profile' || context === 'profile';
+  const [stickySystem, setStickySystem] = useState<any | null>(null);
+  const shouldShowGlobalWelcome = !isProfileThread;
+  const [pendingCommitIds, setPendingCommitIds] = useState<string[]>([]);
 
   const [ui, setUi] = useState<ChatUiState>(UI_DEFAULTS);
 
@@ -242,6 +249,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       setUi(UI_DEFAULTS);
     }
   }, [threadId]);
+  useEffect(() => { setPendingCommitIds([]); }, [threadId]);
 
   // Persist per-thread UI on change
   useEffect(() => {
@@ -261,6 +269,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           return;
         }
       }
+      if (!shouldShowGlobalWelcome) {
+        setMessages([]);
+        setNote('');
+        return;
+      }
       const msg = getRandomWelcome();
       setMessages([
         {
@@ -275,7 +288,63 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     init();
     window.addEventListener('new-chat', init);
     return () => window.removeEventListener('new-chat', init);
-  }, []);
+  }, [shouldShowGlobalWelcome]);
+
+  useEffect(() => {
+    if (!isProfileThread) return;
+    (async () => {
+      try {
+        const payload = prefillRaw ? JSON.parse(decodeURIComponent(prefillRaw)) : {};
+        if (!payload.summary || !payload.reasons) {
+          const s = await fetch('/api/profile/summary', { cache: 'no-store' })
+            .then(r => r.json())
+            .catch(() => ({}));
+          if (!payload.summary) payload.summary = s.summary;
+          if (!payload.reasons) payload.reasons = s.reasons;
+        }
+        if (!payload.profile) {
+          const p = await fetch('/api/profile', { cache: 'no-store' })
+            .then(r => r.json())
+            .catch(() => null);
+          payload.profile = p?.profile || p || null;
+        }
+        if (!payload.packet) {
+          const pk = await fetch('/api/profile/packet', { cache: 'no-store' })
+            .then(r => r.json())
+            .catch(() => ({ text: '' }));
+          payload.packet = pk.text || '';
+        }
+        const sys = {
+          id: 'medx-profile-sticky',
+          role: 'system',
+          content: profileChatSystem({
+            summary: payload?.summary,
+            reasons: payload?.reasons,
+            profile: payload?.profile,
+            packet: payload?.packet,
+          }),
+        } as any;
+        setStickySystem(sys);
+        setMessages(prev => {
+          const without = prev.filter(
+            (m: any) => m.id !== 'medx-profile-sticky' && m.role !== 'system'
+          );
+          return [
+            sys,
+            {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              kind: 'chat',
+              content:
+                'I’ve loaded your patient packet and profile. Tell me what to correct or add (symptoms, meds, diagnoses), and I’ll update with reasons.',
+            },
+            ...without,
+          ];
+        });
+      } catch {}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isProfileThread, prefillRaw]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -321,16 +390,66 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     if (!text.trim() || busy) return;
     setBusy(true);
 
+    const normalize = (s: string) =>
+      s
+        .replace(/\bnp\b/gi, "neutrophil percentage")
+        .replace(/\bsgpt\b/gi, "ALT (SGPT)")
+        .replace(/\bsgot\b/gi, "AST (SGOT)");
+    const userText = isProfileThread ? normalize(text) : text;
+
     const userId = uid();
     const pendingId = uid();
     setMessages(prev => [
       ...prev,
-      { id: userId, role: 'user', kind: 'chat', content: text },
+      { id: userId, role: 'user', kind: 'chat', content: userText },
       { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true }
     ]);
     setNote('');
 
     try {
+      if (isProfileThread) {
+        const base = stickySystem
+          ? [
+              stickySystem,
+              ...messages.filter(
+                (m: any) => m.id !== 'medx-profile-sticky' && m.role !== 'system'
+              )
+            ]
+          : messages;
+        const thread = [
+          ...base.filter(m => !m.pending).map(m => ({ role: m.role, content: (m as any).content || '' })),
+          { role: 'user', content: userText }
+        ];
+
+        const res = await fetch('/api/chat/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: thread })
+        });
+        if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let acc = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
+          for (const line of lines) {
+            if (line.trim() === 'data: [DONE]') continue;
+            try {
+              const payload = JSON.parse(line.replace(/^data:\s*/, ''));
+              const delta = payload?.choices?.[0]?.delta?.content;
+              if (delta) {
+                acc += delta;
+                setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m)));
+              }
+            } catch {}
+          }
+        }
+        setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, pending: false } : m)));
+        return;
+      }
       if (therapyMode) {
         const thread = [...messages, { role: 'user', content: text }]
           .map(m => ({
@@ -544,6 +663,9 @@ ${linkNudge}`;
         contextFrom: titleForCategory(data.category),
         topic: inferTopicFromDoc(data.report),
       }));
+      if (!isProfileThread && Array.isArray(data.obsIds) && data.obsIds.length) {
+        setPendingCommitIds(data.obsIds.map(String));
+      }
     } catch (e: any) {
       console.error(e);
       setMessages(prev =>
@@ -660,8 +782,8 @@ ${linkNudge}`;
             </div>
           </div>
         )}
-        <div className="mx-auto w-full max-w-3xl space-y-4">
-          {messages.map(m =>
+      <div className="mx-auto w-full max-w-3xl space-y-4">
+        {messages.filter((m: any) => m.role !== 'system' && m.id !== 'medx-profile-sticky').map(m =>
             m.role === 'user' ? (
               <div
                 key={m.id}
@@ -678,10 +800,45 @@ ${linkNudge}`;
                 busy={loadingAction !== null}
               />
             )
-          )}
-        </div>
+        )}
       </div>
-      <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+      {pendingCommitIds.length > 0 && (
+        <div className="mx-auto my-4 max-w-3xl px-4 sm:px-6">
+          <div className="rounded-lg border p-3 text-sm flex items-center gap-2 bg-white dark:bg-gray-800">
+            <span>Add this to your Medical Profile?</span>
+            <button
+              onClick={async () => {
+                for (const id of pendingCommitIds) {
+                  await fetch('/api/observations/commit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id }),
+                  });
+                }
+                setPendingCommitIds([]);
+                window.dispatchEvent(new Event('observations-updated'));
+              }}
+              className="text-xs px-2 py-1 rounded-md border"
+            >Save</button>
+            <button
+              onClick={async () => {
+                for (const id of pendingCommitIds) {
+                  await fetch('/api/observations/discard', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id }),
+                  });
+                }
+                setPendingCommitIds([]);
+                window.dispatchEvent(new Event('observations-updated'));
+              }}
+              className="text-xs px-2 py-1 rounded-md border"
+            >Discard</button>
+          </div>
+        </div>
+      )}
+    </div>
+    <div className="absolute bottom-4 left-0 right-0 flex justify-center">
         <div className="w-full max-w-3xl px-4">
           <form
             onSubmit={e => {

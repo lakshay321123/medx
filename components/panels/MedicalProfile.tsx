@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { safeJson } from "@/lib/safeJson";
 
 const SEXES = ["male", "female", "other"] as const;
@@ -51,6 +52,23 @@ export default function MedicalProfile() {
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState<null | "obs" | "all" | "zero">(null);
+
+  const router = useRouter();
+  const params = useSearchParams();
+  const _threadId = params.get("threadId") || "default";
+
+  const [summary, setSummary] = useState<string>("");
+  const [reasons, setReasons] = useState<string>("");
+
+  const loadSummary = async () => {
+    try {
+      const r = await fetch("/api/profile/summary", { cache: "no-store" });
+      const j = await r.json();
+      if (j?.summary) setSummary(j.summary);
+      if (j?.reasons) setReasons(j.reasons);
+    } catch {}
+  };
+  useEffect(() => { loadSummary(); }, []);
 
   const prof = data?.profile ?? null;
   const [bootstrapped, setBootstrapped] = useState(false);
@@ -368,6 +386,59 @@ export default function MedicalProfile() {
           </div>
         </section>
       )}
+
+      {/* --- AI Summary & Reasons --- */}
+      <div className="mt-6 rounded-xl border p-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold">AI Summary</h3>
+          <div className="flex gap-2">
+            <button
+              onClick={async () => {
+                try {
+                  const prof = await fetch("/api/profile", { cache: "no-store" })
+                    .then(r => r.json())
+                    .catch(() => null);
+                  const packet = await fetch("/api/profile/packet", { cache: "no-store" })
+                    .then(r => r.json())
+                    .catch(() => ({ text: "" }));
+                  const prefill = encodeURIComponent(
+                    JSON.stringify({
+                      kind: "profileSummary",
+                      summary,
+                      reasons,
+                      profile: prof?.profile || prof || null,
+                      packet: packet?.text || "",
+                    })
+                  );
+                  router.push(
+                    `/?panel=chat&threadId=med-profile&context=profile&prefill=${prefill}`
+                  );
+                } catch {
+                  const prefill = encodeURIComponent(
+                    JSON.stringify({ kind: "profileSummary", summary, reasons })
+                  );
+                  router.push(
+                    `/?panel=chat&threadId=med-profile&context=profile&prefill=${prefill}`
+                  );
+                }
+              }}
+              className="text-xs px-2 py-1 rounded-md border"
+            >Discuss & Correct in Chat</button>
+            <button
+              onClick={async () => {
+                await fetch("/api/alerts/recompute", { method: "POST" });
+                await loadSummary();
+              }}
+              className="text-xs px-2 py-1 rounded-md border"
+            >Recompute Risk</button>
+          </div>
+        </div>
+        <p className="mt-2 text-sm whitespace-pre-wrap">{summary || "No summary yet."}</p>
+        {reasons && <div className="mt-2 text-xs text-muted-foreground"><span className="font-medium">Why:</span> {reasons}</div>}
+        <div className="mt-3 text-[11px] text-muted-foreground">
+          ⚠️ This is AI-generated support, not a medical diagnosis. Always consult a qualified clinician.
+        </div>
+      </div>
 
       {err && <div className="text-sm text-red-600">{err}</div>}
     </div>

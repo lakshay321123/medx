@@ -2,26 +2,61 @@
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
-const tabs = [
-  { key: "chat", label: "Chat" },
-  { key: "profile", label: "Medical Profile" },
-  { key: "timeline", label: "Timeline" },
-  { key: "alerts", label: "Alerts" },
-  { key: "settings", label: "Settings" },
+type Tab = {
+  key: string;
+  label: string;
+  panel: string;
+  threadId?: string;
+  context?: string;
+};
+
+const tabs: Tab[] = [
+  { key: "chat", label: "Chat", panel: "chat" },
+  {
+    key: "ai-doc",
+    label: "AI Doc",
+    panel: "chat",
+    threadId: "med-profile",
+    context: "profile",
+  },
+  { key: "profile", label: "Medical Profile", panel: "profile" },
+  { key: "timeline", label: "Timeline", panel: "timeline" },
+  { key: "alerts", label: "Alerts", panel: "alerts" },
+  { key: "settings", label: "Settings", panel: "settings" },
 ];
 
-function NavLink({ panel, children }: { panel: string; children: React.ReactNode }) {
+function NavLink({
+  panel,
+  children,
+  threadId: threadIdProp,
+  context,
+}: {
+  panel: string;
+  children: React.ReactNode;
+  threadId?: string;
+  context?: string;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
 
-  const threadId = params.get("threadId") ?? undefined;
-  const query = threadId ? { panel, threadId } : { panel };
+  const currentThread = params.get("threadId") ?? undefined;
+  const threadId =
+    threadIdProp !== undefined
+      ? threadIdProp
+      : panel === "chat"
+      ? undefined
+      : currentThread;
+  const query: any = { panel };
+  if (threadId) query.threadId = threadId;
+  if (context) query.context = context;
 
   const hrefObj = { pathname, query };
-  const hrefStr = `${pathname}?panel=${panel}${threadId ? `&threadId=${encodeURIComponent(threadId)}` : ""}`;
+  const hrefStr = `${pathname}?panel=${panel}${threadId ? `&threadId=${encodeURIComponent(threadId)}` : ""}${context ? `&context=${encodeURIComponent(context)}` : ""}`;
 
-  const active = ((params.get("panel") ?? "chat").toLowerCase()) === panel;
+  const active =
+    ((params.get("panel") ?? "chat").toLowerCase()) === panel &&
+    ((threadIdProp ? params.get("threadId") === threadIdProp : !params.get("threadId")));
 
   const softNav = () => {
     try {
@@ -62,7 +97,9 @@ export default function Tabs() {
     <ul className="mt-3 space-y-1">
       {tabs.map((t) => (
         <li key={t.key}>
-          <NavLink panel={t.key}>{t.label}</NavLink>
+          <NavLink panel={t.panel} threadId={t.threadId} context={t.context}>
+            {t.label}
+          </NavLink>
         </li>
       ))}
     </ul>

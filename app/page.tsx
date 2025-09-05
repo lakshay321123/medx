@@ -29,7 +29,7 @@ export default function Page({ searchParams }: { searchParams: Search }) {
       </section>
 
       <section className={panel === "timeline" ? "block" : "hidden"}>
-        <Timeline threadId={searchParams.threadId} />
+        <Timeline />
       </section>
 
       <section className={panel === "alerts" ? "block" : "hidden"}>
