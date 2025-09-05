@@ -327,16 +327,19 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         setStickySystem(sys);
         setMessages(prev => {
           const without = prev.filter(
-            (m: any) => m.id !== 'medx-profile-sticky' && m.role !== 'system'
+            (m: any) =>
+              m.id !== 'medx-profile-sticky' &&
+              m.id !== 'medx-profile-intro' &&
+              m.role !== 'system'
           );
           return [
             sys,
             {
-              id: crypto.randomUUID(),
+              id: 'medx-profile-intro',
               role: 'assistant',
               kind: 'chat',
               content:
-                'I’ve loaded your patient packet and profile. Tell me what to correct or add (symptoms, meds, diagnoses), and I’ll update with reasons.',
+                'Loaded your packet. Tell me what to correct or add, and I’ll update with reasons.',
             },
             ...without,
           ];
