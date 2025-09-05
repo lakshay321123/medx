@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, RefObject } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Header from '../Header';
 import Markdown from '../Markdown';
 import { Send } from 'lucide-react';
@@ -7,13 +8,20 @@ import { useCountry } from '@/lib/country';
 import { getRandomWelcome } from '@/lib/welcomeMessages';
 import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
-import { useTopic } from '@/lib/topic';
 import { detectFollowupIntent } from '@/lib/intents';
 import { safeJson } from '@/lib/safeJson';
 import type {
   ChatMessage as BaseChatMessage,
   AnalysisCategory,
 } from '@/lib/context';
+
+type ChatUiState = {
+  topic: string | null;
+  contextFrom: string | null; // e.g., 'Conversation summary'
+};
+
+const UI_DEFAULTS: ChatUiState = { topic: null, contextFrom: null };
+const uiKey = (threadId: string) => `chat:${threadId}:ui`;
 
 const STORAGE_KEY = 'medx:chat:messages';
 
@@ -209,7 +217,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const { country } = useCountry();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
-  const { topic, setTopic, clearTopic } = useTopic();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [note, setNote] = useState('');
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -220,6 +227,28 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = externalInputRef ?? useRef<HTMLInputElement>(null);
+
+  const params = useSearchParams();
+  const threadId = params.get('threadId') || 'default';
+
+  const [ui, setUi] = useState<ChatUiState>(UI_DEFAULTS);
+
+  // Load per-thread UI whenever threadId changes
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(uiKey(threadId));
+      setUi(raw ? JSON.parse(raw) : UI_DEFAULTS);
+    } catch {
+      setUi(UI_DEFAULTS);
+    }
+  }, [threadId]);
+
+  // Persist per-thread UI on change
+  useEffect(() => {
+    try {
+      localStorage.setItem(uiKey(threadId), JSON.stringify(ui));
+    } catch {}
+  }, [threadId, ui]);
 
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
   useEffect(() => {
@@ -347,11 +376,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       }
       const intent = detectFollowupIntent(text);
       const follow = isFollowUp(text);
-      const ctx = active;
-      if (!topic && !intent) setTopic(text);
-      else if (isNewTopic(text)) setTopic(text);
+      const ctx = ui.contextFrom ? active : null;
+      if (!ui.topic && !intent) setUi(prev => ({ ...prev, topic: text }));
+      else if (isNewTopic(text)) setUi(prev => ({ ...prev, topic: text }));
 
-      if (follow && !ctx && !(intent && topic)) {
+      if (follow && !ctx && !(intent && ui.topic)) {
         setMessages(prev =>
           prev.map(m =>
             m.id === pendingId
@@ -378,17 +407,17 @@ ${linkNudge}`
 If CONTEXT has codes or trials, explain them in plain words and add links. Avoid medical advice.
 ${linkNudge}`;
       const systemCommon = `\nUser country: ${country.code3} (${country.name}). Prefer local examples/guidelines. If unsure, use generics and say availability varies.\n`;
-      const topicHint = topic ? `ACTIVE TOPIC: ${topic.text}\nKeep answers scoped to this topic unless the user changes it.\n` : "";
+      const topicHint = ui.topic ? `ACTIVE TOPIC: ${ui.topic}\nKeep answers scoped to this topic unless the user changes it.\n` : "";
 
       let chatMessages: { role: string; content: string }[];
 
-      if (intent && topic) {
+      if (intent && ui.topic) {
         chatMessages =
           intent === 'hospitals'
-            ? buildHospitalsPrompt(topic.text, country)
+            ? buildHospitalsPrompt(ui.topic, country)
             : intent === 'trials'
-            ? buildTrialsPrompt(topic.text, country)
-            : buildMedicinesPrompt(topic.text, country);
+            ? buildTrialsPrompt(ui.topic, country)
+            : buildMedicinesPrompt(ui.topic, country);
       } else if (follow && ctx) {
         const system = `\nYou are MedX. This is a FOLLOW-UP question. Use the ACTIVE CONTEXT below; do not reset topic unless user asks.\n${topicHint}ACTIVE CONTEXT TITLE: ${ctx.title}\nACTIVE CONTEXT SUMMARY:\n${ctx.summary}\n\nWhen the user asks for latest/clinical trials/guidelines, stay on the same topic/entities: ${ctx.entities?.join(', ') || 'n/a'}.\n${systemCommon}` + baseSys;
         const userMsg = `Follow-up: ${text}\nIf the question is ambiguous, ask one concise disambiguation question and then answer briefly using the context.`;
@@ -447,6 +476,7 @@ ${linkNudge}`;
       setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, pending: false } : m)));
       if (acc.length > 400) {
         setFromChat({ id: pendingId, content: acc });
+        setUi(prev => ({ ...prev, contextFrom: 'Conversation summary' }));
       }
     } catch (e: any) {
       console.error(e);
@@ -509,7 +539,11 @@ ${linkNudge}`;
         )
       );
       setFromAnalysis({ id: pendingId, category: data.category, content: data.report });
-      setTopic(inferTopicFromDoc(data.report), "doc");
+      setUi(prev => ({
+        ...prev,
+        contextFrom: titleForCategory(data.category),
+        topic: inferTopicFromDoc(data.report),
+      }));
     } catch (e: any) {
       console.error(e);
       setMessages(prev =>
@@ -578,6 +612,7 @@ ${linkNudge}`;
       };
       setMessages(prev => replaceFirstPendingWith(prev, finalMsg));
       setFromAnalysis({ id: finalMsg.id, category: last.category, content: finalMsg.content });
+      setUi(prev => ({ ...prev, contextFrom: titleForCategory(last.category) }));
     } catch (e: any) {
       setMessages(prev =>
         replaceFirstPendingWith(prev, {
@@ -607,21 +642,21 @@ ${linkNudge}`;
         ref={chatRef}
         className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 pb-28"
       >
-        {topic && (
+        {ui.topic && (
           <div className="mx-auto mb-2 max-w-3xl px-4 sm:px-6">
             <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs bg-white dark:bg-gray-900 border-slate-200 dark:border-gray-800">
               <span className="opacity-70">Topic:</span>
-              <strong className="truncate max-w-[16rem]">{topic.text}</strong>
-              <button onClick={clearTopic} className="opacity-60 hover:opacity-100">Clear</button>
+              <strong className="truncate max-w-[16rem]">{ui.topic}</strong>
+              <button onClick={() => setUi(prev => ({ ...prev, topic: null }))} className="opacity-60 hover:opacity-100">Clear</button>
             </div>
           </div>
         )}
-        {active && (
+        {ui.contextFrom && (
           <div className="mx-auto mb-2 max-w-3xl px-4 sm:px-6">
             <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs bg-white dark:bg-gray-900 border-slate-200 dark:border-gray-800">
               <span className="opacity-70">Using context from:</span>
-              <strong>{active.title}</strong>
-              <button onClick={clearContext} className="opacity-60 hover:opacity-100">Clear</button>
+              <strong>{ui.contextFrom}</strong>
+              <button onClick={() => { clearContext(); setUi(prev => ({ ...prev, contextFrom: null })); }} className="opacity-60 hover:opacity-100">Clear</button>
             </div>
           </div>
         )}
