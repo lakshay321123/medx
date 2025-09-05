@@ -19,7 +19,7 @@ export async function GET() {
   ]);
   if (prof.error) return NextResponse.json({ summary:"", reasons:"" }, { headers: noStore });
 
-  const p = prof.data || {};
+  const p: any = prof.data || {};
   const labs = (obs.data||[]).filter((r:any)=>{
     const s = `${(r.name||"").toLowerCase()} ${JSON.stringify(r.meta||{}).toLowerCase()}`;
     return /(hba1c|glucose|egfr|creatinine|tsh|hdl|ldl|triglycer|cholesterol|urea)/.test(s);

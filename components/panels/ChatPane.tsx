@@ -285,7 +285,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       if (payload?.kind === "profileSummary" && payload.summary) {
         setMessages(prev => [
           ...prev,
-          { id: crypto.randomUUID(), role: "system", content: `Medical Profile Summary:\n\n${payload.summary}\n\nIf anything is missing or incorrect, tell me and I will update your profile and re-summarize.` },
+          { id: crypto.randomUUID(), role: "system", content: `Medical Profile Summary:\n\n${payload.summary}\n\nIf anything is missing or incorrect, tell me and I will update your profile and re-summarize.` } as any,
         ]);
       }
     } catch {}
