@@ -69,6 +69,12 @@ export async function GET() {
   if (Array.isArray(p.conditions_predisposition) && p.conditions_predisposition.length)
     lines.push(`Predispositions: ${p.conditions_predisposition.join(", ")}`);
 
+  const meds = observations.flatMap((r: any) => {
+    const arr = r.meta?.meds || r.details?.meds || [];
+    return Array.isArray(arr) ? arr : typeof arr === 'string' ? [arr] : [];
+  });
+  if (meds.length) lines.push(`Active meds: ${meds.join('; ')}`);
+
   const reasons: string[] = [];
   for (const a of analytes) {
     const r = pickLatest(a.rx);

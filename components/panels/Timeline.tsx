@@ -15,15 +15,15 @@ const catOf = (it:any):Cat => {
 export default function Timeline(){
   const [items, setItems] = useState<any[]>([]);
 
-  useEffect(()=>{
-    (async()=>{
-      try {
-        const res = await fetch("/api/timeline", { cache: "no-store" });
-        const { items=[] } = await res.json();
-        setItems(items);
-      } catch {}
-    })();
-  },[]);
+  const refresh = async () => {
+    try {
+      const res = await fetch('/api/timeline', { cache: 'no-store' });
+      const { items = [] } = await res.json();
+      setItems(items);
+    } catch {}
+  };
+
+  useEffect(()=>{ refresh(); },[]);
 
   const [cat,setCat] = useState<Cat>("ALL");
   const [range,setRange] = useState<"ALL"|"7"|"30"|"90"|"CUSTOM">("ALL");
@@ -75,7 +75,17 @@ export default function Timeline(){
 
   return (
     <div className="p-4">
-      <h2 className="text-lg font-semibold mb-3">Timeline</h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-lg font-semibold">Timeline</h2>
+        <button
+          onClick={async () => {
+            if (!confirm('Reset all observations and predictions?')) return;
+            await fetch('/api/observations/reset', { method: 'POST' });
+            refresh();
+          }}
+          className="text-xs px-2 py-1 rounded-md border"
+        >Reset</button>
+      </div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {(["ALL","LABS","VITALS","IMAGING","AI","NOTES"] as Cat[]).map(c=>(
           <button key={c} onClick={()=>setCat(c)} className={`text-xs px-2.5 py-1 rounded-full border ${cat===c?"bg-muted font-medium":"hover:bg-muted"}`}>{c}</button>

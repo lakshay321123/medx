@@ -398,12 +398,16 @@ export default function MedicalProfile() {
                   const prof = await fetch("/api/profile", { cache: "no-store" })
                     .then(r => r.json())
                     .catch(() => null);
+                  const packet = await fetch("/api/profile/packet", { cache: "no-store" })
+                    .then(r => r.json())
+                    .catch(() => ({ text: "" }));
                   const prefill = encodeURIComponent(
                     JSON.stringify({
                       kind: "profileSummary",
                       summary,
                       reasons,
                       profile: prof?.profile || prof || null,
+                      packet: packet?.text || "",
                     })
                   );
                   router.push(

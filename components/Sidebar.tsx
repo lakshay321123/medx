@@ -1,9 +1,14 @@
 'use client';
 import { Plus, Search, Settings } from 'lucide-react';
 import Tabs from './sidebar/Tabs';
+import { useRouter } from 'next/navigation';
 
 export default function Sidebar() {
-  const handleNew = () => window.dispatchEvent(new Event('new-chat'));
+  const router = useRouter();
+  const handleNew = () => {
+    window.dispatchEvent(new Event('new-chat'));
+    router.push('/?panel=chat');
+  };
   const handleSearch = (q: string) => window.dispatchEvent(new CustomEvent('search-chats', { detail: q }));
   return (
     <nav className="sidebar-click-guard hidden md:flex md:flex-col !fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-900 border-r border-slate-200 dark:border-gray-800">

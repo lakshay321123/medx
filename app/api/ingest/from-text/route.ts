@@ -54,6 +54,42 @@ function crudeRegexExtract(text: string): OutObs[] {
   return items;
 }
 
+function summarizeText(text: string): string {
+  return text
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(/(?<=[.!?])\s+/)
+    .slice(0, 3)
+    .join(' ')
+    .slice(0, 500);
+}
+
+function extractMeds(text: string): string[] {
+  const meds = new Set<string>();
+  const rx = /(\b[A-Z][A-Za-z0-9\-/]+(?:\s+[A-Za-z0-9\-/]+)*\s+\d+(?:mg|ml|mcg|g)\b)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = rx.exec(text))) meds.add(m[1].trim());
+  return Array.from(meds);
+}
+
+function extractPatientFields(text: string) {
+  const name = text.match(/(?:patient|name)[:\s]+([A-Z][A-Za-z\s]+)/i)?.[1]?.trim();
+  const age = text.match(/(?:age)[:\s]+(\d{1,3})/i)?.[1];
+  const sex = text.match(/\b(male|female|man|woman)\b/i)?.[1]?.toLowerCase();
+  const blood = text.match(/blood\s*group[:\s]+([A-Z][+-]?)/i)?.[1];
+  return { name, age, sex, blood_group: blood };
+}
+
+function deriveTags(text: string, mime?: string): string[] {
+  const tags = new Set<string>();
+  if (/hba1c|glucose|tsh|egfr|creatinine|ldl|hdl|triglycer|cholesterol|crp|esr|vitamin d/i.test(text))
+    tags.add('lab');
+  if (/prescription|rx|tablet|dose|mg|ml|medication/i.test(text)) tags.add('prescription');
+  if (/x-ray|xray|ct|mri|scan|ultra\s?sound|usg/i.test(text)) tags.add('imaging');
+  if (mime && /^image\//.test(mime)) tags.add('image');
+  return Array.from(tags);
+}
+
 export async function POST(req: NextRequest) {
   const userId = await getUserId();
   if (!userId) return new NextResponse("Unauthorized", { status: 401 });
@@ -111,10 +147,15 @@ meta.category in {lab|vital|imaging|medication|diagnosis|procedure|immunization|
       .eq("meta->>source_hash", sourceHash);
   }
 
+  const summary = summarizeText(text);
+  const meds = extractMeds(text);
+  const patient = extractPatientFields(text);
+  const tags = deriveTags(text, defaults?.meta?.mime);
+
   const rows = items.map((x) => ({
     user_id: userId,
     thread_id: threadId ?? null,
-    kind: String(x.kind || "unknown").toLowerCase(),
+    kind: String(x.kind || 'unknown').toLowerCase(),
     value_num: x.value_num ?? null,
     value_text: x.value_text ?? null,
     unit: x.unit ?? null,
@@ -123,9 +164,14 @@ meta.category in {lab|vital|imaging|medication|diagnosis|procedure|immunization|
       ...(x.meta || {}),
       ...(defaults?.meta || {}),
       report_date: reportDate,
-      source_type: x.meta?.source_type || defaults?.meta?.source_type || "text",
+      text,
+      summary,
+      tags,
+      meds,
+      patient_fields: patient,
+      source_type: x.meta?.source_type || defaults?.meta?.source_type || 'text',
       ...(sourceHash ? { source_hash: sourceHash } : {}),
-      ...(usedFallback ? { extracted_by: "fallback" } : {}),
+      ...(usedFallback ? { extracted_by: 'fallback' } : {}),
     },
   }));
 

@@ -290,36 +290,57 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   useEffect(() => {
     if (!isProfileThread) return;
-    try {
-      const payload = prefillRaw ? JSON.parse(decodeURIComponent(prefillRaw)) : {};
-      const sys = {
-        id: "medx-profile-sticky",
-        role: "system",
-        content: profileChatSystem({
-          summary: payload?.summary,
-          reasons: payload?.reasons,
-          profile: payload?.profile,
-        }),
-      } as any;
-      setStickySystem(sys);
-      setMessages(prev => {
-        const without = prev.filter(
-          (m: any) => m.id !== "medx-profile-sticky" && m.role !== "system"
-        );
-        const intro = payload?.summary
-          ? [
-              {
-                id: crypto.randomUUID(),
-                role: "assistant",
-                kind: "chat",
-                content:
-                  "I’ve loaded your medical profile summary above. Tell me what needs correction or add anything new (symptoms, meds, diagnoses) and I’ll adjust and explain why.",
-              },
-            ]
-          : [];
-        return [sys, ...intro, ...without];
-      });
-    } catch {}
+    (async () => {
+      try {
+        const payload = prefillRaw ? JSON.parse(decodeURIComponent(prefillRaw)) : {};
+        if (!payload.summary || !payload.reasons) {
+          const s = await fetch('/api/profile/summary', { cache: 'no-store' })
+            .then(r => r.json())
+            .catch(() => ({}));
+          if (!payload.summary) payload.summary = s.summary;
+          if (!payload.reasons) payload.reasons = s.reasons;
+        }
+        if (!payload.profile) {
+          const p = await fetch('/api/profile', { cache: 'no-store' })
+            .then(r => r.json())
+            .catch(() => null);
+          payload.profile = p?.profile || p || null;
+        }
+        if (!payload.packet) {
+          const pk = await fetch('/api/profile/packet', { cache: 'no-store' })
+            .then(r => r.json())
+            .catch(() => ({ text: '' }));
+          payload.packet = pk.text || '';
+        }
+        const sys = {
+          id: 'medx-profile-sticky',
+          role: 'system',
+          content: profileChatSystem({
+            summary: payload?.summary,
+            reasons: payload?.reasons,
+            profile: payload?.profile,
+            packet: payload?.packet,
+          }),
+        } as any;
+        setStickySystem(sys);
+        setMessages(prev => {
+          const without = prev.filter(
+            (m: any) => m.id !== 'medx-profile-sticky' && m.role !== 'system'
+          );
+          return [
+            sys,
+            {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              kind: 'chat',
+              content:
+                'I’ve loaded your patient packet and profile. Tell me what to correct or add (symptoms, meds, diagnoses), and I’ll update with reasons.',
+            },
+            ...without,
+          ];
+        });
+      } catch {}
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isProfileThread, prefillRaw]);
 
