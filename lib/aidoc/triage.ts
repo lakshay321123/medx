@@ -1,21 +1,29 @@
-export const RED_FLAGS: Record<string, string[]> = {
+export const RED_FLAGS_MAP: Record<string, string[]> = {
+  back_pain: [
+    "severe weakness in legs",
+    "loss of bladder or bowel control",
+    "numbness in groin/saddle area",
+    "fever with back pain",
+    "recent significant trauma",
+  ],
   chest_pain: [
-    "sudden chest pain", "pressure in chest", "pain spreading to arm/jaw",
-    "shortness of breath with chest pain"
+    "pressure in chest",
+    "pain to arm/jaw",
+    "shortness of breath",
   ],
   neuro: [
-    "sudden weakness one side", "slurred speech", "confusion", "sudden severe headache"
+    "slurred speech",
+    "one-sided weakness",
+    "sudden severe headache",
   ],
   sepsis: [
-    "fever with confusion", "very fast heartbeat with fever", "very drowsy hard to wake"
+    "fever with confusion",
+    "very fast heartbeat with fever",
   ],
 };
 
-export function matchRedFlags(text: string): string[] {
-  const t = text.toLowerCase();
-  const hits: string[] = [];
-  for (const list of Object.values(RED_FLAGS)) {
-    for (const k of list) if (t.includes(k)) hits.push(k);
-  }
-  return hits;
+export function detectRedFlags(symptomKey: string, userText: string): string[] {
+  const t = userText.toLowerCase();
+  const keys = RED_FLAGS_MAP[symptomKey] || [];
+  return keys.filter(k => t.includes(k));
 }

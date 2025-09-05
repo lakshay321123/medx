@@ -328,11 +328,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
       (async () => {
         try {
-          const boot = await fetch('/api/aidoc/message', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: '' })
-          }).then(r => r.json()).catch(() => null);
+        const boot = await fetch('/api/aidoc/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: '', threadId })
+        }).then(r => r.json()).catch(() => null);
           if (boot?.messages?.length) {
             setMessages(prev => [
               ...prev,
@@ -767,11 +767,11 @@ ${linkNudge}`;
           return;
         }
         try {
-          const r = await fetch('/api/aidoc/message', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text }),
-          });
+        const r = await fetch('/api/aidoc/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, threadId }),
+        });
           const j = await r.json();
           if (Array.isArray(j.messages)) {
             setMessages(prev => [
