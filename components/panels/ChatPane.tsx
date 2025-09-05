@@ -21,18 +21,21 @@ type ChatUiState = {
 const UI_DEFAULTS: ChatUiState = { topic: null, contextFrom: null };
 const uiKey = (threadId: string) => `chat:${threadId}:ui`;
 
-type ChatMessage = {
+type BaseMessage = {
   id: string;
   role: 'user' | 'assistant';
-  kind: 'chat' | 'analysis' | 'action';
   content: string;
-  category?: AnalysisCategory;
   tempId?: string;
   parentId?: string;
   pending?: boolean;
   error?: string | null;
   meta?: any;
 };
+
+type ChatMessage =
+  | (BaseMessage & { kind: 'chat' })
+  | (BaseMessage & { kind: 'analysis'; category?: AnalysisCategory })
+  | (BaseMessage & { kind: 'action' });
 
 const uid = () => Math.random().toString(36).slice(2);
 
