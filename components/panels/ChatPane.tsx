@@ -32,8 +32,6 @@ type ChatMessage = BaseChatMessage & {
 };
 
 const uid = () => Math.random().toString(36).slice(2);
-const addAssistant = (text: string) =>
-  setMessages(prev => [...prev, { id: uid(), role: 'assistant', kind: 'chat', content: text } as any]);
 
 function getLastAnalysis(list: ChatMessage[]) {
   for (let i = list.length - 1; i >= 0; i--) {
@@ -231,6 +229,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const [ui, setUi] = useState<ChatUiState>(UI_DEFAULTS);
 
+  const addAssistant = (text: string) =>
+    setMessages(prev => [...prev, { id: uid(), role: 'assistant', kind: 'chat', content: text } as any]);
+
   // Load per-thread UI whenever threadId changes
   useEffect(() => {
     if (!threadId) { setUi(UI_DEFAULTS); return; }
@@ -337,10 +338,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
     const userId = uid();
     const pendingId = uid();
-    const nextMsgs = [
+    const nextMsgs: ChatMessage[] = [
       ...messages,
-      { id: userId, role: 'user', kind: 'chat', content: userText },
-      { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true },
+      { id: userId, role: 'user', kind: 'chat', content: userText } as ChatMessage,
+      { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true } as ChatMessage,
     ];
     setMessages(nextMsgs);
     setNote('');

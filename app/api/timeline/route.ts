@@ -125,7 +125,7 @@ export async function GET() {
     const key =
       it.file?.upload_id ||
       it.meta?.source_hash ||
-      `${it.name}|${it.observed_at}|${it.value ?? ""}`;
+      `${it.name}|${it.observed_at}|${"value" in it ? it.value ?? "" : ""}`;
     if (!dedup.has(key)) dedup.set(key, it);
   }
   const items = Array.from(dedup.values()).sort(
