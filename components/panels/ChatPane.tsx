@@ -10,6 +10,8 @@ import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
 import { detectFollowupIntent } from '@/lib/intents';
 import { safeJson } from '@/lib/safeJson';
+import { getTrials } from "@/lib/hooks/useTrials";
+import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials";
 import type {
   ChatMessage as BaseChatMessage,
   AnalysisCategory,
@@ -75,6 +77,21 @@ function inferTopicFromDoc(report: string) {
   const h1 = (report.match(/^#\s*(.+)$/m) || [, ""])[1];
   const hits = report.match(/\b(cancer|fracture|pneumonia|diabetes|hypertension|asthma|arthritis|kidney|liver|anemia)\b/i);
   return h1 && h1.length <= 40 ? h1 : hits?.[0] || "medical report";
+}
+
+function maybeFixMedicalTypo(s: string) {
+  // super conservative: only single-word queries, simple known misspellings
+  const map: Record<string,string> = {
+    leujimkea: "leukemia",
+    leujemia: "leukemia",
+    leucemia: "leukemia"
+    // add more safely as needed
+  };
+  const oneWord = s.trim().toLowerCase();
+  if (/^[a-z-]{4,}$/.test(oneWord) && map[oneWord]) {
+    return { corrected: map[oneWord], ask: `Did you mean **${map[oneWord]}**? (Yes/No)` };
+  }
+  return null;
 }
 
 function buildMedicinesPrompt(topic: string, country: { code3: string; name: string }) {
@@ -401,6 +418,13 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true } as ChatMessage,
     ];
     setMessages(nextMsgs);
+    const maybe = maybeFixMedicalTypo(userText);
+    if (maybe && messages.filter(m => m.role === "assistant").slice(-1)[0]?.content !== maybe.ask) {
+      // Ask once, keep pending bubble as the question (no LLM call)
+      setMessages(prev => prev.map(m => m.id === pendingId ? { ...m, content: maybe.ask, pending: false } : m));
+      setBusy(false);
+      return; // wait for user Yes/No
+    }
     setNote('');
     if (!isProfileThread && threadId && messages.filter(m => m.role === 'user').length === 0) {
       updateThreadTitle(threadId, generateTitle(text));
@@ -519,7 +543,7 @@ ${linkNudge}`
           : `You are a patient-friendly explainer. Use simple markdown and short paragraphs.
 If CONTEXT has codes or trials, explain them in plain words and add links. Avoid medical advice.
 ${linkNudge}`;
-      const systemCommon = `\nUser country: ${country.code3} (${country.name}). Prefer local examples/guidelines. If unsure, use generics and say availability varies.\n`;
+      const systemCommon = `\nUser country: ${country.code3} (${country.name}). Use generics and note availability varies by region.\nEnd with one short follow-up question (<=10 words) that stays on the current topic.\n`;
       const topicHint = ui.topic ? `ACTIVE TOPIC: ${ui.topic}\nKeep answers scoped to this topic unless the user changes it.\n` : "";
 
       let chatMessages: { role: string; content: string }[];
@@ -529,7 +553,38 @@ ${linkNudge}`;
           intent === 'hospitals'
             ? buildHospitalsPrompt(ui.topic, country)
             : intent === 'trials'
-            ? buildTrialsPrompt(ui.topic, country)
+            ? await (async () => {
+                // 1) fetch real trials
+                const { rows } = await getTrials({
+                  condition: ui.topic!,
+                  country: country.name, // ClinicalTrials.gov expects country name
+                  status: "Recruiting,Enrolling by invitation",
+                  phase: "Phase 2,Phase 3",
+                  page: 1,
+                  pageSize: 10,
+                });
+
+                // 2) if none found, fall back to the old high-level summary
+                if (!rows.length) return buildTrialsPrompt(ui.topic!, country);
+
+                // 3) build a structured summarization prompt using the rows
+                const content =
+                  mode === "patient"
+                    ? patientTrialsPrompt(rows, ui.topic!)
+                    : clinicianTrialsPrompt(rows, ui.topic!);
+
+                // 4) Instruct the LLM to produce a concrete list with NCT IDs + links
+                return [
+                  {
+                    role: "system",
+                    content:
+`You are MedX. Turn the provided "Data" JSON into a concise, accurate list of active clinical trials.
+For each item: {Title — NCT ID — Phase — Status — Where (City, Country) — What/Primary outcome — Link}.
+Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End with one short follow-up question.`
+                  },
+                  { role: "user", content }
+                ];
+              })()
             : buildMedicinesPrompt(ui.topic, country);
       } else if (follow && ctx) {
         const system = `\nYou are MedX. This is a FOLLOW-UP question. Use the ACTIVE CONTEXT below; do not reset topic unless user asks.\n${topicHint}ACTIVE CONTEXT TITLE: ${ctx.title}\nACTIVE CONTEXT SUMMARY:\n${ctx.summary}\n\nWhen the user asks for latest/clinical trials/guidelines, stay on the same topic/entities: ${ctx.entities?.join(', ') || 'n/a'}.\n${systemCommon}` + baseSys;

@@ -18,7 +18,7 @@ export async function POST(req: NextRequest){
       : role==='admin'
         ? 'You help administrative staff with medical documents. Summarize logistics and coding info. Avoid medical advice.'
         : 'You explain in simple, friendly language for patients. Avoid medical advice; encourage consulting a doctor.';
-    const sys = `You are MedX. User country: ${country.code3}.\nPrefer local guidelines, availability, dosing units, and OTC product examples used in ${country.name}.\nIf country-specific examples are uncertain, give generic names and note availability varies by region.\n` + base;
+    const sys = `You are MedX. User country: ${country.code3}.\nPrefer local guidelines, availability, dosing units, and OTC product examples used in ${country.name}.\nIf country-specific examples are uncertain, give generic names and note availability varies by region.\nAlways keep answers scoped to the user’s current topic unless they change it.\nIf the question is ambiguous, ask ONE brief clarifying question, then answer briefly.\nEnd every answer with one short follow-up question (<=10 words) on the same topic.` + base;
     messages = [
       { role: 'system', content: sys },
       { role: 'user', content: question }
