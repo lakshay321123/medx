@@ -19,7 +19,7 @@ export async function searchDailyMed(rxCui: string): Promise<Citation[]> {
     url: d.setid ? `https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=${d.setid}` : "",
     source: "dailymed",
     date: d.modified || d.date || "",
-    extra: { rxCui }
+    extra: { rxCui, evidenceLevel: "Drug Label" }
   }));
 }
 

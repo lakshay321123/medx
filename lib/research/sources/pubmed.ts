@@ -1,4 +1,5 @@
 import { fetchJson } from "@/lib/research/net";
+import { classifyPubType } from "./utils";
 
 export type Citation = {
   id: string;
@@ -32,7 +33,7 @@ export async function searchPubMed(query: string): Promise<Citation[]> {
       url: `https://pubmed.ncbi.nlm.nih.gov/${id}/`,
       source: "pubmed",
       date: (r.pubdate || r.epubdate || "").slice(0, 10),
-      extra: { journal: r.fulljournalname }
+      extra: { journal: r.fulljournalname, evidenceLevel: classifyPubType(r.pubtype) }
     } : null;
   }).filter(Boolean) as Citation[];
 }

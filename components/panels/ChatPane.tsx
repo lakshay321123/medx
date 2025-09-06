@@ -220,7 +220,7 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
   );
 }
 
-function ChatCard({ m, therapyMode, onFollowUpClick }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onFollowUpClick: (text: string) => void }) {
+function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onFollowUpClick: (text: string) => void; simple: boolean }) {
   if (m.pending) return <PendingChatCard label="Thinking…" />;
   return (
     <article className="mr-auto max-w-[90%] rounded-2xl p-4 md:p-6 shadow-sm space-y-2 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800">
@@ -229,7 +229,7 @@ function ChatCard({ m, therapyMode, onFollowUpClick }: { m: Extract<ChatMessage,
       </div>
       {m.role === "assistant" && m.citations?.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
-          {m.citations.slice(0, 6).map((c, i) => (
+          {m.citations.slice(0, simple ? 3 : 6).map((c, i) => (
             <a
               key={i}
               href={c.url}
@@ -238,6 +238,7 @@ function ChatCard({ m, therapyMode, onFollowUpClick }: { m: Extract<ChatMessage,
               className="rounded-full border px-3 py-1 text-xs hover:bg-gray-100"
             >
               {c.source.toUpperCase()}
+              {c.extra?.evidenceLevel ? ` · ${c.extra.evidenceLevel}` : ""}
             </a>
           ))}
         </div>
@@ -259,11 +260,11 @@ function ChatCard({ m, therapyMode, onFollowUpClick }: { m: Extract<ChatMessage,
   );
 }
 
-function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onFollowUpClick }: { m: ChatMessage; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean; therapyMode: boolean; onFollowUpClick: (text: string) => void }) {
+function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onFollowUpClick, simple }: { m: ChatMessage; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean; therapyMode: boolean; onFollowUpClick: (text: string) => void; simple: boolean }) {
   return m.kind === "analysis" ? (
     <AnalysisCard m={m} researchOn={researchOn} onQuickAction={onQuickAction} busy={busy} />
   ) : (
-    <ChatCard m={m} therapyMode={therapyMode} onFollowUpClick={onFollowUpClick} />
+    <ChatCard m={m} therapyMode={therapyMode} onFollowUpClick={onFollowUpClick} simple={simple} />
   );
 }
 
@@ -991,6 +992,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
                   busy={loadingAction !== null}
                   therapyMode={therapyMode}
                   onFollowUpClick={handleFollowUpClick}
+                  simple={currentMode === 'patient'}
                 />
                 <FeedbackBar
                   conversationId={conversationId}

@@ -1,4 +1,5 @@
 import { fetch as _fetch } from "undici";
+import { normalizePhase } from "./utils";
 
 export type Citation = {
   id: string;
@@ -6,7 +7,7 @@ export type Citation = {
   url: string;
   source: "ctri";
   date?: string;
-  extra?: { status?: string; recruiting?: boolean };
+  extra?: { status?: string; recruiting?: boolean; evidenceLevel?: string };
 };
 
 const ORIGIN = "https://ctri.nic.in";
@@ -63,6 +64,14 @@ export async function searchCtri(query: string, opts?: { max?: number }): Promis
       title.match(/\bCTRI\/[0-9]{4}\/[0-9]{2}\/[0-9]{6}\b/i) ||
       detailUrl.match(/\bCTRI\/[0-9]{4}\/[0-9]{2}\/[0-9]{6}\b/i);
 
+    let phase = "";
+    try {
+      const detailHtml = await fetchHtml(detailUrl);
+      const pm = /Phase of Trial[^<]*<\/td>\s*<td[^>]*>(.*?)<\/td>/i.exec(detailHtml);
+      phase = text(stripTags(pm?.[1] || ""));
+    } catch {}
+    const evidenceLevel = normalizePhase(phase);
+
     out.push({
       id: idMatch ? idMatch[0] : detailUrl,
       title,
@@ -73,6 +82,7 @@ export async function searchCtri(query: string, opts?: { max?: number }): Promis
       extra: {
         status: status || undefined,
         recruiting: /recruiting/i.test(status),
+        evidenceLevel,
       },
     });
   }
