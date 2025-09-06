@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState, RefObject } from 'react';
+import { useEffect, useRef, useState, RefObject, Fragment } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Header from '../Header';
 import Markdown from '../Markdown';
@@ -12,6 +12,7 @@ import { detectFollowupIntent } from '@/lib/intents';
 import { safeJson } from '@/lib/safeJson';
 import { getTrials } from "@/lib/hooks/useTrials";
 import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials";
+import FeedbackBar from "@/components/FeedbackBar";
 import type {
   ChatMessage as BaseChatMessage,
   AnalysisCategory,
@@ -239,6 +240,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const threadId = params.get('threadId');
   const context = params.get('context');
   const isProfileThread = threadId === 'med-profile' || context === 'profile';
+  const conversationId = threadId || (isProfileThread ? 'med-profile' : 'unknown');
+  const currentMode: 'patient'|'doctor'|'research'|'therapy' = therapyMode ? 'therapy' : (researchMode ? 'research' : mode);
   const [pendingCommitIds, setPendingCommitIds] = useState<string[]>([]);
   const [commitBusy, setCommitBusy] = useState<null | 'save' | 'discard'>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
@@ -919,13 +922,21 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
                 <Markdown text={m.content} />
               </div>
             ) : (
-              <AssistantMessage
-                key={m.id}
-                m={m}
-                researchOn={researchMode}
-                onQuickAction={onQuickAction}
-                busy={loadingAction !== null}
-              />
+              <Fragment key={m.id}>
+                <AssistantMessage
+                  m={m}
+                  researchOn={researchMode}
+                  onQuickAction={onQuickAction}
+                  busy={loadingAction !== null}
+                />
+                <FeedbackBar
+                  conversationId={conversationId}
+                  messageId={m.id}
+                  mode={currentMode}
+                  model={undefined}
+                  hiddenInTherapy={true}
+                />
+              </Fragment>
             )
         )}
       </div>

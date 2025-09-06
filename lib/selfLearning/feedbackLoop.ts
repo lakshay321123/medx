@@ -1,7 +1,6 @@
 import { openaiText } from "@/lib/llm";
+import { supabaseServer } from "@/lib/supabaseServer";
 import { cosineSimilarity, keywordMatchScore, toneAnalysisScore } from "@/lib/selfLearning/utils";
-import { promises as fs } from "fs";
-import path from "path";
 
 export type FeedbackReport = {
   userInput: string;
@@ -14,26 +13,59 @@ export type FeedbackReport = {
   timestamp: string;
 };
 
-const LOG_PATH = process.env.FEEDBACK_LOG_PATH || path.join(process.cwd(), "data", "feedbackLogs.json");
 const THRESHOLD = Number(process.env.FEEDBACK_THRESHOLD || 0.7);
 
-async function appendLog(report: FeedbackReport) {
+async function saveAutoFeedback(row: {
+  conversationId?: string;
+  messageId?: string;
+  mode?: string;
+  model?: string;
+  userInput: string;
+  medxAnswer: string;
+  baselineAnswer: string;
+  similarity: number;
+  keywordScore: number;
+  toneScore: number;
+  diverges: boolean;
+  latencyMs?: number;
+}) {
   try {
-    const prev = await fs.readFile(LOG_PATH, "utf8").catch(() => "[]");
-    const arr = JSON.parse(prev);
-    arr.push(report);
-    await fs.writeFile(LOG_PATH, JSON.stringify(arr, null, 2));
+    await supabaseServer()
+      .from("ai_auto_feedback")
+      .insert({
+        conversation_id: row.conversationId ?? null,
+        message_id: row.messageId ?? null,
+        mode: row.mode ?? null,
+        model: row.model ?? null,
+        user_input: row.userInput,
+        medx_answer: row.medxAnswer,
+        baseline_answer: row.baselineAnswer,
+        similarity: row.similarity,
+        keyword_score: row.keywordScore,
+        tone_score: row.toneScore,
+        diverges: row.diverges,
+        latency_ms: row.latencyMs ?? null,
+      });
   } catch {
-    // ignore logging errors
+    // ignore db errors
   }
 }
+
+type EvalMeta = {
+  conversationId?: string;
+  messageId?: string;
+  mode?: string;
+  model?: string;
+  baselineAnswer?: string;
+  latencyMs?: number;
+};
 
 export async function evaluateResponseAccuracy(
   userInput: string,
   medxAnswer: string,
-  baselineAnswer?: string
+  meta: EvalMeta = {}
 ): Promise<FeedbackReport> {
-  const baseline = baselineAnswer ?? (await openaiText([{ role: "user", content: userInput }]));
+  const baseline = meta.baselineAnswer ?? (await openaiText([{ role: "user", content: userInput }]));
   const similarity = cosineSimilarity(medxAnswer, baseline);
   const keywordScore = keywordMatchScore(medxAnswer, baseline);
   const toneScore = toneAnalysisScore(medxAnswer);
@@ -47,6 +79,19 @@ export async function evaluateResponseAccuracy(
     diverges: similarity < THRESHOLD,
     timestamp: new Date().toISOString(),
   };
-  await appendLog(report);
+  await saveAutoFeedback({
+    conversationId: meta.conversationId,
+    messageId: meta.messageId,
+    mode: meta.mode,
+    model: meta.model,
+    userInput,
+    medxAnswer,
+    baselineAnswer: baseline,
+    similarity,
+    keywordScore,
+    toneScore,
+    diverges: report.diverges,
+    latencyMs: meta.latencyMs,
+  });
   return report;
 }
