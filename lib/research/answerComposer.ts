@@ -1,85 +1,57 @@
-import type { Citation } from "./orchestrator";
 import { isSelfDisclosure } from "@/lib/research/queryInterpreter";
-import type { ResearchFilters } from "@/store/researchFilters";
 
-function summarize(filters?: ResearchFilters) {
-  if (!filters) return "";
-  const parts: string[] = [];
-  if (filters.phase) parts.push(`Phase ${filters.phase}`);
-  if (filters.status && filters.status !== "any") {
-    const map: any = {
-      recruiting: "Recruiting",
-      active: "Active, not recruiting",
-      completed: "Completed",
-    };
-    parts.push(map[filters.status] || filters.status);
-  }
-  if (filters.countries?.length) parts.push(filters.countries.join("/") );
-  if (filters.genes?.length) parts.push(filters.genes.join(", "));
-  return parts.length ? `Filters: ${parts.join(" · ")}` : "";
+// Add this helper: shape trials into a structured payload
+export function buildTrialsTablePayload(trials: any[]) {
+  // Keep columns stable and minimal for now
+  return {
+    kind: "trials_table",
+    columns: [
+      { key: "title", label: "Trial" },
+      { key: "phase", label: "Phase" },
+      { key: "status", label: "Status" },
+      { key: "registry", label: "Registry" },
+      { key: "country", label: "Locations" }
+    ],
+    rows: trials.map(t => ({
+      title: { text: t.title, href: t.url },
+      phase: t.extra?.phase || "—",
+      status: t.extra?.status || "—",
+      registry: t.extra?.registryId || "—",     // e.g. NCT01234567
+      country: t.extra?.country || t.extra?.location || "—"
+    }))
+  };
 }
 
-export function composeTrialsAnswer(userQuery: string, trials: Citation[], papers: Citation[], filters?: ResearchFilters) {
-  const header = `Here are the most relevant **clinical trials** for: **${userQuery}**`;
-  const filterLine = summarize(filters);
-  const tableHead = "| Trial (Registry) | Phase | Status | Last Update |\n|---|---|---|---|";
-  const rows = trials.slice(0, 8).map(t => {
-    const title = sanitize(t.title);
-    const id = t.id || "—";
-    const phase = (t.extra?.phase || "").replace(/phase\s*/i, "Phase ").trim() || "—";
-    const status = t.extra?.status || "—";
-    const date = t.date || "—";
-    return `| [${title}](${t.url}) (${id}) | ${phase} | ${status} | ${date} |`;
-  });
+// Research / Doctor → return both: structured + markdown fallback
+export function composeTrialsAnswer(userQuery: string, trials: any[], papers: any[], opts?: { mode: string }) {
+  const payload = buildTrialsTablePayload(trials.slice(0, 8));
 
-  const trialsBlock = rows.length ? [tableHead, ...rows].join("\n") : "";
+  const mdFallback = [
+    "### Trials",
+    trials.slice(0, 8).map(t =>
+      `- [${t.title}](${t.url}) • Phase ${t.extra?.phase || "—"} • ${t.extra?.status || "—"} • ${t.extra?.registryId || ""}`
+    ).join("\n"),
+    papers.length ? "\n### Related publications\n" + papers.slice(0,6).map(p => `- [${p.title}](${p.url})`).join("\n") : ""
+  ].join("\n");
 
-  const pubBlock = (papers || [])
-    .slice(0, 3)
-    .map(p => `- ${sanitize(p.title)} (${p.date || "—"}) — ${p.url}`)
-    .join("\n");
-
-  const parts = [header];
-  if (filterLine) parts.push(filterLine);
-  if (trialsBlock) parts.push("", trialsBlock);
-  if (pubBlock) parts.push("\n**Related publications:**\n" + pubBlock);
-
-  return parts.join("\n");
+  return { text: mdFallback, payload };
 }
 
-export function composeAnswer(
-  userQuery: string,
-  trials: any[],
-  papers: any[],
-  opts: { mode: string },
-  filters?: ResearchFilters
-) {
+export function composeAnswer(userQuery: string, trials: any[], papers: any[], opts: { mode: string }) {
   const selfDisclosure = isSelfDisclosure(userQuery);
 
   if (opts.mode === "patient") {
     const intro = selfDisclosure
       ? "I’m sorry to hear about your diagnosis. Here’s clear, simple information you can take to your doctor."
-      : "Here’s clear, simple information about this condition and possible trials you may want to discuss with your doctor.";
+      : "Here’s clear, simple information about this condition and potential trials to discuss with your doctor.";
 
-    const filterLine = summarize(filters);
-    const trialsBlock = trials
-      .slice(0, 2)
-      .map((t) => `- [${t.title}](${t.url}) (Phase ${t.extra?.phase || "?"})`)
-      .join("\n");
+    const concise = trials.slice(0, 2).map(t =>
+      `- [${t.title}](${t.url}) • Phase ${t.extra?.phase || "—"}`
+    ).join("\n");
 
-    return [
-      intro,
-      filterLine,
-      trialsBlock ||
-        "I couldn’t find active trials right now. You can check [ClinicalTrials.gov](https://clinicaltrials.gov) for the latest.",
-      "**Resources:** American Cancer Society, National Cancer Institute",
-    ].filter(Boolean).join("\n\n");
+    return { text: [intro, "#### Trials (2 picks)", concise || "_No active trials found._"].join("\n\n") };
   }
 
-  // Research or Doctor mode → keep full detail
-  return composeTrialsAnswer(userQuery, trials, papers, filters);
-}
-
-function sanitize(s?: string){
-  return (s || "").replace(/\|/g, "\\|").trim();
+  // Research / Doctor
+  return composeTrialsAnswer(userQuery, trials, papers, opts);
 }

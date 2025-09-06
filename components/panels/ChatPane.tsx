@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, RefObject, Fragment } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Header from '../Header';
 import Markdown from '../Markdown';
+import MessageRenderer from '../MessageRenderer';
 import ResearchFilters from '@/components/ResearchFilters';
 import { useResearchFilters } from '@/store/researchFilters';
 import { Send } from 'lucide-react';
@@ -180,7 +181,7 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
         )}
       </header>
       <div className="prose prose-slate dark:prose-invert max-w-none prose-medx text-sm md:text-base">
-        <Markdown text={m.content} />
+        <MessageRenderer message={{ text: m.content, payload: (m as any).payload }} />
       </div>
       {m.error && (
         <div className="inline-flex items-center gap-2 text-xs rounded-lg px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-900/20 dark:text-rose-200 dark:border-rose-800">
@@ -227,7 +228,7 @@ function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<Chat
   return (
     <article className="mr-auto max-w-[90%] rounded-2xl p-4 md:p-6 shadow-sm space-y-2 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800">
       <div className="prose prose-slate dark:prose-invert max-w-none prose-medx text-sm md:text-base">
-        <Markdown text={m.content} />
+        <MessageRenderer message={{ text: m.content, payload: m.payload }} />
       </div>
       {m.role === "assistant" && m.citations?.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">

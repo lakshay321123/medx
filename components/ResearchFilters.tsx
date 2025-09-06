@@ -73,20 +73,24 @@ export default function ResearchFilters({ mode }: { mode: 'patient'|'doctor'|'re
               {statusOptions.map(o=> <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </label>
-          <div className="flex items-center gap-1">
-            <span className="font-medium">Country:</span>
-            <div className="flex flex-wrap gap-1">
-              {countryOptions.map(c=> (
-                <button key={c} type="button" className={`px-2 py-1 border rounded ${draft.countries?.includes(c)?'bg-indigo-600 text-white':'bg-transparent'}`} onClick={()=>toggleCountry(c)}>
-                  {c}
-                </button>
-              ))}
+          {mode !== 'patient' && (
+            <div className="flex items-center gap-1">
+              <span className="font-medium">Country:</span>
+              <div className="flex flex-wrap gap-1">
+                {countryOptions.map(c=> (
+                  <button key={c} type="button" className={`px-2 py-1 border rounded ${draft.countries?.includes(c)?'bg-indigo-600 text-white':'bg-transparent'}`} onClick={()=>toggleCountry(c)}>
+                    {c}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-          <label className="flex items-center gap-1 flex-wrap">
-            <span className="font-medium">Genes:</span>
-            <input className="border rounded px-2 py-1" value={geneInput} placeholder="EGFR, ALK" onChange={e=>setDraft({...draft, genes: e.target.value.split(/\s*,\s*/).filter(Boolean)})} />
-          </label>
+          )}
+          {mode !== 'patient' && (
+            <label className="flex items-center gap-1 flex-wrap">
+              <span className="font-medium">Genes:</span>
+              <input className="border rounded px-2 py-1" value={geneInput} placeholder="EGFR, ALK" onChange={e=>setDraft({...draft, genes: e.target.value.split(/\s*,\s*/).filter(Boolean)})} />
+            </label>
+          )}
           <div className="ml-auto flex items-center gap-2">
             <button className="btn-secondary" onClick={doReset}>Reset</button>
             <button className="btn-primary" onClick={apply}>Apply {count ? <span className="ml-1 rounded-full bg-indigo-600 text-white px-2">{count}</span> : null}</button>

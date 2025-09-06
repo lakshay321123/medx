@@ -27,6 +27,7 @@ export type Citation = {
 
 export type ResearchPacket = {
   content: string;
+  payload?: any;
   citations: Citation[];
   followUps: string[];
   meta: { widened?: boolean; tookMs: number };
@@ -116,11 +117,11 @@ export async function orchestrateResearch(query: string, opts: { mode: string; f
   let citations = dedupeResults([...trials, ...papers, ...safety]);
   citations = rankResults(citations, { topic: query });
 
-  let content: string;
+  let answer: { text: string; payload?: any };
   let followUps: string[] = [];
 
   if (trials.length === 0) {
-    content = `I couldn't find trials that match your filters.`;
+    answer = { text: `I couldn't find trials that match your filters.` };
     followUps = [
       "Include completed",
       "Any phase",
@@ -128,11 +129,12 @@ export async function orchestrateResearch(query: string, opts: { mode: string; f
     ];
     if (opts.mode !== 'patient') followUps.push('Clear filters');
   } else {
-    content = composeAnswer(query, trials, papers, opts, f);
+    answer = composeAnswer(query, trials, papers, opts);
   }
 
   const packet: ResearchPacket = {
-    content,
+    content: answer.text,
+    payload: answer.payload,
     citations,
     followUps,
     meta: { widened: false, tookMs: Date.now() - t0 },
