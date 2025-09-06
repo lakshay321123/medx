@@ -18,14 +18,21 @@ export type AnalysisCategory =
   | "other_medical_doc";
 
 export type ChatMessage =
-  | { id: string; role: "user"; kind: "chat"; content: string }
-  | { id: string; role: "assistant"; kind: "chat"; content: string }
+  | { id: string; role: "user"; kind: "chat"; content: string; followUps?: string[] }
+  | {
+      id: string;
+      role: "assistant";
+      kind: "chat";
+      content: string;
+      followUps?: string[];
+    }
   | {
       id: string;
       role: "assistant";
       kind: "analysis";
       category?: AnalysisCategory;
       content: string;
+      followUps?: string[];
     };
 
 type Ctx = {

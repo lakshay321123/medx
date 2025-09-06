@@ -1,6 +1,9 @@
 import { MedxResponseSchema, type MedxResponse } from "@/schemas/medx";
 import { normalizeTopic } from "@/lib/topic/normalize";
 import { searchTrials } from "@/lib/trials/search";
+import { splitFollowUps } from "./splitFollowUps";
+
+export { splitFollowUps };
 
 const BASE = process.env.LLM_BASE_URL!;
 const MODEL = process.env.LLM_MODEL_ID || "llama-3.1-8b-instant";
