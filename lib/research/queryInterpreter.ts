@@ -56,6 +56,18 @@ export function interpretTrialQuery(q: string): TrialQuery {
   return { condition, cancerType, phase, recruiting, country, keywords };
 }
 
+export function isSelfDisclosure(query: string): boolean {
+  return /(i have|i was diagnosed|my diagnosis|i suffer from|i'm dealing with|i was told i have)/i.test(
+    query,
+  );
+}
+
+export function detectNewTopic(query: string, prevCondition?: string): boolean {
+  if (!prevCondition) return true;
+  const q = query.toLowerCase();
+  return !q.includes(prevCondition.toLowerCase());
+}
+
 function extractCondition(s: string) {
   if (s.includes("nsclc")) return "non-small cell lung cancer";
   if (s.includes("leukemia")) return "leukemia";
