@@ -52,7 +52,7 @@ export async function v2Generate(body: any): Promise<MedxResponse> {
   let researchPacket: any = null;
   const shouldResearch = body.mode === "research" || process.env.RESEARCH_ALWAYS_ON === "true";
   if (shouldResearch) {
-    researchPacket = await orchestrateResearch(query, { mode: body.mode });
+    researchPacket = await orchestrateResearch(query, { mode: body.mode, filters: body.filters });
   }
 
   const citations = researchPacket?.citations?.slice(0, 8).map((c: any) => `- ${c.title} (${c.url})`).join("\n");
