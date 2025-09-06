@@ -4,8 +4,10 @@ export const flags = {
   enableTrialsISRCTN: false,
   enableTrialsEUCTR: false,
   enableTrialsICTRP: false,
+
+  // Books & patient info
+  enableBooksNCBI: true,
   enableMedlinePlus: true,
-  enableNCBIBooks: true,
 
   // Research sources
   enableOpenAlex: true,
