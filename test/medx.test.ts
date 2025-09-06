@@ -3,6 +3,10 @@ import { strict as assert } from 'node:assert';
 import { normalizeTopic } from '@/lib/topic/normalize';
 import { filterTrials } from '@/lib/trials/search';
 import { routeIntent } from '@/lib/intent-router';
+import { normalizeQuery } from '@/lib/queryNormalizer';
+import { normalizePhase, normalizeStatus, defaultTrialFilters } from '@/lib/trials/normalize';
+import { dedupeTrials } from '@/lib/trials/merge';
+import type { TrialRecord } from '@/lib/trials/types';
 
 describe('topic normalize', () => {
   it('maps slip disk to canonical', () => {
@@ -44,5 +48,41 @@ describe('intent router', () => {
     assert.equal(r.condition, 'back pain');
     assert.equal(r.new_case, false);
     assert.equal(r.research, true);
+  });
+});
+
+describe('query normalizer', () => {
+  it('expands NSCLC', () => {
+    assert.equal(normalizeQuery('NSCLC'), 'non-small cell lung cancer');
+  });
+});
+
+describe('phase/status normalize', () => {
+  it('normalizes values', () => {
+    assert.equal(normalizePhase('PHASE II'), 'Phase 2');
+    assert.equal(normalizeStatus('active, not recruiting'), 'Active, not recruiting');
+  });
+});
+
+describe('trial dedupe', () => {
+  it('merges by ID and fuzzily by title', () => {
+    const a: TrialRecord = { ids: { nct: 'NCT1' }, title: 'A', condition: [], sources: [{ name: 'A', url: 'u' }] };
+    const b: TrialRecord = { ids: { nct: 'NCT1' }, title: 'A', condition: [], phase: 'Phase 2', sources: [{ name: 'B', url: 'v' }] };
+    const c: TrialRecord = { ids: {}, title: 'B', condition: [], phase: 'Phase 2', locations: [{ country: 'US' }], sources: [{ name: 'C', url: 'w' }] };
+    const d: TrialRecord = { ids: {}, title: 'B', condition: [], phase: 'Phase 2', locations: [{ country: 'US' }], sources: [{ name: 'D', url: 'z' }] };
+    const merged = dedupeTrials([[a], [b], [c], [d]]);
+    assert.equal(merged.length, 2);
+    const idMerged = merged.find(t => t.ids.nct === 'NCT1')!;
+    assert.equal(idMerged.sources.length, 2);
+    const fuzzyMerged = merged.find(t => !t.ids.nct)!;
+    assert.equal(fuzzyMerged.sources.length, 2);
+  });
+});
+
+describe('broaden filters', () => {
+  it('expands phase and status when true', () => {
+    const f = defaultTrialFilters(true);
+    assert(/Phase 1/.test(f.phase));
+    assert(/Completed/.test(f.status));
   });
 });

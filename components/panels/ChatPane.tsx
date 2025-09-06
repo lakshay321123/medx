@@ -12,6 +12,8 @@ import { detectFollowupIntent, isTrialsIntent } from '@/lib/intents';
 import { safeJson } from '@/lib/safeJson';
 import { getUnifiedTrials } from "@/lib/trials/aggregate";
 import { getTrials } from "@/lib/hooks/useTrials";
+import { normalizeQuery } from "@/lib/queryNormalizer";
+import { defaultTrialFilters } from "@/lib/trials/normalize";
 import type {
   ChatMessage as BaseChatMessage,
   AnalysisCategory,
@@ -258,6 +260,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   };
 
   const [ui, setUi] = useState<ChatUiState>(UI_DEFAULTS);
+  const awaitingBroaden = useRef(false);
 
   const addAssistant = (text: string, opts?: Partial<ChatMessage>) =>
     setMessages(prev => [...prev, { id: uid(), role: 'assistant', kind: 'chat', content: text, ...opts } as any]);
@@ -408,13 +411,14 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         .replace(/\bnp\b/gi, "neutrophil percentage")
         .replace(/\bsgpt\b/gi, "ALT (SGPT)")
         .replace(/\bsgot\b/gi, "AST (SGOT)");
-    const userText = isProfileThread ? normalize(text) : text;
+    const raw = isProfileThread ? normalize(text) : text;
+    const userText = normalizeQuery(raw);
 
     const userId = uid();
     const pendingId = uid();
     const nextMsgs: ChatMessage[] = [
       ...messages,
-      { id: userId, role: 'user', kind: 'chat', content: userText } as ChatMessage,
+      { id: userId, role: 'user', kind: 'chat', content: raw } as ChatMessage,
       { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true } as ChatMessage,
     ];
     setMessages(nextMsgs);
@@ -511,23 +515,27 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         }
         return;
       }
-      let intent = detectFollowupIntent(text);
-      if (!intent && isTrialsIntent(text)) intent = 'trials';
-      const follow = isFollowUp(text);
+      const lower = userText.toLowerCase();
+      const broaden = awaitingBroaden.current && /^yes\b/.test(lower);
+      if (awaitingBroaden.current) awaitingBroaden.current = false;
+      const queryText = broaden ? (ui.topic || userText) : userText;
+      let intent = detectFollowupIntent(queryText);
+      if (!intent && (broaden || isTrialsIntent(queryText))) intent = 'trials';
+      const follow = isFollowUp(queryText);
       const ctx = ui.contextFrom ? active : null;
 
       let topic = ui.topic;
       if (!topic) {
-        const m = text.match(/\b([a-z][a-z\s-]{1,40})\s+cancer\b/i);
+        const m = queryText.match(/\b([a-z][a-z\s-]{1,40})\s+cancer\b/i);
         if (m) {
           topic = m[0];
           setUi(prev => ({ ...prev, topic }));
         } else if (!intent) {
-          topic = text;
+          topic = queryText;
           setUi(prev => ({ ...prev, topic }));
         }
-      } else if (isNewTopic(text)) {
-        topic = text;
+      } else if (isNewTopic(queryText)) {
+        topic = queryText;
         setUi(prev => ({ ...prev, topic }));
       }
 
@@ -578,11 +586,15 @@ ${linkNudge}`;
             : intent === 'trials'
             ? await (async () => {
                 const fetchTrials = getUnifiedTrials ?? (async (q: any) => (await getTrials(q)).rows);
+                const filters = defaultTrialFilters(broaden);
+                if (process.env.NODE_ENV !== 'production') {
+                  console.log('[TRIALS]', 'cond=', topic || queryText, 'phase=', filters.phase, 'status=', filters.status, 'country=', broaden ? 'ANY' : country.name);
+                }
                 const trials = await fetchTrials({
-                  condition: topic || text,
-                  country: country.name,
-                  status: "Recruiting,Enrolling by invitation",
-                  phase: "Phase 2,Phase 3",
+                  condition: topic || queryText,
+                  country: broaden ? undefined : country.name,
+                  status: filters.status,
+                  phase: filters.phase,
                   page: 1,
                   pageSize: 10,
                 });
@@ -598,6 +610,7 @@ ${linkNudge}`;
                         }
                       : m
                   )));
+                  awaitingBroaden.current = true;
                   return null;
                 }
 
@@ -628,7 +641,7 @@ Rules:
             : buildMedicinesPrompt(topic, country);
       } else if (follow && ctx) {
         const system = `\nYou are MedX. This is a FOLLOW-UP question. Use the ACTIVE CONTEXT below; do not reset topic unless user asks.\n${topicHint}ACTIVE CONTEXT TITLE: ${ctx.title}\nACTIVE CONTEXT SUMMARY:\n${ctx.summary}\n\nWhen the user asks for latest/clinical trials/guidelines, stay on the same topic/entities: ${ctx.entities?.join(', ') || 'n/a'}.\n${systemCommon}` + baseSys;
-        const userMsg = `Follow-up: ${text}\nIf the question is ambiguous, ask one concise disambiguation question and then answer briefly using the context.`;
+        const userMsg = `Follow-up: ${queryText}\nIf the question is ambiguous, ask one concise disambiguation question and then answer briefly using the context.`;
         chatMessages = [
           { role: 'system', content: system },
           { role: 'user', content: userMsg }
@@ -638,7 +651,7 @@ Rules:
           fetch('/api/medx', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: text, mode, researchMode })
+            body: JSON.stringify({ query: queryText, mode, researchMode })
           })
         );
 
@@ -646,7 +659,7 @@ Rules:
         const contextBlock = 'CONTEXT:\n' + JSON.stringify(plan.sections || {}, null, 2);
         chatMessages = [
           { role: 'system', content: sys },
-          { role: 'user', content: `${text}\n\n${contextBlock}` }
+          { role: 'user', content: `${queryText}\n\n${contextBlock}` }
         ];
       }
 

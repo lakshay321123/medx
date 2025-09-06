@@ -1,4 +1,5 @@
 import { TrialRecord } from "../types";
+import { normalizePhase, normalizeStatus } from "../normalize";
 
 export async function fetchNCI(params: { condition: string; country?: string; status?: string; phase?: string; pageSize?: number; }): Promise<TrialRecord[]> {
   const url = new URL("https://clinicaltrialsapi.cancer.gov/v1/clinical-trials");
@@ -15,8 +16,8 @@ export async function fetchNCI(params: { condition: string; country?: string; st
     ids: { nct: t.clinical_trials_gov_id, other: t.nci_id },
     title: t.brief_title,
     condition: (t.diseases || []).map((d: any) => d.display_name),
-    phase: t.phase?.phase,
-    status: t.current_trial_status,
+    phase: normalizePhase(t.phase?.phase),
+    status: normalizeStatus(t.current_trial_status),
     interventions: (t.arms || []).flatMap((a: any) => (a.interventions || []).map((i: any) => i.name)),
     primaryOutcome: t.primary_purpose?.description,
     locations: (t.sites || []).map((s: any) => ({ city: s.org_city, country: s.org_country, site: s.org_name })),

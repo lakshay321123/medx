@@ -1,5 +1,6 @@
 import { TrialRecord } from "../types";
 import { searchCTGov } from "@/lib/trials_ctgov";
+import { normalizePhase, normalizeStatus } from "../normalize";
 
 export async function fetchCTGov(params: { condition: string; country?: string; status?: string; phase?: string; pageSize?: number; }): Promise<TrialRecord[]> {
   const rows = await searchCTGov(params.condition, {
@@ -12,8 +13,8 @@ export async function fetchCTGov(params: { condition: string; country?: string; 
     ids: { nct: r.id },
     title: r.title,
     condition: r.conditions ?? [],
-    phase: r.phase,
-    status: r.status,
+    phase: normalizePhase(r.phase),
+    status: normalizeStatus(r.status),
     interventions: r.interventions ?? [],
     primaryOutcome: r.primaryOutcome,
     locations: r.city || r.country || r.site ? [{ city: r.city, country: r.country, site: r.site }] : [],
