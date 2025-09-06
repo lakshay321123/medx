@@ -12,6 +12,7 @@ export type ClientState = {
   collected?: {
     duration?: string;
     tempC?: number;
+    tempRaw?: string;
     spo2Pct?: number;
     painScore?: number;
     location?: string;
@@ -91,7 +92,7 @@ export function orchestrate(text: string, state: ClientState = {}, name?: string
       if (d) { collected.duration = d.raw; captured = true; }
     } else if (follow.key === 'tempC') {
       const t = parseTemperature(text);
-      if (t) { collected.tempC = t.celsius; captured = true; }
+      if (t) { collected.tempC = t.celsius; collected.tempRaw = t.raw; captured = true; }
     } else if (follow.key === 'spo2Pct') {
       const s = parseSpO2(text);
       if (typeof s === 'number') { collected.spo2Pct = s; captured = true; }
@@ -103,14 +104,27 @@ export function orchestrate(text: string, state: ClientState = {}, name?: string
       if (l) { collected.location = l; captured = true; }
     }
 
-    if (!captured && !state.reask) {
-      newState = { ...state, reask: true };
-      messages.push({ role: 'assistant', content: askFollowup(follow.question) });
-      return { messages, new_state: newState };
+    if (!captured) {
+      if (!state.reask) {
+        newState = { ...state, reask: true };
+        messages.push({ role: 'assistant', content: askFollowup(follow.question) });
+        return { messages, new_state: newState };
+      }
     }
 
     const nextIdx = idx + 1;
     newState = { ...state, followup_stage: nextIdx, reask: false, collected };
+    if (!captured && state.reask) {
+      const assumption = follow.key === 'duration' ? "I'll treat this as early illness for now." : "I'll go ahead with what we have.";
+      if (nextIdx >= frame.followups.length || nextIdx >= 2) {
+        messages.push({ role: 'assistant', content: `${assumption} ${plan(state.symptom_text || '', frame.self_care, frame.tests, frame.when_to_see)}`.trim() });
+        return { messages, new_state: { step: 'resolved' } };
+      }
+      const nextFollow = frame.followups[nextIdx];
+      messages.push({ role: 'assistant', content: `${assumption} ${askFollowup(nextFollow.question)}`.trim() });
+      return { messages, new_state: newState };
+    }
+
     if (nextIdx >= frame.followups.length || nextIdx >= 2) {
       messages.push({ role: 'assistant', content: plan(state.symptom_text || '', frame.self_care, frame.tests, frame.when_to_see) });
       return { messages, new_state: { step: 'resolved' } };
@@ -118,7 +132,7 @@ export function orchestrate(text: string, state: ClientState = {}, name?: string
     const nextFollow = frame.followups[nextIdx];
     const echoes: string[] = [];
     if (collected.duration && follow.key === 'duration') echoes.push(`day ~${collected.duration}`);
-    if (collected.tempC && follow.key === 'tempC') echoes.push(`~${collected.tempC}\xB0C`);
+    if (collected.tempC && follow.key === 'tempC' && collected.tempRaw) echoes.push(`${collected.tempRaw} (~${collected.tempC}\xB0C)`);
     if (collected.spo2Pct && follow.key === 'spo2Pct') echoes.push(`SpO₂ ${collected.spo2Pct}%`);
     if (collected.location && follow.key === 'location') echoes.push(collected.location);
     if (collected.painScore && follow.key === 'painScore') echoes.push(`pain ${collected.painScore}/10`);

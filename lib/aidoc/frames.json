@@ -2,12 +2,11 @@
   "covid": {
     "synonyms": ["covid", "tested positive", "rt-pcr positive"],
     "red_flags": [
+      "SpO₂ 92% or lower",
       "severe shortness of breath",
-      "chest pain",
-      "pressure",
+      "chest pain or pressure",
       "confusion",
-      "blue lips",
-      "blue face",
+      "blue lips or face",
       "fainting"
     ],
     "followups": [
@@ -15,9 +14,9 @@
       { "key": "tempC", "question": "Highest temperature?" },
       { "key": "spo2Pct", "question": "SpO₂ reading?" }
     ],
-    "self_care": "Rest, stay hydrated, and use acetaminophen for fever if needed.",
-    "tests": ["Discuss COVID-19 testing and monitoring"],
-    "when_to_see": "Seek care if fever lasts over 3 days or breathing worsens."
+    "self_care": "Isolate per local guidance, rest, and stay hydrated.",
+    "tests": ["Discuss monitoring or chest X-ray if breathing stays hard"],
+    "when_to_see": "See a clinician if fever lasts over 3 days or breathing worsens."
   },
   "fever": {
     "synonyms": ["fever", "high temperature"],

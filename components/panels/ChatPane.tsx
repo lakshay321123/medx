@@ -298,6 +298,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         const bootstampKey = bootKey(threadId);
         let client_state = {} as any;
         try { const raw = localStorage.getItem(stateKey); if (raw) client_state = JSON.parse(raw); } catch {}
+        const activeEpisode = client_state.step && client_state.step !== 'idle' && client_state.step !== 'resolved';
         const lastBoot = Number(localStorage.getItem(bootstampKey));
         const history = (loadMessages(threadId) || []).length > 0;
         const needBoot = !history || !lastBoot || (Date.now() - lastBoot) > 10*60*1000;
@@ -319,19 +320,20 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           }
           try { localStorage.setItem(bootstampKey, String(Date.now())); } catch {}
         }
-        // single readiness nudge (skip if asked recently)
-        if (askedRecently(threadId, 'proactive', 60)) return;
-        const rd = await safeJson(fetch('/api/predictions/readiness'));
-        const miss = rd?.missing || [];
-        const pick = miss[0] as ('predispositions'|'medications'|'weight'|undefined);
-        if (pick) {
-          const q =
-            pick === 'predispositions' ? 'Quick check: any family history/predispositions (e.g., diabetes, hypertension)? List comma-separated.'
-            : pick === 'medications'   ? 'Quick check: do you take any regular meds? Please share name + dose (e.g., Metformin 500 mg).'
-            :                            'Quick check: what is your current weight (kg)?';
-          setMessages(prev => [...prev, { id: uid(), role:'assistant', kind:'chat', content: q, pending:false } as any]);
-          setProactive({ kind: pick });
-          markAskedNow(threadId, 'proactive');
+        // single readiness nudge (skip if asked recently or an episode is active)
+        if (!activeEpisode && !askedRecently(threadId, 'proactive', 60)) {
+          const rd = await safeJson(fetch('/api/predictions/readiness'));
+          const miss = rd?.missing || [];
+          const pick = miss[0] as ('predispositions'|'medications'|'weight'|undefined);
+          if (pick) {
+            const q =
+              pick === 'predispositions' ? 'Quick check: any family history/predispositions (e.g., diabetes, hypertension)? List comma-separated.'
+              : pick === 'medications'   ? 'Quick check: do you take any regular meds? Please share name + dose (e.g., Metformin 500 mg).'
+              :                            'Quick check: what is your current weight (kg)?';
+            setMessages(prev => [...prev, { id: uid(), role:'assistant', kind:'chat', content: q, pending:false } as any]);
+            setProactive({ kind: pick });
+            markAskedNow(threadId, 'proactive');
+          }
         }
       } catch {}
     })();

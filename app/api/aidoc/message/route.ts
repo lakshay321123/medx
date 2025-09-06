@@ -36,15 +36,20 @@ export async function POST(req: NextRequest) {
 
   const name = await getName();
   const lower = text.toLowerCase();
+  let intent: string = 'symptom';
 
   // boot greeting
   if (!text) {
+    intent = 'boot';
     const msg = hello(name);
+    console.log('aidoc_event', { intent });
     return NextResponse.json({ messages: [{ role: 'assistant', content: msg }], new_state: { step: 'idle' } }, { headers: noStore() });
   }
 
   // research intent
   if (/latest treatment|guidelines|trial/.test(lower)) {
+    intent = 'research';
+    console.log('aidoc_event', { intent, handoff: 'research' });
     return NextResponse.json(
       {
         messages: [{ role: 'assistant', content: `Sure — switching to research mode. ${SAFETY}` }],
@@ -57,6 +62,8 @@ export async function POST(req: NextRequest) {
 
   // danger ask
   if (/do i have/.test(lower)) {
+    intent = 'danger';
+    console.log('aidoc_event', { intent });
     return NextResponse.json(
       {
         messages: [{ role: 'assistant', content: `I can't say for sure. A specialist visit would help. ${SAFETY}` }],
@@ -68,6 +75,8 @@ export async function POST(req: NextRequest) {
 
   // medication request
   if (/what medicine|which medicine|medication should/i.test(lower)) {
+    intent = 'medication_request';
+    console.log('aidoc_event', { intent });
     return NextResponse.json(
       {
         messages: [
@@ -82,6 +91,25 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  if (/^(hi|hello|hey)\b/.test(lower)) {
+    intent = 'greeting';
+    const msg = name ? `Hi ${name}! What's on your mind?` : "Hi! What's on your mind?";
+    console.log('aidoc_event', { intent });
+    return NextResponse.json(
+      { messages: [{ role: 'assistant', content: msg }], new_state: client_state },
+      { headers: noStore() }
+    );
+  }
+
   const result = orchestrate(text, client_state, name);
+  console.log('aidoc_event', {
+    intent,
+    frame_key: result.new_state?.frame_key,
+    step_from: client_state.step || 'none',
+    step_to: result.new_state?.step,
+    reask_count: result.new_state?.flags_prompt_count,
+    collected: result.new_state?.collected,
+    handoff: result.handoff?.mode,
+  });
   return NextResponse.json(result, { headers: noStore() });
 }
