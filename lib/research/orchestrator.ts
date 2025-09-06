@@ -1,6 +1,7 @@
-import { fetchJson } from "@/lib/research/net";
 import { rankResults } from "@/lib/research/ranking";
 import { dedupeResults } from "@/lib/research/dedupe";
+import { searchCtgov } from "@/lib/research/sources/ctgov";
+import { searchPubMed } from "@/lib/research/sources/pubmed";
 
 export type Citation = {
   id: string;
@@ -14,35 +15,27 @@ export type Citation = {
 export type ResearchPacket = {
   topic: string;
   citations: Citation[];
-  meta: { widened?: boolean; tookMs: number; sourcesHit: string[] };
+  meta: { widened?: boolean; tookMs: number };
 };
 
-export async function orchestrateResearch(query: string, opts?: { country?: string; phase?: string }) {
+export async function orchestrateResearch(query: string): Promise<ResearchPacket> {
   const t0 = Date.now();
-  const sourcesHit: string[] = [];
 
-  const [ctgov, ctri, pubmed] = await Promise.allSettled([
-    searchCtgov(query),
-    searchCtri(query, opts?.country ?? "IN"),
+  const [ctRes, pmRes] = await Promise.allSettled([
+    searchCtgov(query, { recruitingOnly: true }),
     searchPubMed(query),
   ]);
 
-  const results = collectOk([ctgov, ctri, pubmed]);
-  let citations = dedupeResults(results);
+  let trials = ctRes.status === "fulfilled" ? ctRes.value : [];
+  if (!trials.length) {
+    const ctAll = await searchCtgov(query, { recruitingOnly: false }).catch(() => []);
+    trials = ctAll || [];
+  }
+
+  const papers = pmRes.status === "fulfilled" ? pmRes.value : [];
+
+  let citations = dedupeResults([...trials, ...papers]);
   citations = rankResults(citations, { topic: query });
 
-  return {
-    topic: query,
-    citations,
-    meta: { widened: results.length === 0, tookMs: Date.now() - t0, sourcesHit },
-  };
+  return { topic: query, citations, meta: { widened: !trials.length, tookMs: Date.now() - t0 } };
 }
-
-function collectOk(arr: PromiseSettledResult<any>[]) {
-  return arr.filter(a => a.status === "fulfilled").flatMap((a: any) => a.value ?? []);
-}
-
-// Stub searchers (fill in later)
-async function searchCtgov(q: string) { return []; }
-async function searchCtri(q: string, country: string) { return []; }
-async function searchPubMed(q: string) { return []; }

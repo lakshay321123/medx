@@ -227,9 +227,9 @@ function ChatCard({ m, therapyMode, onFollowUpClick }: { m: Extract<ChatMessage,
       <div className="prose prose-slate dark:prose-invert max-w-none prose-medx text-sm md:text-base">
         <Markdown text={m.content} />
       </div>
-      {m.citations?.length > 0 && (
+      {m.role === "assistant" && m.citations?.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
-          {m.citations.slice(0, 6).map((c: any, i: number) => (
+          {m.citations.slice(0, 6).map((c, i) => (
             <a
               key={i}
               href={c.url}
@@ -237,7 +237,7 @@ function ChatCard({ m, therapyMode, onFollowUpClick }: { m: Extract<ChatMessage,
               rel="noreferrer"
               className="rounded-full border px-3 py-1 text-xs hover:bg-gray-100"
             >
-              {c.source?.toUpperCase()}
+              {c.source.toUpperCase()}
             </a>
           ))}
         </div>
