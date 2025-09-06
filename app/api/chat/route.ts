@@ -22,7 +22,14 @@ export async function POST(req: NextRequest){
     let ctx = getContext(sessionId);
     if (mode) ctx.mode = mode;
 
-    const intent = detectIntent(userQuery);
+    const { intent, confidence } = detectIntent(userQuery);
+
+    if (confidence < 0.6) {
+      return NextResponse.json({
+        response: `We were discussing ${ctx.mainTopic || 'this topic'}. Do you want to continue on that?`,
+        expectAnswer: 'yes/no'
+      });
+    }
 
     if (!ctx.mainTopic) {
       updateContext(sessionId, userQuery);
@@ -43,8 +50,11 @@ export async function POST(req: NextRequest){
       return new NextResponse(`LLM error: ${t}`, { status: 500 });
     }
     const json = await res.json();
-    const text = json.choices?.[0]?.message?.content || "";
-    return NextResponse.json({ response: text });
+    const text = json.choices?.[0]?.message?.content || '';
+
+    const followUp = `Would you like to see related clinical trials or recent studies on ${ctx.mainTopic}?`;
+
+    return NextResponse.json({ response: text, followUp });
   }
 
   // Fallback to existing behavior

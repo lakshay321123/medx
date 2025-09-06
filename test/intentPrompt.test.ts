@@ -6,13 +6,21 @@ import { buildPrompt } from '@/lib/promptBuilder';
 
 describe('intent classifier', () => {
   it('detects research intent', () => {
-    const intent = detectIntent('latest clinical trials for diabetes');
-    assert.equal(intent, 'research');
+    const result = detectIntent('latest clinical trials for diabetes');
+    assert.equal(result.intent, 'research');
+    assert(result.confidence > 0.8);
   });
 
   it('detects generate intent', () => {
-    const intent = detectIntent('write a 5000 word paper on cancer');
-    assert.equal(intent, 'generate');
+    const result = detectIntent('write a 5000 word paper on cancer');
+    assert.equal(result.intent, 'generate');
+    assert(result.confidence >= 0.8);
+  });
+
+  it('returns unknown for low confidence', () => {
+    const result = detectIntent('hello there');
+    assert.equal(result.intent, 'unknown');
+    assert(result.confidence < 0.6);
   });
 });
 
