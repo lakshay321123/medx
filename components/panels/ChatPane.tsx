@@ -10,13 +10,12 @@ import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
 import { detectFollowupIntent } from '@/lib/intents';
 import { safeJson } from '@/lib/safeJson';
+import { splitFollowUps } from '@/lib/splitFollowUps';
 import { getTrials } from "@/lib/hooks/useTrials";
 import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials";
 import FeedbackBar from "@/components/FeedbackBar";
-import type {
-  ChatMessage as BaseChatMessage,
-  AnalysisCategory,
-} from '@/lib/context';
+import type { ChatMessage as BaseChatMessage } from "@/types/chat";
+import type { AnalysisCategory } from '@/lib/context';
 import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle } from '@/lib/chatThreads';
 
 type ChatUiState = {
@@ -27,12 +26,32 @@ type ChatUiState = {
 const UI_DEFAULTS: ChatUiState = { topic: null, contextFrom: null };
 const uiKey = (threadId: string) => `chat:${threadId}:ui`;
 
-type ChatMessage = BaseChatMessage & {
-  tempId?: string;
-  parentId?: string;
-  pending?: boolean;
-  error?: string | null;
-};
+type ChatMessage =
+  | (BaseChatMessage & {
+      role: "user";
+      kind: "chat";
+      tempId?: string;
+      parentId?: string;
+      pending?: boolean;
+      error?: string | null;
+    })
+  | (BaseChatMessage & {
+      role: "assistant";
+      kind: "chat";
+      tempId?: string;
+      parentId?: string;
+      pending?: boolean;
+      error?: string | null;
+    })
+  | (BaseChatMessage & {
+      role: "assistant";
+      kind: "analysis";
+      category?: AnalysisCategory;
+      tempId?: string;
+      parentId?: string;
+      pending?: boolean;
+      error?: string | null;
+    });
 
 const uid = () => Math.random().toString(36).slice(2);
 
@@ -201,22 +220,35 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
   );
 }
 
-function ChatCard({ m }: { m: Extract<ChatMessage, { kind: "chat" }> }) {
+function ChatCard({ m, therapyMode, onFollowUpClick }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onFollowUpClick: (text: string) => void }) {
   if (m.pending) return <PendingChatCard label="Thinking…" />;
   return (
     <article className="mr-auto max-w-[90%] rounded-2xl p-4 md:p-6 shadow-sm space-y-2 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800">
       <div className="prose prose-slate dark:prose-invert max-w-none prose-medx text-sm md:text-base">
         <Markdown text={m.content} />
       </div>
+      {!therapyMode && m.followUps?.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {m.followUps.map((f, i) => (
+            <button
+              key={i}
+              onClick={() => onFollowUpClick(f)}
+              className="rounded-full border px-3 py-1 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      )}
     </article>
   );
 }
 
-function AssistantMessage({ m, researchOn, onQuickAction, busy }: { m: ChatMessage; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean }) {
+function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onFollowUpClick }: { m: ChatMessage; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean; therapyMode: boolean; onFollowUpClick: (text: string) => void }) {
   return m.kind === "analysis" ? (
     <AnalysisCard m={m} researchOn={researchOn} onQuickAction={onQuickAction} busy={busy} />
   ) : (
-    <ChatCard m={m} />
+    <ChatCard m={m} therapyMode={therapyMode} onFollowUpClick={onFollowUpClick} />
   );
 }
 
@@ -468,7 +500,12 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             } catch {}
           }
         }
-        setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, pending: false } : m)));
+        const { main, followUps } = splitFollowUps(acc);
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
+          )
+        );
         return;
       }
       if (therapyMode) {
@@ -644,9 +681,14 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
           } catch {}
         }
       }
-      setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, pending: false } : m)));
-      if (acc.length > 400) {
-        setFromChat({ id: pendingId, content: acc });
+      const { main, followUps } = splitFollowUps(acc);
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
+        )
+      );
+      if (main.length > 400) {
+        setFromChat({ id: pendingId, content: main });
         setUi(prev => ({ ...prev, contextFrom: 'Conversation summary' }));
       }
     } catch (e: any) {
@@ -881,6 +923,10 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
     }
   }
 
+  function handleFollowUpClick(text: string) {
+    send(text, researchMode);
+  }
+
   return (
     <div className="relative flex h-full flex-col">
       <Header
@@ -928,6 +974,8 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
                   researchOn={researchMode}
                   onQuickAction={onQuickAction}
                   busy={loadingAction !== null}
+                  therapyMode={therapyMode}
+                  onFollowUpClick={handleFollowUpClick}
                 />
                 <FeedbackBar
                   conversationId={conversationId}

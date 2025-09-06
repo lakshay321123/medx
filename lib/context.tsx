@@ -1,5 +1,6 @@
 "use client";
 import { createContext, useContext, useRef, useState } from "react";
+import type { ChatMessage as BaseChatMessage } from "@/types/chat";
 
 export type ActiveContext = {
   id: string;
@@ -18,15 +19,9 @@ export type AnalysisCategory =
   | "other_medical_doc";
 
 export type ChatMessage =
-  | { id: string; role: "user"; kind: "chat"; content: string }
-  | { id: string; role: "assistant"; kind: "chat"; content: string }
-  | {
-      id: string;
-      role: "assistant";
-      kind: "analysis";
-      category?: AnalysisCategory;
-      content: string;
-    };
+  | (BaseChatMessage & { role: "user"; kind: "chat" })
+  | (BaseChatMessage & { role: "assistant"; kind: "chat" })
+  | (BaseChatMessage & { role: "assistant"; kind: "analysis"; category?: AnalysisCategory });
 
 type Ctx = {
   active: ActiveContext | null;
