@@ -199,6 +199,24 @@ export async function GET(_req: NextRequest) {
     return NextResponse.json({ error: perr.message }, { status: 500, headers: noStoreHeaders() });
   }
 
+  // --- normalize arrays: accept text[] or JSON-stringified arrays ---
+  const asArray = (x: any) => {
+    if (Array.isArray(x)) return x;
+    if (typeof x === "string") {
+      try {
+        const p = JSON.parse(x);
+        return Array.isArray(p) ? p : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+  if (profile) {
+    (profile as any).conditions_predisposition = asArray((profile as any).conditions_predisposition);
+    (profile as any).chronic_conditions = asArray((profile as any).chronic_conditions);
+  }
+
   const { data: rows, error: oerr } = await sb
     .from("observations")
     .select("kind, value_num, value_text, unit, observed_at, meta")

@@ -34,7 +34,7 @@ export async function GET() {
   const [p, obs] = await Promise.all([
     db
       .from("profiles")
-      .select("full_name,sex,blood_group,chronic_conditions")
+      .select("full_name,sex,blood_group,chronic_conditions,conditions_predisposition")
       .eq("id", uid)
       .maybeSingle(),
     db.from("observations").select("*").eq("user_id", uid),
@@ -94,6 +94,9 @@ export async function GET() {
       .join(" · ") || null,
     Array.isArray(prof.chronic_conditions) && prof.chronic_conditions.length
       ? `Chronic: ${prof.chronic_conditions.join(", ")}`
+      : null,
+    Array.isArray(prof.conditions_predisposition) && prof.conditions_predisposition.length
+      ? `Predispositions: ${prof.conditions_predisposition.join(", ")}`
       : null,
     meds.length ? `Active meds: ${meds.join("; ")}` : null,
     highlights ? `Labs:\n${highlights}` : null,

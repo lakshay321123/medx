@@ -84,7 +84,10 @@ export async function GET() {
       .limit(1),
   ]);
 
+  const asArray = (x: any) => Array.isArray(x) ? x : (typeof x === 'string' ? (()=>{ try { const p = JSON.parse(x); return Array.isArray(p) ? p : [] } catch { return [] } })() : []);
   const prof: any = pRes.data || {};
+  prof.conditions_predisposition = asArray(prof.conditions_predisposition);
+  prof.chronic_conditions        = asArray(prof.chronic_conditions);
   const obs: any[] = oRes.data || [];
   const pred = prRes.data?.[0];
 
@@ -96,17 +99,11 @@ export async function GET() {
     age ? `, ${age} y` : ''
   }${prof.blood_group ? `, ${prof.blood_group}` : ''})`;
 
-  const chronicLine = `Chronic Conditions: ${
-    Array.isArray(prof.chronic_conditions) && prof.chronic_conditions.length
-      ? prof.chronic_conditions.join(', ')
-      : '—'
-  }`;
+  const chronicArr = prof.chronic_conditions || [];
+  const chronicLine = `Chronic Conditions: ${chronicArr.length ? chronicArr.join(', ') : '—'}`;
 
-  const predisLine = `Predispositions: ${
-    Array.isArray(prof.conditions_predisposition) && prof.conditions_predisposition.length
-      ? prof.conditions_predisposition.join(', ')
-      : '—'
-  }`;
+  const predisArr = prof.conditions_predisposition || [];
+  const predisLine = `Predispositions: ${predisArr.length ? predisArr.join(', ') : '—'}`;
 
   const medsRaw = obs.flatMap((r: any) => {
     const m = r.meta || r.details || {};
