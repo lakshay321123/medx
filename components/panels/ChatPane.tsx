@@ -248,6 +248,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [commitBusy, setCommitBusy] = useState<null | 'save' | 'discard'>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
   const posted = useRef(new Set<string>());
+  const [docState, setDocState] = useState<any>({ step: 'idle' });
 
   const [ui, setUi] = useState<ChatUiState>(UI_DEFAULTS);
 
@@ -316,6 +317,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     }
   }, [threadId, isProfileThread]);
 
+  useEffect(() => { setDocState({ step: 'idle' }); }, [threadId]);
+
     useEffect(() => {
       // Fetch a warm greeting and readiness nudge once per profile thread
       if (isProfileThread) {
@@ -332,14 +335,15 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         const boot = await fetch('/api/aidoc/message', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: '', threadId })
+          body: JSON.stringify({ text: '', client_state: docState, thread_id: threadId })
         }).then(r => r.json()).catch(() => null);
-          if (boot?.messages?.length) {
-            setMessages(prev => [
-              ...prev,
-              ...boot.messages.map((m: any) => ({ id: uid(), role: m.role, kind: 'chat', content: m.content, pending: false }))
-            ]);
-          }
+        if (boot?.messages?.length) {
+          setMessages(prev => [
+            ...prev,
+            ...boot.messages.map((m: any) => ({ id: uid(), role: m.role, kind: 'chat', content: m.content, pending: false }))
+          ]);
+          if (boot.new_state) setDocState(boot.new_state);
+        }
           const lastAsk = getNum(askedKey(threadId));
           if (!lastAsk || !within(lastAsk, 60)) {
             const rd = await safeJson(fetch('/api/predictions/readiness'));
@@ -767,33 +771,34 @@ ${linkNudge}`;
           }
           return;
         }
-        try {
-        const r = await fetch('/api/aidoc/message', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, threadId }),
-        });
-          const j = await r.json();
-          if (Array.isArray(j.messages)) {
+          try {
+            const r = await fetch('/api/aidoc/message', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text, client_state: docState, thread_id: threadId }),
+            });
+            const j = await r.json();
+            if (Array.isArray(j.messages)) {
+              setMessages(prev => [
+                ...prev,
+                ...j.messages.map((m: any) => ({ id: uid(), role: m.role, kind: 'chat', content: m.content, pending: false, meta: m.meta })),
+              ]);
+            }
+            if (j?.handoff?.mode === 'research') {
+              setMessages(prev => [
+                ...prev,
+                { id: uid(), role: 'assistant', kind: 'action', content: 'Open Research Mode', pending: false, meta: { action: 'open_research' } } as any,
+              ]);
+            }
+            if (j.new_state) setDocState(j.new_state);
+          } catch (e) {
             setMessages(prev => [
               ...prev,
-              ...j.messages.map((m: any) => ({ id: uid(), role: m.role, kind: 'chat', content: m.content, pending: false, meta: m.meta })),
+              { id: uid(), role: 'assistant', kind: 'chat', content: 'Sorry, I had trouble responding just now.', pending: false } as any,
             ]);
+          } finally {
+            setBusy(false);
           }
-          if (j?.handoff?.mode === 'research') {
-            setMessages(prev => [
-              ...prev,
-              { id: uid(), role: 'assistant', kind: 'action', content: 'Open Research Mode', pending: false, meta: { action: 'open_research' } } as any,
-            ]);
-          }
-        } catch (e) {
-          setMessages(prev => [
-            ...prev,
-            { id: uid(), role: 'assistant', kind: 'chat', content: 'Sorry, I had trouble responding just now.', pending: false } as any,
-          ]);
-        } finally {
-          setBusy(false);
-        }
         return;
       }
       await send(note, researchMode);
