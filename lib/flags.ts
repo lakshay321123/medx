@@ -4,6 +4,12 @@ export const flags = {
   enableEuropePMC: true,
   enableCrossref: true,
   enableUnpaywall: true,
+  enableTrialsCTG: true,
+  enableTrialsISRCTN: false,
+  enableTrialsEUCTR: false,
+  enableTrialsICTRP: false,
+  enableBooksNCBI: true,
+  enableMedlinePlus: true,
   enableHPO: true,
   enableLOINC: true,
   enableDrugCentral: true,
@@ -12,5 +18,4 @@ export const flags = {
   enableVAERS: true,
   enableNominatim: true,
   enableOverpass: true,
-  enableNCBIBooks: true,
 };
