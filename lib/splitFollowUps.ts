@@ -6,8 +6,8 @@ export function splitFollowUps(answer: string): { main: string; followUps: strin
   const followUps: string[] = [];
   const mainLines: string[] = [];
   for (const line of lines) {
-    if (/^follow[- ]?up[:]/i.test(line)) {
-      followUps.push(line.replace(/^follow[- ]?up[:]\s*/i, ""));
+    if (/^(next|follow[- ]?up)[:]?/i.test(line) || /\?\s*$/.test(line)) {
+      followUps.push(line.replace(/^(next|follow[- ]?up)[:]?/i, "").trim());
     } else {
       mainLines.push(line);
     }

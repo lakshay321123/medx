@@ -14,10 +14,8 @@ import { splitFollowUps } from '@/lib/splitFollowUps';
 import { getTrials } from "@/lib/hooks/useTrials";
 import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials";
 import FeedbackBar from "@/components/FeedbackBar";
-import type {
-  ChatMessage as BaseChatMessage,
-  AnalysisCategory,
-} from '@/lib/context';
+import type { ChatMessage as BaseChatMessage } from "@/types/chat";
+import type { AnalysisCategory } from '@/lib/context';
 import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle } from '@/lib/chatThreads';
 
 type ChatUiState = {
@@ -28,12 +26,32 @@ type ChatUiState = {
 const UI_DEFAULTS: ChatUiState = { topic: null, contextFrom: null };
 const uiKey = (threadId: string) => `chat:${threadId}:ui`;
 
-type ChatMessage = BaseChatMessage & {
-  tempId?: string;
-  parentId?: string;
-  pending?: boolean;
-  error?: string | null;
-};
+type ChatMessage =
+  | (BaseChatMessage & {
+      role: "user";
+      kind: "chat";
+      tempId?: string;
+      parentId?: string;
+      pending?: boolean;
+      error?: string | null;
+    })
+  | (BaseChatMessage & {
+      role: "assistant";
+      kind: "chat";
+      tempId?: string;
+      parentId?: string;
+      pending?: boolean;
+      error?: string | null;
+    })
+  | (BaseChatMessage & {
+      role: "assistant";
+      kind: "analysis";
+      category?: AnalysisCategory;
+      tempId?: string;
+      parentId?: string;
+      pending?: boolean;
+      error?: string | null;
+    });
 
 const uid = () => Math.random().toString(36).slice(2);
 
