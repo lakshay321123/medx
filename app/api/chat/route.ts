@@ -20,7 +20,10 @@ export async function POST(req: NextRequest){
     }
 
     let ctx = getContext(sessionId);
-    if (mode) ctx.mode = mode;
+    if (mode) {
+      updateContext(sessionId, undefined, undefined, mode);
+      ctx = getContext(sessionId);
+    }
 
     const detected = detectIntent(userQuery);
 
