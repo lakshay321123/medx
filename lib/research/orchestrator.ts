@@ -1,8 +1,8 @@
 import { rankResults } from "@/lib/research/ranking";
 import { dedupeResults } from "@/lib/research/dedupe";
-import { interpretTrialQuery } from "@/lib/research/queryInterpreter";
+import { interpretTrialQuery, detectNewTopic } from "@/lib/research/queryInterpreter";
 import { buildCtgovExpr } from "@/lib/research/ctgovQuery";
-import { composeTrialsAnswer } from "@/lib/research/answerComposer";
+import { composeAnswer } from "@/lib/research/answerComposer";
 import { searchCtgovByExpr } from "@/lib/research/sources/ctgov";
 import { searchCtri } from "@/lib/research/sources/ctri";
 import { searchPubMed } from "@/lib/research/sources/pubmed";
@@ -34,7 +34,9 @@ export type ResearchPacket = {
 const cache = new Map<string, { ts: number; data: ResearchPacket }>();
 const CACHE_MS = 5 * 60 * 1000;
 
-export async function orchestrateResearch(query: string): Promise<ResearchPacket> {
+let prevCondition: string | undefined;
+
+export async function orchestrateResearch(query: string, opts: { mode: string }): Promise<ResearchPacket> {
   const now = Date.now();
   const cached = cache.get(query);
   if (cached && now - cached.ts < CACHE_MS) {
@@ -43,7 +45,17 @@ export async function orchestrateResearch(query: string): Promise<ResearchPacket
 
   const t0 = now;
 
+  const isNewTopic = detectNewTopic(query, prevCondition);
+
+  if (isNewTopic) {
+    prevCondition = undefined;
+  }
+
   const tq = interpretTrialQuery(query);
+
+  if (tq.condition) {
+    prevCondition = tq.condition;
+  }
   const expr = buildCtgovExpr({
     condition: tq.condition || tq.cancerType,
     keywords: tq.keywords,
@@ -111,7 +123,7 @@ export async function orchestrateResearch(query: string): Promise<ResearchPacket
       "Worldwide (add US/EU)",
     ];
   } else {
-    content = composeTrialsAnswer(query, trials, papers);
+    content = composeAnswer(query, trials, papers, opts);
   }
 
   const packet: ResearchPacket = {
