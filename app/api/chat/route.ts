@@ -22,14 +22,16 @@ export async function POST(req: NextRequest){
     let ctx = getContext(sessionId);
     if (mode) ctx.mode = mode;
 
-    const { intent, confidence } = detectIntent(userQuery);
+    const detected = detectIntent(userQuery);
 
-    if (confidence < 0.6) {
+    if (detected.intent === 'unknown' || detected.confidence < 0.6) {
       return NextResponse.json({
         response: `We were discussing ${ctx.mainTopic || 'this topic'}. Do you want to continue on that?`,
         expectAnswer: 'yes/no'
       });
     }
+
+    const { intent } = detected;
 
     if (!ctx.mainTopic) {
       updateContext(sessionId, userQuery);
