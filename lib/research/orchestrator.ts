@@ -1,13 +1,19 @@
 import { rankResults } from "@/lib/research/ranking";
 import { dedupeResults } from "@/lib/research/dedupe";
-import { searchCtgov } from "@/lib/research/sources/ctgov";
+import { interpretTrialQuery } from "@/lib/research/queryInterpreter";
+import { buildCtgovExpr } from "@/lib/research/ctgovQuery";
+import { composeTrialsAnswer } from "@/lib/research/answerComposer";
+import { searchCtgovByExpr } from "@/lib/research/sources/ctgov";
 import { searchCtri } from "@/lib/research/sources/ctri";
 import { searchPubMed } from "@/lib/research/sources/pubmed";
 import { searchEuropePmc } from "@/lib/research/sources/eupmc";
 import { searchCrossref } from "@/lib/research/sources/crossref";
 import { searchOpenAlex } from "@/lib/research/sources/openalex";
 import { searchIctrp } from "@/lib/research/sources/ictrp";
-import { searchDrugSafety } from "@/lib/research/sources/drugSafety";
+import { searchDailyMed } from "@/lib/research/sources/dailymed";
+import { searchOpenFda } from "@/lib/research/sources/openfda";
+import { fetchRxCui } from "@/lib/research/sources/rxnorm";
+import { isTrial, hasRegistryId, matchesPhase, matchesRecruiting, matchesCountry } from "@/lib/research/validators";
 
 export type Citation = {
   id: string;
@@ -19,8 +25,9 @@ export type Citation = {
 };
 
 export type ResearchPacket = {
-  topic: string;
+  content: string;
   citations: Citation[];
+  followUps: string[];
   meta: { widened?: boolean; tookMs: number };
 };
 
@@ -36,37 +43,83 @@ export async function orchestrateResearch(query: string): Promise<ResearchPacket
 
   const t0 = now;
 
-  const [ctRes, pmRes, ctriRes, epmcRes, crossRes, oaRes, ictrpRes, drugRes] = await Promise.allSettled([
-    searchCtgov(query, { recruitingOnly: true }),
-    searchPubMed(query),
+  const tq = interpretTrialQuery(query);
+  const expr = buildCtgovExpr({
+    condition: tq.condition || tq.cancerType,
+    keywords: tq.keywords,
+    phase: tq.phase,
+    recruiting: tq.recruiting ?? true,
+    country: tq.country,
+  });
+
+  const rx = await safe(() => fetchRxCui(query));
+
+  const [ctRes, ctriRes, ictrpRes, pmRes, epmcRes, crossRes, oaRes, dmRes, fdaRes] = await Promise.allSettled([
+    searchCtgovByExpr(expr, { max: 100 }),
     searchCtri(query),
+    searchIctrp(query),
+    searchPubMed(query),
     searchEuropePmc(query),
     searchCrossref(query),
     searchOpenAlex(query),
-    searchIctrp(query),
-    searchDrugSafety(query),
+    rx ? searchDailyMed(rx) : Promise.resolve([]),
+    searchOpenFda(query),
   ]);
 
-  let trials = ctRes.status === "fulfilled" ? ctRes.value : [];
-  if (!trials.length) {
-    const ctAll = await safe(() => searchCtgov(query, { recruitingOnly: false }));
-    trials = ctAll || [];
-  }
-
+  const ctgovTargeted = ctRes.status === "fulfilled" ? ctRes.value : [];
   const ctri = ctriRes.status === "fulfilled" ? ctriRes.value : [];
   const ictrp = ictrpRes.status === "fulfilled" ? ictrpRes.value : [];
-  const papers = [
-    ...(pmRes.status === "fulfilled" ? pmRes.value : []),
-    ...(epmcRes.status === "fulfilled" ? epmcRes.value : []),
-    ...(crossRes.status === "fulfilled" ? crossRes.value : []),
-    ...(oaRes.status === "fulfilled" ? oaRes.value : []),
-  ];
-  const safety = drugRes.status === "fulfilled" ? drugRes.value : [];
 
-  let citations = dedupeResults([...trials, ...ctri, ...ictrp, ...papers, ...safety]);
+  const allTrials = [
+    ...ctgovTargeted,
+    ...ctri,
+    ...ictrp,
+  ];
+
+  const trials = allTrials
+    .filter(isTrial)
+    .filter(hasRegistryId)
+    .filter(c => matchesPhase(c, tq.phase))
+    .filter(c => matchesRecruiting(c, tq.recruiting ?? true))
+    .filter(c => matchesCountry(c, tq.country));
+
+  const pubmed = pmRes.status === "fulfilled" ? pmRes.value : [];
+  const eupmc = epmcRes.status === "fulfilled" ? epmcRes.value : [];
+  const crossref = crossRes.status === "fulfilled" ? crossRes.value : [];
+  const openalex = oaRes.status === "fulfilled" ? oaRes.value : [];
+  const dailymed = dmRes.status === "fulfilled" ? dmRes.value : [];
+  const openfda = fdaRes.status === "fulfilled" ? fdaRes.value : [];
+
+  const papers = (pubmed || []).concat(eupmc || [], crossref || [], openalex || []);
+  const safety = (dailymed || []).concat(openfda || []);
+
+  let citations = dedupeResults([...trials, ...papers, ...safety]);
   citations = rankResults(citations, { topic: query });
 
-  const packet = { topic: query, citations, meta: { widened: !trials.length, tookMs: Date.now() - t0 } };
+  let content: string;
+  let followUps: string[] = [];
+
+  if (trials.length === 0) {
+    content = [
+      `I couldn't find trials that match your exact filters.`,
+      `You can broaden the search:`
+    ].join("\n");
+
+    followUps = [
+      "Include completed trials",
+      "Any phase",
+      "Worldwide (add US/EU)",
+    ];
+  } else {
+    content = composeTrialsAnswer(query, trials, papers);
+  }
+
+  const packet: ResearchPacket = {
+    content,
+    citations,
+    followUps,
+    meta: { widened: false, tookMs: Date.now() - t0 },
+  };
   cache.set(query, { ts: now, data: packet });
   return packet;
 }

@@ -7,7 +7,14 @@ export type Citation = {
   url: string;
   source: string;
   date?: string;
-  extra?: any;
+  extra?: {
+    status?: string;
+    recruiting?: boolean;
+    /** Raw phase string as reported by the registry */
+    phase?: string;
+    /** Normalized evidence level derived from the phase */
+    evidenceLevel?: string;
+  };
 };
 
 export async function searchIctrp(query: string): Promise<Citation[]> {
@@ -24,7 +31,12 @@ export async function searchIctrp(query: string): Promise<Citation[]> {
       url: t.TrialID ? `https://trialsearch.who.int/Trial2.aspx?TrialID=${encodeURIComponent(t.TrialID)}` : "",
       source: "ictrp",
       date: t.DateRegistration || t.date || "",
-      extra: { status, recruiting: /recruiting/i.test(status), evidenceLevel },
+      extra: {
+        status,
+        recruiting: /recruiting/i.test(status),
+        phase: phaseRaw || undefined,
+        evidenceLevel,
+      },
     };
   });
 }

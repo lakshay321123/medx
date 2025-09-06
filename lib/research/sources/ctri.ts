@@ -1,4 +1,3 @@
-import { fetch as _fetch } from "undici";
 import { normalizePhase } from "./utils";
 
 export type Citation = {
@@ -7,7 +6,14 @@ export type Citation = {
   url: string;
   source: "ctri";
   date?: string;
-  extra?: { status?: string; recruiting?: boolean; evidenceLevel?: string };
+  extra?: {
+    status?: string;
+    recruiting?: boolean;
+    /** Raw phase string as reported by CTRI (e.g., "Phase 3") */
+    phase?: string;
+    /** Normalized evidence level derived from the phase */
+    evidenceLevel?: string;
+  };
 };
 
 const ORIGIN = "https://ctri.nic.in";
@@ -18,7 +24,7 @@ async function fetchHtml(url: string, timeoutMs = 12000): Promise<string> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const r = await _fetch(url, {
+    const r = await fetch(url, {
       signal: ctrl.signal,
       headers: { "user-agent": "MedX/1.0 (+research; contact: support@medx.example)" },
     });
@@ -82,6 +88,7 @@ export async function searchCtri(query: string, opts?: { max?: number }): Promis
       extra: {
         status: status || undefined,
         recruiting: /recruiting/i.test(status),
+        phase: phase || undefined,
         evidenceLevel,
       },
     });
