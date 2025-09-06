@@ -227,6 +227,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [commitError, setCommitError] = useState<string | null>(null);
   const posted = useRef(new Set<string>());
   const bootedRef = useRef<{[k:string]:boolean}>({});
+  const docStateKey = (thread?: string|null)=> `aidoc:${thread||'med-profile'}:state`;
+  const bootKey = (thread?: string|null)=> `aidoc:${thread||'med-profile'}:boot`;
   const askedKey = (thread?: string|null, kind?: string)=> `aidoc:${thread||'med-profile'}:asked:${kind||'any'}`;
   const askedRecently = (thread?: string|null, kind?: string, minutes = 60) => {
     try {
@@ -288,17 +290,34 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   useEffect(() => {
     if (!isProfileThread || !threadId) return;
-    if (bootedRef.current[threadId]) return;     // run once per thread
+    if (bootedRef.current[threadId]) return; // run once per mount
     bootedRef.current[threadId] = true;
     (async () => {
       try {
-        // warm greeting from Doc AI
-        const boot = await fetch('/api/aidoc/message', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ text: "" })
-        }).then(r=>r.json()).catch(()=>null);
-        if (boot?.messages?.length) {
-          setMessages(prev => [...prev, ...boot.messages.map((m:any)=>({ id: uid(), role:m.role, kind:'chat', content:m.content, pending:false }))]);
+        const stateKey = docStateKey(threadId);
+        const bootstampKey = bootKey(threadId);
+        let client_state = {} as any;
+        try { const raw = localStorage.getItem(stateKey); if (raw) client_state = JSON.parse(raw); } catch {}
+        const lastBoot = Number(localStorage.getItem(bootstampKey));
+        const history = (loadMessages(threadId) || []).length > 0;
+        const needBoot = !history || !lastBoot || (Date.now() - lastBoot) > 10*60*1000;
+        if (needBoot) {
+          let resolved = false;
+          const timer = setTimeout(() => {
+            if (!resolved) addAssistant('Hi! I\'m here to help with health questions. This is educational info, not a medical diagnosis. Please consult a clinician.');
+          }, 1000);
+          const boot = await fetch('/api/aidoc/message', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ text: '', thread_id: threadId, client_state })
+          }).then(r=>r.json()).catch(()=>null);
+          resolved = true; clearTimeout(timer);
+          if (boot?.messages?.length) {
+            setMessages(prev => [...prev, ...boot.messages.map((m:any)=>({ id: uid(), role:m.role, kind:'chat', content:m.content, pending:false }))]);
+          }
+          if (boot?.new_state) {
+            try { localStorage.setItem(stateKey, JSON.stringify(boot.new_state)); } catch {}
+          }
+          try { localStorage.setItem(bootstampKey, String(Date.now())); } catch {}
         }
         // single readiness nudge (skip if asked recently)
         if (askedRecently(threadId, 'proactive', 60)) return;
@@ -408,40 +427,21 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
     try {
       if (isProfileThread) {
-        const thread = [
-          ...messages
-            .filter(m => !m.pending)
-            .map(m => ({ role: m.role, content: (m as any).content || '' })),
-          { role: 'user', content: userText }
-        ];
-
-        const res = await fetch('/api/chat/stream', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: thread, threadId, context })
-        });
-        if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let acc = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
-          for (const line of lines) {
-            if (line.trim() === 'data: [DONE]') continue;
-            try {
-              const payload = JSON.parse(line.replace(/^data:\s*/, ''));
-              const delta = payload?.choices?.[0]?.delta?.content;
-              if (delta) {
-                acc += delta;
-                setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m)));
-              }
-            } catch {}
-          }
+        const stateKey = docStateKey(threadId);
+        let client_state: any = {};
+        try { const raw = localStorage.getItem(stateKey); if (raw) client_state = JSON.parse(raw); } catch {}
+        const j = await safeJson(
+          fetch('/api/aidoc/message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: userText, client_state, thread_id: threadId })
+          })
+        );
+        const content = j?.messages?.map((m: any) => m.content).join('\n') || '⚠ Empty response from server.';
+        setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, content, pending: false } : m)));
+        if (j?.new_state) {
+          try { localStorage.setItem(stateKey, JSON.stringify(j.new_state)); } catch {}
         }
-        setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, pending: false } : m)));
         return;
       }
       if (therapyMode) {

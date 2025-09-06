@@ -1,0 +1,73 @@
+{
+  "covid": {
+    "synonyms": ["covid", "tested positive", "rt-pcr positive"],
+    "red_flags": [
+      "severe shortness of breath",
+      "chest pain",
+      "pressure",
+      "confusion",
+      "blue lips",
+      "blue face",
+      "fainting"
+    ],
+    "followups": [
+      { "key": "duration", "question": "Which day of illness is it?" },
+      { "key": "tempC", "question": "Highest temperature?" },
+      { "key": "spo2Pct", "question": "SpO₂ reading?" }
+    ],
+    "self_care": "Rest, stay hydrated, and use acetaminophen for fever if needed.",
+    "tests": ["Discuss COVID-19 testing and monitoring"],
+    "when_to_see": "Seek care if fever lasts over 3 days or breathing worsens."
+  },
+  "fever": {
+    "synonyms": ["fever", "high temperature"],
+    "red_flags": [
+      "above 39.4°C for more than 3 days",
+      "stiff neck",
+      "severe headache",
+      "rash",
+      "confusion",
+      "severe dehydration"
+    ],
+    "followups": [
+      { "key": "duration", "question": "How long has the fever been present?" },
+      { "key": "tempC", "question": "What's the highest temperature?" }
+    ],
+    "self_care": "Drink fluids and rest; consider acetaminophen to reduce fever.",
+    "tests": ["Discuss lab tests if fever persists"],
+    "when_to_see": "See a clinician if fever lasts more than 3 days or is very high."
+  },
+  "back_pain": {
+    "synonyms": ["back pain", "sore back"],
+    "red_flags": [
+      "severe leg weakness",
+      "loss of bladder or bowel control",
+      "numbness around the groin",
+      "fever with back pain",
+      "significant trauma"
+    ],
+    "followups": [
+      { "key": "duration", "question": "How long has the back pain been present?" },
+      { "key": "location", "question": "Where is the pain located?" },
+      { "key": "painScore", "question": "Pain level 0-10?" }
+    ],
+    "self_care": "Gentle stretching and over-the-counter pain relief may help.",
+    "tests": ["Discuss imaging or physical therapy if pain persists"],
+    "when_to_see": "See a clinician if pain lasts more than a few weeks or is severe."
+  },
+  "_generic_respiratory": {
+    "synonyms": ["cough", "cold", "sore throat", "runny nose", "throat pain"],
+    "red_flags": [
+      "blue lips",
+      "shortness of breath at rest",
+      "coughing blood",
+      "chest pain with breath"
+    ],
+    "followups": [
+      { "key": "duration", "question": "How long have these symptoms been around?" }
+    ],
+    "self_care": "Rest, hydrate, and try warm fluids.",
+    "tests": ["Discuss viral testing if symptoms persist or worsen"],
+    "when_to_see": "See a clinician if symptoms last over a week or worsen."
+  }
+}
