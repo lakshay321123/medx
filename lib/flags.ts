@@ -1,0 +1,16 @@
+export const flags = {
+  enableOpenAlex: true,
+  enableSemanticScholar: true,
+  enableEuropePMC: true,
+  enableCrossref: true,
+  enableUnpaywall: true,
+  enableHPO: true,
+  enableLOINC: true,
+  enableDrugCentral: true,
+  enableOpenTargets: true,
+  enableUSDA: true,
+  enableVAERS: true,
+  enableNominatim: true,
+  enableOverpass: true,
+  enableNCBIBooks: true,
+};
