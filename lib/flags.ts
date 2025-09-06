@@ -8,7 +8,7 @@ export const flags = {
   enableTrialsISRCTN: false,
   enableTrialsEUCTR: false,
   enableTrialsICTRP: false,
-  enableBooksNCBI: true,
+  enableNCBIBooks: true,
   enableMedlinePlus: true,
   enableHPO: true,
   enableLOINC: true,
