@@ -316,8 +316,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     }
   }, [threadId, isProfileThread]);
 
-  useEffect(() => {
-    if (isProfileThread) {
+    useEffect(() => {
+      // Fetch a warm greeting and readiness nudge once per profile thread
+      if (isProfileThread) {
       if (!threadId) return;
       if (bootedRef.current[threadId]) return;
       bootedRef.current[threadId] = true;
