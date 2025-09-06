@@ -19,7 +19,13 @@ export type ClientState = {
   };
 };
 
-export function orchestrate(text: string, state: ClientState = {}, name?: string) {
+export type OrchestrateResult = {
+  messages: { role: 'assistant'; content: string }[];
+  new_state: ClientState;
+  handoff?: { mode: string };
+};
+
+export function orchestrate(text: string, state: ClientState = {}, name?: string): OrchestrateResult {
   const lower = text.toLowerCase();
   const messages: { role: 'assistant'; content: string }[] = [];
   let newState: ClientState = { ...state };
