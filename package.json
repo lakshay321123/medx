@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint || true",
-    "test": "tsx test/medx.test.ts"
+    "test": "tsx test/*.test.ts"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.78",
