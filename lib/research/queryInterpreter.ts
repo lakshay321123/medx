@@ -17,27 +17,24 @@ const COUNTRY_MAP: Record<string, string> = {
   europe: "Europe",
 };
 
-const ALIAS_MAP: Record<string, string> = {
+const ALIAS: Record<string, string> = {
   "nonmall": "non-small",
-  "non\\s*small": "non-small",
+  "non small": "non-small",
   "luekimia": "leukemia",
   "bevacizab": "bevacizumab",
-  "avin": "bevacizumab",
   "atolizumab": "atezolizumab",
+  "avin": "avastin",
   "nivolum": "nivolumab",
 };
 
-function normalizeAliases(q: string): string {
-  let out = q;
-  for (const [k, v] of Object.entries(ALIAS_MAP)) {
-    const re = new RegExp(k, "gi");
-    out = out.replace(re, v);
-  }
-  return out;
+export function normalizeInput(q: string) {
+  let s = " " + (q || "").toLowerCase() + " ";
+  for (const [k, v] of Object.entries(ALIAS)) s = s.replaceAll(` ${k} `, ` ${v} `);
+  return s.trim();
 }
 
 export function interpretTrialQuery(q: string): TrialQuery {
-  const s = normalizeAliases((q || "").toLowerCase());
+  const s = normalizeInput(q);
 
   const phaseMatch = s.match(PHASE_RE);
   const phase = phaseMatch

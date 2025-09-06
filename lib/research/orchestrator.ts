@@ -1,7 +1,7 @@
 import { rankResults } from "@/lib/research/ranking";
 import { dedupeResults } from "@/lib/research/dedupe";
 import { interpretTrialQuery } from "@/lib/research/queryInterpreter";
-import { buildCtgovExpr, romanPhase } from "@/lib/research/ctgovQuery";
+import { buildCtgovExpr } from "@/lib/research/ctgovQuery";
 import { composeTrialsAnswer } from "@/lib/research/answerComposer";
 import { searchCtgovByExpr } from "@/lib/research/sources/ctgov";
 import { searchCtri } from "@/lib/research/sources/ctri";
@@ -10,7 +10,10 @@ import { searchEuropePmc } from "@/lib/research/sources/eupmc";
 import { searchCrossref } from "@/lib/research/sources/crossref";
 import { searchOpenAlex } from "@/lib/research/sources/openalex";
 import { searchIctrp } from "@/lib/research/sources/ictrp";
-import { searchDrugSafety } from "@/lib/research/sources/drugSafety";
+import { searchDailyMed } from "@/lib/research/sources/dailymed";
+import { searchOpenFda } from "@/lib/research/sources/openfda";
+import { fetchRxCui } from "@/lib/research/sources/rxnorm";
+import { isTrial, hasRegistryId, matchesPhase, matchesRecruiting, matchesCountry } from "@/lib/research/validators";
 
 export type Citation = {
   id: string;
@@ -49,51 +52,64 @@ export async function orchestrateResearch(query: string): Promise<ResearchPacket
     country: tq.country,
   });
 
-  const [ctRes, pmRes, ctriRes, epmcRes, crossRes, oaRes, ictrpRes, drugRes] = await Promise.allSettled([
-    searchCtgovByExpr(expr, { max: 75 }),
-    searchPubMed(query),
+  const rx = await safe(() => fetchRxCui(query));
+
+  const [ctRes, ctriRes, ictrpRes, pmRes, epmcRes, crossRes, oaRes, dmRes, fdaRes] = await Promise.allSettled([
+    searchCtgovByExpr(expr, { max: 100 }),
     searchCtri(query),
+    searchIctrp(query),
+    searchPubMed(query),
     searchEuropePmc(query),
     searchCrossref(query),
     searchOpenAlex(query),
-    searchIctrp(query),
-    searchDrugSafety(query),
+    rx ? searchDailyMed(rx) : Promise.resolve([]),
+    searchOpenFda(query),
   ]);
 
   const ctgovTargeted = ctRes.status === "fulfilled" ? ctRes.value : [];
-  const ctgovFiltered = ctgovTargeted.filter(t => {
-    if (!tq.phase) return true;
-    const p = (t.extra?.phase || "").toUpperCase();
-    return p.includes(romanPhase(tq.phase!));
-  });
-
   const ctri = ctriRes.status === "fulfilled" ? ctriRes.value : [];
   const ictrp = ictrpRes.status === "fulfilled" ? ictrpRes.value : [];
 
-  const ctriFiltered = ctri.filter(t => !tq.phase || (t.extra?.phase || "").toUpperCase().includes(romanPhase(tq.phase!)));
-  const ictrpFiltered = ictrp.filter(t => !tq.phase || (t.extra?.phase || "").toUpperCase().includes(romanPhase(tq.phase!)));
-
-  const trials = [...ctgovFiltered, ...ctriFiltered, ...ictrpFiltered];
-
-  const papers = [
-    ...(pmRes.status === "fulfilled" ? pmRes.value : []),
-    ...(epmcRes.status === "fulfilled" ? epmcRes.value : []),
-    ...(crossRes.status === "fulfilled" ? crossRes.value : []),
-    ...(oaRes.status === "fulfilled" ? oaRes.value : []),
+  const allTrials = [
+    ...ctgovTargeted,
+    ...ctri,
+    ...ictrp,
   ];
-  const safety = drugRes.status === "fulfilled" ? drugRes.value : [];
+
+  const trials = allTrials
+    .filter(isTrial)
+    .filter(hasRegistryId)
+    .filter(c => matchesPhase(c, tq.phase))
+    .filter(c => matchesRecruiting(c, tq.recruiting ?? true))
+    .filter(c => matchesCountry(c, tq.country));
+
+  const pubmed = pmRes.status === "fulfilled" ? pmRes.value : [];
+  const eupmc = epmcRes.status === "fulfilled" ? epmcRes.value : [];
+  const crossref = crossRes.status === "fulfilled" ? crossRes.value : [];
+  const openalex = oaRes.status === "fulfilled" ? oaRes.value : [];
+  const dailymed = dmRes.status === "fulfilled" ? dmRes.value : [];
+  const openfda = fdaRes.status === "fulfilled" ? fdaRes.value : [];
+
+  const papers = (pubmed || []).concat(eupmc || [], crossref || [], openalex || []);
+  const safety = (dailymed || []).concat(openfda || []);
 
   let citations = dedupeResults([...trials, ...papers, ...safety]);
   citations = rankResults(citations, { topic: query });
 
-  let followUps: string[] = [];
   let content: string;
-  if (!trials.length) {
-    const phaseStr = tq.phase ? `Phase ${tq.phase} ` : "";
-    const condStr = tq.condition || tq.cancerType || "";
-    const statusStr = tq.recruiting === false ? "" : "active ";
-    content = `I didn't find ${statusStr}${phaseStr}${condStr} trials matching your filters.`.trim();
-    followUps = ["Include completed trials", "Any phase", "Add countries: US, EU"];
+  let followUps: string[] = [];
+
+  if (trials.length === 0) {
+    content = [
+      `I couldn't find trials that match your exact filters.`,
+      `You can broaden the search:`
+    ].join("\n");
+
+    followUps = [
+      "Include completed trials",
+      "Any phase",
+      "Worldwide (add US/EU)",
+    ];
   } else {
     content = composeTrialsAnswer(query, trials, papers);
   }
