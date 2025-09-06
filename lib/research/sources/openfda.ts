@@ -20,7 +20,7 @@ export async function searchOpenFda(drug: string): Promise<Citation[]> {
     url: "",
     source: "openfda",
     date: r.receivedate || "",
-    extra: { reaction: r.patient?.reaction?.[0]?.reactionmeddrapt }
+    extra: { reaction: r.patient?.reaction?.[0]?.reactionmeddrapt, evidenceLevel: "Adverse Events" }
   }));
 }
 

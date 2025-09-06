@@ -1,4 +1,5 @@
 import { fetchJson } from "@/lib/research/net";
+import { normalizePhase } from "./utils";
 
 export type Citation = {
   id: string;
@@ -14,7 +15,7 @@ export type Citation = {
  * Recruiting only by default; falls back to all if none found.
  */
 export async function searchCtgov(query: string, opts?: { recruitingOnly?: boolean }): Promise<Citation[]> {
-  const fields = ["NCTId","BriefTitle","OverallStatus","StudyFirstPostDate","LastUpdatePostDate"];
+  const fields = ["NCTId","BriefTitle","OverallStatus","Phase","StudyFirstPostDate","LastUpdatePostDate"];
   const url = `https://clinicaltrials.gov/api/query/study_fields?expr=${encodeURIComponent(query)}&fields=${fields.join(",")}&min_rnk=1&max_rnk=75&fmt=json`;
 
   const data = await fetchJson(url).catch(() => null);
@@ -25,6 +26,8 @@ export async function searchCtgov(query: string, opts?: { recruitingOnly?: boole
     const id = r.NCTId?.[0] || "";
     const title = r.BriefTitle?.[0] || "";
     const status = r.OverallStatus?.[0] || "";
+    const phaseRaw = r.Phase?.[0] || "";
+    const evidenceLevel = normalizePhase(phaseRaw);
     const date = r.LastUpdatePostDate?.[0] || r.StudyFirstPostDate?.[0] || "";
 
     return {
@@ -33,7 +36,7 @@ export async function searchCtgov(query: string, opts?: { recruitingOnly?: boole
       url: id ? `https://clinicaltrials.gov/study/${id}` : "",
       source: "ctgov",
       date,
-      extra: { status, recruiting: /recruiting/i.test(status) }
+      extra: { status, recruiting: /recruiting/i.test(status), evidenceLevel }
     };
   }).filter(c => opts?.recruitingOnly ? c.extra?.recruiting : true);
 }
