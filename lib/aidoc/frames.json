@@ -1,0 +1,67 @@
+{
+  "fever": {
+    "synonyms": ["fever", "pyrexia"],
+    "red_flags": [
+      "fever > 39.4°C for >3 days",
+      "stiff neck",
+      "severe headache",
+      "rash with fever",
+      "confusion",
+      "severe dehydration"
+    ],
+    "followups": [
+      { "id": "duration", "ask": "How long has the fever been present? (e.g., 2 days, 36 hours)", "capture": "duration" },
+      { "id": "temp",     "ask": "What’s the highest temperature you’ve noted? (C or F)",          "capture": "tempC" }
+    ],
+    "self_care": "Hydration, rest, temperature monitoring; people often consider paracetamol per label if suitable.",
+    "tests": ["CBC", "malaria rapid/smear (context)", "COVID/flu (if exposure)"],
+    "when_to_see": "See a clinician if fever persists >3 days, severe symptoms develop, or you’re worried."
+  },
+  "covid": {
+    "synonyms": ["covid", "covid-19", "coronavirus", "rt-pcr positive", "antigen positive", "tested positive"],
+    "red_flags": [
+      "oxygen saturation ≤ 92%",
+      "severe shortness of breath",
+      "chest pain or pressure",
+      "confusion or hard to wake",
+      "blue lips/face",
+      "fainting"
+    ],
+    "followups": [
+      { "id": "duration", "ask": "What day of illness are you on, or how long since your positive test?", "capture": "duration" },
+      { "id": "temp",     "ask": "What’s the highest temperature you’ve noted? (C or F)",                 "capture": "tempC" },
+      { "id": "spo2",     "ask": "Do you have a SpO₂/pulse-ox reading at rest? (e.g., 97%)",              "capture": "spo2Pct" }
+    ],
+    "self_care": "Isolate per local guidance, rest, hydrate, monitor temperature and breathing; people often consider paracetamol per label if suitable.",
+    "tests": ["If high-risk or worsening: clinician review", "Consider chest X-ray if persistent cough/SOB", "Clinicians may consider antivirals if high-risk and early in illness"],
+    "when_to_see": "Seek care if breathing worsens, SpO₂ ≤ 92%, chest pain, confusion, or you’re worried."
+  },
+  "back_pain": {
+    "synonyms": ["back pain", "low back", "lumbar"],
+    "red_flags": [
+      "severe weakness in legs",
+      "loss of bladder/bowel control",
+      "numbness in groin/saddle area",
+      "fever with back pain",
+      "recent significant trauma"
+    ],
+    "followups": [
+      { "id": "duration", "ask": "How long has the back pain been present?", "capture": "duration" },
+      { "id": "location", "ask": "Where is it most intense (lower back, one side, radiating)?", "capture": "location" },
+      { "id": "pain",     "ask": "On a scale of 0–10, how bad is it at rest?", "capture": "painScore" }
+    ],
+    "self_care": "Relative rest 24–48h, heat/ice, gentle mobility & core stretches; avoid heavy lifting. People sometimes consider paracetamol per label if appropriate.",
+    "tests": ["Physiotherapy assessment", "MRI lumbar spine if persistent >2–6 weeks or neurologic signs", "Urgent review if red flags"],
+    "when_to_see": "See a clinician if pain is severe, persistent, or red flags appear."
+  },
+  "_generic_respiratory": {
+    "synonyms": ["cough", "cold", "sore throat", "runny nose", "throat pain"],
+    "red_flags": ["blue lips/face", "shortness of breath at rest", "coughing blood", "chest pain with breath"],
+    "followups": [
+      { "id": "duration", "ask": "How long have these symptoms been present?", "capture": "duration" }
+    ],
+    "self_care": "Rest, fluids, saline rinse/steam inhalation; avoid smoke/irritants.",
+    "tests": ["If >3 weeks or worsening: clinician review; chest X-ray may be considered"],
+    "when_to_see": "See a clinician if symptoms are severe, persistent, or red flags appear."
+  }
+}

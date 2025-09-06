@@ -5,6 +5,7 @@ import { getUserId } from "@/lib/getUserId";
 import { nextTurn } from "@/lib/aidoc/orchestrator";
 import { classifyIntent } from "@/lib/aidoc/intents";
 import { safety } from "@/lib/aidoc/style";
+import { listFrames } from "@/lib/aidoc/frames";
 
 const safeFirst = (full?: string) => (full||"there").split(/\s+/)[0];
 
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
 
   const state = {
     step: client_state?.step || "idle",
-    symptom_key: client_state?.symptom_key || null,
+    frame_key: client_state?.frame_key || null,
     symptom_text: client_state?.symptom_text || null,
     flags_prompt_count: client_state?.flags_prompt_count || 0,
     followup_stage: client_state?.followup_stage || 0,
@@ -62,7 +63,10 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const heardMulti = (text||"").toLowerCase().match(/\b(fever|back pain|headache|cough|sore throat|cold)\b/g) || [];
+  const lower = (text||"").toLowerCase();
+  const heardMulti = listFrames()
+    .filter(([key, frame]) => frame.synonyms.some(s => lower.includes(s.toLowerCase())))
+    .map(([key]) => key.replace(/^_/, '').replace('_',' '));
   const isBoot = intent === 'greet' && !(text||"").trim();
 
   const turn = nextTurn(String(text||""), name, summaryText, state, { isBoot, heard: Array.from(new Set(heardMulti)) });

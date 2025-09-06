@@ -6,6 +6,7 @@ export type Entities = {
   tempC?: number;        // normalized to °C if provided
   painScore?: number;    // 0-10
   location?: string;     // "lower back", "right side", etc.
+  spo2Pct?: number;      // e.g., 97
   yesNo?: 'yes' | 'no' | undefined;
 };
 
@@ -29,9 +30,12 @@ export function extractEntities(text: string): Entities {
   const loc = t.match(/\b(lower back|upper back|left side|right side|one side|radiating.*?(leg|arm))\b/);
   if (loc) out.location = loc[0];
 
+  const spo2 = t.match(/\b(\d{2,3})\s*%\b/);
+  const sp = spo2 ? parseInt(spo2[1], 10) : NaN;
+  if (!Number.isNaN(sp) && sp <= 100) out.spo2Pct = sp;
+
   if (SAID_NO_RX.test(t)) out.yesNo = 'no';
   else if (/\b(yes|yep|yeah|affirmative|i do)\b/.test(t)) out.yesNo = 'yes';
 
   return out;
 }
-
