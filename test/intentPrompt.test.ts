@@ -1,7 +1,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { detectIntent } from '@/lib/intentClassifier';
+import { detectIntent, parseQuickChoice } from '@/lib/intentClassifier';
 import { buildPrompt } from '@/lib/promptBuilder';
+import { normalizeQuery } from '@/lib/queryNormalizer';
+import { correctTopic } from '@/lib/topicCorrector';
 
 
 describe('intent classifier', () => {
@@ -17,10 +19,23 @@ describe('intent classifier', () => {
     assert(result.confidence >= 0.8);
   });
 
-  it('returns unknown for low confidence', () => {
+  it('defaults to overview with low confidence', () => {
     const result = detectIntent('hello there');
-    assert.equal(result.intent, 'unknown');
+    assert.equal(result.intent, 'overview');
     assert(result.confidence < 0.6);
+  });
+
+  it('parses quick choices', () => {
+    assert.equal(parseQuickChoice('A'), 'research');
+    assert.equal(parseQuickChoice('b'), 'resources');
+    assert.equal(parseQuickChoice('③'), 'generate');
+  });
+
+  it('normalizes pronouns and corrects topics', () => {
+    const norm = normalizeQuery('study it', 'leukemia');
+    assert.equal(norm, 'study leukemia');
+    const corrected = correctTopic('leukemai')!;
+    assert.equal(corrected, 'leukemia');
   });
 });
 
@@ -31,7 +46,8 @@ describe('prompt builder', () => {
     assert(prompt.includes('Subtopics: symptoms'));
     assert(prompt.includes('Mode: patient'));
     assert(prompt.includes('Intent: overview'));
-    assert(prompt.includes('Explain simply and clearly for a non-medical audience.'));
-    assert(prompt.includes('Give a concise, accurate overview.'));
+    assert(prompt.includes('Explain simply for a non-medical audience.'));
+    assert(prompt.includes('Give a clear overview with key facts.'));
+    assert(prompt.includes('Do not include clinical trial listings or reference-style summaries.'));
   });
 });

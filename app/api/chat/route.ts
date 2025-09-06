@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { COUNTRIES } from '@/data/countries';
 import { getContext, updateContext, resetContext } from '@/lib/contextManager';
-import { detectIntent } from '@/lib/intentClassifier';
+import { detectIntent, parseQuickChoice } from '@/lib/intentClassifier';
 import { buildPrompt } from '@/lib/promptBuilder';
+import { normalizeQuery } from '@/lib/queryNormalizer';
+import { correctTopic } from '@/lib/topicCorrector';
 
 export async function POST(req: NextRequest){
   const body = await req.json();
@@ -20,30 +22,39 @@ export async function POST(req: NextRequest){
     }
 
     let ctx = getContext(sessionId);
-    if (mode) {
-      updateContext(sessionId, undefined, undefined, mode);
-      ctx = getContext(sessionId);
+    if (mode) ctx.mode = mode;
+
+    const userQueryNorm = normalizeQuery(userQuery, ctx.mainTopic);
+
+    const topicCandidate = correctTopic(userQueryNorm);
+    if (!ctx.mainTopic && topicCandidate && topicCandidate !== userQueryNorm.toLowerCase()) {
+      ctx.awaiting = { type: 'topic_confirm', proposed: topicCandidate };
+      return NextResponse.json({
+        response: `Did you mean **${topicCandidate}**?`,
+        expectAnswer: 'yes/no',
+        suggestions: ['Yes', 'No, something else']
+      });
     }
 
-    const detected = detectIntent(userQuery);
+    const quickIntent = parseQuickChoice(userQueryNorm);
+    let { intent, confidence } = detectIntent(userQueryNorm);
+    if (quickIntent) {
+      intent = quickIntent;
+      confidence = 0.95;
+    }
 
-    if (detected.intent === 'unknown' || detected.confidence < 0.6) {
+    if (confidence < 0.5 && ctx.mainTopic) {
+      ctx.awaiting = { type: 'intent_confirm', intent, target: ctx.mainTopic };
       return NextResponse.json({
-        response: `We were discussing ${ctx.mainTopic || 'this topic'}. Do you want to continue on that?`,
+        response: `We were discussing ${ctx.mainTopic}. Continue with ${intent}?`,
         expectAnswer: 'yes/no'
       });
     }
 
-    const { intent } = detected;
+    if (!ctx.mainTopic) ctx.mainTopic = userQueryNorm;
+    else updateContext(sessionId, undefined, userQueryNorm);
 
-    if (!ctx.mainTopic) {
-      updateContext(sessionId, userQuery);
-    } else {
-      updateContext(sessionId, undefined, userQuery);
-    }
-    ctx = getContext(sessionId);
-
-    const prompt = buildPrompt(ctx.mainTopic!, ctx.subtopics, ctx.mode, intent, userQuery);
+    const prompt = buildPrompt(ctx.mainTopic!, ctx.subtopics, ctx.mode, intent, userQueryNorm);
 
     const res = await fetch(`${base.replace(/\/+$/,'')}/chat/completions`, {
       method: 'POST',
@@ -57,9 +68,21 @@ export async function POST(req: NextRequest){
     const json = await res.json();
     const text = json.choices?.[0]?.message?.content || '';
 
-    const followUp = `Would you like to see related clinical trials or recent studies on ${ctx.mainTopic}?`;
+    const followUp =
+      intent === 'research'
+        ? `Want clinical trials in India or worldwide for ${ctx.mainTopic}?`
+        : `Do you want latest research findings on ${ctx.mainTopic}?`;
 
-    return NextResponse.json({ response: text, followUp });
+    const suggestions =
+      intent === 'research'
+        ? ['Clinical trials (India)', 'Clinical trials (Worldwide)', 'Key guidelines (NICE/WHO)']
+        : ['Latest research', 'Treatment options', 'Support resources'];
+
+    ctx.lastIntent = intent;
+    ctx.lastQuestion = userQueryNorm;
+    ctx.awaiting = null;
+
+    return NextResponse.json({ response: text, followUp, suggestions });
   }
 
   // Fallback to existing behavior
