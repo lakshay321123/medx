@@ -2,6 +2,7 @@ import { MedxResponseSchema, type MedxResponse } from "@/schemas/medx";
 import { normalizeTopic } from "@/lib/topic/normalize";
 import { searchTrials } from "@/lib/trials/search";
 import { splitFollowUps } from "./splitFollowUps";
+import { orchestrateResearch } from "@/lib/research/orchestrator";
 
 export { splitFollowUps };
 
@@ -43,12 +44,19 @@ export async function v2Generate(body: any): Promise<MedxResponse> {
   const max = body.mode === "patient" ? 800 : 1200;
   const topic = normalizeTopic(body.condition || "");
   let trials: any[] = [];
-  if (body.research || body.mode === "research") {
+  if (body.mode === "research") {
     trials = await searchTrials(topic);
   }
-  const sys = (body.research || body.mode === "research")
-    ? `${BASE_PROMPT}\nTopic-Lock: The topic is ${topic.canonical}. Exclude results that do not clearly match this topic and anatomy. If no on-topic results remain, say so and suggest 2–3 synonyms users can try. Do not include unrelated studies.`
-    : BASE_PROMPT;
+
+  const query = body.text || body.condition || "";
+  let researchPacket: any = null;
+  const shouldResearch = body.mode === "research" || process.env.RESEARCH_ALWAYS_ON === "true";
+  if (shouldResearch) {
+    researchPacket = await orchestrateResearch(query, { country: body.country, phase: body.phase });
+  }
+
+  const citations = researchPacket?.citations?.slice(0, 8).map((c: any) => `- ${c.title} (${c.url})`).join("\n");
+  const sys = buildSystemPrompt({ mode: body.mode, citations, topic: topic.canonical });
   const userPayload = { ...body, topic: topic.canonical, synonyms: topic.synonyms, trials };
   const messages = [
     { role: "system", content: sys },
@@ -74,7 +82,18 @@ export async function v2Generate(body: any): Promise<MedxResponse> {
     out = MedxResponseSchema.safeParse(fixedParsed);
     if (!out.success) throw new Error("Schema validation failed");
   }
-  return out.data;
+  return { ...(out.data as any), citations: researchPacket?.citations || [] };
+}
+
+function buildSystemPrompt({ mode, citations, topic }: { mode: string; citations?: string; topic: string }) {
+  let sys = BASE_PROMPT;
+  if (mode === "research") {
+    sys += `\nTopic-Lock: The topic is ${topic}. Exclude results that do not clearly match this topic and anatomy. If no on-topic results remain, say so and suggest 2–3 synonyms users can try. Do not include unrelated studies.`;
+  }
+  if (citations) {
+    sys += `\nCitations:\n${citations}`;
+  }
+  return sys;
 }
 
 export function shortSummary(x: MedxResponse): string {

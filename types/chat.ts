@@ -3,4 +3,5 @@ export type ChatMessage = {
   role: "user" | "assistant" | "system";
   content: string;
   followUps?: string[];
+  citations?: any[];
 };
