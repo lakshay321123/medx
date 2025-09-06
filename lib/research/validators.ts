@@ -25,3 +25,24 @@ export function matchesCountry(c: any, country?: string): boolean {
   const inItem = String(c.extra?.country || c.extra?.location || "").toLowerCase();
   return inItem.includes(country.toLowerCase());
 }
+
+export function matchesStatus(c: any, status?: string) {
+  if (!status || status === 'any') return true;
+  const s = String(c.extra?.status || '').toLowerCase();
+  if (status === 'recruiting') return s.includes('recruiting');
+  if (status === 'active') return s.includes('active') && !s.includes('recruiting');
+  if (status === 'completed') return s.includes('completed');
+  return true;
+}
+
+export function matchesCountries(c: any, list?: string[]) {
+  if (!list || list.length === 0) return true;
+  const field = String(c.extra?.country || c.extra?.location || '').toLowerCase();
+  return list.some(cty => field.includes(cty.toLowerCase()));
+}
+
+export function matchesGenes(c: any, genes?: string[]) {
+  if (!genes || genes.length === 0) return true;
+  const hay = `${c.title} ${c.extra?.keywords || ''}`.toLowerCase();
+  return genes.every(g => hay.includes(g.toLowerCase()));
+}

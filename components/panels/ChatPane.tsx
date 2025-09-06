@@ -3,6 +3,8 @@ import { useEffect, useRef, useState, RefObject, Fragment } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Header from '../Header';
 import Markdown from '../Markdown';
+import ResearchFilters from '@/components/ResearchFilters';
+import { useResearchFilters } from '@/store/researchFilters';
 import { Send } from 'lucide-react';
 import { useCountry } from '@/lib/country';
 import { getRandomWelcome } from '@/lib/welcomeMessages';
@@ -283,6 +285,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = externalInputRef ?? useRef<HTMLInputElement>(null);
+  const { filters } = useResearchFilters();
 
   const params = useSearchParams();
   const threadId = params.get('threadId');
@@ -654,7 +657,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
           fetch('/api/medx', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: text, mode, researchMode })
+            body: JSON.stringify({ query: text, mode, researchMode, filters })
           })
         );
 
@@ -952,6 +955,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
         onResearchChange={setResearchMode}
         onTherapyChange={setTherapyMode}
       />
+      <ResearchFilters mode={currentMode} />
       <div
         ref={chatRef}
         className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 pb-28"

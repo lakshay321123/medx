@@ -13,7 +13,8 @@ import { searchIctrp } from "@/lib/research/sources/ictrp";
 import { searchDailyMed } from "@/lib/research/sources/dailymed";
 import { searchOpenFda } from "@/lib/research/sources/openfda";
 import { fetchRxCui } from "@/lib/research/sources/rxnorm";
-import { isTrial, hasRegistryId, matchesPhase, matchesRecruiting, matchesCountry } from "@/lib/research/validators";
+import { isTrial, hasRegistryId, matchesPhase, matchesStatus, matchesCountries, matchesGenes } from "@/lib/research/validators";
+import type { ResearchFilters } from "@/store/researchFilters";
 
 export type Citation = {
   id: string;
@@ -36,7 +37,7 @@ const CACHE_MS = 5 * 60 * 1000;
 
 let prevCondition: string | undefined;
 
-export async function orchestrateResearch(query: string, opts: { mode: string }): Promise<ResearchPacket> {
+export async function orchestrateResearch(query: string, opts: { mode: string; filters?: ResearchFilters }): Promise<ResearchPacket> {
   const now = Date.now();
   const cached = cache.get(query);
   if (cached && now - cached.ts < CACHE_MS) {
@@ -52,16 +53,22 @@ export async function orchestrateResearch(query: string, opts: { mode: string })
   }
 
   const tq = interpretTrialQuery(query);
-
   if (tq.condition) {
     prevCondition = tq.condition;
   }
+
+  const f: ResearchFilters = { status: "recruiting", ...(opts.filters || {}) };
+  if (!f.phase && tq.phase) f.phase = tq.phase;
+  if ((!f.countries || f.countries.length === 0) && tq.country) f.countries = [tq.country];
+  if (!f.status && typeof tq.recruiting === "boolean") f.status = tq.recruiting ? "recruiting" : "any";
+
   const expr = buildCtgovExpr({
     condition: tq.condition || tq.cancerType,
     keywords: tq.keywords,
-    phase: tq.phase,
-    recruiting: tq.recruiting ?? true,
-    country: tq.country,
+    phase: f.phase,
+    status: f.status,
+    countries: f.countries,
+    genes: f.genes,
   });
 
   const rx = await safe(() => fetchRxCui(query));
@@ -70,10 +77,10 @@ export async function orchestrateResearch(query: string, opts: { mode: string })
     searchCtgovByExpr(expr, { max: 100 }),
     searchCtri(query),
     searchIctrp(query),
-    searchPubMed(query),
-    searchEuropePmc(query),
-    searchCrossref(query),
-    searchOpenAlex(query),
+    searchPubMed(genedQuery(query, f.genes)),
+    searchEuropePmc(genedQuery(query, f.genes)),
+    searchCrossref(genedQuery(query, f.genes)),
+    searchOpenAlex(genedQuery(query, f.genes)),
     rx ? searchDailyMed(rx) : Promise.resolve([]),
     searchOpenFda(query),
   ]);
@@ -91,9 +98,10 @@ export async function orchestrateResearch(query: string, opts: { mode: string })
   const trials = allTrials
     .filter(isTrial)
     .filter(hasRegistryId)
-    .filter(c => matchesPhase(c, tq.phase))
-    .filter(c => matchesRecruiting(c, tq.recruiting ?? true))
-    .filter(c => matchesCountry(c, tq.country));
+    .filter(c => matchesPhase(c, f.phase))
+    .filter(c => matchesStatus(c, f.status))
+    .filter(c => matchesCountries(c, f.countries))
+    .filter(c => matchesGenes(c, f.genes));
 
   const pubmed = pmRes.status === "fulfilled" ? pmRes.value : [];
   const eupmc = epmcRes.status === "fulfilled" ? epmcRes.value : [];
@@ -102,7 +110,7 @@ export async function orchestrateResearch(query: string, opts: { mode: string })
   const dailymed = dmRes.status === "fulfilled" ? dmRes.value : [];
   const openfda = fdaRes.status === "fulfilled" ? fdaRes.value : [];
 
-  const papers = (pubmed || []).concat(eupmc || [], crossref || [], openalex || []);
+  const papers = (pubmed || []).concat(eupmc || [], crossref || [], openalex || []).filter(p => matchesGenes(p, f.genes));
   const safety = (dailymed || []).concat(openfda || []);
 
   let citations = dedupeResults([...trials, ...papers, ...safety]);
@@ -112,18 +120,15 @@ export async function orchestrateResearch(query: string, opts: { mode: string })
   let followUps: string[] = [];
 
   if (trials.length === 0) {
-    content = [
-      `I couldn't find trials that match your exact filters.`,
-      `You can broaden the search:`
-    ].join("\n");
-
+    content = `I couldn't find trials that match your filters.`;
     followUps = [
-      "Include completed trials",
+      "Include completed",
       "Any phase",
-      "Worldwide (add US/EU)",
+      "Add countries: US/EU",
     ];
+    if (opts.mode !== 'patient') followUps.push('Clear filters');
   } else {
-    content = composeAnswer(query, trials, papers, opts);
+    content = composeAnswer(query, trials, papers, opts, f);
   }
 
   const packet: ResearchPacket = {
@@ -134,6 +139,10 @@ export async function orchestrateResearch(query: string, opts: { mode: string })
   };
   cache.set(query, { ts: now, data: packet });
   return packet;
+}
+
+function genedQuery(q: string, genes?: string[]) {
+  return [q, ...(genes || [])].filter(Boolean).join(' ');
 }
 
 async function safe<T>(fn: () => Promise<T>): Promise<T | null> {
