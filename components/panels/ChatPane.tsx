@@ -10,8 +10,7 @@ import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
 import { detectFollowupIntent } from '@/lib/intents';
 import { safeJson } from '@/lib/safeJson';
-import { getTrials } from "@/lib/hooks/useTrials";
-import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials";
+import { getUnifiedTrials } from "@/lib/trials/aggregate";
 import type {
   ChatMessage as BaseChatMessage,
   AnalysisCategory,
@@ -554,35 +553,30 @@ ${linkNudge}`;
             ? buildHospitalsPrompt(ui.topic, country)
             : intent === 'trials'
             ? await (async () => {
-                // 1) fetch real trials
-                const { rows } = await getTrials({
+                const trials = await getUnifiedTrials({
                   condition: ui.topic!,
-                  country: country.name, // ClinicalTrials.gov expects country name
+                  country: country.name,
                   status: "Recruiting,Enrolling by invitation",
                   phase: "Phase 2,Phase 3",
                   page: 1,
                   pageSize: 10,
                 });
 
-                // 2) if none found, fall back to the old high-level summary
-                if (!rows.length) return buildTrialsPrompt(ui.topic!, country);
+                if (!trials.length) return buildTrialsPrompt(ui.topic!, country);
 
-                // 3) build a structured summarization prompt using the rows
-                const content =
-                  mode === "patient"
-                    ? patientTrialsPrompt(rows, ui.topic!)
-                    : clinicianTrialsPrompt(rows, ui.topic!);
-
-                // 4) Instruct the LLM to produce a concrete list with NCT IDs + links
+                const dataForLLM = JSON.stringify(trials.slice(0, 10));
+                const system = `You are MedX. Turn the provided Data JSON into a concise list of trials.
+For each trial output a single line:
+{Cancer type} — {BEST ID} — {Phase} — {Status} — {Where (City, Country)} — {Primary outcome/What} — {Canonical link}.
+Rules:
+- BEST ID preference: CTRI > NCT > EUCTR > ISRCTN > Other.
+- Use the matching registry link for the BEST ID (e.g., CTRI link if BEST ID is CTRI).
+- Do NOT invent IDs. If a field is missing, omit it.
+- Max 10 items. End with one short follow-up question (<=10 words).`;
+                const user = `Data: ${dataForLLM}`;
                 return [
-                  {
-                    role: "system",
-                    content:
-`You are MedX. Turn the provided "Data" JSON into a concise, accurate list of active clinical trials.
-For each item: {Title — NCT ID — Phase — Status — Where (City, Country) — What/Primary outcome — Link}.
-Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End with one short follow-up question.`
-                  },
-                  { role: "user", content }
+                  { role: "system", content: system },
+                  { role: "user", content: user }
                 ];
               })()
             : buildMedicinesPrompt(ui.topic, country);
