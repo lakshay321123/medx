@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
         extractNaturalText(data),
         {
           conversationId: routed.threadId ?? routed.conversationId,
-          messageId: data.id ?? undefined,
+          messageId: typeof data === "object" && data && "id" in data ? (data as any).id : undefined,
           mode: routed.mode,
           model: process.env.LLM_MODEL_ID,
           latencyMs: Date.now() - started,
