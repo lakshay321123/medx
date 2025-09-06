@@ -7,3 +7,9 @@ export function detectFollowupIntent(text: string): FollowupIntent {
   if (/\b(latest|newest).*(trial|trials|study|studies|research)|\bclinical trial(s)?\b/.test(q)) return "trials";
   return null;
 }
+
+export function isTrialsIntent(q: string) {
+  const s = q.toLowerCase();
+  return /\b(trial|trials|nct\d{8}|clinicaltrials|phase\s*[1-4])\b/.test(s)
+    || /\b(latest (studies|research|technolog(y|ies)|treatments?))\b/.test(s);
+}

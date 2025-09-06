@@ -18,4 +18,5 @@ export type TrialRecord = {
   startDate?: string;             // ISO
   lastUpdated?: string;           // ISO
   sources: { name: string; url: string }[]; // include all source links
+  publications?: { title: string; source: string; date?: string; url: string }[];
 };

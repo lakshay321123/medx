@@ -26,7 +26,8 @@ export function dedupeTrials(lists: TrialRecord[][]): TrialRecord[] {
       locations: [...(a.locations||[]), ...(b.locations||[])],
       startDate: a.startDate || b.startDate,
       lastUpdated: a.lastUpdated || b.lastUpdated,
-      sources: [...a.sources, ...b.sources]
+      sources: [...a.sources, ...b.sources],
+      publications: [...(a.publications || []), ...(b.publications || [])]
     };
   }
 

@@ -8,9 +8,10 @@ import { useCountry } from '@/lib/country';
 import { getRandomWelcome } from '@/lib/welcomeMessages';
 import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
-import { detectFollowupIntent } from '@/lib/intents';
+import { detectFollowupIntent, isTrialsIntent } from '@/lib/intents';
 import { safeJson } from '@/lib/safeJson';
 import { getUnifiedTrials } from "@/lib/trials/aggregate";
+import { getTrials } from "@/lib/hooks/useTrials";
 import type {
   ChatMessage as BaseChatMessage,
   AnalysisCategory,
@@ -510,13 +511,36 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         }
         return;
       }
-      const intent = detectFollowupIntent(text);
+      let intent = detectFollowupIntent(text);
+      if (!intent && isTrialsIntent(text)) intent = 'trials';
       const follow = isFollowUp(text);
       const ctx = ui.contextFrom ? active : null;
-      if (!ui.topic && !intent) setUi(prev => ({ ...prev, topic: text }));
-      else if (isNewTopic(text)) setUi(prev => ({ ...prev, topic: text }));
 
-      if (follow && !ctx && !(intent && ui.topic)) {
+      let topic = ui.topic;
+      if (!topic) {
+        const m = text.match(/\b([a-z][a-z\s-]{1,40})\s+cancer\b/i);
+        if (m) {
+          topic = m[0];
+          setUi(prev => ({ ...prev, topic }));
+        } else if (!intent) {
+          topic = text;
+          setUi(prev => ({ ...prev, topic }));
+        }
+      } else if (isNewTopic(text)) {
+        topic = text;
+        setUi(prev => ({ ...prev, topic }));
+      }
+
+      if (intent === 'trials' && !topic) {
+        setMessages(prev => prev.map(m => (
+          m.id === pendingId
+            ? { ...m, pending: false, content: 'Which cancer type should I focus on?' }
+            : m
+        )));
+        return;
+      }
+
+      if (follow && !ctx && !(intent && topic)) {
         setMessages(prev =>
           prev.map(m =>
             m.id === pendingId
@@ -543,43 +567,65 @@ ${linkNudge}`
 If CONTEXT has codes or trials, explain them in plain words and add links. Avoid medical advice.
 ${linkNudge}`;
       const systemCommon = `\nUser country: ${country.code3} (${country.name}). Use generics and note availability varies by region.\nEnd with one short follow-up question (<=10 words) that stays on the current topic.\n`;
-      const topicHint = ui.topic ? `ACTIVE TOPIC: ${ui.topic}\nKeep answers scoped to this topic unless the user changes it.\n` : "";
+      const topicHint = topic ? `ACTIVE TOPIC: ${topic}\nKeep answers scoped to this topic unless the user changes it.\n` : "";
 
-      let chatMessages: { role: string; content: string }[];
+      let chatMessages: { role: string; content: string }[] | null;
 
-      if (intent && ui.topic) {
+      if (intent && topic) {
         chatMessages =
           intent === 'hospitals'
-            ? buildHospitalsPrompt(ui.topic, country)
+            ? buildHospitalsPrompt(topic, country)
             : intent === 'trials'
             ? await (async () => {
-                const trials = await getUnifiedTrials({
-                  condition: ui.topic!,
+                const fetchTrials = getUnifiedTrials ?? (async (q: any) => (await getTrials(q)).rows);
+                const trials = await fetchTrials({
+                  condition: topic || text,
                   country: country.name,
                   status: "Recruiting,Enrolling by invitation",
                   phase: "Phase 2,Phase 3",
                   page: 1,
                   pageSize: 10,
                 });
+                const rows = Array.isArray((trials as any)?.rows) ? (trials as any).rows : trials;
+                if (!rows?.length) {
+                  setMessages(prev => prev.map(m => (
+                    m.id === pendingId
+                      ? {
+                          ...m,
+                          pending: false,
+                          content:
+                            'I couldn’t find active recruiting Phase 2–3 trials for this query. Would you like me to broaden filters (include Phase 1/completed) or expand region?'
+                        }
+                      : m
+                  )));
+                  return null;
+                }
 
-                if (!trials.length) return buildTrialsPrompt(ui.topic!, country);
-
-                const dataForLLM = JSON.stringify(trials.slice(0, 10));
-                const system = `You are MedX. Turn the provided Data JSON into a concise list of trials.
-For each trial output a single line:
-{Cancer type} — {BEST ID} — {Phase} — {Status} — {Where (City, Country)} — {Primary outcome/What} — {Canonical link}.
+                const dataForLLM = JSON.stringify(rows.slice(0, 10));
+                const primaryLabel = mode === 'doctor' ? 'Primary outcome' : 'What it measures';
+                const tone =
+                  mode === 'doctor'
+                    ? 'Allow acronyms (ORR, PFS, OS) and keep it tight.'
+                    : 'Use plain language labels (e.g., "Where", "What it measures").';
+                const system = `You are MedX. Use the provided Data JSON (trial rows) to produce a concise list. ${tone}
+Per trial (one line):
+{Cancer type} — {BEST ID} — {Phase} — {Status} — {Where (City, Country)} — {${primaryLabel}} — {Registry link}
+If publications exist, add one extra line:
+Recent publication: {Title — Source — Date — Link}
 Rules:
 - BEST ID preference: CTRI > NCT > EUCTR > ISRCTN > Other.
-- Use the matching registry link for the BEST ID (e.g., CTRI link if BEST ID is CTRI).
-- Do NOT invent IDs. If a field is missing, omit it.
-- Max 10 items. End with one short follow-up question (<=10 words).`;
+- Registry link must match the BEST ID (e.g., CTRI link for CTRI ID).
+- Do NOT invent IDs, phases, outcomes, locations. Omit if missing.
+- Max 10 trials. Keep total under ~1800 tokens.
+- End with ONE short follow-up question (<= 10 words) on this topic.
+`;
                 const user = `Data: ${dataForLLM}`;
                 return [
                   { role: "system", content: system },
                   { role: "user", content: user }
                 ];
               })()
-            : buildMedicinesPrompt(ui.topic, country);
+            : buildMedicinesPrompt(topic, country);
       } else if (follow && ctx) {
         const system = `\nYou are MedX. This is a FOLLOW-UP question. Use the ACTIVE CONTEXT below; do not reset topic unless user asks.\n${topicHint}ACTIVE CONTEXT TITLE: ${ctx.title}\nACTIVE CONTEXT SUMMARY:\n${ctx.summary}\n\nWhen the user asks for latest/clinical trials/guidelines, stay on the same topic/entities: ${ctx.entities?.join(', ') || 'n/a'}.\n${systemCommon}` + baseSys;
         const userMsg = `Follow-up: ${text}\nIf the question is ambiguous, ask one concise disambiguation question and then answer briefly using the context.`;
@@ -603,6 +649,8 @@ Rules:
           { role: 'user', content: `${text}\n\n${contextBlock}` }
         ];
       }
+
+      if (!chatMessages) return;
 
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
