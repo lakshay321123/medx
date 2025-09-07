@@ -1,5 +1,4 @@
-export function htnRules({ vitals, mem }:{ vitals?:any[]; mem:any }) {
-  // Placeholder (no vitals table in schema). Suggest home BP log if hypertension suspected.
+export function htnRules({ vitals, mem }:{ vitals:any[]; mem:any }) {
   const steps: string[] = [];
   const nudges: string[] = [];
   const fired: string[] = [];

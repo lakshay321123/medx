@@ -1,7 +1,7 @@
-// Plug your real OpenAI client here. This is a safe fallback for local/dev.
+// Replace with your production OpenAI client that enforces response_format: json_object and temperature≈0.2
 type CallIn = { system: string; user: string; instruction: string };
 export async function callOpenAIJson({ system, user, instruction }: CallIn): Promise<any> {
-  // In dev: return a minimal JSON echo
+  // DEV STUB (replace in prod)
   return {
     reply: "Thanks — I’ll personalize advice using your history. What symptoms are you having today?",
     save: { medications: [], conditions: [], labs: [], notes: [], prefs: [] },

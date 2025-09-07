@@ -11,8 +11,8 @@ export function runRules(ctx:{labs:any[]; meds:any[]; conditions:any[]; vitals?:
     htnRules(ctx),
   ];
   return {
-    steps: buckets.flatMap(b=>b.steps),
-    nudges: buckets.flatMap(b=>b.nudges),
+    steps: Array.from(new Set(buckets.flatMap(b=>b.steps))),
+    nudges: Array.from(new Set(buckets.flatMap(b=>b.nudges))),
     fired: Array.from(new Set(buckets.flatMap(b=>b.fired))),
     softAlerts: buckets.flatMap(b=>b.softAlerts),
   };

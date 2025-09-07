@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 
 export type MemScope =
-  | "aidoc.pref"      // user preferences (pill_form, test_time, diet_type, budget)
+  | "aidoc.pref"    // preferences (pref_test_time, pref_med_form, diet_type, budget, etc.)
   | "aidoc.fact"      // durable factual nuggets (statin intolerance, prior MI, etc.)
   | "aidoc.redflag"   // safety notes (e.g., chest pain at rest -> ER)
   | "aidoc.goal";     // longitudinal goals (e.g., LDL < 100 by 12 weeks)
