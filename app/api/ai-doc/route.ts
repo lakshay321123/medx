@@ -7,7 +7,7 @@ import { AIDOC_JSON_INSTRUCTION } from "@/lib/aidoc/schema";
 import { callOpenAIJson } from "@/lib/aidoc/vendor";
 
 export async function POST(req: NextRequest) {
-  const userId = await getUserId(req);
+  const userId = await getUserId();
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { threadId, message } = await req.json();
 
