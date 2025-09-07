@@ -1,0 +1,46 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model ChatThread {
+  id            String   @id @default(cuid())
+  title         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  userId        String
+  runningSummary String   @default("")
+  topicEmbedding Bytes?
+
+  messages     Message[]
+  memories     Memory[]
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  threadId  String
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+  embedding Bytes?
+
+  thread    ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  @@index([threadId, createdAt])
+}
+
+model Memory {
+  id        String   @id @default(cuid())
+  threadId  String
+  scope     String
+  key       String
+  value     String
+  embedding Bytes?
+
+  thread    ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  @@unique([threadId, scope, key])
+  @@index([threadId, scope])
+}

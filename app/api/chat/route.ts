@@ -1,41 +1,67 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { COUNTRIES } from '@/data/countries';
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { appendMessage } from "@/lib/memory/store";
+import { decideOutOfContext, seedTopicEmbedding } from "@/lib/memory/outOfContext";
+import { updateSummary, persistUpdatedSummary } from "@/lib/memory/summary";
+import { buildPromptContext } from "@/lib/memory/contextBuilder";
 
-export async function POST(req: NextRequest){
-  const body = await req.json();
-  const base = process.env.LLM_BASE_URL;
-  const model = process.env.LLM_MODEL_ID || 'llama3-8b-instruct';
-  const key = process.env.LLM_API_KEY;
-  if(!base || !key) return new NextResponse("LLM_BASE_URL or LLM_API_KEY not set", { status: 500 });
+// Swap with your LLM client
+async function callLLM(system: string, recent: {role: string, content: string}[], userText: string) {
+  const messages = [
+    { role: "system", content: system },
+    ...recent.map(m => ({ role: m.role as any, content: m.content })),
+    { role: "user", content: userText },
+  ];
+  // TODO: Replace with actual LLM call. For now echo:
+  return `Noted. (demo) You said: ${userText}`;
+}
 
-  // Allow either a raw question/role pair or full chat messages
-  let messages = body.messages;
-  if(!messages){
-    const { question, role, country: code } = body;
-    const country = COUNTRIES.find(c => c.code3 === code) || COUNTRIES.find(c => c.code3 === 'USA')!;
-    const base = role==='clinician'
-      ? 'You are a clinical assistant. Be precise, cite sources if mentioned. Avoid medical advice; provide evidence and guideline pointers.'
-      : role==='admin'
-        ? 'You help administrative staff with medical documents. Summarize logistics and coding info. Avoid medical advice.'
-        : 'You explain in simple, friendly language for patients. Avoid medical advice; encourage consulting a doctor.';
-    const sys = `You are MedX. User country: ${country.code3}.\nPrefer local guidelines, availability, dosing units, and OTC product examples used in ${country.name}.\nIf country-specific examples are uncertain, give generic names and note availability varies by region.\nAlways keep answers scoped to the user’s current topic unless they change it.\nIf the question is ambiguous, ask ONE brief clarifying question, then answer briefly.\nEnd every answer with one short follow-up question (<=10 words) on the same topic.` + base;
-    messages = [
-      { role: 'system', content: sys },
-      { role: 'user', content: question }
-    ];
+export async function POST(req: Request) {
+  const { threadId, userId, text, mode, researchOn } = await req.json();
+
+  // 1) If first message in a thread, create thread
+  let thread = await prisma.chatThread.findUnique({ where: { id: threadId } });
+  if (!thread) {
+    thread = await prisma.chatThread.create({
+      data: { id: threadId, userId, title: "New chat" },
+    });
+    await seedTopicEmbedding(thread.id, text);
   }
 
-  // OpenAI-compatible completion (v1/chat/completions)
-  const res = await fetch(`${base.replace(/\/+$/,'')}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-    body: JSON.stringify({ model, messages, temperature: 0.2 })
+  // 2) Out-of-context? Branch to new thread automatically
+  const decision = await decideOutOfContext(thread.id, text);
+  let activeThreadId = thread.id;
+  if (decision.isOutOfContext) {
+    const branched = await prisma.chatThread.create({
+      data: {
+        userId,
+        title: "New topic",
+        runningSummary: "",
+      },
+    });
+    activeThreadId = branched.id;
+    await seedTopicEmbedding(activeThreadId, text);
+  }
+
+  // 3) Save user message
+  await appendMessage({ threadId: activeThreadId, role: "user", content: text });
+
+  // 4) Build context (system + recent)
+  const { system, recent } = await buildPromptContext({
+    threadId: activeThreadId,
+    options: { mode, researchOn, maxRecent: 10, maxSummaryChars: 1500 },
   });
-  if(!res.ok){
-    const t = await res.text();
-    return new NextResponse(`LLM error: ${t}`, { status: 500 });
-  }
-  const json = await res.json();
-  const text = json.choices?.[0]?.message?.content || "";
-  return new NextResponse(text, { headers: { 'Content-Type': 'text/plain; charset=utf-8' }});
+
+  // 5) Call LLM
+  const assistant = await callLLM(system, recent as any, text);
+
+  // 6) Save assistant message
+  await appendMessage({ threadId: activeThreadId, role: "assistant", content: assistant });
+
+  // 7) Update running summary
+  const lastUser = text;
+  const updated = updateSummary(thread?.runningSummary ?? "", lastUser, assistant);
+  await persistUpdatedSummary(activeThreadId, updated);
+
+  return NextResponse.json({ ok: true, threadId: activeThreadId, text: assistant, outOfContext: decision });
 }
