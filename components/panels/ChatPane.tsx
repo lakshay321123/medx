@@ -294,6 +294,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [stats, setStats] = useState<TrialStats | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const pushSuggestion = useMemoryStore(s => s.pushSuggestion);
+  const enabled = useMemoryStore(s => s.enabled);
+  const rememberThisThread = useMemoryStore(s => s.rememberThisThread);
 
   function handleTrials(rows: TrialRow[]) {
     setTrialRows(rows);
@@ -918,15 +920,22 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
       await analyzeFile(pendingFile, note);
     } else {
       await send(note, researchMode);
-      try {
-        const res = await fetch('/api/memory/suggest', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: note, thread_id: threadId }),
-        });
-        const j = await res.json().catch(() => null);
-        j?.suggestions?.forEach((m: any) => pushSuggestion(m));
-      } catch {}
+      if (enabled) {
+        try {
+          const res = await fetch('/api/memory/suggest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: note, thread_id: threadId }),
+          });
+          const j = await res.json().catch(() => null);
+          (j?.suggestions || []).forEach((s: any) => {
+            if (rememberThisThread && s.scope === 'thread') s.source = 'manual';
+            pushSuggestion(s);
+          });
+        } catch (err) {
+          console.error('Memory suggest failed', err);
+        }
+      }
     }
   }
 
