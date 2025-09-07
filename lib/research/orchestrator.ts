@@ -220,7 +220,7 @@ export async function orchestrateTrials(
     .concat(eupmc || [], crossref || [], openalex || [])
     .filter((p) => matchesGenes(p, f.genes));
 
-  return { trials, papers };
+  return { trials, papers: papers as TrialsResult["papers"] };
 }
 
 function genedQuery(q: string, genes?: string[]) {

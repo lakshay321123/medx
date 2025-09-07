@@ -22,7 +22,8 @@ export function buildTrialsTablePayload(r: TrialsResult, limit = 10) {
       status: t.extra?.status || "—",
       country: t.extra?.country || "—",
     })),
-    meta: { total: r.trials.length }
+    meta: { total: r.trials.length },
+    filters: undefined as ResearchFilters | undefined,
   };
 }
 

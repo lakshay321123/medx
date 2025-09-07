@@ -6,7 +6,16 @@ export default function ResearchFiltersBar({ visible, onApply }: { visible: bool
   return (
     <div className="mb-2 flex flex-wrap items-center gap-2">
       {/* Phase */}
-      <select className="border rounded px-2 py-1" value={filters.phase ?? ""} onChange={e => setFilters(f => ({...f, phase: e.target.value || undefined}))}>
+      <select
+        className="border rounded px-2 py-1"
+        value={filters.phase ?? ""}
+        onChange={e =>
+          setFilters((f) => ({
+            ...f,
+            phase: (e.target.value as "" | "1" | "2" | "3" | "4") || undefined,
+          }))
+        }
+      >
         <option value="">Any Phase</option><option value="1">Phase I</option><option value="2">Phase II</option><option value="3">Phase III</option><option value="4">Phase IV</option>
       </select>
       {/* Status */}

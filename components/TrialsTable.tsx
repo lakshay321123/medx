@@ -1,8 +1,14 @@
 import Markdown from "@/components/Markdown";
 
-export default function TrialsTable({ payload, markdownFallback }:{ payload:any; markdownFallback?:string }) {
+export default function TrialsTable({
+  payload,
+  markdownFallback,
+}: {
+  payload: any;
+  markdownFallback?: string;
+}) {
   const rows = payload?.rows ?? [];
-  if (!rows.length) return markdownFallback ? <Markdown>{markdownFallback}</Markdown> : null;
+  if (!rows.length) return markdownFallback ? <Markdown text={markdownFallback} /> : null;
   return (
     <div className="overflow-x-auto border rounded-xl">
       <table className="w-full text-sm">
