@@ -4,7 +4,8 @@ import { useSearchParams } from 'next/navigation';
 import Header from '../Header';
 import ChatMarkdown from '@/components/ChatMarkdown';
 import ResearchFilters from '@/components/ResearchFilters';
-import TrialsDock from "@/components/TrialsDock";
+import TrialsTable from "@/components/TrialsTable";
+import type { TrialRow } from "@/types/trials";
 import { useResearchFilters } from '@/store/researchFilters';
 import { Send, Paperclip } from 'lucide-react';
 import { useCountry } from '@/lib/country';
@@ -283,6 +284,14 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = externalInputRef ?? useRef<HTMLInputElement>(null);
   const { filters } = useResearchFilters();
+
+  const [trialRows, setTrialRows] = useState<TrialRow[]>([]);
+  const [searched, setSearched] = useState(false);
+
+  function handleTrials(rows: TrialRow[]) {
+    setTrialRows(rows);
+    setSearched(true);
+  }
 
   const params = useSearchParams();
   const threadId = params.get('threadId');
@@ -969,8 +978,15 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
       />
       {mode === "doctor" && researchMode && (
         <>
-          <ResearchFilters mode="research" />
-          <TrialsDock />
+          <ResearchFilters mode="research" onResults={handleTrials} />
+          <div className="my-3 px-4">
+            {searched && trialRows.length === 0 && (
+              <div className="text-gray-600 text-sm my-2">
+                No trials found. Try removing a filter, switching country, or using broader keywords.
+              </div>
+            )}
+            {trialRows.length > 0 && <TrialsTable rows={trialRows} />}
+          </div>
         </>
       )}
       <div

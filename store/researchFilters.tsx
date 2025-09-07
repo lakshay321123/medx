@@ -2,13 +2,14 @@
 import React, { createContext, useContext, useState } from 'react';
 
 export type ResearchFilters = {
+  query?: string; // ✅ NEW: main search input (keywords/condition)
   phase?: '1'|'2'|'3'|'4';
   status?: 'recruiting'|'active'|'completed'|'any';
-  countries?: string[];
-  genes?: string[];
+  countries?: string[];   // use plain names like "United States"
+  genes?: string[];       // comma->array
 };
 
-export const defaultFilters: ResearchFilters = { status: 'recruiting' };
+export const defaultFilters: ResearchFilters = { status: 'recruiting', countries: [] };
 
 type CtxType = {
   filters: ResearchFilters;

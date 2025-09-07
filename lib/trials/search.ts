@@ -1,7 +1,11 @@
 type Input = {
   query?: string;
   phase?: "1" | "2" | "3" | "4";
-  status?: "Recruiting" | "Completed";
+  status?:
+    | "Recruiting"
+    | "Completed"
+    | "Active, not recruiting"
+    | "Enrolling by invitation";
   country?: string;
   genes?: string[];
 };
@@ -13,7 +17,11 @@ export type Trial = {
   title: string;
   url: string;
   phase?: "1" | "2" | "3" | "4";
-  status?: "Recruiting" | "Completed";
+  status?:
+    | "Recruiting"
+    | "Completed"
+    | "Active, not recruiting"
+    | "Enrolling by invitation";
   country?: string;
   gene?: string;
 };
@@ -27,8 +35,17 @@ function normalizePhase(p: any): "1" | "2" | "3" | "4" | undefined {
   return undefined;
 }
 
-function normalizeStatus(s: any): "Recruiting" | "Completed" | undefined {
+function normalizeStatus(
+  s: any
+):
+  | "Recruiting"
+  | "Completed"
+  | "Active, not recruiting"
+  | "Enrolling by invitation"
+  | undefined {
   const status = String(s || "").toLowerCase();
+  if (status.includes("active")) return "Active, not recruiting";
+  if (status.includes("enrolling")) return "Enrolling by invitation";
   if (status.includes("recruit")) return "Recruiting";
   if (status.includes("complete")) return "Completed";
   return undefined;
