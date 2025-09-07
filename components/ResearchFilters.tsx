@@ -32,7 +32,9 @@ export default function ResearchFilters() {
   const [draft, setDraft] = useState(filters);
   const count = summaryCount(filters);
 
-  useEffect(() => { setDraft(filters); }, [filters]);
+  useEffect(() => {
+    setDraft(filters);
+  }, [filters]);
 
   function apply() {
     setFilters(draft);
@@ -51,41 +53,80 @@ export default function ResearchFilters() {
   return (
     <div className="border-b border-slate-200 dark:border-gray-800 px-4 py-2">
       <div className="flex flex-wrap gap-2 items-end text-sm">
-          <div className="flex items-center gap-1">
-            <span className="font-medium">Phase:</span>
-            <div className="flex border rounded overflow-hidden">
-              <button className={`px-2 py-1 ${!draft.phase?'bg-indigo-600 text-white':'bg-transparent'}`} onClick={()=>setDraft({...draft, phase: undefined})}>Any</button>
-              {phaseOptions.map(p=> (
-                <button key={p} className={`px-2 py-1 ${draft.phase===p?'bg-indigo-600 text-white':'bg-transparent'}`} onClick={()=>setDraft({...draft, phase:p})}> {p} </button>
-              ))}
-            </div>
+        <div className="flex items-center gap-1">
+          <span className="font-medium">Phase:</span>
+          <div className="flex border rounded overflow-hidden">
+            <button
+              className={`px-2 py-1 ${!draft.phase ? 'bg-indigo-600 text-white' : 'bg-transparent'}`}
+              onClick={() => setDraft({ ...draft, phase: undefined })}
+            >
+              Any
+            </button>
+            {phaseOptions.map((p) => (
+              <button
+                key={p}
+                className={`px-2 py-1 ${draft.phase === p ? 'bg-indigo-600 text-white' : 'bg-transparent'}`}
+                onClick={() => setDraft({ ...draft, phase: p })}
+              >
+                {p}
+              </button>
+            ))}
           </div>
-          <label className="flex items-center gap-1">
-            <span className="font-medium">Status:</span>
-            <select className="border rounded px-2 py-1" value={draft.status || 'recruiting'} onChange={e=>setDraft({...draft, status: e.target.value as any})}>
-              {statusOptions.map(o=> <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </label>
-          <div className="flex items-center gap-1">
-            <span className="font-medium">Country:</span>
-            <div className="flex flex-wrap gap-1">
-              {countryOptions.map(c=> (
-                <button key={c} type="button" className={`px-2 py-1 border rounded ${draft.countries?.includes(c)?'bg-indigo-600 text-white':'bg-transparent'}`} onClick={()=>toggleCountry(c)}>
-                  {c}
-                </button>
-              ))}
-            </div>
+        </div>
+
+        <label className="flex items-center gap-1">
+          <span className="font-medium">Status:</span>
+          <select
+            className="border rounded px-2 py-1"
+            value={draft.status || 'recruiting'}
+            onChange={(e) => setDraft({ ...draft, status: e.target.value as any })}
+          >
+            {statusOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="flex items-center gap-1">
+          <span className="font-medium">Country:</span>
+          <div className="flex flex-wrap gap-1">
+            {countryOptions.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className={`px-2 py-1 border rounded ${draft.countries?.includes(c) ? 'bg-indigo-600 text-white' : 'bg-transparent'}`}
+                onClick={() => toggleCountry(c)}
+              >
+                {c}
+              </button>
+            ))}
           </div>
-          <label className="flex items-center gap-1 flex-wrap">
-            <span className="font-medium">Genes:</span>
-            <input className="border rounded px-2 py-1" value={geneInput} placeholder="EGFR, ALK" onChange={e=>setDraft({...draft, genes: e.target.value.split(/\s*,\s*/).filter(Boolean)})} />
-          </label>
-          <div className="ml-auto flex items-center gap-2">
-            <button className="btn-secondary" onClick={doReset}>Clear</button>
-            <button className="btn-primary" onClick={apply}>Apply {count ? <span className="ml-1 rounded-full bg-indigo-600 text-white px-2">{count}</span> : null}</button>
-          </div>
+        </div>
+
+        <label className="flex items-center gap-1 flex-wrap">
+          <span className="font-medium">Genes:</span>
+          <input
+            className="border rounded px-2 py-1"
+            value={geneInput}
+            placeholder="EGFR, ALK"
+            onChange={(e) =>
+              setDraft({ ...draft, genes: e.target.value.split(/\s*,\s*/).filter(Boolean) })
+            }
+          />
+        </label>
+
+        <div className="ml-auto flex items-center gap-2">
+          <button className="btn-secondary" onClick={doReset}>
+            Clear
+          </button>
+          <button className="btn-primary" onClick={apply}>
+            Apply {count ? <span className="ml-1 rounded-full bg-indigo-600 text-white px-2">{count}</span> : null}
+          </button>
         </div>
       </div>
     </div>
   );
 }
+
