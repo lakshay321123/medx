@@ -11,8 +11,8 @@ export default function TopBar() {
         onKeyDown={(e) =>
           e.key === "Enter" &&
           document
-            .getElementById("trials-search-btn")?
-            .dispatchEvent(new Event("click", { bubbles: true }))
+            .getElementById("trials-search-btn")
+            ?.dispatchEvent(new Event("click", { bubbles: true }))
         }
         placeholder="Search trials (e.g., cancer, EGFR, melanoma)…"
         className="w-full rounded-lg border px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700"
