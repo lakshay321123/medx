@@ -24,7 +24,7 @@ export function sanitizeLLM(text: string): string {
 
   // Strip banned openers
   for (const bad of bannedOpeners) {
-    const rx = new RegExp("^" + bad.replace(/[.*+?^${}()|[\]\]/g, "\\$&"), "i");
+    const rx = new RegExp("^" + bad.replace(/[.*+?^${}()|\\[\\]\\\\]/g, "\\$&"), "i");
     t = t.replace(rx, "").trim();
   }
 
