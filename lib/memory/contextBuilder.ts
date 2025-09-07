@@ -34,10 +34,16 @@ export async function buildPromptContext(opts: {
   const system = [
     persona,
     researchLine,
-    "Never re-ask details already present in profile unless user says they changed.",
-    "If user asks to ‘remember’ something long-term, store it under profile memory.",
-    `Compact context summary:\n${thread.runningSummary || "(none)"}`,
-    profile ? `Known profile:\n${profile}` : "Known profile: (empty)",
+    "Profile memory (never re-ask unless updated by user):",
+    profile ? profile : "(none)",
+    "Compact summary of conversation so far:",
+    thread.runningSummary || "(none)",
+    "Rules:",
+    "- Do not ask for height/weight/age if already in profile.",
+    "- If user provides a new value, update profile memory immediately.",
+    "- Treat diet type (veg/non-veg) and goal (fat loss, muscle gain) as persistent until user changes them.",
+    "- Be conversational: reflect back understanding before answering.",
+    "- Take 3–4 seconds to respond, giving impression of thoughtful analysis."
   ].join("\n\n");
 
   return { system, recent };
