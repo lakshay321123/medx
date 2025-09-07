@@ -922,7 +922,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
           });
           if (res.ok) {
             const { suggestions } = await res.json();
-            suggestions.forEach((s: any) => {
+            (suggestions || []).forEach((s: any) => {
               if (rememberThisThread && s.scope === 'thread') s.source = 'manual';
               pushSuggestion(s);
             });
