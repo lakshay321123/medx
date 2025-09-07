@@ -1,25 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
-import { fetchTrials } from "@/lib/trials";
+import { NextResponse } from "next/server";
+import { normalizeTrial } from "@/lib/research/orchestrator";
 
-export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const condition = searchParams.get("condition") || "";
-    if (!condition) {
-      return NextResponse.json({ error: "condition is required" }, { status: 400 });
-    }
-    const country  = searchParams.get("country") || undefined;
-    const city     = searchParams.get("city") || undefined;
-    const status   = searchParams.get("status") || undefined; // "Recruiting,Enrolling by invitation"
-    const phase    = searchParams.get("phase") || undefined;  // "Phase 2,Phase 3"
-    const page     = Number(searchParams.get("page") || "1");
-    const pageSize = Math.min(50, Math.max(5, Number(searchParams.get("pageSize") || "25")));
-    const min = (page - 1) * pageSize + 1;
-    const max = page * pageSize;
+// In real usage, call your search backend / third-party here
+async function fetchTrialsMock(q: { condition: string; keywords?: string }) {
+  const seed = [
+    { id: "NCT-001", title: `${q.condition} EGFR Inhibitor Study`, phase: "Phase III", status: "Recruiting", country: "India", gene: "EGFR", url: "https://clinicaltrials.gov/ct2/show/NCT00000001" },
+    { id: "NCT-002", title: `${q.condition} ALK Fusion Trial`,        phase: "Phase II",  status: "Completed",  country: "USA",   gene: "ALK",  url: "https://clinicaltrials.gov/ct2/show/NCT00000002" },
+    { id: "NCT-003", title: `${q.condition} KRAS G12C Combo`,         phase: "Phase III", status: "Recruiting", country: "EU",    gene: "KRAS", url: "https://clinicaltrials.gov/ct2/show/NCT00000003" },
+  ];
+  return seed.map(normalizeTrial);
+}
 
-    const rows = await fetchTrials({ condition, country, city, status, phase, min, max });
-    return NextResponse.json({ rows, page, pageSize });
-  } catch (e) {
-    return NextResponse.json({ error: "upstream error" }, { status: 502 });
-  }
+export async function POST(req: Request) {
+  const body = await req.json();
+  const trials = await fetchTrialsMock({ condition: body.condition, keywords: body.keywords });
+  return NextResponse.json({ ok: true, trials });
 }

@@ -5,7 +5,8 @@ import MedicalProfile from "@/components/panels/MedicalProfile";
 import Timeline from "@/components/panels/Timeline";
 import AlertsPane from "@/components/panels/AlertsPane";
 import SettingsPane from "@/components/panels/SettingsPane";
-import { ResearchFiltersProvider } from '@/store/researchFilters';
+import { AppModeProvider } from "@/store/appMode";
+import { ResearchToggleProvider } from "@/store/researchToggle";
 
 type Search = { panel?: string; threadId?: string };
 
@@ -22,9 +23,11 @@ export default function Page({ searchParams }: { searchParams: Search }) {
   return (
     <>
       <section className={panel === "chat" ? "block h-full" : "hidden"}>
-        <ResearchFiltersProvider>
-          <ChatPane inputRef={chatInputRef} />
-        </ResearchFiltersProvider>
+        <AppModeProvider>
+          <ResearchToggleProvider>
+            <ChatPane inputRef={chatInputRef} />
+          </ResearchToggleProvider>
+        </AppModeProvider>
       </section>
 
       <section className={panel === "profile" ? "block" : "hidden"}>

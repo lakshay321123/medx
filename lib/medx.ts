@@ -2,7 +2,6 @@ import { MedxResponseSchema, type MedxResponse } from "@/schemas/medx";
 import { normalizeTopic } from "@/lib/topic/normalize";
 import { searchTrials } from "@/lib/trials/search";
 import { splitFollowUps } from "./splitFollowUps";
-import { orchestrateResearch } from "@/lib/research/orchestrator";
 
 export { splitFollowUps };
 
@@ -48,15 +47,7 @@ export async function v2Generate(body: any): Promise<MedxResponse> {
     trials = await searchTrials(topic);
   }
 
-  const query = body.text || body.condition || "";
-  let researchPacket: any = null;
-  const shouldResearch = body.mode === "research" || process.env.RESEARCH_ALWAYS_ON === "true";
-  if (shouldResearch) {
-    researchPacket = await orchestrateResearch(query, { mode: body.mode, filters: body.filters });
-  }
-
-  const citations = researchPacket?.citations?.slice(0, 8).map((c: any) => `- ${c.title} (${c.url})`).join("\n");
-  const sys = buildSystemPrompt({ mode: body.mode, citations, topic: topic.canonical });
+  const sys = buildSystemPrompt({ mode: body.mode, topic: topic.canonical });
   const userPayload = { ...body, topic: topic.canonical, synonyms: topic.synonyms, trials };
   const messages = [
     { role: "system", content: sys },
@@ -82,7 +73,7 @@ export async function v2Generate(body: any): Promise<MedxResponse> {
     out = MedxResponseSchema.safeParse(fixedParsed);
     if (!out.success) throw new Error("Schema validation failed");
   }
-  return { ...(out.data as any), citations: researchPacket?.citations || [] };
+  return { ...(out.data as any), citations: [] };
 }
 
 function buildSystemPrompt({ mode, citations, topic }: { mode: string; citations?: string; topic: string }) {
@@ -112,4 +103,3 @@ export function shortSummary(x: MedxResponse): string {
     : "";
   return `${x.condition}: ${x.what_it_is}.${kf}`;
 }
-

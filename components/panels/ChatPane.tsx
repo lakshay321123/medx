@@ -3,8 +3,6 @@ import { useEffect, useRef, useState, RefObject, Fragment } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Header from '../Header';
 import Markdown from '../Markdown';
-import ResearchFilters from '@/components/ResearchFilters';
-import { useResearchFilters } from '@/store/researchFilters';
 import { Send } from 'lucide-react';
 import { useCountry } from '@/lib/country';
 import { getRandomWelcome } from '@/lib/welcomeMessages';
@@ -13,9 +11,10 @@ import { isFollowUp } from '@/lib/followup';
 import { detectFollowupIntent } from '@/lib/intents';
 import { safeJson } from '@/lib/safeJson';
 import { splitFollowUps } from '@/lib/splitFollowUps';
-import { getTrials } from "@/lib/hooks/useTrials";
-import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials";
 import FeedbackBar from "@/components/FeedbackBar";
+import TrialsDock from "@/components/TrialsDock";
+import { useAppMode } from "@/store/appMode";
+import { useResearchToggle } from "@/store/researchToggle";
 import type { ChatMessage as BaseChatMessage } from "@/types/chat";
 import type { AnalysisCategory } from '@/lib/context';
 import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle } from '@/lib/chatThreads';
@@ -278,21 +277,20 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [note, setNote] = useState('');
   const [proactive, setProactive] = useState<null | { kind: 'predispositions'|'medications'|'weight' }>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [mode, setMode] = useState<'patient'|'doctor'>('patient');
+  const { mode, setMode } = useAppMode();
   const [busy, setBusy] = useState(false);
-  const [researchMode, setResearchMode] = useState(false);
+  const { researchOn, setResearchOn } = useResearchToggle();
   const [therapyMode, setTherapyMode] = useState(false);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = externalInputRef ?? useRef<HTMLInputElement>(null);
-  const { filters } = useResearchFilters();
 
   const params = useSearchParams();
   const threadId = params.get('threadId');
   const context = params.get('context');
   const isProfileThread = threadId === 'med-profile' || context === 'profile';
   const conversationId = threadId || (isProfileThread ? 'med-profile' : 'unknown');
-  const currentMode: 'patient'|'doctor'|'research'|'therapy' = therapyMode ? 'therapy' : (researchMode ? 'research' : mode);
+  const currentMode: 'patient'|'doctor'|'research'|'therapy' = therapyMode ? 'therapy' : (researchOn ? 'research' : mode);
   const [pendingCommitIds, setPendingCommitIds] = useState<string[]>([]);
   const [commitBusy, setCommitBusy] = useState<null | 'save' | 'discard'>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
@@ -453,7 +451,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, [therapyMode]);
 
 
-  async function send(text: string, researchMode: boolean) {
+  async function send(text: string, researchOn: boolean) {
     if (!text.trim() || busy) return;
     setBusy(true);
 
@@ -612,38 +610,7 @@ ${linkNudge}`;
           intent === 'hospitals'
             ? buildHospitalsPrompt(ui.topic, country)
             : intent === 'trials'
-            ? await (async () => {
-                // 1) fetch real trials
-                const { rows } = await getTrials({
-                  condition: ui.topic!,
-                  country: country.name, // ClinicalTrials.gov expects country name
-                  status: "Recruiting,Enrolling by invitation",
-                  phase: "Phase 2,Phase 3",
-                  page: 1,
-                  pageSize: 10,
-                });
-
-                // 2) if none found, fall back to the old high-level summary
-                if (!rows.length) return buildTrialsPrompt(ui.topic!, country);
-
-                // 3) build a structured summarization prompt using the rows
-                const content =
-                  mode === "patient"
-                    ? patientTrialsPrompt(rows, ui.topic!)
-                    : clinicianTrialsPrompt(rows, ui.topic!);
-
-                // 4) Instruct the LLM to produce a concrete list with NCT IDs + links
-                return [
-                  {
-                    role: "system",
-                    content:
-`You are MedX. Turn the provided "Data" JSON into a concise, accurate list of active clinical trials.
-For each item: {Title — NCT ID — Phase — Status — Where (City, Country) — What/Primary outcome — Link}.
-Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End with one short follow-up question.`
-                  },
-                  { role: "user", content }
-                ];
-              })()
+            ? buildTrialsPrompt(ui.topic!, country)
             : buildMedicinesPrompt(ui.topic, country);
       } else if (follow && ctx) {
         const system = `\nYou are MedX. This is a FOLLOW-UP question. Use the ACTIVE CONTEXT below; do not reset topic unless user asks.\n${topicHint}ACTIVE CONTEXT TITLE: ${ctx.title}\nACTIVE CONTEXT SUMMARY:\n${ctx.summary}\n\nWhen the user asks for latest/clinical trials/guidelines, stay on the same topic/entities: ${ctx.entities?.join(', ') || 'n/a'}.\n${systemCommon}` + baseSys;
@@ -657,7 +624,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
           fetch('/api/medx', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: text, mode, researchMode, filters })
+            body: JSON.stringify({ query: text, mode, researchMode: researchOn })
           })
         );
 
@@ -883,7 +850,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
     if (pendingFile) {
       await analyzeFile(pendingFile, note);
     } else {
-      await send(note, researchMode);
+      await send(note, researchOn);
     }
   }
 
@@ -943,7 +910,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
   }
 
   function handleFollowUpClick(text: string) {
-    send(text, researchMode);
+    send(text, researchOn);
   }
 
   return (
@@ -951,11 +918,13 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
       <Header
         mode={mode}
         onModeChange={setMode}
-        researchOn={researchMode}
-        onResearchChange={setResearchMode}
+        researchOn={researchOn}
+        onResearchChange={setResearchOn}
         onTherapyChange={setTherapyMode}
       />
-      <ResearchFilters mode={currentMode} />
+      {mode === "doctor" && researchOn && (
+        <TrialsDock />
+      )}
       <div
         ref={chatRef}
         className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 pb-28"
@@ -991,7 +960,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
               <Fragment key={m.id}>
                 <AssistantMessage
                   m={m}
-                  researchOn={researchMode}
+                  researchOn={researchOn}
                   onQuickAction={onQuickAction}
                   busy={loadingAction !== null}
                   therapyMode={therapyMode}
