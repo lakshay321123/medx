@@ -45,7 +45,7 @@ export async function v2Generate(body: any): Promise<MedxResponse> {
   const topic = normalizeTopic(body.condition || "");
   let trials: any[] = [];
   if (body.mode === "research") {
-    trials = await searchTrials(topic);
+    trials = await searchTrials({ query: topic.canonical });
   }
 
   const query = body.text || body.condition || "";
