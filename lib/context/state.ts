@@ -1,11 +1,11 @@
 export type ConversationState = {
-  topic?: string;
-  intents: string[];
-  facts: Record<string, string>;
-  preferences: Record<string, string>;
-  decisions: string[];
-  open_questions: string[];
-  last_updated_iso: string;
+  topic?: string;                     // short label for active topic (e.g., "fitness/abs", "ui/palette")
+  intents: string[];                  // ordered, most-recent first
+  facts: Record<string, string>;      // normalized facts (height: "178 cm", weight: "80 kg")
+  preferences: Record<string, string>; // e.g., diet: "non-veg", tone: "concise"
+  decisions: string[];                // choices made ("Use blue palette")
+  open_questions: string[];           // pending clarifications
+  last_updated_iso: string;           // ISO timestamp
 };
 
 export const EMPTY_STATE: ConversationState = {
