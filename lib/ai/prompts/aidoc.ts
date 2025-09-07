@@ -1,4 +1,4 @@
-export function buildAiDocSystem({ profile, labs, meds, conditions, mem }: { profile: any; labs: any[]; meds: any[]; conditions: any[]; mem: any }) {
+export function buildAiDocPrompt({ profile, labs, meds, conditions }:{ profile:any; labs:any[]; meds:any[]; conditions:any[] }) {
   const now = Date.now();
   const recentLabs = labs.filter(l => now - new Date(l.takenAt).getTime() <= 90 * 24 * 60 * 60 * 1000);
   const active = (conditions || []).filter((c: any) => c.status === "active").map((c: any) => c.label);
@@ -15,7 +15,5 @@ export function buildAiDocSystem({ profile, labs, meds, conditions, mem }: { pro
     `Active conditions: ${active.join(", ") || "none"}`,
     `Meds: ${(meds || []).map((m: any) => m.name + (m.dose ? ` ${m.dose}` : "")).join(", ") || "none"}`,
     `Recent labs (≤90d): ${recentLabs.map(l => `${l.name} ${l.value ?? ""}${l.unit ?? ""} (${new Date(l.takenAt).toISOString().slice(0, 10)})`).join("; ") || "none"}`,
-    `Known preferences: ${mem.prefs?.map((p: any) => `${p.key}=${p.value}`).join(", ") || "none"}`,
   ].join("\n");
 }
-

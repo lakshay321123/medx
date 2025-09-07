@@ -1,18 +1,24 @@
 import { prisma } from "@/lib/prisma";
 
-type Scope = "aidoc.pref" | "aidoc.fact" | "aidoc.redflag" | "aidoc.embedding";
+export type MemScope =
+  | "aidoc.pref"      // user preferences (pill_form, test_time, diet_type, budget)
+  | "aidoc.fact"      // durable factual nuggets (statin intolerance, prior MI, etc.)
+  | "aidoc.redflag"   // safety notes (e.g., chest pain at rest -> ER)
+  | "aidoc.goal";     // longitudinal goals (e.g., LDL < 100 by 12 weeks)
 
-export async function getAiDocMem(threadId: string) {
+export async function getMemByThread(threadId: string) {
+  if (!threadId) return { prefs:[], facts:[], redflags:[], goals:[] };
   const rows = await prisma.memory.findMany({ where: { threadId } });
-  const byScope = (s: Scope) => rows.filter(r => r.scope === s);
+  const pick = (scope: MemScope) => rows.filter(r => r.scope === scope).map(r => ({ key: r.key, value: r.value }));
   return {
-    prefs: byScope("aidoc.pref").map(r => ({ key: r.key, value: r.value })),
-    facts: byScope("aidoc.fact").map(r => ({ key: r.key, value: r.value })),
-    redflags: byScope("aidoc.redflag").map(r => ({ key: r.key, value: r.value })),
+    prefs: pick("aidoc.pref"),
+    facts: pick("aidoc.fact"),
+    redflags: pick("aidoc.redflag"),
+    goals: pick("aidoc.goal"),
   };
 }
 
-export async function upsertMem(threadId: string, scope: Scope, key: string, value: string) {
+export async function upsertMem(threadId: string, scope: MemScope, key: string, value: string) {
   await prisma.memory.upsert({
     where: { threadId_scope_key: { threadId, scope, key } },
     update: { value },
@@ -20,3 +26,7 @@ export async function upsertMem(threadId: string, scope: Scope, key: string, val
   });
 }
 
+export function memLookup(mem: {prefs:any[]}, key: string) {
+  const hit = (mem?.prefs||[]).find((p:any)=>p.key===key);
+  return hit?.value ?? null;
+}
