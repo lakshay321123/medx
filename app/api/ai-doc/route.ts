@@ -12,7 +12,7 @@ import { runRules } from "@/lib/aidoc/rules";
 import { buildPersonalPlan } from "@/lib/aidoc/planner";
 
 export async function POST(req: NextRequest) {
-  const userId = await getUserId(req);
+  const userId = await getUserId();
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { threadId, message } = await req.json();
   if (!message) return NextResponse.json({ error: "no message" }, { status: 400 });
