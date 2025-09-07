@@ -1,3 +1,12 @@
+export type ConstraintLedger = {
+  include: string[];          // things the user asked to add or use
+  exclude: string[];          // things the user asked to avoid or remove
+  substitutions: Array<{      // “use B instead of A”
+    from: string;
+    to: string;
+  }>;
+};
+
 export type ConversationState = {
   topic?: string;                     // short label for active topic (e.g., "fitness/abs", "ui/palette")
   intents: string[];                  // ordered, most-recent first
@@ -5,6 +14,7 @@ export type ConversationState = {
   preferences: Record<string, string>; // e.g., diet: "non-veg", tone: "concise"
   decisions: string[];                // choices made ("Use blue palette")
   open_questions: string[];           // pending clarifications
+  constraints?: ConstraintLedger;
   last_updated_iso: string;           // ISO timestamp
 };
 

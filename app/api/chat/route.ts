@@ -10,9 +10,11 @@ import { loadState, saveState } from "@/lib/context/stateStore";
 import { extractContext, mergeInto } from "@/lib/context/extractLLM";
 import { applyContradictions } from "@/lib/context/updates";
 import { loadTopicStack, pushTopic, saveTopicStack, switchTo } from "@/lib/context/topicStack";
+import { parseConstraintsFromText, mergeLedger } from "@/lib/context/constraints";
 import { callGroq } from "@/lib/llm/groq";
 import type { ChatCompletionMessageParam } from "@/lib/llm/types";
 import { polishText } from "@/lib/text/polish";
+import { buildConstraintRecap } from "@/lib/text/recap";
 
 export async function POST(req: Request) {
   const { userId, activeThreadId, text, mode, researchOn, clarifySelectId } = await req.json();
@@ -46,13 +48,18 @@ export async function POST(req: Request) {
   // 2) Save user message (+embedding via appendMessage)
   await appendMessage({ threadId, role: "user", content: text });
 
-  // 3) Load & update state (contradictions + extraction)
+  // 3) Update state (contradictions + heuristics extraction; no OpenAI required)
   let state = await loadState(threadId);
   const { state: withContradictions } = applyContradictions(state, text);
   state = withContradictions;
 
-  const ext = await extractContext(text);        // LLM if available, else heuristics
+  const ext = await extractContext(text);
   state = mergeInto(state, ext);
+
+  // NEW: parse constraint deltas from this user turn
+  const delta = parseConstraintsFromText(text);
+  state.constraints = mergeLedger(state.constraints, delta);
+
   await saveState(threadId, state);
 
   // 4) Build system + recent messages
@@ -66,8 +73,10 @@ export async function POST(req: Request) {
   ];
   let assistant = await callGroq(messages, { temperature: 0.2, max_tokens: 1200 });
 
-  // 6) Polish output for tone/typos/format
+  // 6) Polish and append recap (if any constraints present)
   assistant = polishText(assistant);
+  const recap = buildConstraintRecap(state.constraints);
+  if (recap) assistant += recap;
 
   // 7) Save assistant + summary
   await appendMessage({ threadId, role: "assistant", content: assistant });
@@ -75,7 +84,7 @@ export async function POST(req: Request) {
   await persistUpdatedSummary(threadId, updated);
 
   // 8) Optional natural pacing (2–4s)
-  await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
+  await new Promise(r => setTimeout(r, 1800 + Math.random() * 1200));
 
   return NextResponse.json({ ok: true, threadId, text: assistant });
 }

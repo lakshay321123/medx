@@ -30,6 +30,9 @@ export async function buildPromptContext({
     "Conversation state (JSON):",
     JSON.stringify(convState, null, 2),
 
+    "Constraint ledger (must be respected):",
+    JSON.stringify(convState?.constraints ?? {}, null, 2),
+
     "Mode flags:",
     JSON.stringify({ mode: options.mode, researchOn: options.researchOn }),
   ].join("\n\n");

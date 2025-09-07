@@ -15,6 +15,8 @@ export function buildSystemPrompt({
     "Context rules:",
     "- Respect and carry forward stored facts, preferences, and decisions.",
     "- Do not contradict previously established context unless the user updates it.",
+    "- Honour the constraint ledger strictly: required inclusions, exclusions, and substitutions.",
+    "- If a new user message contradicts the ledger, ask a one-line confirm and then apply the update.",
     "- If user changes topic abruptly, continue only after a brief confirm or clarify.",
     "- For health advice: provide general guidance and safety notes; not a substitute for a clinician.",
 
