@@ -18,11 +18,12 @@ export async function appendMessage(opts: {
 }
 
 export async function getRecentMessages(threadId: string, limit = 10) {
-  return prisma.message.findMany({
+  const recent = await prisma.message.findMany({
     where: { threadId },
-    orderBy: { createdAt: "asc" },
-    take: limit * -1, // last N (Prisma workaround: fetch all and slice if needed)
+    orderBy: { createdAt: "desc" },
+    take: limit,
   });
+  return recent.reverse();
 }
 
 export async function getThread(threadId: string) {
