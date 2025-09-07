@@ -22,6 +22,7 @@ import type { ChatMessage as BaseChatMessage } from "@/types/chat";
 import type { AnalysisCategory } from '@/lib/context';
 import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle } from '@/lib/chatThreads';
 import { useMemoryStore } from "@/lib/memory/useMemoryStore";
+import { summarizeTrials } from "@/lib/research/summarizeTrials";
 
 type ChatUiState = {
   topic: string | null;
@@ -288,11 +289,16 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const [trialRows, setTrialRows] = useState<TrialRow[]>([]);
   const [searched, setSearched] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
   const pushSuggestion = useMemoryStore(s => s.pushSuggestion);
 
   function handleTrials(rows: TrialRow[]) {
     setTrialRows(rows);
     setSearched(true);
+
+    // summarize trials for quick overview
+    const s = summarizeTrials(rows as any, mode === "doctor" ? "doctor" : "patient");
+    setSummary(s);
   }
 
   const params = useSearchParams();
@@ -994,6 +1000,11 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
             {searched && trialRows.length === 0 && (
               <div className="text-gray-600 text-sm my-2">
                 No trials found. Try removing a filter, switching country, or using broader keywords.
+              </div>
+            )}
+            {summary && (
+              <div className="my-2 text-sm p-3 rounded bg-slate-50 dark:bg-slate-800 border dark:border-slate-700">
+                {summary}
               </div>
             )}
             {trialRows.length > 0 && <TrialsTable rows={trialRows} />}
