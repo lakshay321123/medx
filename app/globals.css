@@ -72,3 +72,12 @@
   background: #dbe9ff;
   color: #0b3d91;
 }
+
+.prose table {
+  @apply w-full border-collapse border border-gray-300 text-chat-sm;
+}
+.prose th,
+.prose td {
+  @apply border border-gray-300 px-2 py-1;
+}
+
