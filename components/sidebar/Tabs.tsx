@@ -62,11 +62,18 @@ function NavLink({
 }
 
 export default function Tabs() {
+  // preserve current threadId when navigating back to Chat
+  const params = useSearchParams();
+  const currentThreadId = params.get("threadId") || undefined;
   return (
     <ul className="mt-3 space-y-1">
       {tabs.map((t) => (
         <li key={t.key}>
-          <NavLink panel={t.panel} threadId={t.threadId} context={t.context}>
+          <NavLink
+            panel={t.panel}
+            threadId={t.key === "chat" ? (t.threadId ?? currentThreadId) : t.threadId}
+            context={t.context}
+          >
             {t.label}
           </NavLink>
         </li>
