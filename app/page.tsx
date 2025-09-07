@@ -20,7 +20,7 @@ export default function Page({ searchParams }: { searchParams: Search }) {
   }, []);
 
   return (
-    <>
+    <main className="flex-1 overflow-y-auto content-layer">
       <section className={panel === "chat" ? "block h-full" : "hidden"}>
         <ResearchFiltersProvider>
           <ChatPane inputRef={chatInputRef} />
@@ -42,6 +42,6 @@ export default function Page({ searchParams }: { searchParams: Search }) {
       <section className={panel === "settings" ? "block" : "hidden"}>
         <SettingsPane />
       </section>
-    </>
+    </main>
   );
 }

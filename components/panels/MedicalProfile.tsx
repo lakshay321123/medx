@@ -129,7 +129,7 @@ export default function MedicalProfile() {
   };
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4 relative z-0">
       <section className="rounded-xl border p-4">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">Patient Info</h2>
@@ -194,6 +194,9 @@ export default function MedicalProfile() {
                   if (!r.ok) throw new Error(await r.text());
                   await loadProfile();
                   await loadSummary(); // ensure visible summary reflects just-saved arrays
+                  if (typeof window !== "undefined") {
+                    window.dispatchEvent(new Event("profile-updated"));
+                  }
                 } catch (e: any) {
                   alert(e.message || "Save failed");
                 } finally {
