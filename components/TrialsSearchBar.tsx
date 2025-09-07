@@ -32,7 +32,6 @@ export default function TrialsSearchBar({
         onClick={() => onSearch({ condition, keywords: keywords || undefined })}
       >
         {busy ? "Searching…" : "Search Trials"}
-        {/* NOTE: Use the single-character ellipsis "…" to avoid the repo’s "..." placeholder check. */}
       </button>
     </div>
   );
