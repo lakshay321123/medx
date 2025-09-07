@@ -11,13 +11,15 @@ const statusLabels = [
   { key: 'any', api: undefined, label: 'Any' },
 ] as const;
 
+// Add China, keep Worldwide (treated as no filter)
 const countryOptions = [
   'United States',
   'India',
   'European Union',
   'United Kingdom',
   'Japan',
-  'Worldwide',
+  'China',        // NEW
+  'Worldwide',    // special: mapped to no filter
 ] as const;
 
 function mapStatusKeyToApi(key?: string) {
@@ -48,11 +50,12 @@ export default function ResearchFilters({ mode, onResults }: Props) {
   const togglePhase = (p: string) =>
     setLocal(s => ({ ...s, phase: s.phase === p ? '' : p }));
 
+  // Single-select country (clean & predictable)
   const toggleCountry = (name: string) =>
-    setLocal(s => {
-      const has = s.countries.includes(name);
-      return { ...s, countries: has ? s.countries.filter(c => c !== name) : [...s.countries, name] };
-    });
+    setLocal(s => ({
+      ...s,
+      countries: s.countries.includes(name) ? [] : [name],
+    }));
 
   function applyLocalToStore() {
     setFilters({
@@ -68,16 +71,14 @@ export default function ResearchFilters({ mode, onResults }: Props) {
     setBusy(true);
     setError(null);
     try {
+      // Build payload (Worldwide -> undefined)
+      const country = local.countries[0];
       const payload = {
         query: local.query.trim() || undefined,
         phase: (local.phase || undefined) as "1"|"2"|"3"|"4"|undefined,
         status: mapStatusKeyToApi(local.status),
-        // single country for now: take first selected if any
-        country: local.countries[0] || undefined,
-        genes: local.genes
-          .split(',')
-          .map(s => s.trim())
-          .filter(Boolean),
+        country: country === 'Worldwide' ? undefined : country,
+        genes: local.genes.split(',').map(s => s.trim()).filter(Boolean),
       };
 
       const res = await fetch('/api/trials/search', {
@@ -148,7 +149,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
               'bg-white dark:bg-slate-800 dark:border-slate-700'
             }`}
           >
-            {p}
+            Phase {p}
           </button>
         ))}
       </div>

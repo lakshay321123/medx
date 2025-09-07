@@ -6,12 +6,11 @@ type Input = {
     | "Completed"
     | "Active, not recruiting"
     | "Enrolling by invitation";
-  country?: string;
-  genes?: string[];
+  country?: string; // use plain names like "United States", "India", "China"
+  genes?: string[]; // e.g., ["EGFR","ALK"]
 };
 
-import { Topic } from "@/lib/topic/normalize";
-
+// Public shape used by UI table
 export type Trial = {
   id: string;
   title: string;
@@ -26,35 +25,78 @@ export type Trial = {
   gene?: string;
 };
 
-function normalizePhase(p: any): "1" | "2" | "3" | "4" | undefined {
-  const phase = String(p || "").toLowerCase();
-  if (phase.includes("1")) return "1";
-  if (phase.includes("2")) return "2";
-  if (phase.includes("3")) return "3";
-  if (phase.includes("4")) return "4";
+// --- helpers ---------------------------------------------------
+
+function normalizePhase(raw?: string): "1" | "2" | "3" | "4" | undefined {
+  if (!raw) return undefined;
+  const s = String(raw).toLowerCase();
+  if (s.includes("phase 1")) return "1";
+  if (s.includes("phase 2")) return "2";
+  if (s.includes("phase 3")) return "3";
+  if (s.includes("phase 4")) return "4";
+  if (s === "1" || s === "2" || s === "3" || s === "4") return s as any;
   return undefined;
 }
 
-function normalizeStatus(
-  s: any
-):
+function normalizeStatus(raw?: string):
   | "Recruiting"
   | "Completed"
   | "Active, not recruiting"
   | "Enrolling by invitation"
   | undefined {
-  const status = String(s || "").toLowerCase();
-  if (status.includes("active")) return "Active, not recruiting";
-  if (status.includes("enrolling")) return "Enrolling by invitation";
-  if (status.includes("recruit")) return "Recruiting";
-  if (status.includes("complete")) return "Completed";
+  if (!raw) return undefined;
+  const s = String(raw).toLowerCase();
+  if (s.startsWith("recruit")) return "Recruiting";
+  if (s.startsWith("complete")) return "Completed";
+  if (s.startsWith("active")) return "Active, not recruiting";
+  if (s.startsWith("enrolling")) return "Enrolling by invitation";
+  // fall through: keep original capitalisation if it already matches
+  if (
+    raw === "Recruiting" ||
+    raw === "Completed" ||
+    raw === "Active, not recruiting" ||
+    raw === "Enrolling by invitation"
+  )
+    return raw as any;
   return undefined;
 }
 
-export async function searchTrials(input: Input): Promise<Trial[]> {
-  const results = await clinicalTrialsGovSearch(input);
+function containsAny(haystack: string, needles: string[]): boolean {
+  const h = haystack.toLowerCase();
+  return needles.some((n) => h.includes(n.toLowerCase()));
+}
 
-  return results.map((r: any) => ({
+// --- external --------------------------------------------------
+
+export async function searchTrials(input: Input): Promise<Trial[]> {
+  // 1) Fetch broadly (query + genes words only), then 2) filter locally for correctness.
+  const results = await clinicalTrialsGovFetch({
+    query: input.query,
+    genes: input.genes,
+  });
+
+  const wantPhase = input.phase;
+  const wantStatus = input.status;
+  const wantCountry = input.country?.toLowerCase();
+  const wantGenes = (input.genes || []).map((g) => g.trim()).filter(Boolean);
+
+  const filtered = results.filter((r: any) => {
+    const p = normalizePhase(r.phase);
+    const st = normalizeStatus(r.status);
+    const ctry = (r.country || "").toLowerCase();
+    const title = r.title || "";
+
+    if (wantPhase && p !== wantPhase) return false;
+    if (wantStatus && st !== wantStatus) return false;
+    if (wantCountry && ctry && ctry !== wantCountry) return false;
+
+    // If genes were requested, require that at least one appears in the title (fallback).
+    if (wantGenes.length && !containsAny(title, wantGenes)) return false;
+
+    return true;
+  });
+
+  return filtered.map((r: any) => ({
     id: r.nctId || r.id,
     title: r.title,
     url: r.url,
@@ -65,29 +107,16 @@ export async function searchTrials(input: Input): Promise<Trial[]> {
   }));
 }
 
-export function scoreTrialRelevance(t: Trial, topic: Topic): number {
-  const title = (t.title || "").toLowerCase();
-  let s = 0;
-  if (title.includes(topic.canonical)) s += 2;
-  if (topic.synonyms.some((k) => title.includes(k.toLowerCase()))) s += 2;
-  if (topic.anatomy && title.includes(topic.anatomy)) s += 1;
-  if (topic.excludes.some((re) => re.test(title))) s -= 2;
-  return s;
-}
+// --- underlying fetch using CT.gov v2 --------------------------
 
-export function filterTrials(trials: Trial[], topic: Topic): Trial[] {
-  return trials.filter((t) => scoreTrialRelevance(t, topic) >= 2);
-}
-
-async function clinicalTrialsGovSearch(input: Input): Promise<any[]> {
+async function clinicalTrialsGovFetch(input: {
+  query?: string;
+  genes?: string[];
+}): Promise<any[]> {
   const terms: string[] = [];
   if (input.query) terms.push(input.query);
   if (input.genes?.length) terms.push(input.genes.join(" "));
-  if (input.country) terms.push(`location:${input.country}`);
-  if (input.phase) terms.push(`phase:${input.phase}`);
-  if (input.status) terms.push(`status:${input.status}`);
-
-  const q = encodeURIComponent(terms.join(" "));
+  const q = encodeURIComponent(terms.join(" ").trim());
 
   const url = `https://clinicaltrials.gov/api/v2/studies?format=json&query.term=${q}&pageSize=25`;
   const res = await fetch(url, { next: { revalidate: 3600 } });
@@ -99,16 +128,15 @@ async function clinicalTrialsGovSearch(input: Input): Promise<any[]> {
 
   const data = await res.json();
 
-  const items = (data?.studies || []).map((s: any) => ({
+  // Map to a consistent shape (raw values preserved for normalization above)
+  return (data?.studies || []).map((s: any) => ({
     id: s.protocolSection?.identificationModule?.nctId,
     title: s.protocolSection?.identificationModule?.briefTitle,
     url: `https://clinicaltrials.gov/study/${s.protocolSection?.identificationModule?.nctId}`,
-    phase: s.protocolSection?.designModule?.phases?.[0],
-    status: s.protocolSection?.statusModule?.overallStatus,
-    country: s.protocolSection?.contactsLocationsModule?.locations?.[0]?.country,
+    phase: s.protocolSection?.designModule?.phases?.[0], // e.g., "Phase 2"
+    status: s.protocolSection?.statusModule?.overallStatus, // e.g., "Recruiting"
+    country: s.protocolSection?.contactsLocationsModule?.locations?.[0]?.country, // best-effort
     gene: undefined,
   }));
-
-  return items;
 }
 
