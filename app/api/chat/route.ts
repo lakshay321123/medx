@@ -22,6 +22,13 @@ import { addEvidenceAnchorIfMedical } from "@/lib/text/medicalAnchor";
 import { shouldReset } from "@/lib/conversation/resetGuard";
 import { sanitizeLLM } from "@/lib/conversation/sanitize";
 import { finalReplyGuard } from "@/lib/conversation/finalReplyGuard";
+import { disambiguate } from "@/lib/conversation/disambiguation";
+
+function contextStringFrom(messages: ChatCompletionMessageParam[]): string {
+  return messages
+    .map((m) => (typeof m.content === "string" ? m.content : ""))
+    .join(" ");
+}
 
 export async function POST(req: Request) {
   const { userId, activeThreadId, text, mode, researchOn, clarifySelectId } = await req.json();
@@ -99,6 +106,10 @@ export async function POST(req: Request) {
     ...recent.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
     { role: "user", content: text },
   ];
+  const clarifier = disambiguate(text, contextStringFrom(messages));
+  if (clarifier) {
+    return NextResponse.json({ ok: true, threadId, text: clarifier });
+  }
   let assistant = await callGroq(messages, { temperature: 0.25, max_tokens: 1200 });
 
   // 6) Polish and append recap (if any constraints present)
