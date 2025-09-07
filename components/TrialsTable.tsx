@@ -4,7 +4,7 @@ export default function TrialsTable({ payload, markdownFallback }:{ payload:any;
   const rows = payload?.rows ?? [];
   if (!rows.length) {
     return markdownFallback
-      ? <Markdown>{markdownFallback}</Markdown>
+      ? <Markdown text={markdownFallback} />
       : <div className="text-sm text-gray-500">No trials found. Try broadening phase, status, or country.</div>;
   }
 

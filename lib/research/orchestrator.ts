@@ -123,7 +123,7 @@ export async function orchestrateResearch(query: string, opts: { mode: string; f
   const f: ResearchFilters = { status: "recruiting", ...(opts.filters || {}) };
   if (!f.phase && tq.phase) f.phase = tq.phase;
   if ((!f.countries || f.countries.length === 0) && tq.country) f.countries = [tq.country];
-  if (!f.status && typeof tq.recruiting === "boolean") f.status = tq.recruiting ? "recruiting" : "any";
+  if (!f.status && typeof tq.recruiting === "boolean") f.status = tq.recruiting ? "recruiting" : undefined;
 
   const expr = buildCtgovExpr({
     condition: tq.condition || tq.cancerType,

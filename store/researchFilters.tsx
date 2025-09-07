@@ -8,7 +8,7 @@ export type ResearchFilters = {
   genes?: string[];     // e.g. ["EGFR","ALK"]
 };
 
-const defaultFilters: ResearchFilters = {}; // start empty on every query scope
+export const defaultFilters: ResearchFilters = {}; // start empty on every query scope
 
 const Ctx = createContext<{
   filters: ResearchFilters;

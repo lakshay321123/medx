@@ -5,7 +5,7 @@ function summarize(filters?: ResearchFilters) {
   if (!filters) return "";
   const parts: string[] = [];
   if (filters.phase) parts.push(`Phase ${filters.phase}`);
-  if (filters.status && filters.status !== "any") {
+  if (filters.status) {
     const map: any = {
       recruiting: "Recruiting",
       active: "Active, not recruiting",
