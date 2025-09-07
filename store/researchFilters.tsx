@@ -3,20 +3,18 @@ import React, { createContext, useContext, useState } from 'react';
 
 export type ResearchFilters = {
   phase?: '1'|'2'|'3'|'4';
-  status?: 'recruiting'|'active'|'completed'|'any';
-  countries?: string[];
-  genes?: string[];
+  status?: 'recruiting'|'active'|'completed';
+  countries?: string[];  // canonical country names
+  genes?: string[];      // e.g. ["EGFR","ALK"]
 };
 
-export const defaultFilters: ResearchFilters = { status: 'recruiting' };
+const defaultFilters: ResearchFilters = {}; // start empty; set defaults from UI if needed
 
-type CtxType = {
+const Ctx = createContext<{
   filters: ResearchFilters;
-  setFilters: (f: ResearchFilters) => void;
+  setFilters: React.Dispatch<React.SetStateAction<ResearchFilters>>;
   reset: () => void;
-};
-
-const Ctx = createContext<CtxType | null>(null);
+} | null>(null);
 
 export function ResearchFiltersProvider({ children }: { children: React.ReactNode }) {
   const [filters, setFilters] = useState<ResearchFilters>(defaultFilters);

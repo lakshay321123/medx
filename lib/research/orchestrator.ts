@@ -14,7 +14,46 @@ import { searchDailyMed } from "@/lib/research/sources/dailymed";
 import { searchOpenFda } from "@/lib/research/sources/openfda";
 import { fetchRxCui } from "@/lib/research/sources/rxnorm";
 import { isTrial, hasRegistryId, matchesPhase, matchesStatus, matchesCountries, matchesGenes } from "@/lib/research/validators";
-import type { ResearchFilters } from "@/store/researchFilters";
+
+export type ResearchFilters = {
+  phase?: "1"|"2"|"3"|"4";
+  status?: "recruiting"|"active"|"completed";
+  countries?: string[];
+  genes?: string[];
+};
+
+export type TrialsResult = {
+  trials: Array<{
+    title: string;
+    url: string;
+    registryId?: string;
+    extra?: {
+      phase?: string;
+      status?: string;
+      condition?: string;
+      intervention?: string;
+      country?: string;
+      genes?: string[];
+      source?: "CTGov"|"CTRI"|"ICTRP";
+    };
+  }>;
+  papers: Array<{ title: string; url: string; source: "PubMed"|"EuropePMC"|"Crossref"|"OpenAlex" }>;
+};
+
+export async function orchestrateTrials(
+  userQuery: string,
+  filters: ResearchFilters,
+  opts: { mode: "patient"|"doctor"; researchOn: boolean }
+): Promise<TrialsResult> {
+  // For now this is a thin wrapper that reuses the research orchestrator
+  // and filters down to a TrialsResult structure. A full implementation
+  // would map filters to provider queries as noted in the spec.
+  const packet = await orchestrateResearch(userQuery, { mode: opts.mode, filters });
+  return {
+    trials: packet.citations.filter(c => c.source?.toLowerCase().includes("ct")) as any,
+    papers: [],
+  };
+}
 
 export type Citation = {
   id: string;
@@ -60,7 +99,7 @@ export async function orchestrateResearch(query: string, opts: { mode: string; f
   const f: ResearchFilters = { status: "recruiting", ...(opts.filters || {}) };
   if (!f.phase && tq.phase) f.phase = tq.phase;
   if ((!f.countries || f.countries.length === 0) && tq.country) f.countries = [tq.country];
-  if (!f.status && typeof tq.recruiting === "boolean") f.status = tq.recruiting ? "recruiting" : "any";
+  if (!f.status && typeof tq.recruiting === "boolean") f.status = tq.recruiting ? "recruiting" : undefined;
 
   const expr = buildCtgovExpr({
     condition: tq.condition || tq.cancerType,
