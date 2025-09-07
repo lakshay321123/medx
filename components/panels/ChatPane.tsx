@@ -290,7 +290,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [trialRows, setTrialRows] = useState<TrialRow[]>([]);
   const [searched, setSearched] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
-  const { enabled, rememberThisThread, pushSuggestion } = useMemoryStore();
+  const enabled = useMemoryStore(s => s.enabled);
+  const rememberThisThread = useMemoryStore(s => s.rememberThisThread);
+  const pushSuggestion = useMemoryStore(s => s.pushSuggestion);
 
   function handleTrials(rows: TrialRow[]) {
     setTrialRows(rows);
@@ -920,13 +922,11 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: note, thread_id: threadId }),
           });
-          if (res.ok) {
-            const { suggestions } = await res.json();
-            (suggestions || []).forEach((s: any) => {
-              if (rememberThisThread && s.scope === 'thread') s.source = 'manual';
-              pushSuggestion(s);
-            });
-          }
+          const j = await res.json().catch(() => null);
+          (j?.suggestions || []).forEach((s: any) => {
+            if (rememberThisThread && s.scope === 'thread') s.source = 'manual';
+            pushSuggestion(s);
+          });
         } catch (err) {
           console.error('Memory suggest failed', err);
         }
