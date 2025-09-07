@@ -11,10 +11,14 @@ import { extractContext, mergeInto } from "@/lib/context/extractLLM";
 import { applyContradictions } from "@/lib/context/updates";
 import { loadTopicStack, pushTopic, saveTopicStack, switchTo } from "@/lib/context/topicStack";
 import { parseConstraintsFromText, mergeLedger } from "@/lib/context/constraints";
+import { parseEntitiesFromText, mergeEntityLedger } from "@/lib/context/entityLedger";
+import { decideRoute } from "@/lib/context/router";
 import { callGroq } from "@/lib/llm/groq";
 import type { ChatCompletionMessageParam } from "@/lib/llm/types";
 import { polishText } from "@/lib/text/polish";
 import { buildConstraintRecap } from "@/lib/text/recap";
+import { selfCheck } from "@/lib/text/selfCheck";
+import { addEvidenceAnchorIfMedical } from "@/lib/text/medicalAnchor";
 
 export async function POST(req: Request) {
   const { userId, activeThreadId, text, mode, researchOn, clarifySelectId } = await req.json();
@@ -60,21 +64,40 @@ export async function POST(req: Request) {
   const delta = parseConstraintsFromText(text);
   state.constraints = mergeLedger(state.constraints, delta);
 
+  // NEW: parse entity deltas from user message
+  const entityDelta = parseEntitiesFromText(text);
+  state.entities = mergeEntityLedger(state.entities, entityDelta);
+
   await saveState(threadId, state);
 
-  // 4) Build system + recent messages
-  const { system, recent } = await buildPromptContext({ threadId, options: { mode, researchOn } });
+  // 4) Decide routing for current turn
+  const systemExtra: string[] = [];
+  const routeDecision = decideRoute(text, state.topic);
+  if (routeDecision === "clarify-quick") {
+    systemExtra.push("If the user intent may have changed, ask one concise clarification question, then proceed.");
+  }
+  if (routeDecision === "switch-topic") {
+    state.topic = text.slice(0, 60);
+    await saveState(threadId, state);
+  }
 
-  // 5) Groq call
+  // 5) Build system + recent messages
+  const { system, recent } = await buildPromptContext({ threadId, options: { mode, researchOn } });
+  const fullSystem = [system, ...systemExtra].join("\n");
+
+  // 6) Groq call
   const messages: ChatCompletionMessageParam[] = [
-    { role: "system", content: system },
+    { role: "system", content: fullSystem },
     ...recent.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
     { role: "user", content: text },
   ];
-  let assistant = await callGroq(messages, { temperature: 0.2, max_tokens: 1200 });
+  let assistant = await callGroq(messages, { temperature: 0.25, max_tokens: 1200 });
 
   // 6) Polish and append recap (if any constraints present)
   assistant = polishText(assistant);
+  const check = selfCheck(assistant, state.constraints, state.entities);
+  assistant = check.fixed;
+  assistant = addEvidenceAnchorIfMedical(assistant);
   const recap = buildConstraintRecap(state.constraints);
   if (recap) assistant += recap;
 
