@@ -6,7 +6,7 @@ import ChatMarkdown from '@/components/ChatMarkdown';
 import ResearchFilters from '@/components/ResearchFilters';
 import TrialsDock from "@/components/TrialsDock";
 import { useResearchFilters } from '@/store/researchFilters';
-import { Send } from 'lucide-react';
+import { Send, Paperclip } from 'lucide-react';
 import { useCountry } from '@/lib/country';
 import { getRandomWelcome } from '@/lib/welcomeMessages';
 import { useActiveContext } from '@/lib/context';
@@ -1077,8 +1077,14 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
             }}
             className="w-full flex items-center gap-3 rounded-full border border-slate-200 dark:border-gray-800 bg-slate-100 dark:bg-gray-900 px-3 py-2"
           >
-            <label className="cursor-pointer px-3 py-1.5 text-sm rounded-full bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600">
-              📄
+            <label
+              className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md
+                         bg-white hover:bg-slate-50 border border-slate-200
+                         dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 dark:border-gray-700"
+              title="Upload PDF or image"
+            >
+              <Paperclip size={16} aria-hidden="true" />
+              <span className="hidden sm:inline">Upload</span>
               <input
                 type="file"
                 accept="application/pdf,image/*"
