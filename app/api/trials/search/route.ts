@@ -7,7 +7,13 @@ export async function POST(req: Request) {
 
     const q = typeof body.query === "string" ? body.query.trim() : undefined;
     const phase = body.phase as "1" | "2" | "3" | "4" | undefined;
-    const status = body.status as "Recruiting" | "Completed" | undefined;
+    // ✅ Accept all statuses the UI can emit
+    const status = body.status as
+      | "Recruiting"
+      | "Completed"
+      | "Active, not recruiting"
+      | "Enrolling by invitation"
+      | undefined;
     const country = typeof body.country === "string" ? body.country : undefined;
     const genes = Array.isArray(body.genes) ? body.genes : undefined;
 
