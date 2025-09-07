@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useResearchFilters, defaultFilters } from '@/store/researchFilters';
 
-const phaseOptions = ['1','2','3','4'] as const;
+const phaseOptions = ['1','2','3','4'];
 const statusOptions = [
   { value: 'recruiting', label: 'Recruiting' },
   { value: 'active', label: 'Active (not recruiting)' },
