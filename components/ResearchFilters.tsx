@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useResearchFilters, defaultFilters } from '@/store/researchFilters';
 
 const phaseOptions = ['1','2','3','4'] as const;
@@ -17,7 +17,6 @@ const countryOptions = [
   'Japan',
   'Worldwide'
 ];
-const geneSuggestions = ['EGFR','ALK','ROS1','BRAF','PD-L1','KRAS','HER2'];
 
 function summaryCount(filters: any) {
   let n = 0;
@@ -28,15 +27,15 @@ function summaryCount(filters: any) {
   return n;
 }
 
-export default function ResearchFilters({ mode }: { mode: 'patient'|'doctor'|'research'|'therapy' }) {
+export default function ResearchFilters() {
   const { filters, setFilters, reset } = useResearchFilters();
   const [draft, setDraft] = useState(filters);
-  const [open, setOpen] = useState(mode !== 'patient');
   const count = summaryCount(filters);
+
+  useEffect(() => { setDraft(filters); }, [filters]);
 
   function apply() {
     setFilters(draft);
-    if (mode === 'patient') setOpen(false);
   }
   function doReset() {
     setDraft(defaultFilters);
@@ -51,13 +50,7 @@ export default function ResearchFilters({ mode }: { mode: 'patient'|'doctor'|'re
 
   return (
     <div className="border-b border-slate-200 dark:border-gray-800 px-4 py-2">
-      {mode === 'patient' && (
-        <button type="button" className="btn-secondary mb-2" onClick={() => setOpen(o=>!o)}>
-          {open ? 'Hide filters' : `Refine results${count?` (${count})`:''}`}
-        </button>
-      )}
-      {open && (
-        <div className="flex flex-wrap gap-2 items-end text-sm">
+      <div className="flex flex-wrap gap-2 items-end text-sm">
           <div className="flex items-center gap-1">
             <span className="font-medium">Phase:</span>
             <div className="flex border rounded overflow-hidden">
@@ -73,30 +66,26 @@ export default function ResearchFilters({ mode }: { mode: 'patient'|'doctor'|'re
               {statusOptions.map(o=> <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </label>
-          {mode !== 'patient' && (
-            <div className="flex items-center gap-1">
-              <span className="font-medium">Country:</span>
-              <div className="flex flex-wrap gap-1">
-                {countryOptions.map(c=> (
-                  <button key={c} type="button" className={`px-2 py-1 border rounded ${draft.countries?.includes(c)?'bg-indigo-600 text-white':'bg-transparent'}`} onClick={()=>toggleCountry(c)}>
-                    {c}
-                  </button>
-                ))}
-              </div>
+          <div className="flex items-center gap-1">
+            <span className="font-medium">Country:</span>
+            <div className="flex flex-wrap gap-1">
+              {countryOptions.map(c=> (
+                <button key={c} type="button" className={`px-2 py-1 border rounded ${draft.countries?.includes(c)?'bg-indigo-600 text-white':'bg-transparent'}`} onClick={()=>toggleCountry(c)}>
+                  {c}
+                </button>
+              ))}
             </div>
-          )}
-          {mode !== 'patient' && (
-            <label className="flex items-center gap-1 flex-wrap">
-              <span className="font-medium">Genes:</span>
-              <input className="border rounded px-2 py-1" value={geneInput} placeholder="EGFR, ALK" onChange={e=>setDraft({...draft, genes: e.target.value.split(/\s*,\s*/).filter(Boolean)})} />
-            </label>
-          )}
+          </div>
+          <label className="flex items-center gap-1 flex-wrap">
+            <span className="font-medium">Genes:</span>
+            <input className="border rounded px-2 py-1" value={geneInput} placeholder="EGFR, ALK" onChange={e=>setDraft({...draft, genes: e.target.value.split(/\s*,\s*/).filter(Boolean)})} />
+          </label>
           <div className="ml-auto flex items-center gap-2">
-            <button className="btn-secondary" onClick={doReset}>Reset</button>
+            <button className="btn-secondary" onClick={doReset}>Clear</button>
             <button className="btn-primary" onClick={apply}>Apply {count ? <span className="ml-1 rounded-full bg-indigo-600 text-white px-2">{count}</span> : null}</button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

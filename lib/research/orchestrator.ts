@@ -121,7 +121,7 @@ export async function orchestrateResearch(query: string, opts: { mode: string; f
   let followUps: string[] = [];
 
   if (trials.length === 0) {
-    answer = { text: `I couldn't find trials that match your filters.` };
+    answer = { text: `No trials found. Try broadening filters or regions.` };
     followUps = [
       "Include completed",
       "Any phase",
