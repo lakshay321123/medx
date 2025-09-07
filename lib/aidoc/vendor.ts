@@ -1,13 +1,15 @@
 import OpenAI from "openai";
+import { safeParseJson, withDefaults } from "@/lib/utils/safeJson";
 
-/**
- * Call OpenAI for AI Doc ensuring JSON-only replies.
- */
+const oai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY!,
+  timeout: Number(process.env.AIDOC_MODEL_TIMEOUT_MS || 25000),
+});
+
 type CallIn = { system: string; user: string; instruction: string };
 
 export async function callOpenAIJson({ system, user, instruction }: CallIn): Promise<any> {
-  const oai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const model = process.env.AIDOC_MODEL || "gpt-5";
+  const model = process.env.AIDOC_MODEL || "gpt-5"; // ✅ default GPT-5
   try {
     const resp = await oai.chat.completions.create({
       model,
@@ -18,18 +20,33 @@ export async function callOpenAIJson({ system, user, instruction }: CallIn): Pro
         { role: "user", content: `${instruction}\n\nUSER:\n${user}` },
       ],
     });
-    const content = resp.choices?.[0]?.message?.content ?? "{}";
-    return JSON.parse(content);
-  } catch (e) {
-    console.error("callOpenAIJson error", e);
-    // Fallback stub for dev or failure
+
+    const content = (resp.choices?.[0]?.message?.content ?? "").trim();
+    const parsed = safeParseJson(content);
+    if (parsed.ok) {
+      return withDefaults(parsed.data, {
+        reply: "",
+        save: { medications: [], conditions: [], labs: [], notes: [], prefs: [] },
+        observations: { short: "", long: "" },
+      });
+    }
+    // Model ignored JSON mode — safe fallback
     return {
-      reply: "Thanks — I’ll personalize advice using your history. What symptoms are you having today?",
+      reply: content || "I captured your note. I’ll avoid quoting stale labs and suggest repeats when needed.",
+      save: { medications: [], conditions: [], labs: [], notes: [], prefs: [] },
+      observations: { short: "Model returned non-JSON. Using safe fallback.", long: "" },
+      _warn: { reason: parsed.error }
+    };
+  } catch (err: any) {
+    // Resilient fallback (prevents 504s and client JSON errors)
+    return {
+      reply: "I noted your message and saved any clear preferences. I’m having trouble reaching the model right now.",
       save: { medications: [], conditions: [], labs: [], notes: [], prefs: [] },
       observations: {
-        short: "Let’s gather a bit more info and plan next steps. No stale labs will be quoted.",
-        long: "I’ll consider your active conditions. If we need a lab that’s stale, I’ll suggest a repeat.",
+        short: "Temporary AI connectivity issue — proceeding safely without quoting stale labs.",
+        long: "I won’t quote lab values older than 90 days. If a result is needed and stale, I’ll suggest repeating it."
       },
+      _error: { name: String(err?.name || "LLMError"), message: String(err?.message || "Unknown") }
     };
   }
 }

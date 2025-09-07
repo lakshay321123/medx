@@ -1,13 +1,6 @@
-type BuildInput = {
-  profile: any;
-  labs: any[];
-  meds: any[];
-  conditions: any[];
-};
-
-export function buildAiDocPrompt({ profile, labs, meds, conditions }: BuildInput) {
+export function buildAiDocPrompt({ profile, labs, meds, conditions }: any) {
   const now = Date.now();
-  const recentLabs = (labs||[]).filter(l => (now - new Date(l.takenAt).getTime()) <= 90*24*60*60*1000);
+  const recentLabs = (labs||[]).filter((l:any) => (now - new Date(l.takenAt).getTime()) <= 90*24*60*60*1000);
 
   return [
     "You are AI Doc. Be precise, kind, and clinically responsible.",
