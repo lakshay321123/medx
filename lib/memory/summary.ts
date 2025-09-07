@@ -2,25 +2,25 @@ import { setRunningSummary } from "./store";
 
 /**
  * Extremely small, deterministic summarizer:
- * - Keep bullet points of key user facts and current task/topic.
- * - Trim over 1500 chars.
- * Replace with LLM summarizer later if desired.
+ * - Maintain bullet lines for conversation context.
+ * - Trim over maxChars, keeping the most recent content.
  */
 export function updateSummary(prev: string, lastUser: string, lastAssistant?: string, maxChars = 1500) {
-  const lines = [
-    prev?.trim() ? prev.trim() : "• Context: (initial)\n",
-    `• User said: ${lastUser}`,
-    lastAssistant ? `• We replied: ${lastAssistant}` : undefined,
+  const newLines = [
+    prev?.trim() || "• Context started",
+    `• User: ${lastUser}`,
+    lastAssistant ? `• Assistant: ${lastAssistant}` : undefined,
   ].filter(Boolean) as string[];
 
-  let out = lines.join("\n");
+  let out = newLines.join("\n");
+
+  // Trim oldest if too long
   if (out.length > maxChars) {
-    // trim oldest part
     out = out.slice(out.length - maxChars);
-    // ensure starts cleanly
     const idx = out.indexOf("•");
     if (idx > 0) out = out.slice(idx);
   }
+
   return out;
 }
 

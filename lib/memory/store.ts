@@ -39,15 +39,23 @@ export async function getThread(threadId: string) {
 }
 
 export async function upsertProfileMemory(threadId: string, key: string, value: string) {
-  const v = await embed(`${key}: ${value}`);
+  // Normalize keys (avoid duplicates like "Weight" vs "weight")
+  const normalizedKey = key.trim().toLowerCase();
+  const normalizedValue = value.trim();
+
+  const v = await embed(`${normalizedKey}: ${normalizedValue}`);
+
   return prisma.memory.upsert({
-    where: { threadId_scope_key: { threadId, scope: "profile", key } },
+    where: { threadId_scope_key: { threadId, scope: "profile", key: normalizedKey } },
     create: {
-      threadId, scope: "profile", key, value,
+      threadId,
+      scope: "profile",
+      key: normalizedKey,
+      value: normalizedValue,
       embedding: Buffer.from(new Float32Array(v).buffer),
     },
     update: {
-      value,
+      value: normalizedValue,
       embedding: Buffer.from(new Float32Array(v).buffer),
     },
   });

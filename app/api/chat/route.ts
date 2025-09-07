@@ -55,6 +55,9 @@ export async function POST(req: Request) {
   // 5) Call LLM
   const assistant = await callLLM(system, recent as any, text);
 
+  // Add natural pacing (2–4 sec)
+  await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
+
   // 6) Save assistant message
   await appendMessage({ threadId: activeThreadId, role: "assistant", content: assistant });
 
