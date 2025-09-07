@@ -5,6 +5,7 @@ import { CountryProvider } from "@/lib/country";
 import { ContextProvider } from "@/lib/context";
 import { TopicProvider } from "@/lib/topic";
 import { Suspense } from "react";
+import MemorySnackbar from "@/components/memory/Snackbar";
 
 export const metadata = { title: "MedX", description: "Global medical AI" };
 
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   </Suspense>
                   <main className="flex-1 md:ml-64 min-h-dvh flex flex-col relative z-0">
                     {children}
+                    <MemorySnackbar />
                   </main>
                 </div>
               </ThemeProvider>

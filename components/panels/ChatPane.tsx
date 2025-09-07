@@ -21,6 +21,7 @@ import FeedbackBar from "@/components/FeedbackBar";
 import type { ChatMessage as BaseChatMessage } from "@/types/chat";
 import type { AnalysisCategory } from '@/lib/context';
 import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle } from '@/lib/chatThreads';
+import { useMemoryStore } from "@/lib/memory/useMemoryStore";
 
 type ChatUiState = {
   topic: string | null;
@@ -287,6 +288,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const [trialRows, setTrialRows] = useState<TrialRow[]>([]);
   const [searched, setSearched] = useState(false);
+  const pushSuggestion = useMemoryStore(s => s.pushSuggestion);
 
   function handleTrials(rows: TrialRow[]) {
     setTrialRows(rows);
@@ -905,6 +907,15 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
       await analyzeFile(pendingFile, note);
     } else {
       await send(note, researchMode);
+      try {
+        const res = await fetch('/api/memory/suggest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: note, thread_id: threadId }),
+        });
+        const j = await res.json().catch(() => null);
+        j?.suggestions?.forEach((m: any) => pushSuggestion(m));
+      } catch {}
     }
   }
 
