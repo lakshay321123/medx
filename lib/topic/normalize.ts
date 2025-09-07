@@ -20,6 +20,6 @@ export function normalizeTopic(raw: string): Topic {
       excludes: [/hip|arthroplasty|femoral|shoulder|retina|hepatic|liver|prostate/i],
     };
   }
-  // add more conditions here...
+  // add more conditions here
   return { canonical: raw.trim(), synonyms: [raw.trim()], excludes: [] };
 }

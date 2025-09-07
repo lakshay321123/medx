@@ -229,9 +229,9 @@ function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<Chat
       <div className="prose prose-slate dark:prose-invert max-w-none prose-medx text-sm md:text-base">
         <Markdown text={m.content} />
       </div>
-      {m.role === "assistant" && m.citations?.length > 0 && (
+      {m.role === "assistant" && (m.citations?.length || 0) > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
-          {m.citations.slice(0, simple ? 3 : 6).map((c, i) => (
+          {(m.citations || []).slice(0, simple ? 3 : 6).map((c, i) => (
             <a
               key={i}
               href={c.url}
@@ -245,9 +245,9 @@ function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<Chat
           ))}
         </div>
       )}
-      {!therapyMode && m.followUps?.length > 0 && (
+      {!therapyMode && (m.followUps?.length || 0) > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
-          {m.followUps.map((f, i) => (
+          {(m.followUps || []).map((f, i) => (
             <button
               key={i}
               onClick={() => onFollowUpClick(f)}
@@ -878,7 +878,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
       } catch {}
     }
 
-    // Regular chat flow (file or note) ...
+    // Regular chat flow (file or note)
     if (!pendingFile && !note.trim()) return;
     if (pendingFile) {
       await analyzeFile(pendingFile, note);
@@ -1106,8 +1106,8 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
               className="flex-1 bg-transparent outline-none text-sm md:text-base leading-6 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-2"
               placeholder={
                 pendingFile
-                  ? 'Add a note or question for this document (optional)...'
-                  : 'Send a message...'
+                  ? 'Add a note or question for this document (optional)'
+                  : 'Send a message'
               }
               value={note}
               onChange={e => setNote(e.target.value)}

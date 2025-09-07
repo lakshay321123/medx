@@ -3,6 +3,7 @@
   "version": "3.0.0",
   "private": true,
   "scripts": {
+    "prebuild": "node tools/check-placeholders.cjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

@@ -11,7 +11,7 @@ async function classifyIntent(query: string, mode: 'patient'|'doctor') {
 - CLINICAL_TRIALS_QUERY (fetch trials)
 - GENERAL_HEALTH (explain simply)
 
-Return JSON: {"intent":"...","keywords":["..."]}`;
+Return JSON: {"intent":"","keywords":[""]}`;
   const r = await fetch(`${BASE.replace(/\/$/,'')}/chat/completions`,{
     method:'POST',
     headers:{'Content-Type':'application/json',Authorization:`Bearer ${KEY}`},

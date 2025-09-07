@@ -15,7 +15,7 @@ export function normalizeExternalHref(input?: string): string | null {
   if (!input) return null;
   let href = input.trim();
 
-  // If model returned "[Learn more](www.nhs.uk/...)" (no protocol), add https
+  // If model returned "[Learn more](www.nhs.uk/)" (no protocol), add https
   if (/^www\./i.test(href)) href = "https://" + href;
 
   // If relative or missing protocol → invalid
