@@ -7,6 +7,8 @@ export type ConstraintLedger = {
   }>;
 };
 
+import type { EntityLedger } from "./entityLedger";
+
 export type ConversationState = {
   topic?: string;                     // short label for active topic (e.g., "fitness/abs", "ui/palette")
   intents: string[];                  // ordered, most-recent first
@@ -15,6 +17,7 @@ export type ConversationState = {
   decisions: string[];                // choices made ("Use blue palette")
   open_questions: string[];           // pending clarifications
   constraints?: ConstraintLedger;
+  entities?: EntityLedger;
   last_updated_iso: string;           // ISO timestamp
 };
 
