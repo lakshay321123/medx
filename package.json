@@ -29,6 +29,8 @@
     "prisma": "^5.22.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "tesseract.js": "^5.0.5",
     "undici": "^5.29.0",
     "zod": "^3.25.76"

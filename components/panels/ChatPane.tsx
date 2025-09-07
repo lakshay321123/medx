@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, RefObject, Fragment } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Header from '../Header';
-import Markdown from '../Markdown';
+import ChatMarkdown from '@/components/ChatMarkdown';
 import ResearchFilters from '@/components/ResearchFilters';
 import { useResearchFilters } from '@/store/researchFilters';
 import { Send } from 'lucide-react';
@@ -179,9 +179,7 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
           </span>
         )}
       </header>
-      <div className="prose prose-slate dark:prose-invert max-w-none prose-medx text-sm md:text-base">
-        <Markdown text={m.content} />
-      </div>
+      <ChatMarkdown content={m.content} />
       {m.error && (
         <div className="inline-flex items-center gap-2 text-xs rounded-lg px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-900/20 dark:text-rose-200 dark:border-rose-800">
           ⚠️ {m.error}
@@ -226,9 +224,7 @@ function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<Chat
   if (m.pending) return <PendingChatCard label="Thinking…" />;
   return (
     <article className="mr-auto max-w-[90%] rounded-2xl p-4 md:p-6 shadow-sm space-y-2 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800">
-      <div className="prose prose-slate dark:prose-invert max-w-none prose-medx text-sm md:text-base">
-        <Markdown text={m.content} />
-      </div>
+      <ChatMarkdown content={m.content} />
       {m.role === "assistant" && (m.citations?.length || 0) > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
           {(m.citations || []).slice(0, simple ? 3 : 6).map((c, i) => (
@@ -985,7 +981,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
                 key={m.id}
                 className="ml-auto max-w-[85%] rounded-2xl px-4 py-3 shadow-sm bg-slate-200 text-slate-900 dark:bg-gray-700 dark:text-gray-100"
               >
-                <Markdown text={m.content} />
+                <ChatMarkdown content={m.content} />
               </div>
             ) : (
               <Fragment key={m.id}>
