@@ -1,4 +1,4 @@
-export function htnRules({ vitals, mem }:{ vitals:any[]; mem:any }) {
+export function htnRules({ vitals = [], mem }: { vitals?: any[]; mem: any }) {
   const steps: string[] = [];
   const nudges: string[] = [];
   const fired: string[] = [];
