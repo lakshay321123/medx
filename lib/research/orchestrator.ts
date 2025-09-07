@@ -14,7 +14,35 @@ import { searchDailyMed } from "@/lib/research/sources/dailymed";
 import { searchOpenFda } from "@/lib/research/sources/openfda";
 import { fetchRxCui } from "@/lib/research/sources/rxnorm";
 import { isTrial, hasRegistryId, matchesPhase, matchesStatus, matchesCountries, matchesGenes } from "@/lib/research/validators";
-import type { ResearchFilters } from "@/store/researchFilters";
+
+export type ResearchFilters = {
+  phase?: "1" | "2" | "3" | "4";
+  status?: "recruiting" | "active" | "completed";
+  countries?: string[];
+  genes?: string[];
+};
+
+export type TrialsResult = {
+  trials: Array<{
+    title: string;
+    url: string;
+    registryId?: string;
+    extra?: {
+      phase?: string;
+      status?: string;
+      condition?: string;
+      intervention?: string;
+      country?: string;
+      genes?: string[];
+      source?: "CTGov" | "CTRI" | "ICTRP";
+    };
+  }>;
+  papers: Array<{
+    title: string;
+    url: string;
+    source: "PubMed" | "EuropePMC" | "Crossref" | "OpenAlex";
+  }>;
+};
 
 export type Citation = {
   id: string;
@@ -60,7 +88,7 @@ export async function orchestrateResearch(query: string, opts: { mode: string; f
   const f: ResearchFilters = { status: "recruiting", ...(opts.filters || {}) };
   if (!f.phase && tq.phase) f.phase = tq.phase;
   if ((!f.countries || f.countries.length === 0) && tq.country) f.countries = [tq.country];
-  if (!f.status && typeof tq.recruiting === "boolean") f.status = tq.recruiting ? "recruiting" : "any";
+  if (!f.status && typeof tq.recruiting === "boolean") f.status = tq.recruiting ? "recruiting" : undefined;
 
   const expr = buildCtgovExpr({
     condition: tq.condition || tq.cancerType,
@@ -139,6 +167,60 @@ export async function orchestrateResearch(query: string, opts: { mode: string; f
   };
   cache.set(query, { ts: now, data: packet });
   return packet;
+}
+
+export async function orchestrateTrials(
+  userQuery: string,
+  filters: ResearchFilters,
+  opts: { mode: "patient" | "doctor" | "research"; researchOn: boolean }
+): Promise<TrialsResult> {
+  const tq = interpretTrialQuery(userQuery);
+  const f: ResearchFilters = { ...(filters || {}) };
+  if (!f.phase && tq.phase) f.phase = tq.phase;
+  if ((!f.countries || f.countries.length === 0) && tq.country) f.countries = [tq.country];
+  if (!f.status && typeof tq.recruiting === "boolean") f.status = tq.recruiting ? "recruiting" : "active";
+
+  const expr = buildCtgovExpr({
+    condition: tq.condition || tq.cancerType,
+    keywords: tq.keywords,
+    phase: f.phase,
+    status: f.status,
+    countries: f.countries,
+    genes: f.genes,
+  });
+
+  const [ctRes, ctriRes, ictrpRes, pmRes, epmcRes, crossRes, oaRes] = await Promise.allSettled([
+    searchCtgovByExpr(expr, { max: 100 }),
+    searchCtri(userQuery),
+    searchIctrp(userQuery),
+    searchPubMed(genedQuery(userQuery, f.genes)),
+    searchEuropePmc(genedQuery(userQuery, f.genes)),
+    searchCrossref(genedQuery(userQuery, f.genes)),
+    searchOpenAlex(genedQuery(userQuery, f.genes)),
+  ]);
+
+  const ctgovTargeted = ctRes.status === "fulfilled" ? ctRes.value : [];
+  const ctri = ctriRes.status === "fulfilled" ? ctriRes.value : [];
+  const ictrp = ictrpRes.status === "fulfilled" ? ictrpRes.value : [];
+
+  const trials = [...ctgovTargeted, ...ctri, ...ictrp]
+    .filter(isTrial)
+    .filter(hasRegistryId)
+    .filter((c) => matchesPhase(c, f.phase))
+    .filter((c) => matchesStatus(c, f.status))
+    .filter((c) => matchesCountries(c, f.countries))
+    .filter((c) => matchesGenes(c, f.genes));
+
+  const pubmed = pmRes.status === "fulfilled" ? pmRes.value : [];
+  const eupmc = epmcRes.status === "fulfilled" ? epmcRes.value : [];
+  const crossref = crossRes.status === "fulfilled" ? crossRes.value : [];
+  const openalex = oaRes.status === "fulfilled" ? oaRes.value : [];
+
+  const papers = (pubmed || [])
+    .concat(eupmc || [], crossref || [], openalex || [])
+    .filter((p) => matchesGenes(p, f.genes));
+
+  return { trials, papers };
 }
 
 function genedQuery(q: string, genes?: string[]) {

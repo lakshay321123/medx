@@ -2,30 +2,26 @@
 import React, { createContext, useContext, useState } from 'react';
 
 export type ResearchFilters = {
-  phase?: '1'|'2'|'3'|'4';
-  status?: 'recruiting'|'active'|'completed'|'any';
+  phase?: "1"|"2"|"3"|"4";
+  status?: "recruiting"|"active"|"completed";
   countries?: string[];
   genes?: string[];
 };
 
-export const defaultFilters: ResearchFilters = { status: 'recruiting' };
+export const defaultFilters: ResearchFilters = { status: "recruiting" };
 
-type CtxType = {
+const Ctx = createContext<{
   filters: ResearchFilters;
-  setFilters: (f: ResearchFilters) => void;
+  setFilters: React.Dispatch<React.SetStateAction<ResearchFilters>>;
   reset: () => void;
-};
-
-const Ctx = createContext<CtxType | null>(null);
+} | null>(null);
 
 export function ResearchFiltersProvider({ children }: { children: React.ReactNode }) {
   const [filters, setFilters] = useState<ResearchFilters>(defaultFilters);
   const reset = () => setFilters(defaultFilters);
   return <Ctx.Provider value={{ filters, setFilters, reset }}>{children}</Ctx.Provider>;
 }
-
 export function useResearchFilters() {
-  const ctx = useContext(Ctx);
-  if (!ctx) throw new Error('useResearchFilters must be used within ResearchFiltersProvider');
+  const ctx = useContext(Ctx); if (!ctx) throw new Error("useResearchFilters must be used within provider");
   return ctx;
 }
