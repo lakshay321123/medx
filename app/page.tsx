@@ -11,7 +11,7 @@ type Search = { panel?: string; threadId?: string };
 
 export default function Page({ searchParams }: { searchParams: Search }) {
   const panel = (searchParams.panel ?? "chat").toLowerCase();
-  const chatInputRef = useRef<HTMLInputElement>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     const handler = () => chatInputRef.current?.focus();

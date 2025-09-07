@@ -271,22 +271,31 @@ function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onF
   );
 }
 
-export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: RefObject<HTMLInputElement> } = {}) {
+export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: RefObject<HTMLTextAreaElement> } = {}) {
 
   const { country } = useCountry();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [note, setNote] = useState('');
   const [proactive, setProactive] = useState<null | { kind: 'predispositions'|'medications'|'weight' }>(null);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [mode, setMode] = useState<'patient'|'doctor'>('patient');
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [researchMode, setResearchMode] = useState(false);
   const [therapyMode, setTherapyMode] = useState(false);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const chatRef = useRef<HTMLDivElement>(null);
-  const inputRef = externalInputRef ?? useRef<HTMLInputElement>(null);
+  const inputRef = externalInputRef ?? useRef<HTMLTextAreaElement>(null);
   const { filters } = useResearchFilters();
+
+  useEffect(() => {
+    if (inputRef?.current) {
+      const el = inputRef.current as HTMLTextAreaElement;
+      el.style.height = "auto";
+      el.style.height = Math.min(el.scrollHeight, 200) + "px";
+    }
+  }, [note]);
 
   const [trialRows, setTrialRows] = useState<TrialRow[]>([]);
   const [searched, setSearched] = useState(false);
@@ -763,14 +772,10 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
     }
   }
 
-  function onFileSelected(file: File) {
-    setPendingFile(file);
-    setTimeout(() => inputRef.current?.focus(), 0);
-  }
-
-  async function analyzeFile(file: File, note: string) {
-    if (!file || busy) return;
+  async function analyzeFiles(files: File[], note: string) {
+    if (!files.length || busy) return;
     setBusy(true);
+    setUploading(true);
     const pendingId = uid();
     setMessages(prev => [
       ...prev,
@@ -778,15 +783,13 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
     ]);
     try {
       const fd = new FormData();
-      fd.append('file', file);
+      files.forEach(f => fd.append('files', f));
       fd.append('doctorMode', String(mode === 'doctor'));
       fd.append('country', country.code3);
       if (note.trim()) fd.append('note', note.trim());
       const search = new URLSearchParams(window.location.search);
       const threadId = search.get('threadId');
       if (threadId) fd.append('threadId', threadId);
-      const sourceHash = `${file?.name ?? 'doc'}:${file?.size ?? ''}:${(file as any)?.lastModified ?? ''}`;
-      fd.append('sourceHash', sourceHash);
       const data = await safeJson(
         fetch('/api/analyze', { method: 'POST', body: fd })
       );
@@ -829,7 +832,8 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
       );
     } finally {
       setBusy(false);
-      setPendingFile(null);
+      setUploading(false);
+      setPendingFiles([]);
       setNote('');
     }
   }
@@ -838,7 +842,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
     if (busy) return;
 
     // --- Proactive single Q&A commit path (profile thread) ---
-    if (isProfileThread && proactive && !pendingFile && note.trim()) {
+    if (isProfileThread && proactive && pendingFiles.length === 0 && note.trim()) {
       const text = note.trim();
       const ack = (msg: string) => setMessages(prev => [...prev, { id: uid(), role:'assistant', kind:'chat', content: msg, pending:false } as any]);
       try {
@@ -874,7 +878,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
     }
 
     // --- Medication verification (profile thread only; note-only submits) ---
-    if (isProfileThread && !pendingFile && note.trim()) {
+    if (isProfileThread && pendingFiles.length === 0 && note.trim()) {
       try {
         const v = await safeJson(fetch('/api/meds/verify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text: note }) }));
         if (v?.ok && v?.suggestion && window.confirm(`Did you mean "${v.suggestion}"?`)) {
@@ -913,9 +917,9 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
     }
 
     // Regular chat flow (file or note)
-    if (!pendingFile && !note.trim()) return;
-    if (pendingFile) {
-      await analyzeFile(pendingFile, note);
+    if (!pendingFiles.length && !note.trim()) return;
+    if (pendingFiles.length) {
+      await analyzeFiles(pendingFiles, note);
     } else {
       await send(note, researchMode);
       if (enabled) {
@@ -1281,9 +1285,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
             className="w-full flex items-center gap-3 rounded-full border border-slate-200 dark:border-gray-800 bg-slate-100 dark:bg-gray-900 px-3 py-2"
           >
             <label
-              className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md
-                         bg-white hover:bg-slate-50 border border-slate-200
-                         dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 dark:border-gray-700"
+              className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md bg-white hover:bg-slate-50 border border-slate-200 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 dark:border-gray-700"
               title="Upload PDF or image"
             >
               <Paperclip size={16} aria-hidden="true" />
@@ -1291,35 +1293,41 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
               <input
                 type="file"
                 accept="application/pdf,image/*"
+                multiple
                 className="hidden"
                 onChange={e => {
-                  const f = e.target.files?.[0];
-                  if (f) onFileSelected(f);
+                  const files = Array.from(e.target.files || []);
+                  setPendingFiles(prev => [...prev, ...files].slice(0, 10));
                   e.currentTarget.value = '';
+                  setTimeout(() => inputRef.current?.focus(), 0);
                 }}
               />
             </label>
-            {pendingFile && (
-              <div className="flex items-center gap-2 rounded-full bg-white/70 dark:bg-gray-800/70 px-3 py-1 text-xs">
-                <span className="truncate max-w-[8rem]">{pendingFile.name}</span>
-                <button
-                  type="button"
-                  onClick={() => setPendingFile(null)}
-                  className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-                  aria-label="Remove file"
-                >
-                  ✕
-                </button>
+            {pendingFiles.map((f, idx) => (
+              <div key={idx} className="relative">
+                <div className="flex items-center gap-2 rounded-full bg-white/70 dark:bg-gray-800/70 px-3 py-1 text-xs">
+                  <span className="truncate max-w-[8rem]">{f.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPendingFiles(prev => prev.filter((_, i) => i !== idx))}
+                    className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                    aria-label="Remove file"
+                  >
+                    ✕
+                  </button>
+                </div>
+                {uploading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded">
+                    <div className="h-6 w-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
               </div>
-            )}
-            <input
-              ref={inputRef}
-              className="flex-1 bg-transparent outline-none text-sm md:text-base leading-6 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-2"
-              placeholder={
-                pendingFile
-                  ? 'Add a note or question for this document (optional)'
-                  : 'Send a message'
-              }
+            ))}
+            <textarea
+              ref={inputRef as any}
+              rows={1}
+              className="flex-1 resize-none bg-transparent outline-none text-sm md:text-base leading-6 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-2"
+              placeholder={pendingFiles.length ? 'Add a note or question for this document (optional)' : 'Send a message'}
               value={note}
               onChange={e => setNote(e.target.value)}
               onKeyDown={e => {
@@ -1332,14 +1340,14 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
             <button
               className="px-3 py-1.5 rounded-full bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 disabled:opacity-50"
               onClick={onSubmit}
-              disabled={busy || (!pendingFile && !note.trim())}
+              disabled={busy || (pendingFiles.length === 0 && !note.trim())}
               aria-label="Send"
             >
               <Send size={16} />
             </button>
           </form>
         </div>
-      </div>
+    </div>
     </div>
   );
 }
