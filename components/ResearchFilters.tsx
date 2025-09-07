@@ -1,8 +1,11 @@
-'use client';
-import { useResearchFilters } from "@/store/researchFilters";
+"use client";
 
-const phaseOptions = ["1", "2", "3", "4"] as const;
-const statusOptions = ["Recruiting", "Completed"] as const;
+import { useResearchFilters } from "@/store/researchFilters";
+import type { Phase, Status } from "@/types/research";
+
+const phaseOptions: Readonly<Phase[]> = ["1", "2", "3", "4"] as const;
+const statusOptions: Readonly<Status[]> = ["Recruiting", "Completed"] as const;
+// Keep countries flexible unless you have a canonical list:
 const countryOptions = ["USA", "India", "EU", "Global"] as const;
 const geneOptions = ["EGFR", "ALK", "KRAS", "Other"] as const;
 
@@ -10,11 +13,16 @@ export default function ResearchFilters() {
   const { filters, setFilters, reset } = useResearchFilters();
 
   return (
-    <div className="flex gap-4 mb-4 p-2 border-b border-gray-200">
+    <div className="flex flex-wrap gap-3 mb-4 p-2 border-b border-gray-200">
       {/* Phase */}
       <select
         value={filters.phase ?? ""}
-        onChange={(e) => setFilters({ ...filters, phase: e.target.value })}
+        onChange={(e) =>
+          setFilters({
+            ...filters,
+            phase: (e.target.value || undefined) as Phase | undefined,
+          })
+        }
         className="border rounded px-2 py-1"
       >
         <option value="">All Phases</option>
@@ -28,7 +36,12 @@ export default function ResearchFilters() {
       {/* Status */}
       <select
         value={filters.status ?? ""}
-        onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+        onChange={(e) =>
+          setFilters({
+            ...filters,
+            status: (e.target.value || undefined) as Status | undefined,
+          })
+        }
         className="border rounded px-2 py-1"
       >
         <option value="">Any Status</option>
@@ -42,7 +55,7 @@ export default function ResearchFilters() {
       {/* Country */}
       <select
         value={filters.country ?? ""}
-        onChange={(e) => setFilters({ ...filters, country: e.target.value })}
+        onChange={(e) => setFilters({ ...filters, country: e.target.value || undefined })}
         className="border rounded px-2 py-1"
       >
         <option value="">Any Country</option>
@@ -56,7 +69,7 @@ export default function ResearchFilters() {
       {/* Gene */}
       <select
         value={filters.gene ?? ""}
-        onChange={(e) => setFilters({ ...filters, gene: e.target.value })}
+        onChange={(e) => setFilters({ ...filters, gene: e.target.value || undefined })}
         className="border rounded px-2 py-1"
       >
         <option value="">Any Gene</option>

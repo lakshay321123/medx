@@ -1,8 +1,10 @@
+import type { Phase, Status } from "@/types/research";
+
 export function buildCtgovExpr(q: {
   condition?: string;
   keywords?: string[];
-  phase?: "1" | "2" | "3" | "4";
-  status?: string;
+  phase?: Phase;
+  status?: Status;
   country?: string;
   gene?: string;
 }) {
@@ -17,9 +19,8 @@ export function buildCtgovExpr(q: {
   if (q.phase) {
     parts.push(`AREA[Phase] "${romanPhase(q.phase)}"`);
   }
-  if (q.status === "recruiting") parts.push(`AREA[OverallStatus] "Recruiting"`);
-  if (q.status === "active") parts.push(`AREA[OverallStatus] "Active, not recruiting"`);
-  if (q.status === "completed") parts.push(`AREA[OverallStatus] "Completed"`);
+  if (q.status === "Recruiting") parts.push(`AREA[OverallStatus] "Recruiting"`);
+  if (q.status === "Completed") parts.push(`AREA[OverallStatus] "Completed"`);
   if (q.country) {
     parts.push(`AREA[LocationCountry] ${quote(q.country)}`);
   }
@@ -35,6 +36,6 @@ export function quote(s: string) {
   return `"${s.replace(/"/g, '\\"')}"`;
 }
 
-export function romanPhase(n: "1" | "2" | "3" | "4") {
+export function romanPhase(n: Phase) {
   return ["I", "II", "III", "IV"][parseInt(n) - 1];
 }

@@ -1,3 +1,5 @@
+import type { Phase, Status } from "@/types/research";
+
 export function isTrial(c: any): boolean {
   const src = String(c.source || "").toLowerCase();
   return src === "ctgov" || src === "ctri" || src === "ictrp";
@@ -8,7 +10,7 @@ export function hasRegistryId(c: any): boolean {
   return /\bNCT\d{8}\b/.test(id) || /\bCTRI\/\d{4}\/\d{2}\/\d{6}\b/i.test(id) || /^[A-Z0-9-]{6,}$/.test(id);
 }
 
-export function matchesPhase(c: any, phase?: "1"|"2"|"3"|"4"): boolean {
+export function matchesPhase(c: any, phase?: Phase): boolean {
   if (!phase) return true;
   const p = String(c.extra?.phase || "").toUpperCase();
   const roman = ["I","II","III","IV"][parseInt(phase)-1];
@@ -26,12 +28,11 @@ export function matchesCountry(c: any, country?: string): boolean {
   return inItem.includes(country.toLowerCase());
 }
 
-export function matchesStatus(c: any, status?: string) {
-  if (!status || status === 'any') return true;
+export function matchesStatus(c: any, status?: Status) {
+  if (!status) return true;
   const s = String(c.extra?.status || '').toLowerCase();
-  if (status === 'recruiting') return s.includes('recruiting');
-  if (status === 'active') return s.includes('active') && !s.includes('recruiting');
-  if (status === 'completed') return s.includes('completed');
+  if (status === 'Recruiting') return s.includes('recruiting');
+  if (status === 'Completed') return s.includes('completed');
   return true;
 }
 

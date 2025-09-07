@@ -1,11 +1,13 @@
-'use client';
+"use client";
+
 import { useResearchFilters } from "@/store/researchFilters";
+import type { Phase, Status } from "@/types/research";
 
 type Trial = {
   id: string;
   title: string;
-  phase?: string;
-  status?: string;
+  phase?: Phase;
+  status?: Status;
   country?: string;
   gene?: string;
   url: string;
@@ -14,13 +16,15 @@ type Trial = {
 export default function TrialsTable({ trials }: { trials: Trial[] }) {
   const { filters } = useResearchFilters();
 
+  if (!trials || trials.length === 0) return null;
+
   const filtered = trials.filter((t) => {
     if (filters.phase && t.phase !== filters.phase) return false;
     if (filters.status && t.status !== filters.status) return false;
     if (filters.country && t.country !== filters.country) return false;
     if (filters.gene && t.gene !== filters.gene) return false;
     return true;
-    });
+  });
 
   if (!filtered.length) return <p>No matching trials found.</p>;
 

@@ -1,14 +1,8 @@
-'use client';
+"use client";
+
 import { createContext, useContext, useState } from "react";
+import type { ResearchFilters } from "@/types/research";
 
-export type ResearchFilters = {
-  phase?: string;
-  status?: string;
-  country?: string;
-  gene?: string;
-};
-
-// Exported to fix import error
 export const defaultFilters: ResearchFilters = {};
 
 type CtxType = {

@@ -1,3 +1,13 @@
+export type Phase = "1" | "2" | "3" | "4";
+export type Status = "Recruiting" | "Completed";
+
+export type ResearchFilters = {
+  phase?: Phase;
+  status?: Status;
+  country?: string;
+  gene?: string;
+};
+
 export type Paper = {
   id: string;
   title: string;

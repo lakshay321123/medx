@@ -20,6 +20,7 @@ import FeedbackBar from "@/components/FeedbackBar";
 import type { ChatMessage as BaseChatMessage } from "@/types/chat";
 import type { AnalysisCategory } from '@/lib/context';
 import type { TrialRow } from "@/types/trials";
+import type { Phase, Status } from "@/types/research";
 import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle } from '@/lib/chatThreads';
 
 type ChatUiState = {
@@ -57,6 +58,16 @@ type ChatMessage =
       error?: string | null;
     });
 
+type Trial = {
+  id: string;
+  title: string;
+  phase?: Phase;
+  status?: Status;
+  country?: string;
+  gene?: string;
+  url: string;
+};
+
 const uid = () => Math.random().toString(36).slice(2);
 
 function getLastAnalysis(list: ChatMessage[]) {
@@ -71,6 +82,19 @@ function replaceFirstPendingWith(list: ChatMessage[], finalMsg: ChatMessage) {
   const idx = copy.findIndex(m => m.pending);
   if (idx >= 0) copy[idx] = finalMsg;
   return copy;
+}
+
+function normalizePhase(raw?: string): Phase | undefined {
+  if (!raw) return;
+  const v = raw.replace(/[^0-9]/g, "");
+  if (v === "1" || v === "2" || v === "3" || v === "4") return v as Phase;
+}
+
+function normalizeStatus(raw?: string): Status | undefined {
+  if (!raw) return;
+  const v = raw.trim().toLowerCase();
+  if (v === "recruiting") return "Recruiting";
+  if (v === "completed") return "Completed";
 }
 
 function titleForCategory(c?: AnalysisCategory) {
@@ -285,7 +309,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [researchMode, setResearchMode] = useState(false);
   const [therapyMode, setTherapyMode] = useState(false);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
-  const [trials, setTrials] = useState<TrialRow[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = externalInputRef ?? useRef<HTMLInputElement>(null);
   const { filters } = useResearchFilters();
@@ -632,7 +655,16 @@ ${linkNudge}`;
                 if (filters.phase) params.phase = `Phase ${filters.phase}`;
 
                 const { rows } = await getTrials(params);
-                setTrials(rows);
+                const normalized = rows.map((r: TrialRow): Trial => ({
+                  id: r.id,
+                  title: r.title,
+                  phase: normalizePhase(r.phase),
+                  status: normalizeStatus(r.status),
+                  country: r.country,
+                  gene: undefined,
+                  url: r.url,
+                }));
+                setTrials(normalized);
 
                 // 2) if none found, fall back to the old high-level summary
                 if (!rows.length) return buildTrialsPrompt(ui.topic!, country);
@@ -966,7 +998,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
         onResearchChange={setResearchMode}
         onTherapyChange={setTherapyMode}
       />
-      {(currentMode === 'doctor' || currentMode === 'research') && (
+      {mode === 'doctor' && researchMode && trials.length > 0 && (
         <>
           <ResearchFilters />
           <TrialsTable trials={trials} />
@@ -1148,3 +1180,4 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
     </div>
   );
 }
+  const [trials, setTrials] = useState<Trial[]>([]);

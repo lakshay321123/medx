@@ -14,7 +14,7 @@ import { searchDailyMed } from "@/lib/research/sources/dailymed";
 import { searchOpenFda } from "@/lib/research/sources/openfda";
 import { fetchRxCui } from "@/lib/research/sources/rxnorm";
 import { isTrial, hasRegistryId, matchesPhase, matchesStatus, matchesCountry, matchesGene } from "@/lib/research/validators";
-import type { ResearchFilters } from "@/store/researchFilters";
+import type { ResearchFilters, Phase } from "@/types/research";
 
 export type Citation = {
   id: string;
@@ -37,6 +37,17 @@ const CACHE_MS = 5 * 60 * 1000;
 
 let prevCondition: string | undefined;
 
+function toTrialsQuery(tq: any, f: ResearchFilters) {
+  return {
+    condition: tq.condition || tq.cancerType,
+    keywords: tq.keywords,
+    phase: f.phase,
+    status: f.status,
+    country: f.country,
+    gene: f.gene,
+  };
+}
+
 export async function orchestrateResearch(query: string, opts: { mode: string; filters?: ResearchFilters }): Promise<ResearchPacket> {
   const now = Date.now();
   const cached = cache.get(query);
@@ -57,20 +68,12 @@ export async function orchestrateResearch(query: string, opts: { mode: string; f
     prevCondition = tq.condition;
   }
 
-  const f: ResearchFilters = { status: "recruiting", ...(opts.filters || {}) };
-  if (!f.phase && tq.phase) f.phase = tq.phase;
+  const f: ResearchFilters = { status: "Recruiting", ...(opts.filters || {}) };
+  if (!f.phase && tq.phase) f.phase = tq.phase as Phase;
   if (!f.country && tq.country) f.country = tq.country;
-  if (!f.status && typeof tq.recruiting === "boolean") f.status = tq.recruiting ? "recruiting" : "any";
-  if (f.status) f.status = f.status.toLowerCase();
+  if (!f.status && typeof tq.recruiting === "boolean") f.status = tq.recruiting ? "Recruiting" : undefined;
 
-  const expr = buildCtgovExpr({
-    condition: tq.condition || tq.cancerType,
-    keywords: tq.keywords,
-    phase: f.phase,
-    status: f.status,
-    country: f.country,
-    gene: f.gene,
-  });
+  const expr = buildCtgovExpr(toTrialsQuery(tq, f));
 
   const rx = await safe(() => fetchRxCui(query));
 
