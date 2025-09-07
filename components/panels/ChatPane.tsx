@@ -290,9 +290,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [trialRows, setTrialRows] = useState<TrialRow[]>([]);
   const [searched, setSearched] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
-  const enabled = useMemoryStore(s => s.enabled);
-  const rememberThisThread = useMemoryStore(s => s.rememberThisThread);
-  const pushSuggestion = useMemoryStore(s => s.pushSuggestion);
+  const { enabled, rememberThisThread, pushSuggestion } = useMemoryStore();
 
   function handleTrials(rows: TrialRow[]) {
     setTrialRows(rows);
