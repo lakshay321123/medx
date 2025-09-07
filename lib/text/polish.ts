@@ -2,13 +2,13 @@
  * Lightweight post-processor to keep output clean and professional.
  * - Collapses extra spaces
  * - Normalizes bullet spacing
- * - Replaces three ASCII dots with an ellipsis character
+ * - Replaces sequences of three ASCII dots with an ellipsis character
  * - Ensures sentences end with proper punctuation where obvious
  */
 export function polishText(input: string): string {
   let s = input;
 
-  // Replace "..." with a single ellipsis (repo blocks "..." placeholders)
+  // Collapse three or more dots into a single ellipsis character
   s = s.replace(/\.{3,}/g, "…");
 
   // Collapse multiple spaces
