@@ -63,32 +63,47 @@ export default function TrialsPane() {
 
       <div className="text-sm text-gray-500">Informational only; not medical advice. Confirm eligibility with the sponsor.</div>
 
-      <div className="overflow-auto border rounded">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50">
-            <tr><th className="p-2 text-left">Title</th><th className="p-2">Phase</th><th className="p-2">Status</th><th className="p-2">Location</th><th className="p-2">NCT</th></tr>
-          </thead>
-          <tbody>
-            {rows.map(r=> (
-              <tr key={r.id} className="border-t">
-                <td className="p-2">
-                  {r.title}
-                  {r.hints && r.hints.length > 0 && (
-                    <span className="ml-1" title={r.hints.join('; ')}>⚑</span>
-                  )}
-                </td>
-                <td className="p-2 text-center">{r.phase||"—"}</td>
-                <td className="p-2 text-center">{r.status||"—"}</td>
-                <td className="p-2 text-center">{[r.city, r.country].filter(Boolean).join(", ")||"—"}</td>
-                <td className="p-2 text-center">
-                  {r.id ? <a className="underline" href={r.url} target="_blank" rel="noreferrer">{r.id}</a> : "—"}
-                </td>
+      {rows.length > 0 && (
+        <div className="overflow-auto border rounded">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="p-2 text-left">Title</th>
+                <th className="p-2">Phase</th>
+                <th className="p-2">Status</th>
+                <th className="p-2">Location</th>
+                <th className="p-2">NCT</th>
               </tr>
-            ))}
-            {!rows.length && <tr><td className="p-4 text-gray-400" colSpan={5}>No results yet</td></tr>}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id} className="border-t">
+                  <td className="p-2">
+                    {r.title}
+                    {r.hints && r.hints.length > 0 && (
+                      <span className="ml-1" title={r.hints.join('; ')}>⚑</span>
+                    )}
+                  </td>
+                  <td className="p-2 text-center">{r.phase || "—"}</td>
+                  <td className="p-2 text-center">{r.status || "—"}</td>
+                  <td className="p-2 text-center">
+                    {[r.city, r.country].filter(Boolean).join(", ") || "—"}
+                  </td>
+                  <td className="p-2 text-center">
+                    {r.id ? (
+                      <a className="underline" href={r.url} target="_blank" rel="noreferrer">
+                        {r.id}
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
