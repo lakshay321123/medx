@@ -1,6 +1,8 @@
 // Add a Phase type that includes mixed values
 type PhaseStr = "1" | "2" | "3" | "4" | "1/2" | "2/3";
 
+import { whoICTRPFetch } from "./fetchICTRP";
+
 type Input = {
   query?: string;
   phase?: "1" | "2" | "3" | "4"; // user selects a single anchor phase
@@ -17,6 +19,7 @@ export type Trial = {
   status?: "Recruiting" | "Completed" | "Active, not recruiting" | "Enrolling by invitation";
   country?: string;
   gene?: string;
+  source?: string;
 };
 
 // ---- helpers --------------------------------------------------
@@ -84,11 +87,15 @@ function phaseMatches(want: Input["phase"], trialPhase?: PhaseStr): boolean {
 // ---- main search --------------------------------------------------
 
 export async function searchTrials(input: Input): Promise<Trial[]> {
-  // Fetch broadly (query + genes words), then filter locally for correctness.
-  const results = await clinicalTrialsGovFetch({
-    query: input.query,
-    genes: input.genes,
-  });
+  // Fetch broadly (query + genes words) from multiple sources, then filter locally for correctness.
+  const [ctgov, ictrp] = await Promise.all([
+    clinicalTrialsGovFetch({ query: input.query, genes: input.genes }),
+    whoICTRPFetch(input.query)
+  ]);
+
+  const taggedCtgov = ctgov.map(r => ({ ...r, source: "CTgov" }));
+  const taggedIctrp = ictrp.map(r => ({ ...r, source: "ICTRP" }));
+  const results = [...taggedCtgov, ...taggedIctrp];
 
   const wantStatus = input.status;
   const wantCountry = input.country?.toLowerCase();
@@ -116,6 +123,7 @@ export async function searchTrials(input: Input): Promise<Trial[]> {
     status: normalizeStatus(r.status),
     country: r.country,
     gene: r.gene,
+    source: r.source,
   }));
 }
 

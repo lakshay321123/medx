@@ -48,6 +48,10 @@ export function summarizeTrials(trials: Trial[], mode: "patient" | "doctor"): st
 
   const { byPhase, byStatus, byCountry, genes, conditions } = scan(trials);
   const total = trials.length;
+  const countsBySource: Record<string, number> = {};
+  for (const t of trials) {
+    if (t.source) countsBySource[t.source] = (countsBySource[t.source] || 0) + 1;
+  }
 
   const phaseStr = topN(byPhase).map(([p,c]) => `${c}× Phase ${p}`).join(", ") || "N/A";
   const statusStr = topN(byStatus).map(([s,c]) => `${c}× ${s}`).join(", ") || "N/A";
@@ -76,6 +80,8 @@ export function summarizeTrials(trials: Trial[], mode: "patient" | "doctor"): st
     `Statuses: ${statusStr}.`,
     `Top countries: ${countryStr}.`,
   ];
+  const sources = Object.entries(countsBySource).map(([s,c]) => `${c}× ${s}`).join(", ");
+  if (sources) lines.push(`Sources: ${sources}.`);
   if (geneStr) lines.push(`Frequent molecular targets: ${geneStr}.`);
   if (condStr) lines.push(`Conditions represented: ${condStr}.`);
   return lines.join(" ");
