@@ -1,19 +1,39 @@
 import { NextResponse } from "next/server";
-import { searchTrials } from "@/lib/trials/search";
+import { fetchTrials } from "@/lib/trials";
+import type { TrialRow } from "@/types/trials";
 
-export async function POST(req: Request) {
+export async function GET(req: Request) {
   try {
-    const body = await req.json();
+    const { searchParams } = new URL(req.url);
+    const condition = searchParams.get("condition") || "";
+    const phaseParam = searchParams.get("phase");
+    const statusParam = searchParams.get("status");
+    const countryParam = searchParams.get("country");
+    const genesParam = searchParams.get("genes");
 
-    const q = typeof body.query === "string" ? body.query.trim() : undefined;
-    const phase = body.phase as "1" | "2" | "3" | "4" | undefined;
-    const status = body.status as "Recruiting" | "Completed" | undefined;
-    const country = typeof body.country === "string" ? body.country : undefined;
-    const genes = Array.isArray(body.genes) ? body.genes : undefined;
+    const phase = phaseParam && phaseParam !== "any" ? `Phase ${phaseParam}` : undefined;
+    const status = statusParam && statusParam !== "any" ? statusParam : undefined;
+    const countries = countryParam
+      ? countryParam.split(",").map((c) => c.trim()).filter(Boolean)
+      : [];
+    const genes = genesParam
+      ? genesParam.split(",").map((g) => g.trim()).filter(Boolean)
+      : [];
 
-    const trials = await searchTrials({ query: q, phase, status, country, genes });
+    const query = [condition, ...genes].filter(Boolean).join(" ");
 
-    return NextResponse.json({ trials });
+    const map = new Map<string, TrialRow>();
+    if (countries.length === 0) {
+      const rows = await fetchTrials({ condition: query, phase, status });
+      rows.forEach((r) => map.set(r.id, r));
+    } else {
+      for (const c of countries) {
+        const rows = await fetchTrials({ condition: query, phase, status, country: c });
+        rows.forEach((r) => map.set(r.id, r));
+      }
+    }
+
+    return NextResponse.json({ trials: Array.from(map.values()) });
   } catch (err: any) {
     console.error("[API] /api/trials/search error:", err);
     return NextResponse.json(
@@ -22,4 +42,3 @@ export async function POST(req: Request) {
     );
   }
 }
-

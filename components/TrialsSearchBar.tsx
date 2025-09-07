@@ -2,53 +2,59 @@
 
 import { useState } from "react";
 import type { TrialRow } from "@/types/trials";
+import { searchTrials } from "@/lib/trials/api";
 
-type Props = {
+const phaseOptions = [1, 2, 3, 4];
+const statusOptions = ["Recruiting", "Active", "Completed", "any"];
+const countryOptions = [
+  "United States",
+  "India",
+  "European Union",
+  "United Kingdom",
+  "Japan",
+  "Worldwide",
+];
+
+export default function TrialsSearchBar({
+  onTrials,
+}: {
   onTrials?: (rows: TrialRow[]) => void;
-};
-
-export default function TrialsSearchBar({ onTrials }: Props) {
-  const [keywords, setKeywords] = useState("");
-  const [condition, setCondition] = useState("");
-  const [phase, setPhase] = useState("");
-  const [status, setStatus] = useState("");
-  const [country, setCountry] = useState("");
-  const [genesInput, setGenesInput] = useState("");
+}) {
+  const [filters, setFilters] = useState<{
+    condition: string;
+    phase: number | "any";
+    status: string | "any";
+    country: string[];
+    genes: string[];
+  }>({
+    condition: "",
+    phase: "any",
+    status: "any",
+    country: [],
+    genes: [],
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function update<K extends keyof typeof filters>(key: K, value: (typeof filters)[K]) {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function toggleCountry(c: string) {
+    setFilters((prev) => {
+      const set = new Set(prev.country);
+      if (set.has(c)) set.delete(c); else set.add(c);
+      return { ...prev, country: Array.from(set) };
+    });
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-
-    const payload = {
-      query: (keywords || condition || "").trim() || undefined,
-      phase: phase && phase !== "Any" ? phase : undefined,
-      status: status && status !== "Any" ? status : undefined,
-      country: country && country !== "Any" ? country : undefined,
-      genes: (genesInput || "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
-    } as any;
-
-    if (!payload.genes?.length) delete payload.genes;
-
     setIsLoading(true);
     setError(null);
-
     try {
-      const res = await fetch("/api/trials/search", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-
-      if (!res.ok || data.error) {
-        throw new Error(data.error || "Search failed");
-      }
-
-      onTrials?.(data.trials || []);
+      const trials = await searchTrials(filters);
+      onTrials?.(trials);
     } catch (err: any) {
       console.error("[Trials] search error", err);
       setError(err.message || "Failed to fetch trials");
@@ -58,45 +64,77 @@ export default function TrialsSearchBar({ onTrials }: Props) {
     }
   }
 
+  const geneInput = filters.genes.join(", ");
+
   return (
     <form onSubmit={onSubmit} className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          className="border rounded px-2 py-1"
-          placeholder="Keywords"
-          value={keywords}
-          onChange={(e) => setKeywords(e.target.value)}
-        />
+      <div className="flex flex-wrap items-center gap-2 text-sm">
         <input
           className="border rounded px-2 py-1"
           placeholder="Condition"
-          value={condition}
-          onChange={(e) => setCondition(e.target.value)}
+          value={filters.condition}
+          onChange={(e) => update("condition", e.target.value)}
         />
-        <input
-          className="border rounded px-2 py-1"
-          placeholder="Phase"
-          value={phase}
-          onChange={(e) => setPhase(e.target.value)}
-        />
-        <input
-          className="border rounded px-2 py-1"
-          placeholder="Status"
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-        />
-        <input
-          className="border rounded px-2 py-1"
-          placeholder="Country"
-          value={country}
-          onChange={(e) => setCountry(e.target.value)}
-        />
-        <input
-          className="border rounded px-2 py-1"
-          placeholder="Genes (comma separated)"
-          value={genesInput}
-          onChange={(e) => setGenesInput(e.target.value)}
-        />
+        <div className="flex items-center gap-1">
+          <span className="font-medium">Phase:</span>
+          <div className="flex border rounded overflow-hidden">
+            <button
+              type="button"
+              className={`px-2 py-1 ${filters.phase === "any" ? "bg-blue-600 text-white" : "bg-transparent"}`}
+              onClick={() => update("phase", "any")}
+            >
+              Any
+            </button>
+            {phaseOptions.map((p) => (
+              <button
+                key={p}
+                type="button"
+                className={`px-2 py-1 ${filters.phase === p ? "bg-blue-600 text-white" : "bg-transparent"}`}
+                onClick={() => update("phase", p)}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+        <label className="flex items-center gap-1">
+          <span className="font-medium">Status:</span>
+          <select
+            className="border rounded px-2 py-1"
+            value={filters.status}
+            onChange={(e) => update("status", e.target.value)}
+          >
+            {statusOptions.map((s) => (
+              <option key={s} value={s}>
+                {s === "any" ? "Any" : s}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="flex items-center gap-1">
+          <span className="font-medium">Country:</span>
+          <div className="flex flex-wrap gap-1">
+            {countryOptions.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className={`px-2 py-1 border rounded ${filters.country.includes(c) ? "bg-blue-600 text-white" : "bg-transparent"}`}
+                onClick={() => toggleCountry(c)}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
+        <label className="flex items-center gap-1 flex-wrap">
+          <span className="font-medium">Genes:</span>
+          <input
+            className="border rounded px-2 py-1"
+            placeholder="EGFR, ALK"
+            value={geneInput}
+            onChange={(e) => update("genes", e.target.value.split(/\s*,\s*/).filter(Boolean))}
+          />
+        </label>
         <button
           type="submit"
           className="px-3 py-1 rounded bg-blue-600 text-white disabled:opacity-50"
@@ -109,4 +147,3 @@ export default function TrialsSearchBar({ onTrials }: Props) {
     </form>
   );
 }
-
