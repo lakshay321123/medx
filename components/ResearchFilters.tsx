@@ -51,7 +51,7 @@ export default function ResearchFilters({ mode }: { mode: 'patient'|'doctor'|'re
 
   return (
     <div className="border-b border-slate-200 dark:border-gray-800 px-4 py-2">
-      {mode === 'patient' && (
+      {mode === 'research' && (
         <button type="button" className="btn-secondary mb-2" onClick={() => setOpen(o=>!o)}>
           {open ? 'Hide filters' : `Refine results${count?` (${count})`:''}`}
         </button>
