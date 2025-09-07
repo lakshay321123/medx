@@ -8,7 +8,7 @@ export type ResearchFilters = {
   gene?: string;
 };
 
-const defaultFilters: ResearchFilters = {};
+export const defaultFilters: ResearchFilters = {};
 
 const Ctx = createContext<{
   filters: ResearchFilters;
