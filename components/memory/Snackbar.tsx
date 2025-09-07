@@ -8,17 +8,23 @@ export default function MemorySnackbar() {
   const current = suggestions[0];
 
   const onSave = async () => {
-    const res = await fetch("/api/memory", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include", // ✅ pass session cookies
-      body: JSON.stringify(current),
-    });
-    if (!res.ok) {
-      console.error("Memory save failed", await res.text());
-      return;
+    try {
+      const res = await fetch("/api/memory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include", // ✅ pass session cookies
+        body: JSON.stringify(current),
+      });
+      if (!res.ok) {
+        console.error("Memory save failed", res.status, await res.text());
+        return;
+      }
+      const data = await res.json();
+      console.log("Memory saved:", data);
+      clearSuggestion(current.key); // ✅ hide snackbar
+    } catch (err) {
+      console.error("Memory save error:", err);
     }
-    clearSuggestion(current.key);
   };
 
   const onDismiss = () => clearSuggestion(current.key);
