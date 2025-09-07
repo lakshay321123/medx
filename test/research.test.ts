@@ -1,16 +1,15 @@
-import { test } from 'node:test';
-import { strict as assert } from 'assert';
+import { test, expect } from 'vitest';
 import { detectResearchIntent } from '../lib/detectResearch';
 import { PatientSchema, DoctorSchema } from '../lib/schemas/medx';
 
 test('research intent classifier triggers with keywords', () => {
   process.env.MEDX_MODES_V2 = '1';
-  assert.equal(detectResearchIntent('is there evidence or meta-analysis?'), true);
+  expect(detectResearchIntent('is there evidence or meta-analysis?')).toBe(true);
 });
 
 test('research intent classifier off when flag disabled', () => {
   delete process.env.MEDX_MODES_V2;
-  assert.equal(detectResearchIntent('need evidence for this?'), false);
+  expect(detectResearchIntent('need evidence for this?')).toBe(false);
 });
 
 test('patient evidence schema validates plain summary and reference', () => {
@@ -32,10 +31,10 @@ test('patient evidence schema validates plain summary and reference', () => {
     }
   };
   const parsed = PatientSchema.parse(sample);
-  assert.ok(parsed.evidence?.plain_summary);
+  expect(parsed.evidence?.plain_summary).toBeTruthy();
   const jargon = /(etiology|pathophysiology|efficacy|randomized)/i;
-  assert.equal(jargon.test(parsed.evidence!.plain_summary), false);
-  assert.ok(parsed.evidence?.references.length);
+  expect(jargon.test(parsed.evidence!.plain_summary)).toBe(false);
+  expect(parsed.evidence?.references.length).toBeTruthy();
 });
 
 test('doctor evidence schema validates clinical summary and metrics', () => {
@@ -59,8 +58,8 @@ test('doctor evidence schema validates clinical summary and metrics', () => {
     }
   };
   const parsed = DoctorSchema.parse(sample);
-  assert.ok(parsed.evidence?.clinical_summary);
-  assert.ok(parsed.evidence?.metrics.length);
+  expect(parsed.evidence?.clinical_summary).toBeTruthy();
+  expect(parsed.evidence?.metrics.length).toBeTruthy();
   const ref = parsed.evidence?.references[0];
-  assert.ok(ref?.year || ref?.doi);
+  expect(ref?.year || ref?.doi).toBeTruthy();
 });

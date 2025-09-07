@@ -14,7 +14,31 @@ import { searchDailyMed } from "@/lib/research/sources/dailymed";
 import { searchOpenFda } from "@/lib/research/sources/openfda";
 import { fetchRxCui } from "@/lib/research/sources/rxnorm";
 import { isTrial, hasRegistryId, matchesPhase, matchesStatus, matchesCountries, matchesGenes } from "@/lib/research/validators";
-import type { ResearchFilters } from "@/store/researchFilters";
+
+export type ResearchFilters = {
+  phase?: "1" | "2" | "3" | "4";
+  status?: "recruiting" | "active" | "completed";
+  countries?: string[];
+  genes?: string[];
+};
+
+export type TrialsResult = {
+  trials: Array<{
+    title: string;
+    url: string;
+    registryId?: string;
+    extra?: {
+      phase?: string;
+      status?: string;   // "Recruiting" | "Active, not recruiting" | "Completed"
+      condition?: string;
+      intervention?: string;
+      country?: string;  // primary country; may be CSV upstream
+      genes?: string[];
+      source?: "CTGov" | "CTRI" | "ICTRP";
+    };
+  }>;
+  papers: Array<{ title: string; url: string; source: "PubMed" | "EuropePMC" | "Crossref" | "OpenAlex" }>;
+};
 
 export type Citation = {
   id: string;
@@ -31,6 +55,45 @@ export type ResearchPacket = {
   followUps: string[];
   meta: { widened?: boolean; tookMs: number };
 };
+
+export async function orchestrateTrials(
+  userQuery: string,
+  filters: ResearchFilters,
+  opts: { mode: "patient" | "doctor"; researchOn: boolean }
+): Promise<TrialsResult> {
+  const result: TrialsResult = await fanoutAndNormalize(userQuery, filters, opts);
+
+  let trials = [...(result.trials || [])];
+  if (filters.phase) {
+    trials = trials.filter(t => t.extra?.phase === filters.phase);
+  }
+  if (filters.status) {
+    const want = filters.status.toLowerCase();
+    trials = trials.filter(t => (t.extra?.status || "").toLowerCase().includes(want));
+  }
+  if (filters.countries?.length) {
+    trials = trials.filter(t => {
+      const c = (t.extra?.country || "").trim();
+      return !!c && filters.countries!.some(w => w === c || c.split(",").map(s => s.trim()).includes(w));
+    });
+  }
+  if (filters.genes?.length) {
+    trials = trials.filter(t => {
+      const g = t.extra?.genes || [];
+      return g.some(x => filters.genes!.includes(x));
+    });
+  }
+  return { ...result, trials };
+}
+
+async function fanoutAndNormalize(
+  _userQuery: string,
+  _filters: ResearchFilters,
+  _opts: { mode: "patient" | "doctor"; researchOn: boolean }
+): Promise<TrialsResult> {
+  // Placeholder for provider fanout and normalization.
+  return { trials: [], papers: [] };
+}
 
 const cache = new Map<string, { ts: number; data: ResearchPacket }>();
 const CACHE_MS = 5 * 60 * 1000;
