@@ -8,7 +8,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint || true",
-    "test": "tsx --test test/medx.test.ts test/selfLearning.test.ts"
+    "test": "tsx --test test/medx.test.ts test/selfLearning.test.ts test/research.test.ts test/aidoc.rules.test.ts test/aidoc.prompt.test.ts"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.78",

@@ -24,6 +24,11 @@ import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTi
 import { useMemoryStore } from "@/lib/memory/useMemoryStore";
 import { summarizeTrials } from "@/lib/research/summarizeTrials";
 import { computeTrialStats, type TrialStats } from "@/lib/research/trialStats";
+import { useAiDoc } from '@/lib/hooks/useAiDoc';
+import { NextStepsCard } from '@/components/ai/NextStepsCard';
+import { Observations } from '@/components/ai/Observations';
+import { PrefChips } from '@/components/ai/PrefChips';
+import { getThreadMem } from '@/lib/api/getThreadMem';
 
 type ChatUiState = {
   topic: string | null;
@@ -317,6 +322,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [pendingCommitIds, setPendingCommitIds] = useState<string[]>([]);
   const [commitBusy, setCommitBusy] = useState<null | 'save' | 'discard'>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
+  const { send: sendAiDoc, last: aiDocOut } = useAiDoc(conversationId);
+  const [prefs, setPrefs] = useState<{key:string; value:string}[]>([]);
   const posted = useRef(new Set<string>());
   const bootedRef = useRef<{[k:string]:boolean}>({});
   const askedKey = (thread?: string|null, kind?: string)=> `aidoc:${thread||'med-profile'}:asked:${kind||'any'}`;
@@ -363,6 +370,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       setUi(UI_DEFAULTS);
     }
   }, [threadId]);
+
+  useEffect(() => {
+    getThreadMem(conversationId).then(r => setPrefs(r.mem?.prefs || []));
+  }, [conversationId]);
   useEffect(() => { setPendingCommitIds([]); }, [threadId]);
 
   // Persist per-thread UI on change
@@ -522,45 +533,19 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
     try {
       if (isProfileThread) {
-        const thread = [
-          ...messages
-            .filter(m => !m.pending)
-            .map(m => ({ role: m.role, content: (m as any).content || '' })),
-          { role: 'user', content: userText }
-        ];
-
-        const res = await fetch('/api/chat/stream', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: thread, threadId, context })
-        });
-        if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let acc = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
-          for (const line of lines) {
-            if (line.trim() === 'data: [DONE]') continue;
-            try {
-              const payload = JSON.parse(line.replace(/^data:\s*/, ''));
-              const delta = payload?.choices?.[0]?.delta?.content;
-              if (delta) {
-                acc += delta;
-                setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m)));
-              }
-            } catch {}
-          }
+        try {
+          const out = await sendAiDoc(userText);
+          setMessages(prev =>
+            prev.map(m => (m.id === pendingId ? { ...m, content: out.reply, pending: false } : m))
+          );
+          getThreadMem(conversationId).then(r => setPrefs(r.mem?.prefs || []));
+          await fetch('/api/alerts?revalidate=1').catch(() => {});
+        } catch (e: any) {
+          const msg = String(e?.message || 'error');
+          setMessages(prev =>
+            prev.map(m => (m.id === pendingId ? { ...m, content: `⚠️ ${msg}`, pending: false, error: msg } : m))
+          );
         }
-        const { main, followUps } = splitFollowUps(acc);
-        setMessages(prev =>
-          prev.map(m =>
-            m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
-          )
-        );
         return;
       }
       if (therapyMode) {
@@ -1189,6 +1174,15 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
             )
         )}
       </div>
+      <div className="mx-auto my-2 max-w-3xl px-4 sm:px-6">
+        <PrefChips prefs={prefs} />
+      </div>
+      {aiDocOut && (
+        <div className="mx-auto my-4 max-w-3xl px-4 sm:px-6 space-y-4">
+          <Observations shortText={aiDocOut.observations?.short} longText={aiDocOut.observations?.long} />
+          <NextStepsCard plan={aiDocOut.plan} />
+        </div>
+      )}
       {pendingCommitIds.length > 0 && (
         <div className="mx-auto my-4 max-w-3xl px-4 sm:px-6">
           <div className="rounded-lg border p-3 text-sm flex items-center gap-2 bg-white dark:bg-gray-800">
