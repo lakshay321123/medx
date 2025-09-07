@@ -613,12 +613,25 @@ ${linkNudge}`;
             ? buildHospitalsPrompt(ui.topic, country)
             : intent === 'trials'
             ? await (async () => {
+                // Map store filters -> ClinicalTrials.gov API strings
+                function mapStatus(s?: string) {
+                  if (!s || s === 'any') return undefined;
+                  if (s === 'recruiting') return 'Recruiting,Enrolling by invitation';
+                  if (s === 'active') return 'Active,Enrolling by invitation';
+                  if (s === 'completed') return 'Completed';
+                  return undefined;
+                }
+                function mapPhase(p?: string) {
+                  // store keeps '1' | '2' | '3' | '4'
+                  return p ? `Phase ${p}` : undefined;
+                }
+
                 // 1) fetch real trials
                 const { rows } = await getTrials({
                   condition: ui.topic!,
-                  country: country.name, // ClinicalTrials.gov expects country name
-                  status: "Recruiting,Enrolling by invitation",
-                  phase: "Phase 2,Phase 3",
+                  country: (filters.countries?.[0] ?? country.name), // ClinicalTrials.gov expects country name
+                  status: mapStatus(filters.status) ?? 'Recruiting,Enrolling by invitation',
+                  phase: (filters.phase ? mapPhase(filters.phase) : 'Phase 2,Phase 3'),
                   page: 1,
                   pageSize: 10,
                 });
@@ -955,7 +968,9 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
         onResearchChange={setResearchMode}
         onTherapyChange={setTherapyMode}
       />
-      <ResearchFilters mode={currentMode} />
+      {(mode === 'doctor' || researchMode) && (
+        <ResearchFilters mode={currentMode} />
+      )}
       <div
         ref={chatRef}
         className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 pb-28"
