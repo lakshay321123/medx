@@ -19,9 +19,17 @@ import { polishText } from "@/lib/text/polish";
 import { buildConstraintRecap } from "@/lib/text/recap";
 import { selfCheck } from "@/lib/text/selfCheck";
 import { addEvidenceAnchorIfMedical } from "@/lib/text/medicalAnchor";
+import { shouldReset } from "@/lib/conversation/resetGuard";
+import { sanitizeLLM } from "@/lib/conversation/sanitize";
+import { finalReplyGuard } from "@/lib/conversation/finalReplyGuard";
 
 export async function POST(req: Request) {
   const { userId, activeThreadId, text, mode, researchOn, clarifySelectId } = await req.json();
+
+  if (shouldReset(text)) {
+    // start new thread logic here
+    return NextResponse.json({ ok: true, threadId: null, text: "Starting fresh. What would you like to do next?" });
+  }
 
   // 1) Context routing (continue/clarify/newThread)
   const decision = await decideContext(userId, activeThreadId, text);
@@ -100,6 +108,9 @@ export async function POST(req: Request) {
   assistant = addEvidenceAnchorIfMedical(assistant);
   const recap = buildConstraintRecap(state.constraints);
   if (recap) assistant += recap;
+
+  assistant = sanitizeLLM(assistant);
+  assistant = finalReplyGuard(text, assistant);
 
   // 7) Save assistant + summary
   await appendMessage({ threadId, role: "assistant", content: assistant });
