@@ -109,16 +109,16 @@ export async function POST(req: Request) {
   const recap = buildConstraintRecap(state.constraints);
   if (recap) assistant += recap;
 
-  assistant = sanitizeLLM(assistant);
-  assistant = finalReplyGuard(text, assistant);
+  const sanitized = sanitizeLLM(assistant);
+  const final = finalReplyGuard(text, sanitized);
 
   // 7) Save assistant + summary
-  await appendMessage({ threadId, role: "assistant", content: assistant });
-  const updated = updateSummary("", text, assistant);
+  await appendMessage({ threadId, role: "assistant", content: final });
+  const updated = updateSummary("", text, final);
   await persistUpdatedSummary(threadId, updated);
 
   // 8) Optional natural pacing (2–4s)
   await new Promise(r => setTimeout(r, 1800 + Math.random() * 1200));
 
-  return NextResponse.json({ ok: true, threadId, text: assistant });
+  return NextResponse.json({ ok: true, threadId, text: final });
 }

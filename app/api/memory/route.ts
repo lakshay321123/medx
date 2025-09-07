@@ -36,7 +36,7 @@ export async function POST(req: Request) {
   }));
 
   const { data, error } = await supabase.from("medx_memory")
-    .upsert(rows, { onConflict: "user_id,scope,thread_id,key" })
+    .insert(rows)
     .select("*");
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
