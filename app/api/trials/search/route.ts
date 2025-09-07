@@ -7,7 +7,7 @@ export async function POST(req: Request) {
 
     const q = typeof body.query === "string" ? body.query.trim() : undefined;
     const phase = body.phase as "1" | "2" | "3" | "4" | undefined;
-    // ✅ Accept all statuses the UI can emit
+    // accept all UI statuses
     const status = body.status as
       | "Recruiting"
       | "Completed"
