@@ -1,70 +1,57 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { appendMessage } from "@/lib/memory/store";
-import { decideOutOfContext, seedTopicEmbedding } from "@/lib/memory/outOfContext";
+import { decideContext } from "@/lib/memory/contextRouter";
+import { seedTopicEmbedding } from "@/lib/memory/outOfContext";
 import { updateSummary, persistUpdatedSummary } from "@/lib/memory/summary";
 import { buildPromptContext } from "@/lib/memory/contextBuilder";
 
-// Swap with your LLM client
-async function callLLM(system: string, recent: {role: string, content: string}[], userText: string) {
-  const messages = [
-    { role: "system", content: system },
-    ...recent.map(m => ({ role: m.role as any, content: m.content })),
-    { role: "user", content: userText },
-  ];
-  // TODO: Replace with actual LLM call. For now echo:
-  return `Noted. (demo) You said: ${userText}`;
+// Replace with real LLM
+async function callLLM(system: string, recent: { role: string; content: string }[], userText: string) {
+  return `Demo: I understood "${userText}" in context.`;
 }
 
 export async function POST(req: Request) {
-  const { threadId, userId, text, mode, researchOn } = await req.json();
+  const { userId, activeThreadId, text, mode, researchOn } = await req.json();
 
-  // 1) If first message in a thread, create thread
-  let thread = await prisma.chatThread.findUnique({ where: { id: threadId } });
-  if (!thread) {
-    thread = await prisma.chatThread.create({
-      data: { id: threadId, userId, title: "New chat" },
+  // Context routing
+  const decision = await decideContext(userId, activeThreadId, text);
+  let threadId = activeThreadId;
+
+  if (decision.action === "continue") {
+    threadId = decision.threadId;
+  } else if (decision.action === "newThread") {
+    const newT = await prisma.chatThread.create({
+      data: { userId, title: "New topic" },
     });
-    await seedTopicEmbedding(thread.id, text);
+    threadId = newT.id;
+    await seedTopicEmbedding(newT.id, text);
+  } else if (decision.action === "clarify") {
+    return NextResponse.json({
+      ok: true,
+      clarify: true,
+      options: decision.candidates,
+    });
   }
 
-  // 2) Out-of-context? Branch to new thread automatically
-  const decision = await decideOutOfContext(thread.id, text);
-  let activeThreadId = thread.id;
-  if (decision.isOutOfContext) {
-    const branched = await prisma.chatThread.create({
-      data: {
-        userId,
-        title: "New topic",
-        runningSummary: "",
-      },
-    });
-    activeThreadId = branched.id;
-    await seedTopicEmbedding(activeThreadId, text);
-  }
+  // Save user message
+  await appendMessage({ threadId, role: "user", content: text });
 
-  // 3) Save user message
-  await appendMessage({ threadId: activeThreadId, role: "user", content: text });
-
-  // 4) Build context (system + recent)
+  // Build context
   const { system, recent } = await buildPromptContext({
-    threadId: activeThreadId,
-    options: { mode, researchOn, maxRecent: 10, maxSummaryChars: 1500 },
+    threadId,
+    options: { mode, researchOn },
   });
 
-  // 5) Call LLM
+  // Call LLM
   const assistant = await callLLM(system, recent as any, text);
 
-  // Add natural pacing (2–4 sec)
-  await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
+  // Save assistant
+  await appendMessage({ threadId, role: "assistant", content: assistant });
 
-  // 6) Save assistant message
-  await appendMessage({ threadId: activeThreadId, role: "assistant", content: assistant });
+  // Update running summary
+  const updated = updateSummary("", text, assistant);
+  await persistUpdatedSummary(threadId, updated);
 
-  // 7) Update running summary
-  const lastUser = text;
-  const updated = updateSummary(thread?.runningSummary ?? "", lastUser, assistant);
-  await persistUpdatedSummary(activeThreadId, updated);
-
-  return NextResponse.json({ ok: true, threadId: activeThreadId, text: assistant, outOfContext: decision });
+  return NextResponse.json({ ok: true, threadId, text: assistant });
 }
