@@ -9,13 +9,18 @@ export function ResearchToggle({ defaultOn=false, onChange }:{defaultOn?:boolean
 
   const toggle = () => { const v = !on; setOn(v); onChange?.(v); };
   return (
-    <button type="button" aria-pressed={on} onClick={toggle}
-      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition
-        ${on
-        ? "bg-emerald-100 text-emerald-900 border-emerald-200/60 dark:bg-emerald-900/30 dark:text-emerald-200 dark:border-emerald-800"
-        : "bg-slate-100 text-slate-800 border-slate-200 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"}`}>
-      <span className={`inline-block h-2.5 w-2.5 rounded-full ${on?"bg-emerald-500":"bg-slate-400"}`} />
-      {on ? "Research On" : "Research Off"}
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={toggle}
+      className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm border transition shadow-sm ${
+        on
+          ? 'bg-[var(--p)] text-white border-transparent shadow'
+          : 'bg-[var(--g50)] text-inherit border-[var(--g300)] opacity-85 hover:shadow dark:bg-[#0F172A] dark:text-[#CBD5E1] dark:border-[var(--g300)]'
+      }`}
+    >
+      <span className={`inline-block h-2.5 w-2.5 rounded-full ${on ? 'bg-white' : 'bg-[var(--g400)]'}`} />
+      {on ? 'Research On' : 'Research Off'}
     </button>
   );
 }

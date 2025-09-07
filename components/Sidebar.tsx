@@ -31,14 +31,18 @@ export default function Sidebar() {
   };
   const filtered = threads.filter(t => t.title.toLowerCase().includes(q.toLowerCase()));
   return (
-    <nav className="sidebar-click-guard hidden md:flex md:flex-col !fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-900 border-r border-slate-200 dark:border-gray-800">
-      <button type="button" onClick={handleNew} className="mx-3 my-3 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 flex items-center justify-center gap-2">
+    <nav className="sidebar-click-guard hidden md:flex md:flex-col !fixed inset-y-0 left-0 w-64 rounded-r-2xl border-r border-[var(--g300)] bg-[var(--g50)] shadow-sm dark:bg-[#111827] dark:text-[#F9FAFB] dark:border-white/25 p-3">
+      <button
+        type="button"
+        onClick={handleNew}
+        className="w-full flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm border border-dashed border-[var(--g300)] dark:border-white/25"
+      >
         <Plus size={16} /> New Chat
       </button>
 
       <div className="px-3">
         <div className="relative">
-          <input className="w-full h-10 rounded-lg pl-3 pr-8 bg-slate-100 dark:bg-gray-800 placeholder:text-slate-500 dark:placeholder:text-slate-500 text-sm" placeholder="Search chats" onChange={e => handleSearch(e.target.value)} />
+          <input className="w-full h-10 rounded-lg pl-3 pr-8 bg-white text-inherit placeholder:text-slate-500 border border-[var(--g300)] dark:bg-[#1F2937] dark:text-[#F9FAFB] dark:border-white/25 dark:placeholder:text-[#E5E7EB] text-sm" placeholder="Search chats" onChange={e => handleSearch(e.target.value)} />
           <Search size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
         </div>
         <Tabs />
@@ -49,7 +53,7 @@ export default function Sidebar() {
           <button
             key={t.id}
             onClick={() => router.push(`/?panel=chat&threadId=${t.id}`)}
-            className="w-full text-left rounded-md px-2 py-1 text-sm hover:bg-muted"
+            className="w-full text-left rounded-md px-2 py-1 text-sm hover:bg-[var(--g50)] dark:hover:bg-white/10"
           >
             {t.title}
           </button>

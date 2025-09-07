@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* color palette */
+:root {
+  --p: #0564F5;
+  --ps: #639AE9;
+  --a: #EA4758;
+  --g50: #EFEFEF;
+  --g300: #C5C4C5;
+  --g400: #9C9D9E;
+}
+
 /* smooth theme transitions */
 * { transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
 

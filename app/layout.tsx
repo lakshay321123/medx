@@ -11,7 +11,7 @@ export const metadata = { title: "MedX", description: "Global medical AI" };
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-gray-100">
+      <body className="min-h-screen bg-white dark:bg-[#0B1020] text-slate-900 dark:text-[#F9FAFB]">
         <CountryProvider>
           <ContextProvider>
             <TopicProvider>

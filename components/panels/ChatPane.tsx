@@ -5,7 +5,7 @@ import Header from '../Header';
 import Markdown from '../Markdown';
 import ResearchFilters from '@/components/ResearchFilters';
 import { useResearchFilters } from '@/store/researchFilters';
-import { Send } from 'lucide-react';
+import { Send, Upload } from 'lucide-react';
 import { useCountry } from '@/lib/country';
 import { getRandomWelcome } from '@/lib/welcomeMessages';
 import { useActiveContext } from '@/lib/context';
@@ -152,16 +152,16 @@ No fabricated IDs. Provide themes, not specific trial numbers unless confident.`
 
 function PendingAnalysisCard({ label }: { label: string }) {
   return (
-    <article className="mr-auto max-w-[90%] rounded-2xl p-4 md:p-6 shadow-sm bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800">
-      <div className="text-sm text-slate-600 dark:text-slate-300">{label}</div>
+    <article className="mr-auto max-w-[75%] rounded-2xl px-4 py-3.5 text-sm leading-6 shadow-sm bg-[var(--g50)] border border-[var(--g300)] dark:bg-[#1F2937] dark:text-[#E5E7EB] dark:border-white/10">
+      <div className="text-sm text-slate-600 dark:text-[#E5E7EB]">{label}</div>
     </article>
   );
 }
 
 function PendingChatCard({ label }: { label: string }) {
   return (
-    <article className="mr-auto max-w-[90%] rounded-2xl p-4 md:p-6 shadow-sm bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800">
-      <div className="text-sm text-slate-600 dark:text-slate-300">{label}</div>
+    <article className="mr-auto max-w-[75%] rounded-2xl px-4 py-3.5 text-sm leading-6 shadow-sm bg-[var(--g50)] border border-[var(--g300)] dark:bg-[#1F2937] dark:text-[#E5E7EB] dark:border-white/10">
+      <div className="text-sm text-slate-600 dark:text-[#E5E7EB]">{label}</div>
     </article>
   );
 }
@@ -170,7 +170,7 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
   const header = titleForCategory(m.category);
   if (m.pending) return <PendingAnalysisCard label="Analyzing file…" />;
   return (
-    <article className="mr-auto max-w-[90%] rounded-2xl p-4 md:p-6 shadow-sm space-y-2 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800">
+    <article className="mr-auto max-w-[75%] rounded-2xl px-4 py-3.5 text-sm leading-6 shadow-sm space-y-2 bg-[var(--g50)] border border-[var(--g300)] dark:bg-[#1F2937] dark:text-[#E5E7EB] dark:border-white/10">
       <header className="flex items-center gap-2">
         <h2 className="text-lg md:text-xl font-semibold">{header}</h2>
         {researchOn && (
@@ -225,7 +225,7 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
 function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onFollowUpClick: (text: string) => void; simple: boolean }) {
   if (m.pending) return <PendingChatCard label="Thinking…" />;
   return (
-    <article className="mr-auto max-w-[90%] rounded-2xl p-4 md:p-6 shadow-sm space-y-2 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800">
+    <article className="mr-auto max-w-[75%] rounded-2xl px-4 py-3.5 text-sm leading-6 shadow-sm space-y-2 bg-[var(--g50)] border border-[var(--g300)] dark:bg-[#1F2937] dark:text-[#E5E7EB] dark:border-white/10">
       <div className="prose prose-slate dark:prose-invert max-w-none prose-medx text-sm md:text-base">
         <Markdown text={m.content} />
       </div>
@@ -983,7 +983,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
             m.role === 'user' ? (
               <div
                 key={m.id}
-                className="ml-auto max-w-[85%] rounded-2xl px-4 py-3 shadow-sm bg-slate-200 text-slate-900 dark:bg-gray-700 dark:text-gray-100"
+                className="ml-auto max-w-[75%] rounded-2xl px-4 py-3.5 text-sm leading-6 shadow-sm bg-[var(--p)] text-white"
               >
                 <Markdown text={m.content} />
               </div>
@@ -1073,10 +1073,14 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
               e.preventDefault();
               onSubmit();
             }}
-            className="w-full flex items-center gap-3 rounded-full border border-slate-200 dark:border-gray-800 bg-slate-100 dark:bg-gray-900 px-3 py-2"
+            className="w-full flex items-center gap-3 rounded-full border border-[var(--g300)] bg-white dark:border-white/10 dark:bg-[#1F2937] px-3 py-2"
           >
-            <label className="cursor-pointer px-3 py-1.5 text-sm rounded-full bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600">
-              📄
+            <label
+              className="cursor-pointer inline-flex items-center justify-center h-9 w-9 rounded-lg bg-white text-slate-600 border border-slate-300 hover:bg-slate-100 transition dark:bg-gray-700 dark:text-gray-100 dark:border-gray-700 dark:hover:bg-white/10"
+              title="Upload"
+              aria-label="Upload"
+            >
+              <Upload size={18} />
               <input
                 type="file"
                 accept="application/pdf,image/*"
@@ -1089,7 +1093,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
               />
             </label>
             {pendingFile && (
-              <div className="flex items-center gap-2 rounded-full bg-white/70 dark:bg-gray-800/70 px-3 py-1 text-xs">
+              <div className="flex items-center gap-2 rounded-full bg-white/70 dark:bg-[#1F2937]/70 px-3 py-1 text-xs">
                 <span className="truncate max-w-[8rem]">{pendingFile.name}</span>
                 <button
                   type="button"
@@ -1103,7 +1107,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
             )}
             <input
               ref={inputRef}
-              className="flex-1 bg-transparent outline-none text-sm md:text-base leading-6 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-2"
+              className="flex-1 bg-transparent outline-none text-sm md:text-base leading-6 placeholder:text-slate-400 dark:placeholder:text-[#E5E7EB] px-2"
               placeholder={
                 pendingFile
                   ? 'Add a note or question for this document (optional)'

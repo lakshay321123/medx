@@ -19,7 +19,7 @@ export default function Header({
   onTherapyChange: (v: boolean) => void;
 }) {
   return (
-    <header className="sticky top-0 z-40 h-14 md:h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-gray-900/60 border-b border-slate-200 dark:border-gray-800">
+    <header className="sticky top-0 z-40 h-14 md:h-16 bg-gradient-to-b from-[#f8fbff] to-white dark:from-[rgba(5,100,245,0.3)] dark:to-[rgba(5,100,245,0.1)] border-b border-[var(--g300)] dark:border-white/25">
       <div className="max-w-6xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between">
         <div className="flex items-center gap-2 text-base md:text-lg font-semibold">
           <div>MedX</div>
@@ -29,7 +29,7 @@ export default function Header({
           <TherapyToggle onChange={onTherapyChange} />
           <button
             onClick={() => onModeChange(mode === 'patient' ? 'doctor' : 'patient')}
-            className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm bg-slate-100 text-slate-800 border-slate-200 hover:bg-slate-200 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 dark:hover:bg-gray-700"
+            className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm border border-transparent transition shadow-sm bg-[var(--p)] text-white shadow"
           >
             {mode === 'patient' ? (
               <>
