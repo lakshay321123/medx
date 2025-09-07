@@ -7,7 +7,7 @@ import ResearchFilters from '@/components/ResearchFilters';
 import TrialsTable from "@/components/TrialsTable";
 import type { TrialRow } from "@/types/trials";
 import { useResearchFilters } from '@/store/researchFilters';
-import { Send, Paperclip, Clipboard, Stethoscope, Users } from 'lucide-react';
+import { Send, Paperclip, Clipboard, Stethoscope, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { useCountry } from '@/lib/country';
 import { getRandomWelcome } from '@/lib/welcomeMessages';
 import { useActiveContext } from '@/lib/context';
@@ -23,6 +23,7 @@ import type { AnalysisCategory } from '@/lib/context';
 import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle } from '@/lib/chatThreads';
 import { useMemoryStore } from "@/lib/memory/useMemoryStore";
 import { summarizeTrials } from "@/lib/research/summarizeTrials";
+import { computeTrialStats, type TrialStats } from "@/lib/research/trialStats";
 
 type ChatUiState = {
   topic: string | null;
@@ -290,6 +291,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [trialRows, setTrialRows] = useState<TrialRow[]>([]);
   const [searched, setSearched] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
+  const [stats, setStats] = useState<TrialStats | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
   const pushSuggestion = useMemoryStore(s => s.pushSuggestion);
 
   function handleTrials(rows: TrialRow[]) {
@@ -299,6 +302,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     // summarize trials for quick overview
     const s = summarizeTrials(rows as any, mode === "doctor" ? "doctor" : "patient");
     setSummary(s);
+    setStats(computeTrialStats(rows as any));
+    setShowDetails(false); // collapse on new search
   }
 
   const params = useSearchParams();
@@ -1002,19 +1007,102 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
             </div>
           )}
           {summary && (
-            <div className="my-2 mx-4 md:mx-4 text-sm p-3 rounded border bg-slate-50 dark:bg-slate-800 dark:border-slate-700 flex items-start gap-2">
-              <div className="mt-0.5">
-                {mode === "doctor" ? <Stethoscope size={16}/> : <Users size={16}/>}
+            <div className="my-2 mx-4 text-sm p-3 rounded border bg-slate-50 dark:bg-slate-800 dark:border-slate-700">
+              <div className="flex items-start gap-2">
+                <div className="mt-0.5 shrink-0">
+                  {mode === "doctor" ? <Stethoscope size={16}/> : <Users size={16}/>}
+                </div>
+
+                <div className="flex-1 whitespace-pre-wrap">{summary}</div>
+
+                <div className="flex items-center gap-2">
+                  {stats?.recruitingCount ? (
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200">
+                      • Recruiting: {stats.recruitingCount}
+                    </span>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard.writeText(summary!)}
+                    className="px-2 py-1 text-xs border rounded hover:bg-slate-100 dark:hover:bg-slate-700"
+                    title="Copy summary"
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      <Clipboard size={14}/> Copy
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowDetails(s => !s)}
+                    className="px-2 py-1 text-xs border rounded hover:bg-slate-100 dark:hover:bg-slate-700"
+                    title="View details"
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {showDetails ? <ChevronUp size={14}/> : <ChevronDown size={14}/> }
+                      {showDetails ? "Hide details" : "View details"}
+                    </span>
+                  </button>
+                </div>
               </div>
-              <div className="flex-1 whitespace-pre-wrap">{summary}</div>
-              <button
-                type="button"
-                onClick={() => navigator.clipboard.writeText(summary)}
-                className="btn-secondary flex items-center gap-1 px-2 py-1 text-xs"
-                title="Copy summary"
-              >
-                <Clipboard size={14}/> Copy
-              </button>
+
+              {showDetails && stats && (
+                <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {/* Phases */}
+                  <div className="rounded border bg-white dark:bg-slate-900 dark:border-slate-700">
+                    <div className="px-3 py-2 font-medium border-b dark:border-slate-700">Phases</div>
+                    <ul className="px-3 py-2 space-y-1">
+                      {Object.entries(stats.byPhase).sort((a,b)=>b[1]-a[1]).map(([k,v])=>(
+                        <li key={k} className="flex justify-between"><span>Phase {k}</span><span>{v}</span></li>
+                      ))}
+                      {Object.keys(stats.byPhase).length===0 && <li className="text-slate-500">—</li>}
+                    </ul>
+                  </div>
+
+                  {/* Statuses */}
+                  <div className="rounded border bg-white dark:bg-slate-900 dark:border-slate-700">
+                    <div className="px-3 py-2 font-medium border-b dark:border-slate-700">Statuses</div>
+                    <ul className="px-3 py-2 space-y-1">
+                      {Object.entries(stats.byStatus).sort((a,b)=>b[1]-a[1]).map(([k,v])=>(
+                        <li key={k} className="flex justify-between"><span>{k}</span><span>{v}</span></li>
+                      ))}
+                      {Object.keys(stats.byStatus).length===0 && <li className="text-slate-500">—</li>}
+                    </ul>
+                  </div>
+
+                  {/* Countries */}
+                  <div className="rounded border bg-white dark:bg-slate-900 dark:border-slate-700">
+                    <div className="px-3 py-2 font-medium border-b dark:border-slate-700">Top countries</div>
+                    <ul className="px-3 py-2 space-y-1">
+                      {Object.entries(stats.byCountry).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>(
+                        <li key={k} className="flex justify-between"><span>{k}</span><span>{v}</span></li>
+                      ))}
+                      {Object.keys(stats.byCountry).length===0 && <li className="text-slate-500">—</li>}
+                    </ul>
+                  </div>
+
+                  {/* Genes */}
+                  <div className="rounded border bg-white dark:bg-slate-900 dark:border-slate-700">
+                    <div className="px-3 py-2 font-medium border-b dark:border-slate-700">Top genes</div>
+                    <ul className="px-3 py-2 space-y-1">
+                      {stats.genesTop.length ? stats.genesTop.map(([g,c])=>(
+                        <li key={g} className="flex justify-between"><span>{g}</span><span>{c}</span></li>
+                      )) : <li className="text-slate-500">—</li>}
+                    </ul>
+                  </div>
+
+                  {/* Conditions */}
+                  <div className="rounded border bg-white dark:bg-slate-900 dark:border-slate-700">
+                    <div className="px-3 py-2 font-medium border-b dark:border-slate-700">Top conditions</div>
+                    <ul className="px-3 py-2 space-y-1">
+                      {stats.conditionsTop.length ? stats.conditionsTop.map(([k,c])=>(
+                        <li key={k} className="flex justify-between capitalize"><span>{k}</span><span>{c}</span></li>
+                      )) : <li className="text-slate-500">—</li>}
+                    </ul>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {trialRows.length > 0 && (
