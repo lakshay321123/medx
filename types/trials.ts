@@ -3,7 +3,7 @@ export type TrialRow = {
   title: string;
   conditions: string[];
   interventions: string[];
-  status: string;                  // Recruiting, Active, Completed...
+  status: string;                  // Recruiting, Active, Completed
   phase: string;                   // Phase 1/2/3/4, NA
   start?: string;
   complete?: string;
@@ -14,5 +14,5 @@ export type TrialRow = {
   country?: string;
   eligibility?: string;            // raw text
   primaryOutcome?: string;         // first primary outcome if present
-  url: string;                     // https://clinicaltrials.gov/study/NCT...
+  url: string;                     // https://clinicaltrials.gov/study/NCT
 };

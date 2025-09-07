@@ -50,7 +50,7 @@ export async function searchCtri(query: string, opts?: { max?: number }): Promis
     return [];
   }
 
-  // Parse rows. CTRI typically renders results with anchors to view.php?trialid=...
+  // Parse rows. CTRI typically renders results with anchors to view.php?trialid=
   // We’ll capture blocks containing trial link + visible title/status.
   const out: Citation[] = [];
   const reRow = /<a[^>]*href="([^\"]*view\.php\?trialid=\d+[^\"]*)"[^>]*>(.*?)<\/a>[\s\S]*?<td[^>]*>\s*Status\s*:<\/td>\s*<td[^>]*>(.*?)<\/td>|<a[^>]*href="([^\"]*view\.php\?trialid=\d+[^\"]*)"[^>]*>(.*?)<\/a>/gi;
