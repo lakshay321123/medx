@@ -4,7 +4,6 @@ import { useSearchParams } from 'next/navigation';
 import Header from '../Header';
 import ChatMarkdown from '@/components/ChatMarkdown';
 import ResearchFilters from '@/components/ResearchFilters';
-import TrialsDock from "@/components/TrialsDock";
 import { useResearchFilters } from '@/store/researchFilters';
 import { Send } from 'lucide-react';
 import { useCountry } from '@/lib/country';
@@ -953,10 +952,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
         onTherapyChange={setTherapyMode}
       />
       {mode === "doctor" && researchMode && (
-        <>
-          <ResearchFilters mode="research" />
-          <TrialsDock />
-        </>
+        <ResearchFilters mode="research" />
       )}
       <div
         ref={chatRef}
