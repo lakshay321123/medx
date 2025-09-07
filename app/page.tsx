@@ -6,6 +6,7 @@ import Timeline from "@/components/panels/Timeline";
 import AlertsPane from "@/components/panels/AlertsPane";
 import SettingsPane from "@/components/panels/SettingsPane";
 import { ResearchFiltersProvider } from '@/store/researchFilters';
+export const dynamic = "force-dynamic";
 
 type Search = { panel?: string; threadId?: string };
 
