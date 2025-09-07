@@ -14,8 +14,8 @@ function summarize(filters?: ResearchFilters) {
     };
     parts.push(map[filters.status] || filters.status);
   }
-  if (filters.countries?.length) parts.push(filters.countries.join("/") );
-  if (filters.genes?.length) parts.push(filters.genes.join(", "));
+  if (filters.country) parts.push(filters.country);
+  if (filters.gene) parts.push(filters.gene);
   return parts.length ? `Filters: ${parts.join(" · ")}` : "";
 }
 

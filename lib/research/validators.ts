@@ -8,11 +8,12 @@ export function hasRegistryId(c: any): boolean {
   return /\bNCT\d{8}\b/.test(id) || /\bCTRI\/\d{4}\/\d{2}\/\d{6}\b/i.test(id) || /^[A-Z0-9-]{6,}$/.test(id);
 }
 
-export function matchesPhase(c: any, phase?: "1"|"2"|"3"|"4"): boolean {
+export function matchesPhase(c: any, phase?: string): boolean {
   if (!phase) return true;
   const p = String(c.extra?.phase || "").toUpperCase();
-  const roman = ["I","II","III","IV"][parseInt(phase)-1];
-  return p.includes(roman);
+  const map: Record<string, string> = { "1": "I", "2": "II", "3": "III", "4": "IV" };
+  const target = map[phase] || phase.toUpperCase();
+  return p.includes(target);
 }
 
 export function matchesRecruiting(c: any, recruiting?: boolean): boolean {

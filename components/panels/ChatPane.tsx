@@ -3,8 +3,8 @@ import { useEffect, useRef, useState, RefObject, Fragment } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Header from '../Header';
 import Markdown from '../Markdown';
-import ResearchFilters from '@/components/ResearchFilters';
 import { useResearchFilters } from '@/store/researchFilters';
+import TrialsTable from "@/components/TrialsTable";
 import { Send } from 'lucide-react';
 import { useCountry } from '@/lib/country';
 import { getRandomWelcome } from '@/lib/welcomeMessages';
@@ -36,6 +36,7 @@ type ChatMessage =
       parentId?: string;
       pending?: boolean;
       error?: string | null;
+      trials?: any[];
     })
   | (BaseChatMessage & {
       role: "assistant";
@@ -44,6 +45,7 @@ type ChatMessage =
       parentId?: string;
       pending?: boolean;
       error?: string | null;
+      trials?: any[];
     })
   | (BaseChatMessage & {
       role: "assistant";
@@ -53,6 +55,7 @@ type ChatMessage =
       parentId?: string;
       pending?: boolean;
       error?: string | null;
+      trials?: any[];
     });
 
 const uid = () => Math.random().toString(36).slice(2);
@@ -222,13 +225,16 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
   );
 }
 
-function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onFollowUpClick: (text: string) => void; simple: boolean }) {
+function ChatCard({ m, therapyMode, onFollowUpClick, simple, mode, researchOn }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onFollowUpClick: (text: string) => void; simple: boolean; mode: string; researchOn: boolean }) {
   if (m.pending) return <PendingChatCard label="Thinking…" />;
   return (
     <article className="mr-auto max-w-[90%] rounded-2xl p-4 md:p-6 shadow-sm space-y-2 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800">
       <div className="prose prose-slate dark:prose-invert max-w-none prose-medx text-sm md:text-base">
         <Markdown text={m.content} />
       </div>
+      {m.trials && (
+        <TrialsTable trials={m.trials} mode={mode} researchOn={researchOn} />
+      )}
       {m.role === "assistant" && m.citations?.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
           {m.citations.slice(0, simple ? 3 : 6).map((c, i) => (
@@ -262,11 +268,11 @@ function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<Chat
   );
 }
 
-function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onFollowUpClick, simple }: { m: ChatMessage; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean; therapyMode: boolean; onFollowUpClick: (text: string) => void; simple: boolean }) {
+function AssistantMessage({ m, researchOn, mode, onQuickAction, busy, therapyMode, onFollowUpClick, simple }: { m: ChatMessage; researchOn: boolean; mode: string; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean; therapyMode: boolean; onFollowUpClick: (text: string) => void; simple: boolean }) {
   return m.kind === "analysis" ? (
     <AnalysisCard m={m} researchOn={researchOn} onQuickAction={onQuickAction} busy={busy} />
   ) : (
-    <ChatCard m={m} therapyMode={therapyMode} onFollowUpClick={onFollowUpClick} simple={simple} />
+    <ChatCard m={m} therapyMode={therapyMode} onFollowUpClick={onFollowUpClick} simple={simple} mode={mode} researchOn={researchOn} />
   );
 }
 
@@ -955,7 +961,6 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
         onResearchChange={setResearchMode}
         onTherapyChange={setTherapyMode}
       />
-      <ResearchFilters mode={currentMode} />
       <div
         ref={chatRef}
         className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 pb-28"
@@ -992,6 +997,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
                 <AssistantMessage
                   m={m}
                   researchOn={researchMode}
+                  mode={currentMode}
                   onQuickAction={onQuickAction}
                   busy={loadingAction !== null}
                   therapyMode={therapyMode}
