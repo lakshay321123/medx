@@ -1116,6 +1116,21 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
           )}
           {trialRows.length > 0 && (
             <div className="mx-4 md:mx-4">
+              <div className="flex justify-end mb-2">
+                <button
+                  onClick={async ()=>{
+                    const res = await fetch("/api/trials/export", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ rows: trialRows }) });
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url; a.download = "trials.csv"; a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="px-2 py-1 text-xs border rounded"
+                >
+                  Export CSV
+                </button>
+              </div>
               <TrialsTable rows={trialRows} />
             </div>
           )}
