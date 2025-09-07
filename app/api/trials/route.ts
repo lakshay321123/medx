@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchTrials as fetchCTGovTrials } from "@/lib/trials";
-import { searchTrials } from "@/lib/trials/search";
+import { searchTrials, dedupeTrials, rankValue } from "@/lib/trials/search";
 
 export async function GET(req: NextRequest) {
   try {
@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
     const phase    = searchParams.get("phase") || undefined;  // "Phase 2,Phase 3"
     const page     = Number(searchParams.get("page") || "1");
     const pageSize = Number(searchParams.get("pageSize") || "10");
+    const source   = searchParams.get("source") || "All";
 
     // 1) Keep the existing CT.gov table rows
     const ctgov = await fetchCTGovTrials({
@@ -26,6 +27,7 @@ export async function GET(req: NextRequest) {
       min: (page - 1) * pageSize + 1,
       max: page * pageSize,
     });
+    const ctgovWithSource = ctgov.map(r => ({ ...r, source: "CTgov" as const }));
 
     // 2) Also fetch global sources via your aggregator (EUCTR / CTRI / ISRCTN)
     //    Map GET params -> aggregator input
@@ -59,16 +61,11 @@ export async function GET(req: NextRequest) {
       source: t.source,              // "EUCTR" | "CTRI" | "ISRCTN" | "CTgov"
     }));
 
-    // 4) Merge and (optionally) de-dupe by (id OR title+country)
-    const seen = new Set<string>();
-    const deduped = [...ctgov, ...globalRows].filter(r => {
-      const key = (r.id || "") + "|" + (r.country || "") + "|" + r.title;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    // 4) Merge, de-dupe, rank, and filter by source
+    const rows = dedupeTrials([...ctgovWithSource, ...globalRows]).sort((a,b)=>rankValue(b)-rankValue(a));
+    const rowsFilteredBySource = source === "All" ? rows : rows.filter(r => r.source === source);
 
-    return NextResponse.json({ rows: deduped, page, pageSize });
+    return NextResponse.json({ rows: rowsFilteredBySource, page, pageSize });
   } catch (e) {
     console.error("[/api/trials] error", e);
     return NextResponse.json({ error: "upstream error" }, { status: 502 });
@@ -78,8 +75,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    const source = body.source || "All";
     const trials = await searchTrials(body);
-    return NextResponse.json({ trials });
+    const ranked = dedupeTrials(trials).sort((a,b)=>rankValue(b)-rankValue(a));
+    const out = source === "All" ? ranked : ranked.filter(t => t.source === source);
+    return NextResponse.json({ trials: out });
   } catch (err) {
     console.error("Trials API error", err);
     return NextResponse.json({ trials: [], error: "Failed to fetch trials" });

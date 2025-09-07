@@ -98,6 +98,35 @@ function containsAny(haystack: string, needles: string[]): boolean {
   return needles.some(n => h.includes(n.toLowerCase()));
 }
 
+export function dedupeTrials<T extends { id?: string; title?: string; country?: string }>(arr: T[]) {
+  const seen = new Set<string>();
+  return arr.filter(r => {
+    const idKey = (r.id || "").toUpperCase().replace(/\s+/g, "");
+    const titleKey = (r.title || "").toLowerCase().replace(/\W+/g, " ").trim();
+    const cc = (r.country || "").toLowerCase();
+    const key = idKey ? `id:${idKey}` : `t:${titleKey}|c:${cc}`;
+    if (!key) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export function rankValue(t: { status?: string; phase?: string; source?: string }) {
+  const s = (t.status || "").toLowerCase();
+  const p = (t.phase || "").replace(/[^0-9/]/g, "");
+  const phaseTop = p.includes("4") ? 4 : p.includes("3") ? 3 : p.includes("2") ? 2 : p.includes("1") ? 1 : 0;
+
+  const statusScore =
+    s.startsWith("recruit") ? 3 :
+    s.includes("enroll") ? 2 :
+    s.startsWith("active") ? 1 : 0;
+
+  const sourceScore = t.source === "CTgov" ? 1 : 0; // tie-breaker
+
+  return statusScore * 100 + phaseTop * 10 + sourceScore;
+}
+
 // When user selects a single phase (e.g., "2"), include mixed "1/2" or "2/3" that contain it.
 function phaseMatches(want: Input["phase"], trialPhase?: PhaseStr): boolean {
   if (!want) return true;           // no filter
@@ -152,7 +181,7 @@ export async function searchTrials(input: Input): Promise<Trial[]> {
   });
 
   // 5) map to Trial shape
-  return filtered.map((r: any) => ({
+  const mapped = filtered.map((r: any) => ({
     id: r.nctId || r.id,
     title: r.title,
     url: r.url,
@@ -162,6 +191,9 @@ export async function searchTrials(input: Input): Promise<Trial[]> {
     gene: r.gene,
     source: r.source,
   }));
+
+  const out = dedupeTrials(mapped).sort((a,b) => rankValue(b) - rankValue(a));
+  return out;
 }
 
 // ---- CT.gov fetch (unchanged except kept minimal) ---------------

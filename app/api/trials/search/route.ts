@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { searchTrials } from "@/lib/trials/search";
+import { searchTrials, dedupeTrials, rankValue } from "@/lib/trials/search";
 
 export async function POST(req: Request) {
   try {
@@ -17,9 +17,12 @@ export async function POST(req: Request) {
     const country = typeof body.country === "string" ? body.country : undefined;
     const genes = Array.isArray(body.genes) ? body.genes : undefined;
 
+    const source = typeof body.source === "string" ? body.source : "All";
     const trials = await searchTrials({ query: q, phase, status, country, genes });
+    const ranked = dedupeTrials(trials).sort((a,b)=>rankValue(b)-rankValue(a));
+    const out = source === "All" ? ranked : ranked.filter(t => t.source === source);
 
-    return NextResponse.json({ trials });
+    return NextResponse.json({ trials: out });
   } catch (err: any) {
     console.error("[API] /api/trials/search error:", err);
     return NextResponse.json(

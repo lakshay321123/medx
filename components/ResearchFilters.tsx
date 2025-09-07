@@ -43,6 +43,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
     countries: filters.countries || [],
     genes: (filters.genes || []).join(', '),
   });
+  const [source, setSource] = useState<string>(filters.source || 'All');
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +65,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
       status: (local.status as any) || 'recruiting',
       countries: local.countries,
       genes: local.genes.split(',').map(s => s.trim()).filter(Boolean),
+      source,
     });
   }
 
@@ -79,6 +81,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
         status: mapStatusKeyToApi(local.status),
         country: country === 'Worldwide' ? undefined : country,
         genes: local.genes.split(',').map(s => s.trim()).filter(Boolean),
+        source,
       };
 
       const res = await fetch('/api/trials/search', {
@@ -112,6 +115,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
       countries: [],
       genes: '',
     });
+    setSource('All');
     onResults?.([]); // clear table
   }
 
@@ -164,6 +168,21 @@ export default function ResearchFilters({ mode, onResults }: Props) {
           {statusLabels.map(o=>(
             <option key={o.key} value={o.key}>{o.label}</option>
           ))}
+        </select>
+      </div>
+
+      {/* Source select */}
+      <div className="mt-2">
+        <select
+          value={source}
+          onChange={(e)=>setSource(e.target.value)}
+          className="rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
+        >
+          <option>All</option>
+          <option>CTgov</option>
+          <option>EUCTR</option>
+          <option>CTRI</option>
+          <option>ISRCTN</option>
         </select>
       </div>
 

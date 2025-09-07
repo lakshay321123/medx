@@ -7,9 +7,10 @@ export type ResearchFilters = {
   status?: 'recruiting'|'active'|'completed'|'any';
   countries?: string[];   // use plain names like "United States"
   genes?: string[];       // comma->array
+  source?: string;
 };
 
-export const defaultFilters: ResearchFilters = { status: 'recruiting', countries: [] };
+export const defaultFilters: ResearchFilters = { status: 'recruiting', countries: [], source: 'All' };
 
 type CtxType = {
   filters: ResearchFilters;
