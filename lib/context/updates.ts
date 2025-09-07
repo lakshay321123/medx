@@ -1,34 +1,30 @@
 import { ConversationState } from "./state";
 
-export function applyContradictions(state: ConversationState, userText: string): { state: ConversationState; changed: string[] } {
+export function applyContradictions(state: ConversationState, userText: string): { state: ConversationState, changed: string[], confirm: string[] } {
   const lower = userText.toLowerCase();
   const changed: string[] = [];
+  const confirm: string[] = [];
   const next = { ...state, facts: { ...state.facts }, preferences: { ...state.preferences } };
 
-  // Weight
-  const kg =
-    lower.match(/(?:weight|weigh|wt)\s*[:=]?\s*(\d{2,3})\s?kg/) ||
-    lower.match(/(\d{2,3})\s?kg\s?(?:now|today)?/);
+  const kg = lower.match(/(?:weight|weigh|wt)\s*[:=]?\s*(\d{2,3})\s?kg/) || lower.match(/(\d{2,3})\s?kg\s?(?:now|today)?/);
   if (kg && next.facts.weight !== `${kg[1]} kg`) {
-    next.facts.weight = `${kg[1]} kg`;
-    changed.push("weight");
+    if (next.facts.weight) confirm.push(`Update weight from ${next.facts.weight} to ${kg[1]} kg?`);
+    next.facts.weight = `${kg[1]} kg`; changed.push("weight");
   }
 
-  // Height
   const cm = lower.match(/(\d{3})\s?cm/);
   if (cm && next.facts.height !== `${cm[1]} cm`) {
-    next.facts.height = `${cm[1]} cm`;
-    changed.push("height");
+    if (next.facts.height) confirm.push(`Update height from ${next.facts.height} to ${cm[1]} cm?`);
+    next.facts.height = `${cm[1]} cm`; changed.push("height");
   }
 
-  // Diet pref
   if (/\bnon[-\s]?veg\b|chicken|fish|egg/.test(lower) && next.preferences.diet !== "non-veg") {
-    next.preferences.diet = "non-veg";
-    changed.push("diet");
+    if (next.preferences.diet) confirm.push(`Switch diet preference from ${next.preferences.diet} to non-veg?`);
+    next.preferences.diet = "non-veg"; changed.push("diet");
   } else if (/\bveg\b/.test(lower) && next.preferences.diet !== "veg") {
-    next.preferences.diet = "veg";
-    changed.push("diet");
+    if (next.preferences.diet) confirm.push(`Switch diet preference from ${next.preferences.diet} to veg?`);
+    next.preferences.diet = "veg"; changed.push("diet");
   }
 
-  return { state: next, changed };
+  return { state: next, changed, confirm };
 }

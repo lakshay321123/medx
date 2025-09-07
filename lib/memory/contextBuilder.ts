@@ -1,6 +1,7 @@
 import type { BuildContextOptions } from "@/types/memory";
 import { prisma } from "@/lib/prisma";
 import { loadState } from "@/lib/context/stateStore";
+import { loadTopicStack, titleOf } from "@/lib/context/topicStack";
 
 export async function buildPromptContext(opts: {
   threadId: string;
@@ -25,6 +26,8 @@ export async function buildPromptContext(opts: {
     .join("\n");
 
   const convState = await loadState(threadId);
+  const stack = await loadTopicStack(threadId);
+  const activeTitle = titleOf(stack);
 
   const persona =
     options.mode === "doctor"
@@ -38,16 +41,22 @@ export async function buildPromptContext(opts: {
   const system = [
     persona,
     researchLine,
+    "Active topic (from topic stack):",
+    activeTitle || "(none)",
+
     "Profile memory (never re-ask unless updated):",
     profile || "(none)",
+
     "Conversation summary:",
     thread.runningSummary || "(none)",
-    "Conversation state (authoritative, JSON):",
+
+    "Conversation state (authoritative JSON):",
     JSON.stringify(convState, null, 2),
+
     "Rules:",
     "- Continue within the active topic unless user changes it.",
     "- Do not drop previously established facts/preferences/decisions.",
-    "- If current request conflicts with stored facts, confirm the update briefly and then proceed.",
+    "- If new message conflicts with stored facts, confirm briefly then proceed.",
     "- If unsure which topic the user means, ask a short clarify question with 2–3 options.",
   ].join("\n\n");
 
