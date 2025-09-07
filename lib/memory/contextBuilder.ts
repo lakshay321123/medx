@@ -1,5 +1,6 @@
 import type { BuildContextOptions } from "@/types/memory";
 import { prisma } from "@/lib/prisma";
+import { loadState } from "@/lib/context/stateStore";
 
 export async function buildPromptContext(opts: {
   threadId: string;
@@ -23,9 +24,12 @@ export async function buildPromptContext(opts: {
     .map(m => `- ${m.key}: ${m.value}`)
     .join("\n");
 
-  const persona = options.mode === "doctor"
-    ? "You are MedX Doctor mode. Be precise, structured, and cite medical reasoning. Avoid tables unless explicitly requested or research mode is on."
-    : "You are MedX Patient mode. Be clear, kind, and simple. No medical jargon unless asked.";
+  const convState = await loadState(threadId);
+
+  const persona =
+    options.mode === "doctor"
+      ? "You are MedX Doctor mode. Be precise, structured, and cite medical reasoning. Avoid tables unless explicitly requested or research mode is on."
+      : "You are MedX Patient mode. Be clear, kind, and simple. No medical jargon unless asked.";
 
   const researchLine = options.researchOn
     ? "Research mode is ON: show trials table if trials are present; otherwise keep text concise."
@@ -34,16 +38,17 @@ export async function buildPromptContext(opts: {
   const system = [
     persona,
     researchLine,
-    "Profile memory (never re-ask unless updated by user):",
-    profile ? profile : "(none)",
-    "Compact summary of conversation so far:",
+    "Profile memory (never re-ask unless updated):",
+    profile || "(none)",
+    "Conversation summary:",
     thread.runningSummary || "(none)",
+    "Conversation state (authoritative, JSON):",
+    JSON.stringify(convState, null, 2),
     "Rules:",
-    "- Do not ask for height/weight/age if already in profile.",
-    "- If user provides a new value, update profile memory immediately.",
-    "- Treat diet type (veg/non-veg) and goal (fat loss, muscle gain) as persistent until user changes them.",
-    "- Be conversational: reflect back understanding before answering.",
-    "- Take 3–4 seconds to respond, giving impression of thoughtful analysis."
+    "- Continue within the active topic unless user changes it.",
+    "- Do not drop previously established facts/preferences/decisions.",
+    "- If current request conflicts with stored facts, confirm the update briefly and then proceed.",
+    "- If unsure which topic the user means, ask a short clarify question with 2–3 options.",
   ].join("\n\n");
 
   return { system, recent };

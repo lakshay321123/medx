@@ -7,6 +7,9 @@ import { updateSummary, persistUpdatedSummary } from "@/lib/memory/summary";
 import { buildPromptContext } from "@/lib/memory/contextBuilder";
 import { parseIntentAndEntities } from "@/lib/nlu/intent";
 import { detectAndApplyUpdates } from "@/lib/memory/updates";
+import { loadState, saveState } from "@/lib/context/stateStore";
+import { refreshState } from "@/lib/context/extract";
+import { applyContradictions } from "@/lib/context/updates";
 
 // TODO: replace with your real LLM
 async function callLLM(system: string, recent: {role:string;content:string}[], userText: string) {
@@ -36,6 +39,15 @@ export async function POST(req: Request) {
   // 3) Detect profile updates (weight, height, diet, etc.)
   await detectAndApplyUpdates(threadId, text);
 
+  // 3.5) Load and apply conversation state updates
+  let convState = await loadState(threadId);
+  const { state: stateUpdated, changed } = applyContradictions(convState, text);
+  convState = stateUpdated;
+  if (changed.length) {
+    // no-op; in real system you might log these changes
+  }
+  await saveState(threadId, convState);
+
   // 4) NLU for downstream routing (optional hinting)
   const nlu = parseIntentAndEntities(text);
 
@@ -47,6 +59,11 @@ export async function POST(req: Request) {
 
   // 6) Call LLM
   const assistant = await callLLM(system, recent as any, text);
+
+  // 6.5) Refresh conversation state with assistant reply
+  const assistantText = assistant;
+  const nextState = refreshState(convState, text, assistantText);
+  await saveState(threadId, nextState);
 
   // 7) Save assistant & update summary
   await appendMessage({ threadId, role: "assistant", content: assistant });
