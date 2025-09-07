@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.78",
+    "@prisma/client": "^5.22.0",
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.57.0",
@@ -24,6 +25,7 @@
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
     "pdfjs-dist": "^4.6.82",
+    "prisma": "^5.22.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "tesseract.js": "^5.0.5",
