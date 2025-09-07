@@ -29,3 +29,36 @@ export function polishText(input: string): string {
 
   return s;
 }
+
+type AckTone = "warm" | "neutral";
+
+export type TopicHint = {
+  topic?: string;          // e.g., "butter chicken recipe", "leukemia trials"
+  nextActions?: string[];  // brief CTA suggestions
+};
+
+export function politeAck(hint: TopicHint, tone: AckTone = "warm") {
+  const topic = hint.topic ? ` on **${hint.topic}**` : "";
+  const actions = hint.nextActions?.length
+    ? ` Want me to ${hint.nextActions.map((a, i) => (i === 0 ? a : a)).join(" or ")}?`
+    : "";
+
+  const base =
+    tone === "warm"
+      ? "Glad that helps! "
+      : "Noted. ";
+
+  return `${base}Appreciate the feedback${topic}.${actions}`;
+}
+
+/**
+ * Short helper to generate crisp suggestions by context.
+ */
+export function suggestNextByContext(topic?: string) {
+  if (!topic) return ["continue", "save this"];
+  const n = topic.toLowerCase();
+  if (n.includes("recipe")) return ["lock this recipe", "add variations", "generate a shopping list"];
+  if (n.includes("trial") || n.includes("trials")) return ["refine filters", "save these results", "set an alert"];
+  if (n.includes("diet") || n.includes("workout")) return ["save this plan", "tune macros", "make a grocery list"];
+  return ["continue", "save this"];
+}
