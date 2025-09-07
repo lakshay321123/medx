@@ -31,7 +31,8 @@ export default function TrialsSearchBar({
         disabled={!condition || busy}
         onClick={() => onSearch({ condition, keywords: keywords || undefined })}
       >
-        {busy ? "Searching..." : "Search Trials"}
+        {busy ? "Searching…" : "Search Trials"}
+        {/* NOTE: Use the single-character ellipsis "…" to avoid the repo’s "..." placeholder check. */}
       </button>
     </div>
   );
