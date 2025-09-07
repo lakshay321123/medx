@@ -3,7 +3,7 @@ Return ONLY valid JSON with this shape:
 {
   "reply": "assistant message",
   "save": {
-    "medications": [{"name": "...", "dose": "500 mg", "route": "oral", "freq": "bid", "startedAt":"YYYY-MM-DD"}],
+    "medications": [{"name": "Metformin", "dose": "500 mg", "route": "oral", "freq": "bid", "startedAt":"YYYY-MM-DD"}],
     "conditions": [{"label":"Type 2 Diabetes", "code":"E11", "status":"active","since":"YYYY-MM-DD"}],
     "labs": [{"panel":"LFT","name":"ALT","value":42,"unit":"U/L","refLow":0,"refHigh":40,"takenAt":"YYYY-MM-DD"}],
     "notes": [{"type":"symptom","key":"fever","value":"2 days"}],
