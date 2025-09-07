@@ -319,6 +319,16 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     addAssistant(content, { id });
   }
 
+  useEffect(() => {
+    const onProfileUpdated = () => {
+      // if profile thread is open, nudge a silent refresh of readiness/prompts
+      // (kept light: we don’t spam messages, just clear cached “askedRecently”.)
+      sessionStorage.removeItem('asked:proactive');
+    };
+    window.addEventListener('profile-updated', onProfileUpdated);
+    return () => window.removeEventListener('profile-updated', onProfileUpdated);
+  }, []);
+
   // Load per-thread UI whenever threadId changes
   useEffect(() => {
     if (!threadId) { setUi(UI_DEFAULTS); return; }
@@ -477,7 +487,12 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       return; // wait for user Yes/No
     }
     setNote('');
-    if (!isProfileThread && threadId && messages.filter(m => m.role === 'user').length === 0) {
+    if (
+      !isProfileThread &&
+      threadId &&
+      text.trim() &&
+      messages.filter(m => m.role === 'user').length === 0
+    ) {
       updateThreadTitle(threadId, generateTitle(text));
     }
 
