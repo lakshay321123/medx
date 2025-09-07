@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchTrials } from "@/lib/trials";
+import { searchTrials } from "@/lib/trials/search";
 
 export async function GET(req: NextRequest) {
   try {
@@ -21,5 +22,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ rows, page, pageSize });
   } catch (e) {
     return NextResponse.json({ error: "upstream error" }, { status: 502 });
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const trials = await searchTrials(body);
+    return NextResponse.json({ trials });
+  } catch (err) {
+    console.error("Trials API error", err);
+    return NextResponse.json({ trials: [], error: "Failed to fetch trials" });
   }
 }
