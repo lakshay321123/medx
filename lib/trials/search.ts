@@ -1,4 +1,8 @@
 // Add a Phase type that includes mixed values
+import { fetchEUCTR } from "./fetchEUCTR";
+import { fetchCTRI } from "./fetchCTRI";
+import { fetchISRCTNRecord } from "./fetchISRCTN";
+
 type PhaseStr = "1" | "2" | "3" | "4" | "1/2" | "2/3";
 
 type Input = {
@@ -17,6 +21,7 @@ export type Trial = {
   status?: "Recruiting" | "Completed" | "Active, not recruiting" | "Enrolling by invitation";
   country?: string;
   gene?: string;
+  source?: "CTgov" | "EUCTR" | "CTRI" | "ISRCTN";
 };
 
 // ---- helpers --------------------------------------------------
@@ -65,6 +70,29 @@ function normalizeStatus(raw?: string):
   return undefined;
 }
 
+function normalizePhaseLoose(raw?: string): "1"|"2"|"3"|"4"|"1/2"|"2/3"|undefined {
+  if (!raw) return undefined;
+  const s = String(raw).toLowerCase();
+  if (s.includes("1/2")) return "1/2";
+  if (s.includes("2/3")) return "2/3";
+  if (s.includes("phase 1") || /\bphase?\s*1\b/.test(s)) return "1";
+  if (s.includes("phase 2") || /\bphase?\s*2\b/.test(s)) return "2";
+  if (s.includes("phase 3") || /\bphase?\s*3\b/.test(s)) return "3";
+  if (s.includes("phase 4") || /\bphase?\s*4\b/.test(s)) return "4";
+  return normalizePhase(raw);
+}
+
+function normalizeStatusLoose(raw?: string):
+  "Recruiting"|"Completed"|"Active, not recruiting"|"Enrolling by invitation"|undefined {
+  if (!raw) return undefined;
+  const s = String(raw).toLowerCase();
+  if (s.includes("recruit")) return "Recruiting";
+  if (s.includes("complete") || s.includes("completed")) return "Completed";
+  if (s.includes("active")) return "Active, not recruiting";
+  if (s.includes("invite")) return "Enrolling by invitation";
+  return normalizeStatus(raw);
+}
+
 function containsAny(haystack: string, needles: string[]): boolean {
   const h = haystack.toLowerCase();
   return needles.some(n => h.includes(n.toLowerCase()));
@@ -84,23 +112,38 @@ function phaseMatches(want: Input["phase"], trialPhase?: PhaseStr): boolean {
 // ---- main search --------------------------------------------------
 
 export async function searchTrials(input: Input): Promise<Trial[]> {
-  // Fetch broadly (query + genes words), then filter locally for correctness.
-  const results = await clinicalTrialsGovFetch({
-    query: input.query,
-    genes: input.genes,
-  });
+  // 1) fetch from all sources in parallel
+  const [ctgov, euctr, ctri] = await Promise.allSettled([
+    clinicalTrialsGovFetch({ query: input.query, genes: input.genes }),
+    fetchEUCTR(input.query),
+    fetchCTRI(input.query),
+  ]);
 
+  const fromCT =
+    ctgov.status === "fulfilled"
+      ? (ctgov.value as any[]).map(r => ({ ...r, source: "CTgov" as const }))
+      : [];
+  const fromEU = euctr.status === "fulfilled" ? (euctr.value as any[]) : [];
+  const fromIN = ctri.status === "fulfilled" ? (ctri.value as any[]) : [];
+
+  // 2) merge
+  const merged = [...fromCT, ...fromEU, ...fromIN];
+
+  // 3) optional ISRCTN enrichment skipped
+
+  // 4) normalize + filter (reuse your existing filters)
+  const wantPhase = input.phase;
   const wantStatus = input.status;
   const wantCountry = input.country?.toLowerCase();
   const wantGenes = (input.genes || []).map(g => g.trim()).filter(Boolean);
 
-  const filtered = results.filter((r: any) => {
-    const p = normalizePhase(r.phase);
-    const st = normalizeStatus(r.status);
+  const filtered = merged.filter((r: any) => {
+    const p = normalizePhaseLoose(r.phase);
+    const st = normalizeStatusLoose(r.status);
     const ctry = (r.country || "").toLowerCase();
     const title = r.title || "";
 
-    if (!phaseMatches(input.phase, p)) return false;
+    if (!phaseMatches(wantPhase, p)) return false;
     if (wantStatus && st !== wantStatus) return false;
     if (wantCountry && ctry && ctry !== wantCountry) return false;
     if (wantGenes.length && !containsAny(title, wantGenes)) return false;
@@ -108,14 +151,16 @@ export async function searchTrials(input: Input): Promise<Trial[]> {
     return true;
   });
 
+  // 5) map to Trial shape
   return filtered.map((r: any) => ({
     id: r.nctId || r.id,
     title: r.title,
     url: r.url,
-    phase: normalizePhase(r.phase),
-    status: normalizeStatus(r.status),
+    phase: normalizePhaseLoose(r.phase),
+    status: normalizeStatusLoose(r.status),
     country: r.country,
     gene: r.gene,
+    source: r.source,
   }));
 }
 

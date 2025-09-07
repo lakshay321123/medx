@@ -16,6 +16,7 @@ export default function TrialsTable({ rows }: { rows: TrialRow[] }) {
             <th className="border px-2 py-1">Status</th>
             <th className="border px-2 py-1">City</th>
             <th className="border px-2 py-1">Country</th>
+            <th className="border px-2 py-1">Source</th>
           </tr>
         </thead>
         <tbody>
@@ -36,6 +37,7 @@ export default function TrialsTable({ rows }: { rows: TrialRow[] }) {
               <td className="border px-2 py-1">{t.status}</td>
               <td className="border px-2 py-1">{t.city}</td>
               <td className="border px-2 py-1">{t.country}</td>
+              <td className="border px-2 py-1">{t.source || "—"}</td>
             </tr>
           ))}
         </tbody>

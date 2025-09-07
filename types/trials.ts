@@ -15,4 +15,5 @@ export type TrialRow = {
   eligibility?: string;            // raw text
   primaryOutcome?: string;         // first primary outcome if present
   url: string;                     // https://clinicaltrials.gov/study/NCT
+  source?: string;
 };
