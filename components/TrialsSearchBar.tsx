@@ -30,7 +30,7 @@ export default function TrialsSearchBar({ onSearch, busy }: TrialsSearchBarProps
         disabled={!condition || busy}
         onClick={() => onSearch({ condition, keywords: keywords || undefined })}
       >
-        {busy ? "Searching..." : "Search Trials"}
+        {busy ? "Searching…" : "Search Trials"}
       </button>
     </div>
   );
