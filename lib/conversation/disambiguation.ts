@@ -12,8 +12,8 @@ export function disambiguate(userMsg: string, context: string): string | null {
   if (/pain/i.test(msg) && !/where|location|severity/.test(msg)) {
     return "Can you tell me where the pain is and how strong it feels?";
   }
-  if (/allergy/i.test(msg) && context.includes("diet")) {
-    return "Thanks for sharing — do you want me to suggest allergy-safe alternatives?";
+  if (/reset|start over|fresh chat/.test(msg)) {
+    return "Do you want me to clear context and begin a fresh chat?";
   }
   return null;
 }
@@ -24,10 +24,10 @@ export function disambiguateWithMemory(
 ): string | null {
   const msg = userMsg.toLowerCase();
 
-  if (/recipe|diet/i.test(msg)) {
+  if (/cookie|recipe/.test(msg)) {
     const allergy = memories.find((m) => m.key === "allergy");
     if (allergy) {
-      return `Noted your allergy to ${allergy.value.item}. Want me to suggest safe alternatives?`;
+      return `Noted your allergy to ${allergy.value.item}. Want me to suggest a safe, nut-free version instead?`;
     }
   }
   return null;

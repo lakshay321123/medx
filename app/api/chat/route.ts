@@ -1,135 +1,50 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { appendMessage } from "@/lib/memory/store";
-import { decideContext } from "@/lib/memory/contextRouter";
-import { seedTopicEmbedding } from "@/lib/memory/outOfContext";
-import { updateSummary, persistUpdatedSummary } from "@/lib/memory/summary";
-import { buildPromptContext } from "@/lib/memory/contextBuilder";
-
-import { loadState, saveState } from "@/lib/context/stateStore";
-import { extractContext, mergeInto } from "@/lib/context/extractLLM";
-import { applyContradictions } from "@/lib/context/updates";
-import { loadTopicStack, pushTopic, saveTopicStack, switchTo } from "@/lib/context/topicStack";
-import { parseConstraintsFromText, mergeLedger } from "@/lib/context/constraints";
-import { parseEntitiesFromText, mergeEntityLedger } from "@/lib/context/entityLedger";
-import { decideRoute } from "@/lib/context/router";
-import { callGroq } from "@/lib/llm/groq";
-import type { ChatCompletionMessageParam } from "@/lib/llm/types";
-import { polishText } from "@/lib/text/polish";
-import { buildConstraintRecap } from "@/lib/text/recap";
-import { selfCheck } from "@/lib/text/selfCheck";
-import { addEvidenceAnchorIfMedical } from "@/lib/text/medicalAnchor";
+import { withContextRetention } from "@/lib/conversation/middleware";
+import { acknowledgmentLayer } from "@/lib/conversation/acknowledgment";
+import { disambiguate, disambiguateWithMemory } from "@/lib/conversation/disambiguation";
+import { polishResponse } from "@/lib/conversation/polish";
 import { shouldReset } from "@/lib/conversation/resetGuard";
 import { sanitizeLLM } from "@/lib/conversation/sanitize";
 import { finalReplyGuard } from "@/lib/conversation/finalReplyGuard";
-import { disambiguate } from "@/lib/conversation/disambiguation";
+import { buildContextBundle } from "@/lib/prompt/contextBuilder";
+import { groqChat } from "@/lib/llm";
 
-function contextStringFrom(messages: ChatCompletionMessageParam[]): string {
-  return messages
-    .map((m) => (typeof m.content === "string" ? m.content : ""))
-    .join(" ");
+async function llmReply(messages: any[], mode?: string, thread_id?: string) {
+  return groqChat(messages);
 }
 
-export async function POST(req: Request) {
-  const { userId, activeThreadId, text, mode, researchOn, clarifySelectId } = await req.json();
+export const POST = withContextRetention(async (req: Request) => {
+  const { messages, mode, thread_id } = await req.json();
+  const userMessage = messages[messages.length - 1].content;
 
-  if (shouldReset(text)) {
-    // start new thread logic here
-    return NextResponse.json({ ok: true, threadId: null, text: "Starting fresh. What would you like to do next?" });
+  // Explicit reset
+  if (shouldReset(userMessage)) {
+    return NextResponse.json({ text: "Starting fresh. What would you like to do next?" });
   }
 
-  // 1) Context routing (continue/clarify/newThread)
-  const decision = await decideContext(userId, activeThreadId, text);
+  // Acknowledgment layer
+  const ack = acknowledgmentLayer(userMessage);
+  if (ack) return NextResponse.json({ text: polishResponse(ack) });
 
-  let threadId = activeThreadId;
-  let stack = await loadTopicStack(activeThreadId);
-
-  if (decision.action === "continue") {
-    threadId = decision.threadId;
-  } else if (decision.action === "newThread") {
-    const t = await prisma.chatThread.create({ data: { userId, title: "New topic" } });
-    threadId = t.id;
-    await seedTopicEmbedding(threadId, text);
-    stack = await loadTopicStack(threadId);
-    stack = pushTopic(stack, "New topic");
-    await saveTopicStack(threadId, stack);
-  } else if (decision.action === "clarify") {
-    // If UI posted a prior clarify selection, switch. Else return options.
-    if (clarifySelectId) {
-      stack = switchTo(stack, clarifySelectId);
-      await saveTopicStack(activeThreadId, stack);
-      threadId = activeThreadId; // stay in same thread but switch topic stack active node
-    } else {
-      return NextResponse.json({ ok: true, clarify: true, options: decision.candidates });
-    }
-  }
-
-  // 2) Save user message (+embedding via appendMessage)
-  await appendMessage({ threadId, role: "user", content: text });
-
-  // 3) Update state (contradictions + heuristics extraction; no OpenAI required)
-  let state = await loadState(threadId);
-  const { state: withContradictions } = applyContradictions(state, text);
-  state = withContradictions;
-
-  const ext = await extractContext(text);
-  state = mergeInto(state, ext);
-
-  // NEW: parse constraint deltas from this user turn
-  const delta = parseConstraintsFromText(text);
-  state.constraints = mergeLedger(state.constraints, delta);
-
-  // NEW: parse entity deltas from user message
-  const entityDelta = parseEntitiesFromText(text);
-  state.entities = mergeEntityLedger(state.entities, entityDelta);
-
-  await saveState(threadId, state);
-
-  // 4) Decide routing for current turn
-  const systemExtra: string[] = [];
-  const routeDecision = decideRoute(text, state.topic);
-  if (routeDecision === "clarify-quick") {
-    systemExtra.push("If the user intent may have changed, ask one concise clarification question, then proceed.");
-  }
-  if (routeDecision === "switch-topic") {
-    state.topic = text.slice(0, 60);
-    await saveState(threadId, state);
-  }
-
-  // 5) Build system + recent messages
-  const { system, recent } = await buildPromptContext({ threadId, options: { mode, researchOn } });
-  const fullSystem = [system, ...systemExtra].join("\n");
-
-  // 6) Groq call
-  const messages: ChatCompletionMessageParam[] = [
-    { role: "system", content: fullSystem },
-    ...recent.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
-    { role: "user", content: text },
-  ];
-  const clarifier = disambiguate(text, contextStringFrom(messages));
+  // Clarification check (stateless)
+  const contextString = messages.map((m: any) => m.content).join(" ");
+  const clarifier = disambiguate(userMessage, contextString);
   if (clarifier) {
-    return NextResponse.json({ ok: true, threadId, text: clarifier });
+    return NextResponse.json({ text: clarifier });
   }
-  let assistant = await callGroq(messages, { temperature: 0.25, max_tokens: 1200 });
 
-  // 6) Polish and append recap (if any constraints present)
-  assistant = polishText(assistant);
-  const check = selfCheck(assistant, state.constraints, state.entities);
-  assistant = check.fixed;
-  assistant = addEvidenceAnchorIfMedical(assistant);
-  const recap = buildConstraintRecap(state.constraints);
-  if (recap) assistant += recap;
+  // Clarification check with memory
+  const bundle = await buildContextBundle(thread_id);
+  const clarifierWithMem = disambiguateWithMemory(userMessage, bundle.memories ?? []);
+  if (clarifierWithMem) {
+    return NextResponse.json({ text: clarifierWithMem });
+  }
 
-  assistant = sanitizeLLM(assistant);
-  assistant = finalReplyGuard(text, assistant);
+  // Default → call model
+  const raw = await llmReply(messages, mode, thread_id);
+  const polished = polishResponse(raw);
+  const sanitized = sanitizeLLM(polished);
+  const final = finalReplyGuard(userMessage, sanitized);
+  return NextResponse.json({ text: final });
+});
 
-  // 7) Save assistant + summary
-  await appendMessage({ threadId, role: "assistant", content: assistant });
-  const updated = updateSummary("", text, assistant);
-  await persistUpdatedSummary(threadId, updated);
-
-  // 8) Optional natural pacing (2–4s)
-  await new Promise(r => setTimeout(r, 1800 + Math.random() * 1200));
-
-  return NextResponse.json({ ok: true, threadId, text: assistant });
-}
