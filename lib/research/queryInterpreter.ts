@@ -4,6 +4,7 @@ export type TrialQuery = {
   phase?: "1" | "2" | "3" | "4";
   recruiting?: boolean;
   country?: string;
+  gene?: string;
   keywords?: string[];
 };
 
