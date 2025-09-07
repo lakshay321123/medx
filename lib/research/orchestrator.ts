@@ -13,7 +13,7 @@ import { searchIctrp } from "@/lib/research/sources/ictrp";
 import { searchDailyMed } from "@/lib/research/sources/dailymed";
 import { searchOpenFda } from "@/lib/research/sources/openfda";
 import { fetchRxCui } from "@/lib/research/sources/rxnorm";
-import { isTrial, hasRegistryId, matchesPhase, matchesStatus, matchesCountries, matchesGenes } from "@/lib/research/validators";
+import { isTrial, hasRegistryId, matchesPhase, matchesStatus, matchesCountry, matchesGene } from "@/lib/research/validators";
 import type { ResearchFilters } from "@/store/researchFilters";
 
 export type Citation = {
@@ -59,16 +59,17 @@ export async function orchestrateResearch(query: string, opts: { mode: string; f
 
   const f: ResearchFilters = { status: "recruiting", ...(opts.filters || {}) };
   if (!f.phase && tq.phase) f.phase = tq.phase;
-  if ((!f.countries || f.countries.length === 0) && tq.country) f.countries = [tq.country];
+  if (!f.country && tq.country) f.country = tq.country;
   if (!f.status && typeof tq.recruiting === "boolean") f.status = tq.recruiting ? "recruiting" : "any";
+  if (f.status) f.status = f.status.toLowerCase();
 
   const expr = buildCtgovExpr({
     condition: tq.condition || tq.cancerType,
     keywords: tq.keywords,
     phase: f.phase,
     status: f.status,
-    countries: f.countries,
-    genes: f.genes,
+    country: f.country,
+    gene: f.gene,
   });
 
   const rx = await safe(() => fetchRxCui(query));
@@ -77,10 +78,10 @@ export async function orchestrateResearch(query: string, opts: { mode: string; f
     searchCtgovByExpr(expr, { max: 100 }),
     searchCtri(query),
     searchIctrp(query),
-    searchPubMed(genedQuery(query, f.genes)),
-    searchEuropePmc(genedQuery(query, f.genes)),
-    searchCrossref(genedQuery(query, f.genes)),
-    searchOpenAlex(genedQuery(query, f.genes)),
+    searchPubMed(genedQuery(query, f.gene)),
+    searchEuropePmc(genedQuery(query, f.gene)),
+    searchCrossref(genedQuery(query, f.gene)),
+    searchOpenAlex(genedQuery(query, f.gene)),
     rx ? searchDailyMed(rx) : Promise.resolve([]),
     searchOpenFda(query),
   ]);
@@ -100,8 +101,8 @@ export async function orchestrateResearch(query: string, opts: { mode: string; f
     .filter(hasRegistryId)
     .filter(c => matchesPhase(c, f.phase))
     .filter(c => matchesStatus(c, f.status))
-    .filter(c => matchesCountries(c, f.countries))
-    .filter(c => matchesGenes(c, f.genes));
+    .filter(c => matchesCountry(c, f.country))
+    .filter(c => matchesGene(c, f.gene));
 
   const pubmed = pmRes.status === "fulfilled" ? pmRes.value : [];
   const eupmc = epmcRes.status === "fulfilled" ? epmcRes.value : [];
@@ -110,7 +111,7 @@ export async function orchestrateResearch(query: string, opts: { mode: string; f
   const dailymed = dmRes.status === "fulfilled" ? dmRes.value : [];
   const openfda = fdaRes.status === "fulfilled" ? fdaRes.value : [];
 
-  const papers = (pubmed || []).concat(eupmc || [], crossref || [], openalex || []).filter(p => matchesGenes(p, f.genes));
+  const papers = (pubmed || []).concat(eupmc || [], crossref || [], openalex || []).filter(p => matchesGene(p, f.gene));
   const safety = (dailymed || []).concat(openfda || []);
 
   let citations = dedupeResults([...trials, ...papers, ...safety]);
@@ -124,7 +125,7 @@ export async function orchestrateResearch(query: string, opts: { mode: string; f
     followUps = [
       "Include completed",
       "Any phase",
-      "Add countries: US/EU",
+      "Add country: US/EU",
     ];
     if (opts.mode !== 'patient') followUps.push('Clear filters');
   } else {
@@ -141,8 +142,8 @@ export async function orchestrateResearch(query: string, opts: { mode: string; f
   return packet;
 }
 
-function genedQuery(q: string, genes?: string[]) {
-  return [q, ...(genes || [])].filter(Boolean).join(' ');
+function genedQuery(q: string, gene?: string) {
+  return [q, gene].filter(Boolean).join(' ');
 }
 
 async function safe<T>(fn: () => Promise<T>): Promise<T | null> {

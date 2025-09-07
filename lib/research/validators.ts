@@ -46,3 +46,9 @@ export function matchesGenes(c: any, genes?: string[]) {
   const hay = `${c.title} ${c.extra?.keywords || ''}`.toLowerCase();
   return genes.every(g => hay.includes(g.toLowerCase()));
 }
+
+export function matchesGene(c: any, gene?: string) {
+  if (!gene) return true;
+  const hay = `${c.title} ${c.extra?.keywords || ''}`.toLowerCase();
+  return hay.includes(gene.toLowerCase());
+}

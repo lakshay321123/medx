@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import Header from '../Header';
 import Markdown from '../Markdown';
 import ResearchFilters from '@/components/ResearchFilters';
+import TrialsTable from '@/components/TrialsTable';
 import { useResearchFilters } from '@/store/researchFilters';
 import { Send } from 'lucide-react';
 import { useCountry } from '@/lib/country';
@@ -18,6 +19,7 @@ import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials
 import FeedbackBar from "@/components/FeedbackBar";
 import type { ChatMessage as BaseChatMessage } from "@/types/chat";
 import type { AnalysisCategory } from '@/lib/context';
+import type { TrialRow } from "@/types/trials";
 import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle } from '@/lib/chatThreads';
 
 type ChatUiState = {
@@ -283,6 +285,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [researchMode, setResearchMode] = useState(false);
   const [therapyMode, setTherapyMode] = useState(false);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
+  const [trials, setTrials] = useState<TrialRow[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = externalInputRef ?? useRef<HTMLInputElement>(null);
   const { filters } = useResearchFilters();
@@ -456,6 +459,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   async function send(text: string, researchMode: boolean) {
     if (!text.trim() || busy) return;
     setBusy(true);
+    setTrials([]);
 
     const normalize = (s: string) =>
       s
@@ -614,14 +618,21 @@ ${linkNudge}`;
             : intent === 'trials'
             ? await (async () => {
                 // 1) fetch real trials
-                const { rows } = await getTrials({
+                const params: any = {
                   condition: ui.topic!,
-                  country: country.name, // ClinicalTrials.gov expects country name
-                  status: "Recruiting,Enrolling by invitation",
-                  phase: "Phase 2,Phase 3",
                   page: 1,
                   pageSize: 10,
-                });
+                };
+                params.country = filters.country || country.name;
+                const statusMap: Record<string, string> = {
+                  Recruiting: "Recruiting,Enrolling by invitation",
+                  Completed: "Completed",
+                };
+                params.status = statusMap[filters.status || ""] || "Recruiting,Enrolling by invitation";
+                if (filters.phase) params.phase = `Phase ${filters.phase}`;
+
+                const { rows } = await getTrials(params);
+                setTrials(rows);
 
                 // 2) if none found, fall back to the old high-level summary
                 if (!rows.length) return buildTrialsPrompt(ui.topic!, country);
@@ -955,7 +966,12 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
         onResearchChange={setResearchMode}
         onTherapyChange={setTherapyMode}
       />
-      <ResearchFilters mode={currentMode} />
+      {(currentMode === 'doctor' || currentMode === 'research') && (
+        <>
+          <ResearchFilters />
+          <TrialsTable trials={trials} />
+        </>
+      )}
       <div
         ref={chatRef}
         className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 pb-28"

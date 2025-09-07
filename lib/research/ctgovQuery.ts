@@ -3,8 +3,8 @@ export function buildCtgovExpr(q: {
   keywords?: string[];
   phase?: "1" | "2" | "3" | "4";
   status?: string;
-  countries?: string[];
-  genes?: string[];
+  country?: string;
+  gene?: string;
 }) {
   const parts: string[] = [];
 
@@ -20,11 +20,12 @@ export function buildCtgovExpr(q: {
   if (q.status === "recruiting") parts.push(`AREA[OverallStatus] "Recruiting"`);
   if (q.status === "active") parts.push(`AREA[OverallStatus] "Active, not recruiting"`);
   if (q.status === "completed") parts.push(`AREA[OverallStatus] "Completed"`);
-  if (q.countries?.length) {
-    const ors = q.countries.map(c => `AREA[LocationCountry] ${quote(c)}`).join(" OR ");
-    parts.push(q.countries.length > 1 ? `(${ors})` : ors);
+  if (q.country) {
+    parts.push(`AREA[LocationCountry] ${quote(q.country)}`);
   }
-  (q.genes || []).forEach(g => parts.push(`AREA[FullTextSearch] ${quote(g)}`));
+  if (q.gene) {
+    parts.push(`AREA[FullTextSearch] ${quote(q.gene)}`);
+  }
 
   const expr = parts.length ? parts.join(" AND ") : `AREA[FullTextSearch] ${quote("cancer")}`;
   return expr;

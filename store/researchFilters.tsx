@@ -1,14 +1,15 @@
 'use client';
-import React, { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState } from "react";
 
 export type ResearchFilters = {
-  phase?: '1'|'2'|'3'|'4';
-  status?: 'recruiting'|'active'|'completed'|'any';
-  countries?: string[];
-  genes?: string[];
+  phase?: string;
+  status?: string;
+  country?: string;
+  gene?: string;
 };
 
-export const defaultFilters: ResearchFilters = { status: 'recruiting' };
+// Exported to fix import error
+export const defaultFilters: ResearchFilters = {};
 
 type CtxType = {
   filters: ResearchFilters;
