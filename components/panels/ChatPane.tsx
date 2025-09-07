@@ -4,7 +4,10 @@ import { useSearchParams } from 'next/navigation';
 import Header from '../Header';
 import Markdown from '../Markdown';
 import ResearchFilters from '@/components/ResearchFilters';
+import TrialsTable from '@/components/TrialsTable';
 import { useResearchFilters } from '@/store/researchFilters';
+import { useAppMode } from '@/store/appMode';
+import { useResearchToggle } from '@/store/researchToggle';
 import { Send } from 'lucide-react';
 import { useCountry } from '@/lib/country';
 import { getRandomWelcome } from '@/lib/welcomeMessages';
@@ -286,6 +289,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = externalInputRef ?? useRef<HTMLInputElement>(null);
   const { filters } = useResearchFilters();
+  const { mode: appMode } = useAppMode();
+  const { researchOn } = useResearchToggle();
 
   const params = useSearchParams();
   const threadId = params.get('threadId');
@@ -952,10 +957,9 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
         mode={mode}
         onModeChange={setMode}
         researchOn={researchMode}
-        onResearchChange={setResearchMode}
-        onTherapyChange={setTherapyMode}
-      />
-      <ResearchFilters mode={currentMode} />
+      onResearchChange={setResearchMode}
+      onTherapyChange={setTherapyMode}
+    />
       <div
         ref={chatRef}
         className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 pb-28"
@@ -998,6 +1002,12 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
                   onFollowUpClick={handleFollowUpClick}
                   simple={currentMode === 'patient'}
                 />
+                {appMode === 'doctor' && researchOn && (m as any).trials?.length > 0 && (
+                  <>
+                    <ResearchFilters />
+                    <TrialsTable trials={(m as any).trials} />
+                  </>
+                )}
                 <FeedbackBar
                   conversationId={conversationId}
                   messageId={m.id}

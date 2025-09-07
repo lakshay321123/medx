@@ -1,21 +1,14 @@
 import type { Citation } from "./orchestrator";
 import { isSelfDisclosure } from "@/lib/research/queryInterpreter";
-import type { ResearchFilters } from "@/store/researchFilters";
+import type { ResearchFilters } from "@/types/research-core";
 
 function summarize(filters?: ResearchFilters) {
   if (!filters) return "";
   const parts: string[] = [];
   if (filters.phase) parts.push(`Phase ${filters.phase}`);
-  if (filters.status && filters.status !== "any") {
-    const map: any = {
-      recruiting: "Recruiting",
-      active: "Active, not recruiting",
-      completed: "Completed",
-    };
-    parts.push(map[filters.status] || filters.status);
-  }
-  if (filters.countries?.length) parts.push(filters.countries.join("/") );
-  if (filters.genes?.length) parts.push(filters.genes.join(", "));
+  if (filters.status) parts.push(filters.status);
+  if (filters.country) parts.push(filters.country);
+  if (filters.gene) parts.push(filters.gene);
   return parts.length ? `Filters: ${parts.join(" · ")}` : "";
 }
 

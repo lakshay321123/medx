@@ -13,8 +13,9 @@ import { searchIctrp } from "@/lib/research/sources/ictrp";
 import { searchDailyMed } from "@/lib/research/sources/dailymed";
 import { searchOpenFda } from "@/lib/research/sources/openfda";
 import { fetchRxCui } from "@/lib/research/sources/rxnorm";
-import { isTrial, hasRegistryId, matchesPhase, matchesStatus, matchesCountries, matchesGenes } from "@/lib/research/validators";
-import type { ResearchFilters } from "@/store/researchFilters";
+import { isTrial, hasRegistryId, matchesPhase, matchesStatus, matchesCountry, matchesGenes } from "@/lib/research/validators";
+import type { ResearchFilters } from "@/types/research-core";
+import { normalizePhase, normalizeStatus } from "@/types/research-core";
 
 export type Citation = {
   id: string;
@@ -57,18 +58,19 @@ export async function orchestrateResearch(query: string, opts: { mode: string; f
     prevCondition = tq.condition;
   }
 
-  const f: ResearchFilters = { status: "recruiting", ...(opts.filters || {}) };
+  const f: ResearchFilters = { ...(opts.filters || {}) };
   if (!f.phase && tq.phase) f.phase = tq.phase;
-  if ((!f.countries || f.countries.length === 0) && tq.country) f.countries = [tq.country];
-  if (!f.status && typeof tq.recruiting === "boolean") f.status = tq.recruiting ? "recruiting" : "any";
+  if (!f.country && tq.country) f.country = tq.country;
+  if (!f.status && typeof tq.recruiting === "boolean") f.status = tq.recruiting ? "Recruiting" : undefined;
+  if (!f.gene && tq.gene) f.gene = tq.gene;
 
   const expr = buildCtgovExpr({
     condition: tq.condition || tq.cancerType,
     keywords: tq.keywords,
     phase: f.phase,
-    status: f.status,
-    countries: f.countries,
-    genes: f.genes,
+    status: f.status ? f.status.toLowerCase() : undefined,
+    countries: f.country ? [f.country] : undefined,
+    genes: f.gene ? [f.gene] : undefined,
   });
 
   const rx = await safe(() => fetchRxCui(query));
@@ -77,10 +79,10 @@ export async function orchestrateResearch(query: string, opts: { mode: string; f
     searchCtgovByExpr(expr, { max: 100 }),
     searchCtri(query),
     searchIctrp(query),
-    searchPubMed(genedQuery(query, f.genes)),
-    searchEuropePmc(genedQuery(query, f.genes)),
-    searchCrossref(genedQuery(query, f.genes)),
-    searchOpenAlex(genedQuery(query, f.genes)),
+    searchPubMed(genedQuery(query, f.gene ? [f.gene] : undefined)),
+    searchEuropePmc(genedQuery(query, f.gene ? [f.gene] : undefined)),
+    searchCrossref(genedQuery(query, f.gene ? [f.gene] : undefined)),
+    searchOpenAlex(genedQuery(query, f.gene ? [f.gene] : undefined)),
     rx ? searchDailyMed(rx) : Promise.resolve([]),
     searchOpenFda(query),
   ]);
@@ -99,9 +101,9 @@ export async function orchestrateResearch(query: string, opts: { mode: string; f
     .filter(isTrial)
     .filter(hasRegistryId)
     .filter(c => matchesPhase(c, f.phase))
-    .filter(c => matchesStatus(c, f.status))
-    .filter(c => matchesCountries(c, f.countries))
-    .filter(c => matchesGenes(c, f.genes));
+    .filter(c => matchesStatus(c, f.status ? f.status.toLowerCase() : undefined))
+    .filter(c => matchesCountry(c, f.country))
+    .filter(c => matchesGenes(c, f.gene ? [f.gene] : undefined));
 
   const pubmed = pmRes.status === "fulfilled" ? pmRes.value : [];
   const eupmc = epmcRes.status === "fulfilled" ? epmcRes.value : [];
@@ -110,7 +112,7 @@ export async function orchestrateResearch(query: string, opts: { mode: string; f
   const dailymed = dmRes.status === "fulfilled" ? dmRes.value : [];
   const openfda = fdaRes.status === "fulfilled" ? fdaRes.value : [];
 
-  const papers = (pubmed || []).concat(eupmc || [], crossref || [], openalex || []).filter(p => matchesGenes(p, f.genes));
+  const papers = (pubmed || []).concat(eupmc || [], crossref || [], openalex || []).filter(p => matchesGenes(p, f.gene ? [f.gene] : undefined));
   const safety = (dailymed || []).concat(openfda || []);
 
   let citations = dedupeResults([...trials, ...papers, ...safety]);
@@ -139,6 +141,29 @@ export async function orchestrateResearch(query: string, opts: { mode: string; f
   };
   cache.set(query, { ts: now, data: packet });
   return packet;
+}
+
+export function toTrialsQuery(tq: any, f: ResearchFilters) {
+  return {
+    condition: tq.condition || tq.cancerType,
+    keywords: tq.keywords,
+    phase: f.phase,
+    status: f.status,
+    country: f.country,
+    gene: f.gene,
+  };
+}
+
+export function normalizeTrial(raw: any) {
+  return {
+    id: raw.id,
+    title: raw.title,
+    phase: normalizePhase(raw.phase),
+    status: normalizeStatus(raw.status),
+    country: raw.country || undefined,
+    gene: raw.gene || undefined,
+    url: raw.url,
+  };
 }
 
 function genedQuery(q: string, genes?: string[]) {
