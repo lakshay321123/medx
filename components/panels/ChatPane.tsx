@@ -293,9 +293,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [summary, setSummary] = useState<string | null>(null);
   const [stats, setStats] = useState<TrialStats | null>(null);
   const [showDetails, setShowDetails] = useState(false);
-  const pushSuggestion = useMemoryStore(s => s.pushSuggestion);
-  const enabled = useMemoryStore(s => s.enabled);
-  const rememberThisThread = useMemoryStore(s => s.rememberThisThread);
+  const { enabled, rememberThisThread, autoSave, pushSuggestion, setLastSaved } = useMemoryStore();
 
   function handleTrials(rows: TrialRow[]) {
     setTrialRows(rows);
@@ -927,11 +925,38 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: note, thread_id: threadId }),
           });
-          const j = await res.json().catch(() => null);
-          (j?.suggestions || []).forEach((s: any) => {
-            if (rememberThisThread && s.scope === 'thread') s.source = 'manual';
-            pushSuggestion(s);
-          });
+          if (res.ok) {
+            const { suggestions } = await res.json();
+            for (const s of (suggestions || [])) {
+              if (rememberThisThread && s.scope === 'thread') s.source = 'manual';
+              if (autoSave) {
+                try {
+                  const saveRes = await fetch('/api/memory', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(s),
+                  });
+                  if (saveRes.ok) {
+                    const json = await saveRes.json();
+                    const saved = json?.items?.[0];
+                    const label =
+                      s.key === 'allergy' && s.value?.item ? `allergy: ${s.value.item}` :
+                      s.key === 'diet_preference' && s.value?.label ? `diet: ${s.value.label}` :
+                      s.key === 'medication' && s.value?.name ? `medication: ${s.value.name}` :
+                      s.key;
+                    if (saved?.id) setLastSaved({ id: saved.id, label });
+                  } else {
+                    console.error('Auto-save failed', saveRes.status, await saveRes.text());
+                  }
+                } catch (e) {
+                  console.error('Auto-save error', e);
+                }
+              } else {
+                pushSuggestion(s);
+              }
+            }
+          }
         } catch (err) {
           console.error('Memory suggest failed', err);
         }

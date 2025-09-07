@@ -19,8 +19,7 @@ export default function MemorySnackbar() {
         console.error("Memory save failed", res.status, await res.text());
         return;
       }
-      const data = await res.json();
-      console.log("Memory saved:", data);
+      await res.json();
       clearSuggestion(current.key); // ✅ hide snackbar
     } catch (err) {
       console.error("Memory save error:", err);
@@ -39,11 +38,11 @@ export default function MemorySnackbar() {
   })();
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-xl border bg-white dark:bg-slate-800 shadow-lg p-3">
+    <div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-xl border bg-white dark:bg-slate-800 shadow-lg p-3 pointer-events-auto">
       <div className="text-sm mb-2">{label}</div>
       <div className="flex gap-2 justify-end">
-        <button onClick={onDismiss} className="px-3 py-1 border text-sm">No</button>
-        <button onClick={onSave} className="px-3 py-1 bg-blue-600 text-white text-sm">Save</button>
+        <button type="button" onClick={onDismiss} className="px-3 py-1 rounded border text-sm">No</button>
+        <button type="button" onClick={onSave} className="px-3 py-1 rounded bg-blue-600 text-white text-sm">Save</button>
       </div>
     </div>
   );
