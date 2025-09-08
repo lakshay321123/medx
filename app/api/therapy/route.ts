@@ -168,6 +168,18 @@ function synthFallbackNote(text: string) {
   };
 }
 
+function buildWrapupFromNote(note: any) {
+  const summary = (note?.summary || "").trim();
+  const step = (note?.nextStep || note?.meta?.goals?.[0] || "").trim();
+  const line1 = summary
+    ? `Quick recap: ${summary}`
+    : `Quick recap: we focused on what matters to you today.`;
+  const line2 = step
+    ? `A tiny next step you could try: ${step}. We can check how it went next time.`
+    : `If it helps, choose one tiny step to try before we talk again.`;
+  return `${line1}\n${line2}`;
+}
+
 // ---------- handler ----------
 export async function POST(req: NextRequest) {
   try {
@@ -230,6 +242,7 @@ export async function POST(req: NextRequest) {
     const completion = result.text.trim().split(/\n+/).slice(0, 3).join("\n");
 
     // --------- save structured note (server-side) ----------
+    let wrapup: string | null = null;
     try {
       const openai = new OpenAI({ apiKey: OAI_KEY, baseURL: OAI_URL });
       const recent: TM[] = [
@@ -241,6 +254,7 @@ export async function POST(req: NextRequest) {
       if (userId) {
         const note = (await summarizeTherapyJSON(openai, recent)) ?? null;
         const sb = supabaseServer();
+        let usedNote: any = null;
 
         if (note) {
           await sb.from("therapy_notes").insert({
@@ -251,6 +265,7 @@ export async function POST(req: NextRequest) {
             breakthrough: note.breakthrough,
             next_step: note.nextStep
           });
+          usedNote = note;
         } else {
           // fallback quick note so we still have continuity
           const fallback = synthFallbackNote(completion);
@@ -262,13 +277,21 @@ export async function POST(req: NextRequest) {
             breakthrough: fallback.breakthrough,
             next_step: fallback.nextStep
           });
+          usedNote = fallback;
         }
+
+        try {
+          if (usedNote && (body?.wrapup === true || nextStage === "S8")) {
+            wrapup = buildWrapupFromNote(usedNote);
+          }
+        } catch {}
       }
     } catch { /* fail-soft: never block user reply */ }
 
     const resp: any = { ok: true, completion, nextStage };
     if (!body.name && details.maybeName) resp.name = details.maybeName;
     if (summary) resp.summary = summary;
+    if (wrapup) resp.wrapup = wrapup;
 
     return NextResponse.json(resp);
   } catch (e: any) {

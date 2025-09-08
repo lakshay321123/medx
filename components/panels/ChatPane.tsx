@@ -774,6 +774,19 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             try { pushFullMem(stableThreadId, "assistant", content); } catch {}
           }
         }
+        if (j?.wrapup) {
+          setMessages(prev => [
+            ...prev,
+            { id: uid(), role: 'assistant', kind: 'chat', content: j.wrapup, pending: false }
+          ]);
+          if (threadId && j.wrapup.trim()) {
+            pushFullMem(threadId, 'assistant', j.wrapup);
+            maybeIndexStructured(threadId, j.wrapup);
+          }
+          if (stableThreadId) {
+            try { pushFullMem(stableThreadId, 'assistant', j.wrapup); } catch {}
+          }
+        }
         return;
       }
       const intent = detectFollowupIntent(text);
