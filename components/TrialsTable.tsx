@@ -37,7 +37,11 @@ export default function TrialsTable({ rows }: { rows: TrialRow[] }) {
               <td className="border px-2 py-1">{t.status}</td>
               <td className="border px-2 py-1">{t.city}</td>
               <td className="border px-2 py-1">{t.country}</td>
-              <td className="border px-2 py-1">{t.source || "—"}</td>
+              <td className="border px-2 py-1">
+                <span className="inline-flex items-center rounded-full border border-slate-200 dark:border-gray-700 px-2 py-0.5 text-[10px] leading-4 text-slate-600 dark:text-slate-300">
+                  {t.source || "Source"}
+                </span>
+              </td>
             </tr>
           ))}
         </tbody>
