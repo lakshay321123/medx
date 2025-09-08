@@ -326,6 +326,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const params = useSearchParams();
   const threadId = params.get('threadId');
   const context = params.get('context');
+  // ADD: stable fallback thread key for default chat
+  const stableThreadId = threadId || 'default-thread';
   const isProfileThread = threadId === 'med-profile' || context === 'profile';
   const conversationId = threadId || (isProfileThread ? 'med-profile' : 'unknown');
   const currentMode: 'patient'|'doctor'|'research'|'therapy' = therapyMode ? 'therapy' : (researchMode ? 'research' : mode);
@@ -516,6 +518,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         .replace(/\bsgot\b/gi, "AST (SGOT)");
     const userText = isProfileThread ? normalize(text) : text;
     if (threadId) pushFullMem(threadId, "user", userText);
+    if (stableThreadId) {
+      try { pushFullMem(stableThreadId, "user", userText); } catch {}
+    }
 
     // --- social intent fast path: greet/thanks/yes/no/maybe/repeat/simpler/shorter/longer/next ---
     const social = detectSocialIntent(userText);
@@ -542,6 +547,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       if (threadId && content && content.trim()) {
         pushFullMem(threadId, "assistant", content);
         maybeIndexStructured(threadId, content);
+      }
+      if (stableThreadId) {
+        try { pushFullMem(stableThreadId, "assistant", content); } catch {}
       }
       setNote("");
       setBusy(false);
@@ -623,6 +631,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         pushFullMem(threadId, "assistant", maybe.ask);
         maybeIndexStructured(threadId, maybe.ask);
       }
+      if (stableThreadId) {
+        try { pushFullMem(stableThreadId, "assistant", maybe.ask); } catch {}
+      }
       setBusy(false);
       return; // wait for user Yes/No
     }
@@ -639,12 +650,14 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     }
 
     try {
+      const fullContext = buildFullContext(stableThreadId);
+      const contextBlock = fullContext ? `\n\nCONTEXT (recent conversation):\n${fullContext}` : "";
       if (isProfileThread) {
         const thread = [
           ...messages
             .filter(m => !m.pending)
             .map(m => ({ role: m.role, content: (m as any).content || '' })),
-          { role: 'user', content: userText }
+          { role: 'user', content: `${userText}${contextBlock}` }
         ];
 
         const res = await fetch('/api/chat/stream', {
@@ -683,6 +696,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           pushFullMem(threadId, "assistant", main);
           maybeIndexStructured(threadId, main);
         }
+        if (stableThreadId) {
+          try { pushFullMem(stableThreadId, "assistant", main); } catch {}
+        }
         return;
       }
       if (therapyMode) {
@@ -713,6 +729,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             pushFullMem(threadId, "assistant", content);
             maybeIndexStructured(threadId, content);
           }
+          if (stableThreadId) {
+            try { pushFullMem(stableThreadId, "assistant", content); } catch {}
+          }
           return;
         }
 
@@ -725,6 +744,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             pushFullMem(threadId, "assistant", content);
             maybeIndexStructured(threadId, content);
           }
+          if (stableThreadId) {
+            try { pushFullMem(stableThreadId, "assistant", content); } catch {}
+          }
         } else if (j?.starter) {
           const content = j.starter;
           setMessages(prev => prev.map(m =>
@@ -734,16 +756,22 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             pushFullMem(threadId, "assistant", content);
             maybeIndexStructured(threadId, content);
           }
+          if (stableThreadId) {
+            try { pushFullMem(stableThreadId, "assistant", content); } catch {}
+          }
         } else {
           const content = '⚠ Empty response from server.';
           setMessages(prev => prev.map(m =>
             m.id === pendingId
               ? { ...m, content, pending: false, error: 'Empty response from server.' }
               : m
-          ));
+            ));
           if (threadId && content.trim()) {
             pushFullMem(threadId, "assistant", content);
             maybeIndexStructured(threadId, content);
+          }
+          if (stableThreadId) {
+            try { pushFullMem(stableThreadId, "assistant", content); } catch {}
           }
         }
         return;
@@ -754,24 +782,35 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       if (!ui.topic && !intent) setUi(prev => ({ ...prev, topic: text }));
       else if (isNewTopic(text)) setUi(prev => ({ ...prev, topic: text }));
 
+      // ADD: intercept follow-ups with no active doc context by using full conversation memory
+      if (follow && !ctx) {
+        // Build a normal prompt but with fullContext injected (see step 2).
+        // Do not return here; let it flow into your normal LLM call with contextBlock included.
+      }
+
+      // Only show the "no context" warning if there is truly no stored conversation
       if (follow && !ctx && !(intent && ui.topic)) {
-        const warn = "I don't have context from earlier in this session. Please reattach or restate it if you'd like me to use it.";
-        setMessages(prev =>
-          prev.map(m =>
-            m.id === pendingId
-              ? {
-                  ...m,
-                  pending: false,
-                  content: warn,
-                }
-              : m
-          )
-        );
-        if (threadId && warn.trim()) {
-          pushFullMem(threadId, "assistant", warn);
-          maybeIndexStructured(threadId, warn);
+        const hasAnyMemory = !!buildFullContext(stableThreadId);
+        if (!hasAnyMemory) {
+          const warn = "I don't have context from earlier in this session. Please reattach or restate it if you'd like me to use it.";
+          setMessages(prev =>
+            prev.map(m =>
+              m.id === pendingId
+                ? { ...m, pending: false, content: warn }
+                : m
+            )
+          );
+          if (threadId && warn.trim()) {
+            pushFullMem(threadId, "assistant", warn);
+            maybeIndexStructured(threadId, warn);
+          }
+          if (stableThreadId) {
+            try { pushFullMem(stableThreadId, "assistant", warn); } catch {}
+          }
+          setBusy(false);
+          return;
         }
-        return;
+        // else: proceed to normal LLM call with contextBlock (added above)
       }
 
       const linkNudge =
@@ -827,8 +866,9 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
                 ];
               })()
             : buildMedicinesPrompt(ui.topic, country);
+        chatMessages[1].content += contextBlock;
       } else if (follow && ctx) {
-        const fullMem = threadId ? buildFullContext(threadId) : "";
+        const fullMem = fullContext;
         const system = `You are MedX. This is a FOLLOW-UP.
 Here is the ENTIRE conversation so far:
 ${fullMem || "(none)"}
@@ -837,7 +877,7 @@ ${systemCommon}` + baseSys;
         const userMsg = `Follow-up: ${text}\nIf the question is ambiguous, ask one concise disambiguation question and then answer briefly using the context.`;
         chatMessages = [
           { role: 'system', content: system },
-          { role: 'user', content: userMsg }
+          { role: 'user', content: `${userMsg}${contextBlock}` }
         ];
       } else {
         const plan = await safeJson(
@@ -849,10 +889,10 @@ ${systemCommon}` + baseSys;
         );
 
         const sys = topicHint + systemCommon + baseSys;
-        const contextBlock = 'CONTEXT:\n' + JSON.stringify(plan.sections || {}, null, 2);
+        const planContextBlock = 'CONTEXT:\n' + JSON.stringify(plan.sections || {}, null, 2);
         chatMessages = [
           { role: 'system', content: sys },
-          { role: 'user', content: `${text}\n\n${contextBlock}` }
+          { role: 'user', content: `${text}\n\n${planContextBlock}${contextBlock}` }
         ];
       }
 
@@ -897,6 +937,9 @@ ${systemCommon}` + baseSys;
         pushFullMem(threadId, "assistant", main);
         maybeIndexStructured(threadId, main);
       }
+      if (stableThreadId) {
+        try { pushFullMem(stableThreadId, "assistant", main); } catch {}
+      }
       if (main.length > 400) {
         setFromChat({ id: pendingId, content: main });
         setUi(prev => ({ ...prev, contextFrom: 'Conversation summary' }));
@@ -919,6 +962,9 @@ ${systemCommon}` + baseSys;
       if (threadId && content.trim()) {
         pushFullMem(threadId, "assistant", content);
         maybeIndexStructured(threadId, content);
+      }
+      if (stableThreadId) {
+        try { pushFullMem(stableThreadId, "assistant", content); } catch {}
       }
     } finally {
       setBusy(false);
