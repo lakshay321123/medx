@@ -518,14 +518,23 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               const sess = await safeJson(fetch('/api/auth/session'));
               const userId = sess?.user?.id;
               if (userId) {
-                const r = await fetch(`/api/therapy/notes?userId=${userId}`);
-                const { note } = await r.json();
-                if (note?.summary) {
-                  const line = `Last time we explored: ${note.summary} — would you like to continue from there or talk about something new?`;
-                  setMessages((prev: any[]) => [
-                    ...prev,
-                    { id: uid(), role: 'assistant', kind: 'chat', content: line, pending: false }
-                  ]);
+                const r = await fetch(`/api/therapy/notes?userId=${userId}&limit=3`);
+                const { notes } = await r.json();
+
+                if (Array.isArray(notes) && notes.length > 0) {
+                  const pieces = notes
+                    .map((n: any) => (n?.summary || '').trim())
+                    .filter(Boolean)
+                    .slice(0, 3);
+
+                  if (pieces.length > 0) {
+                    const gist = pieces.length === 1 ? pieces[0] : pieces.slice(0, 2).join('; ');
+                    const line = `Last time we explored: ${gist} — want to continue from there or talk about something new?`;
+                    setMessages((prev: any[]) => [
+                      ...prev,
+                      { id: uid(), role: 'assistant', kind: 'chat', content: line, pending: false }
+                    ]);
+                  }
                 }
               }
             } catch {}
