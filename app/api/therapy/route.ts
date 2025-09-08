@@ -13,6 +13,8 @@ const OAI_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").rep
 const MODEL   = process.env.OPENAI_TEXT_MODEL || "gpt-5";
 const ENABLED = String(process.env.THERAPY_MODE_ENABLED || "").toLowerCase() === "true";
 
+const moodList = ["calm","hopeful","content","neutral","anxious","sad","angry","tired","overwhelmed","stressed"];
+
 const STYLE = `One short reflection (≤1 line) of the user’s last message.
 Then ask exactly one clear question; end with a single “?”.
 Progress gradually through stages S0…S8:
@@ -245,7 +247,7 @@ export async function POST(req: NextRequest) {
             user_id: userId,
             summary: note.summary,
             meta: { topics: note.topics, triggers: note.triggers, emotions: note.emotions },
-            mood: note.mood,
+            mood: (note.mood && moodList.includes(note.mood)) ? note.mood : "neutral",
             breakthrough: note.breakthrough,
             next_step: note.nextStep
           });
@@ -256,7 +258,7 @@ export async function POST(req: NextRequest) {
             user_id: userId,
             summary: fallback.summary,
             meta: fallback.meta,
-            mood: fallback.mood,
+            mood: (fallback.mood && moodList.includes(fallback.mood)) ? fallback.mood : "neutral",
             breakthrough: fallback.breakthrough,
             next_step: fallback.nextStep
           });
