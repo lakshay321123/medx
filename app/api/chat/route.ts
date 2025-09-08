@@ -26,10 +26,21 @@ import { finalReplyGuard } from "@/lib/conversation/finalReplyGuard";
 import { disambiguate, disambiguateWithMemory } from "@/lib/conversation/disambiguation";
 import { detectTopic, wantsNewTopic, inferTopicFromHistory, seemsOffTopic, rewriteToTopic } from "@/lib/conversation/topic";
 import { polishResponse } from "@/lib/conversation/polish";
-import { normalizeMode } from "@/lib/conversation/mode";
 import { DOCTOR_JSON_SYSTEM, coerceDoctorJson } from "@/lib/conversation/doctorJson";
 import { renderDeterministicDoctorReport } from "@/lib/renderer/templates/doctor";
 import { buildPatientSnapshot } from "@/lib/patient/snapshot";
+
+// M7.2.3 add: payload normalizer and research stripper
+function _normalizeThreadId(body: any): string | undefined {
+  return body?.thread_id || body?.threadId;
+}
+
+function _stripDoctorResearch(text: string): string {
+  return text
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/^\s*Relevant\s+(Trials|Research)[\s\S]*$/gim, "")
+    .replace(/.*\b(trial|trials|study|studies|research|pubmed|clinicaltrials\.gov|NCI|ICTRP|registry)\b.*\n?/gi, "");
+}
 
 function contextStringFrom(messages: ChatCompletionMessageParam[]): string {
   return messages
@@ -39,9 +50,10 @@ function contextStringFrom(messages: ChatCompletionMessageParam[]): string {
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const { messages: incomingMessages, mode: rawMode, thread_id } = body;
-  const mode = normalizeMode(rawMode);
-  const userMessage = incomingMessages?.[incomingMessages.length - 1]?.content || "";
+  const messages = body?.messages ?? [];
+  const mode = (body?.mode || "").toString().toLowerCase();
+  const thread_id = _normalizeThreadId(body);
+  const userMessage = messages?.[messages.length - 1]?.content || "";
 
   // DEBUG LOG (remove later): verify we're actually in doctor path
   console.log("[DoctorMode] mode=", mode, "thread_id=", thread_id);
@@ -51,17 +63,17 @@ export async function POST(req: Request) {
     const systemPrompt = DOCTOR_JSON_SYSTEM;
     const msg: ChatCompletionMessageParam[] = [
       { role: "system", content: systemPrompt },
-      ...(incomingMessages || []),
+      ...(messages || []),
     ];
     const jsonStr = await callGroq(msg, { temperature: 0 });
     const sections = coerceDoctorJson(jsonStr);
     let out = renderDeterministicDoctorReport(patient, sections);
-    out = out.replace(/https?:\/\/\S+/g, "");
-    out = out.replace(/.*\b(trial|study|research|pubmed|clinicaltrials\.gov|NCI|ICTRP|registry)\b.*\n?/gi, "");
+    // M7.2.3 strip research/trials from Doctor Mode deterministically
+    out = _stripDoctorResearch(out);
     out = polishResponse(out);
     out = sanitizeLLM(out);
     const final = finalReplyGuard(userMessage, out);
-    return NextResponse.json({ text: final });
+    return NextResponse.json({ text: final }); // M7.2.3: early return in doctor mode
   }
 
   const { userId, activeThreadId, text, researchOn, clarifySelectId } = body;

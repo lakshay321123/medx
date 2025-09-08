@@ -3,7 +3,14 @@ import { profileChatSystem } from '@/lib/profileChatSystem';
 export const runtime = 'edge';
 
 export async function POST(req: NextRequest) {
-  const { messages = [], threadId, context } = await req.json();
+  const body = await req.json();
+  const messages = body?.messages ?? [];
+  const threadId = body?.threadId ?? body?.thread_id;
+  const context = body?.context;
+  const mode = (body?.mode || '').toString().toLowerCase();
+  if (mode.includes('doctor')) {
+    return new Response('Doctor Mode is not available on the stream endpoint. Use /api/chat.', { status: 400 });
+  }
   const base  = process.env.LLM_BASE_URL!;
   const model = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
   const key   = process.env.LLM_API_KEY!;

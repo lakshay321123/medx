@@ -575,6 +575,27 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           { role: 'user', content: userText }
         ];
 
+        // M7.2.3: Doctor mode uses non-stream deterministic endpoint
+        if (mode === 'doctor' || mode === 'Doctor') {
+          const res = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messages: thread,
+              mode: 'doctor',
+              thread_id: threadId,   // send snake_case; backend also normalizes
+              researchOn: false
+            })
+          });
+          if (!res.ok) throw new Error(`Chat API error ${res.status}`);
+          const { text } = await res.json();
+          setMessages(prev =>
+            prev.map(m => (m.id === pendingId ? { ...m, content: text, pending: false } : m))
+          ); // use your existing helper
+          return; // do not fall through to stream
+        }
+
+        // Non-doctor modes: keep existing streaming call unchanged
         const res = await fetch('/api/chat/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -751,6 +772,27 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
         ];
       }
 
+      // M7.2.3: Doctor mode uses non-stream deterministic endpoint
+      if (mode === 'doctor' || mode === 'Doctor') {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: chatMessages,
+            mode: 'doctor',
+            thread_id: threadId,   // send snake_case; backend also normalizes
+            researchOn: false
+          })
+        });
+        if (!res.ok) throw new Error(`Chat API error ${res.status}`);
+        const { text } = await res.json();
+        setMessages(prev =>
+          prev.map(m => (m.id === pendingId ? { ...m, content: text, pending: false } : m))
+        ); // use your existing helper
+        return; // do not fall through to stream
+      }
+
+      // Non-doctor modes: keep existing streaming call unchanged
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
