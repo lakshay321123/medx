@@ -4,9 +4,9 @@ export const runtime = 'edge';
 
 export async function POST(req: NextRequest) {
   const { messages = [], threadId, context } = await req.json();
-  const key   = process.env.OPENAI_API_KEY!;
-  const model = process.env.MODEL_FAST || "gpt-4o-mini"; // fast tier for streaming chat
-  const url   = "https://api.openai.com/v1/chat/completions";
+const key   = process.env.OPENAI_API_KEY!;
+const model = process.env.MODEL_BALANCED || "gpt-4.1";
+const url   = "https://api.openai.com/v1/chat/completions";
 
   let finalMessages = messages;
   if (threadId === 'med-profile' || context === 'profile') {
