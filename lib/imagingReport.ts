@@ -80,34 +80,44 @@ export async function llmPolish(gist: ReturnType<typeof humanTemplate>, ctx: Ima
   const prompt = `Context:\\n- Modality: X-ray\\n- Family: ${ctx.family}\\n- Region/Hint: ${ctx.hint || ''}\\n- Model: ${ctx.model}\\n\\nModel outputs (top 5):\\n${pred_lines}\\n\\nRules-derived gist:\\n- Primary statement: ${primary_stmt}\\n- Confidence: ${conf}\\n- Safety: Always include a one-line disclaimer.\\n\\nWrite TWO short sections:\\n1) Patient-friendly summary (2–3 sentences, plain language).\\n2) Clinician note (2–3 bullet points; include probabilities and next steps).\\n\\nDo NOT mention training datasets or internal thresholds.`;
 
   try {
-    const r = await fetch(process.env.LLM_BASE_URL!, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.LLM_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant',
-        messages: [
-          { role: 'system', content: 'You are a clinical reporting assistant. Draft concise imaging impressions.\\nNo diagnosis guarantees. Avoid overreach. Never contradict the model signals.' },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.2,
-        max_tokens: 220,
-      }),
-    });
-    const data = await r.json();
-    const text: string | undefined = data.choices?.[0]?.message?.content?.trim();
-    if (text) {
-      const [patientSummary, clinicianNote] = text.split(/\\n\\s*\\n/);
-      if (patientSummary && clinicianNote) {
-        return { patientSummary: patientSummary.trim(), clinicianNote: clinicianNote.trim() };
-      }
+  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: process.env.MODEL_BALANCED || "gpt-4.1",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a clinical reporting assistant. Produce two concise sections: (1) Patient Summary (plain language), (2) Clinician Note (bulleted, precise). Avoid overreach and never contradict model signals.",
+        },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.2,
+      max_tokens: 220,
+    }),
+  });
+
+  const data = await r.json();
+  const text: string | undefined = data?.choices?.[0]?.message?.content?.trim();
+  if (text) {
+    // Split into two paragraphs (patient first, clinician second)
+    const [patientSummary, clinicianNote] = text.split(/\n\s*\n/);
+    if (patientSummary && clinicianNote) {
+      return {
+        patientSummary: patientSummary.trim(),
+        clinicianNote: clinicianNote.trim().startsWith("•")
+          ? clinicianNote.trim()
+          : `• ${clinicianNote.trim()}`,
+      };
     }
-    return null;
-  } catch {
-    return null;
   }
+  return null;
+} catch {
+  return null;
 }
 
 export async function composeImagingReport(imaging: ImagingResult) {
