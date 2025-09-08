@@ -12,6 +12,7 @@ const OAI_KEY = process.env.OPENAI_API_KEY!;
 const OAI_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
 const MODEL   = process.env.OPENAI_TEXT_MODEL || "gpt-5";
 const ENABLED = String(process.env.THERAPY_MODE_ENABLED || "").toLowerCase() === "true";
+const PROFILE_REBUILD_EVERY = Number(process.env.THERAPY_PROFILE_REBUILD_EVERY || 3);
 
 const moodList = ["calm","hopeful","content","neutral","anxious","sad","angry","tired","overwhelmed","stressed"];
 
@@ -279,6 +280,23 @@ export async function POST(req: NextRequest) {
           });
           usedNote = fallback;
         }
+
+        try {
+          const sb = supabaseServer();
+          // Count total notes for this user (fast: index on user_id, created_at)
+          const { count } = await sb
+            .from("therapy_notes")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", userId);
+
+          if (typeof count === "number" && count > 0 && PROFILE_REBUILD_EVERY > 0 && count % PROFILE_REBUILD_EVERY === 0) {
+            // Fire-and-forget call to rebuild profile from recent notes
+            fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/therapy/profile/rebuild?userId=${userId}&limit=50`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" }
+            }).catch(() => {});
+          }
+        } catch { /* fail-soft */ }
 
         try {
           if (usedNote && (body?.wrapup === true || nextStage === "S8")) {
