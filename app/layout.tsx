@@ -18,15 +18,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ContextProvider>
             <TopicProvider>
               <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-                <div className="flex">
-                  <Suspense fallback={null}>
-                    <Sidebar />
-                  </Suspense>
-                  <main className="flex-1 md:ml-64 min-h-dvh flex flex-col relative z-0">
-                    {children}
-                    <MemorySnackbar />
-                    <UndoToast />
-                  </main>
+                <div className="medx-gradient-bg min-h-dvh">
+                  <div className="flex">
+                    <Suspense fallback={null}>
+                      <Sidebar />
+                    </Suspense>
+                    <main className="flex-1 md:ml-64 min-h-dvh flex flex-col relative z-0">
+                      {children}
+                      <MemorySnackbar />
+                      <UndoToast />
+                    </main>
+                  </div>
                 </div>
               </ThemeProvider>
             </TopicProvider>
