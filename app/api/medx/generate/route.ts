@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
           conversationId: routed.threadId ?? routed.conversationId,
           messageId: typeof data === "object" && data && "id" in data ? (data as any).id : undefined,
           mode: routed.mode,
-          model: process.env.LLM_MODEL_ID,
+          model: process.env.MODEL_BALANCED || process.env.MODEL_SMART || process.env.MODEL_FAST || "gpt-4.1",
           latencyMs: Date.now() - started,
         }
       );
