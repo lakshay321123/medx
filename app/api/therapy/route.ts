@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-export const runtime = "edge";
+import { getUserId } from "@/lib/getUserId";
+export const runtime = "nodejs";
 
 const OAI_KEY = process.env.OPENAI_API_KEY!;
 const OAI_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
@@ -151,6 +152,26 @@ function updateSummary(prev: string, details: any, goal?: string) {
   return parts.join("; ").slice(0, 200);
 }
 
+function synthNote(text: string) {
+  const topics: string[] = [];
+  if (/sleep|insomnia/i.test(text)) topics.push("sleep");
+  if (/work|boss|office/i.test(text)) topics.push("work stress");
+  if (/family|partner|relationship/i.test(text)) topics.push("relationships");
+
+  const mood = /hopeful|optimistic/i.test(text) ? "hopeful"
+            : /anxious|worried/i.test(text) ? "anxious"
+            : /tired|exhausted/i.test(text) ? "tired"
+            : undefined;
+
+  return {
+    summary: text.slice(0, 280),
+    meta: { topics, triggers: [], emotions: [], goals: [] },
+    mood,
+    breakthrough: undefined,
+    nextStep: undefined,
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
     if (!ENABLED) {
@@ -212,7 +233,15 @@ export async function POST(req: NextRequest) {
     const resp: any = { ok: true, completion, nextStage };
     if (!body.name && details.maybeName) resp.name = details.maybeName;
     if (summary) resp.summary = summary;
-
+    const userId = await getUserId();
+    if (userId) {
+      const note = synthNote(completion);
+      await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/therapy/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, ...note }),
+      }).catch(() => {});
+    }
     return NextResponse.json(resp);
   } catch (e: any) {
     return NextResponse.json({ error: "Server error", detail: String(e?.message || e) }, { status: 500 });

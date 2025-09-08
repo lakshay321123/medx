@@ -505,6 +505,21 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               ...prev,
               { id: `t-${Date.now()}`, role: 'assistant', kind: 'chat', content: starter }
             ]);
+            try {
+              const sess = await safeJson(fetch('/api/auth/session'));
+              const userId = sess?.user?.id;
+              if (userId) {
+                const r = await fetch(`/api/therapy/notes?userId=${userId}`);
+                const { note } = await r.json();
+                if (note?.summary) {
+                  const line = `Last time we explored: ${note.summary} — would you like to continue from there or talk about something new?`;
+                  setMessages((prev: any[]) => [
+                    ...prev,
+                    { id: uid(), role: 'assistant', kind: 'chat', content: line, pending: false }
+                  ]);
+                }
+              }
+            } catch {}
           } catch {
             /* ignore */
           }
