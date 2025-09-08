@@ -37,6 +37,17 @@ export async function POST(req: Request) {
       console.error("Feedback insert error", error);
       return NextResponse.json({ ok: false, error: "db_error" }, { status: 500 });
     }
+
+    // AFTER successful upsert:
+    try {
+      const supabase = supabaseServer();
+      await supabase
+        .from("ai_feedback")
+        .update({ pending_upload: true })
+        .eq("message_id", body.messageId);
+    } catch {
+      /* no-op */
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("Feedback route error", e);
