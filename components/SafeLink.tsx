@@ -9,6 +9,9 @@ const ALLOW = [
   "nhs.uk",
   "mayoclinic.org",
   "uptodate.com",
+  "clinicaltrials.gov",
+  "europepmc.org",
+  "ctri.nic.in",
 ];
 
 export function normalizeExternalHref(input?: string): string | null {

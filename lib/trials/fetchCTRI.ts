@@ -1,7 +1,7 @@
 import { parseStringPromise } from "xml2js";
 
 export async function fetchCTRI(title?: string): Promise<any[]> {
-  const url = `http://ctri.nic.in/Clinicaltrials/services/Searchdata?trialno=&title=${encodeURIComponent(title||"")}`;
+  const url = `https://ctri.nic.in/Clinicaltrials/services/Searchdata?trialno=&title=${encodeURIComponent(title||"")}`;
   const res = await fetch(url, { next: { revalidate: 3600 } });
   const text = await res.text();
 
@@ -18,7 +18,7 @@ export async function fetchCTRI(title?: string): Promise<any[]> {
     return {
       id: r?.trialNumber || r?.ctriNumber,
       title: r?.publicTitle || r?.scientificTitle,
-      url: r?.url || (r?.ctriNumber ? `http://ctri.nic.in/Clinicaltrials/pmaindet2.php?trialid=${encodeURIComponent(r.ctriNumber)}` : undefined),
+      url: r?.url || (r?.ctriNumber ? `https://ctri.nic.in/Clinicaltrials/pview2.php?trialid=${encodeURIComponent(r.ctriNumber)}` : undefined),
       phase: r?.phase?.toString(),
       status: r?.recruitmentStatus,
       country: "India",
@@ -29,7 +29,7 @@ export async function fetchCTRI(title?: string): Promise<any[]> {
     return {
       id: r?.TrialNumber || r?.ctriNumber,
       title: r?.PublicTitle || r?.ScientificTitle,
-      url: r?.url || (r?.ctriNumber ? `http://ctri.nic.in/Clinicaltrials/pmaindet2.php?trialid=${encodeURIComponent(r.ctriNumber)}` : undefined),
+      url: r?.url || (r?.ctriNumber ? `https://ctri.nic.in/Clinicaltrials/pview2.php?trialid=${encodeURIComponent(r.ctriNumber)}` : undefined),
       phase: r?.Phase,
       status: r?.RecruitmentStatus,
       country: "India",
