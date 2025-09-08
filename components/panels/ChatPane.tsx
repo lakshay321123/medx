@@ -518,6 +518,16 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true } as ChatMessage,
     ];
     setMessages(nextMsgs);
+
+    const appendAssistantMessage = (text: string) => {
+      const { main, followUps } = splitFollowUps(text);
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
+        )
+      );
+      return { main, followUps };
+    };
     const maybe = maybeFixMedicalTypo(userText);
     if (maybe && messages.filter(m => m.role === "assistant").slice(-1)[0]?.content !== maybe.ask) {
       // Ask once, keep pending bubble as the question (no LLM call)
@@ -546,39 +556,53 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           { role: 'user', content: userText }
         ];
 
-        const res = await fetch('/api/chat/stream', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: thread, threadId, context })
-        });
-        if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let acc = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
-          for (const line of lines) {
-            if (line.trim() === 'data: [DONE]') continue;
-            try {
-              const payload = JSON.parse(line.replace(/^data:\s*/, ''));
-              const delta = payload?.choices?.[0]?.delta?.content;
-              if (delta) {
-                acc += delta;
-                setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m)));
-              }
-            } catch {}
+          // Doctor Mode uses the deterministic, standards-based path (non-stream).
+          if (mode === 'doctor') {
+            const res = await fetch('/api/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                messages: thread,
+                mode: 'doctor',
+                thread_id: threadId,
+                researchOn: false
+              })
+            });
+            if (!res.ok) throw new Error(`Chat API error ${res.status}`);
+            const { text } = await res.json();
+            appendAssistantMessage(text);
+            return;
           }
-        }
-        const { main, followUps } = splitFollowUps(acc);
-        setMessages(prev =>
-          prev.map(m =>
-            m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
-          )
-        );
-        return;
+
+          // Default (patient/research) continues to use streaming
+          const res = await fetch('/api/chat/stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: thread, threadId, context })
+          });
+          if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let acc = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\\n').filter(l => l.startsWith('data: '));
+            for (const line of lines) {
+              if (line.trim() === 'data: [DONE]') continue;
+              try {
+                const payload = JSON.parse(line.replace(/^data:\s*/, ''));
+                const delta = payload?.choices?.[0]?.delta?.content;
+                if (delta) {
+                  acc += delta;
+                  setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m)));
+                }
+              } catch {}
+            }
+          }
+          appendAssistantMessage(acc);
+          return;
       }
       if (therapyMode) {
         const thread = [...messages, { role: 'user', content: text }]
@@ -722,47 +746,64 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
         ];
       }
 
-      const res = await fetch('/api/chat/stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: chatMessages, threadId, context })
-      });
-      if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
+        // Doctor Mode uses the deterministic, standards-based path (non-stream).
+        if (mode === 'doctor') {
+          const res = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messages: chatMessages,
+              mode: 'doctor',
+              thread_id: threadId,
+              researchOn: researchMode
+            })
+          });
+          if (!res.ok) throw new Error(`Chat API error ${res.status}`);
+          const { text } = await res.json();
+          const { main } = appendAssistantMessage(text);
+          if (main.length > 400) {
+            setFromChat({ id: pendingId, content: main });
+            setUi(prev => ({ ...prev, contextFrom: 'Conversation summary' }));
+          }
+        } else {
+          // Default (patient/research) continues to use streaming
+          const res = await fetch('/api/chat/stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: chatMessages, threadId, context })
+          });
+          if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let acc = '';
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let acc = '';
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
-        for (const line of lines) {
-          if (line.trim() === 'data: [DONE]') continue;
-          try {
-            const payload = JSON.parse(line.replace(/^data:\s*/, ''));
-            const delta = payload?.choices?.[0]?.delta?.content;
-            if (delta) {
-              acc += delta;
-              setMessages(prev =>
-                prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m))
-              );
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\\n').filter(l => l.startsWith('data: '));
+            for (const line of lines) {
+              if (line.trim() === 'data: [DONE]') continue;
+              try {
+                const payload = JSON.parse(line.replace(/^data:\s*/, ''));
+                const delta = payload?.choices?.[0]?.delta?.content;
+                if (delta) {
+                  acc += delta;
+                  setMessages(prev =>
+                    prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m))
+                  );
+                }
+              } catch {}
             }
-          } catch {}
+          }
+          const { main } = appendAssistantMessage(acc);
+          if (main.length > 400) {
+            setFromChat({ id: pendingId, content: main });
+            setUi(prev => ({ ...prev, contextFrom: 'Conversation summary' }));
+          }
         }
-      }
-      const { main, followUps } = splitFollowUps(acc);
-      setMessages(prev =>
-        prev.map(m =>
-          m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
-        )
-      );
-      if (main.length > 400) {
-        setFromChat({ id: pendingId, content: main });
-        setUi(prev => ({ ...prev, contextFrom: 'Conversation summary' }));
-      }
     } catch (e: any) {
       console.error(e);
       setMessages(prev =>
