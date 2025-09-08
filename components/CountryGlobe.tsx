@@ -25,7 +25,7 @@ export default function CountryGlobe() {
         aria-label="Choose country"
         title={`Country: ${country.name} (${country.code3}) — click to change`}
         onClick={() => setOpen(v => !v)}
-        className="inline-flex items-center gap-1 rounded-full border border-slate-300 dark:border-gray-700 bg-white/60 dark:bg-gray-900/60 px-3 py-1.5 text-sm shadow-sm hover:bg-white/80 dark:hover:bg-gray-900"
+        "fixed top-16 right-57 w-80 rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xl p-3 z-[1001]"
       >
         <Globe2 className="h-4 w-4" />
         <span className="font-medium">{country.code3}</span>
