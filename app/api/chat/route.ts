@@ -31,6 +31,8 @@ import { DOCTOR_JSON_SYSTEM, coerceDoctorJson } from "@/lib/conversation/doctorJ
 import { renderDeterministicDoctorReport } from "@/lib/renderer/templates/doctor";
 import { buildPatientSnapshot } from "@/lib/patient/snapshot";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { fetchTrialByNct } from "@/lib/trials/byId";
+import { singleTrialPatientPrompt, singleTrialClinicianPrompt } from "@/lib/prompts/trials";
 
 async function getFeedbackSummary(conversationId: string) {
   try {
@@ -59,6 +61,34 @@ export async function POST(req: Request) {
   const { messages: incomingMessages, mode: rawMode, thread_id } = body;
   const mode = normalizeMode(rawMode);
   const userMessage = incomingMessages?.[incomingMessages.length - 1]?.content || "";
+  let { userId, activeThreadId, text, researchOn, clarifySelectId } = body;
+  if (researchOn === undefined && (mode === "doctor" || mode === "research")) {
+    researchOn = true;
+  }
+
+  const nctMatch = userMessage.match(/\bNCT\d{8}\b/i);
+  if (nctMatch && (mode === "doctor" || mode === "research")) {
+    const nctId = nctMatch[0].toUpperCase();
+    const trial = await fetchTrialByNct(nctId);
+    if (!trial) {
+      const msg = `I couldn't find details for ${nctId} right now. Please check the ID or try again later.`;
+      return NextResponse.json({ ok: true, text: msg });
+    }
+    const prompt = mode === "doctor"
+      ? singleTrialClinicianPrompt(trial)
+      : singleTrialPatientPrompt(trial);
+    const reply = await callGroq([
+      {
+        role: "system",
+        content:
+          mode === "doctor"
+            ? "You are a concise clinical evidence summarizer for clinicians."
+            : "You explain clinical trials in plain language for laypeople.",
+      },
+      { role: "user", content: prompt },
+    ], { temperature: 0.25, max_tokens: 1200 });
+    return NextResponse.json({ ok: true, text: reply });
+  }
 
   // DEBUG LOG (remove later): verify we're actually in doctor path
   console.log("[DoctorMode] mode=", mode, "thread_id=", thread_id);
@@ -80,8 +110,6 @@ export async function POST(req: Request) {
     const final = finalReplyGuard(userMessage, out);
     return NextResponse.json({ text: final });
   }
-
-  const { userId, activeThreadId, text, researchOn, clarifySelectId } = body;
 
   if (shouldReset(text)) {
     // start new thread logic here
