@@ -16,14 +16,13 @@ export default function TrialsTable({ rows }: { rows: TrialRow[] }) {
             <th className="border px-2 py-1">Status</th>
             <th className="border px-2 py-1">City</th>
             <th className="border px-2 py-1">Country</th>
-            <th className="border px-2 py-1">Source</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((t) => (
             <tr key={t.id}>
               <td className="border px-2 py-1">{t.id}</td>
-              <td className="border px-2 py-1">
+              <td className="border px-2 py-1 whitespace-nowrap">
                 <a
                   href={t.url}
                   target="_blank"
@@ -32,16 +31,16 @@ export default function TrialsTable({ rows }: { rows: TrialRow[] }) {
                 >
                   {t.title}
                 </a>
+                {t.source && (
+                  <span className="ml-2 inline-flex items-center rounded-full border border-slate-200 dark:border-gray-700 px-2 py-0.5 text-[10px] leading-4 text-slate-600 dark:text-slate-300">
+                    {t.source}
+                  </span>
+                )}
               </td>
               <td className="border px-2 py-1">{t.phase}</td>
               <td className="border px-2 py-1">{t.status}</td>
               <td className="border px-2 py-1">{t.city}</td>
               <td className="border px-2 py-1">{t.country}</td>
-              <td className="border px-2 py-1">
-                <span className="inline-flex items-center rounded-full border border-slate-200 dark:border-gray-700 px-2 py-0.5 text-[10px] leading-4 text-slate-600 dark:text-slate-300">
-                  {t.source || "Source"}
-                </span>
-              </td>
             </tr>
           ))}
         </tbody>
