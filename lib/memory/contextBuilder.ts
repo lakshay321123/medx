@@ -10,6 +10,9 @@ export async function buildPromptContext({
   threadId: string;
   options: { mode?: string; researchOn?: boolean };
 }) {
+  if (options.mode === 'therapy') {
+    return { system: '', recent: [] };
+  }
   const thread = await prisma.chatThread.findUnique({
     where: { id: threadId },
     select: { runningSummary: true },

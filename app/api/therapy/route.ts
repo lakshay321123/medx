@@ -185,7 +185,7 @@ export async function POST(req: NextRequest) {
       body = {};
     }
 
-    const { messages = [], mode, ...rest } = body || {};
+    const { messages: incoming = [], mode, ...rest } = body || {};
 
     // Hard guard: this route is ONLY for therapy
     if (mode && mode !== 'therapy') {
@@ -200,7 +200,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const clean = sanitizeMessages(Array.isArray(messages) ? messages : []);
+    const clean = sanitizeMessages(Array.isArray(incoming) ? incoming : []);
     if (clean.length === 0) {
       return NextResponse.json({ error: "No valid messages" }, { status: 400 });
     }
