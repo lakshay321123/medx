@@ -185,6 +185,10 @@ export async function POST(req: NextRequest) {
       body = {};
     }
 
+    if (body?.mode && body.mode !== 'therapy') {
+      return NextResponse.json({ error: 'Wrong mode for /api/therapy' }, { status: 400 });
+    }
+
     if (body?.wantStarter) {
       return NextResponse.json({
         starter: "Hi, I’m here with you. Want to tell me what’s on your mind today? 💙",
