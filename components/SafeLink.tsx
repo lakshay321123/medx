@@ -1,4 +1,5 @@
 import React from "react";
+import { sourceLabelFromUrl } from "@/lib/url";
 
 const ALLOW = [
   "nih.gov",
@@ -9,6 +10,9 @@ const ALLOW = [
   "nhs.uk",
   "mayoclinic.org",
   "uptodate.com",
+  "clinicaltrials.gov",
+  "europepmc.org",
+  "ctri.nic.in", // allow CTRI
 ];
 
 export function normalizeExternalHref(input?: string): string | null {
@@ -59,4 +63,42 @@ export const SafeAnchor: React.FC<React.AnchorHTMLAttributes<HTMLAnchorElement>>
     </a>
   );
 };
+
+export function LinkBadge(props: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
+  const { href, children, className = "", ...rest } = props;
+  const safe = normalizeExternalHref(typeof href === "string" ? href : undefined);
+  if (!safe) {
+    return (
+      <span
+        className="inline-flex items-center rounded-full border border-slate-200 dark:border-gray-700 px-2 py-1 text-xs text-slate-400"
+        title="Link unavailable"
+      >
+        {children ?? "Source"}
+      </span>
+    );
+  }
+
+  // Use provided text if present; otherwise show derived source label
+  const label =
+    (typeof children === "string" && children.trim().length > 0)
+      ? children
+      : sourceLabelFromUrl(safe);
+
+  return (
+    <a
+      href={safe}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={
+        "inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-gray-700 " +
+        "bg-white dark:bg-gray-900 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 " +
+        "shadow-sm hover:bg-slate-50 dark:hover:bg-gray-800 transition " + className
+      }
+      {...rest}
+    >
+      <span>{label}</span>
+      <span aria-hidden="true" className="opacity-70">↗</span>
+    </a>
+  );
+}
 

@@ -1,8 +1,11 @@
+// app/api/therapy/route.ts  (resolved)
+
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { summarizeTherapyJSON, type ChatMessage as TM } from "@/lib/therapy/summarizer";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { getServerUserId } from "@/lib/auth/serverUser";
+
 export const runtime = "nodejs";
 
 const OAI_KEY = process.env.OPENAI_API_KEY!;
@@ -25,6 +28,7 @@ const isGpt5 = MODEL.startsWith("gpt-5");
 const maxParam = isGpt5 ? "max_completion_tokens" : "max_tokens";
 let tokenLimit = 2048;
 
+// ---------- helpers ----------
 function crisisCheck(t: string) {
   return /\b(suicide|kill myself|end my life|no reason to live|hurt myself|hurt someone)\b/i.test(t || "");
 }
@@ -56,11 +60,7 @@ async function callOpenAI(messages: any[]) {
 
   const raw = await res.text();
   let data: any = {};
-  try {
-    data = raw ? JSON.parse(raw) : {};
-  } catch {
-    data = { parseError: true, raw };
-  }
+  try { data = raw ? JSON.parse(raw) : {}; } catch { data = { parseError: true, raw }; }
 
   if (!res.ok) return { error: `OpenAI ${res.status}`, detail: raw.slice(0, 200) };
 
@@ -73,26 +73,16 @@ async function callOpenAI(messages: any[]) {
 
 function nextQuestion(stage: string, name?: string) {
   switch (stage) {
-    case "S0":
-      return `Hi, I’m Mira, a supportive listener. May I know your name?`;
-    case "S1":
-      return `Nice to meet you${name ? `, ${name}` : ""}. What feels hardest right now?`;
-    case "S2":
-      return `For today, would you rather quit completely, cut down, or understand triggers?`;
-    case "S3":
-      return `When do urges hit most—time of day or situations?`;
-    case "S4":
-      return `What thoughts or feelings show up just before a drink?`;
-    case "S5":
-      return `What’s helped even a little—delay, calling someone, or swapping a drink?`;
-    case "S6":
-      return `Let’s pick one tiny step for the next 24 hours. Which feels doable right now?`;
-    case "S7":
-      return `Stopping suddenly can be risky for daily heavy use. Would you like safe-taper or medical support info?`;
-    case "S8":
-      return `Thanks for sharing today. Would a quick check-in later help?`;
-    default:
-      return `What feels most helpful to talk about right now?`;
+    case "S0": return `Hi, I’m Mira, a supportive listener. May I know your name?`;
+    case "S1": return `Nice to meet you${name ? `, ${name}` : ""}. What feels hardest right now?`;
+    case "S2": return `For today, would you rather quit completely, cut down, or understand triggers?`;
+    case "S3": return `When do urges hit most—time of day or situations?`;
+    case "S4": return `What thoughts or feelings show up just before a drink?`;
+    case "S5": return `What’s helped even a little—delay, calling someone, or swapping a drink?`;
+    case "S6": return `Let’s pick one tiny step for the next 24 hours. Which feels doable right now?`;
+    case "S7": return `Stopping suddenly can be risky for daily heavy use. Would you like safe-taper or medical support info?`;
+    case "S8": return `Thanks for sharing today. Would a quick check-in later help?`;
+    default:   return `What feels most helpful to talk about right now?`;
   }
 }
 
@@ -155,6 +145,28 @@ function updateSummary(prev: string, details: any, goal?: string) {
   return parts.join("; ").slice(0, 200);
 }
 
+// Fallback quick note if JSON summarizer fails
+function synthFallbackNote(text: string) {
+  const topics: string[] = [];
+  if (/sleep|insomnia/i.test(text)) topics.push("sleep");
+  if (/work|boss|office/i.test(text)) topics.push("work stress");
+  if (/family|partner|relationship/i.test(text)) topics.push("relationships");
+
+  const mood = /hopeful|optimistic/i.test(text) ? "hopeful"
+            : /anxious|worried/i.test(text) ? "anxious"
+            : /tired|exhausted/i.test(text) ? "tired"
+            : undefined;
+
+  return {
+    summary: text.slice(0, 280),
+    meta: { topics, triggers: [], emotions: [], goals: [] },
+    mood,
+    breakthrough: undefined as string | undefined,
+    nextStep: undefined as string | undefined,
+  };
+}
+
+// ---------- handler ----------
 export async function POST(req: NextRequest) {
   try {
     if (!ENABLED) {
@@ -162,12 +174,14 @@ export async function POST(req: NextRequest) {
     }
 
     let body: any = {};
-    try {
-      body = await req.json();
-    } catch {
-      body = {};
+    try { body = await req.json(); } catch { body = {}; }
+
+    // Belt & suspenders: this route is therapy-only
+    if (body?.mode && body.mode !== "therapy") {
+      return NextResponse.json({ error: "Wrong mode for /api/therapy" }, { status: 400 });
     }
 
+    // Optional starter payload
     if (body?.wantStarter) {
       return NextResponse.json({
         starter: "Hi, I’m here with you. Want to tell me what’s on your mind today? 💙",
@@ -194,7 +208,7 @@ export async function POST(req: NextRequest) {
     const style = { role: "system", content: STYLE };
     const director = {
       role: "system",
-      content: `Current Stage: ${nextStage}\nName: ${knownName || "unknown"}\nSummary: ${summary || "n/a"}\nInstruction: Reflect the user’s last message in ≤1 line, then ask exactly ONE question that advances this stage. Avoid multiple questions. No buttons. End with "?".\nNext question suggestion: ${nextQuestion(nextStage, knownName)}`,
+      content: `Current Stage: ${nextStage}\nName: ${knownName || "unknown"}\nSummary: ${summary || "n/a"}\nInstruction: Reflect the user’s last message in ≤1 line, then ask exactly ONE question that advances this stage. Avoid multiple questions. End with "?".\nNext question suggestion: ${nextQuestion(nextStage, knownName)}`,
     };
     const messages = [style, director, ...clean];
 
@@ -213,17 +227,20 @@ export async function POST(req: NextRequest) {
 
     const completion = result.text.trim().split(/\n+/).slice(0, 3).join("\n");
 
+    // --------- save structured note (server-side) ----------
     try {
       const openai = new OpenAI({ apiKey: OAI_KEY, baseURL: OAI_URL });
       const recent: TM[] = [
         ...clean.map((m: any) => ({ role: m.role as TM["role"], content: String(m.content || "") })),
         { role: "assistant", content: completion }
       ];
-      const note = await summarizeTherapyJSON(openai, recent);
-      if (note) {
-        const userId = await getServerUserId(req);
-        if (userId) {
-          const sb = supabaseServer();
+
+      const userId = await getServerUserId(req);
+      if (userId) {
+        const note = (await summarizeTherapyJSON(openai, recent)) ?? null;
+        const sb = supabaseServer();
+
+        if (note) {
           await sb.from("therapy_notes").insert({
             user_id: userId,
             summary: note.summary,
@@ -232,9 +249,20 @@ export async function POST(req: NextRequest) {
             breakthrough: note.breakthrough,
             next_step: note.nextStep
           });
+        } else {
+          // fallback quick note so we still have continuity
+          const fallback = synthFallbackNote(completion);
+          await sb.from("therapy_notes").insert({
+            user_id: userId,
+            summary: fallback.summary,
+            meta: fallback.meta,
+            mood: fallback.mood,
+            breakthrough: fallback.breakthrough,
+            next_step: fallback.nextStep
+          });
         }
       }
-    } catch {}
+    } catch { /* fail-soft: never block user reply */ }
 
     const resp: any = { ok: true, completion, nextStage };
     if (!body.name && details.maybeName) resp.name = details.maybeName;
@@ -245,4 +273,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Server error", detail: String(e?.message || e) }, { status: 500 });
   }
 }
-

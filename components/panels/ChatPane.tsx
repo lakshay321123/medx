@@ -426,13 +426,22 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     bootedRef.current[threadId] = true;
     (async () => {
       try {
-        // warm greeting from Doc AI
-        const boot = await fetch('/api/aidoc/message', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ text: "" })
-        }).then(r=>r.json()).catch(()=>null);
-        if (boot?.messages?.length) {
-          setMessages(prev => [...prev, ...boot.messages.map((m:any)=>({ id: uid(), role:m.role, kind:'chat', content:m.content, pending:false }))]);
+        if (therapyMode) {
+          // Therapy Mode: never call AI-Doc boot
+          const intro = 'Hi, I’m here with you. Want to tell me what’s on your mind today? 💙';
+          setMessages(prev => [...prev, { id: uid(), role:'assistant', kind:'chat', content:intro, pending:false }]);
+        } else {
+          // Profile/Doc path: explicitly request boot
+          const boot = await fetch('/api/aidoc/message', {
+            method: 'POST',
+            headers: { 'Content-Type':'application/json' },
+            body: JSON.stringify({ text: "", boot: true })
+          }).then(r=>r.json()).catch(()=>null);
+          if (boot?.messages?.length) {
+            setMessages(prev => [...prev, ...boot.messages.map((m:any) => ({
+              id: uid(), role:m.role, kind:'chat', content:m.content, pending:false
+            }))]);
+          }
         }
         // single readiness nudge (skip if asked recently)
         if (askedRecently(threadId, 'proactive', 60)) return;
@@ -450,7 +459,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         }
       } catch {}
     })();
-  }, [isProfileThread, threadId]);
+  }, [isProfileThread, threadId, therapyMode]);
 
   useEffect(() => {
     if (!isProfileThread && messages.length === 0) {
@@ -505,6 +514,21 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               ...prev,
               { id: `t-${Date.now()}`, role: 'assistant', kind: 'chat', content: starter }
             ]);
+            try {
+              const sess = await safeJson(fetch('/api/auth/session'));
+              const userId = sess?.user?.id;
+              if (userId) {
+                const r = await fetch(`/api/therapy/notes?userId=${userId}`);
+                const { note } = await r.json();
+                if (note?.summary) {
+                  const line = `Last time we explored: ${note.summary} — would you like to continue from there or talk about something new?`;
+                  setMessages((prev: any[]) => [
+                    ...prev,
+                    { id: uid(), role: 'assistant', kind: 'chat', content: line, pending: false }
+                  ]);
+                }
+              }
+            } catch {}
           } catch {
             /* ignore */
           }
@@ -532,9 +556,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     }
 
     // --- social intent fast path: greet/thanks/yes/no/maybe/repeat/simpler/shorter/longer/next ---
-    const social = detectSocialIntent(userText);
+    const social = therapyMode ? null : detectSocialIntent(userText);
     if (social) {
-      const msgBase = replyForSocialIntent(social, mode);
+      // Use the unified mode that accounts for therapy/research
+      const msgBase = replyForSocialIntent(social, currentMode);
 
       // Optionally use last assistant message for repeat/shorter (lightweight, no LLM)
       const lastAssistant = [...messages].reverse().find(m =>
@@ -669,10 +694,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           { role: 'user', content: `${userText}${contextBlock}` }
         ];
 
-        const res = await fetch('/api/chat/stream', {
+        const endpoint = '/api/aidoc/chat';
+        const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: thread, threadId, context })
+          body: JSON.stringify({ mode: mode === 'doctor' ? 'doctor' : 'patient', messages: thread, threadId, context })
         });
         if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
         const reader = res.body.getReader();
@@ -723,7 +749,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             fetch('/api/therapy', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ messages: thread })
+              body: JSON.stringify({ mode: 'therapy', messages: thread })
             })
           );
         } catch (e: any) {
@@ -967,7 +993,7 @@ ${systemCommon}` + baseSys;
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: chatMessages, threadId, context })
+        body: JSON.stringify({ mode: mode === 'doctor' ? 'doctor' : 'patient', messages: chatMessages, threadId, context })
       });
       if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
 

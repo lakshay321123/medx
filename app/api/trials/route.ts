@@ -1,74 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchTrials as fetchCTGovTrials } from "@/lib/trials";
 import { searchTrials, dedupeTrials, rankValue } from "@/lib/trials/search";
+import { byCode3 } from "@/data/countries";
+
+export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const condition = searchParams.get("condition") || "";
-    if (!condition) {
-      return NextResponse.json({ error: "condition is required" }, { status: 400 });
-    }
-    const country  = searchParams.get("country") || undefined;
-    const city     = searchParams.get("city") || undefined;
-    const status   = searchParams.get("status") || undefined; // "Recruiting,Enrolling by invitation"
-    const phase    = searchParams.get("phase") || undefined;  // "Phase 2,Phase 3"
-    const page     = Number(searchParams.get("page") || "1");
-    const pageSize = Number(searchParams.get("pageSize") || "10");
-    const source   = searchParams.get("source") || "All";
+    const condition = (searchParams.get("condition") || "").trim();
+    if (!condition) return NextResponse.json({ error: "condition is required" }, { status: 400 });
 
-    // 1) Keep the existing CT.gov table rows
-    const ctgov = await fetchCTGovTrials({
-      condition,
-      country,
-      city,
-      status,
-      phase,
-      min: (page - 1) * pageSize + 1,
-      max: page * pageSize,
-    });
-    const ctgovWithSource = ctgov.map(r => ({ ...r, source: "CTgov" as const }));
+    const code3   = (searchParams.get("country") || "").trim();   // "IND", "USA", "" (Worldwide)
+    const status  = searchParams.get("status") || undefined;
+    const phaseUI = searchParams.get("phase") || undefined;
 
-    // 2) Also fetch global sources via your aggregator (EUCTR / CTRI / ISRCTN)
-    //    Map GET params -> aggregator input
-    const wantPhase = (phase || "").match(/\b(\d)\b/)?.[1] as "1"|"2"|"3"|"4"|undefined; // anchor phase
+    const wantCountry = code3 ? byCode3(code3)?.name : undefined; // "India" | "United States" | undefined
+    const wantPhase = phaseUI
+      ? phaseUI.split(",").map(s => s.replace(/[^0-9/]/g, "")).filter(Boolean).join(",")
+      : undefined;
+
     const trials = await searchTrials({
       query: condition,
-      phase: wantPhase,
+      phase: wantPhase as any,
       status: status as any,
-      country,
-      genes: undefined,
+      country: wantCountry,
     });
 
-    // 3) Convert aggregator Trial -> table TrialRow (best-effort)
-    const globalRows = trials.map(t => ({
+    const ranked = dedupeTrials(trials).sort((a,b)=>rankValue(b)-rankValue(a));
+    const rows = ranked.map(t => ({
       id: t.id,
       title: t.title,
-      conditions: [],                // unknown from EUCTR/CTRI mappings
+      conditions: [],
       interventions: [],
       status: t.status || "",
-      phase: t.phase ? `Phase ${t.phase}` : "",
-      start: undefined,
-      complete: undefined,
-      type: undefined,
-      sponsor: undefined,
-      site: undefined,
-      city: undefined,
-      country: t.country,
-      eligibility: undefined,
-      primaryOutcome: undefined,
-      url: t.url,
-      source: t.source,              // "EUCTR" | "CTRI" | "ISRCTN" | "CTgov"
+      phase: t.phase ? (t.phase.includes("/") ? t.phase : `Phase ${t.phase}`) : "",
+      studyType: "",
+      sponsor: "",
+      locations: [],
+      url: t.url || "",
+      country: t.country || "",
+      source: t.source || "",
     }));
 
-    // 4) Merge, de-dupe, rank, and filter by source
-    const rows = dedupeTrials([...ctgovWithSource, ...globalRows]).sort((a,b)=>rankValue(b)-rankValue(a));
-    const rowsFilteredBySource = source === "All" ? rows : rows.filter(r => r.source === source);
-
-    return NextResponse.json({ rows: rowsFilteredBySource, page, pageSize });
-  } catch (e) {
-    console.error("[/api/trials] error", e);
-    return NextResponse.json({ error: "upstream error" }, { status: 502 });
+    return NextResponse.json({ rows, page: 1, pageSize: rows.length });
+  } catch (err) {
+    console.error("Trials API GET error", err);
+    return NextResponse.json({ rows: [], page: 1, pageSize: 0, error: "Trials fetch failed" }, { status: 500 });
   }
 }
 
