@@ -26,9 +26,7 @@ import { summarizeTrials } from "@/lib/research/summarizeTrials";
 import { computeTrialStats, type TrialStats } from "@/lib/research/trialStats";
 import { detectSocialIntent, replyForSocialIntent } from "@/lib/social";
 import { pushFullMem, buildFullContext } from "@/lib/memory/shortTerm";
-import { detectEditIntent } from "@/lib/intents/editIntents";
-import { getLastStructured, maybeIndexStructured, setLastStructured } from "@/lib/memory/structured";
-import { replaceEverywhere, addLineToSection, removeEverywhere, addBurrataIfMissing } from "@/lib/editors/recipeEdit";
+import { maybeIndexStructured } from "@/lib/memory/structured";
 import { detectAdvancedDomain } from "@/lib/intents/advanced";
 // === ADD-ONLY for domain routing ===
 import { detectDomain } from "@/lib/intents/domains";
@@ -606,60 +604,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       return; // IMPORTANT: do not set topic, do not trigger research/planner
     }
 
-    // --- EDIT FAST-PATH (non-invasive, uses last structured content) ---
+    // --- EDIT FAST-PATH (disabled) ---
     try {
-      const edit = detectEditIntent(userText);
+      const edit = null; // recipe/plan edit disabled
       if (edit) {
-        const last = threadId ? getLastStructured(threadId) : null;
-        if (!last || !last.content) {
-          setMessages(prev => [
-            ...prev,
-            { id: uid(), role: "user", kind: "chat", content: userText } as any,
-            {
-              id: uid(),
-              role: "assistant",
-              kind: "chat",
-              content: "I don’t see a saved recipe/plan in this thread yet. Want me to create one now?",
-            } as any,
-          ]);
-          setNote(""); setBusy(false);
-          return;
-        }
-
-        let updated = last.content;
-
-        if (edit.type === "recall" || edit.type === "finalize") {
-          // just show last structured as-is
-        } else if (edit.type === "replace") {
-          updated = replaceEverywhere(updated, edit.from, edit.to);
-        } else if (edit.type === "add") {
-          // default: add to Ingredients
-          updated = addLineToSection(updated, "Ingredients", edit.what);
-        } else if (edit.type === "remove") {
-          updated = removeEverywhere(updated, edit.what);
-        } else if (edit.type === "transform") {
-          // light built-in: pasta transform gets burrata step if relevant
-          if (edit.to === "pasta") {
-            updated = addLineToSection(updated, "Ingredients", "300g short pasta (penne or rigatoni)");
-            updated = addLineToSection(updated, "Instructions", "Cook pasta al dente, reserve 1/2 cup pasta water, and toss with the sauce.");
-            updated = addBurrataIfMissing(updated);
-          } else {
-            // generic note—can later call LLM with original content as context if you want
-            updated = addLineToSection(updated, "Instructions", `Variation: turn into ${edit.to}${edit.extra ? " — " + edit.extra : ""}.`);
-          }
-        }
-
-        // Save new structured version
-        if (threadId) setLastStructured(threadId, { ...last, content: updated, ts: Date.now() });
-
-        // Post response (user echo + updated content)
-        setMessages(prev => [
-          ...prev,
-          { id: uid(), role: "user", kind: "chat", content: userText } as any,
-          { id: uid(), role: "assistant", kind: "chat", content: updated } as any,
-        ]);
-        setNote(""); setBusy(false);
-        return; // IMPORTANT: don’t run planner for edit-intents
+        // recipe edit logic removed
       }
     } catch {
       // never block the normal flow
