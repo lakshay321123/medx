@@ -1,4 +1,4 @@
-import { openaiText } from "@/lib/llm";
+import { openaiChat } from "@/lib/llm";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { cosineSimilarity, keywordMatchScore, toneAnalysisScore } from "@/lib/selfLearning/utils";
 
@@ -65,7 +65,7 @@ export async function evaluateResponseAccuracy(
   medxAnswer: string,
   meta: EvalMeta = {}
 ): Promise<FeedbackReport> {
-  const baseline = meta.baselineAnswer ?? (await openaiText([{ role: "user", content: userInput }]));
+  const baseline = meta.baselineAnswer ?? (await openaiChat([{ role: "user", content: userInput }]));
   const similarity = cosineSimilarity(medxAnswer, baseline);
   const keywordScore = keywordMatchScore(medxAnswer, baseline);
   const toneScore = toneAnalysisScore(medxAnswer);

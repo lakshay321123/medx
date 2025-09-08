@@ -24,3 +24,15 @@ export async function openaiChat(messages: ChatMsg[], model?: string, temperatur
   });
   return resp?.content || "";
 }
+
+export async function askLLM({ prompt, mode }:{ prompt: string; mode?: string }) {
+  try {
+    await fetch('/api/medx', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ query: prompt, mode })
+    });
+  } catch {
+    // no-op
+  }
+}

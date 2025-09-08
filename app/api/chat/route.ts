@@ -93,7 +93,7 @@ export async function POST(req: Request) {
       temperature: 0.25,
       max_tokens: 1200,
     });
-    return NextResponse.json({ ok: true, text: reply });
+    return NextResponse.json({ ok: true, text: reply?.content || "" });
   }
 
   // Detect general trial queries (non-NCT)
@@ -158,7 +158,7 @@ export async function POST(req: Request) {
           max_tokens: 1200,
         });
 
-      return NextResponse.json({ ok: true, reply });
+      return NextResponse.json({ ok: true, reply: reply?.content || "" });
     } else {
       return NextResponse.json({ ok: true, reply: "I couldn't find matching trials right now." });
     }
@@ -174,11 +174,11 @@ export async function POST(req: Request) {
       { role: "system", content: systemPrompt },
       ...(incomingMessages || []),
     ];
-      const jsonStr = await llmCall(msg as ChatCompletionMessageParam[], {
+      const jsonStr = (await llmCall(msg as ChatCompletionMessageParam[], {
         tier: "balanced",
         fallbackTier: "smart",
         temperature: 0,
-      });
+      }))?.content || "";
     const sections = coerceDoctorJson(jsonStr);
     let out = renderDeterministicDoctorReport(patient, sections);
     out = out.replace(/https?:\/\/\S+/g, "");
@@ -279,12 +279,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, threadId, text: clarifierWithMem });
   }
   const feedback_summary = await getFeedbackSummary(threadId || "");
-  let assistant = await llmCall(messages as ChatCompletionMessageParam[], {
+  const assistantMsg = await llmCall(messages as ChatCompletionMessageParam[], {
     tier: "balanced",              // doctor/patient general chat → balanced
     fallbackTier: "smart",
     temperature: 0.25,
     max_tokens: 1200,
   });
+  let assistant = assistantMsg?.content || "";
   // 6) Polish and append recap (if any constraints present)
   assistant = polishText(assistant);
   const check = selfCheck(assistant, state.constraints, state.entities);
