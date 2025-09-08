@@ -6,6 +6,23 @@ const OAI_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").rep
 const MODEL   = process.env.OPENAI_TEXT_MODEL || "gpt-5";
 const ENABLED = String(process.env.THERAPY_MODE_ENABLED || "").toLowerCase() === "true";
 
+const SYSTEM_PROMPT = `
+You are a supportive, reflective companion.
+
+Style:
+- Use empathy, active listening, and motivational interviewing.
+- Ask open-ended questions that help the user reflect.
+- Use some CBT techniques (help the user notice patterns and reframe thoughts).
+- Summarize occasionally, but do not dominate the conversation.
+- Avoid making medical or diagnostic claims.
+
+Guardrails:
+- Never call yourself a therapist or counselor.
+- Always include a gentle disclaimer early in the conversation:
+  "I’m here to support you, but I’m not a licensed therapist."
+- If the user expresses crisis thoughts (suicide, self-harm), recommend immediately contacting a trusted person or helpline.
+`;
+
 const STYLE = `One short reflection (≤1 line) of the user’s last message.
 Then ask exactly one clear question; end with a single “?”.
 Progress gradually through stages S0…S8:
@@ -47,7 +64,7 @@ async function callOpenAI(messages: any[]) {
   const res = await fetch(`${OAI_URL}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${OAI_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify(makePayload(messages)),
+    body: JSON.stringify(makePayload([{ role: "system", content: SYSTEM_PROMPT }, ...messages])),
   });
 
   const raw = await res.text();
@@ -166,7 +183,7 @@ export async function POST(req: NextRequest) {
 
     if (body?.wantStarter) {
       return NextResponse.json({
-        starter: "Hi, I’m here with you. Want to tell me what’s on your mind today? 💙",
+        starter: "Hi, I’m here to support you, but I’m not a licensed therapist. Want to tell me what’s on your mind today? 💙",
         disclaimer: process.env.THERAPY_DISCLAIMER || "",
         crisisBanner: process.env.CRISIS_BANNER_TEXT || "",
       });
