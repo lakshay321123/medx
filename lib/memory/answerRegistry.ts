@@ -1,4 +1,5 @@
 export type AnswerTag =
+  | "pediatrics" | "nephrology" | "cardiology"
   | "allied" | "paramedic" | "nursing" | "physiotherapy" | "ot" | "speech"
   | "respiratory" | "wellness" | "nutrition" | "fitness" | "sportsmed" | "sleep"
   | "mentalhealth" | "lifestyle" | "altmed"
@@ -12,6 +13,10 @@ export type AnswerTag =
 export function indexAnswer(content: string): AnswerTag[] {
   const lower = content.toLowerCase();
   const tags: AnswerTag[] = [];
+
+  if (/\bpediatric|child\b/.test(lower)) tags.push("pediatrics");
+  if (/\bnephro|kidney\b/.test(lower)) tags.push("nephrology");
+  if (/\bcardio|heart\b/.test(lower)) tags.push("cardiology");
 
   if (/\bnurse|nursing|np\b/.test(lower)) tags.push("nursing", "allied");
   if (/\bparamedic|first responder|trauma|emt\b/.test(lower)) tags.push("paramedic", "allied");
