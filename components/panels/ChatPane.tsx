@@ -819,8 +819,8 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
             : buildMedicinesPrompt(ui.topic, country);
       } else if (follow && ctx) {
         const system = `You are MedX. This is a FOLLOW-UP.\n\n${systemCommon}` + baseSys;
-        const contextBlock = 'CONTEXT:\n' + composedContext;
-        const userMsg = `Follow-up: ${userText}\n\n${contextBlock}\nIf the question is ambiguous, ask one concise disambiguation question and then answer briefly using the context.`;
+        const contextPart = composedContext ? `\n\nCONTEXT:\n${composedContext}` : "";
+        const userMsg = `Follow-up: ${userText}${contextPart}\nIf the question is ambiguous, ask one concise disambiguation question and then answer briefly using the context.`;
         chatMessages = [
           { role: 'system', content: system },
           { role: 'user', content: userMsg }
@@ -837,10 +837,10 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
         const sys = topicHint + systemCommon + baseSys;
         const planContext = JSON.stringify(plan.sections || {}, null, 2);
         const contextPieces = [composedContext, planContext].filter(Boolean);
-        const contextBlock = 'CONTEXT:\n' + contextPieces.join('\n');
+        const contextBlock = contextPieces.length ? `CONTEXT:\n${contextPieces.join('\n')}` : "";
         chatMessages = [
           { role: 'system', content: sys },
-          { role: 'user', content: `${userText}\n\n${contextBlock}` }
+          { role: 'user', content: contextBlock ? `${userText}\n\n${contextBlock}` : userText }
         ];
       }
 
