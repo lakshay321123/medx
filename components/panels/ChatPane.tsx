@@ -398,6 +398,12 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, [threadId, isProfileThread]);
 
   useEffect(() => {
+    if (!threadId) return;
+    // Ensure first auto-opened chat also shows in sidebar
+    upsertThreadIndex(threadId, "Untitled");
+  }, [threadId]);
+
+  useEffect(() => {
     if (!isProfileThread || !threadId) return;
     if (bootedRef.current[threadId]) return;     // run once per thread
     bootedRef.current[threadId] = true;
