@@ -1,6 +1,7 @@
 'use client';
 import { marked } from 'marked';
 import DOMPurify from 'isomorphic-dompurify';
+import { sourceLabelFromUrl } from "@/lib/url";
 import { normalizeExternalHref } from './SafeLink';
 import { linkify } from './AutoLink';
 
@@ -10,13 +11,19 @@ export default function Markdown({ text }: { text: string }) {
   const sanitized = DOMPurify.sanitize(marked.parse(raw) as string, {
     ADD_ATTR: ['target', 'rel'],
   });
-  const withSafeLinks = sanitized.replace(/<a\s+[^>]*>(.*?)<\/a>/gi, (match, inner) => {
-    const hrefMatch = match.match(/href="([^"]+)"/i);
-    const safe = normalizeExternalHref(hrefMatch ? hrefMatch[1] : undefined);
+  const withSafeLinks = sanitized.replace(/<a\s+[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gi, (_m, href, inner) => {
+    const safe = normalizeExternalHref(href);
     if (!safe) {
-      return `<span class="text-slate-500 dark:text-slate-400 cursor-not-allowed" title="Link unavailable">${inner}</span>`;
+      return `<span class="inline-flex items-center rounded-full border border-slate-200 dark:border-gray-700 px-2 py-1 text-xs text-slate-400" title="Link unavailable">${inner}</span>`;
     }
-    return `<a href="${safe}" target="_blank" rel="noopener noreferrer" class="underline underline-offset-2 decoration-slate-400 hover:decoration-slate-600 dark:decoration-slate-500 dark:hover:decoration-slate-300">${inner}</a>`;
+    // If inner text is empty or a raw URL, swap to source label
+    const cleanInner = String(inner || "").trim();
+    const useLabel = (!cleanInner || /^https?:\/\//i.test(cleanInner)) ? sourceLabelFromUrl(safe) : cleanInner;
+
+    return `<a href="${safe}" target="_blank" rel="noopener noreferrer"
+    class="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-gray-800 transition">
+      <span>${useLabel}</span><span aria-hidden="true" class="opacity-70">↗</span>
+  </a>`;
   });
   return <div className="markdown" dangerouslySetInnerHTML={{ __html: withSafeLinks }} />;
 }
