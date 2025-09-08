@@ -4,6 +4,7 @@ import Tabs from './sidebar/Tabs';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createNewThreadId, listThreads, Thread } from '@/lib/chatThreads';
+import ThreadKebab from '@/components/chat/ThreadKebab';
 
 export default function Sidebar() {
   const router = useRouter();
@@ -46,13 +47,30 @@ export default function Sidebar() {
 
       <div className="mt-3 space-y-1 px-2 flex-1 overflow-y-auto">
         {filtered.map(t => (
-          <button
+          <div
             key={t.id}
-            onClick={() => router.push(`/?panel=chat&threadId=${t.id}`)}
-            className="w-full text-left rounded-md px-2 py-1 text-sm hover:bg-muted"
+            className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-muted"
           >
-            {t.title}
-          </button>
+            <button
+              onClick={() => router.push(`/?panel=chat&threadId=${t.id}`)}
+              className="flex-1 text-left truncate text-sm"
+              title={t.title}
+            >
+              {t.title}
+            </button>
+            <ThreadKebab
+              id={t.id}
+              title={t.title}
+              onRenamed={nt => {
+                setThreads(prev =>
+                  prev.map(x => (x.id === t.id ? { ...x, title: nt, updatedAt: Date.now() } : x))
+                );
+              }}
+              onDeleted={() => {
+                setThreads(prev => prev.filter(x => x.id !== t.id));
+              }}
+            />
+          </div>
         ))}
       </div>
 

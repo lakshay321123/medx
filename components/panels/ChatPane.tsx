@@ -20,7 +20,7 @@ import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials
 import FeedbackBar from "@/components/FeedbackBar";
 import type { ChatMessage as BaseChatMessage } from "@/types/chat";
 import type { AnalysisCategory } from '@/lib/context';
-import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle } from '@/lib/chatThreads';
+import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle, upsertThreadIndex } from '@/lib/chatThreads';
 import { useMemoryStore } from "@/lib/memory/useMemoryStore";
 import { summarizeTrials } from "@/lib/research/summarizeTrials";
 import { computeTrialStats, type TrialStats } from "@/lib/research/trialStats";
@@ -515,7 +515,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       text.trim() &&
       messages.filter(m => m.role === 'user').length === 0
     ) {
-      updateThreadTitle(threadId, generateTitle(text));
+      const nt = generateTitle(text);
+      updateThreadTitle(threadId, nt);
+      upsertThreadIndex(threadId, nt);
     }
 
     try {
