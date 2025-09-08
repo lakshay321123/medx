@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { summarizeTherapyJSON, type ChatMessage as TM } from "@/lib/therapy/summarizer";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { supabaseServer } from "@/lib/supabaseServer";
 import { getServerUserId } from "@/lib/auth/serverUser";
 export const runtime = "edge";
 
@@ -223,7 +223,7 @@ export async function POST(req: NextRequest) {
       if (note) {
         const userId = await getServerUserId(req);
         if (userId) {
-          const sb = supabaseAdmin();
+          const sb = supabaseServer();
           await sb.from("therapy_notes").insert({
             user_id: userId,
             summary: note.summary,
