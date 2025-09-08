@@ -25,6 +25,7 @@ import { useMemoryStore } from "@/lib/memory/useMemoryStore";
 import { summarizeTrials } from "@/lib/research/summarizeTrials";
 import { computeTrialStats, type TrialStats } from "@/lib/research/trialStats";
 import { detectSocialIntent, replyForSocialIntent } from "@/lib/social";
+import { pushFullMem, buildFullContext } from "@/lib/memory/shortTerm";
 
 type ChatUiState = {
   topic: string | null;
@@ -511,6 +512,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         .replace(/\bsgpt\b/gi, "ALT (SGPT)")
         .replace(/\bsgot\b/gi, "AST (SGOT)");
     const userText = isProfileThread ? normalize(text) : text;
+    if (threadId) pushFullMem(threadId, "user", userText);
 
     // --- social intent fast path: greet/thanks/yes/no/maybe/repeat/simpler/shorter/longer/next ---
     const social = detectSocialIntent(userText);
@@ -534,6 +536,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         { id: uid(), role: "user", kind: "chat", content: userText } as any,
         { id: uid(), role: "assistant", kind: "chat", content } as any,
       ]);
+      if (threadId) pushFullMem(threadId, "assistant", content);
       setNote("");
       setBusy(false);
       return; // IMPORTANT: do not set topic, do not trigger research/planner
@@ -551,6 +554,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     if (maybe && messages.filter(m => m.role === "assistant").slice(-1)[0]?.content !== maybe.ask) {
       // Ask once, keep pending bubble as the question (no LLM call)
       setMessages(prev => prev.map(m => m.id === pendingId ? { ...m, content: maybe.ask, pending: false } : m));
+      if (threadId) pushFullMem(threadId, "assistant", maybe.ask);
       setBusy(false);
       return; // wait for user Yes/No
     }
@@ -607,6 +611,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
           )
         );
+        if (threadId && main && main.trim()) pushFullMem(threadId, "assistant", main);
         return;
       }
       if (therapyMode) {
@@ -627,28 +632,36 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           );
         } catch (e: any) {
           const msg = String(e?.message || 'HTTP error');
+          const content = `⚠ ${msg}`;
           setMessages(prev => prev.map(m =>
             m.id === pendingId
-              ? { ...m, content: `⚠ ${msg}`, pending: false, error: msg }
+              ? { ...m, content, pending: false, error: msg }
               : m
           ));
+          if (threadId) pushFullMem(threadId, "assistant", content);
           return;
         }
 
         if (j?.completion) {
+          const content = j.completion;
           setMessages(prev => prev.map(m =>
-            m.id === pendingId ? { ...m, content: j.completion, pending: false } : m
+            m.id === pendingId ? { ...m, content, pending: false } : m
           ));
+          if (threadId) pushFullMem(threadId, "assistant", content);
         } else if (j?.starter) {
+          const content = j.starter;
           setMessages(prev => prev.map(m =>
-            m.id === pendingId ? { ...m, content: j.starter, pending: false } : m
+            m.id === pendingId ? { ...m, content, pending: false } : m
           ));
+          if (threadId) pushFullMem(threadId, "assistant", content);
         } else {
+          const content = '⚠ Empty response from server.';
           setMessages(prev => prev.map(m =>
             m.id === pendingId
-              ? { ...m, content: '⚠ Empty response from server.', pending: false, error: 'Empty response from server.' }
+              ? { ...m, content, pending: false, error: 'Empty response from server.' }
               : m
           ));
+          if (threadId) pushFullMem(threadId, "assistant", content);
         }
         return;
       }
@@ -659,18 +672,19 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       else if (isNewTopic(text)) setUi(prev => ({ ...prev, topic: text }));
 
       if (follow && !ctx && !(intent && ui.topic)) {
+        const warn = "I don't have context from earlier in this session. Please reattach or restate it if you'd like me to use it.";
         setMessages(prev =>
           prev.map(m =>
             m.id === pendingId
               ? {
                   ...m,
                   pending: false,
-                  content:
-                    "I don't have context from earlier in this session. Please reattach or restate it if you'd like me to use it.",
+                  content: warn,
                 }
               : m
           )
         );
+        if (threadId) pushFullMem(threadId, "assistant", warn);
         return;
       }
 
@@ -728,7 +742,12 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
               })()
             : buildMedicinesPrompt(ui.topic, country);
       } else if (follow && ctx) {
-        const system = `\nYou are MedX. This is a FOLLOW-UP question. Use the ACTIVE CONTEXT below; do not reset topic unless user asks.\n${topicHint}ACTIVE CONTEXT TITLE: ${ctx.title}\nACTIVE CONTEXT SUMMARY:\n${ctx.summary}\n\nWhen the user asks for latest/clinical trials/guidelines, stay on the same topic/entities: ${ctx.entities?.join(', ') || 'n/a'}.\n${systemCommon}` + baseSys;
+        const fullMem = threadId ? buildFullContext(threadId) : "";
+        const system = `You are MedX. This is a FOLLOW-UP.
+Here is the ENTIRE conversation so far:
+${fullMem || "(none)"}
+
+${systemCommon}` + baseSys;
         const userMsg = `Follow-up: ${text}\nIf the question is ambiguous, ask one concise disambiguation question and then answer briefly using the context.`;
         chatMessages = [
           { role: 'system', content: system },
@@ -788,24 +807,27 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
           m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
         )
       );
+      if (threadId && main && main.trim()) pushFullMem(threadId, "assistant", main);
       if (main.length > 400) {
         setFromChat({ id: pendingId, content: main });
         setUi(prev => ({ ...prev, contextFrom: 'Conversation summary' }));
       }
     } catch (e: any) {
       console.error(e);
+      const content = `⚠️ ${String(e?.message || e)}`;
       setMessages(prev =>
         prev.map(m =>
           m.id === pendingId
             ? {
                 ...m,
-                content: `⚠️ ${String(e?.message || e)}`,
+                content,
                 pending: false,
                 error: String(e?.message || e)
               }
             : m
         )
       );
+      if (threadId) pushFullMem(threadId, "assistant", content);
     } finally {
       setBusy(false);
     }
