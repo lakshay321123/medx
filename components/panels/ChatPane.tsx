@@ -33,6 +33,15 @@ import { detectAdvancedDomain } from "@/lib/intents/advanced";
 // === ADD-ONLY for domain routing ===
 import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
+// NEW — context + profile + guards + grounding + rag + router + postprocess
+import { buildContextBlock } from "@/lib/context/compose";
+import { getProfileSnapshot } from "@/lib/context/profile";
+import { requireUnits } from "@/lib/compute/guard";
+import { REQUIRE_SOURCES } from "@/lib/prompts/grounding";
+import { indexTurn, searchTurns } from "@/lib/rag/threadIndex";
+import { chooseStyles } from "@/lib/intents/router";
+import { normalizeAnswer } from "@/lib/postprocess/answer";
+import { detectRedFlags } from "@/lib/safety/redflags";
 
 async function computeEval(expr: string) {
   const r = await fetch("/api/compute/math", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ op:"eval", expr }) });
@@ -660,7 +669,16 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
     try {
       const fullContext = buildFullContext(stableThreadId);
-      const contextBlock = fullContext ? `\n\nCONTEXT (recent conversation):\n${fullContext}` : "";
+      // --- ADD: Always-on context ---
+      const fullChatForCtx = (() => {
+        try {
+          // last 60 turns max (safe size)
+          return messages.slice(-60)
+            .map(m => `${m.role}: ${("content" in m ? (m as any).content : "")}`)
+            .join("\n");
+        } catch { return ""; }
+      })();
+      const contextBlock = buildContextBlock(fullChatForCtx, getProfileSnapshot());
       if (isProfileThread) {
         const thread = [
           ...messages
@@ -848,7 +866,23 @@ ${linkNudge}`;
       const topicHint = ui.topic ? `ACTIVE TOPIC: ${ui.topic}\nKeep answers scoped to this topic unless the user changes it.\n` : "";
 
       const sys = topicHint + systemCommon + baseSys;
-      const sysWithDomain = DOMAIN_STYLE ? `${sys}\n\n${DOMAIN_STYLE}` : sys;
+      let sysWithDomain = DOMAIN_STYLE ? `${sys}\n\n${DOMAIN_STYLE}` : sys;
+      // --- ADD: Style routing + guards ---
+      const styles = chooseStyles(userText, mode);
+      let DomainStyles2: Record<string, string> = {};
+      try {
+        DomainStyles2 = await import("@/lib/prompts/domains");
+      } catch { /* optional module — safe no-op */ }
+
+      for (const key of styles) {
+        const extra = (DomainStyles2 as Record<string, string>)[key];
+        if (extra) sysWithDomain += `\n\n${extra}`;
+      }
+
+      // numeric + sources nudges (strings concatenated; no breaking changes)
+      sysWithDomain += requireUnits(userText);
+      sysWithDomain += `\n\n${REQUIRE_SOURCES}`;
+
       let ADV_STYLE = "";
       const adv = detectAdvancedDomain(userText);
       if (adv) {
@@ -938,7 +972,13 @@ Here is the ENTIRE conversation so far:
 ${fullMem || "(none)"}
 
 ${systemCommon}` + baseSys;
-        const systemWithDomain = DOMAIN_STYLE ? `${system}\n\n${DOMAIN_STYLE}` : system;
+        let systemWithDomain = DOMAIN_STYLE ? `${system}\n\n${DOMAIN_STYLE}` : system;
+        for (const key of styles) {
+          const extra = (DomainStyles2 as Record<string, string>)[key];
+          if (extra) systemWithDomain += `\n\n${extra}`;
+        }
+        systemWithDomain += requireUnits(userText);
+        systemWithDomain += `\n\n${REQUIRE_SOURCES}`;
         const systemAll = `${systemWithDomain}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
         const userMsg = `Follow-up: ${text}\nIf the question is ambiguous, ask one concise disambiguation question and then answer briefly using the context.`;
         chatMessages = [
@@ -954,8 +994,6 @@ ${systemCommon}` + baseSys;
           })
         );
 
-        const sys = topicHint + systemCommon + baseSys;
-        const sysWithDomain = DOMAIN_STYLE ? `${sys}\n\n${DOMAIN_STYLE}` : sys;
         const systemAll = `${sysWithDomain}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
         const planContextBlock = 'CONTEXT:\n' + JSON.stringify(plan.sections || {}, null, 2);
         chatMessages = [
@@ -963,6 +1001,23 @@ ${systemCommon}` + baseSys;
           { role: 'user', content: `${text}\n\n${planContextBlock}${contextBlock}` }
         ];
       }
+
+      // --- ADD: recall like "pull up/show/repeat <something>" ---
+      try {
+        const m = userText.toLowerCase().match(/\b(pull up|show|repeat|again)\s+(.{3,120})$/);
+        if (m) {
+          const hits = searchTurns(threadId || "unknown", m[2], 1);
+          if (hits.length) {
+            const quoted = hits[0].text as string;
+            setMessages(prev => prev.map(x => x.id === pendingId
+              ? ({ ...x, content: quoted, pending: false } as any)
+              : x));
+            indexTurn(threadId || "unknown", String(pendingId), quoted, []);
+            setBusy(false);
+            return;
+          }
+        }
+      } catch { /* no-op */ }
 
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
@@ -996,21 +1051,35 @@ ${systemCommon}` + baseSys;
         }
       }
       const { main, followUps } = splitFollowUps(acc);
+      let finalText = normalizeAnswer(main);
       setMessages(prev =>
         prev.map(m =>
-          m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
+          m.id === pendingId ? { ...m, content: finalText, followUps, pending: false } : m
         )
       );
-      if (threadId && main && main.trim()) {
-        pushFullMem(threadId, "assistant", main);
-        maybeIndexStructured(threadId, main);
+      indexTurn(threadId || "unknown", pendingId, finalText, []); // tags optional
+      if (threadId && finalText && finalText.trim()) {
+        pushFullMem(threadId, "assistant", finalText);
+        maybeIndexStructured(threadId, finalText);
       }
       if (stableThreadId) {
-        try { pushFullMem(stableThreadId, "assistant", main); } catch {}
+        try { pushFullMem(stableThreadId, "assistant", finalText); } catch {}
       }
-      if (main.length > 400) {
-        setFromChat({ id: pendingId, content: main });
+      if (finalText.length > 400) {
+        setFromChat({ id: pendingId, content: finalText });
         setUi(prev => ({ ...prev, contextFrom: 'Conversation summary' }));
+      }
+      if (detectRedFlags(finalText)) {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            kind: "chat",
+            content: "⚠️ Possible red flags detected. Consider urgent evaluation.",
+            pending: false
+          } as any
+        ]);
       }
     } catch (e: any) {
       console.error(e);
