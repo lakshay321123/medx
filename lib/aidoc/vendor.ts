@@ -5,20 +5,22 @@ import OpenAI from "openai";
  */
 type CallIn = { system: string; user: string; instruction: string; metadata?: any };
 
-export async function callOpenAIJson({ system, user, instruction, metadata }: CallIn): Promise<any> {
-  const oai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const model = process.env.AIDOC_MODEL || "gpt-5";
+export async function callOpenAIJson({ system, user, instruction, metadata: _metadata }: CallIn): Promise<any> {
+  const oai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+  const model = process.env.AIDOC_MODEL || process.env.MODEL_SMART || "gpt-5";
   try {
-    const resp = await oai.responses.create({
+    const resp = await oai.chat.completions.create({
       model,
       temperature: 0.2,
-      input: [
+      response_format: { type: "json_object" as const },
+      messages: [
         { role: "system", content: system },
         { role: "user", content: `${instruction}\n\nUSER:\n${user}` },
       ],
-      metadata,
+      // Note: `metadata` isn't a supported field on Chat Completions; omit to satisfy types.
     });
-    const content = resp.output_text || "{}";
+
+    const content = resp.choices?.[0]?.message?.content || "{}";
     return JSON.parse(content);
   } catch (e) {
     console.error("callOpenAIJson error", e);
