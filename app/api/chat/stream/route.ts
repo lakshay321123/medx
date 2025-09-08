@@ -1,13 +1,14 @@
 import { NextRequest } from 'next/server';
 import { profileChatSystem } from '@/lib/profileChatSystem';
+import { modelFor } from '@/lib/llm/openai';
 export const runtime = 'edge';
 
 export async function POST(req: NextRequest) {
   const { messages = [], threadId, context } = await req.json();
-  const base  = process.env.LLM_BASE_URL!;
-  const model = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
-  const key   = process.env.LLM_API_KEY!;
-  const url = `${base.replace(/\/$/,'')}/chat/completions`;
+  const base = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/,'');
+  const model = modelFor('fast');
+  const key = process.env.OPENAI_API_KEY!;
+  const url = `${base}/chat/completions`;
 
   let finalMessages = messages;
   if (threadId === 'med-profile' || context === 'profile') {

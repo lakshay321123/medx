@@ -2,21 +2,19 @@
 
 This project includes:
 - **Banner aggregator** (WHO, ClinicalTrials, openFDA, PubMed)
-- **Chat** that proxies to a **self-hosted LLM** (OpenAI-compatible endpoint like vLLM/Ollama)
+  - **Chat** powered by OpenAI models
 - **/api/analyze** endpoint that sends PDFs or images to OpenAI for summarization
 - Dark/Light theme, PWA manifest
 - Minimal UI with Patient/Clinician toggle
 - API wrappers for PubMed, openFDA, ClinicalTrials, DailyMed, RxNorm, ICD-11
 
 ## Run
-1. Copy `.env.example` → `.env.local` and fill:
-   - `NCBI_API_KEY` `OPENFDA_API_KEY`
-   - `ICD11_CLIENT_ID` `ICD11_CLIENT_SECRET`
-   - `LLM_BASE_URL` (e.g., `https://llm.your-vpc/v1` for vLLM/Ollama OpenAI-compatible API)
-   - `LLM_MODEL_ID` (e.g., `llama3-8b-instruct`)
-   - `HF_API_TOKEN`
-   - optional: `HF_CHEST_MODEL` `HF_BONE_MODEL`
-   - for OpenAI summaries: `OPENAI_API_KEY`, `OPENAI_TEXT_MODEL`, `OPENAI_VISION_MODEL`
+ 1. Copy `.env.example` → `.env.local` and fill:
+     - `NCBI_API_KEY` `OPENFDA_API_KEY`
+     - `ICD11_CLIENT_ID` `ICD11_CLIENT_SECRET`
+     - `HF_API_TOKEN`
+     - optional: `HF_CHEST_MODEL` `HF_BONE_MODEL`
+     - `OPENAI_API_KEY` (and optional `MODEL_SMART`, `MODEL_BALANCED`, `MODEL_FAST`)
 2. `npm install`
 3. `npm run dev`
 

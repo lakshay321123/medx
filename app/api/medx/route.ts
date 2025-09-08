@@ -1,30 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const BASE = process.env.LLM_BASE_URL!;
-const MODEL = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
-const KEY   = process.env.LLM_API_KEY!;
+import { llmCall } from '@/lib/llm/call';
 
 async function classifyIntent(query: string, mode: 'patient'|'doctor') {
   const sys = `Classify a medical query into ONE:
-- DIAGNOSIS_QUERY (map to ICD-10, SNOMED; trials if doctor)
-- DRUGS_LIST (extract meds; check interactions)
-- CLINICAL_TRIALS_QUERY (fetch trials)
-- GENERAL_HEALTH (explain simply)
+  - DIAGNOSIS_QUERY (map to ICD-10, SNOMED; trials if doctor)
+  - DRUGS_LIST (extract meds; check interactions)
+  - CLINICAL_TRIALS_QUERY (fetch trials)
+  - GENERAL_HEALTH (explain simply)
 
-Return JSON: {"intent":"","keywords":[""]}`;
-  const r = await fetch(`${BASE.replace(/\/$/,'')}/chat/completions`,{
-    method:'POST',
-    headers:{'Content-Type':'application/json',Authorization:`Bearer ${KEY}`},
-    body: JSON.stringify({
-      model: MODEL, temperature: 0,
-      messages: [
-        { role:'system', content: sys },
-        { role:'user', content: `Mode=${mode}\nQuery=${query}\nJSON only:` }
-      ]
-    })
-  });
-  const j = await r.json();
-  try { return JSON.parse(j.choices?.[0]?.message?.content || '{}'); }
+  Return JSON: {"intent":"","keywords":[""]}`;
+  const msg = await llmCall(
+    [
+      { role: 'system', content: sys },
+      { role: 'user', content: `Mode=${mode}\nQuery=${query}\nJSON only:` },
+    ],
+    { tier: 'fast', json: true, fallbackTier: 'balanced' }
+  );
+  try { return JSON.parse(msg?.content || '{}'); }
   catch { return { intent:'GENERAL_HEALTH', keywords:[] }; }
 }
 
@@ -63,33 +55,39 @@ export async function POST(req: NextRequest){
   const { query, mode } = await req.json();
   if(!query) return NextResponse.json({ intent:'GENERAL_HEALTH', sections:{} });
 
-  const cls = await classifyIntent(query, mode==='doctor'?'doctor':'patient');
-  const intent = cls.intent || 'GENERAL_HEALTH';
-  const keywords: string[] = cls.keywords || [];
-  const sections: any = {};
-
   try {
-    if (intent === 'DIAGNOSIS_QUERY') {
-      const term = keywords[0] || query;
-      const s = await umlsSearch(term);
-      const cui = s.results?.[0]?.ui || null;
-      if (cui) {
-        const icd = await umlsCrosswalk(cui,'ICD10CM');
-        const snomed = await umlsCrosswalk(cui,'SNOMEDCT_US');
-        sections.codes = { cui, icd: icd.mappings?.slice(0,6), snomed: snomed.mappings?.slice(0,6) };
-      }
-      if (mode==='doctor') sections.trials = await pubmedTrials(term);
-    } else if (intent === 'DRUGS_LIST') {
-      const rx = await rxnormNormalize(query);
-      sections.meds = rx.meds;
-      if ((rx.meds||[]).length >= 2) {
-        sections.interactions = (await rxnavInteractions(rx.meds.map((m:any)=>m.rxcui))).interactions;
-      }
-    } else if (intent === 'CLINICAL_TRIALS_QUERY') {
-      const term = keywords[0] || query;
-      sections.trials = await pubmedTrials(term);
-    }
-  } catch(e:any){ sections.error = String(e?.message || e); }
+    const cls = await classifyIntent(query, mode==='doctor'?'doctor':'patient');
+    const intent = cls.intent || 'GENERAL_HEALTH';
+    const keywords: string[] = cls.keywords || [];
+    const sections: any = {};
 
-  return NextResponse.json({ intent, sections });
+    try {
+      if (intent === 'DIAGNOSIS_QUERY') {
+        const term = keywords[0] || query;
+        const s = await umlsSearch(term);
+        const cui = s.results?.[0]?.ui || null;
+        if (cui) {
+          const icd = await umlsCrosswalk(cui,'ICD10CM');
+          const snomed = await umlsCrosswalk(cui,'SNOMEDCT_US');
+          sections.codes = { cui, icd: icd.mappings?.slice(0,6), snomed: snomed.mappings?.slice(0,6) };
+        }
+        if (mode==='doctor') sections.trials = await pubmedTrials(term);
+      } else if (intent === 'DRUGS_LIST') {
+        const rx = await rxnormNormalize(query);
+        sections.meds = rx.meds;
+        if ((rx.meds||[]).length >= 2) {
+          sections.interactions = (await rxnavInteractions(rx.meds.map((m:any)=>m.rxcui))).interactions;
+        }
+      } else if (intent === 'CLINICAL_TRIALS_QUERY') {
+        const term = keywords[0] || query;
+        sections.trials = await pubmedTrials(term);
+      }
+    } catch(e:any){ sections.error = String(e?.message || e); }
+
+    return NextResponse.json({ intent, sections });
+  } catch (err: any) {
+    console.error('LLM_ERROR', err);
+    const status = err?.status ?? err?.response?.status ?? 500;
+    return NextResponse.json({ error: 'LLM request failed' }, { status });
+  }
 }

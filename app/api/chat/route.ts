@@ -14,7 +14,7 @@ import { loadTopicStack, pushTopic, saveTopicStack, switchTo } from "@/lib/conte
 import { parseConstraintsFromText, mergeLedger } from "@/lib/context/constraints";
 import { parseEntitiesFromText, mergeEntityLedger } from "@/lib/context/entityLedger";
 import { decideRoute } from "@/lib/context/router";
-import { callGroq } from "@/lib/llm/groq";
+import { llmCall } from "@/lib/llm/call";
 import type { ChatCompletionMessageParam } from "@/lib/llm/types";
 import { polishText } from "@/lib/text/polish";
 import { buildConstraintRecap } from "@/lib/text/recap";
@@ -79,7 +79,7 @@ export async function POST(req: Request) {
     const prompt = mode === "doctor"
       ? singleTrialClinicianPrompt(trial)
       : singleTrialPatientPrompt(trial);
-    const reply = await callGroq([
+    const replyMsg = await llmCall([
       {
         role: "system",
         content:
@@ -88,8 +88,8 @@ export async function POST(req: Request) {
             : "You explain clinical trials in plain language for laypeople.",
       },
       { role: "user", content: prompt },
-    ], { temperature: 0.25, max_tokens: 1200 });
-    return NextResponse.json({ ok: true, text: reply });
+    ], { tier: "balanced", fallbackTier: "smart", temperature: 0.25, max_tokens: 1200 });
+    return NextResponse.json({ ok: true, text: replyMsg?.content || "" });
   }
 
   // Detect general trial queries (non-NCT)
@@ -138,7 +138,7 @@ export async function POST(req: Request) {
           ? `Summarize these trials for a clinician audience. Focus on phase, design, endpoints, status, sponsor.\n\n${list}`
           : `Summarize these trials in plain English for a patient. Explain what each is testing, status, and where. Keep it clear and short.\n\n${list}`;
 
-      const reply = await callGroq([
+      const replyMsg = await llmCall([
         {
           role: "system",
           content:
@@ -147,9 +147,9 @@ export async function POST(req: Request) {
               : "You are a health explainer for laypeople.",
         },
         { role: "user", content: prompt },
-      ]);
+      ], { tier: "balanced", fallbackTier: "smart" });
 
-      return NextResponse.json({ ok: true, reply });
+      return NextResponse.json({ ok: true, reply: replyMsg?.content || "" });
     } else {
       return NextResponse.json({ ok: true, reply: "I couldn't find matching trials right now." });
     }
@@ -165,7 +165,8 @@ export async function POST(req: Request) {
       { role: "system", content: systemPrompt },
       ...(incomingMessages || []),
     ];
-    const jsonStr = await callGroq(msg, { temperature: 0 });
+    const jsonMsg = await llmCall(msg, { temperature: 0, json: true, tier: "smart", fallbackTier: "balanced" });
+    const jsonStr = jsonMsg?.content || "";
     const sections = coerceDoctorJson(jsonStr);
     let out = renderDeterministicDoctorReport(patient, sections);
     out = out.replace(/https?:\/\/\S+/g, "");
@@ -263,7 +264,7 @@ export async function POST(req: Request) {
 
   const fullSystem = baseSystem + onTopicInstruction;
 
-  // 6) Groq call
+  // 6) LLM call
   const messages: ChatCompletionMessageParam[] = [
     { role: "system", content: fullSystem },
     ...recent.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
@@ -283,17 +284,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, threadId, text: clarifierWithMem });
   }
   const feedback_summary = await getFeedbackSummary(threadId || "");
-  let assistant = await callGroq(messages, {
+  const assistantMsg = await llmCall(messages, {
     temperature: 0.25,
     max_tokens: 1200,
-    metadata: {
-      conversationId: threadId,
-      lastMessageId: null,
-      feedback_summary,
-      app: "medx",
-      mode: mode ?? "chat",
-    },
+    tier: "balanced",
+    fallbackTier: "smart",
   });
+  let assistant = assistantMsg?.content || "";
   if (activeTopic && seemsOffTopic(assistant, activeTopic)) {
     assistant = rewriteToTopic(assistant, activeTopic);
   }

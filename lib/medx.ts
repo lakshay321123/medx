@@ -3,12 +3,9 @@ import { normalizeTopic } from "@/lib/topic/normalize";
 import { searchTrials } from "@/lib/trials/search";
 import { splitFollowUps } from "./splitFollowUps";
 import { orchestrateResearch } from "@/lib/research/orchestrator";
+import { llmCall } from "@/lib/llm/call";
 
 export { splitFollowUps };
-
-const BASE = process.env.LLM_BASE_URL!;
-const MODEL = process.env.LLM_MODEL_ID || "llama-3.1-8b-instant";
-const KEY = process.env.LLM_API_KEY!;
 
 const BASE_PROMPT = `India-aware; metric units.
 Patient = simple + home care + ≥3 red flags + when_to_test.
@@ -17,23 +14,8 @@ If research requested: fill evidence (patient/doctor voice) or Research schema.
 Prefer WHO/ICMR/MoHFW/NHP or high-quality sources.
 Output ONLY JSON matching schema; end with </END_JSON>.`;
 
-async function groq(messages: any[], max_tokens: number) {
-  const res = await fetch(`${BASE.replace(/\/$/,"")}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${KEY}`,
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      temperature: 0.25,
-      top_p: 0.9,
-      max_tokens,
-      stop: ["</END_JSON>"],
-      messages,
-    }),
-  });
-  return res.json();
+async function call(messages: any[], max_tokens: number) {
+  return llmCall(messages, { tier: "smart", json: true, max_tokens, fallbackTier: "balanced", temperature: 0.25 });
 }
 
 function stripSentinel(text: string): string {
@@ -62,8 +44,8 @@ export async function v2Generate(body: any): Promise<MedxResponse> {
     { role: "system", content: sys },
     { role: "user", content: JSON.stringify(userPayload) },
   ];
-  const raw = await groq(messages, max);
-  const txt = stripSentinel(raw.choices?.[0]?.message?.content || "");
+    const raw = await call(messages, max);
+    const txt = stripSentinel(raw?.content || "");
   let parsed: any;
   try {
     parsed = JSON.parse(txt);
@@ -72,12 +54,12 @@ export async function v2Generate(body: any): Promise<MedxResponse> {
   }
   let out = MedxResponseSchema.safeParse(parsed);
   if (!out.success) {
-    const fix = await groq([
-      { role: "system", content: "Fix JSON to match schema. Return JSON only." },
-      { role: "user", content: txt },
-      { role: "assistant", content: JSON.stringify(out.error.issues) },
-    ], max);
-    const fixed = stripSentinel(fix.choices?.[0]?.message?.content || "");
+      const fixMsg = await call([
+        { role: "system", content: "Fix JSON to match schema. Return JSON only." },
+        { role: "user", content: txt },
+        { role: "assistant", content: JSON.stringify(out.error.issues) },
+      ], max);
+      const fixed = stripSentinel(fixMsg?.content || "");
     const fixedParsed = JSON.parse(fixed);
     out = MedxResponseSchema.safeParse(fixedParsed);
     if (!out.success) throw new Error("Schema validation failed");

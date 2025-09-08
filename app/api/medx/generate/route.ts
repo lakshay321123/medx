@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { v2Generate } from "@/lib/medx";
+import { MODELS } from "@/lib/llm/openai";
 import { routeIntent } from "@/lib/intent-router";
 import { evaluateResponseAccuracy } from "@/lib/selfLearning/feedbackLoop";
 
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
           conversationId: routed.threadId ?? routed.conversationId,
           messageId: typeof data === "object" && data && "id" in data ? (data as any).id : undefined,
           mode: routed.mode,
-          model: process.env.LLM_MODEL_ID,
+            model: MODELS.SMART,
           latencyMs: Date.now() - started,
         }
       );
