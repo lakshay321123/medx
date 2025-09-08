@@ -1,6 +1,10 @@
+export type RecallTag =
+  | "diet" | "recipe" | "plan" | "workout" | "dosage" | "meds"
+  | "symptoms" | "labs" | "guidelines" | "trials";
+
 export type RecallIntent =
   | { type: "repeatLast" }
-  | { type: "recallTag"; tag: "diet"|"recipe"|"plan"|"workout"|"dosage"|"meds"|"symptoms"|"labs"|"guidelines"|"trials" }
+  | { type: "recallTag"; tag: RecallTag }
   | null;
 
 export function detectRecallIntent(text: string): RecallIntent {
@@ -12,7 +16,7 @@ export function detectRecallIntent(text: string): RecallIntent {
   }
 
   // “show the diet again”, “pull up the recipe”, “recall trials”
-  const tagMap: Record<string, RecallIntent["tag"]> = {
+  const tagMap: Record<string, RecallTag> = {
     diet: "diet", recipe: "recipe", plan: "plan", workout: "workout", exercise: "workout",
     dosage: "dosage", dose: "dosage", meds: "meds", medication: "meds",
     symptoms: "symptoms", labs: "labs", guidelines: "guidelines", trials: "trials"
