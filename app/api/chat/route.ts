@@ -55,9 +55,6 @@ export async function POST(req: Request) {
   const thread_id = _normalizeThreadId(body);
   const userMessage = messages?.[messages.length - 1]?.content || "";
 
-  // DEBUG LOG (remove later): verify we're actually in doctor path
-  console.log("[DoctorMode] mode=", mode, "thread_id=", thread_id);
-
   if (mode === "doctor") {
     const patient = await buildPatientSnapshot(thread_id);
     const systemPrompt = DOCTOR_JSON_SYSTEM;
@@ -166,13 +163,13 @@ export async function POST(req: Request) {
   const fullSystem = baseSystem + onTopicInstruction;
 
   // 6) Groq call
-  const messages: ChatCompletionMessageParam[] = [
+  const chatMessages: ChatCompletionMessageParam[] = [
     { role: "system", content: fullSystem },
     ...recent.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
     { role: "user", content: text },
   ];
   // Clarification check (stateless)
-  const contextString = messages.map((m: any) => m.content).join(" ");
+  const contextString = chatMessages.map((m: any) => m.content).join(" ");
   const clarifier = disambiguate(text, contextString);
   if (clarifier) {
     return NextResponse.json({ ok: true, threadId, text: clarifier });
@@ -184,7 +181,7 @@ export async function POST(req: Request) {
   if (clarifierWithMem) {
     return NextResponse.json({ ok: true, threadId, text: clarifierWithMem });
   }
-  let assistant = await callGroq(messages, { temperature: 0.25, max_tokens: 1200 });
+  let assistant = await callGroq(chatMessages, { temperature: 0.25, max_tokens: 1200 });
   if (activeTopic && seemsOffTopic(assistant, activeTopic)) {
     assistant = rewriteToTopic(assistant, activeTopic);
   }

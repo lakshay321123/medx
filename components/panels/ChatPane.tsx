@@ -576,7 +576,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         ];
 
         // M7.2.3: Doctor mode uses non-stream deterministic endpoint
-        if (mode === 'doctor' || mode === 'Doctor') {
+        if (mode === 'doctor') {
           const res = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -773,7 +773,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
       }
 
       // M7.2.3: Doctor mode uses non-stream deterministic endpoint
-      if (mode === 'doctor' || mode === 'Doctor') {
+      if (mode === 'doctor') {
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
