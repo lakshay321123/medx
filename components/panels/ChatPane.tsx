@@ -500,41 +500,48 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       if (!kicked) {
         (async () => {
           try {
-            const j = await safeJson(
-              fetch('/api/therapy', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ wantStarter: true })
-              })
-            );
             sessionStorage.setItem('therapyStarter', '1');
-            const starter = j?.starter || 'Hi, I’m here with you. What would you like to talk about?';
-            // @ts-ignore
+            const intro = 'Hi, I’m here to support you, but I’m not a licensed therapist. What would you like to talk about today?';
             setMessages((prev: any[]) => [
               ...prev,
-              { id: `t-${Date.now()}`, role: 'assistant', kind: 'chat', content: starter }
+              { id: uid(), role: 'assistant', kind: 'chat', content: intro, pending: false }
             ]);
             try {
               const sess = await safeJson(fetch('/api/auth/session'));
               const userId = sess?.user?.id;
               if (userId) {
-                const r = await fetch(`/api/therapy/notes?userId=${userId}&limit=3`);
-                const { notes } = await r.json();
+                try {
+                  const r = await fetch(`/api/therapy/notes?userId=${userId}&limit=3`);
+                  const { notes } = await r.json();
 
-                if (Array.isArray(notes) && notes.length > 0) {
-                  const pieces = notes
-                    .map((n: any) => (n?.summary || '').trim())
-                    .filter(Boolean)
-                    .slice(0, 3);
+                  if (Array.isArray(notes) && notes.length > 0) {
+                    const last = notes[0];
+                    const goal = (last?.next_step) || (last?.meta?.goals?.[0]);
 
-                  if (pieces.length > 0) {
-                    const gist = pieces.length === 1 ? pieces[0] : pieces.slice(0, 2).join('; ');
-                    const line = `Last time we explored: ${gist} — want to continue from there or talk about something new?`;
-                    setMessages((prev: any[]) => [
-                      ...prev,
-                      { id: uid(), role: 'assistant', kind: 'chat', content: line, pending: false }
-                    ]);
+                    if (goal && typeof goal === 'string' && goal.trim().length > 0) {
+                      const follow = `Quick check-in: last time you planned **${goal.trim()}** — how did it go?`;
+                      setMessages((prev: any[]) => [
+                        ...prev,
+                        { id: uid(), role: 'assistant', kind: 'chat', content: follow, pending: false }
+                      ]);
+                    } else {
+                      const pieces = notes
+                        .map((n: any) => (n?.summary || '').trim())
+                        .filter(Boolean)
+                        .slice(0, 3);
+
+                      if (pieces.length > 0) {
+                        const gist = pieces.length === 1 ? pieces[0] : pieces.slice(0, 2).join('; ');
+                        const line = `Last time we explored: ${gist} — want to continue from there or talk about something new?`;
+                        setMessages((prev: any[]) => [
+                          ...prev,
+                          { id: uid(), role: 'assistant', kind: 'chat', content: line, pending: false }
+                        ]);
+                      }
+                    }
                   }
+                } catch {
+                  // fail-soft: no continuity lines if fetch fails
                 }
               }
             } catch {}
