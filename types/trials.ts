@@ -1,5 +1,5 @@
 export type TrialRow = {
-  id: string;                      // NCT id
+  id: string;                      // Registry id
   title: string;
   conditions: string[];
   interventions: string[];
