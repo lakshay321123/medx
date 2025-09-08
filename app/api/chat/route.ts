@@ -25,6 +25,9 @@ import { sanitizeLLM } from "@/lib/conversation/sanitize";
 import { finalReplyGuard } from "@/lib/conversation/finalReplyGuard";
 import { disambiguate, disambiguateWithMemory } from "@/lib/conversation/disambiguation";
 import { detectTopic, wantsNewTopic, inferTopicFromHistory, seemsOffTopic, rewriteToTopic } from "@/lib/conversation/topic";
+import { renderDoctorSummary } from "@/lib/renderer/templates/doctor";
+import { doctorSafetyNotes } from "@/lib/rules/doctorSafety";
+import { polishResponse } from "@/lib/conversation/polish";
 
 function contextStringFrom(messages: ChatCompletionMessageParam[]): string {
   return messages
@@ -32,8 +35,53 @@ function contextStringFrom(messages: ChatCompletionMessageParam[]): string {
     .join(" ");
 }
 
+async function buildPatientSnapshot(threadId: string) {
+  // Placeholder patient snapshot; replace with memory aggregation
+  return {
+    name: "Rohan",
+    age: 45,
+    sex: "M",
+    encounterDate: new Date().toISOString().slice(0, 10),
+    diagnoses: ["acute myeloid leukemia"],
+    comorbidities: ["asthma"],
+    meds: ["cytarabine"],
+    labs: [
+      { name: "creatinine", value: 2.1, unit: "mg/dL" },
+      { name: "alt", value: 60, unit: "U/L" },
+    ],
+  };
+}
+
 export async function POST(req: Request) {
   const { userId, activeThreadId, text, mode, researchOn, clarifySelectId } = await req.json();
+
+  if (mode === "doctor") {
+    const patient = await buildPatientSnapshot(activeThreadId);
+    const skeleton = renderDoctorSummary(patient);
+    const systemWithTemplate = `
+You are MedX Doctor Mode.
+- Produce a structured, clinically reasoned summary using the provided sections.
+- Do NOT mention clinical trials, papers, or research unless the user explicitly asks.
+- Use concise, professional language. No emojis, no marketing tone.
+
+MANDATORY SECTIONS:
+${skeleton}
+`;
+
+    const messages: ChatCompletionMessageParam[] = [
+      { role: "system", content: systemWithTemplate },
+      { role: "user", content: text },
+    ];
+    const raw = await callGroq(messages, { temperature: 0.25, max_tokens: 1200 });
+    let out = polishResponse(raw);
+    out = sanitizeLLM(out).replace(/(^|\n).*(trial|study|research).*/gim, "$1");
+    const safety = doctorSafetyNotes(patient);
+    if (safety.length) {
+      out += `\n\n**Safety Notes**\n${safety.map(s => `- ${s}`).join("\n")}`;
+    }
+    const final = finalReplyGuard(text, out);
+    return NextResponse.json({ ok: true, threadId: activeThreadId, text: final });
+  }
 
   if (shouldReset(text)) {
     // start new thread logic here
