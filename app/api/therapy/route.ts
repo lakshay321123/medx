@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import OpenAI from "openai";
+import { summarizeTherapyJSON, type ChatMessage as TM } from "@/lib/therapy/summarizer";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getUserId } from "@/lib/getUserId";
 export const runtime = "edge";
 
 const OAI_KEY = process.env.OPENAI_API_KEY!;
@@ -208,6 +212,29 @@ export async function POST(req: NextRequest) {
     }
 
     const completion = result.text.trim().split(/\n+/).slice(0, 3).join("\n");
+
+    try {
+      const openai = new OpenAI({ apiKey: OAI_KEY, baseURL: OAI_URL });
+      const recent: TM[] = [
+        ...clean.map((m: any) => ({ role: m.role as TM["role"], content: String(m.content || "") })),
+        { role: "assistant", content: completion }
+      ];
+      const note = await summarizeTherapyJSON(openai, recent);
+      if (note) {
+        const userId = await getUserId(req);
+        if (userId) {
+          const sb = supabaseAdmin();
+          await sb.from("therapy_notes").insert({
+            user_id: userId,
+            summary: note.summary,
+            meta: { topics: note.topics, triggers: note.triggers, emotions: note.emotions },
+            mood: note.mood,
+            breakthrough: note.breakthrough,
+            next_step: note.nextStep
+          });
+        }
+      }
+    } catch {}
 
     const resp: any = { ok: true, completion, nextStage };
     if (!body.name && details.maybeName) resp.name = details.maybeName;
