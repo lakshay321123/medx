@@ -30,9 +30,16 @@ import { detectEditIntent } from "@/lib/intents/editIntents";
 import { getLastStructured, maybeIndexStructured, setLastStructured } from "@/lib/memory/structured";
 import { replaceEverywhere, addLineToSection, removeEverywhere, addBurrataIfMissing } from "@/lib/editors/recipeEdit";
 import { detectAdvancedDomain } from "@/lib/intents/advanced";
-// === ADD-ONLY for domain routing ===
-import { detectDomain } from "@/lib/intents/domains";
+// context + profile + guards + grounding + rag + router + postprocess
+import { buildContextBlock } from "@/lib/context/compose";
+import { getProfileSnapshot } from "@/lib/context/profile";
+import { requireUnits } from "@/lib/compute/guard";
+import { REQUIRE_SOURCES } from "@/lib/prompts/grounding";
+import { indexTurn, searchTurns } from "@/lib/rag/threadIndex";
+import { chooseStyles } from "@/lib/intents/router";
 import * as DomainStyles from "@/lib/prompts/domains";
+import { normalizeAnswer } from "@/lib/postprocess/answer";
+import { detectRedFlags } from "@/lib/safety/redflags";
 
 async function computeEval(expr: string) {
   const r = await fetch("/api/compute/math", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ op:"eval", expr }) });
@@ -659,9 +666,21 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     }
 
     try {
-      const fullContext = buildFullContext(stableThreadId);
-      const contextBlock = fullContext ? `\n\nCONTEXT (recent conversation):\n${fullContext}` : "";
-      if (isProfileThread) {
+        const fullContext = buildFullContext(stableThreadId);
+        // --- ADD-ONLY: Always-on context ---
+        const fullChatForCtx = (() => {
+          try {
+            const last = messages
+              .slice(-60)
+              .map(m => `${m.role}: ${("content" in m ? (m as any).content : "")}`)
+              .join("\n");
+            return last;
+          } catch {
+            return "";
+          }
+        })();
+        const contextBlock = buildContextBlock(fullChatForCtx, getProfileSnapshot());
+        if (isProfileThread) {
         const thread = [
           ...messages
             .filter(m => !m.pending)
@@ -822,22 +841,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         // else: proceed to normal LLM call with contextBlock (added above)
       }
 
-      // === ADD-ONLY: domain style selection ===
-      let DOMAIN_STYLE = "";
-      try {
-        const d = detectDomain(userText);
-        if (d === "allied")      DOMAIN_STYLE = DomainStyles.ALLIED_STYLE;
-        else if (d === "wellness")   DOMAIN_STYLE = DomainStyles.WELLNESS_STYLE;
-        else if (d === "technical")  DOMAIN_STYLE = DomainStyles.TECHNICAL_SCI_STYLE;
-        else if (d === "behavioral") DOMAIN_STYLE = DomainStyles.BEHAVIORAL_STYLE;
-        else if (d === "supportive") DOMAIN_STYLE = DomainStyles.SUPPORTIVE_STYLE;
-        else if (d === "compliance") DOMAIN_STYLE = DomainStyles.COMPLIANCE_STYLE;
-      } catch {}
-
-      const linkNudge =
-        'When adding a reference, always format as [title](https://full.url) with the full absolute URL. Never output Learn more without a URL, and never use relative links.';
-      const baseSys =
-        mode === 'doctor'
+        const linkNudge =
+          'When adding a reference, always format as [title](https://full.url) with the full absolute URL. Never output Learn more without a URL, and never use relative links.';
+        const baseSys =
+          mode === 'doctor'
           ? `You are a clinical assistant. Write clean markdown with headings and bullet lists.
 If CONTEXT has codes, interactions, or trials, summarize and add clickable links. Avoid medical advice.
 ${linkNudge}`
@@ -847,10 +854,19 @@ ${linkNudge}`;
       const systemCommon = `\nUser country: ${country.code3} (${country.name}). Use generics and note availability varies by region.\nEnd with one short follow-up question (<=10 words) that stays on the current topic.\n`;
       const topicHint = ui.topic ? `ACTIVE TOPIC: ${ui.topic}\nKeep answers scoped to this topic unless the user changes it.\n` : "";
 
-      const sys = topicHint + systemCommon + baseSys;
-      const sysWithDomain = DOMAIN_STYLE ? `${sys}\n\n${DOMAIN_STYLE}` : sys;
-      let ADV_STYLE = "";
-      const adv = detectAdvancedDomain(userText);
+        const sys = topicHint + systemCommon + baseSys;
+        // --- ADD-ONLY: style routing ---
+        let sysWithDomain = sys;
+        const styles = chooseStyles(userText, mode);
+        for (const key of styles) {
+          const extra = (DomainStyles as any)[key];
+          if (extra) sysWithDomain += `\n\n${extra}`;
+        }
+        // numeric + sources nudges
+        sysWithDomain += requireUnits(userText);
+        sysWithDomain += `\n\n${REQUIRE_SOURCES}`;
+        let ADV_STYLE = "";
+        const adv = detectAdvancedDomain(userText);
       if (adv) {
         const D = await import("@/lib/prompts/advancedDomains");
         ADV_STYLE =
@@ -931,40 +947,58 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
               })()
             : buildMedicinesPrompt(ui.topic, country);
         chatMessages[1].content += contextBlock;
-      } else if (!chatMessages && follow && ctx) {
-        const fullMem = fullContext;
-        const system = `You are MedX. This is a FOLLOW-UP.
+        } else if (!chatMessages && follow && ctx) {
+          const fullMem = fullContext;
+          const system = `You are MedX. This is a FOLLOW-UP.
 Here is the ENTIRE conversation so far:
 ${fullMem || "(none)"}
 
 ${systemCommon}` + baseSys;
-        const systemWithDomain = DOMAIN_STYLE ? `${system}\n\n${DOMAIN_STYLE}` : system;
-        const systemAll = `${systemWithDomain}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
-        const userMsg = `Follow-up: ${text}\nIf the question is ambiguous, ask one concise disambiguation question and then answer briefly using the context.`;
-        chatMessages = [
-          { role: 'system', content: systemAll },
-          { role: 'user', content: `${userMsg}${contextBlock}` }
-        ];
-      } else if (!chatMessages) {
-        const plan = await safeJson(
-          fetch('/api/medx', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: text, mode, researchMode, filters })
-          })
-        );
+          let sysFollow = system;
+          for (const key of styles) {
+            const extra = (DomainStyles as any)[key];
+            if (extra) sysFollow += `\n\n${extra}`;
+          }
+          sysFollow += requireUnits(userText);
+          sysFollow += `\n\n${REQUIRE_SOURCES}`;
+          const systemAllFollow = `${sysFollow}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
+          const userMsg = `Follow-up: ${text}\nIf the question is ambiguous, ask one concise disambiguation question and then answer briefly using the context.`;
+          chatMessages = [
+            { role: 'system', content: systemAllFollow },
+            { role: 'user', content: `${userMsg}${contextBlock}` }
+          ];
+        } else if (!chatMessages) {
+          const plan = await safeJson(
+            fetch('/api/medx', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ query: text, mode, researchMode, filters })
+            })
+          );
 
-        const sys = topicHint + systemCommon + baseSys;
-        const sysWithDomain = DOMAIN_STYLE ? `${sys}\n\n${DOMAIN_STYLE}` : sys;
-        const systemAll = `${sysWithDomain}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
-        const planContextBlock = 'CONTEXT:\n' + JSON.stringify(plan.sections || {}, null, 2);
-        chatMessages = [
-          { role: 'system', content: systemAll },
-          { role: 'user', content: `${text}\n\n${planContextBlock}${contextBlock}` }
-        ];
-      }
+          const planContextBlock = 'CONTEXT:\n' + JSON.stringify(plan.sections || {}, null, 2);
+          chatMessages = [
+            { role: 'system', content: systemAll },
+            { role: 'user', content: `${text}\n\n${planContextBlock}${contextBlock}` }
+          ];
+        }
 
-      const res = await fetch('/api/chat/stream', {
+        // --- ADD-ONLY: recall queries like "pull up the diet" ---
+        try {
+          const m = userText.toLowerCase().match(/\b(pull up|show|repeat|again)\s+(.{3,80})$/);
+          if (m) {
+            const hits = searchTurns(threadId || "unknown", m[2], 1);
+            if (hits.length) {
+              const quoted = hits[0].text;
+              setMessages(prev => prev.map(x => x.id === pendingId ? ({ ...x, content: quoted, pending: false }) : x));
+              indexTurn(threadId || "unknown", String(pendingId), quoted, []);
+              setBusy(false);
+              return;
+            }
+          }
+        } catch {}
+
+        const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: chatMessages, threadId, context })
@@ -995,23 +1029,31 @@ ${systemCommon}` + baseSys;
           } catch {}
         }
       }
-      const { main, followUps } = splitFollowUps(acc);
-      setMessages(prev =>
-        prev.map(m =>
-          m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
-        )
-      );
-      if (threadId && main && main.trim()) {
-        pushFullMem(threadId, "assistant", main);
-        maybeIndexStructured(threadId, main);
-      }
-      if (stableThreadId) {
-        try { pushFullMem(stableThreadId, "assistant", main); } catch {}
-      }
-      if (main.length > 400) {
-        setFromChat({ id: pendingId, content: main });
-        setUi(prev => ({ ...prev, contextFrom: 'Conversation summary' }));
-      }
+        const { main, followUps } = splitFollowUps(acc);
+        let finalText = normalizeAnswer(main);
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === pendingId ? { ...m, content: finalText, followUps, pending: false } : m
+          )
+        );
+        indexTurn(threadId || "unknown", pendingId, finalText, []);
+        if (threadId && finalText && finalText.trim()) {
+          pushFullMem(threadId, "assistant", finalText);
+          maybeIndexStructured(threadId, finalText);
+        }
+        if (stableThreadId) {
+          try { pushFullMem(stableThreadId, "assistant", finalText); } catch {}
+        }
+        if (detectRedFlags(finalText)) {
+          setMessages(prev => [
+            ...prev,
+            { id: crypto.randomUUID(), role: "assistant", kind: "chat", content: "⚠️ Possible red flags detected. Consider urgent evaluation.", pending: false } as any
+          ]);
+        }
+        if (finalText.length > 400) {
+          setFromChat({ id: pendingId, content: finalText });
+          setUi(prev => ({ ...prev, contextFrom: 'Conversation summary' }));
+        }
     } catch (e: any) {
       console.error(e);
       const content = `⚠️ ${String(e?.message || e)}`;
