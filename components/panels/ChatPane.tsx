@@ -30,6 +30,11 @@ import { detectEditIntent } from "@/lib/intents/editIntents";
 import { getLastStructured, maybeIndexStructured, setLastStructured } from "@/lib/memory/structured";
 import { replaceEverywhere, addLineToSection, removeEverywhere, addBurrataIfMissing } from "@/lib/editors/recipeEdit";
 
+async function computeEval(expr: string) {
+  const r = await fetch("/api/compute/math", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ op:"eval", expr }) });
+  const j = await r.json(); if (!j.ok) throw new Error(j.error||"compute failed"); return j.out as string;
+}
+
 type ChatUiState = {
   topic: string | null;
   contextFrom: string | null; // e.g., 'Conversation summary'
@@ -826,9 +831,38 @@ ${linkNudge}`;
       const systemCommon = `\nUser country: ${country.code3} (${country.name}). Use generics and note availability varies by region.\nEnd with one short follow-up question (<=10 words) that stays on the current topic.\n`;
       const topicHint = ui.topic ? `ACTIVE TOPIC: ${ui.topic}\nKeep answers scoped to this topic unless the user changes it.\n` : "";
 
+      const sys = topicHint + systemCommon + baseSys;
       let chatMessages: { role: string; content: string }[];
 
-      if (intent && ui.topic) {
+      const looksLikeMath = /[0-9\.\s+\-*\/^()]{6,}/.test(userText) || /sin|cos|log|sqrt|derivative|integral|limit/i.test(userText);
+      let toolBlock = "";
+      if (looksLikeMath) {
+        try { const res = await computeEval(userText); toolBlock = `\n\nTOOL RESULT:\n${res}`; } catch {}
+      }
+      const historyIntent = /\b(empire|war|dynasty|revolution|treaty|reign)\b/i.test(userText);
+      const doctorIntent = mode === "doctor" || /\b(symptom|diagnosis|treatment|disease|syndrome|pain|infection|therapy|medication)\b/i.test(userText);
+
+      if (looksLikeMath) {
+        const STYLE_MATH = `You are a rigorous solver. Show: (1) setup, (2) key steps, (3) final answer WITH UNITS, (4) quick self-check. Do not reveal hidden reasoning.`;
+        chatMessages = [
+          { role: "system", content: `${sys}\n\n${STYLE_MATH}` },
+          { role: "user", content: `${userText}${toolBlock}${contextBlock}` }
+        ];
+      } else if (historyIntent) {
+        const { HISTORY_STYLE: STYLE_HISTORY } = await import("@/lib/prompts/history");
+        chatMessages = [
+          { role: "system", content: `${sys}\n\n${STYLE_HISTORY}` },
+          { role: "user", content: `${userText}${contextBlock}` }
+        ];
+      } else if (doctorIntent) {
+        const { DOCTOR_STYLE: STYLE_DOCTOR } = await import("@/lib/prompts/doctor");
+        chatMessages = [
+          { role: "system", content: `${sys}\n\n${STYLE_DOCTOR}` },
+          { role: "user", content: `${userText}${contextBlock}` }
+        ];
+      }
+
+      if (!chatMessages && intent && ui.topic) {
         chatMessages =
           intent === 'hospitals'
             ? buildHospitalsPrompt(ui.topic, country)
@@ -867,7 +901,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
               })()
             : buildMedicinesPrompt(ui.topic, country);
         chatMessages[1].content += contextBlock;
-      } else if (follow && ctx) {
+      } else if (!chatMessages && follow && ctx) {
         const fullMem = fullContext;
         const system = `You are MedX. This is a FOLLOW-UP.
 Here is the ENTIRE conversation so far:
@@ -879,7 +913,7 @@ ${systemCommon}` + baseSys;
           { role: 'system', content: system },
           { role: 'user', content: `${userMsg}${contextBlock}` }
         ];
-      } else {
+      } else if (!chatMessages) {
         const plan = await safeJson(
           fetch('/api/medx', {
             method: 'POST',
