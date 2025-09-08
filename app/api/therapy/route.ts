@@ -185,7 +185,14 @@ export async function POST(req: NextRequest) {
       body = {};
     }
 
-    if (body?.wantStarter) {
+    const { messages = [], mode, ...rest } = body || {};
+
+    // Hard guard: this route is ONLY for therapy
+    if (mode && mode !== 'therapy') {
+      return NextResponse.json({ error: 'Wrong mode for /api/therapy' }, { status: 400 });
+    }
+
+    if (rest.wantStarter) {
       return NextResponse.json({
         starter: "Hi, I’m here with you. Want to tell me what’s on your mind today? 💙",
         disclaimer: process.env.THERAPY_DISCLAIMER || "",
@@ -193,7 +200,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const clean = sanitizeMessages(Array.isArray(body?.messages) ? body.messages : []);
+    const clean = sanitizeMessages(Array.isArray(messages) ? messages : []);
     if (clean.length === 0) {
       return NextResponse.json({ error: "No valid messages" }, { status: 400 });
     }

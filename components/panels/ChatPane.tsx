@@ -426,37 +426,42 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     bootedRef.current[threadId] = true;
     (async () => {
       try {
-        // warm greeting from Doc AI
-        const boot = await fetch('/api/aidoc/message', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ text: "" })
-        }).then(r=>r.json()).catch(()=>null);
-        if (boot?.messages?.length) {
-          setMessages(prev => [...prev, ...boot.messages.map((m:any)=>({ id: uid(), role:m.role, kind:'chat', content:m.content, pending:false }))]);
-        }
-        // single readiness nudge (skip if asked recently)
-        if (askedRecently(threadId, 'proactive', 60)) return;
-        const rd = await safeJson(fetch('/api/predictions/readiness'));
-        const miss = rd?.missing || [];
-        const pick = miss[0] as ('predispositions'|'medications'|'weight'|undefined);
-        if (pick) {
-          const q =
-            pick === 'predispositions' ? 'Quick check: any family history/predispositions (e.g., diabetes, hypertension)? List comma-separated.'
-            : pick === 'medications'   ? 'Quick check: do you take any regular meds? Please share name + dose (e.g., Metformin 500 mg).'
-            :                            'Quick check: what is your current weight (kg)?';
-          setMessages(prev => [...prev, { id: uid(), role:'assistant', kind:'chat', content: q, pending:false } as any]);
-          setProactive({ kind: pick });
-          markAskedNow(threadId, 'proactive');
+        if (therapyMode) {
+          const intro = 'Hi, I’m here to support you, but I’m not a licensed therapist. What would you like to talk about today?';
+          setMessages(prev => [...prev, { id: uid(), role:'assistant', kind:'chat', content:intro, pending:false }]);
+        } else {
+          // warm greeting from Doc AI
+          const boot = await fetch('/api/aidoc/message', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ text: "" })
+          }).then(r=>r.json()).catch(()=>null);
+          if (boot?.messages?.length) {
+            setMessages(prev => [...prev, ...boot.messages.map((m:any)=>({ id: uid(), role:m.role, kind:'chat', content:m.content, pending:false }))]);
+          }
+          // single readiness nudge (skip if asked recently)
+          if (askedRecently(threadId, 'proactive', 60)) return;
+          const rd = await safeJson(fetch('/api/predictions/readiness'));
+          const miss = rd?.missing || [];
+          const pick = miss[0] as ('predispositions'|'medications'|'weight'|undefined);
+          if (pick) {
+            const q =
+              pick === 'predispositions' ? 'Quick check: any family history/predispositions (e.g., diabetes, hypertension)? List comma-separated.'
+              : pick === 'medications'   ? 'Quick check: do you take any regular meds? Please share name + dose (e.g., Metformin 500 mg).'
+              :                            'Quick check: what is your current weight (kg)?';
+            setMessages(prev => [...prev, { id: uid(), role:'assistant', kind:'chat', content: q, pending:false } as any]);
+            setProactive({ kind: pick });
+            markAskedNow(threadId, 'proactive');
+          }
         }
       } catch {}
     })();
-  }, [isProfileThread, threadId]);
+  }, [isProfileThread, threadId, therapyMode]);
 
   useEffect(() => {
-    if (!isProfileThread && messages.length === 0) {
+    if (!isProfileThread && messages.length === 0 && !therapyMode) {
       addOnce('welcome:chat', getRandomWelcome());
     }
-  }, [isProfileThread, messages.length]);
+  }, [isProfileThread, messages.length, therapyMode]);
 
   useEffect(() => {
     const tid = threadId || (isProfileThread ? 'med-profile' : null);
@@ -738,7 +743,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             fetch('/api/therapy', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ messages: thread })
+              body: JSON.stringify({ mode: 'therapy', messages: thread })
             })
           );
         } catch (e: any) {
