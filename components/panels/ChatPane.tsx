@@ -24,6 +24,7 @@ import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTi
 import { useMemoryStore } from "@/lib/memory/useMemoryStore";
 import { summarizeTrials } from "@/lib/research/summarizeTrials";
 import { computeTrialStats, type TrialStats } from "@/lib/research/trialStats";
+import { detectSocialIntent, replyForSocialIntent } from "@/lib/social";
 
 type ChatUiState = {
   topic: string | null;
@@ -92,6 +93,7 @@ function titleForCategory(c?: AnalysisCategory) {
 }
 
 function isNewTopic(text: string) {
+  if (detectSocialIntent(text)) return false;
   const q = text.trim();
   return (
     /\b[a-z][a-z\s-]{1,40}\b/i.test(q) &&
@@ -509,6 +511,33 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         .replace(/\bsgpt\b/gi, "ALT (SGPT)")
         .replace(/\bsgot\b/gi, "AST (SGOT)");
     const userText = isProfileThread ? normalize(text) : text;
+
+    // --- social intent fast path: greet/thanks/yes/no/maybe/repeat/simpler/shorter/longer/next ---
+    const social = detectSocialIntent(userText);
+    if (social) {
+      const msgBase = replyForSocialIntent(social, mode);
+
+      // Optionally use last assistant message for repeat/shorter (lightweight, no LLM)
+      const lastAssistant = [...messages].reverse().find(m =>
+        m.role === "assistant" && m.kind === "chat" && !m.pending && !m.error
+      ) as any | undefined;
+
+      let content = msgBase;
+      if (lastAssistant && (social === "repeat" || social === "shorter")) {
+        const t = String(lastAssistant.content || "");
+        if (social === "repeat") content += "\n\n" + t;
+        if (social === "shorter") content += "\n\n" + (t.length > 400 ? t.slice(0, 400) + " …" : t);
+      }
+
+      setMessages(prev => [
+        ...prev,
+        { id: uid(), role: "user", kind: "chat", content: userText } as any,
+        { id: uid(), role: "assistant", kind: "chat", content } as any,
+      ]);
+      setNote("");
+      setBusy(false);
+      return; // IMPORTANT: do not set topic, do not trigger research/planner
+    }
 
     const userId = uid();
     const pendingId = uid();
