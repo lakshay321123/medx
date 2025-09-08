@@ -2,40 +2,31 @@ import { NextRequest, NextResponse } from "next/server";
 import { searchTrials, dedupeTrials, rankValue } from "@/lib/trials/search";
 import { byCode3 } from "@/data/countries";
 
-export const runtime = "nodejs"; // ensure node runtime for remote fetches/scrapes
+export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const condition = (searchParams.get("condition") || "").trim();
-    if (!condition) {
-      return NextResponse.json({ error: "condition is required" }, { status: 400 });
-    }
+    if (!condition) return NextResponse.json({ error: "condition is required" }, { status: 400 });
 
-    const code3   = (searchParams.get("country") || "").trim();     // e.g., "IND", "USA", or ""
+    const code3   = (searchParams.get("country") || "").trim();   // "IND", "USA", "" (Worldwide)
     const status  = searchParams.get("status") || undefined;
-    const phaseUI = searchParams.get("phase") || undefined;         // e.g., "Phase 2,Phase 3"
+    const phaseUI = searchParams.get("phase") || undefined;
 
-    // Normalize country: code3 -> full name used in trial rows (e.g., "India")
-    const wantCountry = code3 ? byCode3(code3)?.name : undefined;
-
-    // Normalize phase to simple digits for the aggregator ("2", "3", etc.) if provided
+    const wantCountry = code3 ? byCode3(code3)?.name : undefined; // "India" | "United States" | undefined
     const wantPhase = phaseUI
       ? phaseUI.split(",").map(s => s.replace(/[^0-9/]/g, "")).filter(Boolean).join(",")
       : undefined;
 
-    // Call the aggregator
     const trials = await searchTrials({
       query: condition,
       phase: wantPhase as any,
       status: status as any,
-      country: wantCountry,   // undefined means Worldwide
-      genes: undefined,
+      country: wantCountry,
     });
 
-    const ranked = dedupeTrials(trials).sort((a, b) => rankValue(b) - rankValue(a));
-
-    // Map to the shape your table expects (TrialRow)
+    const ranked = dedupeTrials(trials).sort((a,b)=>rankValue(b)-rankValue(a));
     const rows = ranked.map(t => ({
       id: t.id,
       title: t.title,
@@ -46,8 +37,6 @@ export async function GET(req: NextRequest) {
       studyType: "",
       sponsor: "",
       locations: [],
-      eligibility: undefined,
-      primaryOutcome: undefined,
       url: t.url || "",
       country: t.country || "",
       source: t.source || "",

@@ -12,7 +12,7 @@ const ALLOW = [
   "uptodate.com",
   "clinicaltrials.gov",
   "europepmc.org",
-  "ctri.nic.in",
+  "ctri.nic.in", // allow CTRI
 ];
 
 export function normalizeExternalHref(input?: string): string | null {

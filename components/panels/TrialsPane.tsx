@@ -7,7 +7,13 @@ import { hintEligibility } from "@/lib/eligibility";
 import type { TrialRow } from "@/types/trials";
 
 export default function TrialsPane() {
-  const [form, setForm] = useState({ condition:"", country:"India", city:"", status:"Recruiting,Enrolling by invitation", phase:"Phase 2,Phase 3" });
+  const [form, setForm] = useState({
+    condition: "",
+    country: "", // "" = Worldwide; e.g., "IND" or "USA"
+    city: "",
+    status: "Recruiting,Enrolling by invitation",
+    phase: "Phase 2,Phase 3",
+  });
   const [rows, setRows] = useState<(TrialRow & { hints?: string[] })[]>([]);
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState<{ age?: number; sex?: "male"|"female"|"other"; comorbids?: string[] }>({});
@@ -25,7 +31,14 @@ export default function TrialsPane() {
   async function onSearch() {
     setLoading(true);
     try {
-      const res = await getTrials({ ...form, page:1, pageSize:25 });
+      const res = await getTrials({
+        condition: form.condition,
+        country: form.country,
+        status: form.status,
+        phase: form.phase,
+        page: 1,
+        pageSize: 25,
+      });
       const enriched = res.rows.map((r:TrialRow)=>({ ...r, hints: hintEligibility(r, profile) }));
       setRows(enriched);
     } finally {
