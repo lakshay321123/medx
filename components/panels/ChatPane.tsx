@@ -1554,12 +1554,10 @@ ${systemCommon}` + baseSys;
               e.preventDefault();
               onSubmit();
             }}
-            className="w-full flex items-center gap-3 rounded-full border border-slate-200 dark:border-gray-800 bg-slate-100 dark:bg-gray-900 px-3 py-2"
+            className="w-full flex items-center gap-3 rounded-full medx-glass px-3 py-2"
           >
             <label
-              className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md
-                         bg-white hover:bg-slate-50 border border-slate-200
-                         dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 dark:border-gray-700"
+              className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md medx-surface text-medx"
               title="Upload PDF or image"
             >
               <Paperclip size={16} aria-hidden="true" />
@@ -1592,7 +1590,7 @@ ${systemCommon}` + baseSys;
             <textarea
               ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
               rows={1}
-              className="flex-1 resize-none bg-transparent outline-none text-sm md:text-base leading-6 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-2"
+              className="flex-1 resize-none bg-transparent outline-none text-sm md:text-base leading-6 placeholder:text-slate-500 dark:placeholder:text-slate-400 px-2 text-medx"
               placeholder={
                 pendingFile
                   ? 'Add a note or question for this document (optional)'
@@ -1612,8 +1610,8 @@ ${systemCommon}` + baseSys;
               }}
             />
             <button
-              className="px-3 py-1.5 rounded-full bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 disabled:opacity-50"
-              onClick={onSubmit}
+              className="w-10 h-10 rounded-full flex items-center justify-center text-lg medx-btn-accent disabled:opacity-50"
+              type="submit"
               disabled={busy || (!pendingFile && !note.trim())}
               aria-label="Send"
             >
