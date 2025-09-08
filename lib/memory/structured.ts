@@ -25,12 +25,8 @@ export function maybeIndexStructured(threadId: string, assistantMarkdown: string
   const text = String(assistantMarkdown || "");
   const lower = text.toLowerCase();
 
-  // Simple signals for "recipe-like"
-  const isRecipe =
-    /(^|\n)#+\s*ingredients\b/.test(lower) ||
-    /(^|\n)ingredients\s*:/i.test(text) ||
-    /(^|\n)#+\s*instructions\b/.test(lower) ||
-    /(^|\n)method\s*:/i.test(text);
+  // Simple signals for "recipe-like" (disabled)
+  const isRecipe = false; // disable recipe classification
 
   const isPlanOrList =
     /(^|\n)#+\s*(plan|steps|todo|checklist)\b/.test(lower) ||

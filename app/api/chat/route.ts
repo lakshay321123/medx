@@ -24,7 +24,6 @@ import { shouldReset } from "@/lib/conversation/resetGuard";
 import { sanitizeLLM } from "@/lib/conversation/sanitize";
 import { finalReplyGuard } from "@/lib/conversation/finalReplyGuard";
 import { disambiguate, disambiguateWithMemory } from "@/lib/conversation/disambiguation";
-import { detectTopic, wantsNewTopic, inferTopicFromHistory, seemsOffTopic, rewriteToTopic } from "@/lib/conversation/topic";
 import { polishResponse } from "@/lib/conversation/polish";
 import { normalizeMode } from "@/lib/conversation/mode";
 import { DOCTOR_JSON_SYSTEM, coerceDoctorJson } from "@/lib/conversation/doctorJson";
@@ -243,25 +242,8 @@ export async function POST(req: Request) {
   const { system, recent } = await buildPromptContext({ threadId, options: { mode, researchOn } });
   const baseSystem = [system, ...systemExtra].join("\n");
 
-  // --- Topic Locking & Guarded Continuation (M6.2) ---
-  const historyTopic = inferTopicFromHistory(recent.map(m => ({ role: m.role, content: m.content })));
-  const userTopic = detectTopic(text);
-  const userRequestedNew = wantsNewTopic(text);
-  const activeTopic =
-    userRequestedNew ? (userTopic || historyTopic) : (historyTopic || userTopic) || null;
-
-  let onTopicInstruction = "";
-  if (activeTopic) {
-    onTopicInstruction =
-      `\nIMPORTANT:\n` +
-      `- The user is working on **${activeTopic}**.\n` +
-      `- Do NOT switch to a different dish/recipe unless the user explicitly asks.\n` +
-      `- If the user says "make it spicy / less spicy / add X", MODIFY the existing **${activeTopic}** recipe accordingly.\n` +
-      `- Be concise and keep formatting clean (headers + bullets).\n` +
-      `- When adjusting, title the reply with the locked dish, e.g., "Spicy Butter Chicken — Adj".\n`;
-  }
-
-  const fullSystem = baseSystem + onTopicInstruction;
+  // --- Topic Locking disabled (no recipe/dish behaviors) ---
+  const fullSystem = baseSystem;
 
   // 6) Groq call
   const messages: ChatCompletionMessageParam[] = [
@@ -294,10 +276,6 @@ export async function POST(req: Request) {
       mode: mode ?? "chat",
     },
   });
-  if (activeTopic && seemsOffTopic(assistant, activeTopic)) {
-    assistant = rewriteToTopic(assistant, activeTopic);
-  }
-
   // 6) Polish and append recap (if any constraints present)
   assistant = polishText(assistant);
   const check = selfCheck(assistant, state.constraints, state.entities);
