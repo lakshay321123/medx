@@ -129,7 +129,7 @@ export async function callOpenAIJson({ system, user, instruction, metadata }: Ca
         ],
         metadata,
         response_format: { type: "json_schema", json_schema: AiDocJsonSchema },
-      });
+      } as any);
       const text = resp.output_text ?? "";
       const parsed = tryParseJson(text);
       if (!parsed) throw new Error("AIDoc: JSON parse failed");
