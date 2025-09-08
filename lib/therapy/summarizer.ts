@@ -7,7 +7,7 @@ export type TherapyNoteJSON = {
   topics: string[];                 // e.g., ["work stress","sleep"]
   triggers: string[];               // e.g., ["criticism from boss"]
   emotions: string[];               // e.g., ["anxious","tired"]
-  mood?: string;                    // single label, e.g., "anxious"|"hopeful"|...
+  mood?: string;                    // single label, e.g., "anxious" or "hopeful"
   breakthrough?: string;            // short sentence
   nextStep?: string;                // short suggested/accepted step
 };
