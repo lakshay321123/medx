@@ -35,7 +35,7 @@ export default function CountryGlobe() {
         <div
           role="dialog"
           aria-label="Select country"
-          className="absolute right-0 mt-2 w-80 rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xl p-3 z-50"
+          className="absolute right-0 mt-2 w-80 rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xl p-3 z-10001"
         >
           <div className="mb-2">
             <input
