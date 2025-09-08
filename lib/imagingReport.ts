@@ -80,6 +80,7 @@ export async function llmPolish(gist: ReturnType<typeof humanTemplate>, ctx: Ima
   const prompt = `Context:\\n- Modality: X-ray\\n- Family: ${ctx.family}\\n- Region/Hint: ${ctx.hint || ''}\\n- Model: ${ctx.model}\\n\\nModel outputs (top 5):\\n${pred_lines}\\n\\nRules-derived gist:\\n- Primary statement: ${primary_stmt}\\n- Confidence: ${conf}\\n- Safety: Always include a one-line disclaimer.\\n\\nWrite TWO short sections:\\n1) Patient-friendly summary (2–3 sentences, plain language).\\n2) Clinician note (2–3 bullet points; include probabilities and next steps).\\n\\nDo NOT mention training datasets or internal thresholds.`;
 
   try {
+    // LLM_* ← Groq (OpenAI-compatible endpoint)
     const r = await fetch(process.env.LLM_BASE_URL!, {
       method: 'POST',
       headers: {

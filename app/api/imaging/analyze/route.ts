@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
+import OpenAI from "openai";
+import { withRetries } from "@/lib/llm/retry";
+import { shouldModelFallback } from "@/lib/llm/fallback";
 
 const OAI_KEY = process.env.OPENAI_API_KEY!;
-const MODEL_VISION = process.env.OPENAI_VISION_MODEL || "gpt-5"; // images
-const MODEL_TEXT   = process.env.OPENAI_TEXT_MODEL   || "gpt-5"; // PDFs
+const openai = new OpenAI({ apiKey: OAI_KEY });
+const MODEL_VISION_PRIMARY = process.env.OPENAI_VISION_MODEL || "gpt-5"; // images
+const MODEL_TEXT_PRIMARY   = process.env.OPENAI_TEXT_MODEL   || "gpt-5"; // PDFs
+const MODEL_SAFE           = process.env.OPENAI_FALLBACK_MODEL || "gpt-5-mini";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,57 +64,80 @@ export async function POST(req: Request) {
       console.log("[/api/imaging/analyze] PDF branch →", { name, mime, byMagic: looksLikePdfByMagic(buf) });
 
       // Patient summary (OpenAI only; no temperature)
-      const pResp = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${OAI_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: MODEL_TEXT,
-          messages: [
-            {
-              role: "system",
-              content: "You are a medical explainer. Summarize reports for patients in clear, calm, non-alarming language (8th–10th grade).",
-            },
-            {
-              role: "user",
-              content: [
-                { type: "text", text: "Please summarize this medical report for a patient." },
-                { type: "image_url", image_url: { url: dataUrl } },
-              ],
-            },
+      const pMsgs = [
+        {
+          role: "system",
+          content:
+            "You are a medical explainer. Summarize reports for patients in clear, calm, non-alarming language (8th–10th grade).",
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Please summarize this medical report for a patient." },
+            { type: "image_url", image_url: { url: dataUrl } },
           ],
-        }),
+        },
+      ];
+      const pResp = await withRetries(async () => {
+        try {
+          return await openai.chat.completions.create({
+            model: MODEL_TEXT_PRIMARY,
+            messages: pMsgs as any,
+            temperature: 0,
+            timeout: 30000,
+          });
+        } catch (e: any) {
+          if (shouldModelFallback(e)) {
+            return await openai.chat.completions.create({
+              model: MODEL_SAFE,
+              messages: pMsgs as any,
+              temperature: 0,
+              timeout: 30000,
+            });
+          }
+          throw e;
+        }
       });
-      const pJson = await pResp.json();
-      if (!pResp.ok) throw new Error(pJson?.error?.message || pResp.statusText);
-      const patient = pJson.choices?.[0]?.message?.content || "";
+      const patient = pResp.choices?.[0]?.message?.content || "";
 
       // Doctor summary (optional)
       let doctor: string | null = null;
       if (doctorMode) {
-        const dResp = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${OAI_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: MODEL_TEXT,
-            messages: [
-              {
-                role: "system",
-                content:
-                  "You are a clinician. Write a structured summary with headings: HPI/Context, Key Results, Interpretation, Plan, Red Flags, Limitations. Be concise and evidence-based.",
-              },
-              {
-                role: "user",
-                content: [
-                  { type: "text", text: "Summarize this report for a doctor." },
-                  { type: "image_url", image_url: { url: dataUrl } },
-                ],
-              },
+        const dMsgs = [
+          {
+            role: "system",
+            content:
+              "You are a clinician. Write a structured summary with headings: HPI/Context, Key Results, Interpretation, Plan, Red Flags, Limitations. Be concise and evidence-based.",
+          },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Summarize this report for a doctor." },
+              { type: "image_url", image_url: { url: dataUrl } },
             ],
-          }),
+          },
+        ];
+        const dResp = await withRetries(async () => {
+          try {
+            return await openai.chat.completions.create({
+              model: MODEL_TEXT_PRIMARY,
+              messages: dMsgs as any,
+              temperature: 0,
+              timeout: 30000,
+            });
+          } catch (e: any) {
+            if (shouldModelFallback(e)) {
+              return await openai.chat.completions.create({
+                model: MODEL_SAFE,
+                messages: dMsgs as any,
+                temperature: 0,
+                timeout: 30000,
+              });
+            }
+            throw e;
+          }
         });
-        const dJson = await dResp.json();
-        if (!dResp.ok) throw new Error(dJson?.error?.message || dResp.statusText);
-        doctor = dJson.choices?.[0]?.message?.content || "";
+        doctor = dResp.choices?.[0]?.message?.content || "";
       }
 
       const res = NextResponse.json({
@@ -144,32 +172,42 @@ export async function POST(req: Request) {
 
     const dataUrl = toDataUrl(buf, mime);
 
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${OAI_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: MODEL_VISION,
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a radiologist. Write a structured X-ray report: Technique, Findings, Impression (≤3 bullets, cautious language), Recommendations, Limitations.",
-          },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: "Analyze this X-ray and generate a radiology-style report." },
-              { type: "image_url", image_url: { url: dataUrl } },
-            ],
-          },
+    const visMsgs = [
+      {
+        role: "system",
+        content:
+          "You are a radiologist. Write a structured X-ray report: Technique, Findings, Impression (≤3 bullets, cautious language), Recommendations, Limitations.",
+      },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "Analyze this X-ray and generate a radiology-style report." },
+          { type: "image_url", image_url: { url: dataUrl } },
         ],
-      }),
+      },
+    ];
+    const vis = await withRetries(async () => {
+      try {
+        return await openai.chat.completions.create({
+          model: MODEL_VISION_PRIMARY,
+          messages: visMsgs as any,
+          temperature: 0.2,
+          timeout: 45000,
+        });
+      } catch (e: any) {
+        if (shouldModelFallback(e)) {
+          return await openai.chat.completions.create({
+            model: MODEL_SAFE,
+            messages: visMsgs as any,
+            temperature: 0.2,
+            timeout: 45000,
+          });
+        }
+        throw e;
+      }
     });
 
-    const j = await resp.json();
-    if (!resp.ok) throw new Error(j?.error?.message || resp.statusText);
-
-    const report = j.choices?.[0]?.message?.content || "";
+    const report = vis.choices?.[0]?.message?.content || "";
 
     const res = NextResponse.json({
       type: "image",

@@ -4,6 +4,7 @@ export const runtime = 'edge';
 
 export async function POST(req: NextRequest) {
   const { messages = [], threadId, context } = await req.json();
+  // LLM_* ← Groq (OpenAI-compatible endpoint)
   const base  = process.env.LLM_BASE_URL!;
   const model = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
   const key   = process.env.LLM_API_KEY!;

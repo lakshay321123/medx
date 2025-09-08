@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import OpenAI from "openai";
+import { withRetries } from "@/lib/llm/retry";
+import { shouldModelFallback } from "@/lib/llm/fallback";
 export const runtime = "edge";
 
 const OAI_KEY = process.env.OPENAI_API_KEY!;
 const OAI_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
-const MODEL   = process.env.OPENAI_TEXT_MODEL || "gpt-5";
+const MODEL_PRIMARY = process.env.OPENAI_TEXT_MODEL || "gpt-5";
+const MODEL_FALLBACK = process.env.OPENAI_FALLBACK_MODEL || "gpt-5-mini";
 const ENABLED = String(process.env.THERAPY_MODE_ENABLED || "").toLowerCase() === "true";
+
+const openai = new OpenAI({ apiKey: OAI_KEY, baseURL: OAI_URL });
 
 const STYLE = `One short reflection (≤1 line) of the user’s last message.
 Then ask exactly one clear question; end with a single “?”.
@@ -17,8 +23,6 @@ Choose techniques minimally (CBT/MI/grounding). Offer micro-suggestions only if 
 If risk cues or heavy daily alcohol use: one-line safety note; ask consent to share help. No diagnosis/medication advice. This is supportive self-help, not medical care.
 Be culturally sensitive, warm, concise.`;
 
-const isGpt5 = MODEL.startsWith("gpt-5");
-const maxParam = isGpt5 ? "max_completion_tokens" : "max_tokens";
 let tokenLimit = 2048;
 
 function crisisCheck(t: string) {
@@ -36,35 +40,41 @@ function sanitizeMessages(raw: any[] = []) {
     .map((m: any) => ({ role: m.role, content: m.content.trim() }));
 }
 
-function makePayload(messages: any[]) {
-  const p: any = { model: MODEL, messages };
+function makePayload(messages: any[], model: string) {
+  const isGpt5 = model.startsWith("gpt-5");
+  const maxParam = isGpt5 ? "max_completion_tokens" : "max_tokens";
+  const p: any = { model, messages };
   if (!isGpt5) p.temperature = 0.7;
   p[maxParam] = tokenLimit;
   return p;
 }
 
 async function callOpenAI(messages: any[]) {
-  const res = await fetch(`${OAI_URL}/chat/completions`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${OAI_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify(makePayload(messages)),
-  });
-
-  const raw = await res.text();
-  let data: any = {};
   try {
-    data = raw ? JSON.parse(raw) : {};
-  } catch {
-    data = { parseError: true, raw };
+    const resp = await withRetries(async () => {
+      try {
+        return await openai.chat.completions.create({
+          ...makePayload(messages, MODEL_PRIMARY),
+          timeout: 30000,
+        });
+      } catch (e: any) {
+        if (shouldModelFallback(e) && MODEL_FALLBACK !== MODEL_PRIMARY) {
+          return await openai.chat.completions.create({
+            ...makePayload(messages, MODEL_FALLBACK),
+            timeout: 30000,
+          });
+        }
+        throw e;
+      }
+    });
+    const choice = resp?.choices?.[0];
+    return {
+      text: choice?.message?.content || "",
+      cutoff: choice?.finish_reason === "length",
+    };
+  } catch (e: any) {
+    return { error: `OpenAI ${e?.status || ""}`, detail: String(e?.message || e).slice(0, 200) };
   }
-
-  if (!res.ok) return { error: `OpenAI ${res.status}`, detail: raw.slice(0, 200) };
-
-  const choice = data?.choices?.[0];
-  return {
-    text: choice?.message?.content || "",
-    cutoff: choice?.finish_reason === "length",
-  };
 }
 
 function nextQuestion(stage: string, name?: string) {

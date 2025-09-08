@@ -1,4 +1,6 @@
 import OpenAI from "openai";
+import { withRetries } from "@/lib/llm/retry";
+import { shouldModelFallback } from "@/lib/llm/fallback";
 
 /**
  * Call OpenAI for AI Doc ensuring JSON-only replies.
@@ -6,17 +8,35 @@ import OpenAI from "openai";
 type CallIn = { system: string; user: string; instruction: string };
 
 export async function callOpenAIJson({ system, user, instruction }: CallIn): Promise<any> {
-  const oai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const model = process.env.AIDOC_MODEL || "gpt-5";
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const MODEL_PRIMARY = process.env.AIDOC_MODEL || process.env.OPENAI_TEXT_MODEL || "gpt-5";
+  const MODEL_FALLBACK = process.env.OPENAI_FALLBACK_MODEL || "gpt-5-mini";
+  const messages = [
+    { role: "system", content: system },
+    { role: "user", content: `${instruction}\n\nUSER:\n${user}` },
+  ];
   try {
-    const resp = await oai.chat.completions.create({
-      model,
-      temperature: 0.2,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: `${instruction}\n\nUSER:\n${user}` },
-      ],
+    const resp = await withRetries(async () => {
+      try {
+        return await openai.chat.completions.create({
+          model: MODEL_PRIMARY,
+          messages,
+          temperature: 0.2,
+          response_format: { type: "json_object" },
+          timeout: 30000,
+        });
+      } catch (e: any) {
+        if (shouldModelFallback(e) && MODEL_FALLBACK !== MODEL_PRIMARY) {
+          return await openai.chat.completions.create({
+            model: MODEL_FALLBACK,
+            messages,
+            temperature: 0.2,
+            response_format: { type: "json_object" },
+            timeout: 30000,
+          });
+        }
+        throw e;
+      }
     });
     const content = resp.choices?.[0]?.message?.content ?? "{}";
     return JSON.parse(content);

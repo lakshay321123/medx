@@ -6,6 +6,7 @@ import { orchestrateResearch } from "@/lib/research/orchestrator";
 
 export { splitFollowUps };
 
+// LLM_* ← Groq (OpenAI-compatible endpoint)
 const BASE = process.env.LLM_BASE_URL!;
 const MODEL = process.env.LLM_MODEL_ID || "llama-3.1-8b-instant";
 const KEY = process.env.LLM_API_KEY!;

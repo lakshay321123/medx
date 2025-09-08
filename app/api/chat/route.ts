@@ -153,7 +153,7 @@ export async function POST(req: Request) {
 
   const fullSystem = baseSystem + onTopicInstruction;
 
-  // 6) Groq call
+  // 6) Groq call (LLM_* envs) — Patient/Doctor/Research only
   const messages: ChatCompletionMessageParam[] = [
     { role: "system", content: fullSystem },
     ...recent.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
