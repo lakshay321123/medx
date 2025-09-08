@@ -24,6 +24,7 @@ import { shouldReset } from "@/lib/conversation/resetGuard";
 import { sanitizeLLM } from "@/lib/conversation/sanitize";
 import { finalReplyGuard } from "@/lib/conversation/finalReplyGuard";
 import { disambiguate, disambiguateWithMemory } from "@/lib/conversation/disambiguation";
+import { detectTopic, wantsNewTopic, inferTopicFromHistory, seemsOffTopic, rewriteToTopic } from "@/lib/conversation/topic";
 
 function contextStringFrom(messages: ChatCompletionMessageParam[]): string {
   return messages
@@ -99,7 +100,27 @@ export async function POST(req: Request) {
 
   // 5) Build system + recent messages
   const { system, recent } = await buildPromptContext({ threadId, options: { mode, researchOn } });
-  const fullSystem = [system, ...systemExtra].join("\n");
+  const baseSystem = [system, ...systemExtra].join("\n");
+
+  // --- Topic Locking & Guarded Continuation (M6.2) ---
+  const historyTopic = inferTopicFromHistory(recent.map(m => ({ role: m.role, content: m.content })));
+  const userTopic = detectTopic(text);
+  const userRequestedNew = wantsNewTopic(text);
+  const activeTopic =
+    userRequestedNew ? (userTopic || historyTopic) : (historyTopic || userTopic) || null;
+
+  let onTopicInstruction = "";
+  if (activeTopic) {
+    onTopicInstruction =
+      `\nIMPORTANT:\n` +
+      `- The user is working on **${activeTopic}**.\n` +
+      `- Do NOT switch to a different dish/recipe unless the user explicitly asks.\n` +
+      `- If the user says "make it spicy / less spicy / add X", MODIFY the existing **${activeTopic}** recipe accordingly.\n` +
+      `- Be concise and keep formatting clean (headers + bullets).\n` +
+      `- When adjusting, title the reply with the locked dish, e.g., "Spicy Butter Chicken — Adj".\n`;
+  }
+
+  const fullSystem = baseSystem + onTopicInstruction;
 
   // 6) Groq call
   const messages: ChatCompletionMessageParam[] = [
@@ -121,6 +142,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, threadId, text: clarifierWithMem });
   }
   let assistant = await callGroq(messages, { temperature: 0.25, max_tokens: 1200 });
+  if (activeTopic && seemsOffTopic(assistant, activeTopic)) {
+    assistant = rewriteToTopic(assistant, activeTopic);
+  }
 
   // 6) Polish and append recap (if any constraints present)
   assistant = polishText(assistant);
