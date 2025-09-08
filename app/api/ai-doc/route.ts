@@ -78,40 +78,109 @@ export async function POST(req: NextRequest) {
       data: { profileId: profile.id, at:new Date(), type:"preference", summary:`Saved preference: ${p.key} = ${p.value}` }
     });
   }
-  for (const m of out?.save?.medications ?? []) {
-    const row = await prisma.medication.create({
-      data: { profileId: profile.id, name:m.name, dose:m.dose||null, route:m.route||null, freq:m.freq||null, startedAt:m.startedAt?new Date(m.startedAt):null }
-    });
-    await prisma.timelineEvent.create({
-      data: { profileId: profile.id, at:new Date(), type:"med_start", refId: row.id, summary:`Started ${m.name} ${m.dose||""}`.trim() }
-    });
-  }
-  for (const c of out?.save?.conditions ?? []) {
-    const row = await prisma.condition.create({
-      data: { profileId: profile.id, code:c.code||c.label, label:c.label, status:c.status||"active", since:c.since?new Date(c.since):null }
-    });
-    await prisma.timelineEvent.create({
-      data: { profileId: profile.id, at:new Date(), type:"diagnosis", refId: row.id, summary:c.label }
-    });
-  }
-  for (const l of out?.save?.labs ?? []) {
-    const row = await prisma.labResult.create({
-      data: { profileId: profile.id, panel:l.panel||"Manual", name:l.name, value:l.value??null, unit:l.unit||null, refLow:l.refLow??null, refHigh:l.refHigh??null, abnormal:l.abnormal??null, takenAt:l.takenAt?new Date(l.takenAt):new Date() }
-    });
-    await prisma.timelineEvent.create({
-      data: { profileId: profile.id, at:new Date(), type:"lab", refId: row.id, summary:`${l.name}: ${l.value??""}${l.unit??""}`.trim() }
-    });
-  }
-  for (const n of out?.save?.notes ?? []) {
-    await prisma.timelineEvent.create({
-      data: { profileId: profile.id, at:new Date(), type:"note", summary:`${n.type}: ${n.key} – ${n.value}` }
-    });
-  }
+
+  const save = out?.save || {};
+  await prisma.$transaction(async (tx) => {
+    // CONDITIONS
+    for (const c of save.conditions ?? []) {
+      const existing = await tx.condition.findFirst({
+        where: { profileId: profile.id, label: c.label, status: c.status ?? "active" }
+      });
+      if (existing) {
+        await tx.condition.update({
+          where: { id: existing.id },
+          data: { code: c.code ?? existing.code, since: c.since ?? existing.since }
+        });
+      } else {
+        const row = await tx.condition.create({
+          data: { profileId: profile.id, label: c.label, status: (c.status as any) ?? "active", code: c.code ?? null, since: c.since ?? null }
+        });
+        await tx.timelineEvent.create({
+          data: { profileId: profile.id, at:new Date(), type:"diagnosis", refId: row.id, summary:c.label }
+        });
+      }
+    }
+
+    // MEDICATIONS
+    for (const m of save.medications ?? []) {
+      const existing = await tx.medication.findFirst({
+        where: { profileId: profile.id, name: m.name, dose: m.dose ?? null, stoppedAt: null }
+      });
+      if (existing) {
+        await tx.medication.update({
+          where: { id: existing.id },
+          data: { since: m.since ?? existing.since }
+        });
+      } else {
+        const row = await tx.medication.create({
+          data: { profileId: profile.id, name: m.name, dose: m.dose ?? null, since: m.since ?? null, stoppedAt: m.stoppedAt ?? null }
+        });
+        await tx.timelineEvent.create({
+          data: { profileId: profile.id, at:new Date(), type:"med_start", refId: row.id, summary:`Started ${m.name} ${m.dose||""}`.trim() }
+        });
+      }
+    }
+
+    // LABS
+    for (const l of save.labs ?? []) {
+      const takenAt = l.takenAt ? new Date(l.takenAt) : null;
+      const existing = await tx.labResult.findFirst({
+        where: { profileId: profile.id, name: l.name, takenAt }
+      });
+      if (existing) {
+        await tx.labResult.update({
+          where: { id: existing.id },
+          data: {
+            value: (l as any).value ?? existing.value,
+            unit: l.unit ?? existing.unit,
+            refLow: (l as any).normalLow ?? existing.refLow,
+            refHigh: (l as any).normalHigh ?? existing.refHigh,
+            abnormal: (l as any).abnormal ?? existing.abnormal
+          }
+        });
+      } else {
+        const row = await tx.labResult.create({
+          data: {
+            profileId: profile.id,
+            panel: l.panel ?? null,
+            name: l.name,
+            value: (l as any).value ?? null,
+            unit: l.unit ?? null,
+            refLow: (l as any).normalLow ?? null,
+            refHigh: (l as any).normalHigh ?? null,
+            takenAt,
+            abnormal: (l as any).abnormal ?? null
+          }
+        });
+        await tx.timelineEvent.create({
+          data: { profileId: profile.id, at:new Date(), type:"lab", refId: row.id, summary:`${l.name}: ${l.value??""}${l.unit??""}`.trim() }
+        });
+      }
+    }
+
+    // NOTES
+    for (const note of save.notes ?? []) {
+      const row = await tx.note.create({ data: { profileId: profile.id, body: note } });
+      await tx.timelineEvent.create({
+        data: { profileId: profile.id, at:new Date(), type:"note", refId: row.id, summary: note }
+      });
+    }
+
+    // PREFS
+    for (const p of save.prefs ?? []) {
+      const existing = await tx.preference.findFirst({ where: { profileId: profile.id, key: p.key } });
+      if (existing) {
+        await tx.preference.update({ where: { id: existing.id }, data: { value: p.value } });
+      } else {
+        await tx.preference.create({ data: { profileId: profile.id, key: p.key, value: p.value } });
+      }
+    }
+  });
 
   // Personalization via rule engine
   const memAfter = await getMemByThread(threadId || "");
   const ruled = runRules({ labs, meds, conditions, mem: memAfter });
-  const plan = buildPersonalPlan(ruled, memAfter);
+  const plan = buildPersonalPlan(ruled, memAfter, { symptomsText: message });
 
   // Keep core alerts fresh (stale/abnormal)
   await fetch(new URL("/api/alerts/recompute", req.url), { method:"POST", headers:{ cookie: req.headers.get("cookie") || "" } }).catch(()=>{});
@@ -125,6 +194,8 @@ export async function POST(req: NextRequest) {
     reply: out.reply,
     observations: out.observations,
     plan,
+    softAlerts: plan.softAlerts,
+    rulesFired: plan.rulesFired,
     alertsCreated: 0
   });
 }
