@@ -24,6 +24,7 @@ import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTi
 import { useMemoryStore } from "@/lib/memory/useMemoryStore";
 import { summarizeTrials } from "@/lib/research/summarizeTrials";
 import { computeTrialStats, type TrialStats } from "@/lib/research/trialStats";
+import { fetchTrialDetail, formatTrialDetail } from "@/lib/trials/details";
 import { detectSocialIntent, replyForSocialIntent } from "@/lib/social";
 import { pushFullMem, buildFullContext } from "@/lib/memory/shortTerm";
 import { detectEditIntent } from "@/lib/intents/editIntents";
@@ -658,6 +659,26 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       upsertThreadIndex(threadId, nt);
     }
 
+    // === FAST-PATH: ClinicalTrials.gov detail lookup (add-only) ===
+    const nctAsk = userText.match(/\b(NCT\d{8})\b/i);
+    if (nctAsk && /detail|summary|info|about|show/i.test(userText)) {
+      try {
+        const nct = nctAsk[1].toUpperCase();
+        const t = await fetchTrialDetail(nct);
+        const md = formatTrialDetail(t);
+
+        setMessages(prev => prev.map(m => m.pending ? { ...m, content: md, pending: false } : m));
+        setBusy(false);
+        return; // prevent falling through to LLM path
+      } catch (e: any) {
+        const err = `⚠️ Couldn’t load details for **${nctAsk[1].toUpperCase()}**. Please try again.`;
+        setMessages(prev => prev.map(m => m.pending ? { ...m, content: err, pending: false, error: e?.message || "fetch error" } : m));
+        setBusy(false);
+        return;
+      }
+    }
+    // === END FAST-PATH ===
+
     try {
       const fullContext = buildFullContext(stableThreadId);
       const contextBlock = fullContext ? `\n\nCONTEXT (recent conversation):\n${fullContext}` : "";
@@ -847,7 +868,14 @@ ${linkNudge}`;
       const systemCommon = `\nUser country: ${country.code3} (${country.name}). Use generics and note availability varies by region.\nEnd with one short follow-up question (<=10 words) that stays on the current topic.\n`;
       const topicHint = ui.topic ? `ACTIVE TOPIC: ${ui.topic}\nKeep answers scoped to this topic unless the user changes it.\n` : "";
 
-      const sys = topicHint + systemCommon + baseSys;
+      let sys = topicHint + systemCommon + baseSys;
+      sys += `
+
+TOOLING NOTE:
+- If the user mentions an NCT ID and asks for details, do NOT summarize blindly.
+- Reply with: "Fetching details for NCT########…" THEN rely on the UI fast-path to show structured details.
+- If details are missing, say so briefly and suggest the ct.gov page.
+`.trim();
       const sysWithDomain = DOMAIN_STYLE ? `${sys}\n\n${DOMAIN_STYLE}` : sys;
       let ADV_STYLE = "";
       const adv = detectAdvancedDomain(userText);
@@ -954,7 +982,14 @@ ${systemCommon}` + baseSys;
           })
         );
 
-        const sys = topicHint + systemCommon + baseSys;
+        let sys = topicHint + systemCommon + baseSys;
+        sys += `
+
+TOOLING NOTE:
+- If the user mentions an NCT ID and asks for details, do NOT summarize blindly.
+- Reply with: "Fetching details for NCT########…" THEN rely on the UI fast-path to show structured details.
+- If details are missing, say so briefly and suggest the ct.gov page.
+`.trim();
         const sysWithDomain = DOMAIN_STYLE ? `${sys}\n\n${DOMAIN_STYLE}` : sys;
         const systemAll = `${sysWithDomain}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
         const planContextBlock = 'CONTEXT:\n' + JSON.stringify(plan.sections || {}, null, 2);

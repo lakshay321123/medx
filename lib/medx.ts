@@ -93,6 +93,13 @@ function buildSystemPrompt({ mode, citations, topic }: { mode: string; citations
   if (citations) {
     sys += `\nCitations:\n${citations}`;
   }
+  sys += `
+
+TOOLING NOTE:
+- If the user mentions an NCT ID and asks for details, do NOT summarize blindly.
+- Reply with: "Fetching details for NCT########…" THEN rely on the UI fast-path to show structured details.
+- If details are missing, say so briefly and suggest the ct.gov page.
+`.trim();
   return sys;
 }
 
