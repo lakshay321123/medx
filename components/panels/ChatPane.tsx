@@ -334,8 +334,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }
 
   const params = useSearchParams();
-  const threadId = params.get('threadId');
-  const context = params.get('context');
+  const threadId = params?.get('threadId');
+  const context = params?.get('context');
   // ADD: stable fallback thread key for default chat
   const stableThreadId = threadId || 'default-thread';
   const isProfileThread = threadId === 'med-profile' || context === 'profile';
@@ -890,7 +890,7 @@ TOOLING NOTE:
           adv === "systems-policy" ? D.SYSTEMS_POLICY_STYLE : "";
       }
       const systemAll = `${sysWithDomain}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
-      let chatMessages: { role: string; content: string }[];
+      let chatMessages: { role: string; content: string }[] | undefined;
 
       const looksLikeMath = /[0-9\.\s+\-*\/^()]{6,}/.test(userText) || /sin|cos|log|sqrt|derivative|integral|limit/i.test(userText);
       let toolBlock = "";
