@@ -14,7 +14,7 @@ import { loadTopicStack, pushTopic, saveTopicStack, switchTo } from "@/lib/conte
 import { parseConstraintsFromText, mergeLedger } from "@/lib/context/constraints";
 import { parseEntitiesFromText, mergeEntityLedger } from "@/lib/context/entityLedger";
 import { decideRoute } from "@/lib/context/router";
-import { callGroq } from "@/lib/llm/groq";
+import { llmCall } from "@/lib/llm/call";
 import type { ChatCompletionMessageParam } from "@/lib/llm/types";
 import { polishText } from "@/lib/text/polish";
 import { buildConstraintRecap } from "@/lib/text/recap";
@@ -78,7 +78,7 @@ export async function POST(req: Request) {
     const prompt = mode === "doctor"
       ? singleTrialClinicianPrompt(trial)
       : singleTrialPatientPrompt(trial);
-    const reply = await callGroq([
+    const reply = await llmCall([
       {
         role: "system",
         content:
@@ -87,7 +87,12 @@ export async function POST(req: Request) {
             : "You explain clinical trials in plain language for laypeople.",
       },
       { role: "user", content: prompt },
-    ], { temperature: 0.25, max_tokens: 1200 });
+    ] as ChatCompletionMessageParam[], {
+      tier: "balanced",              // doctor/patient general chat → balanced
+      fallbackTier: "smart",
+      temperature: 0.25,
+      max_tokens: 1200,
+    });
     return NextResponse.json({ ok: true, text: reply });
   }
 
@@ -132,21 +137,26 @@ export async function POST(req: Request) {
         .join("\n\n");
 
       // Mode-specific prompt
-      const prompt =
-        mode === "doctor"
-          ? `Summarize these trials for a clinician audience. Focus on phase, design, endpoints, status, sponsor.\n\n${list}`
-          : `Summarize these trials in plain English for a patient. Explain what each is testing, status, and where. Keep it clear and short.\n\n${list}`;
+        const prompt =
+          mode === "doctor"
+            ? `Summarize these trials for a clinician audience. Focus on phase, design, endpoints, status, sponsor.\n\n${list}`
+            : `Summarize these trials in plain English for a patient. Explain what each is testing, status, and where. Keep it clear and short.\n\n${list}`;
 
-      const reply = await callGroq([
-        {
-          role: "system",
-          content:
-            mode === "doctor"
-              ? "You are a clinical evidence summarizer for doctors."
-              : "You are a health explainer for laypeople.",
-        },
-        { role: "user", content: prompt },
-      ]);
+        const reply = await llmCall([
+          {
+            role: "system",
+            content:
+              mode === "doctor"
+                ? "You are a clinical evidence summarizer for doctors."
+                : "You are a health explainer for laypeople.",
+          },
+          { role: "user", content: prompt },
+        ] as ChatCompletionMessageParam[], {
+          tier: "balanced",              // doctor/patient general chat → balanced
+          fallbackTier: "smart",
+          temperature: 0.25,
+          max_tokens: 1200,
+        });
 
       return NextResponse.json({ ok: true, reply });
     } else {
@@ -164,7 +174,11 @@ export async function POST(req: Request) {
       { role: "system", content: systemPrompt },
       ...(incomingMessages || []),
     ];
-    const jsonStr = await callGroq(msg, { temperature: 0 });
+      const jsonStr = await llmCall(msg as ChatCompletionMessageParam[], {
+        tier: "balanced",
+        fallbackTier: "smart",
+        temperature: 0,
+      });
     const sections = coerceDoctorJson(jsonStr);
     let out = renderDeterministicDoctorReport(patient, sections);
     out = out.replace(/https?:\/\/\S+/g, "");
@@ -265,16 +279,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, threadId, text: clarifierWithMem });
   }
   const feedback_summary = await getFeedbackSummary(threadId || "");
-  let assistant = await callGroq(messages, {
+  let assistant = await llmCall(messages as ChatCompletionMessageParam[], {
+    tier: "balanced",              // doctor/patient general chat → balanced
+    fallbackTier: "smart",
     temperature: 0.25,
     max_tokens: 1200,
-    metadata: {
-      conversationId: threadId,
-      lastMessageId: null,
-      feedback_summary,
-      app: "medx",
-      mode: mode ?? "chat",
-    },
   });
   // 6) Polish and append recap (if any constraints present)
   assistant = polishText(assistant);

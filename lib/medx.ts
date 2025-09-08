@@ -3,12 +3,10 @@ import { normalizeTopic } from "@/lib/topic/normalize";
 import { searchTrials } from "@/lib/trials/search";
 import { splitFollowUps } from "./splitFollowUps";
 import { orchestrateResearch } from "@/lib/research/orchestrator";
+import { llmCall } from "@/lib/llm/call";
+import type { ChatCompletionMessageParam } from "@/lib/llm/types";
 
 export { splitFollowUps };
-
-const BASE = process.env.LLM_BASE_URL!;
-const MODEL = process.env.LLM_MODEL_ID || "llama-3.1-8b-instant";
-const KEY = process.env.LLM_API_KEY!;
 
 const BASE_PROMPT = `India-aware; metric units.
 Patient = simple + home care + ≥3 red flags + when_to_test.
@@ -16,25 +14,6 @@ Doctor = DDx + tests + initial management + ICD examples.
 If research requested: fill evidence (patient/doctor voice) or Research schema.
 Prefer WHO/ICMR/MoHFW/NHP or high-quality sources.
 Output ONLY JSON matching schema; end with </END_JSON>.`;
-
-async function groq(messages: any[], max_tokens: number) {
-  const res = await fetch(`${BASE.replace(/\/$/,"")}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${KEY}`,
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      temperature: 0.25,
-      top_p: 0.9,
-      max_tokens,
-      stop: ["</END_JSON>"],
-      messages,
-    }),
-  });
-  return res.json();
-}
 
 function stripSentinel(text: string): string {
   return text.replace(/<\/END_JSON>.*/i, "").trim();
@@ -58,12 +37,20 @@ export async function v2Generate(body: any): Promise<MedxResponse> {
   const citations = researchPacket?.citations?.slice(0, 8).map((c: any) => `- ${c.title} (${c.url})`).join("\n");
   const sys = buildSystemPrompt({ mode: body.mode, citations, topic: topic.canonical });
   const userPayload = { ...body, topic: topic.canonical, synonyms: topic.synonyms, trials };
-  const messages = [
+  const messages: ChatCompletionMessageParam[] = [
     { role: "system", content: sys },
     { role: "user", content: JSON.stringify(userPayload) },
   ];
-  const raw = await groq(messages, max);
-  const txt = stripSentinel(raw.choices?.[0]?.message?.content || "");
+  const modelTier = body.mode === "patient" ? "fast"
+                 : body.mode === "doctor" ? "balanced"
+                 : "smart";
+  const raw = await llmCall(messages, {
+    tier: modelTier as any,
+    fallbackTier: modelTier === "fast" ? "balanced" : "smart",
+    temperature: 0.25,
+    max_tokens: max,
+  });
+  const txt = stripSentinel(raw?.content || "");
   let parsed: any;
   try {
     parsed = JSON.parse(txt);
@@ -72,12 +59,17 @@ export async function v2Generate(body: any): Promise<MedxResponse> {
   }
   let out = MedxResponseSchema.safeParse(parsed);
   if (!out.success) {
-    const fix = await groq([
+    const fix = await llmCall([
       { role: "system", content: "Fix JSON to match schema. Return JSON only." },
       { role: "user", content: txt },
       { role: "assistant", content: JSON.stringify(out.error.issues) },
-    ], max);
-    const fixed = stripSentinel(fix.choices?.[0]?.message?.content || "");
+    ] as ChatCompletionMessageParam[], {
+      tier: modelTier as any,
+      fallbackTier: modelTier === "fast" ? "balanced" : "smart",
+      temperature: 0.25,
+      max_tokens: max,
+    });
+    const fixed = stripSentinel(fix?.content || "");
     const fixedParsed = JSON.parse(fixed);
     out = MedxResponseSchema.safeParse(fixedParsed);
     if (!out.success) throw new Error("Schema validation failed");

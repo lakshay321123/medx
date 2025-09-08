@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 
 const OAI_KEY = process.env.OPENAI_API_KEY!;
 const OAI_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
-const MODEL   = process.env.OPENAI_TEXT_MODEL || "gpt-5";
+const MODEL   = process.env.MODEL_BALANCED || "gpt-4.1";
 const ENABLED = String(process.env.THERAPY_MODE_ENABLED || "").toLowerCase() === "true";
 
 const moodList = ["calm","hopeful","content","neutral","anxious","sad","angry","tired","overwhelmed","stressed"];

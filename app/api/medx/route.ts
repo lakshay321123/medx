@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { llmCall } from "@/lib/llm/call";
+import type { ChatCompletionMessageParam } from "@/lib/llm/types";
 
-const BASE = process.env.LLM_BASE_URL!;
-const MODEL = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
-const KEY   = process.env.LLM_API_KEY!;
+// (no base/model/key needed here; we'll call llmCall)
 
 async function classifyIntent(query: string, mode: 'patient'|'doctor') {
   const sys = `Classify a medical query into ONE:
@@ -10,22 +10,18 @@ async function classifyIntent(query: string, mode: 'patient'|'doctor') {
 - DRUGS_LIST (extract meds; check interactions)
 - CLINICAL_TRIALS_QUERY (fetch trials)
 - GENERAL_HEALTH (explain simply)
-
 Return JSON: {"intent":"","keywords":[""]}`;
-  const r = await fetch(`${BASE.replace(/\/$/,'')}/chat/completions`,{
-    method:'POST',
-    headers:{'Content-Type':'application/json',Authorization:`Bearer ${KEY}`},
-    body: JSON.stringify({
-      model: MODEL, temperature: 0,
-      messages: [
-        { role:'system', content: sys },
-        { role:'user', content: `Mode=${mode}\nQuery=${query}\nJSON only:` }
-      ]
-    })
-  });
-  const j = await r.json();
-  try { return JSON.parse(j.choices?.[0]?.message?.content || '{}'); }
-  catch { return { intent:'GENERAL_HEALTH', keywords:[] }; }
+
+  const msg: ChatCompletionMessageParam[] = [
+    { role: "system", content: sys },
+    { role: "user", content: `Mode=${mode}\nQuery=${query}` },
+  ];
+  const resp = await llmCall(msg, { tier: "fast", fallbackTier: "balanced", json: true, temperature: 0 });
+  try {
+    return JSON.parse(resp?.content || "{}");
+  } catch {
+    return { intent: "GENERAL_HEALTH", keywords: [] };
+  }
 }
 
 async function umlsSearch(term: string){

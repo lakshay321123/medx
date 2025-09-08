@@ -4,10 +4,9 @@ export const runtime = 'edge';
 
 export async function POST(req: NextRequest) {
   const { messages = [], threadId, context } = await req.json();
-  const base  = process.env.LLM_BASE_URL!;
-  const model = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
-  const key   = process.env.LLM_API_KEY!;
-  const url = `${base.replace(/\/$/,'')}/chat/completions`;
+  const key   = process.env.OPENAI_API_KEY!;
+  const model = process.env.MODEL_FAST || "gpt-4o-mini"; // fast tier for streaming chat
+  const url   = "https://api.openai.com/v1/chat/completions";
 
   let finalMessages = messages;
   if (threadId === 'med-profile' || context === 'profile') {
@@ -31,8 +30,16 @@ export async function POST(req: NextRequest) {
 
   const upstream = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model, stream: true, temperature: 0.2, messages: finalMessages })
+    headers: {
+      "Authorization": `Bearer ${key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: finalMessages,
+      temperature: 0.2,
+      stream: true,
+    })
   });
 
   if (!upstream.ok) {
