@@ -29,6 +29,7 @@ import { pushFullMem, buildFullContext } from "@/lib/memory/shortTerm";
 import { detectEditIntent } from "@/lib/intents/editIntents";
 import { getLastStructured, maybeIndexStructured, setLastStructured } from "@/lib/memory/structured";
 import { replaceEverywhere, addLineToSection, removeEverywhere, addBurrataIfMissing } from "@/lib/editors/recipeEdit";
+import { detectAdvancedDomain } from "@/lib/intents/advanced";
 
 async function computeEval(expr: string) {
   const r = await fetch("/api/compute/math", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ op:"eval", expr }) });
@@ -832,6 +833,19 @@ ${linkNudge}`;
       const topicHint = ui.topic ? `ACTIVE TOPIC: ${ui.topic}\nKeep answers scoped to this topic unless the user changes it.\n` : "";
 
       const sys = topicHint + systemCommon + baseSys;
+      let ADV_STYLE = "";
+      const adv = detectAdvancedDomain(userText);
+      if (adv) {
+        const D = await import("@/lib/prompts/advancedDomains");
+        ADV_STYLE =
+          adv === "behav-med"      ? D.BEHAV_MED_STYLE :
+          adv === "env-occ"        ? D.ENV_OCC_STYLE :
+          adv === "data-tech"      ? D.DATA_TECH_STYLE :
+          adv === "genomics"       ? D.GENOMICS_STYLE :
+          adv === "preventive"     ? D.PREVENTIVE_STYLE :
+          adv === "systems-policy" ? D.SYSTEMS_POLICY_STYLE : "";
+      }
+      const systemAll = `${sys}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
       let chatMessages: { role: string; content: string }[];
 
       const looksLikeMath = /[0-9\.\s+\-*\/^()]{6,}/.test(userText) || /sin|cos|log|sqrt|derivative|integral|limit/i.test(userText);
@@ -845,19 +859,19 @@ ${linkNudge}`;
       if (looksLikeMath) {
         const STYLE_MATH = `You are a rigorous solver. Show: (1) setup, (2) key steps, (3) final answer WITH UNITS, (4) quick self-check. Do not reveal hidden reasoning.`;
         chatMessages = [
-          { role: "system", content: `${sys}\n\n${STYLE_MATH}` },
+          { role: "system", content: `${systemAll}\n\n${STYLE_MATH}` },
           { role: "user", content: `${userText}${toolBlock}${contextBlock}` }
         ];
       } else if (historyIntent) {
         const { HISTORY_STYLE: STYLE_HISTORY } = await import("@/lib/prompts/history");
         chatMessages = [
-          { role: "system", content: `${sys}\n\n${STYLE_HISTORY}` },
+          { role: "system", content: `${systemAll}\n\n${STYLE_HISTORY}` },
           { role: "user", content: `${userText}${contextBlock}` }
         ];
       } else if (doctorIntent) {
         const { DOCTOR_STYLE: STYLE_DOCTOR } = await import("@/lib/prompts/doctor");
         chatMessages = [
-          { role: "system", content: `${sys}\n\n${STYLE_DOCTOR}` },
+          { role: "system", content: `${systemAll}\n\n${STYLE_DOCTOR}` },
           { role: "user", content: `${userText}${contextBlock}` }
         ];
       }
@@ -908,9 +922,10 @@ Here is the ENTIRE conversation so far:
 ${fullMem || "(none)"}
 
 ${systemCommon}` + baseSys;
+        const systemAll = `${system}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
         const userMsg = `Follow-up: ${text}\nIf the question is ambiguous, ask one concise disambiguation question and then answer briefly using the context.`;
         chatMessages = [
-          { role: 'system', content: system },
+          { role: 'system', content: systemAll },
           { role: 'user', content: `${userMsg}${contextBlock}` }
         ];
       } else if (!chatMessages) {
@@ -923,9 +938,10 @@ ${systemCommon}` + baseSys;
         );
 
         const sys = topicHint + systemCommon + baseSys;
+        const systemAll = `${sys}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
         const planContextBlock = 'CONTEXT:\n' + JSON.stringify(plan.sections || {}, null, 2);
         chatMessages = [
-          { role: 'system', content: sys },
+          { role: 'system', content: systemAll },
           { role: 'user', content: `${text}\n\n${planContextBlock}${contextBlock}` }
         ];
       }
