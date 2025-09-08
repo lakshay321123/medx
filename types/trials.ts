@@ -16,4 +16,8 @@ export type TrialRow = {
   primaryOutcome?: string;         // first primary outcome if present
   url: string;                     // https://clinicaltrials.gov/study/NCT
   source?: string;
+  studyType?: string;
+  locations?: { facility: string; city: string; country: string }[];
+  startDate?: string;
+  completionDate?: string;
 };
