@@ -5,6 +5,7 @@ import OpenAI from "openai";
 import { summarizeTherapyJSON, type ChatMessage as TM } from "@/lib/therapy/summarizer";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { getServerUserId } from "@/lib/auth/serverUser";
+import { extractTriggersFrom } from "@/lib/therapy/triggers";
 
 export const runtime = "nodejs";
 
@@ -74,18 +75,32 @@ async function callOpenAI(messages: any[]) {
   };
 }
 
-function nextQuestion(stage: string, name?: string) {
+function nextQuestion(stage: string, name?: string, facets?: Record<string, any>) {
+  const avoidant = facets?.conflict_avoidance === "high";
+  const anxious  = facets?.anxiety_tone === "high";
+  const assertive = facets?.assertiveness === "high";
+
   switch (stage) {
-    case "S0": return `Hi, I’m Mira, a supportive listener. May I know your name?`;
-    case "S1": return `Nice to meet you${name ? `, ${name}` : ""}. What feels hardest right now?`;
-    case "S2": return `For today, would you rather quit completely, cut down, or understand triggers?`;
-    case "S3": return `When do urges hit most—time of day or situations?`;
-    case "S4": return `What thoughts or feelings show up just before a drink?`;
-    case "S5": return `What’s helped even a little—delay, calling someone, or swapping a drink?`;
-    case "S6": return `Let’s pick one tiny step for the next 24 hours. Which feels doable right now?`;
-    case "S7": return `Stopping suddenly can be risky for daily heavy use. Would you like safe-taper or medical support info?`;
-    case "S8": return `Thanks for sharing today. Would a quick check-in later help?`;
-    default:   return `What feels most helpful to talk about right now?`;
+    case "S0":
+      return avoidant
+        ? `Hi${name ? `, ${name}` : ""}. We can go slowly—what would feel most comfortable to start with?`
+        : `Hi, I’m Mira, a supportive listener. May I know your name?`;
+    case "S1":
+      return anxious
+        ? `Thanks for sharing${name ? `, ${name}` : ""}. What feels hardest right now—just one small thing is ok.`
+        : `Nice to meet you${name ? `, ${name}` : ""}. What feels hardest right now?`;
+    case "S2":
+      return avoidant
+        ? `For today, we could pick a gentle focus—would understanding triggers feel okay?`
+        : `For today, would you rather quit completely, cut down, or understand triggers?`;
+    case "S5":
+      return assertive
+        ? `Which coping strategy would you commit to trying once this week?`
+        : `What’s helped even a little—delay, calling someone, or swapping a drink?`;
+    default:
+      return anxious
+        ? `What feels most helpful to talk about right now—one small thing is fine.`
+        : `What feels most helpful to talk about right now?`;
   }
 }
 
@@ -220,10 +235,40 @@ export async function POST(req: NextRequest) {
     const knownName = body.name || details.maybeName;
     const summary = updateSummary(body.summary || "", details, body.goal_today);
 
+    // fetch profile once per request (non-blocking if missing)
+    let profile: any = null;
+    try {
+      const sb = supabaseServer();
+      const { data } = await sb
+        .from("therapy_profile")
+        .select("personality, values, recent_goals")
+        .eq("user_id", await getServerUserId(req))
+        .maybeSingle();
+      profile = data || null;
+    } catch {}
+
     const style = { role: "system", content: STYLE };
+    const facet = (k: string) => profile?.personality?.[k] || null;
+    const valuesStr = profile?.values ? Object.keys(profile.values).filter(k => profile.values[k]).slice(0,3).join(", ") : "";
+    const goalsHint = (profile?.recent_goals || []).slice(-1)[0];
+
+    const adaptation = [
+      facet("conflict_avoidance")==="high" ? "Use very gentle, non-confrontational phrasing." : null,
+      facet("self_criticism")==="high" ? "Validate effort; highlight strengths to balance harsh self-judgment." : null,
+      facet("anxiety_tone")==="high" ? "Keep questions short; avoid stacking; one topic at a time." : null,
+      valuesStr ? `User values: ${valuesStr}. Align questions with these.` : null,
+      goalsHint ? `They previously planned: ${goalsHint}. Optionally check progress briefly.` : null
+    ].filter(Boolean).join(" ");
+
     const director = {
       role: "system",
-      content: `Current Stage: ${nextStage}\nName: ${knownName || "unknown"}\nSummary: ${summary || "n/a"}\nInstruction: Reflect the user’s last message in ≤1 line, then ask exactly ONE question that advances this stage. Avoid multiple questions. End with "?".\nNext question suggestion: ${nextQuestion(nextStage, knownName)}`,
+      content:
+`Current Stage: ${nextStage}
+Name: ${knownName || "unknown"}
+Summary: ${summary || "n/a"}
+Adaptation: ${adaptation || "Keep tone warm and concise."}
+Instruction: Reflect the user’s last message in ≤1 line, then ask exactly ONE question that advances this stage. Avoid multiple questions. End with "?". 
+Next question suggestion: ${nextQuestion(nextStage, knownName, profile?.personality)}`
     };
     const messages = [style, director, ...clean];
 
@@ -254,32 +299,30 @@ export async function POST(req: NextRequest) {
       const userId = await getServerUserId(req);
       if (userId) {
         const note = (await summarizeTherapyJSON(openai, recent)) ?? null;
+        let fallback: any = null;
+        if (!note) fallback = synthFallbackNote(completion);
         const sb = supabaseServer();
-        let usedNote: any = null;
 
-        if (note) {
-          await sb.from("therapy_notes").insert({
-            user_id: userId,
-            summary: note.summary,
-            meta: { topics: note.topics, triggers: note.triggers, emotions: note.emotions },
-            mood: (note.mood && moodList.includes(note.mood)) ? note.mood : "neutral",
-            breakthrough: note.breakthrough,
-            next_step: note.nextStep
-          });
-          usedNote = note;
-        } else {
-          // fallback quick note so we still have continuity
-          const fallback = synthFallbackNote(completion);
-          await sb.from("therapy_notes").insert({
-            user_id: userId,
-            summary: fallback.summary,
-            meta: fallback.meta,
-            mood: (fallback.mood && moodList.includes(fallback.mood)) ? fallback.mood : "neutral",
-            breakthrough: fallback.breakthrough,
-            next_step: fallback.nextStep
-          });
-          usedNote = fallback;
-        }
+        // Merge extra triggers from last user message for better recall
+        const lastUserText = lastUser?.content || "";
+        const extraTriggers = extractTriggersFrom(lastUserText);
+
+        const mergedMeta = {
+          topics: Array.from(new Set([...(note?.topics || []), ...(fallback?.meta?.topics || [])])).slice(0, 10),
+          triggers: Array.from(new Set([...(note?.triggers || []), ...(fallback?.meta?.triggers || []), ...extraTriggers])).slice(0, 10),
+          emotions: (note?.emotions || fallback?.meta?.emotions || []).slice(0, 10),
+          goals: ((note as any)?.goals || fallback?.meta?.goals || [])
+        };
+
+        await sb.from("therapy_notes").insert({
+          user_id: userId,
+          summary: (note?.summary || fallback?.summary),
+          meta: mergedMeta,
+          mood: (note?.mood || fallback?.mood || "neutral"),
+          breakthrough: note?.breakthrough ?? fallback?.breakthrough ?? null,
+          next_step: note?.nextStep ?? fallback?.nextStep ?? null
+        });
+        const usedNote: any = note || fallback;
 
         try {
           const sb = supabaseServer();
