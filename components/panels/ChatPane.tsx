@@ -26,6 +26,9 @@ import { summarizeTrials } from "@/lib/research/summarizeTrials";
 import { computeTrialStats, type TrialStats } from "@/lib/research/trialStats";
 import { detectSocialIntent, replyForSocialIntent } from "@/lib/social";
 import { pushFullMem, buildFullContext } from "@/lib/memory/shortTerm";
+import { detectEditIntent } from "@/lib/intents/editIntents";
+import { getLastStructured, maybeIndexStructured, setLastStructured } from "@/lib/memory/structured";
+import { replaceEverywhere, addLineToSection, removeEverywhere, addBurrataIfMissing } from "@/lib/editors/recipeEdit";
 
 type ChatUiState = {
   topic: string | null;
@@ -536,10 +539,72 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         { id: uid(), role: "user", kind: "chat", content: userText } as any,
         { id: uid(), role: "assistant", kind: "chat", content } as any,
       ]);
-      if (threadId) pushFullMem(threadId, "assistant", content);
+      if (threadId && content && content.trim()) {
+        pushFullMem(threadId, "assistant", content);
+        maybeIndexStructured(threadId, content);
+      }
       setNote("");
       setBusy(false);
       return; // IMPORTANT: do not set topic, do not trigger research/planner
+    }
+
+    // --- EDIT FAST-PATH (non-invasive, uses last structured content) ---
+    try {
+      const edit = detectEditIntent(userText);
+      if (edit) {
+        const last = threadId ? getLastStructured(threadId) : null;
+        if (!last || !last.content) {
+          setMessages(prev => [
+            ...prev,
+            { id: uid(), role: "user", kind: "chat", content: userText } as any,
+            {
+              id: uid(),
+              role: "assistant",
+              kind: "chat",
+              content: "I don’t see a saved recipe/plan in this thread yet. Want me to create one now?",
+            } as any,
+          ]);
+          setNote(""); setBusy(false);
+          return;
+        }
+
+        let updated = last.content;
+
+        if (edit.type === "recall" || edit.type === "finalize") {
+          // just show last structured as-is
+        } else if (edit.type === "replace") {
+          updated = replaceEverywhere(updated, edit.from, edit.to);
+        } else if (edit.type === "add") {
+          // default: add to Ingredients
+          updated = addLineToSection(updated, "Ingredients", edit.what);
+        } else if (edit.type === "remove") {
+          updated = removeEverywhere(updated, edit.what);
+        } else if (edit.type === "transform") {
+          // light built-in: pasta transform gets burrata step if relevant
+          if (edit.to === "pasta") {
+            updated = addLineToSection(updated, "Ingredients", "300g short pasta (penne or rigatoni)");
+            updated = addLineToSection(updated, "Instructions", "Cook pasta al dente, reserve 1/2 cup pasta water, and toss with the sauce.");
+            updated = addBurrataIfMissing(updated);
+          } else {
+            // generic note—can later call LLM with original content as context if you want
+            updated = addLineToSection(updated, "Instructions", `Variation: turn into ${edit.to}${edit.extra ? " — " + edit.extra : ""}.`);
+          }
+        }
+
+        // Save new structured version
+        if (threadId) setLastStructured(threadId, { ...last, content: updated, ts: Date.now() });
+
+        // Post response (user echo + updated content)
+        setMessages(prev => [
+          ...prev,
+          { id: uid(), role: "user", kind: "chat", content: userText } as any,
+          { id: uid(), role: "assistant", kind: "chat", content: updated } as any,
+        ]);
+        setNote(""); setBusy(false);
+        return; // IMPORTANT: don’t run planner for edit-intents
+      }
+    } catch {
+      // never block the normal flow
     }
 
     const userId = uid();
@@ -554,7 +619,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     if (maybe && messages.filter(m => m.role === "assistant").slice(-1)[0]?.content !== maybe.ask) {
       // Ask once, keep pending bubble as the question (no LLM call)
       setMessages(prev => prev.map(m => m.id === pendingId ? { ...m, content: maybe.ask, pending: false } : m));
-      if (threadId) pushFullMem(threadId, "assistant", maybe.ask);
+      if (threadId && maybe.ask.trim()) {
+        pushFullMem(threadId, "assistant", maybe.ask);
+        maybeIndexStructured(threadId, maybe.ask);
+      }
       setBusy(false);
       return; // wait for user Yes/No
     }
@@ -611,7 +679,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
           )
         );
-        if (threadId && main && main.trim()) pushFullMem(threadId, "assistant", main);
+        if (threadId && main && main.trim()) {
+          pushFullMem(threadId, "assistant", main);
+          maybeIndexStructured(threadId, main);
+        }
         return;
       }
       if (therapyMode) {
@@ -638,7 +709,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               ? { ...m, content, pending: false, error: msg }
               : m
           ));
-          if (threadId) pushFullMem(threadId, "assistant", content);
+          if (threadId && content.trim()) {
+            pushFullMem(threadId, "assistant", content);
+            maybeIndexStructured(threadId, content);
+          }
           return;
         }
 
@@ -647,13 +721,19 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           setMessages(prev => prev.map(m =>
             m.id === pendingId ? { ...m, content, pending: false } : m
           ));
-          if (threadId) pushFullMem(threadId, "assistant", content);
+          if (threadId && content.trim()) {
+            pushFullMem(threadId, "assistant", content);
+            maybeIndexStructured(threadId, content);
+          }
         } else if (j?.starter) {
           const content = j.starter;
           setMessages(prev => prev.map(m =>
             m.id === pendingId ? { ...m, content, pending: false } : m
           ));
-          if (threadId) pushFullMem(threadId, "assistant", content);
+          if (threadId && content.trim()) {
+            pushFullMem(threadId, "assistant", content);
+            maybeIndexStructured(threadId, content);
+          }
         } else {
           const content = '⚠ Empty response from server.';
           setMessages(prev => prev.map(m =>
@@ -661,7 +741,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               ? { ...m, content, pending: false, error: 'Empty response from server.' }
               : m
           ));
-          if (threadId) pushFullMem(threadId, "assistant", content);
+          if (threadId && content.trim()) {
+            pushFullMem(threadId, "assistant", content);
+            maybeIndexStructured(threadId, content);
+          }
         }
         return;
       }
@@ -684,7 +767,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               : m
           )
         );
-        if (threadId) pushFullMem(threadId, "assistant", warn);
+        if (threadId && warn.trim()) {
+          pushFullMem(threadId, "assistant", warn);
+          maybeIndexStructured(threadId, warn);
+        }
         return;
       }
 
@@ -807,7 +893,10 @@ ${systemCommon}` + baseSys;
           m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
         )
       );
-      if (threadId && main && main.trim()) pushFullMem(threadId, "assistant", main);
+      if (threadId && main && main.trim()) {
+        pushFullMem(threadId, "assistant", main);
+        maybeIndexStructured(threadId, main);
+      }
       if (main.length > 400) {
         setFromChat({ id: pendingId, content: main });
         setUi(prev => ({ ...prev, contextFrom: 'Conversation summary' }));
@@ -827,7 +916,10 @@ ${systemCommon}` + baseSys;
             : m
         )
       );
-      if (threadId) pushFullMem(threadId, "assistant", content);
+      if (threadId && content.trim()) {
+        pushFullMem(threadId, "assistant", content);
+        maybeIndexStructured(threadId, content);
+      }
     } finally {
       setBusy(false);
     }
