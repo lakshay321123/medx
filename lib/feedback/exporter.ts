@@ -3,9 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { fileFromPath } from "openai/uploads";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 type FeedbackRow = {
   id: string;
@@ -20,6 +18,7 @@ type FeedbackRow = {
 
 export async function exportPendingFeedbackToOpenAI(limit = 500) {
   const db = supabaseAdmin();
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
   const { data, error } = await db
     .from("ai_feedback")
@@ -51,7 +50,7 @@ export async function exportPendingFeedbackToOpenAI(limit = 500) {
   fs.writeFileSync(fpath, lines);
 
   const file = await openai.files.create({
-    file: await fileFromPath(fpath),
+    file: fs.createReadStream(fpath),
     purpose: "fine-tune", // use later for evals/fine-tuning
   });
 

@@ -12,7 +12,6 @@ export async function callOpenAIJson({ system, user, instruction, metadata }: Ca
     const resp = await oai.responses.create({
       model,
       temperature: 0.2,
-      response_format: { type: "json_object" },
       input: [
         { role: "system", content: system },
         { role: "user", content: `${instruction}\n\nUSER:\n${user}` },
