@@ -285,8 +285,19 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [therapyMode, setTherapyMode] = useState(false);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const chatRef = useRef<HTMLDivElement>(null);
-  const inputRef = externalInputRef ?? useRef<HTMLInputElement>(null);
+  const inputRef =
+    (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ??
+    (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
   const { filters } = useResearchFilters();
+
+  // Auto-resize the textarea up to a max height
+  useEffect(() => {
+    const el = (inputRef?.current as unknown as HTMLTextAreaElement | null);
+    if (!el) return;
+    el.style.height = 'auto';
+    const max = 200; // px; ~ChatGPT feel
+    el.style.height = Math.min(el.scrollHeight, max) + 'px';
+  }, [note, inputRef]);
 
   const [trialRows, setTrialRows] = useState<TrialRow[]>([]);
   const [searched, setSearched] = useState(false);
@@ -1314,18 +1325,24 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
                 </button>
               </div>
             )}
-            <input
-              ref={inputRef}
-              className="flex-1 bg-transparent outline-none text-sm md:text-base leading-6 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-2"
+            {/* REPLACE the single-line <input> with this <textarea> */}
+            <textarea
+              ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
+              rows={1}
+              className="flex-1 resize-none bg-transparent outline-none text-sm md:text-base leading-6 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-2"
               placeholder={
                 pendingFile
                   ? 'Add a note or question for this document (optional)'
                   : 'Send a message'
               }
               value={note}
-              onChange={e => setNote(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+              onChange={(e) => setNote(e.target.value)}
+              onKeyDown={(e) => {
+                // Send on Enter (no Shift), allow newline on Shift+Enter.
+                // Respect IME composition (don’t send while composing).
+                // NOTE: keep behavior identical to ChatGPT.
+                const isComposing = (e.nativeEvent as any).isComposing;
+                if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
                   e.preventDefault();
                   onSubmit();
                 }
