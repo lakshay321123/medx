@@ -33,7 +33,7 @@ import { buildPatientSnapshot } from "@/lib/patient/snapshot";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchTrialByNct } from "@/lib/trials/byId";
 import { singleTrialPatientPrompt, singleTrialClinicianPrompt } from "@/lib/prompts/trials";
-import { searchTrials, dedupeTrials, rankValue } from "@/lib/trials/search";
+import { searchTrials } from "@/lib/trials/search";
 import { byName } from "@/data/countries";
 
 async function getFeedbackSummary(conversationId: string) {
@@ -118,8 +118,7 @@ export async function POST(req: Request) {
       country,
     });
 
-    const ranked = dedupeTrials(trials).sort((a, b) => rankValue(b) - rankValue(a));
-    const top = ranked.slice(0, 10);
+    const top = trials.slice(0, 10);
 
     if (top.length > 0) {
       const list = top
@@ -145,9 +144,9 @@ export async function POST(req: Request) {
         { role: "user", content: prompt },
       ]);
 
-      return NextResponse.json({ ok: true, text: reply });
+      return NextResponse.json({ ok: true, reply });
     } else {
-      return NextResponse.json({ ok: true, text: "I couldn’t find trials right now." });
+      return NextResponse.json({ ok: true, reply: "I couldn’t find trials right now." });
     }
   }
 
