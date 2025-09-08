@@ -25,10 +25,11 @@ import { sanitizeLLM } from "@/lib/conversation/sanitize";
 import { finalReplyGuard } from "@/lib/conversation/finalReplyGuard";
 import { disambiguate, disambiguateWithMemory } from "@/lib/conversation/disambiguation";
 import { detectTopic, wantsNewTopic, inferTopicFromHistory, seemsOffTopic, rewriteToTopic } from "@/lib/conversation/topic";
-import { renderDoctorSummary } from "@/lib/renderer/templates/doctor";
-import { enforceDoctorMode } from "@/lib/conversation/doctorGuard";
-import { doctorSafetyNotes } from "@/lib/rules/doctorSafety";
 import { polishResponse } from "@/lib/conversation/polish";
+import { normalizeMode } from "@/lib/conversation/mode";
+import { DOCTOR_JSON_SYSTEM, coerceDoctorJson } from "@/lib/conversation/doctorJson";
+import { renderDeterministicDoctorReport } from "@/lib/renderer/templates/doctor";
+import { buildPatientSnapshot } from "@/lib/patient/snapshot";
 
 function contextStringFrom(messages: ChatCompletionMessageParam[]): string {
   return messages
@@ -36,62 +37,34 @@ function contextStringFrom(messages: ChatCompletionMessageParam[]): string {
     .join(" ");
 }
 
-async function buildPatientSnapshot(threadId: string) {
-  // Placeholder patient snapshot; replace with memory aggregation
-  return {
-    name: "Rohan",
-    age: 45,
-    sex: "M",
-    encounterDate: new Date().toISOString().slice(0, 10),
-    diagnoses: ["acute myeloid leukemia"],
-    comorbidities: ["asthma"],
-    meds: ["cytarabine"],
-    labs: [
-      { name: "creatinine", value: 2.1, unit: "mg/dL" },
-      { name: "alt", value: 60, unit: "U/L" },
-    ],
-  };
-}
-
 export async function POST(req: Request) {
-  const { userId, activeThreadId, text, mode, researchOn, clarifySelectId } = await req.json();
+  const body = await req.json();
+  const { messages: incomingMessages, mode: rawMode, thread_id } = body;
+  const mode = normalizeMode(rawMode);
+  const userMessage = incomingMessages?.[incomingMessages.length - 1]?.content || "";
+
+  // DEBUG LOG (remove later): verify we're actually in doctor path
+  console.log("[DoctorMode] mode=", mode, "thread_id=", thread_id);
 
   if (mode === "doctor") {
-    const patient = await buildPatientSnapshot(activeThreadId);
-    const skeleton = renderDoctorSummary(patient);
-
-    const systemWithTemplate = `
-You are MedX Doctor Mode.
-- Provide a structured, clinically reasoned report.
-- Use the following sections exactly as given.
-- Do NOT mention clinical trials, PubMed, NCI, or research.
-- No references or external links.
-- No lifestyle/general wellness advice.
-
-TEMPLATE:
-${skeleton}
-`;
-
-    const messages: ChatCompletionMessageParam[] = [
-      { role: "system", content: systemWithTemplate },
-      { role: "user", content: text },
+    const patient = await buildPatientSnapshot(thread_id);
+    const systemPrompt = DOCTOR_JSON_SYSTEM;
+    const msg: ChatCompletionMessageParam[] = [
+      { role: "system", content: systemPrompt },
+      ...(incomingMessages || []),
     ];
-    const raw = await callGroq(messages, { temperature: 0.25, max_tokens: 1200 });
-
-    // Apply Doctor Mode guard
-    let guarded = enforceDoctorMode(raw, skeleton);
-
-    // Standard pipeline
-    let out = polishResponse(guarded);
+    const jsonStr = await callGroq(msg, { temperature: 0 });
+    const sections = coerceDoctorJson(jsonStr);
+    let out = renderDeterministicDoctorReport(patient, sections);
+    out = out.replace(/https?:\/\/\S+/g, "");
+    out = out.replace(/.*\b(trial|study|research|pubmed|clinicaltrials\.gov|NCI|ICTRP|registry)\b.*\n?/gi, "");
+    out = polishResponse(out);
     out = sanitizeLLM(out);
-    const safety = doctorSafetyNotes(patient);
-    if (safety.length) {
-      out += `\n\n**Safety Notes**\n${safety.map(s => `- ${s}`).join("\n")}`;
-    }
-    const final = finalReplyGuard(text, out);
-
-    return NextResponse.json({ ok: true, threadId: activeThreadId, text: final });
+    const final = finalReplyGuard(userMessage, out);
+    return NextResponse.json({ text: final });
   }
+
+  const { userId, activeThreadId, text, researchOn, clarifySelectId } = body;
 
   if (shouldReset(text)) {
     // start new thread logic here

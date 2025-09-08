@@ -9,6 +9,7 @@ type Patient = {
   comorbidities?: string[];
   meds?: string[];
   labs?: Array<{ name: string; value: string | number; unit?: string }>;
+  allergies?: string[];
 };
 
 export function renderDoctorHeader(p: Patient) {
@@ -94,4 +95,75 @@ export function renderDoctorSummary(p: Patient): string {
 
 function titleCase(s: string) {
   return s.replace(/\b\w/g, c => c.toUpperCase());
+}
+
+export type DoctorLLMSections = {
+  clinical_implications: string[];
+  management_options: string[];
+  supportive_palliative: string[];
+  red_flags: string[];
+};
+
+export function renderDeterministicDoctorReport(
+  p: Patient,
+  sections: DoctorLLMSections
+): string {
+  const header = `**Demographics**
+- **Name:** ${p.name || "Unknown"}
+- **Age:** ${p.age ?? "—"}
+- **Sex:** ${p.sex ?? "—"}
+- **Encounter Date:** ${p.encounterDate ?? "—"}`;
+
+  const dxs = (p.diagnoses || [])
+    .map(d => {
+      const c = codeForDx(d);
+      const parts = [`- ${titleCase(d)}`];
+      if (c.icd10) parts.push(`ICD-10: *${c.icd10}*`);
+      if (c.snomed) parts.push(`SNOMED: *${c.snomed}*`);
+      return parts.join(" — ");
+    })
+    .join("\n") || "- Not specified";
+
+  const cmb = (p.comorbidities || []).concat(
+    p.allergies?.length ? p.allergies.map(a => `Allergy: ${a}`) : []
+  );
+  const cmbBlock = cmb.length
+    ? cmb.map(x => `- ${titleCase(x)}`).join("\n")
+    : "- None listed";
+
+  const medsBlock =
+    (p.meds || [])
+      .map(m => {
+        const atc = codeForDrug(m);
+        return atc ? `- ${titleCase(m)} — ATC: *${atc}*` : `- ${titleCase(m)}`;
+      })
+      .join("\n") || "- None documented";
+
+  const labsBlock =
+    (p.labs || [])
+      .map(l => {
+        const meta = codeForLab(l.name);
+        const code = meta ? `LOINC: *${meta.code}*` : "";
+        const unit = l.unit || meta?.unit || "";
+        const ref = meta?.ref ? ` (ref: ${meta.ref})` : "";
+        return `- ${titleCase(l.name)} — ${l.value}${unit ? " " + unit : ""} ${code}${ref}`;
+      })
+      .join("\n") || "- No labs provided";
+
+  const safe = (arr?: string[]) =>
+    (arr && arr.length ? arr : ["[No items provided]"]).map(s => `- ${s}`).join("\n");
+
+  return [
+    header,
+    `**Diagnoses**\n${dxs}`,
+    `**Comorbidities**\n${cmbBlock}`,
+    `**Medications**\n${medsBlock}`,
+    `**Labs & Imaging**\n${labsBlock}`,
+    `**Clinical Implications**\n${safe(sections.clinical_implications)}`,
+    `**Management Options**\n${safe(sections.management_options)}`,
+    `**Supportive / Palliative Measures**\n${safe(sections.supportive_palliative)}`,
+    `**Red Flags**\n${safe(sections.red_flags)}`,
+  ]
+    .join("\n\n")
+    .trim();
 }
