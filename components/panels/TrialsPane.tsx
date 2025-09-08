@@ -9,8 +9,7 @@ import type { TrialRow } from "@/types/trials";
 export default function TrialsPane() {
   const [form, setForm] = useState({
     condition: "",
-    country: "", // "" = Worldwide; e.g., "IND" or "USA"
-    city: "",
+    country: "", // "" = Worldwide; code3 like "IND" or "USA"
     status: "Recruiting,Enrolling by invitation",
     phase: "Phase 2,Phase 3",
   });
@@ -58,10 +57,13 @@ export default function TrialsPane() {
       <div className="grid grid-cols-2 gap-2">
         <input className="border rounded p-2" placeholder="Condition (e.g., Type 2 Diabetes)"
           value={form.condition} onChange={e=>setForm({...form, condition:e.target.value})}/>
-        <input className="border rounded p-2" placeholder="Country (optional)" value={form.country||""}
-          onChange={e=>setForm({...form, country:e.target.value||undefined})}/>
-        <input className="border rounded p-2" placeholder="City (optional)" value={form.city||""}
-          onChange={e=>setForm({...form, city:e.target.value||undefined})}/>
+        <input
+          className="border rounded p-2"
+          placeholder="Country code (optional)"
+          value={form.country}
+          onChange={e=>setForm({...form, country:e.target.value.toUpperCase()})}
+          maxLength={3}
+        />
         <input className="border rounded p-2" placeholder="Status (e.g., Recruiting,Active)"
           value={form.status||""} onChange={e=>setForm({...form, status:e.target.value||undefined})}/>
         <input className="border rounded p-2" placeholder="Phase (e.g., Phase 2,Phase 3)"
@@ -99,9 +101,7 @@ export default function TrialsPane() {
                   </td>
                   <td className="p-2 text-center">{r.phase || "—"}</td>
                   <td className="p-2 text-center">{r.status || "—"}</td>
-                  <td className="p-2 text-center">
-                    {[r.city, r.country].filter(Boolean).join(", ") || "—"}
-                  </td>
+                  <td className="p-2 text-center">{r.country || "—"}</td>
                   <td className="p-2 text-center">
                     {r.id ? (
                       <a className="underline" href={r.url} target="_blank" rel="noreferrer">
