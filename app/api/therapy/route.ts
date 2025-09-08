@@ -311,7 +311,7 @@ Next question suggestion: ${nextQuestion(nextStage, knownName, profile?.personal
           topics: Array.from(new Set([...(note?.topics || []), ...(fallback?.meta?.topics || [])])).slice(0, 10),
           triggers: Array.from(new Set([...(note?.triggers || []), ...(fallback?.meta?.triggers || []), ...extraTriggers])).slice(0, 10),
           emotions: (note?.emotions || fallback?.meta?.emotions || []).slice(0, 10),
-          goals: (note?.goals || fallback?.meta?.goals || [])
+          goals: ((note as any)?.goals || fallback?.meta?.goals || [])
         };
 
         await sb.from("therapy_notes").insert({
