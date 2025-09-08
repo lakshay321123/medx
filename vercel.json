@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/feedback/export",
+      "schedule": "0 */6 * * *"
+    }
+  ]
+}

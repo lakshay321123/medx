@@ -6,7 +6,8 @@ const MODEL = process.env.GROQ_DEFAULT_MODEL || "llama3-70b-8192";
 export async function callGroq(messages: ChatCompletionMessageParam[], {
   temperature = 0.2,
   max_tokens = 1200,
-}: { temperature?: number; max_tokens?: number } = {}) {
+  metadata,
+}: { temperature?: number; max_tokens?: number; metadata?: any } = {}) {
   const key = process.env.GROQ_API_KEY;
   if (!key) throw new Error("GROQ_API_KEY missing");
 
@@ -22,6 +23,7 @@ export async function callGroq(messages: ChatCompletionMessageParam[], {
       temperature,
       max_tokens,
       stream: false,
+      metadata,
     }),
   });
 

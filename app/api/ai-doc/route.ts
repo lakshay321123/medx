@@ -11,6 +11,23 @@ import { runRules } from "@/lib/aidoc/rules";
 import { buildPersonalPlan } from "@/lib/aidoc/planner";
 import { extractPrefsFromUser } from "@/lib/aidoc/extractors/prefs";
 import { buildAiDocPrompt } from "@/lib/ai/prompts/aidoc";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+
+async function getFeedbackSummary(conversationId: string) {
+  try {
+    const db = supabaseAdmin();
+    const { data } = await db
+      .from("ai_feedback")
+      .select("rating")
+      .eq("conversation_id", conversationId)
+      .limit(1000);
+    const up = (data ?? []).filter(r => r.rating === 1).length;
+    const down = (data ?? []).filter(r => r.rating === -1).length;
+    return { up, down };
+  } catch {
+    return { up: 0, down: 0 };
+  }
+}
 
 export async function POST(req: NextRequest) {
   const userId = await getUserId(req);
@@ -40,10 +57,18 @@ export async function POST(req: NextRequest) {
   const system = buildAiDocPrompt({ profile, labs, meds, conditions });
 
   // Call LLM (JSON-only)
+  const feedback_summary = await getFeedbackSummary(threadId || "");
   const out = await callOpenAIJson({
     system,
     user: message,
-    instruction: "Return JSON with {reply, save:{medications,conditions,labs,notes,prefs}, observations:{short,long}}"
+    instruction: "Return JSON with {reply, save:{medications,conditions,labs,notes,prefs}, observations:{short,long}}",
+    metadata: {
+      conversationId: threadId,
+      lastMessageId: null,
+      feedback_summary,
+      app: "medx",
+      mode: "ai-doc",
+    }
   });
 
   // Persist structured saves + timeline

@@ -30,6 +30,23 @@ import { normalizeMode } from "@/lib/conversation/mode";
 import { DOCTOR_JSON_SYSTEM, coerceDoctorJson } from "@/lib/conversation/doctorJson";
 import { renderDeterministicDoctorReport } from "@/lib/renderer/templates/doctor";
 import { buildPatientSnapshot } from "@/lib/patient/snapshot";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+
+async function getFeedbackSummary(conversationId: string) {
+  try {
+    const db = supabaseAdmin();
+    const { data } = await db
+      .from("ai_feedback")
+      .select("rating")
+      .eq("conversation_id", conversationId)
+      .limit(1000);
+    const up = (data ?? []).filter(r => r.rating === 1).length;
+    const down = (data ?? []).filter(r => r.rating === -1).length;
+    return { up, down };
+  } catch {
+    return { up: 0, down: 0 };
+  }
+}
 
 function contextStringFrom(messages: ChatCompletionMessageParam[]): string {
   return messages
@@ -172,7 +189,18 @@ export async function POST(req: Request) {
   if (clarifierWithMem) {
     return NextResponse.json({ ok: true, threadId, text: clarifierWithMem });
   }
-  let assistant = await callGroq(messages, { temperature: 0.25, max_tokens: 1200 });
+  const feedback_summary = await getFeedbackSummary(threadId || "");
+  let assistant = await callGroq(messages, {
+    temperature: 0.25,
+    max_tokens: 1200,
+    metadata: {
+      conversationId: threadId,
+      lastMessageId: null,
+      feedback_summary,
+      app: "medx",
+      mode: mode ?? "chat",
+    },
+  });
   if (activeTopic && seemsOffTopic(assistant, activeTopic)) {
     assistant = rewriteToTopic(assistant, activeTopic);
   }

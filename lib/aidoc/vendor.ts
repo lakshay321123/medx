@@ -3,22 +3,23 @@ import OpenAI from "openai";
 /**
  * Call OpenAI for AI Doc ensuring JSON-only replies.
  */
-type CallIn = { system: string; user: string; instruction: string };
+type CallIn = { system: string; user: string; instruction: string; metadata?: any };
 
-export async function callOpenAIJson({ system, user, instruction }: CallIn): Promise<any> {
+export async function callOpenAIJson({ system, user, instruction, metadata }: CallIn): Promise<any> {
   const oai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const model = process.env.AIDOC_MODEL || "gpt-5";
   try {
-    const resp = await oai.chat.completions.create({
+    const resp = await oai.responses.create({
       model,
       temperature: 0.2,
       response_format: { type: "json_object" },
-      messages: [
+      input: [
         { role: "system", content: system },
         { role: "user", content: `${instruction}\n\nUSER:\n${user}` },
       ],
+      metadata,
     });
-    const content = resp.choices?.[0]?.message?.content ?? "{}";
+    const content = resp.output_text || "{}";
     return JSON.parse(content);
   } catch (e) {
     console.error("callOpenAIJson error", e);
