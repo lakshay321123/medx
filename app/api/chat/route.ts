@@ -27,6 +27,7 @@ import { disambiguate, disambiguateWithMemory } from "@/lib/conversation/disambi
 import { polishResponse } from "@/lib/conversation/polish";
 import { normalizeMode } from "@/lib/conversation/mode";
 import { DOCTOR_JSON_SYSTEM, coerceDoctorJson } from "@/lib/conversation/doctorJson";
+import { orchestrateResearch, type Citation } from "@/lib/research/orchestrator";
 import { renderDeterministicDoctorReport } from "@/lib/renderer/templates/doctor";
 import { buildPatientSnapshot } from "@/lib/patient/snapshot";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -59,10 +60,14 @@ function contextStringFrom(messages: ChatCompletionMessageParam[]): string {
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const { messages: incomingMessages, mode: rawMode, thread_id } = body;
-  const mode = normalizeMode(rawMode);
+  const { messages: incomingMessages, mode: rawMode, thread_id, ui } = body;
+  const { mode: uiMode, researchEnabled } = ui || {};
+  const mode = normalizeMode(rawMode ?? uiMode);
   const userMessage = incomingMessages?.[incomingMessages.length - 1]?.content || "";
   let { userId, activeThreadId, text, researchOn, clarifySelectId } = body;
+  if (researchOn === undefined) {
+    researchOn = researchEnabled;
+  }
   if (researchOn === undefined && (mode === "doctor" || mode === "research")) {
     researchOn = true;
   }
@@ -287,6 +292,17 @@ export async function POST(req: Request) {
   assistant = sanitizeLLM(assistant);
   assistant = finalReplyGuard(text, assistant);
 
+  let citations: Citation[] = [];
+  if (researchOn) {
+    const q = text;
+    try {
+      const packet = await orchestrateResearch(q, { mode });
+      citations = (packet?.citations || []).slice(0, 12);
+    } catch {
+      citations = [];
+    }
+  }
+
   // 7) Save assistant + summary
   await appendMessage({ threadId, role: "assistant", content: assistant });
   const updated = updateSummary("", text, assistant);
@@ -295,5 +311,5 @@ export async function POST(req: Request) {
   // 8) Optional natural pacing (2–4s)
   await new Promise(r => setTimeout(r, 1800 + Math.random() * 1200));
 
-  return NextResponse.json({ ok: true, threadId, text: assistant });
+  return NextResponse.json({ ok: true, threadId, text: assistant, citations, meta: { mode, researchEnabled: !!researchOn } });
 }

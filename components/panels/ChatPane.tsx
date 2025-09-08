@@ -31,6 +31,8 @@ import { detectAdvancedDomain } from "@/lib/intents/advanced";
 // === ADD-ONLY for domain routing ===
 import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
+import { useMode } from "@/lib/state/mode";
+import { ResearchBundle } from "@/components/chat/Message";
 
 async function computeEval(expr: string) {
   const r = await fetch("/api/compute/math", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ op:"eval", expr }) });
@@ -243,21 +245,8 @@ function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<Chat
   return (
     <article className="mr-auto max-w-[90%] rounded-2xl p-4 md:p-6 shadow-sm space-y-2 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800">
       <ChatMarkdown content={m.content} />
-      {m.role === "assistant" && (m.citations?.length || 0) > 0 && (
-        <div className="mt-2 flex flex-wrap gap-2">
-          {(m.citations || []).slice(0, simple ? 3 : 6).map((c, i) => (
-            <a
-              key={i}
-              href={c.url}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-full border px-3 py-1 text-xs hover:bg-gray-100"
-            >
-              {c.source.toUpperCase()}
-              {c.extra?.evidenceLevel ? ` · ${c.extra.evidenceLevel}` : ""}
-            </a>
-          ))}
-        </div>
+      {m.role === "assistant" && (
+        <ResearchBundle citations={m.citations} />
       )}
       {!therapyMode && (m.followUps?.length || 0) > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
@@ -292,9 +281,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [note, setNote] = useState('');
   const [proactive, setProactive] = useState<null | { kind: 'predispositions'|'medications'|'weight' }>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [mode, setMode] = useState<'patient'|'doctor'>('patient');
   const [busy, setBusy] = useState(false);
-  const [researchMode, setResearchMode] = useState(false);
+  const { mode, researchEnabled } = useMode();
   const [therapyMode, setTherapyMode] = useState(false);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const chatRef = useRef<HTMLDivElement>(null);
@@ -337,7 +325,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const stableThreadId = threadId || 'default-thread';
   const isProfileThread = threadId === 'med-profile' || context === 'profile';
   const conversationId = threadId || (isProfileThread ? 'med-profile' : 'unknown');
-  const currentMode: 'patient'|'doctor'|'research'|'therapy' = therapyMode ? 'therapy' : (researchMode ? 'research' : mode);
+  const currentMode: 'patient'|'doctor'|'research'|'therapy' = therapyMode ? 'therapy' : (researchEnabled ? 'research' : mode);
   const [pendingCommitIds, setPendingCommitIds] = useState<string[]>([]);
   const [commitBusy, setCommitBusy] = useState<null | 'save' | 'discard'>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
@@ -554,7 +542,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, [therapyMode]);
 
 
-  async function send(text: string, researchMode: boolean) {
+  async function send(text: string, researchEnabled: boolean) {
     if (!text.trim() || busy) return;
     setBusy(true);
 
@@ -619,7 +607,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     const nextMsgs: ChatMessage[] = [
       ...messages,
       { id: userId, role: 'user', kind: 'chat', content: userText } as ChatMessage,
-      { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true } as ChatMessage,
+      { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true, meta: { mode, researchEnabled } } as ChatMessage,
     ];
     setMessages(nextMsgs);
     const maybe = maybeFixMedicalTypo(userText);
@@ -954,7 +942,7 @@ ${systemCommon}` + baseSys;
           fetch('/api/medx', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: text, mode, researchMode, filters })
+            body: JSON.stringify({ query: text, mode, researchMode: researchEnabled, filters })
           })
         );
 
@@ -968,43 +956,68 @@ ${systemCommon}` + baseSys;
         ];
       }
 
-      const res = await fetch('/api/chat/stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: mode === 'doctor' ? 'doctor' : 'patient', messages: chatMessages, threadId, context })
-      });
-      if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
+      let main = '';
+      let followUps: string[] = [];
+      let citations: any[] = [];
+      if (researchEnabled) {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: mode === 'doctor' ? 'doctor' : 'patient', messages: chatMessages, thread_id: threadId, context, ui: { mode, researchEnabled } })
+        });
+        if (!res.ok) throw new Error(`Chat API error ${res.status}`);
+        const j = await res.json();
+        main = j.text || '';
+        citations = j.citations || [];
+        const parsed = splitFollowUps(main);
+        main = parsed.main;
+        followUps = parsed.followUps;
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === pendingId ? { ...m, content: main, followUps, pending: false, citations, meta: { mode, researchEnabled } } : m
+          )
+        );
+      } else {
+        const res = await fetch('/api/chat/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: mode === 'doctor' ? 'doctor' : 'patient', messages: chatMessages, threadId, context, ui: { mode, researchEnabled } })
+        });
+        if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let acc = '';
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let acc = '';
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
-        for (const line of lines) {
-          if (line.trim() === 'data: [DONE]') continue;
-          try {
-            const payload = JSON.parse(line.replace(/^data:\s*/, ''));
-            const delta = payload?.choices?.[0]?.delta?.content;
-            if (delta) {
-              acc += delta;
-              setMessages(prev =>
-                prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m))
-              );
-            }
-          } catch {}
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
+          for (const line of lines) {
+            if (line.trim() === 'data: [DONE]') continue;
+            try {
+              const payload = JSON.parse(line.replace(/^data:\s*/, ''));
+              const delta = payload?.choices?.[0]?.delta?.content;
+              if (delta) {
+                acc += delta;
+                setMessages(prev =>
+                  prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m))
+                );
+              }
+            } catch {}
+          }
         }
+        const parsed = splitFollowUps(acc);
+        main = parsed.main;
+        followUps = parsed.followUps;
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === pendingId ? { ...m, content: main, followUps, pending: false, meta: { mode, researchEnabled } } : m
+          )
+        );
       }
-      const { main, followUps } = splitFollowUps(acc);
-      setMessages(prev =>
-        prev.map(m =>
-          m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
-        )
-      );
       if (threadId && main && main.trim()) {
         pushFullMem(threadId, "assistant", main);
         maybeIndexStructured(threadId, main);
@@ -1197,7 +1210,7 @@ ${systemCommon}` + baseSys;
     if (pendingFile) {
       await analyzeFile(pendingFile, note);
     } else {
-      await send(note, researchMode);
+      await send(note, researchEnabled);
       if (enabled) {
         try {
           const res = await fetch('/api/memory/suggest', {
@@ -1300,19 +1313,15 @@ ${systemCommon}` + baseSys;
   }
 
   function handleFollowUpClick(text: string) {
-    send(text, researchMode);
+    send(text, researchEnabled);
   }
 
   return (
     <div className="relative flex h-full flex-col">
       <Header
-        mode={mode}
-        onModeChange={setMode}
-        researchOn={researchMode}
-        onResearchChange={setResearchMode}
         onTherapyChange={setTherapyMode}
       />
-      {mode === "doctor" && researchMode && (
+      {mode === "doctor" && researchEnabled && (
         <>
           <ResearchFilters mode="research" onResults={handleTrials} />
           {searched && trialRows.length === 0 && (
@@ -1476,7 +1485,7 @@ ${systemCommon}` + baseSys;
               <Fragment key={m.id}>
                 <AssistantMessage
                   m={m}
-                  researchOn={researchMode}
+                  researchOn={researchEnabled}
                   onQuickAction={onQuickAction}
                   busy={loadingAction !== null}
                   therapyMode={therapyMode}

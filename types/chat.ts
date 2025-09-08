@@ -6,4 +6,5 @@ export type ChatMessage = {
   content: string;
   followUps?: string[];
   citations?: Citation[];
+  meta?: { mode?: string; researchEnabled?: boolean };
 };
