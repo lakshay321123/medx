@@ -556,9 +556,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     }
 
     // --- social intent fast path: greet/thanks/yes/no/maybe/repeat/simpler/shorter/longer/next ---
-    const social = detectSocialIntent(userText);
+    const social = therapyMode ? null : detectSocialIntent(userText);
     if (social) {
-      const msgBase = replyForSocialIntent(social, mode);
+      // Use the unified mode that accounts for therapy/research
+      const msgBase = replyForSocialIntent(social, currentMode);
 
       // Optionally use last assistant message for repeat/shorter (lightweight, no LLM)
       const lastAssistant = [...messages].reverse().find(m =>

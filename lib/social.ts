@@ -97,6 +97,9 @@ export function detectSocialIntent(text: string): SocialIntent {
 export function replyForSocialIntent(kind: SocialIntent, mode: "patient"|"doctor"|"research"|"therapy" = "patient"): string {
   switch (kind) {
     case "greeting":
+      if (mode === "therapy") {
+        return "Hi, I’m here with you. Want to tell me what’s on your mind today? 💙";
+      }
       return mode === "doctor"
         ? "Hi! How can I help today? Share a condition or report, and I’ll keep it concise."
         : "Hi! 👋 How can I help today? You can describe symptoms or upload a report.";
