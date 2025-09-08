@@ -82,6 +82,36 @@ function promptForCategory(category: string, doctorMode: boolean): string {
 
 export async function POST(req: Request) {
   try {
+    // 👇 Try parsing JSON (blob URLs)
+    let json: any = null;
+    try {
+      json = await req.json();
+    } catch {}
+
+    if (json?.files?.length) {
+      // Each file: { url, name, type }
+      const results: any[] = [];
+
+      for (const f of json.files) {
+        // Fetch the blob file content from Vercel Blob URL
+        const res = await fetch(f.url);
+        if (!res.ok) throw new Error(`Failed to fetch blob ${f.url}`);
+        const arrayBuffer = await res.arrayBuffer();
+
+        // You can now pass Buffer to your analyzer (PDF/image parser etc.)
+        // Example placeholder:
+        results.push({
+          name: f.name,
+          type: f.type,
+          size: arrayBuffer.byteLength,
+          message: "File received from blob successfully",
+        });
+      }
+
+      return NextResponse.json({ ok: true, files: results });
+    }
+
+    // 👇 Fallback: old FormData (single upload)
     const fd = await req.formData();
     const file = fd.get("file") as File | null;
     const doctorMode = fd.get("doctorMode") === "true";

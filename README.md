@@ -26,7 +26,7 @@ This project includes:
 ## Endpoints
 - `GET /api/banner` — aggregated headlines
 - `POST /api/chat` — body: `{question, role: "patient"|"clinician"}`
-- `POST /api/analyze` — multipart form-data with `file` and optional `doctorMode`
+- `POST /api/analyze` — JSON `{ files: [{ url, name, type }], note? }` or multipart form-data with `file` and optional `doctorMode`
 - Plus wrappers: `/api/clinicaltrials`, `/api/pubmed`, `/api/who`, `/api/openfda`, `/api/dailymed`, `/api/rxnorm`, `/api/icd11`
 
 ## Notes
