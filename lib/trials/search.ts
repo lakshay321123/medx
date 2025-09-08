@@ -8,7 +8,7 @@ type PhaseStr = "1" | "2" | "3" | "4" | "1/2" | "2/3";
 type Input = {
   query?: string;
   phase?: "1" | "2" | "3" | "4"; // user selects a single anchor phase
-  status?: "Recruiting" | "Completed" | "Active, not recruiting" | "Enrolling by invitation";
+  status?: string; // allow comma-separated statuses
   country?: string;
   genes?: string[];
 };
@@ -18,7 +18,7 @@ export type Trial = {
   title: string;
   url: string;
   phase?: PhaseStr; // <-- now can be "1/2" or "2/3"
-  status?: "Recruiting" | "Completed" | "Active, not recruiting" | "Enrolling by invitation";
+  status?: string;
   country?: string;
   gene?: string;
   source?: "CTgov" | "EUCTR" | "CTRI" | "ISRCTN";
@@ -53,6 +53,7 @@ function normalizeStatus(raw?: string):
   | "Completed"
   | "Active, not recruiting"
   | "Enrolling by invitation"
+  | "Not yet recruiting"
   | undefined {
   if (!raw) return undefined;
   const s = String(raw).toLowerCase();
@@ -64,7 +65,8 @@ function normalizeStatus(raw?: string):
     raw === "Recruiting" ||
     raw === "Completed" ||
     raw === "Active, not recruiting" ||
-    raw === "Enrolling by invitation"
+    raw === "Enrolling by invitation" ||
+    raw === "Not yet recruiting"
   )
     return raw as any;
   return undefined;
@@ -83,13 +85,19 @@ function normalizePhaseLoose(raw?: string): "1"|"2"|"3"|"4"|"1/2"|"2/3"|undefine
 }
 
 function normalizeStatusLoose(raw?: string):
-  "Recruiting"|"Completed"|"Active, not recruiting"|"Enrolling by invitation"|undefined {
+  | "Recruiting"
+  | "Completed"
+  | "Active, not recruiting"
+  | "Enrolling by invitation"
+  | "Not yet recruiting"
+  | undefined {
   if (!raw) return undefined;
   const s = String(raw).toLowerCase();
   if (s.includes("recruit")) return "Recruiting";
   if (s.includes("complete") || s.includes("completed")) return "Completed";
   if (s.includes("active")) return "Active, not recruiting";
   if (s.includes("invite")) return "Enrolling by invitation";
+  if (s.includes("not yet")) return "Not yet recruiting";
   return normalizeStatus(raw);
 }
 
@@ -162,7 +170,10 @@ export async function searchTrials(input: Input): Promise<Trial[]> {
 
   // 4) normalize + filter (reuse your existing filters)
   const wantPhase = input.phase;
-  const wantStatus = input.status;
+  const wantStatus = (input.status || "")
+    .split(",")
+    .map(s => normalizeStatusLoose(s))
+    .filter(Boolean) as string[];
   const wantCountry = input.country?.toLowerCase();
   const wantGenes = (input.genes || []).map(g => g.trim()).filter(Boolean);
 
@@ -173,7 +184,7 @@ export async function searchTrials(input: Input): Promise<Trial[]> {
     const title = r.title || "";
 
     if (!phaseMatches(wantPhase, p)) return false;
-    if (wantStatus && st !== wantStatus) return false;
+    if (wantStatus.length && (!st || !wantStatus.includes(st))) return false;
     if (wantCountry && ctry && ctry !== wantCountry) return false;
     if (wantGenes.length && !containsAny(title, wantGenes)) return false;
 

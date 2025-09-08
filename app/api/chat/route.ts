@@ -92,6 +92,65 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, text: reply });
   }
 
+  // Detect general trial queries
+  if ((mode === "research" || mode === "doctor") && /\btrial(s)?\b/i.test(text)) {
+    // Condition guess
+    const condMatch = text.match(/([A-Za-z ]+?) trial/i);
+    const condition = condMatch ? condMatch[1].trim() : text;
+
+    const phaseMatch = text.match(/phase\s*([1-4])/i);
+    const phase = phaseMatch ? phaseMatch[1] : undefined;
+
+    let status: string | undefined;
+    if (/recruit/i.test(text)) status = "Recruiting,Enrolling by invitation";
+    if (/upcoming|not yet/i.test(text)) status = "Not yet recruiting";
+
+    let country: string | undefined;
+    if (/india/i.test(text)) country = byName("India")?.name || "India";
+    if (/world|global/i.test(text)) country = undefined;
+    if (/us|usa|united states/i.test(text)) country = byName("United States")?.name || "United States";
+
+    // Fetch aggregator
+    const trials = await searchTrials({
+      query: condition,
+      phase,
+      status,
+      country,
+    });
+
+    const ranked = dedupeTrials(trials).sort((a, b) => rankValue(b) - rankValue(a));
+    const top = ranked.slice(0, 10);
+
+    if (top.length > 0) {
+      const list = top
+        .map(
+          (t, i) =>
+            `${i + 1}. ${t.title} (${t.phase || "?"}, ${t.status || "?"}, ${t.country || "?"})\n   Link: ${t.url}`
+        )
+        .join("\n\n");
+
+      const prompt =
+        mode === "doctor"
+          ? `Summarize these trials for a clinician. Focus on phase, design, endpoints, and status:\n\n${list}`
+          : `Summarize these trials in plain English for patients. Explain what each is testing, status, and where:\n\n${list}`;
+
+      const reply = await callGroq([
+        {
+          role: "system",
+          content:
+            mode === "doctor"
+              ? "You are a concise clinical trial summarizer for clinicians."
+              : "You explain clinical trials in layman terms.",
+        },
+        { role: "user", content: prompt },
+      ]);
+
+      return NextResponse.json({ ok: true, text: reply });
+    } else {
+      return NextResponse.json({ ok: true, text: "I couldn’t find trials right now." });
+    }
+  }
+
   // DEBUG LOG (remove later): verify we're actually in doctor path
   console.log("[DoctorMode] mode=", mode, "thread_id=", thread_id);
 
@@ -199,65 +258,6 @@ export async function POST(req: Request) {
   }
 
   const fullSystem = baseSystem + onTopicInstruction;
-
-  // Detect general trial queries
-  if ((mode === "research" || mode === "doctor") && /\btrial(s)?\b/i.test(text)) {
-    // Condition guess
-    const condMatch = text.match(/([A-Za-z ]+?) trial/i);
-    const condition = condMatch ? condMatch[1].trim() : text;
-
-    const phaseMatch = text.match(/phase\s*([1-4])/i);
-    const phase = phaseMatch ? phaseMatch[1] : undefined;
-
-    let status: string | undefined;
-    if (/recruit/i.test(text)) status = "Recruiting,Enrolling by invitation";
-    if (/upcoming|not yet/i.test(text)) status = "Not yet recruiting";
-
-    let country: string | undefined;
-    if (/india/i.test(text)) country = byName("India")?.name || "India";
-    if (/world|global/i.test(text)) country = undefined;
-    if (/us|usa|united states/i.test(text)) country = byName("United States")?.name || "United States";
-
-    // Fetch aggregator
-    const trials = await searchTrials({
-      query: condition,
-      phase,
-      status,
-      country,
-    });
-
-    const ranked = dedupeTrials(trials).sort((a, b) => rankValue(b) - rankValue(a));
-    const top = ranked.slice(0, 10);
-
-    if (top.length > 0) {
-      const list = top
-        .map(
-          (t, i) =>
-            `${i + 1}. ${t.title} (${t.phase || "?"}, ${t.status || "?"}, ${t.country || "?"})\n   Link: ${t.url}`
-        )
-        .join("\n\n");
-
-      const prompt =
-        mode === "doctor"
-          ? `Summarize these trials for a clinician. Focus on phase, design, endpoints, and status:\n\n${list}`
-          : `Summarize these trials in plain English for patients. Explain what each is testing, status, and where:\n\n${list}`;
-
-      const reply = await callGroq([
-        {
-          role: "system",
-          content:
-            mode === "doctor"
-              ? "You are a concise clinical trial summarizer for clinicians."
-              : "You explain clinical trials in layman terms.",
-        },
-        { role: "user", content: prompt },
-      ]);
-
-      return NextResponse.json({ ok: true, text: reply });
-    } else {
-      return NextResponse.json({ ok: true, text: "I couldn’t find trials right now." });
-    }
-  }
 
   // 6) Groq call
   const messages: ChatCompletionMessageParam[] = [
