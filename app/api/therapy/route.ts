@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserId } from "@/lib/getUserId";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 const OAI_KEY = process.env.OPENAI_API_KEY!;
 const OAI_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
