@@ -26,6 +26,7 @@ import { finalReplyGuard } from "@/lib/conversation/finalReplyGuard";
 import { disambiguate, disambiguateWithMemory } from "@/lib/conversation/disambiguation";
 import { detectTopic, wantsNewTopic, inferTopicFromHistory, seemsOffTopic, rewriteToTopic } from "@/lib/conversation/topic";
 import { renderDoctorSummary } from "@/lib/renderer/templates/doctor";
+import { enforceDoctorMode } from "@/lib/conversation/doctorGuard";
 import { doctorSafetyNotes } from "@/lib/rules/doctorSafety";
 import { polishResponse } from "@/lib/conversation/polish";
 
@@ -58,13 +59,16 @@ export async function POST(req: Request) {
   if (mode === "doctor") {
     const patient = await buildPatientSnapshot(activeThreadId);
     const skeleton = renderDoctorSummary(patient);
+
     const systemWithTemplate = `
 You are MedX Doctor Mode.
-- Produce a structured, clinically reasoned summary using the provided sections.
-- Do NOT mention clinical trials, papers, or research unless the user explicitly asks.
-- Use concise, professional language. No emojis, no marketing tone.
+- Provide a structured, clinically reasoned report.
+- Use the following sections exactly as given.
+- Do NOT mention clinical trials, PubMed, NCI, or research.
+- No references or external links.
+- No lifestyle/general wellness advice.
 
-MANDATORY SECTIONS:
+TEMPLATE:
 ${skeleton}
 `;
 
@@ -73,13 +77,19 @@ ${skeleton}
       { role: "user", content: text },
     ];
     const raw = await callGroq(messages, { temperature: 0.25, max_tokens: 1200 });
-    let out = polishResponse(raw);
-    out = sanitizeLLM(out).replace(/(^|\n).*(trial|study|research).*/gim, "$1");
+
+    // Apply Doctor Mode guard
+    let guarded = enforceDoctorMode(raw, skeleton);
+
+    // Standard pipeline
+    let out = polishResponse(guarded);
+    out = sanitizeLLM(out);
     const safety = doctorSafetyNotes(patient);
     if (safety.length) {
       out += `\n\n**Safety Notes**\n${safety.map(s => `- ${s}`).join("\n")}`;
     }
     const final = finalReplyGuard(text, out);
+
     return NextResponse.json({ ok: true, threadId: activeThreadId, text: final });
   }
 
