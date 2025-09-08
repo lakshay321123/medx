@@ -22,12 +22,17 @@ export function saveMessages(id: string, msgs: ChatMsg[]) {
 export function ensureThread(id: string, initialTitle = "New chat"): Thread {
   const all = listThreads();
   const existing = all.find(t=>t.id===id);
-  if (existing) return existing;
+  if (existing) {
+    // keep index in sync for existing threads
+    try { upsertThreadIndex(existing.id, existing.title); } catch {}
+    return existing;
+  }
   const t: Thread = { id, title: initialTitle, createdAt: Date.now(), updatedAt: Date.now(), mode: "patient" };
   saveThreads([t, ...all]);
+  try { upsertThreadIndex(t.id, t.title); } catch {}
   return t;
 }
-export function renameThread(id:string, title:string){
+export function renameThreadLegacy(id:string, title:string){
   const all = listThreads().map(t=>t.id===id?{...t,title,updatedAt:Date.now()}:t);
   saveThreads(all);
 }
@@ -46,4 +51,57 @@ export function updateThreadTitle(id: string, title: string) {
     saveThreads(all);
     window.dispatchEvent(new Event("chat-threads-updated"));
   }
+}
+
+// ---- ADD: light-weight thread index helpers (localStorage) ----
+const THREADS_INDEX_KEY = "chat:threads:index"; // array of {id,title,updatedAt}
+
+type ThreadMeta = { id: string; title: string; updatedAt: number };
+
+export function getThreadsIndex(): ThreadMeta[] {
+  try {
+    const raw = localStorage.getItem(THREADS_INDEX_KEY);
+    return raw ? (JSON.parse(raw) as ThreadMeta[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function upsertThreadIndex(id: string, title: string) {
+  const list = getThreadsIndex();
+  const idx = list.findIndex(t => t.id === id);
+  const meta: ThreadMeta = { id, title, updatedAt: Date.now() };
+  if (idx >= 0) list[idx] = meta; else list.unshift(meta);
+  try { localStorage.setItem(THREADS_INDEX_KEY, JSON.stringify(list)); } catch {}
+}
+
+export function deleteFromThreadIndex(id: string) {
+  const list = getThreadsIndex().filter(t => t.id !== id);
+  try { localStorage.setItem(THREADS_INDEX_KEY, JSON.stringify(list)); } catch {}
+}
+
+// ---- ADD: delete + rename (localStorage scoped) ----
+export function deleteThread(threadId: string) {
+  try {
+    // messages
+    localStorage.removeItem(`chat:${threadId}:messages`);
+    // per-thread UI state
+    localStorage.removeItem(`chat:${threadId}:ui`);
+    // any draft
+    localStorage.removeItem(`chat:${threadId}:draft`);
+    // index
+    deleteFromThreadIndex(threadId);
+    // remove from legacy list
+    const remaining = listThreads().filter(t => t.id !== threadId);
+    saveThreads(remaining);
+  } catch {}
+}
+
+export function renameThread(threadId: string, newTitle: string) {
+  try {
+    // your existing title updater (kept)
+    updateThreadTitle(threadId, newTitle);
+    // reflect in index
+    upsertThreadIndex(threadId, newTitle);
+  } catch {}
 }
