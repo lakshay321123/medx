@@ -5,6 +5,7 @@ import { decideContext } from "@/lib/memory/contextRouter";
 import { seedTopicEmbedding } from "@/lib/memory/outOfContext";
 import { updateSummary, persistUpdatedSummary } from "@/lib/memory/summary";
 import { buildPromptContext } from "@/lib/memory/contextBuilder";
+import { buildContextBundle } from "@/lib/prompt/contextBuilder";
 
 import { loadState, saveState } from "@/lib/context/stateStore";
 import { extractContext, mergeInto } from "@/lib/context/extractLLM";
@@ -22,7 +23,7 @@ import { addEvidenceAnchorIfMedical } from "@/lib/text/medicalAnchor";
 import { shouldReset } from "@/lib/conversation/resetGuard";
 import { sanitizeLLM } from "@/lib/conversation/sanitize";
 import { finalReplyGuard } from "@/lib/conversation/finalReplyGuard";
-import { disambiguate } from "@/lib/conversation/disambiguation";
+import { disambiguate, disambiguateWithMemory } from "@/lib/conversation/disambiguation";
 
 function contextStringFrom(messages: ChatCompletionMessageParam[]): string {
   return messages
@@ -106,9 +107,18 @@ export async function POST(req: Request) {
     ...recent.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
     { role: "user", content: text },
   ];
-  const clarifier = disambiguate(text, contextStringFrom(messages));
+  // Clarification check (stateless)
+  const contextString = messages.map((m: any) => m.content).join(" ");
+  const clarifier = disambiguate(text, contextString);
   if (clarifier) {
     return NextResponse.json({ ok: true, threadId, text: clarifier });
+  }
+
+  // Clarification check (with memory)
+  const bundle = await buildContextBundle(threadId);
+  const clarifierWithMem = disambiguateWithMemory(text, bundle.memories ?? []);
+  if (clarifierWithMem) {
+    return NextResponse.json({ ok: true, threadId, text: clarifierWithMem });
   }
   let assistant = await callGroq(messages, { temperature: 0.25, max_tokens: 1200 });
 
