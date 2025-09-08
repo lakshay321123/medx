@@ -109,7 +109,7 @@ export default function Timeline(){
       </div>
       <ul className="space-y-2 text-sm">
         {filtered.map((it:any)=>(
-          <li key={`${it.kind}:${it.id}`} className="rounded-xl border p-3 hover:bg-muted/40 cursor-pointer"
+          <li key={`${it.kind}:${it.id}`} className="rounded-xl p-3 cursor-pointer medx-surface text-medx"
               onClick={()=>{ if (it.kind==="observation") { setActive(it); setOpen(true); }}}>
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <div><span className="font-medium">Test date:</span> {new Date(it.observed_at).toLocaleString()}

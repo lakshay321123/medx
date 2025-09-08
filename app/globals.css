@@ -87,3 +87,68 @@
   z-index: 1;
 }
 
+/* === MedX Theme Tokens (Light & Dark) === */
+:root {
+  --medx-bg-a: #e9efff;   /* light indigo */
+  --medx-bg-b: #d0f3ff;   /* light cyan */
+  --medx-text: #0F172A;
+  --medx-subtext: #334155;
+
+  /* accents from reference */
+  --medx-accent:  #2563EB;  /* blue */
+  --medx-accent2: #0891B2;  /* teal/cyan */
+  --medx-red:     #F97316;  /* orange-red */
+  --medx-teal:    #14B8A6;  /* teal */
+  --medx-purple:  #7C3AED;  /* purple */
+
+  /* surfaces */
+  --medx-surface: rgba(255,255,255,0.80);
+  --medx-panel:   rgba(255,255,255,0.90);
+  --medx-outline: rgba(15, 23, 42, 0.10);
+}
+.dark {
+  --medx-bg-a: #342eec;   /* deep indigo */
+  --medx-bg-b: #27b6da;   /* cyan/teal */
+  --medx-text: #E6E9F1;
+  --medx-subtext: #B6C2D0;
+
+  --medx-accent:  #60A5FA;  /* blue */
+  --medx-accent2: #22D3EE;  /* cyan */
+  --medx-red:     #F97316;
+  --medx-teal:    #2DD4BF;
+  --medx-purple:  #A78BFA;
+
+  --medx-surface: rgba(0,0,0,0.35);
+  --medx-panel:   rgba(3,7,18,0.55);
+  --medx-outline: rgba(255,255,255,0.12);
+}
+
+/* Background painted behind UI (never affects layout) */
+.medx-gradient { position: relative; }
+.medx-gradient::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(135deg, var(--medx-bg-a), var(--medx-bg-b));
+}
+
+/* Glass helpers */
+.medx-glass {
+  background: var(--medx-panel);
+  backdrop-filter: saturate(140%) blur(12px);
+  border: 1px solid var(--medx-outline);
+}
+.medx-surface {
+  background: var(--medx-surface);
+  border: 1px solid var(--medx-outline);
+}
+.medx-btn-accent     { background: var(--medx-accent);  color: #fff; }
+.medx-btn-accent-2   { background: var(--medx-accent2); color: #fff; }
+.text-medx           { color: var(--medx-text); }
+.text-medx-sub       { color: var(--medx-subtext); }
+
+/* tiny hover polish without shifting layout */
+.medx-surface:hover { filter: brightness(1.03); }
+

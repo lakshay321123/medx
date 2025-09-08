@@ -18,7 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ContextProvider>
             <TopicProvider>
               <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-                <div className="flex">
+                <div className="flex medx-gradient">
                   <Suspense fallback={null}>
                     <Sidebar />
                   </Suspense>
