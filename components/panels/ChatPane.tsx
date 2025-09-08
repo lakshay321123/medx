@@ -29,6 +29,16 @@ import { pushFullMem, buildFullContext } from "@/lib/memory/shortTerm";
 import { detectEditIntent } from "@/lib/intents/editIntents";
 import { getLastStructured, maybeIndexStructured, setLastStructured } from "@/lib/memory/structured";
 import { replaceEverywhere, addLineToSection, removeEverywhere, addBurrataIfMissing } from "@/lib/editors/recipeEdit";
+import { buildContextBlock } from "@/lib/context/compose";
+import { getProfileSnapshot } from "@/lib/context/profile";
+import { requireUnits } from "@/lib/compute/guard";
+import { REQUIRE_SOURCES } from "@/lib/prompts/grounding";
+import { indexTurn, searchTurns } from "@/lib/rag/threadIndex";
+import { detectRedFlags } from "@/lib/safety/redflags";
+import { chooseStyles } from "@/lib/intents/router";
+import { detectRecallIntent } from "@/lib/intents/recall";
+import { normalizeAnswer } from "@/lib/postprocess/answer";
+import { badges } from "@/lib/dev/badges";
 
 type ChatUiState = {
   topic: string | null;
@@ -79,6 +89,12 @@ function replaceFirstPendingWith(list: ChatMessage[], finalMsg: ChatMessage) {
   const idx = copy.findIndex(m => m.pending);
   if (idx >= 0) copy[idx] = finalMsg;
   return copy;
+}
+
+function injectBanner(msg: string) {
+  try {
+    console.warn(msg);
+  } catch {}
 }
 
 function titleForCategory(c?: AnalysisCategory) {
@@ -262,6 +278,15 @@ function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<Chat
             >
               {f}
             </button>
+          ))}
+        </div>
+      )}
+      {process.env.NODE_ENV !== 'production' && (m.badges?.length || 0) > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
+          {m.badges!.map((b, i) => (
+            <span key={i} className="rounded-full bg-gray-200 px-2 py-1">
+              {b}
+            </span>
           ))}
         </div>
       )}
@@ -517,6 +542,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         .replace(/\bsgpt\b/gi, "ALT (SGPT)")
         .replace(/\bsgot\b/gi, "AST (SGOT)");
     const userText = isProfileThread ? normalize(text) : text;
+    const fullContext = buildFullContext(stableThreadId);
+    const contextBlock = buildContextBlock(fullContext, getProfileSnapshot());
+    const styles = chooseStyles(userText, mode);
+    const userContent = `${userText}${contextBlock}`;
     if (threadId) pushFullMem(threadId, "user", userText);
     if (stableThreadId) {
       try { pushFullMem(stableThreadId, "user", userText); } catch {}
@@ -554,6 +583,21 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       setNote("");
       setBusy(false);
       return; // IMPORTANT: do not set topic, do not trigger research/planner
+    }
+
+    const recall = detectRecallIntent(userText);
+    if (recall) {
+      const hits = searchTurns(stableThreadId || '', recall.query);
+      if (hits.length) {
+        const content = `${hits[0].text}\n\n(from earlier)`;
+        setMessages(prev => [
+          ...prev,
+          { id: uid(), role: 'user', kind: 'chat', content: userText } as any,
+          { id: uid(), role: 'assistant', kind: 'chat', content } as any,
+        ]);
+        setBusy(false);
+        return;
+      }
     }
 
     // --- EDIT FAST-PATH (non-invasive, uses last structured content) ---
@@ -650,14 +694,12 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     }
 
     try {
-      const fullContext = buildFullContext(stableThreadId);
-      const contextBlock = fullContext ? `\n\nCONTEXT (recent conversation):\n${fullContext}` : "";
       if (isProfileThread) {
         const thread = [
           ...messages
             .filter(m => !m.pending)
             .map(m => ({ role: m.role, content: (m as any).content || '' })),
-          { role: 'user', content: `${userText}${contextBlock}` }
+          { role: 'user', content: userContent }
         ];
 
         const res = await fetch('/api/chat/stream', {
@@ -687,18 +729,23 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           }
         }
         const { main, followUps } = splitFollowUps(acc);
+        let finalText = normalizeAnswer(main);
+        const detectedTags: string[] = [];
+        const pillData = badges({ ctxLen: contextBlock.length, usedCompute: false, styles });
         setMessages(prev =>
           prev.map(m =>
-            m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
+            m.id === pendingId ? { ...m, content: finalText, followUps, pending: false, badges: pillData } : m
           )
         );
-        if (threadId && main && main.trim()) {
-          pushFullMem(threadId, "assistant", main);
-          maybeIndexStructured(threadId, main);
+        if (threadId && finalText && finalText.trim()) {
+          pushFullMem(threadId, "assistant", finalText);
+          maybeIndexStructured(threadId, finalText);
         }
         if (stableThreadId) {
-          try { pushFullMem(stableThreadId, "assistant", main); } catch {}
+          try { pushFullMem(stableThreadId, "assistant", finalText); } catch {}
+          try { indexTurn(stableThreadId, pendingId, finalText, detectedTags); } catch {}
         }
+        if (detectRedFlags(finalText)) injectBanner("⚠️ Possible red flags detected. Consider urgent evaluation.");
         return;
       }
       if (therapyMode) {
@@ -866,14 +913,19 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
                 ];
               })()
             : buildMedicinesPrompt(ui.topic, country);
+        chatMessages[0].content = `${chatMessages[0].content}\n${requireUnits(userText)}\n\n${REQUIRE_SOURCES}`;
+        for (const key of styles) chatMessages[0].content += `\n\n${(await import("@/lib/prompts/domains"))[key] ?? ""}`;
         chatMessages[1].content += contextBlock;
       } else if (follow && ctx) {
         const fullMem = fullContext;
-        const system = `You are MedX. This is a FOLLOW-UP.
+        let system = `You are MedX. This is a FOLLOW-UP.
 Here is the ENTIRE conversation so far:
 ${fullMem || "(none)"}
 
 ${systemCommon}` + baseSys;
+        system = `${system}\n${requireUnits(userText)}`;
+        system = `${system}\n\n${REQUIRE_SOURCES}`;
+        for (const key of styles) system = `${system}\n\n${(await import("@/lib/prompts/domains"))[key] ?? ""}`;
         const userMsg = `Follow-up: ${text}\nIf the question is ambiguous, ask one concise disambiguation question and then answer briefly using the context.`;
         chatMessages = [
           { role: 'system', content: system },
@@ -888,11 +940,14 @@ ${systemCommon}` + baseSys;
           })
         );
 
-        const sys = topicHint + systemCommon + baseSys;
+        let sys = topicHint + systemCommon + baseSys;
+        sys = `${sys}\n${requireUnits(userText)}`;
+        sys = `${sys}\n\n${REQUIRE_SOURCES}`;
+        for (const key of styles) sys = `${sys}\n\n${(await import("@/lib/prompts/domains"))[key] ?? ""}`;
         const planContextBlock = 'CONTEXT:\n' + JSON.stringify(plan.sections || {}, null, 2);
         chatMessages = [
           { role: 'system', content: sys },
-          { role: 'user', content: `${text}\n\n${planContextBlock}${contextBlock}` }
+          { role: 'user', content: `${userText}\n\n${planContextBlock}${contextBlock}` }
         ];
       }
 
@@ -928,22 +983,27 @@ ${systemCommon}` + baseSys;
         }
       }
       const { main, followUps } = splitFollowUps(acc);
+      let finalText = normalizeAnswer(main);
+      const detectedTags: string[] = [];
+      const pillData = badges({ ctxLen: contextBlock.length, usedCompute: false, styles });
       setMessages(prev =>
         prev.map(m =>
-          m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
+          m.id === pendingId ? { ...m, content: finalText, followUps, pending: false, badges: pillData } : m
         )
       );
-      if (threadId && main && main.trim()) {
-        pushFullMem(threadId, "assistant", main);
-        maybeIndexStructured(threadId, main);
+      if (threadId && finalText && finalText.trim()) {
+        pushFullMem(threadId, "assistant", finalText);
+        maybeIndexStructured(threadId, finalText);
       }
       if (stableThreadId) {
-        try { pushFullMem(stableThreadId, "assistant", main); } catch {}
+        try { pushFullMem(stableThreadId, "assistant", finalText); } catch {}
+        try { indexTurn(stableThreadId, pendingId, finalText, detectedTags); } catch {}
       }
-      if (main.length > 400) {
-        setFromChat({ id: pendingId, content: main });
+      if (finalText.length > 400) {
+        setFromChat({ id: pendingId, content: finalText });
         setUi(prev => ({ ...prev, contextFrom: 'Conversation summary' }));
       }
+      if (detectRedFlags(finalText)) injectBanner("⚠️ Possible red flags detected. Consider urgent evaluation.");
     } catch (e: any) {
       console.error(e);
       const content = `⚠️ ${String(e?.message || e)}`;
