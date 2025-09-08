@@ -33,6 +33,8 @@ import { buildPatientSnapshot } from "@/lib/patient/snapshot";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchTrialByNct } from "@/lib/trials/byId";
 import { singleTrialPatientPrompt, singleTrialClinicianPrompt } from "@/lib/prompts/trials";
+import { searchTrials, dedupeTrials, rankValue } from "@/lib/trials/search";
+import { byName } from "@/data/countries";
 
 async function getFeedbackSummary(conversationId: string) {
   try {
@@ -88,6 +90,69 @@ export async function POST(req: Request) {
       { role: "user", content: prompt },
     ], { temperature: 0.25, max_tokens: 1200 });
     return NextResponse.json({ ok: true, text: reply });
+  }
+
+  // Detect general trial queries (non-NCT)
+  if ((mode === "research" || mode === "doctor") && /\btrial(s)?\b/i.test(text)) {
+    // --- crude extraction ---
+    const conditionMatch = text.match(/(cancer|diabetes|glioblastoma|leukemia|myeloma|lung|breast|colon|prostate|pancreatic|lymphoma)/i);
+    const condition = conditionMatch ? conditionMatch[0] : text;
+
+    const phaseMatch = text.match(/phase\s*([1-4])/i);
+    const phase = phaseMatch ? phaseMatch[1] : undefined;
+
+    let status: string | undefined;
+    if (/recruit/i.test(text)) status = "Recruiting,Enrolling by invitation";
+    if (/upcoming|not yet/i.test(text)) status = "Not yet recruiting";
+
+    let country: string | undefined;
+    if (/india/i.test(text)) country = "India";
+    if (/world|global|international/i.test(text)) country = undefined;
+    if (/us|usa|united states/i.test(text)) country = "United States";
+    if (country && !byName(country)) country = undefined;
+
+    // --- fetch trials ---
+    const trials = await searchTrials({
+      query: condition,
+      phase,
+      status,
+      country,
+      genes: undefined,
+    });
+
+    const ranked = dedupeTrials(trials).sort((a, b) => rankValue(b) - rankValue(a));
+    const top = ranked.slice(0, 10);
+
+    if (top.length > 0) {
+      // Build trial list string
+      const list = top
+        .map(
+          (t, i) =>
+            `${i + 1}. ${t.title} (${t.phase || "?"}, ${t.status || "?"}, ${t.country || "?"})\n   Link: ${t.url}`
+        )
+        .join("\n\n");
+
+      // Mode-specific prompt
+      const prompt =
+        mode === "doctor"
+          ? `Summarize these trials for a clinician audience. Focus on phase, design, endpoints, status, sponsor.\n\n${list}`
+          : `Summarize these trials in plain English for a patient. Explain what each is testing, status, and where. Keep it clear and short.\n\n${list}`;
+
+      const reply = await callGroq([
+        {
+          role: "system",
+          content:
+            mode === "doctor"
+              ? "You are a clinical evidence summarizer for doctors."
+              : "You are a health explainer for laypeople.",
+        },
+        { role: "user", content: prompt },
+      ]);
+
+      return NextResponse.json({ ok: true, reply });
+    } else {
+      return NextResponse.json({ ok: true, reply: "I couldn't find matching trials right now." });
+    }
   }
 
   // DEBUG LOG (remove later): verify we're actually in doctor path
