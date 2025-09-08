@@ -61,6 +61,10 @@ export async function POST(req: Request) {
   const { messages: incomingMessages, mode: rawMode, thread_id } = body;
   const mode = normalizeMode(rawMode);
   const userMessage = incomingMessages?.[incomingMessages.length - 1]?.content || "";
+  let { userId, activeThreadId, text, researchOn, clarifySelectId } = body;
+  if (researchOn === undefined && (mode === "doctor" || mode === "research")) {
+    researchOn = true;
+  }
 
   const nctMatch = userMessage.match(/\bNCT\d{8}\b/i);
   if (nctMatch && (mode === "doctor" || mode === "research")) {
@@ -105,11 +109,6 @@ export async function POST(req: Request) {
     out = sanitizeLLM(out);
     const final = finalReplyGuard(userMessage, out);
     return NextResponse.json({ text: final });
-  }
-
-  let { userId, activeThreadId, text, researchOn, clarifySelectId } = body;
-  if (researchOn === undefined && (mode === "doctor" || mode === "research")) {
-    researchOn = true;
   }
 
   if (shouldReset(text)) {
