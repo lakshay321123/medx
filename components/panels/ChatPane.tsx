@@ -13,6 +13,7 @@ import { getRandomWelcome } from '@/lib/welcomeMessages';
 import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
 import { detectFollowupIntent } from '@/lib/intents';
+import { detectDomain } from "@/lib/intents/domains";
 import { safeJson } from '@/lib/safeJson';
 import { splitFollowUps } from '@/lib/splitFollowUps';
 import { getTrials } from "@/lib/hooks/useTrials";
@@ -652,6 +653,18 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     try {
       const fullContext = buildFullContext(stableThreadId);
       const contextBlock = fullContext ? `\n\nCONTEXT (recent conversation):\n${fullContext}` : "";
+      let DOMAIN_STYLE = "";
+      const domain = detectDomain(userText);
+      if (domain) {
+        const D = await import("@/lib/prompts/domains");
+        DOMAIN_STYLE =
+          domain === "allied"     ? D.ALLIED_STYLE :
+          domain === "wellness"   ? D.WELLNESS_STYLE :
+          domain === "technical"  ? D.TECHNICAL_SCI_STYLE :
+          domain === "behavioral" ? D.BEHAVIORAL_STYLE :
+          domain === "supportive" ? D.SUPPORTIVE_STYLE :
+          domain === "compliance" ? D.COMPLIANCE_STYLE : "";
+      }
       if (isProfileThread) {
         const thread = [
           ...messages
@@ -867,6 +880,9 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
               })()
             : buildMedicinesPrompt(ui.topic, country);
         chatMessages[1].content += contextBlock;
+        if (DOMAIN_STYLE && chatMessages[0]) {
+          chatMessages[0].content += `\n\n${DOMAIN_STYLE}`;
+        }
       } else if (follow && ctx) {
         const fullMem = fullContext;
         const system = `You are MedX. This is a FOLLOW-UP.
@@ -875,8 +891,9 @@ ${fullMem || "(none)"}
 
 ${systemCommon}` + baseSys;
         const userMsg = `Follow-up: ${text}\nIf the question is ambiguous, ask one concise disambiguation question and then answer briefly using the context.`;
+        const systemAll = `${system}${DOMAIN_STYLE ? "\n\n" + DOMAIN_STYLE : ""}`;
         chatMessages = [
-          { role: 'system', content: system },
+          { role: 'system', content: systemAll },
           { role: 'user', content: `${userMsg}${contextBlock}` }
         ];
       } else {
@@ -890,9 +907,10 @@ ${systemCommon}` + baseSys;
 
         const sys = topicHint + systemCommon + baseSys;
         const planContextBlock = 'CONTEXT:\n' + JSON.stringify(plan.sections || {}, null, 2);
+        const systemAll = `${sys}${DOMAIN_STYLE ? "\n\n" + DOMAIN_STYLE : ""}`;
         chatMessages = [
-          { role: 'system', content: sys },
-          { role: 'user', content: `${text}\n\n${planContextBlock}${contextBlock}` }
+          { role: 'system', content: systemAll },
+          { role: 'user', content: `${userText}\n\n${planContextBlock}${contextBlock}` }
         ];
       }
 
