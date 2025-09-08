@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import { summarizeTherapyJSON, type ChatMessage as TM } from "@/lib/therapy/summarizer";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { getServerUserId } from "@/lib/auth/serverUser";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 const OAI_KEY = process.env.OPENAI_API_KEY!;
 const OAI_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
