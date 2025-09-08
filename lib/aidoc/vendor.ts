@@ -1,16 +1,17 @@
 import OpenAI from "openai";
 import { safeParseJson, withDefaults } from "@/lib/utils/safeJson";
 
-const oai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-  timeout: Number(process.env.AIDOC_MODEL_TIMEOUT_MS || 25000),
-});
+const timeout = Number(process.env.AIDOC_MODEL_TIMEOUT_MS || 25000);
 
 type CallIn = { system: string; user: string; instruction: string };
 
 export async function callOpenAIJson({ system, user, instruction }: CallIn): Promise<any> {
   const model = process.env.AIDOC_MODEL || "gpt-5"; // ✅ default GPT-5
   try {
+    const oai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY || "",
+      timeout,
+    });
     const resp = await oai.chat.completions.create({
       model,
       temperature: 0.2,
@@ -29,14 +30,16 @@ export async function callOpenAIJson({ system, user, instruction }: CallIn): Pro
         save: { medications: [], conditions: [], labs: [], notes: [], prefs: [] },
         observations: { short: "", long: "" },
       });
+    } else {
+      // Model ignored JSON mode — safe fallback
+      const reason = (parsed as { ok: false; error: string }).error;
+      return {
+        reply: content || "I captured your note. I’ll avoid quoting stale labs and suggest repeats when needed.",
+        save: { medications: [], conditions: [], labs: [], notes: [], prefs: [] },
+        observations: { short: "Model returned non-JSON. Using safe fallback.", long: "" },
+        _warn: { reason }
+      };
     }
-    // Model ignored JSON mode — safe fallback
-    return {
-      reply: content || "I captured your note. I’ll avoid quoting stale labs and suggest repeats when needed.",
-      save: { medications: [], conditions: [], labs: [], notes: [], prefs: [] },
-      observations: { short: "Model returned non-JSON. Using safe fallback.", long: "" },
-      _warn: { reason: parsed.error }
-    };
   } catch (err: any) {
     // Resilient fallback (prevents 504s and client JSON errors)
     return {
