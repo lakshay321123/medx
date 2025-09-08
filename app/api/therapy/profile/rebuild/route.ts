@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { aggregateNotes, type ProfileUpdate } from "@/lib/therapy/aggregate";
+import OpenAI from "openai";
+import { enrichProfileJSON } from "@/lib/therapy/enrich";
 
 export async function POST(req: Request) {
   try {
@@ -24,6 +26,33 @@ export async function POST(req: Request) {
     if (e1) return NextResponse.json({ error: e1.message }, { status: 500 });
 
     const agg: ProfileUpdate = aggregateNotes(notes || []);
+
+    // Prepare small sample set to help GPT reason (last 5 summaries/emotions)
+    const samples = (notes || []).slice(0, 5).map((n: any) => ({
+      summary: n?.summary || "",
+      emotions: n?.meta?.emotions || []
+    }));
+
+    try {
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY!,
+        baseURL: (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "")
+      });
+      const enriched = await enrichProfileJSON(openai, {
+        topics: agg.topics,
+        triggers: agg.triggers,
+        mood_stats: agg.mood_stats,
+        recent_goals: agg.recent_goals,
+        samples
+      });
+
+      if (enriched) {
+        // merge enrichment into aggregates before upsert
+        agg.personality = enriched.personality;
+        agg.values = enriched.values as any;
+        agg.supports = enriched.supports as any;
+      }
+    } catch { /* fail-soft */ }
 
     // UPSERT therapy_profile
     const { error: e2 } = await sb
