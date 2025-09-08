@@ -3,8 +3,7 @@ import OpenAI from "openai";
 import { withRetries } from "@/lib/llm/retry";
 import { shouldModelFallback } from "@/lib/llm/fallback";
 
-const OAI_KEY = process.env.OPENAI_API_KEY!;
-const openai = new OpenAI({ apiKey: OAI_KEY });
+const OAI_KEY = process.env.OPENAI_API_KEY;
 const MODEL_VISION_PRIMARY = process.env.OPENAI_VISION_MODEL || "gpt-5"; // images
 const MODEL_TEXT_PRIMARY   = process.env.OPENAI_TEXT_MODEL   || "gpt-5"; // PDFs
 const MODEL_SAFE           = process.env.OPENAI_FALLBACK_MODEL || "gpt-5-mini";
@@ -30,6 +29,8 @@ function looksLikePdfByMagic(buf: Buffer): boolean {
 
 export async function POST(req: Request) {
   try {
+    if (!OAI_KEY) throw new Error("OPENAI_API_KEY missing");
+    const openai = new OpenAI({ apiKey: OAI_KEY });
     const fd = await req.formData();
 
     // Accept both legacy and unified field names
@@ -80,20 +81,16 @@ export async function POST(req: Request) {
       ];
       const pResp = await withRetries(async () => {
         try {
-          return await openai.chat.completions.create({
-            model: MODEL_TEXT_PRIMARY,
-            messages: pMsgs as any,
-            temperature: 0,
-            timeout: 30000,
-          });
+          return await openai.chat.completions.create(
+            { model: MODEL_TEXT_PRIMARY, messages: pMsgs as any, temperature: 0 },
+            { timeout: 30000 }
+          );
         } catch (e: any) {
           if (shouldModelFallback(e)) {
-            return await openai.chat.completions.create({
-              model: MODEL_SAFE,
-              messages: pMsgs as any,
-              temperature: 0,
-              timeout: 30000,
-            });
+            return await openai.chat.completions.create(
+              { model: MODEL_SAFE, messages: pMsgs as any, temperature: 0 },
+              { timeout: 30000 }
+            );
           }
           throw e;
         }
@@ -119,20 +116,16 @@ export async function POST(req: Request) {
         ];
         const dResp = await withRetries(async () => {
           try {
-            return await openai.chat.completions.create({
-              model: MODEL_TEXT_PRIMARY,
-              messages: dMsgs as any,
-              temperature: 0,
-              timeout: 30000,
-            });
+            return await openai.chat.completions.create(
+              { model: MODEL_TEXT_PRIMARY, messages: dMsgs as any, temperature: 0 },
+              { timeout: 30000 }
+            );
           } catch (e: any) {
             if (shouldModelFallback(e)) {
-              return await openai.chat.completions.create({
-                model: MODEL_SAFE,
-                messages: dMsgs as any,
-                temperature: 0,
-                timeout: 30000,
-              });
+              return await openai.chat.completions.create(
+                { model: MODEL_SAFE, messages: dMsgs as any, temperature: 0 },
+                { timeout: 30000 }
+              );
             }
             throw e;
           }
@@ -188,20 +181,16 @@ export async function POST(req: Request) {
     ];
     const vis = await withRetries(async () => {
       try {
-        return await openai.chat.completions.create({
-          model: MODEL_VISION_PRIMARY,
-          messages: visMsgs as any,
-          temperature: 0.2,
-          timeout: 45000,
-        });
+        return await openai.chat.completions.create(
+          { model: MODEL_VISION_PRIMARY, messages: visMsgs as any, temperature: 0.2 },
+          { timeout: 45000 }
+        );
       } catch (e: any) {
         if (shouldModelFallback(e)) {
-          return await openai.chat.completions.create({
-            model: MODEL_SAFE,
-            messages: visMsgs as any,
-            temperature: 0.2,
-            timeout: 45000,
-          });
+          return await openai.chat.completions.create(
+            { model: MODEL_SAFE, messages: visMsgs as any, temperature: 0.2 },
+            { timeout: 45000 }
+          );
         }
         throw e;
       }

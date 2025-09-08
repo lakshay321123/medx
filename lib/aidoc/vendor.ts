@@ -18,22 +18,26 @@ export async function callOpenAIJson({ system, user, instruction }: CallIn): Pro
   try {
     const resp = await withRetries(async () => {
       try {
-        return await openai.chat.completions.create({
-          model: MODEL_PRIMARY,
-          messages,
-          temperature: 0.2,
-          response_format: { type: "json_object" },
-          timeout: 30000,
-        });
-      } catch (e: any) {
-        if (shouldModelFallback(e) && MODEL_FALLBACK !== MODEL_PRIMARY) {
-          return await openai.chat.completions.create({
-            model: MODEL_FALLBACK,
-            messages,
+        return await openai.chat.completions.create(
+          {
+            model: MODEL_PRIMARY,
+            messages: messages as any,
             temperature: 0.2,
             response_format: { type: "json_object" },
-            timeout: 30000,
-          });
+          },
+          { timeout: 30000 }
+        );
+      } catch (e: any) {
+        if (shouldModelFallback(e) && MODEL_FALLBACK !== MODEL_PRIMARY) {
+          return await openai.chat.completions.create(
+            {
+              model: MODEL_FALLBACK,
+              messages: messages as any,
+              temperature: 0.2,
+              response_format: { type: "json_object" },
+            },
+            { timeout: 30000 }
+          );
         }
         throw e;
       }

@@ -10,7 +10,6 @@ const MODEL_PRIMARY = process.env.OPENAI_TEXT_MODEL || "gpt-5";
 const MODEL_FALLBACK = process.env.OPENAI_FALLBACK_MODEL || "gpt-5-mini";
 const ENABLED = String(process.env.THERAPY_MODE_ENABLED || "").toLowerCase() === "true";
 
-const openai = new OpenAI({ apiKey: OAI_KEY, baseURL: OAI_URL });
 
 const STYLE = `One short reflection (≤1 line) of the user’s last message.
 Then ask exactly one clear question; end with a single “?”.
@@ -51,18 +50,20 @@ function makePayload(messages: any[], model: string) {
 
 async function callOpenAI(messages: any[]) {
   try {
+    if (!OAI_KEY) throw new Error("OPENAI_API_KEY missing");
+    const openai = new OpenAI({ apiKey: OAI_KEY, baseURL: OAI_URL });
     const resp = await withRetries(async () => {
       try {
-        return await openai.chat.completions.create({
-          ...makePayload(messages, MODEL_PRIMARY),
-          timeout: 30000,
-        });
+        return await openai.chat.completions.create(
+          { ...makePayload(messages, MODEL_PRIMARY) },
+          { timeout: 30000 }
+        );
       } catch (e: any) {
         if (shouldModelFallback(e) && MODEL_FALLBACK !== MODEL_PRIMARY) {
-          return await openai.chat.completions.create({
-            ...makePayload(messages, MODEL_FALLBACK),
-            timeout: 30000,
-          });
+          return await openai.chat.completions.create(
+            { ...makePayload(messages, MODEL_FALLBACK) },
+            { timeout: 30000 }
+          );
         }
         throw e;
       }
