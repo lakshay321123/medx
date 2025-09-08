@@ -15,3 +15,5 @@ export const COUNTRIES: Country[] = [
 
 export const byCode2 = (c2: string) => COUNTRIES.find(c => c.code2 === c2.toUpperCase());
 export const byCode3 = (c3: string) => COUNTRIES.find(c => c.code3 === c3.toUpperCase());
+export const byName = (name: string) =>
+  COUNTRIES.find(c => c.name.toLowerCase() === name.toLowerCase());
