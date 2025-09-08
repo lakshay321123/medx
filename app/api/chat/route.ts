@@ -39,9 +39,9 @@ function contextStringFrom(messages: ChatCompletionMessageParam[]): string {
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const { messages, mode: rawMode, thread_id } = body;
+  const { messages: incomingMessages, mode: rawMode, thread_id } = body;
   const mode = normalizeMode(rawMode);
-  const userMessage = messages?.[messages.length - 1]?.content || "";
+  const userMessage = incomingMessages?.[incomingMessages.length - 1]?.content || "";
 
   // DEBUG LOG (remove later): verify we're actually in doctor path
   console.log("[DoctorMode] mode=", mode, "thread_id=", thread_id);
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     const systemPrompt = DOCTOR_JSON_SYSTEM;
     const msg: ChatCompletionMessageParam[] = [
       { role: "system", content: systemPrompt },
-      ...(messages || []),
+      ...(incomingMessages || []),
     ];
     const jsonStr = await callGroq(msg, { temperature: 0 });
     const sections = coerceDoctorJson(jsonStr);
