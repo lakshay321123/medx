@@ -40,6 +40,13 @@ export async function GET(req: NextRequest) {
       country: wantCountry, // undefined => Worldwide
     });
 
+    const _counts = trials.reduce((m, t) => {
+      const s = (t.source || "unknown").toUpperCase();
+      m[s] = (m[s] || 0) + 1;
+      return m;
+    }, {} as Record<string, number>);
+    console.log("[trials GET] source counts:", _counts, "country:", wantCountry, "query:", condition);
+
     // Rank & de-dup
     const ranked = dedupeTrials(trials).sort((a, b) => rankValue(b) - rankValue(a));
 
@@ -47,16 +54,16 @@ export async function GET(req: NextRequest) {
     const rows = ranked.map((t) => ({
       id: t.id,
       title: t.title,
-      conditions: [],
-      interventions: [],
       status: t.status || "",
-      phase: t.phase ? (t.phase.includes("/") ? t.phase : `Phase ${t.phase}`) : "",
-      studyType: "",
-      sponsor: "",
-      locations: [],
+      phase: t.phase || "",
       url: t.url || "",
       country: t.country || "",
       source: t.source || "",
+      conditions: [],
+      interventions: [],
+      studyType: "",
+      sponsor: "",
+      locations: [],
     }));
 
     // Fallback: if strict country yields 0, retry Worldwide once
@@ -71,16 +78,16 @@ export async function GET(req: NextRequest) {
       const rows2 = ranked2.map((t) => ({
         id: t.id,
         title: t.title,
-        conditions: [],
-        interventions: [],
         status: t.status || "",
-        phase: t.phase ? (t.phase.includes("/") ? t.phase : `Phase ${t.phase}`) : "",
-        studyType: "",
-        sponsor: "",
-        locations: [],
+        phase: t.phase || "",
         url: t.url || "",
         country: t.country || "",
         source: t.source || "",
+        conditions: [],
+        interventions: [],
+        studyType: "",
+        sponsor: "",
+        locations: [],
       }));
       return NextResponse.json({ rows: rows2, page: 1, pageSize: rows2.length });
     }

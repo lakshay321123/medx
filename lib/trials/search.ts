@@ -2,6 +2,7 @@
 import { fetchEUCTR } from "./fetchEUCTR";
 import { fetchCTRI } from "./fetchCTRI";
 import { fetchISRCTNRecord } from "./fetchISRCTN";
+import { searchCtri } from "../research/sources/ctri";
 
 type PhaseStr = "1" | "2" | "3" | "4" | "1/2" | "2/3";
 
@@ -110,18 +111,24 @@ function containsAny(haystack: string, needles: string[]): boolean {
   return needles.some(n => h.includes(n.toLowerCase()));
 }
 
-export function dedupeTrials<T extends { id?: string; title?: string; country?: string }>(arr: T[]) {
-  const seen = new Set<string>();
-  return arr.filter(r => {
-    const idKey = (r.id || "").toUpperCase().replace(/\s+/g, "");
-    const titleKey = (r.title || "").toLowerCase().replace(/\W+/g, " ").trim();
-    const cc = (r.country || "").toLowerCase();
-    const key = idKey ? `id:${idKey}` : `t:${titleKey}|c:${cc}`;
-    if (!key) return true;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+export function dedupeTrials(arr: Trial[]) {
+  const pickScore = (t: any) => {
+    let s = 0;
+    if (/recruit/i.test(t.status || "")) s += 10;
+    if (t.source === "CTRI") s += 3;
+    if (t.source === "EUCTR") s += 2;
+    if (t.source === "ISRCTN") s += 2;
+    if (t.source === "CTgov") s += 1;
+    return s;
+    };
+
+  const byTitle = new Map<string, any>();
+  for (const t of arr) {
+    const k = (t.title || "").toLowerCase().trim();
+    const prev = byTitle.get(k);
+    if (!prev || pickScore(t) > pickScore(prev)) byTitle.set(k, t);
+  }
+  return Array.from(byTitle.values());
 }
 
 export function rankValue(t: { status?: string; phase?: string; source?: string }) {
@@ -165,7 +172,21 @@ export async function searchTrials(input: Input): Promise<Trial[]> {
       ? (ctgov.value as any[]).map(r => ({ ...r, source: "CTgov" as const }))
       : [];
   const fromEU = euctr.status === "fulfilled" ? (euctr.value as any[]) : [];
-  const fromIN = ctri.status === "fulfilled" ? (ctri.value as any[]) : [];
+  let fromIN = ctri.status === "fulfilled" ? (ctri.value as any[]) : [];
+  if (fromIN.length === 0 && (!input.country || input.country.toLowerCase() === "india")) {
+    try {
+      const fallback = await searchCtri(input.query || "");
+      fromIN = fallback.map(r => ({
+        id: r.id,
+        title: r.title,
+        url: r.url,
+        phase: r.extra?.phase,
+        status: r.extra?.status,
+        country: "India",
+        source: "CTRI" as const,
+      }));
+    } catch {}
+  }
 
   // 2) merge
   const merged = [...fromCT, ...fromEU, ...fromIN];
