@@ -33,6 +33,7 @@ import { detectAdvancedDomain } from "@/lib/intents/advanced";
 // === ADD-ONLY for domain routing ===
 import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
+import { fetchTrialDetail, formatTrialDetail } from "@/lib/trials/details";
 
 async function computeEval(expr: string) {
   const r = await fetch("/api/compute/math", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ op:"eval", expr }) });
@@ -818,9 +819,37 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           }
           setBusy(false);
           return;
-        }
+      }
         // else: proceed to normal LLM call with contextBlock (added above)
       }
+
+      // === Clinical Trial Detail Fast-Path ===
+      const nctAsk = userText.match(/\b(NCT\d{8})\b/i);
+      if (nctAsk && /detail|summary|info|about|show/i.test(userText)) {
+        try {
+          const nct = nctAsk[1].toUpperCase();
+          const t = await fetchTrialDetail(nct);
+          const md = formatTrialDetail(t);
+
+          setMessages((prev) =>
+            prev.map((m) => (m.pending ? { ...m, content: md, pending: false } : m))
+          );
+          setBusy(false);
+          return;
+        } catch (e: any) {
+          const msg = `⚠️ Couldn’t load details for ${nctAsk[1].toUpperCase()}.`;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.pending
+                ? { ...m, content: msg, pending: false, error: e?.message || "" }
+                : m
+            )
+          );
+          setBusy(false);
+          return;
+        }
+      }
+      // === END Fast-Path ===
 
       // === ADD-ONLY: domain style selection ===
       let DOMAIN_STYLE = "";

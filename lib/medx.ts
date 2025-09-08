@@ -93,6 +93,7 @@ function buildSystemPrompt({ mode, citations, topic }: { mode: string; citations
   if (citations) {
     sys += `\nCitations:\n${citations}`;
   }
+  sys += `\n\nNOTE:\n- If user requests NCT ID details, the system fetches via /api/trials/[nctid].\n- Do not invent fields. If missing, say: "Check official ClinicalTrials.gov".\n`;
   return sys;
 }
 
