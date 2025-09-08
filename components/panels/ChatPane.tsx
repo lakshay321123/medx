@@ -30,6 +30,9 @@ import { detectEditIntent } from "@/lib/intents/editIntents";
 import { getLastStructured, maybeIndexStructured, setLastStructured } from "@/lib/memory/structured";
 import { replaceEverywhere, addLineToSection, removeEverywhere, addBurrataIfMissing } from "@/lib/editors/recipeEdit";
 import { detectAdvancedDomain } from "@/lib/intents/advanced";
+// === ADD-ONLY for domain routing ===
+import { detectDomain } from "@/lib/intents/domains";
+import * as DomainStyles from "@/lib/prompts/domains";
 
 async function computeEval(expr: string) {
   const r = await fetch("/api/compute/math", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ op:"eval", expr }) });
@@ -819,6 +822,18 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         // else: proceed to normal LLM call with contextBlock (added above)
       }
 
+      // === ADD-ONLY: domain style selection ===
+      let DOMAIN_STYLE = "";
+      try {
+        const d = detectDomain(userText);
+        if (d === "allied")      DOMAIN_STYLE = DomainStyles.ALLIED_STYLE;
+        else if (d === "wellness")   DOMAIN_STYLE = DomainStyles.WELLNESS_STYLE;
+        else if (d === "technical")  DOMAIN_STYLE = DomainStyles.TECHNICAL_SCI_STYLE;
+        else if (d === "behavioral") DOMAIN_STYLE = DomainStyles.BEHAVIORAL_STYLE;
+        else if (d === "supportive") DOMAIN_STYLE = DomainStyles.SUPPORTIVE_STYLE;
+        else if (d === "compliance") DOMAIN_STYLE = DomainStyles.COMPLIANCE_STYLE;
+      } catch {}
+
       const linkNudge =
         'When adding a reference, always format as [title](https://full.url) with the full absolute URL. Never output Learn more without a URL, and never use relative links.';
       const baseSys =
@@ -833,6 +848,7 @@ ${linkNudge}`;
       const topicHint = ui.topic ? `ACTIVE TOPIC: ${ui.topic}\nKeep answers scoped to this topic unless the user changes it.\n` : "";
 
       const sys = topicHint + systemCommon + baseSys;
+      const sysWithDomain = DOMAIN_STYLE ? `${sys}\n\n${DOMAIN_STYLE}` : sys;
       let ADV_STYLE = "";
       const adv = detectAdvancedDomain(userText);
       if (adv) {
@@ -845,7 +861,7 @@ ${linkNudge}`;
           adv === "preventive"     ? D.PREVENTIVE_STYLE :
           adv === "systems-policy" ? D.SYSTEMS_POLICY_STYLE : "";
       }
-      const systemAll = `${sys}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
+      const systemAll = `${sysWithDomain}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
       let chatMessages: { role: string; content: string }[];
 
       const looksLikeMath = /[0-9\.\s+\-*\/^()]{6,}/.test(userText) || /sin|cos|log|sqrt|derivative|integral|limit/i.test(userText);
@@ -922,7 +938,8 @@ Here is the ENTIRE conversation so far:
 ${fullMem || "(none)"}
 
 ${systemCommon}` + baseSys;
-        const systemAll = `${system}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
+        const systemWithDomain = DOMAIN_STYLE ? `${system}\n\n${DOMAIN_STYLE}` : system;
+        const systemAll = `${systemWithDomain}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
         const userMsg = `Follow-up: ${text}\nIf the question is ambiguous, ask one concise disambiguation question and then answer briefly using the context.`;
         chatMessages = [
           { role: 'system', content: systemAll },
@@ -938,7 +955,8 @@ ${systemCommon}` + baseSys;
         );
 
         const sys = topicHint + systemCommon + baseSys;
-        const systemAll = `${sys}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
+        const sysWithDomain = DOMAIN_STYLE ? `${sys}\n\n${DOMAIN_STYLE}` : sys;
+        const systemAll = `${sysWithDomain}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
         const planContextBlock = 'CONTEXT:\n' + JSON.stringify(plan.sections || {}, null, 2);
         chatMessages = [
           { role: 'system', content: systemAll },
