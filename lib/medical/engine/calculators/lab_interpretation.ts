@@ -369,8 +369,6 @@ register({
   },
 });
 // ===================== MED-FULL-PENDING (APPEND-ONLY) =====================
-/* If this import already exists at file top, remove this line. */
-
 // ---------------- Acid–Base (advanced) ----------------
 
 /** Delta gap (ΔAG − ΔHCO3) */
