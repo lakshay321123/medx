@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server';
 import { profileChatSystem } from '@/lib/profileChatSystem';
+import { extractLabsFromText } from '@/lib/medical/extractLabs';
+import * as calc from '@/lib/medical/calculators';
 export const runtime = 'edge';
 
 const recentReqs = new Map<string, number>();
@@ -22,6 +24,23 @@ export async function POST(req: NextRequest) {
   const key   = process.env.LLM_API_KEY!;
   const url = `${base.replace(/\/$/,'')}/chat/completions`;
 
+  const userText = (messages || []).map((m:any)=>m?.content||"").join("\n");
+  const labs = extractLabsFromText(userText);
+  const notes: string[] = [];
+
+  const ag = calc.computeAnionGap(labs);
+  if (ag != null) notes.push(`Computed Anion Gap: ${ag.toFixed(1)} mmol/L`);
+
+  const corrNa = calc.correctSodiumForGlucose(labs.Na, labs.glucose_mgdl);
+  if (corrNa != null) notes.push(`Corrected Sodium (glucose): ${corrNa.toFixed(1)} mmol/L`);
+
+  const osm = calc.effectiveOsmolality(labs);
+  if (osm != null) notes.push(`Effective Osmolality (calc): ${osm.toFixed(0)} mOsm/kg`);
+
+  if (calc.needsKBeforeInsulin(labs.K)) {
+    notes.push(`⚠️ Potassium ${labs.K} < 3.3 → Replete K before insulin.`);
+  }
+
   let finalMessages = messages.filter((m: any) => m.role !== 'system');
   if (context === 'profile') {
     try {
@@ -40,6 +59,15 @@ export async function POST(req: NextRequest) {
       });
       finalMessages = [{ role: 'system', content: sys }, ...finalMessages];
     } catch {}
+  }
+
+  if (notes.length) {
+    const guard = "Use the pre-computed values below as source of truth; do not re-calculate by hand.";
+    finalMessages = [
+      { role: "system", content: guard },
+      { role: "system", content: notes.join("\n") },
+      ...finalMessages,
+    ];
   }
 
   const upstream = await fetch(url, {
