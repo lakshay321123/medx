@@ -18,6 +18,8 @@ import { searchOpenFda } from "@/lib/research/sources/openfda";
 import { fetchRxCui } from "@/lib/research/sources/rxnorm";
 import { isTrial, hasRegistryId, matchesPhase, matchesStatus, matchesCountries, matchesGenes } from "@/lib/research/validators";
 import type { ResearchFilters } from "@/store/researchFilters";
+import { expandQuery } from "./aliases";
+import { getCached, setCached, tkey } from "./cache";
 
 export type Citation = {
   id: string;
@@ -199,18 +201,36 @@ function dedupeTrials(items: TrialRecord[]) {
   return Array.from(seen.values());
 }
 
+async function withCache<T>(source: string, q: string, fn: () => Promise<T>, ttl = 900) {
+  const k = tkey(source, q);
+  const hit = await getCached<T>(k);
+  if (hit) return hit;
+  const data = await Promise.race([
+    fn(),
+    new Promise<T>((_, rej) => setTimeout(() => rej(new Error("timeout")), 4000)),
+  ]).catch(() => [] as unknown as T);
+  await setCached(k, data, ttl);
+  return data;
+}
+
 export async function orchestrateTrials(query: string, opts?: { country?: string }) {
-  const includeCTRI =
-    opts?.country?.toLowerCase() === "india" ||
-    (FEATURES.TRIALS_GEO_ROUTING && mentionsIndia(query));
+  const cn = (opts?.country || "").toLowerCase();
+  const includeCTRI = cn === "india" || (FEATURES.TRIALS_GEO_ROUTING && mentionsIndia(query));
 
-  const tasks: Promise<TrialRecord[]>[] = [searchNCT(query).catch(() => [])];
-  if (includeCTRI) tasks.push(searchCTRI(query).catch(() => []));
-
-  const batches = await Promise.all(tasks);
+  const queries = expandQuery(query);
+  const batches = await Promise.all(
+    queries.map((q) =>
+      Promise.all([
+        withCache("nct", q, () => searchNCT(q)),
+        includeCTRI
+          ? withCache("ctri", q, () => searchCTRI(q), 3600)
+          : Promise.resolve([] as TrialRecord[]),
+      ])
+    )
+  );
   const merged = dedupeTrials(
     batches
-      .flat()
+      .flat(2)
       .map((t) => ({
         ...t,
         phase: FEATURES.TRIALS_PHASE_NORMALIZE ? normalizePhase(t.phase) : t.phase,
