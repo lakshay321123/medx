@@ -1,8 +1,10 @@
 export const ALIASES: Record<string, string[]> = {
   "non small cell lung cancer": ["nsclc", "non-small cell lung carcinoma"],
   "acute myeloid leukemia": ["aml"],
-  "breast cancer": ["mammary carcinoma"],
+  "multiple myeloma": ["mm"],
   "colorectal cancer": ["crc", "colon cancer", "rectal cancer"],
+  "hepatocellular carcinoma": ["hcc", "liver cancer"],
+  "triple negative breast cancer": ["tnbc"],
 };
 
 export function expandQuery(q: string): string[] {

@@ -116,6 +116,11 @@ export default function TrialsPane() {
                 {t.status && (
                   <span className="text-[11px] px-1.5 py-0.5 rounded border">{t.status}</span>
                 )}
+                {t.when?.updated && (
+                  <span className="text-[11px] px-1.5 py-0.5 rounded border">
+                    Updated: {t.when.updated.slice(0, 10)}
+                  </span>
+                )}
               </div>
             </li>
           ))}
