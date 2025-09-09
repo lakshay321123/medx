@@ -213,9 +213,12 @@ async function withCache<T>(source: string, q: string, fn: () => Promise<T>, ttl
   return data;
 }
 
-export async function orchestrateTrials(query: string, opts?: { country?: string }) {
+export async function orchestrateTrials(
+  query: string,
+  opts?: { country?: string; phase?: string; status?: string }
+) {
   const cn = (opts?.country || "").toLowerCase();
-  const includeCTRI = cn === "india" || (FEATURES.TRIALS_GEO_ROUTING && mentionsIndia(query));
+  const includeCTRI = cn === "india" || mentionsIndia(query);
 
   const queries = expandQuery(query);
   const batches = await Promise.all(
@@ -228,7 +231,7 @@ export async function orchestrateTrials(query: string, opts?: { country?: string
       ])
     )
   );
-  const merged = dedupeTrials(
+  let merged = dedupeTrials(
     batches
       .flat(2)
       .map((t) => ({
@@ -236,6 +239,15 @@ export async function orchestrateTrials(query: string, opts?: { country?: string
         phase: FEATURES.TRIALS_PHASE_NORMALIZE ? normalizePhase(t.phase) : t.phase,
       }))
   );
+
+  if (opts?.phase)
+    merged = merged.filter((t) =>
+      (t.phase || "").toLowerCase().includes(opts.phase!.toLowerCase())
+    );
+  if (opts?.status)
+    merged = merged.filter((t) =>
+      (t.status || "").toLowerCase().includes(opts.status!.toLowerCase())
+    );
 
   const order = (r: string) =>
     includeCTRI ? (r === "CTRI" ? 0 : r === "NCT" ? 1 : 2) : r === "NCT" ? 0 : r === "CTRI" ? 1 : 2;

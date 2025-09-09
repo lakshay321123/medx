@@ -1,98 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchTrials, dedupeTrials, rankValue } from "@/lib/trials/search";
-import { byCode3, byName } from "@/data/countries";
+import { orchestrateTrials } from "@/lib/research/orchestrator";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const condition = (searchParams.get("condition") || "").trim();
-    if (!condition) {
+    const query = (searchParams.get("condition") || "").trim();
+    if (!query) {
       return NextResponse.json({ error: "condition is required" }, { status: 400 });
     }
+    const country = searchParams.get("country") || undefined;
+    const status = searchParams.get("status") || undefined;
+    const phase = searchParams.get("phase") || undefined;
 
-    const rawCountry = (searchParams.get("country") || "").trim(); // "" | "IND" | "India" | "USA"
-    const status = searchParams.get("status") || undefined; // e.g., "Recruiting,Enrolling by invitation"
-    const phaseUI = searchParams.get("phase") || undefined; // e.g., "Phase 2,Phase 3"
-
-    // Accept both code3 and name; blank = Worldwide
-    let wantCountry: string | undefined = undefined;
-    if (rawCountry) {
-      const byCode = byCode3(rawCountry);
-      wantCountry = byCode?.name || byName(rawCountry)?.name || rawCountry;
-    }
-
-    // Normalize phases to digits "2,3"
-    const wantPhase = phaseUI
-      ? phaseUI
-          .split(",")
-          .map((s) => s.replace(/[^0-9/]/g, ""))
-          .filter(Boolean)
-          .join(",")
-      : undefined;
-
-    // Aggregated search (CT.gov + CTRI + EUCTR + ISRCTN)
-    const trials = await searchTrials({
-      query: condition,
-      phase: wantPhase as any,
-      status: status as any,
-      country: wantCountry, // undefined => Worldwide
+    const trials = await orchestrateTrials(query, {
+      country,
+      phase,
+      status,
     });
-
-    const _counts = trials.reduce((m, t) => {
-      const s = (t.source || "unknown").toUpperCase();
-      m[s] = (m[s] || 0) + 1;
-      return m;
-    }, {} as Record<string, number>);
-    console.log("[trials GET] source counts:", _counts, "country:", wantCountry, "query:", condition);
-
-    // Rank & de-dup
-    const ranked = dedupeTrials(trials).sort((a, b) => rankValue(b) - rankValue(a));
-
-    // Map to table rows
-    const rows = ranked.map((t) => ({
-      id: t.id,
-      title: t.title,
-      status: t.status || "",
-      phase: t.phase || "",
-      url: t.url || "",
-      country: t.country || "",
-      source: t.source || "",
-      conditions: [],
-      interventions: [],
-      studyType: "",
-      sponsor: "",
-      locations: [],
-    }));
-
-    // Fallback: if strict country yields 0, retry Worldwide once
-    if (rows.length === 0 && wantCountry) {
-      const global = await searchTrials({
-        query: condition,
-        phase: wantPhase as any,
-        status: status as any,
-        country: undefined,
-      });
-      const ranked2 = dedupeTrials(global).sort((a, b) => rankValue(b) - rankValue(a));
-      const rows2 = ranked2.map((t) => ({
-        id: t.id,
-        title: t.title,
-        status: t.status || "",
-        phase: t.phase || "",
-        url: t.url || "",
-        country: t.country || "",
-        source: t.source || "",
-        conditions: [],
-        interventions: [],
-        studyType: "",
-        sponsor: "",
-        locations: [],
-      }));
-      return NextResponse.json({ rows: rows2, page: 1, pageSize: rows2.length });
-    }
-
-    return NextResponse.json({ rows, page: 1, pageSize: rows.length });
+    return NextResponse.json({ rows: trials, page: 1, pageSize: trials.length });
   } catch (err) {
     console.error("Trials API GET error", err);
     return NextResponse.json(
@@ -104,12 +31,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const source = body.source || "All";
-    const trials = await searchTrials(body);
-    const ranked = dedupeTrials(trials).sort((a,b)=>rankValue(b)-rankValue(a));
-    const out = source === "All" ? ranked : ranked.filter(t => t.source === source);
-    return NextResponse.json({ trials: out });
+    const { query, phase, status, country } = await req.json();
+    const trials = await orchestrateTrials(query, { country, phase, status });
+    return NextResponse.json({ trials });
   } catch (err) {
     console.error("Trials API error", err);
     return NextResponse.json({ trials: [], error: "Failed to fetch trials" });
