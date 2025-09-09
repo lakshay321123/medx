@@ -19,11 +19,10 @@ export async function POST(req: NextRequest) {
 
     const [trials, pack] = await Promise.all([trialsPromise, packPromise]);
 
-    const trialCitations = (trials || []).slice(0, 6).map((t) => ({
-      title: `${t.registry}:${t.registry_id} — ${t.title}`.slice(0, 140),
+    const trialCitations = (trials || []).slice(0, 5).map((t) => ({
+      title: `${t.registry}:${t.registry_id} — ${t.title}`,
       url: t.url,
       source: "trials",
-      snippet: [t.phase, t.status].filter(Boolean).join(" · "),
     }));
 
     const citations = [...trialCitations, ...(pack?.citations || [])];
