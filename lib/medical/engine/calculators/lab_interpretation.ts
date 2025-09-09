@@ -1619,3 +1619,215 @@ register({
 });
 
 
+// ===================== MED-EXT4 (APPEND-ONLY) =====================
+// Additional calculator registrations appended for MED-EXT4.
+
+/* ---------- Glasgow-Blatchford Score (GBS – full) ----------
+   Bands approximate the classic tool.
+   Notes: This is a programmatic mapping; clinical use requires local policy.
+*/
+register({
+  id: "gbs_full",
+  label: "Glasgow-Blatchford (full)",
+  tags: ["gastroenterology", "risk"],
+  inputs: [
+    { key: "BUN", required: true },             // mg/dL
+    { key: "hemoglobin", required: true },      // g/dL
+    { key: "sex", required: true },             // "M" | "F"
+    { key: "SBP", required: true },             // mmHg
+    { key: "HR", required: true },              // bpm
+    { key: "melena", required: true },          // boolean
+    { key: "syncope", required: true },         // boolean
+    { key: "hepatic_disease", required: true }, // boolean
+    { key: "cardiac_failure", required: true }, // boolean
+  ],
+  run: (x) => {
+    let pts = 0;
+    // BUN (mg/dL) → coarse mapping of mmol/L bands
+    pts += x.BUN >= 28 ? 6 : x.BUN >= 22 ? 4 : x.BUN >= 18 ? 2 : x.BUN >= 15 ? 1 : 0;
+    // Hb (sex-specific)
+    if (x.sex === "M") pts += x.hemoglobin < 10 ? 6 : x.hemoglobin < 12 ? 3 : x.hemoglobin < 13 ? 1 : 0;
+    else               pts += x.hemoglobin < 10 ? 6 : x.hemoglobin < 11 ? 3 : x.hemoglobin < 12 ? 1 : 0;
+    // SBP
+    pts += x.SBP < 90 ? 3 : x.SBP < 100 ? 2 : x.SBP < 110 ? 1 : 0;
+    // HR
+    pts += x.HR >= 100 ? 1 : 0;
+    // Clinical features
+    pts += x.melena ? 1 : 0;
+    pts += x.syncope ? 2 : 0;
+    pts += x.hepatic_disease ? 2 : 0;
+    pts += x.cardiac_failure ? 2 : 0;
+
+    const notes: string[] = [];
+    if (pts === 0) notes.push("very low risk; consider outpatient if stable");
+    else if (pts <= 3) notes.push("low–intermediate risk");
+    else notes.push("intermediate–high risk");
+    return { id: "gbs_full", label: "Glasgow-Blatchford (full)", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/* ---------- Rockall (pre-endoscopy) ----------
+   Age, shock (SBP/HR), comorbidity.
+*/
+register({
+  id: "rockall_pre",
+  label: "Rockall (pre-endoscopy)",
+  tags: ["gastroenterology", "risk"],
+  inputs: [
+    { key: "age", required: true },               // years
+    { key: "SBP", required: true },               // mmHg
+    { key: "HR", required: true },                // bpm
+    { key: "comorbidity_band", required: true },  // "none" | "moderate" | "severe"
+  ],
+  run: ({ age, SBP, HR, comorbidity_band }) => {
+    // Age
+    const pAge = age >= 80 ? 2 : age >= 60 ? 1 : 0;
+    // Shock category
+    let pShock = 0;
+    const tachy = HR >= 100;
+    if (SBP < 100) pShock = 2; else if (tachy) pShock = 1;
+    // Comorbidity
+    const pCom = comorbidity_band === "severe" ? 2 : comorbidity_band === "moderate" ? 1 : 0;
+
+    const total = pAge + pShock + pCom;
+    const notes: string[] = [];
+    if (total >= 4) notes.push("higher pre-endoscopy risk");
+    else notes.push("lower pre-endoscopy risk");
+    return { id: "rockall_pre", label: "Rockall (pre-endoscopy)", value: total, unit: "points", precision: 0, notes };
+  },
+});
+
+/* ---------- Rockall (post-endoscopy) ----------
+   Adds diagnosis category and stigmata of recent hemorrhage.
+*/
+register({
+  id: "rockall_post",
+  label: "Rockall (post-endoscopy)",
+  tags: ["gastroenterology", "risk"],
+  inputs: [
+    { key: "rockall_pre", required: true },              // from above (points 0–7)
+    { key: "diagnosis_band", required: true },           // "malignancy" | "nonmalignant_UGIB" | "mallory_weiss"
+    { key: "stigmata_band", required: true },            // "none" | "blood_or_visible_vessel_or_clot" | "adherent_clot"
+  ],
+  run: ({ rockall_pre, diagnosis_band, stigmata_band }) => {
+    if (rockall_pre == null) return null;
+    const base = rockall_pre;
+
+    const pDx = diagnosis_band === "malignancy" ? 2 :
+                diagnosis_band === "nonmalignant_UGIB" ? 1 : 0;
+
+    const pStig = stigmata_band === "blood_or_visible_vessel_or_clot" ? 2 :
+                  stigmata_band === "adherent_clot" ? 1 : 0;
+
+    const total = base + pDx + pStig;
+    const notes: string[] = [];
+    if (total >= 6) notes.push("high post-endoscopy risk");
+    else if (total >= 3) notes.push("intermediate risk");
+    else notes.push("low risk");
+    return { id: "rockall_post", label: "Rockall (post-endoscopy)", value: total, unit: "points", precision: 0, notes };
+  },
+});
+
+/* ---------- HEART Pathway ----------
+   Uses HEART score + serial troponin flag (negative at 0/3h) for early discharge eligibility.
+   Inputs require the existing 'heart_score' value plus 'troponin_negative_serials' boolean.
+*/
+register({
+  id: "heart_pathway",
+  label: "HEART Pathway",
+  tags: ["cardiology", "risk"],
+  inputs: [
+    { key: "heart_score", required: true },           // numeric total from existing calculator
+    { key: "troponin_negative_serials", required: true }, // boolean (0/3h both negative)
+  ],
+  run: ({ heart_score, troponin_negative_serials }) => {
+    if (heart_score == null) return null;
+    const lowHeart = heart_score <= 3;
+    const eligible = lowHeart && !!troponin_negative_serials;
+    const notes: string[] = [];
+    notes.push(eligible ? "low risk; eligible for early discharge pathway (per HEART Pathway)" :
+                          "not eligible for early discharge pathway");
+    return { id: "heart_pathway", label: "HEART Pathway", value: eligible ? 1 : 0, unit: "flag", precision: 0, notes: [`HEART=${heart_score}`, troponin_negative_serials ? "serial troponins negative" : "serial troponins not negative"] };
+  },
+});
+
+/* ---------- NEXUS C-spine ----------
+   All 5 criteria must be negative (none present) to clear without imaging.
+*/
+register({
+  id: "nexus_cspine",
+  label: "NEXUS C-spine",
+  tags: ["trauma", "risk"],
+  inputs: [
+    { key: "midline_cspine_tenderness", required: true }, // boolean
+    { key: "focal_neuro_deficit", required: true },       // boolean
+    { key: "altered_mental_status", required: true },     // boolean
+    { key: "intoxication", required: true },              // boolean
+    { key: "distracting_injury", required: true },        // boolean
+  ],
+  run: (x) => {
+    const anyPositive = x.midline_cspine_tenderness || x.focal_neuro_deficit || x.altered_mental_status || x.intoxication || x.distracting_injury;
+    const notes: string[] = [];
+    notes.push(anyPositive ? "NEXUS positive → imaging recommended" : "NEXUS negative → may clear clinically");
+    return { id: "nexus_cspine", label: "NEXUS C-spine", value: anyPositive ? 1 : 0, unit: "flag", precision: 0, notes };
+  },
+});
+
+/* ---------- Canadian CT Head Rule (CCHR) ----------
+   Adult minor head injury; high-risk & medium-risk features.
+   This is a programmatic mapping; local imaging policy applies.
+*/
+register({
+  id: "cchr",
+  label: "Canadian CT Head Rule",
+  tags: ["trauma", "risk", "neurology"],
+  inputs: [
+    // High-risk
+    { key: "gcs_lt_15_at_2h", required: true },
+    { key: "open_or_depressed_skull_fracture", required: true },
+    { key: "signs_of_basilar_skull_fracture", required: true }, // raccoon eyes, battle's sign, CSF leak, hemotympanum
+    { key: "vomiting_ge_2", required: true },
+    { key: "age_ge_65", required: true },
+    // Medium-risk
+    { key: "amnesia_ge_30min", required: true },
+    { key: "dangerous_mechanism", required: true }, // pedestrian struck, ejected, fall >3ft/5 stairs
+  ],
+  run: (x) => {
+    const high = x.gcs_lt_15_at_2h || x.open_or_depressed_skull_fracture || x.signs_of_basilar_skull_fracture || x.vomiting_ge_2 || x.age_ge_65;
+    const medium = x.amnesia_ge_30min || x.dangerous_mechanism;
+    const notes: string[] = [];
+    if (high) notes.push("CT indicated (high-risk CCHR feature)");
+    else if (medium) notes.push("CT recommended (medium-risk CCHR feature)");
+    else notes.push("CT not routinely indicated by CCHR");
+    return { id: "cchr", label: "Canadian CT Head Rule", value: high ? 2 : medium ? 1 : 0, unit: "tier", precision: 0, notes };
+  },
+});
+
+/* ---------- Wells DVT + D-dimer gate ----------
+   Wraps existing wells_dvt score with age-adjusted D-dimer logic.
+   If Wells low (≤0) or moderate (1–2) AND age-adjusted D-dimer negative → DVT ruled out.
+   Age-adjusted threshold (FEU ng/mL): age*10 if age ≥50; else 500.
+*/
+register({
+  id: "wells_dvt_ddimer_gate",
+  label: "Wells DVT + D-dimer gate",
+  tags: ["vascular", "risk"],
+  inputs: [
+    { key: "wells_dvt", required: true },      // numeric from existing calc
+    { key: "age", required: true },            // years
+    { key: "ddimer_feu_ng_ml", required: true } // ng/mL FEU
+  ],
+  run: ({ wells_dvt, age, ddimer_feu_ng_ml }) => {
+    if ([wells_dvt, age, ddimer_feu_ng_ml].some(v => v == null)) return null;
+    const threshold = age >= 50 ? age * 10 : 500;
+    const dd_neg = ddimer_feu_ng_ml < threshold;
+    const wellsLowOrMod = wells_dvt <= 2; // ≤0 low, 1–2 moderate
+    const ruledOut = wellsLowOrMod && dd_neg;
+    const notes: string[] = [];
+    notes.push(`age-adjusted threshold: ${Math.round(threshold)} ng/mL`);
+    notes.push(dd_neg ? "D-dimer negative (age-adjusted)" : "D-dimer positive (age-adjusted)");
+    notes.push(wellsLowOrMod ? "pretest low/moderate" : "pretest high");
+    notes.push(ruledOut ? "DVT ruled out without imaging (gate satisfied)" : "Imaging/ultrasound indicated (gate not satisfied)");
+    return { id: "wells_dvt_ddimer_gate", label: "Wells DVT + D-dimer gate", value: ruledOut ? 1 : 0, unit: "flag", precision: 0, notes };
+  },
+});
