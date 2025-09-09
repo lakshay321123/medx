@@ -8,3 +8,4 @@ import "./pulmonary";
 import "./endocrine";
 import "./toxicology";
 import "./icu";
+import "./icu_helpers";
