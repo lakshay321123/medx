@@ -5043,3 +5043,363 @@ register({
   },
 });
 
+// ===================== MED-EXT110–130 (APPEND-ONLY) =====================
+/* If this import already exists at file top, remove this line. */
+
+/* =========================================================
+   MED-EXT110 — MELD-Na (2016 update) 
+   MELD-Na(2016) = MELD + 1.32*(137-Na) − [0.033*MELD*(137-Na)]
+   where MELD = 3.78*ln(bilirubin) + 11.2*ln(INR) + 9.57*ln(creatinine) + 6.43
+   Clamp labs per convention: bili/INR/Cr min 1.0; Na clamp [125,137].
+   ========================================================= */
+register({
+  id: "meld_na_2016",
+  label: "MELD-Na (2016)",
+  tags: ["hepatology", "icu_scores"],
+  inputs: [
+    { key: "bilirubin", required: true }, // mg/dL
+    { key: "INR", required: true },
+    { key: "creatinine", required: true }, // mg/dL
+    { key: "Na", required: true },         // mmol/L
+  ],
+  run: ({ bilirubin, INR, creatinine, Na }) => {
+    if ([bilirubin, INR, creatinine, Na].some(v => v == null)) return null;
+    const b = Math.max(1, bilirubin);
+    const i = Math.max(1, INR);
+    const c = Math.max(1, creatinine);
+    const na = Math.max(125, Math.min(137, Na));
+    const meld = 3.78*Math.log(b) + 11.2*Math.log(i) + 9.57*Math.log(c) + 6.43;
+    const adj = 1.32*(137 - na) - (0.033 * meld * (137 - na));
+    const meldNa = Math.round(meld + adj);
+    const notes:string[] = [];
+    if (meldNa >= 30) notes.push("very high severity");
+    else if (meldNa >= 20) notes.push("high severity");
+    else if (meldNa >= 10) notes.push("moderate");
+    else notes.push("lower");
+    return { id: "meld_na_2016", label: "MELD-Na (2016)", value: meldNa, unit: "score", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT111 — CLIF-C ACLF (surrogate index)
+   ========================================================= */
+register({
+  id: "clif_c_aclf_surrogate",
+  label: "CLIF-C ACLF (surrogate)",
+  tags: ["hepatology", "icu_scores"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 60 ? "very high" : score >= 50 ? "high" : score >= 40 ? "moderate" : "lower"];
+    return { id: "clif_c_aclf_surrogate", label: "CLIF-C ACLF (surrogate)", value: score, unit: "index", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT112 — PELOD-2 (pediatric organ dysfunction) surrogate
+   ========================================================= */
+register({
+  id: "pelod2_surrogate",
+  label: "PELOD-2 (surrogate)",
+  tags: ["pediatrics", "icu_scores"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 10 ? "high" : score >= 5 ? "moderate" : "low"];
+    return { id: "pelod2_surrogate", label: "PELOD-2 (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT113 — SNAPPE-II (neonatal) surrogate
+   ========================================================= */
+register({
+  id: "snappE2_surrogate",
+  label: "SNAPPE-II (surrogate)",
+  tags: ["neonatal", "icu_scores"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 50 ? "very high" : score >= 30 ? "high" : score >= 20 ? "moderate" : "low"];
+    return { id: "snappE2_surrogate", label: "SNAPPE-II (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT114 — SCORTEN (TEN) — criteria count 0–7
+   ========================================================= */
+register({
+  id: "scorten_ten",
+  label: "SCORTEN (TEN) criteria count",
+  tags: ["dermatology", "risk"],
+  inputs: [{ key: "criteria_met", required: true }], // 0–7
+  run: ({ criteria_met }) => {
+    const notes = [criteria_met >= 5 ? "very high risk" : criteria_met >= 3 ? "high risk" : "lower risk"];
+    return { id: "scorten_ten", label: "SCORTEN (TEN) criteria count", value: criteria_met, unit: "criteria", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT115 — Glasgow–Imrie pancreatitis score (criteria count)
+   ========================================================= */
+register({
+  id: "glasgow_imrie_surrogate",
+  label: "Glasgow–Imrie (pancreatitis) criteria",
+  tags: ["gastroenterology", "risk"],
+  inputs: [{ key: "criteria_met_48h", required: true }], // 0–8 typical
+  run: ({ criteria_met_48h }) => {
+    const notes = [criteria_met_48h >= 3 ? "severe risk band" : "milder band"];
+    return { id: "glasgow_imrie_surrogate", label: "Glasgow–Imrie (pancreatitis) criteria", value: criteria_met_48h, unit: "criteria", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT116 — ICNARC (surrogate severity band)
+   ========================================================= */
+register({
+  id: "icnarc_surrogate",
+  label: "ICNARC severity (surrogate)",
+  tags: ["icu_scores", "risk"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 30 ? "very high" : score >= 20 ? "high" : score >= 10 ? "moderate" : "low"];
+    return { id: "icnarc_surrogate", label: "ICNARC severity (surrogate)", value: score, unit: "index", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT117 — LODS (Logistic Organ Dysfunction) surrogate
+   ========================================================= */
+register({
+  id: "lods_surrogate",
+  label: "LODS (surrogate)",
+  tags: ["icu_scores", "risk"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 10 ? "high" : score >= 6 ? "moderate" : "low"];
+    return { id: "lods_surrogate", label: "LODS (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT118 — Pediatric Trauma Score (PTS) band
+   ========================================================= */
+register({
+  id: "pediatric_trauma_score",
+  label: "Pediatric Trauma Score (band)",
+  tags: ["pediatrics", "trauma"],
+  inputs: [{ key: "pts", required: true }], // −6 to +12
+  run: ({ pts }) => {
+    const notes = [pts <= 0 ? "very severe" : pts <= 5 ? "severe" : pts <= 8 ? "moderate" : "mild"];
+    return { id: "pediatric_trauma_score", label: "Pediatric Trauma Score (band)", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT119 — Ottawa Knee Rule (flag)
+   ========================================================= */
+register({
+  id: "ottawa_knee_flag",
+  label: "Ottawa Knee Rule (flag)",
+  tags: ["trauma", "orthopedics"],
+  inputs: [
+    { key: "age_ge_55", required: true },
+    { key: "isolated_patellar_tenderness", required: true },
+    { key: "fib_head_tenderness", required: true },
+    { key: "unable_flex_90", required: true },
+    { key: "unable_weightbear_4steps", required: true },
+  ],
+  run: (x) => {
+    const pos = x.age_ge_55 || x.isolated_patellar_tenderness || x.fib_head_tenderness || x.unable_flex_90 || x.unable_weightbear_4steps;
+    return { id: "ottawa_knee_flag", label: "Ottawa Knee Rule (flag)", value: pos?1:0, unit: "flag", precision: 0, notes: [pos?"positive":"negative"] };
+  },
+});
+
+/* =========================================================
+   MED-EXT120 — Canadian C-Spine Rule (flag)
+   (simplified: high-risk factor OR inability to actively rotate 45° either way)
+   ========================================================= */
+register({
+  id: "canadian_cspine_flag",
+  label: "Canadian C-Spine Rule (flag)",
+  tags: ["trauma", "risk"],
+  inputs: [
+    { key: "high_risk_factor", required: true },     // e.g., age ≥65, dangerous mechanism, paresthesias
+    { key: "low_risk_allows_assessment", required: true }, // true if low-risk present to assess ROM
+    { key: "can_rotate_45_each_side", required: true },
+  ],
+  run: (x) => {
+    const imaging = x.high_risk_factor || (!x.low_risk_allows_assessment) || (!x.can_rotate_45_each_side);
+    return { id: "canadian_cspine_flag", label: "Canadian C-Spine Rule (flag)", value: imaging?1:0, unit: "flag", precision: 0, notes: [imaging?"imaging indicated":"no imaging by CCR"] };
+  },
+});
+
+/* =========================================================
+   MED-EXT121 — Canadian Syncope Risk Score (surrogate)
+   ========================================================= */
+register({
+  id: "csrs_surrogate",
+  label: "Canadian Syncope Risk Score (surrogate)",
+  tags: ["cardiology", "neurology", "risk"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 4 ? "very high" : score >= 1 ? "intermediate" : "low"];
+    return { id: "csrs_surrogate", label: "Canadian Syncope Risk Score (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT122 — Wells PE (surrogate band)
+   ========================================================= */
+register({
+  id: "wells_pe_surrogate",
+  label: "Wells PE (surrogate band)",
+  tags: ["pulmonary", "risk"],
+  inputs: [{ key: "points", required: true }],
+  run: ({ points }) => {
+    const notes = [points > 6 ? "high probability" : points >= 2 ? "moderate probability" : "low probability"];
+    return { id: "wells_pe_surrogate", label: "Wells PE (surrogate band)", value: points, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT123 — Severe CAP minor criteria count (flag)
+   (Severe CAP if ≥3 minor criteria present; clinician supplies count)
+   ========================================================= */
+register({
+  id: "severe_cap_minor_flag",
+  label: "Severe CAP (minor criteria) flag",
+  tags: ["infectious_disease", "pulmonary", "risk"],
+  inputs: [{ key: "minor_criteria_count", required: true }],
+  run: ({ minor_criteria_count }) => {
+    const severe = minor_criteria_count >= 3;
+    return { id: "severe_cap_minor_flag", label: "Severe CAP (minor criteria) flag", value: severe?1:0, unit: "flag", precision: 0, notes: [severe?"meets severe CAP by minor criteria (count≥3)":"does not meet minor criteria threshold"] };
+  },
+});
+
+/* =========================================================
+   MED-EXT124 — QTc (Fridericia) = QT / RR^(1/3)
+   ========================================================= */
+register({
+  id: "qtc_fridericia",
+  label: "QTc (Fridericia)",
+  tags: ["cardiology", "ecg"],
+  inputs: [
+    { key: "QT_ms", required: true },
+    { key: "RR_sec", required: true },
+  ],
+  run: ({ QT_ms, RR_sec }) => {
+    if (RR_sec <= 0) return null;
+    const qtc = QT_ms / Math.cbrt(RR_sec);
+    return { id: "qtc_fridericia", label: "QTc (Fridericia)", value: qtc, unit: "ms", precision: 0, notes: [] };
+  },
+});
+
+/* =========================================================
+   MED-EXT125 — Compute Child-Pugh from raw labs (auto-banding)
+   ========================================================= */
+register({
+  id: "child_pugh_autoband",
+  label: "Child-Pugh (auto from labs)",
+  tags: ["hepatology", "risk"],
+  inputs: [
+    { key: "bilirubin", required: true }, // mg/dL
+    { key: "albumin", required: true },   // g/dL
+    { key: "INR", required: true },
+    { key: "ascites", required: true },   // "none" | "mild" | "moderate_severe"
+    { key: "encephalopathy", required: true }, // "none" | "grade_1_2" | "grade_3_4"
+  ],
+  run: (x) => {
+    const bili_band = x.bilirubin < 2 ? 1 : x.bilirubin <= 3 ? 2 : 3;
+    const alb_band  = x.albumin > 3.5 ? 1 : x.albumin >= 2.8 ? 2 : 3;
+    const inr_band  = x.INR < 1.7 ? 1 : x.INR <= 2.3 ? 2 : 3;
+    const asc_band  = x.ascites === "none" ? 1 : x.ascites === "mild" ? 2 : 3;
+    const enc_band  = x.encephalopathy === "none" ? 1 : x.encephalopathy === "grade_1_2" ? 2 : 3;
+    const total = bili_band + alb_band + inr_band + asc_band + enc_band;
+    const cls = total <= 6 ? "A" : total <= 9 ? "B" : "C";
+    return { id: "child_pugh_autoband", label: "Child-Pugh (auto from labs)", value: total, unit: `points (Class ${cls})`, precision: 0, notes: [`Class ${cls}`, `bands: bili${bili_band}/alb${alb_band}/INR${inr_band}/asc${asc_band}/enc${enc_band}`] };
+  },
+});
+
+/* =========================================================
+   MED-EXT126 — GRACE STEMI (surrogate)
+   ========================================================= */
+register({
+  id: "grace_stemi_surrogate",
+  label: "GRACE STEMI (surrogate)",
+  tags: ["cardiology", "risk"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 200 ? "very high" : score >= 140 ? "high" : score >= 100 ? "intermediate" : "low"];
+    return { id: "grace_stemi_surrogate", label: "GRACE STEMI (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT127 — MEWS (Modified Early Warning Score) surrogate
+   ========================================================= */
+register({
+  id: "mews_surrogate",
+  label: "MEWS (surrogate)",
+  tags: ["icu_scores", "risk"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 5 ? "high risk" : score >= 3 ? "moderate" : "low"];
+    return { id: "mews_surrogate", label: "MEWS (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT128 — Baux burn index = Age + %TBSA
+   ========================================================= */
+register({
+  id: "baux_index",
+  label: "Baux burn index",
+  tags: ["burns", "risk"],
+  inputs: [
+    { key: "age", required: true },
+    { key: "tbsa_percent", required: true },
+  ],
+  run: ({ age, tbsa_percent }) => {
+    const idx = age + tbsa_percent;
+    const notes = [idx >= 140 ? "very high" : idx >= 100 ? "high" : "moderate/lower"];
+    return { id: "baux_index", label: "Baux burn index", value: idx, unit: "index", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT129 — Revised Baux (add inhalation injury +17)
+   ========================================================= */
+register({
+  id: "revised_baux_index",
+  label: "Revised Baux index",
+  tags: ["burns", "risk"],
+  inputs: [
+    { key: "age", required: true },
+    { key: "tbsa_percent", required: true },
+    { key: "inhalation_injury", required: true }, // boolean
+  ],
+  run: ({ age, tbsa_percent, inhalation_injury }) => {
+    const val = age + tbsa_percent + (inhalation_injury ? 17 : 0);
+    const notes = [val >= 157 ? "very high" : val >= 110 ? "high" : "moderate/lower"];
+    return { id: "revised_baux_index", label: "Revised Baux index", value: val, unit: "index", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT130 — KDIGO CKD G-stage from eGFR
+   ========================================================= */
+register({
+  id: "kdigo_ckd_stage",
+  label: "KDIGO CKD G-stage (from eGFR)",
+  tags: ["renal"],
+  inputs: [{ key: "egfr", required: true }], // mL/min/1.73m²
+  run: ({ egfr }) => {
+    if (egfr == null) return null;
+    let stage = "G1";
+    if (egfr < 15) stage = "G5";
+    else if (egfr < 30) stage = "G4";
+    else if (egfr < 60) stage = "G3";
+    else if (egfr < 90) stage = "G2";
+    else stage = "G1";
+    const notes = [`Stage ${stage}`];
+    return { id: "kdigo_ckd_stage", label: "KDIGO CKD G-stage (from eGFR)", value: egfr, unit: "mL/min/1.73m²", precision: 0, notes };
+  },
+});
