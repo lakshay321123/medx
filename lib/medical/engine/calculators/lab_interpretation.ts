@@ -7623,3 +7623,44 @@ register({
   }
 });
 
+/* =========================================================
+   MED-EXT218 — E/e' ratio surrogate
+   ========================================================= */
+register({
+  id: "e_over_e_surrogate",
+  label: "E/e' ratio surrogate",
+  tags: ["cardiology","echo"],
+  inputs: [{ key:"ratio", required:true }],
+  run: ({ratio})=>{
+    const notes=[ratio>14?"elevated LV filling pressures":"normal"];
+    return {id:"e_over_e_surrogate", label:"E/e' ratio surrogate", value:ratio, unit:"ratio", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT219 — TAPSE band (RV systolic function)
+   ========================================================= */
+register({
+  id: "tapse_band",
+  label: "TAPSE band",
+  tags: ["cardiology","echo"],
+  inputs: [{ key:"tapse_mm", required:true }],
+  run: ({tapse_mm})=>{
+    const notes=[tapse_mm<17?"reduced RV function":"normal"];
+    return {id:"tapse_band", label:"TAPSE band", value:tapse_mm, unit:"mm", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT220 — RV/LV ratio (CT-PE) band
+   ========================================================= */
+register({
+  id: "rv_lv_ratio_band",
+  label: "RV/LV ratio band",
+  tags: ["cardiology","pulmonary","imaging"],
+  inputs: [{ key:"rv_lv_ratio", required:true }],
+  run: ({rv_lv_ratio})=>{
+    const notes=[rv_lv_ratio>=1?"RV strain pattern":"no RV strain pattern"];
+    return {id:"rv_lv_ratio_band", label:"RV/LV ratio band", value:rv_lv_ratio, unit:"ratio", precision:2, notes};
+  }
+});
