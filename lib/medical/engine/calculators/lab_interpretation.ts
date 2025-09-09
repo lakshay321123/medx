@@ -6173,3 +6173,350 @@ register({
   },
 });
 
+// ===================== MED-EXT131–160 (APPEND-ONLY) =====================
+/* If this import already exists at file top, remove this line. */
+
+/* =========================================================
+   MED-EXT131 — Hunt-Hess (already added before; this is WFNS grade)
+   ========================================================= */
+register({
+  id: "wfns_sah_grade",
+  label: "WFNS SAH grade (surrogate)",
+  tags: ["neurology", "icu_scores"],
+  inputs: [{ key: "score", required: true }], // 1–5
+  run: ({ score }) => {
+    const notes = [score>=4?"poor prognosis":"better prognosis"];
+    return { id:"wfns_sah_grade", label:"WFNS SAH grade (surrogate)", value:score, unit:"grade", precision:0, notes};
+  },
+});
+
+/* =========================================================
+   MED-EXT132 — ICH score (surrogate)
+   ========================================================= */
+register({
+  id: "ich_score_surrogate",
+  label: "ICH score (surrogate)",
+  tags: ["neurology","icu_scores"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=4?"high mortality":"lower"];
+    return {id:"ich_score_surrogate", label:"ICH score (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT133 — APACHE II surrogate
+   ========================================================= */
+register({
+  id: "apache2_surrogate",
+  label: "APACHE II (surrogate)",
+  tags: ["icu_scores"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=25?"very high":score>=15?"high":"lower"];
+    return {id:"apache2_surrogate", label:"APACHE II (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT134 — SAPS II surrogate
+   ========================================================= */
+register({
+  id: "saps2_surrogate",
+  label: "SAPS II (surrogate)",
+  tags: ["icu_scores"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=50?"very high":score>=30?"high":"lower"];
+    return {id:"saps2_surrogate", label:"SAPS II (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT135 — SOFA renal subscore from creatinine
+   ========================================================= */
+register({
+  id: "sofa_renal_subscore",
+  label: "SOFA renal subscore (from creatinine)",
+  tags: ["renal","icu_scores"],
+  inputs: [{ key:"creatinine", required:true }],
+  run: ({creatinine})=>{
+    let score=0;
+    if (creatinine>=5) score=4;
+    else if (creatinine>=3.5) score=3;
+    else if (creatinine>=2) score=2;
+    else if (creatinine>=1.2) score=1;
+    return {id:"sofa_renal_subscore", label:"SOFA renal subscore (from creatinine)", value:score, unit:"points", precision:0, notes:[`SOFA renal=${score}`]};
+  }
+});
+
+/* =========================================================
+   MED-EXT136 — CKD-EPI creatinine clearance band
+   ========================================================= */
+register({
+  id: "ckd_epi_band",
+  label: "CKD-EPI eGFR band",
+  tags: ["renal"],
+  inputs: [{ key:"egfr", required:true }],
+  run: ({egfr})=>{
+    const notes=[egfr<15?"ESRD":egfr<30?"G4":egfr<60?"G3":egfr<90?"G2":"G1"];
+    return {id:"ckd_epi_band", label:"CKD-EPI eGFR band", value:egfr, unit:"mL/min/1.73m²", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT137 — Anion gap albumin-corrected
+   ========================================================= */
+register({
+  id: "anion_gap_albumin_corr",
+  label: "Anion gap albumin-corrected",
+  tags: ["acid-base"],
+  inputs: [
+    { key:"Na", required:true },
+    { key:"Cl", required:true },
+    { key:"HCO3", required:true },
+    { key:"albumin", required:true } // g/dL
+  ],
+  run: ({Na,Cl,HCO3,albumin})=>{
+    const ag=(Na-(Cl+HCO3));
+    const corr=ag+2.5*(4-albumin);
+    return {id:"anion_gap_albumin_corr", label:"Anion gap albumin-corrected", value:corr, unit:"mEq/L", precision:1, notes:[`Raw AG=${ag}`]};
+  }
+});
+
+/* =========================================================
+   MED-EXT138 — Osmolar gap
+   ========================================================= */
+register({
+  id: "osmolar_gap",
+  label: "Osmolar gap",
+  tags: ["toxicology","acid-base"],
+  inputs: [
+    { key:"Na", required:true },
+    { key:"glucose", required:true }, // mg/dL
+    { key:"BUN", required:true },     // mg/dL
+    { key:"measured_osm", required:true }
+  ],
+  run: ({Na,glucose,BUN,measured_osm})=>{
+    const calc=2*Na+glucose/18+BUN/2.8;
+    const gap=measured_osm-calc;
+    const notes=[gap>10?"elevated":"normal"];
+    return {id:"osmolar_gap", label:"Osmolar gap", value:gap, unit:"mOsm/kg", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT139 — Corrected calcium (albumin)
+   ========================================================= */
+register({
+  id: "corrected_calcium_albumin",
+  label: "Corrected calcium (albumin)",
+  tags: ["electrolytes"],
+  inputs: [
+    { key:"calcium", required:true },
+    { key:"albumin", required:true }
+  ],
+  run: ({calcium,albumin})=>{
+    const corr=calcium+0.8*(4-albumin);
+    return {id:"corrected_calcium_albumin", label:"Corrected calcium (albumin)", value:corr, unit:"mg/dL", precision:1, notes:[]};
+  }
+});
+
+/* =========================================================
+   MED-EXT140 — Ca×P product
+   ========================================================= */
+register({
+  id: "ca_phos_product",
+  label: "Calcium × Phosphate product",
+  tags: ["renal","electrolytes"],
+  inputs: [
+    { key:"calcium", required:true },
+    { key:"phosphate", required:true }
+  ],
+  run: ({calcium,phosphate})=>{
+    const prod=calcium*phosphate;
+    const notes=[prod>55?"elevated":"ok"];
+    return {id:"ca_phos_product", label:"Calcium × Phosphate product", value:prod, unit:"mg²/dL²", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT141 — TTKG (Transtubular K gradient)
+   ========================================================= */
+register({
+  id: "ttkg_calc",
+  label: "TTKG (Transtubular K gradient)",
+  tags: ["renal","electrolytes"],
+  inputs: [
+    { key:"urine_K", required:true },
+    { key:"serum_K", required:true },
+    { key:"urine_osm", required:true },
+    { key:"serum_osm", required:true }
+  ],
+  run: (x)=>{
+    if (x.serum_K<=0||x.serum_osm<=0) return null;
+    const val=(x.urine_K/x.serum_K)*(x.serum_osm/x.urine_osm);
+    const notes=[val<3?"low TTKG":"adequate"];
+    return {id:"ttkg_calc", label:"TTKG (Transtubular K gradient)", value:val, unit:"ratio", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT142 — Osmolality (calculated)
+   ========================================================= */
+register({
+  id: "osm_calc",
+  label: "Calculated osmolality",
+  tags: ["electrolytes"],
+  inputs: [
+    { key:"Na", required:true },
+    { key:"glucose", required:true }, // mg/dL
+    { key:"BUN", required:true }      // mg/dL
+  ],
+  run: ({Na,glucose,BUN})=>{
+    const osm=2*Na+glucose/18+BUN/2.8;
+    return {id:"osm_calc", label:"Calculated osmolality", value:osm, unit:"mOsm/kg", precision:1, notes:[]};
+  }
+});
+
+/* =========================================================
+   MED-EXT143 — Osmolality effective (tonicity)
+   ========================================================= */
+register({
+  id: "osm_effective",
+  label: "Effective osmolality",
+  tags: ["electrolytes"],
+  inputs: [
+    { key:"Na", required:true },
+    { key:"glucose", required:true } // mg/dL
+  ],
+  run: ({Na,glucose})=>{
+    const eff=2*Na+glucose/18;
+    return {id:"osm_effective", label:"Effective osmolality", value:eff, unit:"mOsm/kg", precision:1, notes:[]};
+  }
+});
+
+/* =========================================================
+   MED-EXT144 — HOMA-B (beta-cell function) 
+   HOMA-B = (20×Insulin)/(Glucose-3.5)
+   ========================================================= */
+register({
+  id: "homa_b",
+  label: "HOMA-B",
+  tags: ["endocrine"],
+  inputs: [
+    { key:"insulin", required:true }, // μU/mL
+    { key:"glucose", required:true }  // mmol/L
+  ],
+  run: ({insulin,glucose})=>{
+    if (glucose<=3.5) return null;
+    const val=(20*insulin)/(glucose-3.5);
+    return {id:"homa_b", label:"HOMA-B", value:val, unit:"%", precision:1, notes:[]};
+  }
+});
+
+/* =========================================================
+   MED-EXT145 — QUICKI index = 1/[log(insulin)+log(glucose)]
+   ========================================================= */
+register({
+  id: "quicki_index",
+  label: "QUICKI index",
+  tags: ["endocrine"],
+  inputs: [
+    { key:"insulin", required:true }, // μU/mL
+    { key:"glucose", required:true }  // mg/dL
+  ],
+  run: ({insulin,glucose})=>{
+    if (insulin<=0||glucose<=0) return null;
+    const val=1/(Math.log(insulin)+Math.log(glucose));
+    return {id:"quicki_index", label:"QUICKI index", value:val, unit:"index", precision:3, notes:[]};
+  }
+});
+
+/* =========================================================
+   MED-EXT146 — LDL/HDL ratio
+   ========================================================= */
+register({
+  id: "ldl_hdl_ratio",
+  label: "LDL/HDL ratio",
+  tags: ["lipids","cardiology"],
+  inputs: [
+    { key:"LDL", required:true },
+    { key:"HDL", required:true }
+  ],
+  run: ({LDL,HDL})=>{
+    if (HDL<=0) return null;
+    const val=LDL/HDL;
+    const notes=[val>3.5?"high":"acceptable"];
+    return {id:"ldl_hdl_ratio", label:"LDL/HDL ratio", value:val, unit:"ratio", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT147 — TG/HDL ratio
+   ========================================================= */
+register({
+  id: "tg_hdl_ratio",
+  label: "TG/HDL ratio",
+  tags: ["lipids","cardiology"],
+  inputs: [
+    { key:"TG", required:true },
+    { key:"HDL", required:true }
+  ],
+  run: ({TG,HDL})=>{
+    if (HDL<=0) return null;
+    const val=TG/HDL;
+    const notes=[val>3?"high insulin resistance risk":"ok"];
+    return {id:"tg_hdl_ratio", label:"TG/HDL ratio", value:val, unit:"ratio", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT148 — Non-HDL cholesterol = TC − HDL
+   ========================================================= */
+register({
+  id: "non_hdl_chol",
+  label: "Non-HDL cholesterol",
+  tags: ["lipids"],
+  inputs: [
+    { key:"TC", required:true },
+    { key:"HDL", required:true }
+  ],
+  run: ({TC,HDL})=>{
+    const val=TC-HDL;
+    return {id:"non_hdl_chol", label:"Non-HDL cholesterol", value:val, unit:"mg/dL", precision:0, notes:[]};
+  }
+});
+
+/* =========================================================
+   MED-EXT149 — Atherogenic index log(TG/HDL)
+   ========================================================= */
+register({
+  id: "atherogenic_index",
+  label: "Atherogenic index (log TG/HDL)",
+  tags: ["lipids","risk"],
+  inputs: [
+    { key:"TG", required:true },
+    { key:"HDL", required:true }
+  ],
+  run: ({TG,HDL})=>{
+    if (TG<=0||HDL<=0) return null;
+    const val=Math.log10(TG/HDL);
+    const notes=[val>0.24?"high":val>=0.1?"intermediate":"low"];
+    return {id:"atherogenic_index", label:"Atherogenic index (log TG/HDL)", value:val, unit:"index", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT150 — Framingham risk % surrogate
+   ========================================================= */
+register({
+  id: "framingham_percent_surrogate",
+  label: "Framingham 10-yr risk surrogate",
+  tags: ["cardiology","risk"],
+  inputs: [{ key:"percent", required:true }],
+  run: ({percent})=>{
+    const notes=[percent>=20?"high":percent>=10?"intermediate":"low"];
+    return {id:"framingham_percent_surrogate", label:"Framingham 10-yr risk surrogate", value:percent, unit:"%", precision:1, notes};
+  }
+});
