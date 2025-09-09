@@ -4781,3 +4781,407 @@ register({
   },
 });
 
+// ===================== MED-EXT61–80 (APPEND-ONLY) =====================
+
+/* =========================================================
+   MED-EXT61 — Neuro / Stroke adjuncts
+   ========================================================= */
+
+/** ABCD2 score (TIA stroke risk) surrogate */
+register({
+  id: "abcd2_surrogate",
+  label: "ABCD2 score (surrogate)",
+  tags: ["neurology", "risk"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 6 ? "high risk" : score >= 4 ? "moderate risk" : "low risk"];
+    return { id: "abcd2_surrogate", label: "ABCD2 score (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/** Hunt-Hess grade (SAH severity, 1–5) */
+register({
+  id: "hunt_hess",
+  label: "Hunt-Hess grade (SAH)",
+  tags: ["neurology", "icu_scores"],
+  inputs: [{ key: "grade", required: true }],
+  run: ({ grade }) => {
+    const notes = [grade >= 4 ? "poor prognosis" : grade >= 2 ? "moderate" : "mild"];
+    return { id: "hunt_hess", label: "Hunt-Hess grade (SAH)", value: grade, unit: "grade", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT62 — Cardiology add-ons
+   ========================================================= */
+
+/** SYNTAX score surrogate (PCI complexity) */
+register({
+  id: "syntax_surrogate",
+  label: "SYNTAX score (surrogate)",
+  tags: ["cardiology", "risk"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 33 ? "very complex" : score >= 23 ? "intermediate" : "low complexity"];
+    return { id: "syntax_surrogate", label: "SYNTAX score (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/** Killip class (HF in ACS) */
+register({
+  id: "killip_class",
+  label: "Killip class",
+  tags: ["cardiology", "risk"],
+  inputs: [{ key: "class", required: true }],
+  run: ({ class: cls }) => {
+    const notes = [cls >= 4 ? "cardiogenic shock" : cls === 3 ? "pulm edema" : cls === 2 ? "S3 rales" : "no HF"];
+    return { id: "killip_class", label: "Killip class", value: cls, unit: "class", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT63 — Pulmonary add-ons
+   ========================================================= */
+
+/** BODE index surrogate (COPD prognosis) */
+register({
+  id: "bode_surrogate",
+  label: "BODE index (surrogate)",
+  tags: ["pulmonary", "risk"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 7 ? "high risk" : score >= 5 ? "moderate" : "low"];
+    return { id: "bode_surrogate", label: "BODE index (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/** CURB-65 band (already had, but reflag supportive) */
+register({
+  id: "curb65_band",
+  label: "CURB-65 band",
+  tags: ["pulmonary", "infectious_disease"],
+  inputs: [{ key: "curb65", required: true }],
+  run: ({ curb65 }) => {
+    const notes = [curb65 >= 3 ? "severe pneumonia" : curb65 === 2 ? "moderate" : "mild"];
+    return { id: "curb65_band", label: "CURB-65 band", value: curb65, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT64 — Renal add-ons
+   ========================================================= */
+
+/** RIFLE AKI staging (R/I/F/L/E) surrogate */
+register({
+  id: "rifle_stage",
+  label: "RIFLE AKI stage (surrogate)",
+  tags: ["renal", "icu_scores"],
+  inputs: [{ key: "stage", required: true }],
+  run: ({ stage }) => {
+    const notes = [stage==="E"?"End-stage":"AKI stage " + stage];
+    return { id: "rifle_stage", label: "RIFLE AKI stage (surrogate)", value: stage, unit: "class", precision: 0, notes };
+  },
+});
+
+/** FE Mg surrogate (≥4% = wasting) */
+register({
+  id: "femg_surrogate",
+  label: "FE Mg surrogate",
+  tags: ["renal", "electrolytes"],
+  inputs: [{ key: "femg_pct", required: true }],
+  run: ({ femg_pct }) => {
+    const notes = [femg_pct >= 4 ? "renal Mg wasting" : "normal retention"];
+    return { id: "femg_surrogate", label: "FE Mg surrogate", value: femg_pct, unit: "%", precision: 1, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT65 — Heme / Onco
+   ========================================================= */
+
+/** IPSS-R surrogate (MDS risk) */
+register({
+  id: "ipssr_surrogate",
+  label: "IPSS-R (surrogate)",
+  tags: ["hematology", "oncology"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 5 ? "high risk" : score >= 3 ? "intermediate" : "low"];
+    return { id: "ipssr_surrogate", label: "IPSS-R (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/** IPI surrogate (lymphoma) */
+register({
+  id: "ipi_surrogate",
+  label: "IPI (surrogate)",
+  tags: ["oncology", "risk"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 4 ? "high risk" : score >= 2 ? "intermediate" : "low"];
+    return { id: "ipi_surrogate", label: "IPI (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT66 — OB / Peds
+   ========================================================= */
+
+/** Bishop score — reuse bands */
+register({
+  id: "bishop_band_v2",
+  label: "Bishop score v2",
+  tags: ["obstetrics"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score>=9?"favorable":score>=5?"intermediate":"unfavorable"];
+    return { id: "bishop_band_v2", label: "Bishop score v2", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/** Silverman score (resp distress neonate) surrogate */
+register({
+  id: "silverman_surrogate",
+  label: "Silverman score (surrogate)",
+  tags: ["neonatal", "pulmonary"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score>=7?"severe distress":score>=4?"moderate":"mild"];
+    return { id: "silverman_surrogate", label: "Silverman score (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT67 — ICU nutrition / gen
+   ========================================================= */
+
+/** Calorie requirement surrogate (25 kcal/kg/day) */
+register({
+  id: "calorie_req_surrogate",
+  label: "Calorie requirement surrogate",
+  tags: ["nutrition", "icu"],
+  inputs: [{ key: "weight_kg", required: true }],
+  run: ({ weight_kg }) => {
+    const val = 25 * weight_kg;
+    return { id: "calorie_req_surrogate", label: "Calorie requirement surrogate", value: val, unit: "kcal/day", precision: 0, notes: [] };
+  },
+});
+
+/* =========================================================
+   MED-EXT68 — VTE / Padua risk
+   ========================================================= */
+
+/** Padua VTE risk surrogate */
+register({
+  id: "padua_vte_surrogate",
+  label: "Padua VTE risk surrogate",
+  tags: ["hematology", "risk"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score>=4?"high":"low"];
+    return { id: "padua_vte_surrogate", label: "Padua VTE risk surrogate", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT69 — Cardio / Bleeding risk
+   ========================================================= */
+
+/** HAS-BLED v2 surrogate */
+register({
+  id: "has_bled_v2",
+  label: "HAS-BLED v2 surrogate",
+  tags: ["cardiology", "risk"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score>=3?"high bleed risk":"lower"];
+    return { id: "has_bled_v2", label: "HAS-BLED v2 surrogate", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT70 — Frailty indices
+   ========================================================= */
+
+/** Clinical Frailty Scale (CFS) surrogate */
+register({
+  id: "cfs_surrogate",
+  label: "Clinical Frailty Scale surrogate",
+  tags: ["geriatrics"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score>=7?"severe frailty":score>=5?"moderate":"mild"];
+    return { id: "cfs_surrogate", label: "Clinical Frailty Scale surrogate", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT71 — Endocrine add-ons
+   ========================================================= */
+
+/** HHS flag (hyperosmolar hyperglycemic state support) */
+register({
+  id: "hhs_support",
+  label: "HHS support flag",
+  tags: ["endocrine", "risk"],
+  inputs: [
+    { key: "glucose", required: true },
+    { key: "osm", required: true },
+    { key: "no_ketones", required: true },
+    { key: "mental_status_altered", required: true },
+  ],
+  run: (x) => {
+    const supportive = x.glucose>600 && x.osm>320 && x.no_ketones && x.mental_status_altered;
+    return { id: "hhs_support", label: "HHS support flag", value: supportive?1:0, unit: "flag", precision: 0, notes:[supportive?"supportive pattern":"not supportive"] };
+  },
+});
+
+/* =========================================================
+   MED-EXT72 — Sepsis add-ons
+   ========================================================= */
+
+/** SOFA surrogate */
+register({
+  id: "sofa_surrogate",
+  label: "SOFA surrogate",
+  tags: ["sepsis", "icu_scores"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score>=15?"very high":score>=8?"moderate-high":"low"];
+    return { id: "sofa_surrogate", label: "SOFA surrogate", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT73 — Trauma add-ons
+   ========================================================= */
+
+/** GCS band */
+register({
+  id: "gcs_band",
+  label: "GCS band",
+  tags: ["trauma", "neuro"],
+  inputs: [{ key: "gcs", required: true }],
+  run: ({ gcs }) => {
+    const notes = [gcs<=8?"severe":gcs<=12?"moderate":"mild"];
+    return { id: "gcs_band", label: "GCS band", value: gcs, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT74 — Pulm add-ons
+   ========================================================= */
+
+/** Oxygenation index (OI) = (FiO2 × MAP × 100)/PaO2 */
+register({
+  id: "oxygen_index",
+  label: "Oxygenation Index",
+  tags: ["pulmonary", "icu_scores"],
+  inputs: [
+    { key: "FiO2", required: true },
+    { key: "MAP", required: true },
+    { key: "PaO2", required: true },
+  ],
+  run: ({ FiO2, MAP, PaO2 }) => {
+    const oi = (FiO2 * MAP * 100) / PaO2;
+    const notes = [oi>=25?"severe":"milder"];
+    return { id: "oxygen_index", label: "Oxygenation Index", value: oi, unit: "index", precision: 1, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT75 — Onco add-ons
+   ========================================================= */
+
+/** ECOG performance status band */
+register({
+  id: "ecog_band",
+  label: "ECOG performance status",
+  tags: ["oncology"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score>=3?"poor PS":score>=1?"restricted":"fully active"];
+    return { id: "ecog_band", label: "ECOG performance status", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT76 — Coag add-ons
+   ========================================================= */
+
+/** Platelet transfusion trigger (supportive flag only) */
+register({
+  id: "plt_transfusion_trigger",
+  label: "Platelet transfusion trigger flag",
+  tags: ["hematology", "transfusion"],
+  inputs: [{ key: "platelets", required: true }],
+  run: ({ platelets }) => {
+    const notes = [platelets<10?"transfusion usually indicated (support)":"not indicated by count alone"];
+    return { id: "plt_transfusion_trigger", label: "Platelet transfusion trigger flag", value: platelets, unit: "×10^3/µL", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT77 — Electrolyte correction flags
+   ========================================================= */
+
+/** Hypomagnesemia flag */
+register({
+  id: "hypomg_flag",
+  label: "Hypomagnesemia flag",
+  tags: ["electrolytes"],
+  inputs: [{ key: "Mg", required: true }],
+  run: ({ Mg }) => {
+    const notes = [Mg<1.2?"severe":Mg<1.6?"moderate":Mg<1.8?"mild":"normal"];
+    return { id: "hypomg_flag", label: "Hypomagnesemia flag", value: Mg, unit: "mg/dL", precision: 1, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT78 — Renal / Nephrology
+   ========================================================= */
+
+/** CKD-EPI eGFR surrogate (already simplified) */
+register({
+  id: "egfr_surrogate",
+  label: "eGFR surrogate",
+  tags: ["renal"],
+  inputs: [{ key: "egfr", required: true }],
+  run: ({ egfr }) => {
+    const notes = [egfr<15?"ESRD":egfr<30?"stage 4":egfr<60?"stage 3":egfr<90?"stage 2":"normal/stage1"];
+    return { id: "egfr_surrogate", label: "eGFR surrogate", value: egfr, unit: "mL/min/1.73m²", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT79 — Endocrine flags
+   ========================================================= */
+
+/** Adrenal insufficiency suspicion (AM cortisol <3) */
+register({
+  id: "adrenal_insuff_flag",
+  label: "Adrenal insufficiency flag",
+  tags: ["endocrine"],
+  inputs: [{ key: "am_cortisol", required: true }],
+  run: ({ am_cortisol }) => {
+    const notes = [am_cortisol<3?"very low supportive":am_cortisol<15?"indeterminate":"adequate"];
+    return { id: "adrenal_insuff_flag", label: "Adrenal insufficiency flag", value: am_cortisol, unit: "µg/dL", precision: 1, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT80 — Miscellaneous
+   ========================================================= */
+
+/** Anemia severity by Hb */
+register({
+  id: "anemia_band",
+  label: "Anemia severity",
+  tags: ["hematology"],
+  inputs: [{ key: "Hb", required: true }],
+  run: ({ Hb }) => {
+    const notes = [Hb<7?"severe":Hb<10?"moderate":Hb<12?"mild":"normal"];
+    return { id: "anemia_band", label: "Anemia severity", value: Hb, unit: "g/dL", precision: 1, notes };
+  },
+});
+
