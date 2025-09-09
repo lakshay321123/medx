@@ -12,6 +12,8 @@ import { buildPersonalPlan } from "@/lib/aidoc/planner";
 import { extractPrefsFromUser } from "@/lib/aidoc/extractors/prefs";
 import { buildAiDocPrompt } from "@/lib/ai/prompts/aidoc";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { extractAll } from "@/lib/medical/extract";
+import { computeAll } from "@/lib/medical/calculators";
 
 async function getFeedbackSummary(conversationId: string) {
   try {
@@ -85,7 +87,18 @@ export async function POST(req: NextRequest) {
   }
 
   // System prompt with guardrails
-  const system = buildAiDocPrompt({ profile, labs, meds, conditions });
+  let system = buildAiDocPrompt({ profile, labs, meds, conditions });
+
+  const userText = String(message || "");
+  const extracted = extractAll(userText);
+  const computedLines = computeAll(extracted);
+  if (computedLines.length) {
+    system =
+      "These clinical calculations are pre-computed by code. Use them exactly; do not re-calculate.\n" +
+      computedLines.join("\n") +
+      "\n\n" +
+      system;
+  }
 
   // Call LLM (JSON-only)
   const feedback_summary = await getFeedbackSummary(threadId || "");

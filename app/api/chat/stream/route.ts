@@ -1,26 +1,11 @@
 import { NextRequest } from 'next/server';
 import { profileChatSystem } from '@/lib/profileChatSystem';
-import * as calc from '@/lib/medical/calculators';
+import { extractAll } from '@/lib/medical/extract';
+import { computeAll } from '@/lib/medical/calculators';
 export const runtime = 'edge';
 
 const recentReqs = new Map<string, number>();
 
-type Labs = { Na?: number; K?: number; Cl?: number; HCO3?: number; glucose?: number };
-
-function extractLabs(messages: any[]): Labs {
-  const text = messages.map((m: any) => m.content || '').join(' ');
-  const pick = (re: RegExp) => {
-    const match = text.match(re);
-    return match ? parseFloat(match[1]) : undefined;
-  };
-  return {
-    Na: pick(/\b(?:Na|Sodium)\s*(\d+(?:\.\d+)?)/i),
-    K: pick(/\b(?:K|Potassium)\s*(\d+(?:\.\d+)?)/i),
-    Cl: pick(/\b(?:Cl|Chloride)\s*(\d+(?:\.\d+)?)/i),
-    HCO3: pick(/\b(?:HCO3|Bicarb(?:onate)?)\s*(\d+(?:\.\d+)?)/i),
-    glucose: pick(/\b(?:glucose|glu)\s*(\d+(?:\.\d+)?)/i),
-  };
-}
 
 export async function POST(req: NextRequest) {
   const { messages = [], context, clientRequestId, mode } = await req.json();
@@ -42,30 +27,20 @@ export async function POST(req: NextRequest) {
 
   let finalMessages = messages.filter((m: any) => m.role !== 'system');
 
-  if (mode === 'doctor' || mode === 'patient') {
-    const labs = extractLabs(finalMessages);
-    const notes: string[] = [];
-    if (labs.Na && labs.Cl && labs.HCO3) {
-      const ag = calc.computeAnionGap({ Na: labs.Na, K: labs.K, Cl: labs.Cl, HCO3: labs.HCO3 });
-      notes.push(`Computed Anion Gap: ${ag.toFixed(1)} mmol/L`);
-    }
-    if (labs.Na && labs.glucose) {
-      const corr = calc.correctSodiumForGlucose(labs.Na, labs.glucose);
-      notes.push(`Corrected Sodium: ${corr.toFixed(1)} mmol/L`);
-    }
-    if (labs.K !== undefined) {
-      if (calc.needsKBeforeInsulin(labs.K)) {
-        notes.push(`⚠️ Potassium ${labs.K} < 3.3 → Replete K before insulin`);
-      }
-    }
-    if (notes.length) {
-      finalMessages = [
-        { role: 'system', content: 'Use provided computed values (do not recalc by hand).' },
-        { role: 'system', content: 'These deterministic calculations are pre-computed:' },
-        { role: 'system', content: notes.join('\n') },
-        ...finalMessages,
-      ];
-    }
+  const userText = (messages || []).map((m: any) => m?.content || '').join('\n');
+  const labs = extractAll(userText);
+  const computedLines = computeAll(labs);
+
+  if (computedLines.length) {
+    finalMessages = [
+      {
+        role: 'system',
+        content:
+          'These clinical calculations are pre-computed by code. Use them exactly; do not re-calculate. If inputs are missing, state which values are required.'
+      },
+      { role: 'system', content: computedLines.join('\n') },
+      ...finalMessages,
+    ];
   }
   if (context === 'profile') {
     try {
