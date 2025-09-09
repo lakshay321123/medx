@@ -8345,3 +8345,462 @@ register({
     return {id:"rbc_transfusion_trigger_flag", label:"RBC transfusion trigger flag", value:trigger?1:0, unit:"flag", precision:0, notes:[trigger?"trigger threshold met (supportive)":"threshold not met"]};
   }
 });
+// ===================== MED-EXT311–340 (APPEND-ONLY) =====================
+/* If this import already exists at file top, remove this line. */
+
+/* =========================================================
+   MED-EXT311 — CURB-65 (full) band from score
+   ========================================================= */
+register({
+  id: "curb65_full_band",
+  label: "CURB-65 band (full score)",
+  tags: ["infectious_disease","pulmonary","risk"],
+  inputs: [{ key:"score", required:true }], // 0–5
+  run: ({score})=>{
+    const notes=[score>=3?"high":score==2?"intermediate":"low"];
+    return {id:"curb65_full_band", label:"CURB-65 band (full score)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT312 — Procalcitonin band
+   ========================================================= */
+register({
+  id: "pct_band",
+  label: "Procalcitonin band",
+  tags: ["infectious_disease","sepsis"],
+  inputs: [{ key:"pct_ng_ml", required:true }],
+  run: ({pct_ng_ml})=>{
+    const notes=[pct_ng_ml>=2?"high":pct_ng_ml>=0.5?"intermediate":"low"];
+    return {id:"pct_band", label:"Procalcitonin band", value:pct_ng_ml, unit:"ng/mL", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT313 — CRP band
+   ========================================================= */
+register({
+  id: "crp_band",
+  label: "CRP band",
+  tags: ["infectious_disease","inflammation"],
+  inputs: [{ key:"crp_mg_l", required:true }],
+  run: ({crp_mg_l})=>{
+    const notes=[crp_mg_l>=100?"very high":crp_mg_l>=10?"elevated":"near-normal"];
+    return {id:"crp_band", label:"CRP band", value:crp_mg_l, unit:"mg/L", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT314 — Lactate band (sepsis context)
+   ========================================================= */
+register({
+  id: "lactate_sepsis_band",
+  label: "Lactate band (sepsis context)",
+  tags: ["sepsis","icu"],
+  inputs: [{ key:"lactate_mmol_l", required:true }],
+  run: ({lactate_mmol_l})=>{
+    const notes=[lactate_mmol_l>=4?"high":lactate_mmol_l>=2?"intermediate":"low"];
+    return {id:"lactate_sepsis_band", label:"Lactate band (sepsis context)", value:lactate_mmol_l, unit:"mmol/L", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT315 — WHO HIV clinical stage (input -> band)
+   ========================================================= */
+register({
+  id: "who_hiv_stage",
+  label: "WHO HIV clinical stage",
+  tags: ["infectious_disease","hiv"],
+  inputs: [{ key:"stage", required:true }], // 1–4
+  run: ({stage})=>{
+    const notes=["Stage "+stage];
+    return {id:"who_hiv_stage", label:"WHO HIV clinical stage", value:stage, unit:"stage", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT316 — CD4 percentage band
+   ========================================================= */
+register({
+  id: "cd4_percent_band",
+  label: "CD4 percentage band",
+  tags: ["infectious_disease","hiv"],
+  inputs: [{ key:"cd4_percent", required:true }],
+  run: ({cd4_percent})=>{
+    const notes=[cd4_percent<14?"advanced immunosuppression":"above advanced threshold"];
+    return {id:"cd4_percent_band", label:"CD4 percentage band", value:cd4_percent, unit:"%", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT317 — HIV viral load band
+   ========================================================= */
+register({
+  id: "hiv_viral_load_band",
+  label: "HIV viral load band",
+  tags: ["infectious_disease","hiv"],
+  inputs: [{ key:"copies_ml", required:true }],
+  run: ({copies_ml})=>{
+    const notes=[copies_ml<200?"suppressed/near-target":"unsuppressed"];
+    return {id:"hiv_viral_load_band", label:"HIV viral load band", value:copies_ml, unit:"copies/mL", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT318 — Hepatitis B serology pattern (basic)
+   Inputs as booleans; returns simple pattern note.
+   ========================================================= */
+register({
+  id: "hbv_serology_pattern",
+  label: "HBV serology pattern (basic)",
+  tags: ["infectious_disease","hepatology"],
+  inputs: [
+    { key:"HBsAg_pos", required:true },
+    { key:"antiHBs_pos", required:true },
+    { key:"antiHBc_total_pos", required:true },
+    { key:"HBeAg_pos", required:true }
+  ],
+  run: (x)=>{
+    let pattern="indeterminate";
+    if (x.HBsAg_pos && x.antiHBc_total_pos && !x.antiHBs_pos) pattern="chronic infection (pattern)";
+    else if (!x.HBsAg_pos && x.antiHBs_pos && x.antiHBc_total_pos) pattern="immunity from past infection (pattern)";
+    else if (!x.HBsAg_pos && x.antiHBs_pos && !x.antiHBc_total_pos) pattern="immunity by vaccination (pattern)";
+    else if (x.HBsAg_pos && !x.antiHBc_total_pos) pattern="early infection pattern";
+    const notes=[pattern, x.HBeAg_pos ? "HBeAg positive" : "HBeAg negative"];
+    return {id:"hbv_serology_pattern", label:"HBV serology pattern (basic)", value:1, unit:"flag", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT319 — HCV RNA detected flag
+   ========================================================= */
+register({
+  id: "hcv_rna_detected_flag",
+  label: "HCV RNA detected flag",
+  tags: ["infectious_disease","hepatology"],
+  inputs: [{ key:"detected", required:true }],
+  run: ({detected})=>{
+    return {id:"hcv_rna_detected_flag", label:"HCV RNA detected flag", value:detected?1:0, unit:"flag", precision:0, notes:[detected?"detected":"not detected"]};
+  }
+});
+
+/* =========================================================
+   MED-EXT320 — APRI calculator = (AST/ULN_AST) / platelets × 100
+   platelets in ×10^3/µL
+   ========================================================= */
+register({
+  id: "apri_calc",
+  label: "APRI (calculated)",
+  tags: ["hepatology"],
+  inputs: [
+    { key:"AST", required:true },
+    { key:"ULN_AST", required:true },
+    { key:"platelets_k", required:true }
+  ],
+  run: ({AST,ULN_AST,platelets_k})=>{
+    if (ULN_AST<=0 || platelets_k<=0) return null;
+    const val = (AST/ULN_AST) / platelets_k * 100;
+    const notes=[val>1.5?"advanced fibrosis band":val>0.5?"significant band":"minimal band"];
+    return {id:"apri_calc", label:"APRI (calculated)", value:val, unit:"index", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT321 — FIB-4 calculator = (Age×AST)/(Plt×sqrt(ALT))
+   platelets in ×10^3/µL
+   ========================================================= */
+register({
+  id: "fib4_calc",
+  label: "FIB-4 (calculated)",
+  tags: ["hepatology"],
+  inputs: [
+    { key:"age", required:true },
+    { key:"AST", required:true },
+    { key:"ALT", required:true },
+    { key:"platelets_k", required:true }
+  ],
+  run: ({age,AST,ALT,platelets_k})=>{
+    if (platelets_k<=0 || ALT<=0) return null;
+    const val = (age*AST) / (platelets_k*Math.sqrt(ALT));
+    const notes=[val>3.25?"advanced fibrosis band":val>1.45?"indeterminate band":"low fibrosis band"];
+    return {id:"fib4_calc", label:"FIB-4 (calculated)", value:val, unit:"index", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT322 — Hepatic encephalopathy (West Haven) band
+   ========================================================= */
+register({
+  id: "west_haven_band",
+  label: "Hepatic encephalopathy (West Haven) band",
+  tags: ["hepatology","neurology"],
+  inputs: [{ key:"grade", required:true }], // 0–4
+  run: ({grade})=>{
+    const notes=[grade>=3?"severe":"mild/moderate"];
+    return {id:"west_haven_band", label:"Hepatic encephalopathy (West Haven) band", value:grade, unit:"grade", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT323 — Ascites total protein band
+   ========================================================= */
+register({
+  id: "ascites_protein_band",
+  label: "Ascites total protein band",
+  tags: ["hepatology","gastroenterology"],
+  inputs: [{ key:"protein_g_dl", required:true }],
+  run: ({protein_g_dl})=>{
+    const notes=[protein_g_dl<1?"very low":protein_g_dl<2.5?"low":"higher"];
+    return {id:"ascites_protein_band", label:"Ascites total protein band", value:protein_g_dl, unit:"g/dL", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT324 — SBP supportive flag (PMN ≥250 cells/µL)
+   ========================================================= */
+register({
+  id: "sbp_supportive_flag",
+  label: "Spontaneous bacterial peritonitis (supportive flag)",
+  tags: ["hepatology","infectious_disease"],
+  inputs: [{ key:"ascites_pmn_cells", required:true }],
+  run: ({ascites_pmn_cells})=>{
+    const pos=ascites_pmn_cells>=250;
+    return {id:"sbp_supportive_flag", label:"Spontaneous bacterial peritonitis (supportive flag)", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"PMN≥250 supportive":"below threshold"]};
+  }
+});
+
+/* =========================================================
+   MED-EXT325 — MELD-3.0 surrogate (input as score)
+   ========================================================= */
+register({
+  id: "meld3_surrogate",
+  label: "MELD-3.0 surrogate",
+  tags: ["hepatology","icu_scores"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=30?"very high":score>=20?"high":"lower"];
+    return {id:"meld3_surrogate", label:"MELD-3.0 surrogate", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT326 — Hepatorenal syndrome supportive flag (simple)
+   Cirrhosis + Cr>1.5 + urine Na <10 (provided)
+   ========================================================= */
+register({
+  id: "hrs_support_flag",
+  label: "Hepatorenal syndrome supportive flag (simple)",
+  tags: ["hepatology","renal"],
+  inputs: [
+    { key:"cirrhosis_present", required:true }, // boolean
+    { key:"creatinine", required:true },
+    { key:"urine_na", required:true } // mmol/L
+  ],
+  run: ({cirrhosis_present,creatinine,urine_na})=>{
+    const supportive = cirrhosis_present && creatinine>1.5 && urine_na<10;
+    return {id:"hrs_support_flag", label:"Hepatorenal syndrome supportive flag (simple)", value:supportive?1:0, unit:"flag", precision:0, notes:[supportive?"supportive pattern":"not supportive"]};
+  }
+});
+
+/* =========================================================
+   MED-EXT327 — HBV DNA band (IU/mL)
+   ========================================================= */
+register({
+  id: "hbv_dna_band",
+  label: "HBV DNA band",
+  tags: ["infectious_disease","hepatology"],
+  inputs: [{ key:"hbv_dna_iu_ml", required:true }],
+  run: ({hbv_dna_iu_ml})=>{
+    const notes=[hbv_dna_iu_ml>=20000?"high":hbv_dna_iu_ml>=2000?"moderate":"low/undetectable"];
+    return {id:"hbv_dna_band", label:"HBV DNA band", value:hbv_dna_iu_ml, unit:"IU/mL", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT328 — NAFLD fibrosis surrogate (input)
+   ========================================================= */
+register({
+  id: "nafld_fibrosis_input_surrogate",
+  label: "NAFLD fibrosis surrogate (input)",
+  tags: ["hepatology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>0.675?"advanced":score<-1.455?"low":"indeterminate"];
+    return {id:"nafld_fibrosis_input_surrogate", label:"NAFLD fibrosis surrogate (input)", value:score, unit:"index", precision:3, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT329 — Cryptococcal antigen titer band
+   ========================================================= */
+register({
+  id: "crag_titer_band",
+  label: "Cryptococcal antigen (CrAg) titer band",
+  tags: ["infectious_disease"],
+  inputs: [{ key:"titer", required:true }], // e.g., 1:XX -> pass XX as number
+  run: ({titer})=>{
+    const notes=[titer>=160?"high titer band":titer>=40?"moderate band":"low band"];
+    return {id:"crag_titer_band", label:"Cryptococcal antigen (CrAg) titer band", value:titer, unit:"titer", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT330 — Galactomannan index band
+   ========================================================= */
+register({
+  id: "galactomannan_band",
+  label: "Galactomannan index band",
+  tags: ["infectious_disease"],
+  inputs: [{ key:"index", required:true }],
+  run: ({index})=>{
+    const notes=[index>=1.0?"positive band":index>=0.5?"indeterminate band":"negative band"];
+    return {id:"galactomannan_band", label:"Galactomannan index band", value:index, unit:"index", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT331 — (1→3)-β-D-glucan band
+   ========================================================= */
+register({
+  id: "beta_d_glucan_band",
+  label: "(1→3)-β-D-glucan band",
+  tags: ["infectious_disease"],
+  inputs: [{ key:"pg_ml", required:true }],
+  run: ({pg_ml})=>{
+    const notes=[pg_ml>=80?"positive band":pg_ml>=60?"indeterminate band":"negative band"];
+    return {id:"beta_d_glucan_band", label:"(1→3)-β-D-glucan band", value:pg_ml, unit:"pg/mL", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT332 — CD4/CD8 ratio
+   ========================================================= */
+register({
+  id: "cd4_cd8_ratio",
+  label: "CD4/CD8 ratio",
+  tags: ["infectious_disease","immunology"],
+  inputs: [
+    { key:"cd4_abs", required:true },
+    { key:"cd8_abs", required:true }
+  ],
+  run: ({cd4_abs,cd8_abs})=>{
+    if (cd8_abs<=0) return null;
+    const val=cd4_abs/cd8_abs;
+    const notes=[val<1?"inverted ratio":"normal ratio"];
+    return {id:"cd4_cd8_ratio", label:"CD4/CD8 ratio", value:val, unit:"ratio", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT333 — TB smear grade band (input)
+   ========================================================= */
+register({
+  id: "tb_smear_grade_band",
+  label: "TB smear grade band",
+  tags: ["infectious_disease","pulmonary"],
+  inputs: [{ key:"grade", required:true }], // "scanty"|"1+"|"2+"|"3+"
+  run: ({grade})=>{
+    const notes=[String(grade)];
+    return {id:"tb_smear_grade_band", label:"TB smear grade band", value:String(grade), unit:"grade", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT334 — TB GeneXpert detected flag
+   ========================================================= */
+register({
+  id: "tb_genexpert_flag",
+  label: "TB GeneXpert detected flag",
+  tags: ["infectious_disease"],
+  inputs: [{ key:"detected", required:true }],
+  run: ({detected})=>{
+    return {id:"tb_genexpert_flag", label:"TB GeneXpert detected flag", value:detected?1:0, unit:"flag", precision:0, notes:[detected?"detected":"not detected"]};
+  }
+});
+
+/* =========================================================
+   MED-EXT335 — Dengue severity (warning signs count) flag
+   ========================================================= */
+register({
+  id: "dengue_warning_flag",
+  label: "Dengue warning signs flag",
+  tags: ["infectious_disease"],
+  inputs: [{ key:"warning_signs_count", required:true }],
+  run: ({warning_signs_count})=>{
+    const pos=warning_signs_count>=1;
+    return {id:"dengue_warning_flag", label:"Dengue warning signs flag", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"warning signs present":"none reported"]};
+  }
+});
+
+/* =========================================================
+   MED-EXT336 — Malaria parasitemia band (%)
+   ========================================================= */
+register({
+  id: "malaria_parasitemia_band",
+  label: "Malaria parasitemia band",
+  tags: ["infectious_disease"],
+  inputs: [{ key:"percent", required:true }],
+  run: ({percent})=>{
+    const notes=[percent>=5?"high":percent>=1?"moderate":"low"];
+    return {id:"malaria_parasitemia_band", label:"Malaria parasitemia band", value:percent, unit:"%", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT337 — P/F ratio (PaO₂/FiO₂)
+   ========================================================= */
+register({
+  id: "pf_ratio",
+  label: "P/F ratio (PaO₂/FiO₂)",
+  tags: ["pulmonary","icu"],
+  inputs: [
+    { key:"PaO2", required:true },  // mmHg
+    { key:"FiO2", required:true }   // 0–1
+  ],
+  run: ({PaO2,FiO2})=>{
+    if (FiO2<=0) return null;
+    const val=PaO2/FiO2;
+    const notes=[val<100?"severe ARDS band":val<=200?"moderate ARDS band":val<=300?"mild ARDS band":"above ARDS bands"];
+    return {id:"pf_ratio", label:"P/F ratio (PaO₂/FiO₂)", value:val, unit:"ratio", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT338 — MRSA nasal PCR flag
+   ========================================================= */
+register({
+  id: "mrsa_nasal_pcr_flag",
+  label: "MRSA nasal PCR flag",
+  tags: ["infectious_disease"],
+  inputs: [{ key:"positive", required:true }],
+  run: ({positive})=>{
+    return {id:"mrsa_nasal_pcr_flag", label:"MRSA nasal PCR flag", value:positive?1:0, unit:"flag", precision:0, notes:[positive?"positive":"negative"]};
+  }
+});
+
+/* =========================================================
+   MED-EXT339 — C. difficile toxin flag
+   ========================================================= */
+register({
+  id: "cdiff_toxin_flag",
+  label: "C. difficile toxin flag",
+  tags: ["infectious_disease","gastroenterology"],
+  inputs: [{ key:"positive", required:true }],
+  run: ({positive})=>{
+    return {id:"cdiff_toxin_flag", label:"C. difficile toxin flag", value:positive?1:0, unit:"flag", precision:0, notes:[positive?"positive":"negative"]};
+  }
+});
+
+/* =========================================================
+   MED-EXT340 — Stool GI panel positives (count band)
+   ========================================================= */
+register({
+  id: "stool_panel_positive_count",
+  label: "Stool GI panel positives (count band)",
+  tags: ["infectious_disease","gastroenterology"],
+  inputs: [{ key:"positive_count", required:true }],
+  run: ({positive_count})=>{
+    const notes=[positive_count>=2?"multiple pathogens detected":"single/none"];
+    return {id:"stool_panel_positive_count", label:"Stool GI panel positives (count band)", value:positive_count, unit:"count", precision:0, notes};
+  }
+});
