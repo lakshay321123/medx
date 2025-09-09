@@ -13,7 +13,8 @@ import { extractPrefsFromUser } from "@/lib/aidoc/extractors/prefs";
 import { buildAiDocPrompt } from "@/lib/ai/prompts/aidoc";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { extractAll } from "@/lib/medical/engine/extract";
-import { computeAll } from "@/lib/medical/engine/computeAll";
+import { computeAll, renderResultsBlock } from "@/lib/medical/engine/computeAll";
+import "@/lib/medical/engine/calculators"; // side-effect: registers Phase-1 calculators
 
 async function getFeedbackSummary(conversationId: string) {
   try {
@@ -87,23 +88,17 @@ export async function POST(req: NextRequest) {
   }
 
   // System prompt with guardrails
-  let system = buildAiDocPrompt({ profile, labs, meds, conditions });
-
   const userText = String(message || "");
-  const ctx = extractAll(userText);
-  const computed = computeAll(ctx);
-  if (computed.length) {
-    const lines = computed.map(r => {
-      const val = r.unit ? `${r.value} ${r.unit}` : String(r.value);
-      const notes = r.notes?.length ? ` — ${r.notes.join('; ')}` : '';
-      return `${r.label}: ${val}${notes}`;
-    });
-    system =
-      "Use the pre-computed clinical values below exactly. Do not re-calculate. If inputs are missing, state which values are required.\n" +
-      lines.join("\n") +
-      "\n\n" +
-      system;
-  }
+  let calcPrelude = "";
+  try {
+    const inputs = extractAll(userText);
+    const results = computeAll(inputs);
+    calcPrelude = renderResultsBlock(results);
+  } catch {}
+
+  let system = buildAiDocPrompt({ profile, labs, meds, conditions });
+  const systemPrelude = [calcPrelude, system].filter(Boolean).join("\n");
+  system = systemPrelude;
 
   // Call LLM (JSON-only)
   const feedback_summary = await getFeedbackSummary(threadId || "");

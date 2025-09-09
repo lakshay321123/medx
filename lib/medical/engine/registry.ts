@@ -1,27 +1,13 @@
-export type InputSpec = {
-  key: string;
-  unit?: string;
-  aliases?: string[];
-  required?: boolean;
-};
+import type { Calculator, Registry } from "./types";
 
-export type CalcResult = {
-  id: string;
-  label: string;
-  value?: number | string;
-  unit?: string;
-  notes?: string[];
-  precision?: number;
-};
+const REGISTRY: Registry = new Map();
 
-export type Formula = {
-  id: string;
-  label: string;
-  inputs: InputSpec[];
-  run: (ctx: Record<string, any>) => CalcResult | null;
-  priority?: number;
-  tags?: string[];
-};
+export function register(calc: Calculator) {
+  if (REGISTRY.has(calc.id)) return; // idempotent
+  REGISTRY.set(calc.id, calc);
+}
 
-export const FORMULAE: Formula[] = [];
-export function register(formula: Formula) { FORMULAE.push(formula); }
+export function getAllCalculators(): Calculator[] {
+  return Array.from(REGISTRY.values());
+}
+

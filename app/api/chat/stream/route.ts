@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import { profileChatSystem } from '@/lib/profileChatSystem';
 import { extractAll } from '@/lib/medical/engine/extract';
-import { computeAll } from '@/lib/medical/engine/computeAll';
+import { computeAll, renderResultsBlock } from '@/lib/medical/engine/computeAll';
+import '@/lib/medical/engine/calculators';
 export const runtime = 'edge';
 
 const recentReqs = new Map<string, number>();
@@ -28,25 +29,13 @@ export async function POST(req: NextRequest) {
   let finalMessages = messages.filter((m: any) => m.role !== 'system');
 
   const userText = (messages || []).map((m: any) => m?.content || '').join('\n');
-  const ctx = extractAll(userText);
-  const computed = computeAll(ctx);
+  let calcPrelude = "";
+  try {
+    const inputs = extractAll(userText);
+    const results = computeAll(inputs);
+    calcPrelude = renderResultsBlock(results);
+  } catch {}
 
-  if (computed.length) {
-    const lines = computed.map(r => {
-      const val = r.unit ? `${r.value} ${r.unit}` : String(r.value);
-      const notes = r.notes?.length ? ` — ${r.notes.join('; ')}` : '';
-      return `${r.label}: ${val}${notes}`;
-    });
-    finalMessages = [
-      {
-        role: 'system',
-        content:
-          'Use the pre-computed clinical values below exactly. Do not re-calculate. If inputs are missing, state which values are required.'
-      },
-      { role: 'system', content: lines.join('\n') },
-      ...finalMessages,
-    ];
-  }
   if (context === 'profile') {
     try {
       const origin = req.nextUrl.origin;
@@ -62,8 +51,13 @@ export async function POST(req: NextRequest) {
         profile: p?.profile || p || null,
         packet: pk.text || '',
       });
-      finalMessages = [{ role: 'system', content: sys }, ...finalMessages];
+      const systemPrelude = [calcPrelude, sys].filter(Boolean).join('\n');
+      finalMessages = [{ role: 'system', content: systemPrelude }, ...finalMessages];
     } catch {}
+  } else {
+    if (calcPrelude) {
+      finalMessages = [{ role: 'system', content: calcPrelude }, ...finalMessages];
+    }
   }
 
   const upstream = await fetch(url, {

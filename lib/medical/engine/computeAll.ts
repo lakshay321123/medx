@@ -1,16 +1,36 @@
-import { FORMULAE } from "./registry";
-import "./calculators";
+import { getAllCalculators } from "./registry";
+import type { CalcInputMap, CalcResult } from "./types";
 
-export function computeAll(ctx: Record<string, any>) {
-  const out: { id: string; label: string; value: any; unit?: string; notes: string[] }[] = [];
-  for (const f of FORMULAE.sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100))) {
+export function computeAll(inputs: CalcInputMap): CalcResult[] {
+  const results: CalcResult[] = [];
+  for (const calc of getAllCalculators()) {
+    const need = calc.inputs;
+    const hasAll = need.every(n => !n.required || inputs[n.key] != null);
+    if (!hasAll) continue;
     try {
-      const res = f.run(ctx);
-      if (res && res.value != null) {
-        const v = typeof res.value === "number" && res.precision != null ? Number(res.value.toFixed(res.precision)) : res.value;
-        out.push({ id: res.id, label: res.label, value: v, unit: res.unit, notes: res.notes ?? [] });
+      const r = calc.run(inputs);
+      if (r && Number.isFinite(r.value)) {
+        if (typeof r.precision === "number") {
+          r.value = Number(r.value.toFixed(r.precision));
+        }
+        results.push(r);
       }
-    } catch {}
+    } catch { /* swallow calc errors */ }
   }
-  return out;
+  return results;
 }
+
+export function renderResultsBlock(results: CalcResult[]): string {
+  if (!results.length) return "";
+  const lines = results.map(r => {
+    const unit = r.unit ? ` ${r.unit}` : "";
+    const notes = r.notes?.length ? ` — ${r.notes.join("; ")}` : "";
+    return `• ${r.label}: ${r.value}${unit}${notes}`;
+  });
+  return [
+    "CLINICAL CALCULATIONS",
+    ...lines,
+    ""
+  ].join("\n");
+}
+

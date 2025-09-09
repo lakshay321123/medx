@@ -1,31 +1,19 @@
 import { register } from "../registry";
 
-const rr = (hr: number) => 60 / hr;
-
-register({
-  id: "qtc_fridericia",
-  label: "QTc (Fridericia)",
-  inputs: [
-    { key: "QTms", required: true, unit: "ms" },
-    { key: "HR", required: true },
-  ],
-  run: ({ QTms, HR }) => {
-    if (QTms == null || HR == null) return null;
-    const val = QTms / Math.cbrt(rr(HR));
-    return { id: "qtc_fridericia", label: "QTc (Fridericia)", value: val, unit: "ms", precision: 0 };
-  },
-});
-
+// QTc (Bazett): QTc = QT / sqrt(RR) ; RR in seconds
 register({
   id: "qtc_bazett",
   label: "QTc (Bazett)",
   inputs: [
-    { key: "QTms", required: true, unit: "ms" },
-    { key: "HR", required: true },
+    { key: "QT", required: true },  // ms
+    { key: "RR", required: true },  // s
   ],
-  run: ({ QTms, HR }) => {
-    if (QTms == null || HR == null) return null;
-    const val = QTms / Math.sqrt(rr(HR));
-    return { id: "qtc_bazett", label: "QTc (Bazett)", value: val, unit: "ms", precision: 0 };
+  run: ({ QT, RR }) => {
+    if (!RR || RR <= 0) return null;
+    const qtc = (QT! / 1000) / Math.sqrt(RR!) * 1000; // back to ms
+    const notes: string[] = [];
+    if (qtc > 500) notes.push("markedly prolonged");
+    return { id: "qtc_bazett", label: "QTc (Bazett)", value: qtc, unit: "ms", precision: 0, notes };
   },
 });
+

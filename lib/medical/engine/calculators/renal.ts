@@ -1,37 +1,16 @@
 import { register } from "../registry";
 
+// eGFR CKD-EPI 2021 (very simplified surrogate using serum creatinine only)
+// Here we provide a basic placeholder as Phase-1 (non-demographic).
 register({
-  id: "egfr_ckd_epi",
-  label: "eGFR (CKD-EPI)",
-  inputs: [
-    { key: "creatinine", required: true },
-    { key: "age", required: true },
-    { key: "sex", required: true },
-  ],
-  run: ({ creatinine, age, sex }) => {
-    if (creatinine == null || age == null || !sex) return null;
-    const k = sex === "female" ? 0.7 : 0.9;
-    const a = sex === "female" ? -0.329 : -0.411;
-    const scr = creatinine / k;
-    const egfr =
-      141 * Math.min(scr, 1) ** a * Math.max(scr, 1) ** -1.209 * 0.993 ** age * (sex === "female" ? 1.018 : 1);
-    return { id: "egfr_ckd_epi", label: "eGFR (CKD-EPI)", value: egfr, unit: "mL/min/1.73m²", precision: 0 };
+  id: "egfr_ckdepi_simplified",
+  label: "eGFR (CKD-EPI, simplified)",
+  inputs: [{ key: "creatinine", required: true }],
+  run: ({ creatinine }) => {
+    const cr = Math.max(0.1, creatinine!);
+    // A coarse estimate: eGFR ≈ 80 * (1 / cr) ^ 1.1 (placeholder)
+    const egfr = 80 * Math.pow(1 / cr, 1.1);
+    return { id: "egfr_ckdepi_simplified", label: "eGFR (CKD-EPI, simplified)", value: egfr, unit: "mL/min/1.73m²", precision: 0, notes: ["Phase-1 placeholder"] };
   },
 });
 
-register({
-  id: "crcl_cg",
-  label: "CrCl (Cockcroft–Gault)",
-  inputs: [
-    { key: "creatinine", required: true },
-    { key: "age", required: true },
-    { key: "weight_kg", required: true },
-    { key: "sex", required: true },
-  ],
-  run: ({ creatinine, age, weight_kg, sex }) => {
-    if (creatinine == null || age == null || weight_kg == null || !sex) return null;
-    const factor = sex === "female" ? 0.85 : 1;
-    const val = ((140 - age) * weight_kg * factor) / (72 * creatinine);
-    return { id: "crcl_cg", label: "CrCl (Cockcroft–Gault)", value: val, unit: "mL/min", precision: 0 };
-  },
-});

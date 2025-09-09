@@ -1,5 +1,6 @@
 import { register } from "../registry";
 
+// Anion gap (±K)
 register({
   id: "anion_gap",
   label: "Anion gap",
@@ -11,29 +12,26 @@ register({
   ],
   run: ({ Na, Cl, HCO3, K }) => {
     if (Na == null || Cl == null || HCO3 == null) return null;
-    const val = Na + (K ?? 0) - (Cl + HCO3);
-    return { id: "anion_gap", label: "Anion gap", value: val, unit: "mmol/L", precision: 1 };
+    const ag = Na + (K ?? 0) - (Cl + HCO3);
+    return { id: "anion_gap", label: "Anion gap", value: ag, unit: "mmol/L", precision: 1 };
   },
 });
 
+// Albumin-corrected AG: AG + 2.5*(4 - albumin)
 register({
-  id: "corrected_na_hyperglycemia",
-  label: "Corrected Na (hyperglycemia, 1.6)",
+  id: "anion_gap_corrected",
+  label: "Anion gap (albumin-corrected)",
   inputs: [
     { key: "Na", required: true },
-    { key: "glucose_mgdl" },
-    { key: "glucose_mmol" },
+    { key: "Cl", required: true },
+    { key: "HCO3", required: true },
+    { key: "albumin", required: true },
+    { key: "K" },
   ],
-  run: ({ Na, glucose_mgdl, glucose_mmol }) => {
-    const glu = glucose_mgdl ?? (glucose_mmol != null ? glucose_mmol * 18 : undefined);
-    if (Na == null || glu == null) return null;
-    const val = Na + 1.6 * ((glu - 100) / 100);
-    return {
-      id: "corrected_na_hyperglycemia",
-      label: "Corrected Na (1.6)",
-      value: val,
-      unit: "mmol/L",
-      precision: 1,
-    };
+  run: ({ Na, Cl, HCO3, albumin, K }) => {
+    const ag = Na! + (K ?? 0) - (Cl! + HCO3!);
+    const corrected = ag + 2.5 * (4 - albumin!);
+    return { id: "anion_gap_corrected", label: "Anion gap (albumin-corrected)", value: corrected, unit: "mmol/L", precision: 1 };
   },
 });
+

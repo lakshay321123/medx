@@ -1,10 +1,11 @@
+// Importing registers the calculators.
 import "./electrolytes";
 import "./acid_base";
-import "./ecg";
-import "./cardiology_risk";
 import "./renal";
 import "./liver";
 import "./pulmonary";
-import "./endocrine";
+import "./ecg";
 import "./toxicology";
 import "./icu";
+import "./cardiology_risk";
+

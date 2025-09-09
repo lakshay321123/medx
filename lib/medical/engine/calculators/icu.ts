@@ -1,20 +1,19 @@
 import { register } from "../registry";
 
+// qSOFA (RR≥22, SBP≤100, altered mentation — here we score RR & SBP only)
 register({
-  id: "qsofa",
-  label: "qSOFA",
+  id: "qsofa_partial",
+  label: "qSOFA (partial)",
   inputs: [
-    { key: "RR", required: true },
-    { key: "SBP", required: true },
-    { key: "GCS", required: true },
+    { key: "RRr" },
+    { key: "SBP" },
   ],
-  run: ({ RR, SBP, GCS }) => {
-    if (RR == null || SBP == null || GCS == null) return null;
-    let s = 0;
-    if (RR >= 22) s++;
-    if (SBP <= 100) s++;
-    if (GCS < 15) s++;
-    const notes = s >= 2 ? ["high risk"] : [];
-    return { id: "qsofa", label: "qSOFA", value: s, notes };
+  run: ({ RRr, SBP }) => {
+    let score = 0;
+    if (RRr != null && RRr >= 22) score += 1;
+    if (SBP != null && SBP <= 100) score += 1;
+    const notes = ["Mentation not auto-scored in Phase-1"];
+    return { id: "qsofa_partial", label: "qSOFA (partial)", value: score, precision: 0, notes };
   },
 });
+
