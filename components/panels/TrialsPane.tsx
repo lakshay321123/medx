@@ -87,7 +87,7 @@ export default function TrialsPane() {
                 <th className="p-2">Phase</th>
                 <th className="p-2">Status</th>
                 <th className="p-2">Location</th>
-                <th className="p-2">NCT</th>
+                <th className="p-2">ID</th>
               </tr>
             </thead>
             <tbody>
@@ -102,14 +102,24 @@ export default function TrialsPane() {
                   <td className="p-2 text-center">{r.phase || "—"}</td>
                   <td className="p-2 text-center">{r.status || "—"}</td>
                   <td className="p-2 text-center">{r.country || "—"}</td>
-                  <td className="p-2 text-center">
-                    {r.id ? (
-                      <a className="underline" href={r.url} target="_blank" rel="noreferrer">
-                        {r.id}
-                      </a>
-                    ) : (
-                      "—"
-                    )}
+                  <td className="p-2">
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-[11px] px-1.5 py-0.5 rounded border">
+                        {(r.source || "").toUpperCase()}
+                      </span>
+                      {r.id ? (
+                        <a
+                          className="underline font-semibold"
+                          href={r.url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {r.id}
+                        </a>
+                      ) : (
+                        "—"
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

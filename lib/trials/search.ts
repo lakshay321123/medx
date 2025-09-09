@@ -2,7 +2,6 @@
 import { fetchEUCTR } from "./fetchEUCTR";
 import { fetchCTRI } from "./fetchCTRI";
 import { fetchISRCTNRecord } from "./fetchISRCTN";
-import { searchCtri } from "../research/sources/ctri";
 
 type PhaseStr = "1" | "2" | "3" | "4" | "1/2" | "2/3";
 
@@ -32,6 +31,17 @@ export type Trial = {
   gene?: string;
   source?: "CTgov" | "EUCTR" | "CTRI" | "ISRCTN";
 };
+
+const INDIA_HINTS = [
+  " india ", " in india", "indian", " bharat ", " भारत ",
+  "delhi","mumbai","bombay","bengaluru","bangalore","chennai","kolkata",
+  "hyderabad","pune","ahmedabad","gurgaon","noida","kochi","jaipur","lucknow"
+];
+
+function mentionsIndia(q: string) {
+  const s = ` ${q.toLowerCase()} `;
+  return INDIA_HINTS.some(h => s.includes(h));
+}
 
 // ---- helpers --------------------------------------------------
 
@@ -112,23 +122,15 @@ function containsAny(haystack: string, needles: string[]): boolean {
 }
 
 export function dedupeTrials(arr: Trial[]) {
-  const pickScore = (t: any) => {
-    let s = 0;
-    if (/recruit/i.test(t.status || "")) s += 10;
-    if (t.source === "CTRI") s += 3;
-    if (t.source === "EUCTR") s += 2;
-    if (t.source === "ISRCTN") s += 2;
-    if (t.source === "CTgov") s += 1;
-    return s;
-    };
-
-  const byTitle = new Map<string, any>();
+  const seen = new Set<string>();
+  const out: Trial[] = [];
   for (const t of arr) {
-    const k = (t.title || "").toLowerCase().trim();
-    const prev = byTitle.get(k);
-    if (!prev || pickScore(t) > pickScore(prev)) byTitle.set(k, t);
+    const key = `${(t.source || "").toUpperCase()}:${t.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(t);
   }
-  return Array.from(byTitle.values());
+  return out;
 }
 
 export function rankValue(t: { status?: string; phase?: string; source?: string }) {
@@ -160,33 +162,24 @@ function phaseMatches(want: Input["phase"], trialPhase?: PhaseStr): boolean {
 // ---- main search --------------------------------------------------
 
 export async function searchTrials(input: Input): Promise<Trial[]> {
-  // 1) fetch from all sources in parallel
-  const [ctgov, euctr, ctri] = await Promise.allSettled([
+  const includeCTRI =
+    (input.country && input.country.toLowerCase() === "india") ||
+    mentionsIndia(input.query || "");
+
+  // 1) fetch from sources in parallel
+  const tasks: Promise<any[]>[] = [
     clinicalTrialsGovFetch({ query: input.query, genes: input.genes }),
     fetchEUCTR(input.query),
-    fetchCTRI(input.query),
-  ]);
+  ];
+  if (includeCTRI) tasks.push(fetchCTRI(input.query));
+  const settled = await Promise.allSettled(tasks);
 
   const fromCT =
-    ctgov.status === "fulfilled"
-      ? (ctgov.value as any[]).map(r => ({ ...r, source: "CTgov" as const }))
+    settled[0].status === "fulfilled"
+      ? (settled[0].value as any[]).map(r => ({ ...r, source: "CTgov" as const }))
       : [];
-  const fromEU = euctr.status === "fulfilled" ? (euctr.value as any[]) : [];
-  let fromIN = ctri.status === "fulfilled" ? (ctri.value as any[]) : [];
-  if (fromIN.length === 0 && (!input.country || input.country.toLowerCase() === "india")) {
-    try {
-      const fallback = await searchCtri(input.query || "");
-      fromIN = fallback.map(r => ({
-        id: r.id,
-        title: r.title,
-        url: r.url,
-        phase: r.extra?.phase,
-        status: r.extra?.status,
-        country: "India",
-        source: "CTRI" as const,
-      }));
-    } catch {}
-  }
+  const fromEU = settled[1].status === "fulfilled" ? (settled[1].value as any[]) : [];
+  const fromIN = includeCTRI && settled[2] && settled[2].status === "fulfilled" ? (settled[2].value as any[]) : [];
 
   // 2) merge
   const merged = [...fromCT, ...fromEU, ...fromIN];
@@ -228,7 +221,14 @@ export async function searchTrials(input: Input): Promise<Trial[]> {
     source: r.source,
   }));
 
-  const out = dedupeTrials(mapped).sort((a,b) => rankValue(b) - rankValue(a));
+  const order = (r: string) =>
+    includeCTRI ? (r === "CTRI" ? 0 : r === "CTgov" ? 1 : 2) : 0;
+
+  const out = dedupeTrials(mapped).sort((a, b) => {
+    const o = order(a.source || "") - order(b.source || "");
+    if (o !== 0) return o;
+    return rankValue(b) - rankValue(a);
+  });
   return out;
 }
 

@@ -33,3 +33,15 @@ export type Trial = {
   url?: string;
   source: "ctgov" | "isrctn" | "euctr" | "ictrp";
 };
+
+export type TrialRecord = {
+  registry: "NCT" | "CTRI" | "EUCTR" | "IRCT" | string;
+  registry_id: string;          // e.g. NCT01234567 or CTRI/2024/08/012345
+  title: string;
+  condition?: string;
+  phase?: string;
+  status?: string;
+  locations?: string[];
+  url: string;                   // deep link to the registry page
+  when?: { registered?: string; updated?: string };
+};
