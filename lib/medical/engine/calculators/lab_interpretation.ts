@@ -439,7 +439,11 @@ register({
   run: ({ PaCO2 }) => {
     if (PaCO2 == null) return null;
     const exp = 24 + 0.1 * (PaCO2 - 40);
-    return { id: "acute_resp_acidosis_hco3", label: "Expected HCO₃⁻ (acute respiratory acidosis)", value: exp, unit: "mmol/L", precision: 1, notes: [] };
+    const notes = [
+      "approximate compensation; valid for PaCO₂ 40–80 mmHg",
+      "interpretation only — not a treatment target",
+    ];
+    return { id: "acute_resp_acidosis_hco3", label: "Expected HCO₃⁻ (acute respiratory acidosis)", value: exp, unit: "mmol/L", precision: 1, notes };
   },
 });
 
@@ -452,7 +456,11 @@ register({
   run: ({ PaCO2 }) => {
     if (PaCO2 == null) return null;
     const exp = 24 + 0.35 * (PaCO2 - 40);
-    return { id: "chronic_resp_acidosis_hco3", label: "Expected HCO₃⁻ (chronic respiratory acidosis)", value: exp, unit: "mmol/L", precision: 1, notes: [] };
+    const notes = [
+      "approximate compensation; valid for PaCO₂ 40–80 mmHg",
+      "interpretation only — not a treatment target",
+    ];
+    return { id: "chronic_resp_acidosis_hco3", label: "Expected HCO₃⁻ (chronic respiratory acidosis)", value: exp, unit: "mmol/L", precision: 1, notes };
   },
 });
 
@@ -465,7 +473,11 @@ register({
   run: ({ PaCO2 }) => {
     if (PaCO2 == null) return null;
     const exp = 24 - 0.2 * (40 - PaCO2);
-    return { id: "acute_resp_alkalosis_hco3", label: "Expected HCO₃⁻ (acute respiratory alkalosis)", value: exp, unit: "mmol/L", precision: 1, notes: [] };
+    const notes = [
+      "approximate compensation; valid for PaCO₂ 20–40 mmHg",
+      "interpretation only — not a treatment target",
+    ];
+    return { id: "acute_resp_alkalosis_hco3", label: "Expected HCO₃⁻ (acute respiratory alkalosis)", value: exp, unit: "mmol/L", precision: 1, notes };
   },
 });
 
@@ -478,7 +490,11 @@ register({
   run: ({ PaCO2 }) => {
     if (PaCO2 == null) return null;
     const exp = 24 - 0.4 * (40 - PaCO2);
-    return { id: "chronic_resp_alkalosis_hco3", label: "Expected HCO₃⁻ (chronic respiratory alkalosis)", value: exp, unit: "mmol/L", precision: 1, notes: [] };
+    const notes = [
+      "approximate compensation; valid for PaCO₂ 20–40 mmHg",
+      "interpretation only — not a treatment target",
+    ];
+    return { id: "chronic_resp_alkalosis_hco3", label: "Expected HCO₃⁻ (chronic respiratory alkalosis)", value: exp, unit: "mmol/L", precision: 1, notes };
   },
 });
 
@@ -651,7 +667,12 @@ register({
     if (creatinine <= 0) return null;
     let crcl = ((140 - age) * weight_kg) / (72 * creatinine);
     if (sex === "F") crcl *= 0.85;
-    return { id: "creatinine_clearance", label: "Creatinine clearance (Cockcroft–Gault)", value: crcl, unit: "mL/min", precision: 0, notes: [] };
+    const notes: string[] = [];
+    if (crcl < 30) notes.push("severely reduced (<30 mL/min)");
+    else if (crcl < 60) notes.push("moderately reduced (30–59)");
+    else notes.push("≥60 mL/min");
+    notes.push("estimation — dosing requires guideline review");
+    return { id: "creatinine_clearance", label: "Creatinine clearance (Cockcroft–Gault)", value: crcl, unit: "mL/min", precision: 0, notes };
   },
 });
 
@@ -802,7 +823,10 @@ register({
     if ([retic_pct, hct].some(v => v == null)) return null;
     const nh = Number.isFinite(normal_hct) ? normal_hct : 45;
     const corrected = retic_pct * (hct / nh);
-    return { id: "corrected_retic", label: "Corrected reticulocyte count", value: corrected, unit: "%", precision: 2, notes: [] };
+    const notes: string[] = [];
+    if (corrected < 2) notes.push("inadequate marrow response (<2%)");
+    else notes.push("adequate marrow response (≥2%)");
+    return { id: "corrected_retic", label: "Corrected reticulocyte count", value: corrected, unit: "%", precision: 2, notes };
   },
 });
 
@@ -927,7 +951,11 @@ register({
       (x.severe_angina_24h ? 1 : 0) +
       (x.st_deviation ? 1 : 0) +
       (x.positive_markers ? 1 : 0);
-    return { id: "timi_nstemi", label: "TIMI risk (NSTEMI/UA)", value: pts, unit: "points", precision: 0, notes: [] };
+    const notes: string[] = [];
+    if (pts >= 5) notes.push("high risk (≥5)");
+    else if (pts >= 3) notes.push("intermediate risk (3–4)");
+    else notes.push("low risk (0–2)");
+    return { id: "timi_nstemi", label: "TIMI risk (NSTEMI/UA)", value: pts, unit: "points", precision: 0, notes };
   },
 });
 
@@ -1051,7 +1079,14 @@ register({
   run: ({ weight_kg, height_cm }) => {
     if ([weight_kg, height_cm].some(v => v == null)) return null;
     const bsa = Math.sqrt((height_cm * weight_kg) / 3600);
-    return { id: "bsa_mosteller", label: "Body surface area (Mosteller)", value: bsa, unit: "m^2", precision: 2, notes: [] };
+    return {
+      id: "bsa_mosteller",
+      label: "Body surface area (Mosteller)",
+      value: bsa,
+      unit: "m^2",
+      precision: 2,
+      notes: ["estimation only"]
+    };
   },
 });
 
@@ -1086,7 +1121,48 @@ register({
     const second10 = Math.max(Math.min(weight_kg - 10, 10), 0) * 2;
     const rest = Math.max(weight_kg - 20, 0) * 1;
     const hourly = first10 + second10 + rest;
-    return { id: "peds_421_rule", label: "Pediatric maintenance fluids (4-2-1)", value: hourly, unit: "mL/h", precision: 0, notes: [] };
+    return {
+      id: "peds_421_rule",
+      label: "Pediatric maintenance fluids (4-2-1)",
+      value: hourly,
+      unit: "mL/h",
+      precision: 0,
+      notes: ["maintenance estimate — not for bolus/resuscitation"]
+    };
   },
 });
 
+// ===================== MED-QA1 (Output Polish + Safety Locks) =====================
+import { register } from "../registry";
+
+/**
+ * Safety lock post-processor.
+ * Attaches "engine value only — do not expose raw formula" to sensitive calculators.
+ */
+[
+  "aa_gradient",
+  "delta_gap",
+  "delta_ratio",
+  "bicarbonate_deficit",
+  "free_water_deficit",
+  "sodium_deficit",
+  "parkland"
+].forEach(id => {
+  register({
+    id: `${id}_safety_note`,
+    label: `Safety note for ${id}`,
+    tags: ["safety", "meta"],
+    inputs: [{ key: id, required: true }],
+    run: (vals) => {
+      if (vals[id] == null) return null;
+      return {
+        id: `${id}_safety_note`,
+        label: `Safety note for ${id}`,
+        value: 0,
+        unit: "note",
+        precision: 0,
+        notes: ["engine value only — not to be shown as raw formula; model must not suggest therapies outside guidelines"]
+      };
+    },
+  });
+});
