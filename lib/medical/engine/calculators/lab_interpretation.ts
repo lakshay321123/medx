@@ -192,3 +192,109 @@ register({
     return { id: "acid_base_summary", label, value: HCO3, unit: "mmol/L", precision: 0, notes };
   },
 });
+
+/** Sepsis risk summary (qSOFA partial + PF ratio) */
+register({
+  id: "sepsis_risk_summary",
+  label: "Sepsis risk",
+  inputs: [{ key: "qsofa_partial" }, { key: "pf_ratio" }, { key: "SBP" }, { key: "RRr" }],
+  run: ({ qsofa_partial, pf_ratio, SBP, RRr }) => {
+    const notes: string[] = [];
+    let risk = "indeterminate";
+
+    // Primary: qSOFA partial if available (mentation not auto-scored in Phase-1)
+    if (typeof qsofa_partial === "number") {
+      if (qsofa_partial >= 2) { risk = "high"; notes.push("qSOFA ≥2 (partial)"); }
+      else if (qsofa_partial === 1) { risk = "intermediate"; notes.push("qSOFA = 1 (partial)"); }
+      else { risk = "low"; notes.push("qSOFA = 0 (partial)"); }
+    }
+
+    // Secondary: hemodynamics/respiratory
+    if (typeof pf_ratio === "number") {
+      if (pf_ratio < 200) notes.push("moderate–severe hypoxemia");
+      if (pf_ratio < 100) notes.push("very severe hypoxemia");
+    }
+    if (typeof SBP === "number" && SBP <= 100) notes.push("SBP ≤100");
+    if (typeof RRr === "number" && RRr >= 22) notes.push("RR ≥22");
+
+    return { id: "sepsis_risk_summary", label: "Sepsis risk", value: risk, notes };
+  },
+});
+
+/** Endocrine hyperglycemic crisis summary (DKA / HHS) */
+register({
+  id: "endocrine_keto_hyperglycemia",
+  label: "Endocrine crisis",
+  inputs: [
+    { key: "glucose_mgdl" },
+    { key: "HCO3" },
+    { key: "anion_gap" },
+    { key: "anion_gap_corrected" },
+    { key: "pH" },
+    { key: "beta_hydroxybutyrate" },
+    { key: "serum_ketones" },
+    { key: "urine_ketones" }
+  ],
+  run: (inp) => {
+    const g = inp.glucose_mgdl ?? NaN;
+    const bicarb = inp.HCO3 ?? NaN;
+    const ag = inp.anion_gap_corrected ?? inp.anion_gap ?? NaN;
+    const pH = inp.pH ?? NaN;
+    const ket = [inp.beta_hydroxybutyrate, inp.serum_ketones, inp.urine_ketones].find(v => typeof v === "number" && v > 0);
+
+    const notes: string[] = [];
+    let label = "no crisis";
+    if (Number.isFinite(g) && g >= 600 && !ket && (Number.isFinite(bicarb) ? bicarb > 18 : true)) {
+      label = "probable HHS";
+      notes.push("glucose ≥600 mg/dL; ketosis absent/unclear");
+    } else if (Number.isFinite(g) && g >= 250 && (ket || (Number.isFinite(ag) && ag > 16)) && (Number.isFinite(bicarb) && bicarb < 18 || Number.isFinite(pH) && pH < 7.30)) {
+      // crude DKA rule; severity by bicarb
+      if (Number.isFinite(bicarb) && bicarb < 10) notes.push("DKA — severe");
+      else if (Number.isFinite(bicarb) && bicarb < 15) notes.push("DKA — moderate");
+      else notes.push("DKA — mild");
+      label = "DKA";
+    }
+
+    return { id: "endocrine_keto_hyperglycemia", label: "Endocrine crisis", value: label, notes };
+  },
+});
+
+/** Lactate status */
+register({
+  id: "lactate_status",
+  label: "Lactate",
+  inputs: [{ key: "lactate" }],
+  run: ({ lactate }) => {
+    if (lactate == null) return null;
+    const notes: string[] = [];
+    if (lactate >= 4) notes.push("markedly elevated");
+    else if (lactate >= 2) notes.push("elevated");
+    else notes.push("normal");
+    return { id: "lactate_status", label: "Lactate", value: lactate, unit: "mmol/L", precision: 1, notes };
+  },
+});
+
+/** Hematology summary (Hb and Platelets) */
+register({
+  id: "hematology_summary",
+  label: "Hematology",
+  inputs: [{ key: "Hb" }, { key: "platelets" }],
+  run: ({ Hb, platelets }) => {
+    if (Hb == null && platelets == null) return null;
+    const notes: string[] = [];
+    if (typeof Hb === "number") {
+      if (Hb < 7) notes.push("severe anemia");
+      else if (Hb < 10) notes.push("moderate anemia");
+      else if (Hb < 12) notes.push("mild anemia");
+      else notes.push("Hb normal");
+    }
+    if (typeof platelets === "number") {
+      if (platelets < 50) notes.push("severe thrombocytopenia");
+      else if (platelets < 100) notes.push("moderate thrombocytopenia");
+      else if (platelets < 150) notes.push("mild thrombocytopenia");
+      else notes.push("platelets normal");
+    }
+    const val = [typeof Hb === "number" ? `Hb ${Hb}` : null, typeof platelets === "number" ? `Plt ${platelets}` : null].filter(Boolean).join(", ");
+    return { id: "hematology_summary", label: "Hematology", value: val, notes };
+  },
+});
