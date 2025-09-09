@@ -2734,3 +2734,363 @@ register({
     return { id: "cha2ds2_vasc2", label: "CHA₂DS₂-VASc v2", value: pts, unit: "points", precision: 0, notes };
   },
 });
+// ===================== MED-EXT9–11 (APPEND-ONLY) =====================
+/* If this import already exists at file top, remove this line. */
+
+/* =========================================================
+   MED-EXT9 — Renal / Acid–Base Diagnostics & Toxicology
+   ========================================================= */
+
+/** Serum osmolality (calculated) = 2*Na + Glu/18 + BUN/2.8 (+ EtOH/3.7 optional) */
+register({
+  id: "serum_osm_calc",
+  label: "Serum osmolality (calculated)",
+  tags: ["electrolytes", "toxicology"],
+  inputs: [
+    { key: "Na", required: true },          // mmol/L
+    { key: "glucose", required: true },     // mg/dL
+    { key: "BUN", required: true },         // mg/dL
+    { key: "ethanol_mg_dl" },               // mg/dL optional
+  ],
+  run: ({ Na, glucose, BUN, ethanol_mg_dl }) => {
+    if ([Na, glucose, BUN].some(v => v == null)) return null;
+    const ethanolTerm = ethanol_mg_dl ? (ethanol_mg_dl / 3.7) : 0;
+    const osm = 2 * Na + glucose / 18 + BUN / 2.8 + ethanolTerm;
+    return { id: "serum_osm_calc", label: "Serum osmolality (calculated)", value: osm, unit: "mOsm/kg", precision: 0, notes: [] };
+  },
+});
+
+/** Osmolar gap = measured − calculated; flags for toxic alcohol concern (no therapy advice) */
+register({
+  id: "osmolar_gap",
+  label: "Osmolar gap",
+  tags: ["toxicology", "acid-base"],
+  inputs: [
+    { key: "measured_osm", required: true },      // mOsm/kg
+    { key: "serum_osm_calc", required: true },    // from above
+    { key: "anion_gap" },                         // optional
+    { key: "HCO3" },                              // optional
+    { key: "pH" },                                // optional
+  ],
+  run: ({ measured_osm, serum_osm_calc, anion_gap, HCO3, pH }) => {
+    if ([measured_osm, serum_osm_calc].some(v => v == null)) return null;
+    const gap = measured_osm - serum_osm_calc;
+    const notes: string[] = [];
+    if (gap > 20) notes.push("marked osm gap (>20)");
+    else if (gap > 10) notes.push("elevated osm gap (10–20)");
+    else notes.push("osm gap within reference");
+    // Toxic alcohol consideration (non-directive)
+    const hagma = (typeof anion_gap === "number" && anion_gap > 12) && (typeof HCO3 === "number" && HCO3 < 22);
+    const acidemia = typeof pH === "number" ? pH < 7.30 : false;
+    if (gap > 10 && (hagma || acidemia)) notes.push("consider toxic alcohol differential (ethylene glycol, methanol)");
+    return { id: "osmolar_gap", label: "Osmolar gap", value: gap, unit: "mOsm/kg", precision: 0, notes };
+  },
+});
+
+/** Albumin-corrected anion gap = AG + 2.5*(4 - albumin_g_dL) */
+register({
+  id: "anion_gap_albumin_corrected",
+  label: "Anion gap (albumin-corrected)",
+  tags: ["acid-base"],
+  inputs: [
+    { key: "anion_gap", required: true },
+    { key: "albumin", required: true }, // g/dL
+  ],
+  run: ({ anion_gap, albumin }) => {
+    if ([anion_gap, albumin].some(v => v == null)) return null;
+    const corr = anion_gap + 2.5 * (4 - albumin);
+    const notes: string[] = [];
+    if (corr >= 20) notes.push("elevated corrected AG (≥20)");
+    else if (corr > 12) notes.push("upper-normal to mildly elevated");
+    else notes.push("normal");
+    return { id: "anion_gap_albumin_corrected", label: "Anion gap (albumin-corrected)", value: corr, unit: "mmol/L", precision: 0, notes };
+  },
+});
+
+/** Delta–delta interpreter (uses existing delta_gap + delta_ratio to emit a narrative) */
+register({
+  id: "delta_delta_interpret",
+  label: "Delta–delta interpretation",
+  tags: ["acid-base"],
+  inputs: [
+    { key: "delta_gap", required: true },
+    { key: "delta_ratio", required: true },
+  ],
+  run: ({ delta_gap, delta_ratio }) => {
+    if ([delta_gap, delta_ratio].some(v => v == null)) return null;
+    const notes: string[] = [];
+    // Delta mismatch
+    if (Math.abs(delta_gap) >= 4) notes.push("Δ mismatch suggests mixed metabolic process");
+    else notes.push("Δ match suggests single-process HAGMA");
+    // Ratio narrative
+    if (delta_ratio < 0.4) notes.push("non-AG acidosis concomitant likely");
+    else if (delta_ratio > 2) notes.push("metabolic alkalosis or chronic respiratory acidosis likely");
+    else notes.push("ratio consistent with isolated HAGMA");
+    return { id: "delta_delta_interpret", label: "Delta–delta interpretation", value: 0, unit: "note", precision: 0, notes };
+  },
+});
+
+/** Urine osmolal gap = measured Uosm − calculated Uosm (2*(UNa+UK) + Uurea/2.8 + Uglucose/18) */
+register({
+  id: "urine_osm_gap",
+  label: "Urine osmolal gap",
+  tags: ["renal", "acid-base"],
+  inputs: [
+    { key: "urine_osm_measured", required: true }, // mOsm/kg
+    { key: "urine_Na", required: true },           // mmol/L
+    { key: "urine_K", required: true },            // mmol/L
+    { key: "urine_urea", required: true },         // mg/dL (BUN units)
+    { key: "urine_glucose" },                      // mg/dL (optional)
+  ],
+  run: ({ urine_osm_measured, urine_Na, urine_K, urine_urea, urine_glucose }) => {
+    if ([urine_osm_measured, urine_Na, urine_K, urine_urea].some(v => v == null)) return null;
+    const ucalc = 2 * (urine_Na + urine_K) + (urine_urea / 2.8) + ((urine_glucose ?? 0) / 18);
+    const gap = urine_osm_measured - ucalc;
+    const notes: string[] = [];
+    if (gap > 100) notes.push("↑ urine NH4+ production likely (diarrhea/NH4Cl) — negative UAG context");
+    else notes.push("low urine NH4+ production (consider RTA if NAGMA)");
+    return { id: "urine_osm_gap", label: "Urine osmolal gap", value: gap, unit: "mOsm/kg", precision: 0, notes };
+  },
+});
+
+/** Fractional excretion of bicarbonate (FEHCO3) = (U_HCO3 * S_Cr)/(S_HCO3 * U_Cr)*100 */
+register({
+  id: "fehco3",
+  label: "FEHCO₃",
+  tags: ["renal", "acid-base"],
+  inputs: [
+    { key: "urine_HCO3", required: true },        // mmol/L
+    { key: "serum_HCO3", required: true },        // mmol/L
+    { key: "urine_creatinine", required: true },  // mg/dL
+    { key: "serum_creatinine", required: true },  // mg/dL
+  ],
+  run: (x) => {
+    const fe = (x.urine_HCO3 * x.serum_creatinine) / (x.serum_HCO3 * x.urine_creatinine) * 100;
+    const notes: string[] = [];
+    if (fe > 15) notes.push("FEHCO₃ >15% (proximal RTA if on alkali load)");
+    else notes.push("FEHCO₃ ≤15%");
+    return { id: "fehco3", label: "FEHCO₃", value: fe, unit: "%", precision: 1, notes };
+  },
+});
+
+/** Calcium–phosphate product = Ca(mg/dL) * Phos(mg/dL) with risk banding */
+register({
+  id: "ca_phos_product",
+  label: "Calcium–phosphate product",
+  tags: ["renal", "metabolic"],
+  inputs: [
+    { key: "calcium", required: true },  // mg/dL
+    { key: "phosphate", required: true } // mg/dL
+  ],
+  run: ({ calcium, phosphate }) => {
+    if ([calcium, phosphate].some(v => v == null)) return null;
+    const prod = calcium * phosphate;
+    const notes: string[] = [];
+    if (prod > 70) notes.push("very high Ca×P product (>70)");
+    else if (prod > 55) notes.push("high Ca×P product (>55)");
+    else notes.push("within target band");
+    return { id: "ca_phos_product", label: "Calcium–phosphate product", value: prod, unit: "mg²/dL²", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT10 — Endocrine / Sepsis helpers
+   ========================================================= */
+
+/** Effective serum osmolality = 2*Na + glucose/18 (excludes BUN) */
+register({
+  id: "effective_osm",
+  label: "Effective serum osmolality",
+  tags: ["endocrine", "electrolytes"],
+  inputs: [
+    { key: "Na", required: true },
+    { key: "glucose", required: true },
+  ],
+  run: ({ Na, glucose }) => {
+    if ([Na, glucose].some(v => v == null)) return null;
+    const eosm = 2 * Na + glucose / 18;
+    return { id: "effective_osm", label: "Effective serum osmolality", value: eosm, unit: "mOsm/kg", precision: 0, notes: [] };
+  },
+});
+
+/** DKA severity (ADA-style bands; informational, not therapy) */
+register({
+  id: "dka_severity",
+  label: "DKA severity",
+  tags: ["endocrine", "critical_care"],
+  inputs: [
+    { key: "pH", required: true },
+    { key: "HCO3", required: true },
+    { key: "mental_status", required: true }, // "alert" | "drowsy" | "stupor/coma"
+    { key: "glucose", required: true },       // mg/dL
+  ],
+  run: ({ pH, HCO3, mental_status, glucose }) => {
+    if ([pH, HCO3, mental_status, glucose].some(v => v == null)) return null;
+    const notes: string[] = [];
+    let tier = "mild";
+    if (pH < 7.0 || HCO3 < 10 || mental_status === "stupor/coma") tier = "severe";
+    else if (pH < 7.24 || HCO3 < 15 || mental_status === "drowsy") tier = "moderate";
+    notes.push(`glucose ${glucose} mg/dL`);
+    return { id: "dka_severity", label: "DKA severity", value: tier === "severe" ? 3 : tier === "moderate" ? 2 : 1, unit: "tier", precision: 0, notes: [tier] };
+  },
+});
+
+/** HHS flag (glucose>600, effective osm>320, minimal ketones implied) */
+register({
+  id: "hhs_flag",
+  label: "HHS criteria flag",
+  tags: ["endocrine", "critical_care"],
+  inputs: [
+    { key: "glucose", required: true },
+    { key: "effective_osm", required: true },
+  ],
+  run: ({ glucose, effective_osm }) => {
+    if ([glucose, effective_osm].some(v => v == null)) return null;
+    const flag = glucose > 600 && effective_osm > 320;
+    const notes: string[] = [];
+    notes.push(flag ? "meets biochemical criteria for HHS (clinical confirmation required)" : "does not meet HHS biochemical criteria");
+    return { id: "hhs_flag", label: "HHS criteria flag", value: flag ? 1 : 0, unit: "flag", precision: 0, notes };
+  },
+});
+
+/** SIRS score (legacy sepsis screen; 0–4) */
+register({
+  id: "sirs_score",
+  label: "SIRS score",
+  tags: ["sepsis", "critical_care"],
+  inputs: [
+    { key: "temp_c", required: true },  // >38 or <36
+    { key: "HR", required: true },      // >90
+    { key: "RRr", required: true },     // >20 OR PaCO2 <32 (not included here)
+    { key: "WBC", required: true },     // >12 or <4 (10^3/µL)
+  ],
+  run: ({ temp_c, HR, RRr, WBC }) => {
+    const pts =
+      ((temp_c > 38 || temp_c < 36) ? 1 : 0) +
+      ((HR > 90) ? 1 : 0) +
+      ((RRr > 20) ? 1 : 0) +
+      ((WBC > 12 || WBC < 4) ? 1 : 0);
+    const notes: string[] = [];
+    notes.push(pts >= 2 ? "SIRS positive (screening only)" : "SIRS negative");
+    return { id: "sirs_score", label: "SIRS score", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/** Lactate clearance = (initial − repeat)/initial *100 (%) */
+register({
+  id: "lactate_clearance",
+  label: "Lactate clearance",
+  tags: ["sepsis", "critical_care"],
+  inputs: [
+    { key: "lactate_initial", required: true },
+    { key: "lactate_repeat", required: true },
+  ],
+  run: ({ lactate_initial, lactate_repeat }) => {
+    if ([lactate_initial, lactate_repeat].some(v => v == null) || lactate_initial <= 0) return null;
+    const pct = ((lactate_initial - lactate_repeat) / lactate_initial) * 100;
+    const notes: string[] = [];
+    if (pct >= 10) notes.push("≥10% clearance (favorable)");
+    else notes.push("<10% clearance");
+    return { id: "lactate_clearance", label: "Lactate clearance", value: pct, unit: "%", precision: 1, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT11 — Hematology & Surgical ID
+   ========================================================= */
+
+/** Mentzer index = MCV / RBC (IDA vs thal trait screen) */
+register({
+  id: "mentzer_index",
+  label: "Mentzer index",
+  tags: ["hematology"],
+  inputs: [
+    { key: "MCV", required: true }, // fL
+    { key: "RBC", required: true }, // x10^12/L (or x10^6/µL numerically)
+  ],
+  run: ({ MCV, RBC }) => {
+    if ([MCV, RBC].some(v => v == null) || RBC <= 0) return null;
+    const idx = MCV / RBC;
+    const notes: string[] = [];
+    if (idx < 13) notes.push("suggests thalassemia trait");
+    else notes.push("suggests iron deficiency anemia");
+    return { id: "mentzer_index", label: "Mentzer index", value: idx, unit: "unitless", precision: 1, notes };
+  },
+});
+
+/** Hemoglobin severity bands (non-directive) */
+register({
+  id: "hemoglobin_severity",
+  label: "Hemoglobin severity bands",
+  tags: ["hematology"],
+  inputs: [{ key: "hemoglobin", required: true }], // g/dL
+  run: ({ hemoglobin }) => {
+    if (hemoglobin == null) return null;
+    const notes: string[] = [];
+    if (hemoglobin < 7) notes.push("severe anemia band (<7 g/dL)");
+    else if (hemoglobin < 8) notes.push("moderate–severe (7–7.9)");
+    else if (hemoglobin < 10) notes.push("moderate (8–9.9)");
+    else if (hemoglobin < 12) notes.push("mild (10–11.9)");
+    else notes.push("within or near reference");
+    return { id: "hemoglobin_severity", label: "Hemoglobin severity bands", value: hemoglobin, unit: "g/dL", precision: 1, notes };
+  },
+});
+
+/** LRINEC (simplified bands) for necrotizing soft tissue infection risk */
+register({
+  id: "lrinec_simplified",
+  label: "LRINEC (simplified)",
+  tags: ["infectious_disease", "surgery", "risk"],
+  inputs: [
+    { key: "CRP", required: true },        // mg/L
+    { key: "WBC", required: true },        // x10^3/µL
+    { key: "hemoglobin", required: true }, // g/dL
+    { key: "Na", required: true },         // mmol/L
+    { key: "creatinine", required: true }, // mg/dL
+    { key: "glucose", required: true },    // mg/dL
+  ],
+  run: (x) => {
+    let pts = 0;
+    // Coarse mapping to approximate LRINEC strata
+    pts += x.CRP >= 150 ? 4 : x.CRP >= 100 ? 2 : 0;
+    pts += x.WBC >= 25 ? 2 : x.WBC >= 15 ? 1 : 0;
+    pts += x.hemoglobin <= 11 ? 2 : x.hemoglobin <= 13.5 ? 1 : 0;
+    pts += x.Na < 135 ? 2 : 0;
+    pts += x.creatinine > 1.6 ? 2 : 0;
+    pts += x.glucose > 180 ? 1 : 0;
+
+    const notes: string[] = [];
+    if (pts >= 8) notes.push("high risk (LRINEC ≥8)");
+    else if (pts >= 6) notes.push("intermediate risk (6–7)");
+    else notes.push("lower risk (≤5)");
+    return { id: "lrinec_simplified", label: "LRINEC (simplified)", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/** BISAP (acute pancreatitis, 0–5): BUN>25, impaired mental status, SIRS≥2, age>60, pleural effusion */
+register({
+  id: "bisap",
+  label: "BISAP",
+  tags: ["gastroenterology", "risk"],
+  inputs: [
+    { key: "BUN", required: true },
+    { key: "altered_mentation", required: true },
+    { key: "sirs_score", required: true },     // from EXT10
+    { key: "age", required: true },
+    { key: "pleural_effusion", required: true },
+  ],
+  run: ({ BUN, altered_mentation, sirs_score, age, pleural_effusion }) => {
+    if ([BUN, altered_mentation, sirs_score, age, pleural_effusion].some(v => v == null)) return null;
+    const pts =
+      (BUN > 25 ? 1 : 0) +
+      (altered_mentation ? 1 : 0) +
+      ((sirs_score ?? 0) >= 2 ? 1 : 0) +
+      (age > 60 ? 1 : 0) +
+      (pleural_effusion ? 1 : 0);
+    const notes: string[] = [];
+    if (pts >= 3) notes.push("higher risk (BISAP ≥3)");
+    else notes.push("lower risk (BISAP 0–2)");
+    return { id: "bisap", label: "BISAP", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
