@@ -3866,3 +3866,412 @@ register({
   },
 });
 
+// ===================== MED-EXT21–30 (APPEND-ONLY) =====================
+/* If this import already exists at file top, remove this line. */
+
+/* =========================================================
+   MED-EXT21 — PE: YEARS algorithm + Syncope (SFSR)
+   ========================================================= */
+
+/** YEARS algorithm (PE): if ANY YEARS item → D-dimer threshold 500; if NONE → threshold 1000 ng/mL FEU. */
+register({
+  id: "years_pe",
+  label: "YEARS (PE) rule",
+  tags: ["pulmonary", "risk"],
+  inputs: [
+    { key: "clinical_signs_dvt", required: true },   // YEARS item
+    { key: "hemoptysis", required: true },           // YEARS item
+    { key: "pe_most_likely", required: true },       // YEARS item
+    { key: "ddimer_feu_ng_ml", required: true },     // ng/mL FEU
+  ],
+  run: (x) => {
+    const anyItem = x.clinical_signs_dvt || x.hemoptysis || x.pe_most_likely;
+    const threshold = anyItem ? 500 : 1000;
+    const ruledOut = x.ddimer_feu_ng_ml < threshold;
+    const notes: string[] = [
+      `YEARS items present: ${anyItem ? "yes" : "no"}`,
+      `threshold=${threshold} ng/mL`,
+      ruledOut ? "PE ruled out (YEARS pathway)" : "Not ruled out"
+    ];
+    return { id: "years_pe", label: "YEARS (PE) rule", value: ruledOut ? 1 : 0, unit: "flag", precision: 0, notes };
+  },
+});
+
+/** San Francisco Syncope Rule (SFSR) — “CHESS” flags; positive if ANY criterion. */
+register({
+  id: "sfsr_syncope",
+  label: "San Francisco Syncope Rule (flag)",
+  tags: ["cardiology", "neurology", "risk"],
+  inputs: [
+    { key: "history_chf", required: true },
+    { key: "hematocrit_lt_30", required: true },
+    { key: "abnormal_ecg", required: true },
+    { key: "shortness_of_breath", required: true },
+    { key: "sbp_lt_90", required: true },
+  ],
+  run: (x) => {
+    const positive = x.history_chf || x.hematocrit_lt_30 || x.abnormal_ecg || x.shortness_of_breath || x.sbp_lt_90;
+    const notes = [positive ? "SFSR positive — higher risk" : "SFSR negative — lower risk"];
+    return { id: "sfsr_syncope", label: "San Francisco Syncope Rule (flag)", value: positive ? 1 : 0, unit: "flag", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT22 — KDIGO AKI + Hyponatremia tonicity class
+   ========================================================= */
+
+/** KDIGO AKI stage (creatinine & urine output) */
+register({
+  id: "kdigo_aki_stage",
+  label: "KDIGO AKI stage",
+  tags: ["renal", "icu_scores"],
+  inputs: [
+    { key: "creatinine", required: true },              // mg/dL
+    { key: "baseline_creatinine" },                     // mg/dL
+    { key: "urine_output_ml_per_kg_per_hr" },           // mL/kg/h
+    { key: "oliguria_hours" },                          // h
+    { key: "dialysis" },                                // boolean
+  ],
+  run: (x) => {
+    if (x.creatinine == null) return null;
+    let stage = 0; const notes: string[] = [];
+    const ratio = (x.baseline_creatinine && x.baseline_creatinine>0) ? x.creatinine/x.baseline_creatinine : null;
+    if (x.dialysis) { stage = 3; notes.push("RRT present"); }
+    if (ratio != null) {
+      if (ratio >= 3 || x.creatinine >= 4.0) { stage = Math.max(stage, 3); notes.push("Cr ≥3× baseline or ≥4.0"); }
+      else if (ratio >= 2) { stage = Math.max(stage, 2); notes.push("Cr ≥2× baseline"); }
+      else if (ratio >= 1.5) { stage = Math.max(stage, 1); notes.push("Cr ≥1.5× baseline"); }
+    }
+    const UO = x.urine_output_ml_per_kg_per_hr, h = x.oliguria_hours;
+    if (typeof UO === "number" && typeof h === "number") {
+      if (UO < 0.3 && h >= 24) { stage = Math.max(stage, 3); notes.push("UO <0.3 ≥24h"); }
+      else if (UO < 0.5 && h >= 12) { stage = Math.max(stage, 2); notes.push("UO <0.5 ≥12h"); }
+      else if (UO < 0.5 && h >= 6) { stage = Math.max(stage, 1); notes.push("UO <0.5 6–12h"); }
+    }
+    return { id: "kdigo_aki_stage", label: "KDIGO AKI stage", value: stage, unit: "stage", precision: 0, notes: notes.length?notes:["insufficient criteria"] };
+  },
+});
+
+/** Hyponatremia tonicity classifier via measured serum osmolality */
+register({
+  id: "hyponatremia_tonicity",
+  label: "Hyponatremia tonicity class",
+  tags: ["electrolytes", "endocrine"],
+  inputs: [
+    { key: "Na", required: true },             // mmol/L
+    { key: "measured_osm", required: true },   // mOsm/kg
+  ],
+  run: ({ Na, measured_osm }) => {
+    let cls = "normotonic";
+    if (measured_osm < 275) cls = "hypotonic";
+    else if (measured_osm > 295) cls = "hypertonic";
+    const notes = [`Na=${Na}`, `measured osmolality=${measured_osm} mOsm/kg`];
+    return { id: "hyponatremia_tonicity", label: "Hyponatremia tonicity class", value: cls === "hypotonic" ? -1 : (cls === "hypertonic" ? 1 : 0), unit: "class", precision: 0, notes: [cls, ...notes] };
+  },
+});
+
+/* =========================================================
+   MED-EXT23 — K+ severity & renal K+ handling (TTKG)
+   ========================================================= */
+
+/** Hyperkalemia severity bands with optional ECG danger flag */
+register({
+  id: "hyperkalemia_severity",
+  label: "Hyperkalemia severity",
+  tags: ["electrolytes", "cardiology"],
+  inputs: [
+    { key: "potassium", required: true },       // mmol/L
+    { key: "ekg_danger_signs" },                // boolean (peaked T, wide QRS, sine)
+  ],
+  run: ({ potassium, ekg_danger_signs }) => {
+    const notes:string[] = [];
+    if (potassium >= 6.5 || ekg_danger_signs) notes.push("severe hyperkalemia / ECG danger");
+    else if (potassium >= 6.0) notes.push("moderate (≥6.0)");
+    else if (potassium >= 5.5) notes.push("mild (5.5–5.9)");
+    else notes.push("within reference");
+    return { id: "hyperkalemia_severity", label: "Hyperkalemia severity", value: potassium, unit: "mmol/L", precision: 1, notes };
+  },
+});
+
+/** TTKG helper = (Urine K / Plasma K) × (Plasma Osm / Urine Osm) */
+register({
+  id: "ttkg_helper",
+  label: "TTKG (potassium handling)",
+  tags: ["renal", "electrolytes"],
+  inputs: [
+    { key: "urine_K", required: true },          // mmol/L
+    { key: "plasma_K", required: true },         // mmol/L
+    { key: "urine_osm_measured", required: true }, // mOsm/kg
+    { key: "measured_osm", required: true },     // mOsm/kg
+  ],
+  run: (x) => {
+    if ([x.urine_K, x.plasma_K, x.urine_osm_measured, x.measured_osm].some(v => v == null) || x.plasma_K <= 0 || x.urine_osm_measured <= 0) return null;
+    const t = (x.urine_K / x.plasma_K) * (x.measured_osm / x.urine_osm_measured);
+    const notes:string[] = [];
+    if (t < 3) notes.push("low TTKG: impaired distal K+ secretion");
+    else if (t > 7) notes.push("high TTKG: appropriate aldosterone response");
+    else notes.push("indeterminate band");
+    return { id: "ttkg_helper", label: "TTKG (potassium handling)", value: t, unit: "index", precision: 2, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT24 — Hepatic scoring (Child-Pugh, MDF)
+   ========================================================= */
+
+/** Child-Pugh score (A/B/C bands); expects upstream to bin labs/ascites/encephalopathy to 1–3 each */
+register({
+  id: "child_pugh",
+  label: "Child-Pugh",
+  tags: ["hepatology", "risk"],
+  inputs: [
+    { key: "bilirubin_band", required: true },     // 1–3
+    { key: "albumin_band", required: true },       // 1–3
+    { key: "inr_band", required: true },           // 1–3
+    { key: "ascites_band", required: true },       // 1–3
+    { key: "encephalopathy_band", required: true } // 1–3
+  ],
+  run: (x) => {
+    const total = x.bilirubin_band + x.albumin_band + x.inr_band + x.ascites_band + x.encephalopathy_band;
+    const notes:string[] = [];
+    const cls = total <= 6 ? "A" : total <= 9 ? "B" : "C";
+    notes.push(`Class ${cls}`);
+    return { id: "child_pugh", label: "Child-Pugh", value: total, unit: "points", precision: 0, notes };
+  },
+});
+
+/** Maddrey Discriminant Function (MDF) = 4.6*(PT_prolongation) + bilirubin (mg/dL) */
+register({
+  id: "maddrey_df",
+  label: "Maddrey DF",
+  tags: ["hepatology", "risk"],
+  inputs: [
+    { key: "pt_prolongation_sec", required: true },
+    { key: "bilirubin", required: true },
+  ],
+  run: ({ pt_prolongation_sec, bilirubin }) => {
+    const df = 4.6 * pt_prolongation_sec + bilirubin;
+    const notes:string[] = [];
+    if (df >= 32) notes.push("severe alcoholic hepatitis band (DF ≥32)");
+    else notes.push("lower DF band");
+    return { id: "maddrey_df", label: "Maddrey DF", value: df, unit: "index", precision: 1, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT25 — AF & PCI risk tools (CHA2DS2-VASc, DAPT)
+   ========================================================= */
+
+/** CHA2DS2-VASc (AF stroke risk) */
+register({
+  id: "cha2ds2_vasc",
+  label: "CHA₂DS₂-VASc",
+  tags: ["cardiology", "risk"],
+  inputs: [
+    { key: "congestive_hf", required: true },
+    { key: "hypertension", required: true },
+    { key: "age_ge_75", required: true },         // +2
+    { key: "diabetes", required: true },
+    { key: "stroke_tia_thromboembolism", required: true }, // +2
+    { key: "vascular_disease", required: true },
+    { key: "age_65_74", required: true },
+    { key: "sex_female", required: true },
+  ],
+  run: (x) => {
+    let pts = 0;
+    pts += x.congestive_hf?1:0;
+    pts += x.hypertension?1:0;
+    pts += x.age_ge_75?2:0;
+    pts += x.diabetes?1:0;
+    pts += x.stroke_tia_thromboembolism?2:0;
+    pts += x.vascular_disease?1:0;
+    pts += x.age_65_74?1:0;
+    pts += x.sex_female?1:0;
+    const notes = [pts >= 2 ? "elevated stroke risk (men≥2/women≥3 thresholds vary by policy)" : "lower stroke risk band"];
+    return { id: "cha2ds2_vasc", label: "CHA₂DS₂-VASc", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/** DAPT score (simplified surrogate) */
+register({
+  id: "dapt_surrogate",
+  label: "DAPT score (surrogate)",
+  tags: ["cardiology", "risk"],
+  inputs: [
+    { key: "age_ge_75", required: true },            // −2
+    { key: "age_65_74", required: true },            // −1
+    { key: "current_smoker", required: true },       // +1
+    { key: "diabetes", required: true },             // +1
+    { key: "mi_at_presentation", required: true },   // +1
+    { key: "prior_pci_or_mi", required: true },      // +1
+    { key: "stent_diameter_lt_3mm", required: true },// +1
+    { key: "paclitaxel_eluting_stent", required: true }, // +1
+    { key: "lvef_lt_30_or_saphenous_graft", required: true }, // +2
+  ],
+  run: (x) => {
+    let s = 0;
+    s += x.age_ge_75 ? -2 : 0;
+    s += (x.age_65_74 && !x.age_ge_75) ? -1 : 0;
+    s += x.current_smoker?1:0;
+    s += x.diabetes?1:0;
+    s += x.mi_at_presentation?1:0;
+    s += x.prior_pci_or_mi?1:0;
+    s += x.stent_diameter_lt_3mm?1:0;
+    s += x.paclitaxel_eluting_stent?1:0;
+    s += x.lvef_lt_30_or_saphenous_graft?2:0;
+    const notes:string[] = [];
+    if (s >= 2) notes.push("favors prolonged DAPT (surrogate)");
+    else notes.push("does not favor prolonged DAPT (surrogate)");
+    return { id: "dapt_surrogate", label: "DAPT score (surrogate)", value: s, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT26 — Lactate bands + TIMI STEMI (surrogate)
+   ========================================================= */
+
+/** Lactate severity bands */
+register({
+  id: "lactate_severity_band",
+  label: "Lactate severity band",
+  tags: ["sepsis", "critical_care"],
+  inputs: [{ key: "lactate", required: true }],
+  run: ({ lactate }) => {
+    const notes:string[] = [];
+    if (lactate >= 4) notes.push("very high (≥4 mmol/L)");
+    else if (lactate >= 2) notes.push("elevated (2–3.9)");
+    else notes.push("within reference band");
+    return { id: "lactate_severity_band", label: "Lactate severity band", value: lactate, unit: "mmol/L", precision: 1, notes };
+  },
+});
+
+/** TIMI STEMI surrogate (simple risk sum) */
+register({
+  id: "timi_stemi_surrogate",
+  label: "TIMI STEMI (surrogate)",
+  tags: ["cardiology", "risk"],
+  inputs: [
+    { key: "age_ge_65", required: true },
+    { key: "diabetes_htn_angina", required: true },    // any
+    { key: "sbp_lt_100", required: true },
+    { key: "hr_gt_100", required: true },
+    { key: "killip_ge_2", required: true },
+    { key: "anterior_stemi_or_lbbb", required: true },
+    { key: "time_to_tx_gt_4h", required: true },
+  ],
+  run: (x) => {
+    const pts = Object.values(x).reduce((a,b)=>a+(b?1:0),0);
+    const notes:string[] = [];
+    if (pts >= 5) notes.push("high surrogate risk");
+    else if (pts >= 3) notes.push("intermediate surrogate risk");
+    else notes.push("low surrogate risk");
+    return { id: "timi_stemi_surrogate", label: "TIMI STEMI (surrogate)", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT27 — OB: Preeclampsia severe features flag
+   ========================================================= */
+
+/** Preeclampsia with severe features (biochemical/clinical flag) */
+register({
+  id: "preeclampsia_severe_flag",
+  label: "Preeclampsia severe features (flag)",
+  tags: ["obstetrics", "risk"],
+  inputs: [
+    { key: "sbp_ge_160_or_dbp_ge_110", required: true },
+    { key: "platelets_lt_100", required: true },
+    { key: "creatinine_gt_1_1_or_doubling", required: true },
+    { key: "ast_alt_gt_2x_uln", required: true },
+    { key: "pulmonary_edema", required: true },
+    { key: "neuro_visual_symptoms", required: true },
+  ],
+  run: (x) => {
+    const any = x.sbp_ge_160_or_dbp_ge_110 || x.platelets_lt_100 || x.creatinine_gt_1_1_or_doubling ||
+                x.ast_alt_gt_2x_uln || x.pulmonary_edema || x.neuro_visual_symptoms;
+    const notes = [any ? "severe features present (flag)" : "no severe features (by inputs)"];
+    return { id: "preeclampsia_severe_flag", label: "Preeclampsia severe features (flag)", value: any?1:0, unit: "flag", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT28 — Compute FENa / FEUrea formulas (to feed gates)
+   ========================================================= */
+
+/** Fractional excretion of sodium (FENa %) = (UNa × SCr)/(SNa × UCr) × 100 */
+register({
+  id: "fena_calc",
+  label: "FENa (calculated)",
+  tags: ["renal", "electrolytes"],
+  inputs: [
+    { key: "urine_Na", required: true },
+    { key: "serum_Na", required: true },
+    { key: "urine_creatinine", required: true },
+    { key: "serum_creatinine", required: true },
+  ],
+  run: (x) => {
+    const fena = (x.urine_Na * x.serum_creatinine) / (x.serum_Na * x.urine_creatinine) * 100;
+    return { id: "fena_calc", label: "FENa (calculated)", value: fena, unit: "%", precision: 2, notes: [] };
+  },
+});
+
+/** Fractional excretion of urea (FEUrea %) = (UUrea × SCr)/(SUrea × UCr) × 100 */
+register({
+  id: "feurea_calc",
+  label: "FEUrea (calculated)",
+  tags: ["renal", "electrolytes"],
+  inputs: [
+    { key: "urine_urea", required: true },       // mg/dL (BUN units)
+    { key: "serum_urea", required: true },       // mg/dL (BUN)
+    { key: "urine_creatinine", required: true },
+    { key: "serum_creatinine", required: true },
+  ],
+  run: (x) => {
+    const fe = (x.urine_urea * x.serum_creatinine) / (x.serum_urea * x.urine_creatinine) * 100;
+    return { id: "feurea_calc", label: "FEUrea (calculated)", value: fe, unit: "%", precision: 1, notes: [] };
+  },
+});
+
+/* =========================================================
+   MED-EXT29 — Basic AG calculator (feeds corrected AG tools)
+   ========================================================= */
+
+/** Serum anion gap = Na − (Cl + HCO₃) */
+register({
+  id: "anion_gap_calc",
+  label: "Anion gap (calculated)",
+  tags: ["acid-base", "electrolytes"],
+  inputs: [
+    { key: "Na", required: true },
+    { key: "Cl", required: true },
+    { key: "HCO3", required: true },
+  ],
+  run: ({ Na, Cl, HCO3 }) => {
+    const ag = Na - (Cl + HCO3);
+    const notes:string[] = [];
+    if (ag > 12) notes.push("elevated AG (lab-specific ranges vary)");
+    else notes.push("within reference");
+    return { id: "anion_gap_calc", label: "Anion gap (calculated)", value: ag, unit: "mmol/L", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT30 — Finish: tiny vitals helper (RR category)
+   ========================================================= */
+
+/** Respiratory rate category (adult) */
+register({
+  id: "rr_category_adult",
+  label: "Respiratory rate category (adult)",
+  tags: ["vitals"],
+  inputs: [{ key: "RRr", required: true }],
+  run: ({ RRr }) => {
+    const notes:string[] = [];
+    if (RRr <= 8) notes.push("bradypnea");
+    else if (RRr <= 20) notes.push("normal");
+    else if (RRr <= 24) notes.push("tachypnea (mild)");
+    else notes.push("tachypnea (moderate–severe)");
+    return { id: "rr_category_adult", label: "Respiratory rate category (adult)", value: RRr, unit: "breaths/min", precision: 0, notes };
+  },
+});
+
