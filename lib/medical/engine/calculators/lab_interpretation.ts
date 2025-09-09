@@ -8804,3 +8804,364 @@ register({
     return {id:"stool_panel_positive_count", label:"Stool GI panel positives (count band)", value:positive_count, unit:"count", precision:0, notes};
   }
 });
+
+// ===================== MED-EXT341–370 (APPEND-ONLY) =====================
+
+/* =========================================================
+   COPD / Spirometry Core
+   ========================================================= */
+
+register({
+  id: "bode_index_surrogate",
+  label: "BODE index (surrogate)",
+  tags: ["pulmonary","copd","risk"],
+  inputs: [{ key:"score", required:true }], // 0–10
+  run: ({score})=>{
+    const notes=[score>=7?"very high risk":score>=5?"high":"lower"];
+    return {id:"bode_index_surrogate", label:"BODE index (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "gold_grade_from_fev1",
+  label: "GOLD airflow limitation grade (from FEV1%)",
+  tags: ["pulmonary","copd"],
+  inputs: [{ key:"fev1_percent_pred", required:true }],
+  run: ({fev1_percent_pred})=>{
+    let grade="1";
+    if (fev1_percent_pred<30) grade="4";
+    else if (fev1_percent_pred<50) grade="3";
+    else if (fev1_percent_pred<80) grade="2";
+    else grade="1";
+    return {id:"gold_grade_from_fev1", label:"GOLD airflow limitation grade (from FEV1%)", value:fev1_percent_pred, unit:"% predicted (Grade "+grade+")", precision:0, notes:[`GOLD ${grade}`]};
+  }
+});
+
+register({
+  id: "fev1_fvc_obstruction_flag",
+  label: "Obstruction flag (FEV1/FVC)",
+  tags: ["pulmonary","spirometry"],
+  inputs: [{ key:"fev1_fvc_ratio", required:true }], // as decimal, e.g. 0.62
+  run: ({fev1_fvc_ratio})=>{
+    const pos = fev1_fvc_ratio<0.70;
+    return {id:"fev1_fvc_obstruction_flag", label:"Obstruction flag (FEV1/FVC)", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"obstruction present (<0.70)":"no obstruction"]};
+  }
+});
+
+register({
+  id: "bronchodilator_response_flag",
+  label: "Bronchodilator response (ATS/ERS) flag",
+  tags: ["pulmonary","spirometry"],
+  inputs: [
+    { key:"fev1_baseline_ml", required:true },
+    { key:"fev1_post_ml", required:true }
+  ],
+  run: ({fev1_baseline_ml,fev1_post_ml})=>{
+    const delta = fev1_post_ml - fev1_baseline_ml;
+    const pct = (delta/fev1_baseline_ml)*100;
+    const pos = delta>=200 && pct>=12;
+    return {id:"bronchodilator_response_flag", label:"Bronchodilator response (ATS/ERS) flag", value:pos?1:0, unit:"flag", precision:0, notes:[`Δ=${Math.round(delta)} mL, ${pct.toFixed(1)}%`, pos?"significant response":"not significant"]};
+  }
+});
+
+/* =========================================================
+   COPD / Asthma Symptoms & Control
+   ========================================================= */
+
+register({
+  id: "cat_score_band",
+  label: "COPD Assessment Test (CAT) band",
+  tags: ["pulmonary","copd"],
+  inputs: [{ key:"score", required:true }], // 0–40
+  run: ({score})=>{
+    const notes=[score>=30?"very high impact":score>=20?"high":score>=10?"medium":"low"];
+    return {id:"cat_score_band", label:"COPD Assessment Test (CAT) band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "act_asthma_band",
+  label: "Asthma Control Test (ACT) band",
+  tags: ["pulmonary","asthma"],
+  inputs: [{ key:"score", required:true }], // 5–25
+  run: ({score})=>{
+    const notes=[score<=15?"poorly controlled":score<=19?"not well controlled":"well controlled"];
+    return {id:"act_asthma_band", label:"Asthma Control Test (ACT) band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "acq_surrogate",
+  label: "ACQ (Asthma Control Questionnaire) surrogate",
+  tags: ["pulmonary","asthma"],
+  inputs: [{ key:"score", required:true }], // 0–6
+  run: ({score})=>{
+    const notes=[score>=1.5?"uncontrolled":score>=0.75?"partly controlled":"controlled"];
+    return {id:"acq_surrogate", label:"ACQ (Asthma Control Questionnaire) surrogate", value:score, unit:"index", precision:2, notes};
+  }
+});
+
+register({
+  id: "asthma_exacerbations_band",
+  label: "Asthma exacerbations per year (band)",
+  tags: ["pulmonary","asthma"],
+  inputs: [{ key:"exacerbations", required:true }],
+  run: ({exacerbations})=>{
+    const notes=[exacerbations>=2?"frequent exacerbator":"infrequent"];
+    return {id:"asthma_exacerbations_band", label:"Asthma exacerbations per year (band)", value:exacerbations, unit:"events/yr", precision:0, notes};
+  }
+});
+
+register({
+  id: "copd_exacerbations_band",
+  label: "COPD exacerbations per year (band)",
+  tags: ["pulmonary","copd"],
+  inputs: [{ key:"exacerbations", required:true }],
+  run: ({exacerbations})=>{
+    const notes=[exacerbations>=2?"frequent exacerbator":"infrequent"];
+    return {id:"copd_exacerbations_band", label:"COPD exacerbations per year (band)", value:exacerbations, unit:"events/yr", precision:0, notes};
+  }
+});
+
+register({
+  id: "copd_abcd_group",
+  label: "COPD A–B–E grouping (symptoms + exacerbations)",
+  tags: ["pulmonary","copd"],
+  inputs: [
+    { key:"cat_score", required:true },        // CAT 0–40
+    { key:"exacerbations", required:true },    // past year
+    { key:"hospitalizations", required:true }  // past year
+  ],
+  run: ({cat_score,exacerbations,hospitalizations})=>{
+    const highSymptoms = cat_score>=10; // symptom threshold
+    const highRisk = (exacerbations>=2) || (hospitalizations>=1);
+    // GOLD 2023+: groups A/B/E
+    let grp = highSymptoms ? (highRisk ? "E" : "B") : (highRisk ? "E" : "A");
+    return {id:"copd_abcd_group", label:"COPD A–B–E grouping (symptoms + exacerbations)", value:grp, unit:"group", precision:0, notes:[`symptoms=${highSymptoms?"high":"low"}, risk=${highRisk?"high":"low"}`]};
+  }
+});
+
+/* =========================================================
+   Spirometry / Gas Exchange Extras
+   ========================================================= */
+
+register({
+  id: "pef_percent_pred_band",
+  label: "Peak Expiratory Flow % predicted band",
+  tags: ["pulmonary","asthma"],
+  inputs: [{ key:"pef_percent_pred", required:true }],
+  run: ({pef_percent_pred})=>{
+    const notes=[pef_percent_pred<50?"red zone":pef_percent_pred<80?"yellow":"green"];
+    return {id:"pef_percent_pred_band", label:"Peak Expiratory Flow % predicted band", value:pef_percent_pred, unit:"% predicted", precision:0, notes};
+  }
+});
+
+register({
+  id: "feno_band",
+  label: "FeNO band (airway eosinophilia)",
+  tags: ["pulmonary","asthma"],
+  inputs: [{ key:"feno_ppb", required:true }],
+  run: ({feno_ppb})=>{
+    const notes=[feno_ppb>50?"high":feno_ppb>=25?"intermediate":"low"];
+    return {id:"feno_band", label:"FeNO band (airway eosinophilia)", value:feno_ppb, unit:"ppb", precision:0, notes};
+  }
+});
+
+register({
+  id: "dlco_percent_band",
+  label: "DLCO % predicted band",
+  tags: ["pulmonary"],
+  inputs: [{ key:"dlco_percent_pred", required:true }],
+  run: ({dlco_percent_pred})=>{
+    const notes=[dlco_percent_pred<40?"severely reduced":dlco_percent_pred<60?"moderately reduced":dlco_percent_pred<80?"mildly reduced":"normal"];
+    return {id:"dlco_percent_band", label:"DLCO % predicted band", value:dlco_percent_pred, unit:"% predicted", precision:0, notes};
+  }
+});
+
+register({
+  id: "kco_percent_band",
+  label: "KCO % predicted band (DLCO/VA)",
+  tags: ["pulmonary"],
+  inputs: [{ key:"kco_percent_pred", required:true }],
+  run: ({kco_percent_pred})=>{
+    const notes=[kco_percent_pred<60?"reduced":kco_percent_pred<80?"borderline":"normal"];
+    return {id:"kco_percent_band", label:"KCO % predicted band (DLCO/VA)", value:kco_percent_pred, unit:"% predicted", precision:0, notes};
+  }
+});
+
+register({
+  id: "rvtlc_ratio_band",
+  label: "RV/TLC ratio band",
+  tags: ["pulmonary"],
+  inputs: [{ key:"rvtlc_percent", required:true }],
+  run: ({rvtlc_percent})=>{
+    const notes=[rvtlc_percent>40?"air trapping/hyperinflation":"normal"];
+    return {id:"rvtlc_ratio_band", label:"RV/TLC ratio band", value:rvtlc_percent, unit:"%", precision:0, notes};
+  }
+});
+
+register({
+  id: "tlc_percent_band",
+  label: "TLC % predicted band (restriction)",
+  tags: ["pulmonary"],
+  inputs: [{ key:"tlc_percent_pred", required:true }],
+  run: ({tlc_percent_pred})=>{
+    const notes=[tlc_percent_pred<80?"restrictive pattern":"normal"];
+    return {id:"tlc_percent_band", label:"TLC % predicted band (restriction)", value:tlc_percent_pred, unit:"% predicted", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   6-Minute Walk & Exercise
+   ========================================================= */
+
+register({
+  id: "sixmwd_percent_pred",
+  label: "6MWD % predicted",
+  tags: ["pulmonary","functional"],
+  inputs: [
+    { key:"distance_m", required:true },
+    { key:"predicted_m", required:true }
+  ],
+  run: ({distance_m,predicted_m})=>{
+    if (predicted_m<=0) return null;
+    const pct=(distance_m/predicted_m)*100;
+    const notes=[pct<70?"reduced exercise capacity":"near-normal"];
+    return {id:"sixmwd_percent_pred", label:"6MWD % predicted", value:pct, unit:"%", precision:0, notes};
+  }
+});
+
+register({
+  id: "sixmwt_desaturation_flag",
+  label: "6MWT desaturation flag",
+  tags: ["pulmonary","functional"],
+  inputs: [
+    { key:"spo2_start", required:true },
+    { key:"spo2_nadir", required:true }
+  ],
+  run: ({spo2_start,spo2_nadir})=>{
+    const desat = (spo2_start - spo2_nadir) >= 4 || spo2_nadir<88;
+    return {id:"sixmwt_desaturation_flag", label:"6MWT desaturation flag", value:desat?1:0, unit:"flag", precision:0, notes:[desat?"desaturation present":"no significant desaturation"]};
+  }
+});
+
+/* =========================================================
+   Sleep: OSA / Daytime Sleepiness
+   ========================================================= */
+
+register({
+  id: "epworth_sleepiness_band",
+  label: "Epworth Sleepiness Scale band",
+  tags: ["sleep"],
+  inputs: [{ key:"score", required:true }], // 0–24
+  run: ({score})=>{
+    const notes=[score>=16?"severe":score>=11?"moderate":"normal/mild"];
+    return {id:"epworth_sleepiness_band", label:"Epworth Sleepiness Scale band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "stop_bang_band",
+  label: "STOP-BANG OSA risk band",
+  tags: ["sleep","osa"],
+  inputs: [{ key:"score", required:true }], // 0–8
+  run: ({score})=>{
+    const notes=[score>=5?"high risk":score>=3?"intermediate":"low"];
+    return {id:"stop_bang_band", label:"STOP-BANG OSA risk band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "berlin_osa_flag",
+  label: "Berlin Questionnaire OSA flag (surrogate)",
+  tags: ["sleep","osa"],
+  inputs: [{ key:"high_risk", required:true }],
+  run: ({high_risk})=>{
+    return {id:"berlin_osa_flag", label:"Berlin Questionnaire OSA flag (surrogate)", value:high_risk?1:0, unit:"flag", precision:0, notes:[high_risk?"high risk":"low risk"]};
+  }
+});
+
+/* =========================================================
+   Alveolar Gas & Oxygenation Helpers
+   ========================================================= */
+
+register({
+  id: "alveolar_oxygen_pao2",
+  label: "Alveolar oxygen (PAO₂)",
+  tags: ["pulmonary","gas_exchange"],
+  inputs: [
+    { key:"FiO2", required:true },       // 0–1
+    { key:"baro_mmHg", required:true },  // barometric pressure (mmHg)
+    { key:"PaCO2", required:true },      // mmHg
+    { key:"RQ", required:true }          // respiratory quotient (e.g., 0.8)
+  ],
+  run: ({FiO2,baro_mmHg,PaCO2,RQ})=>{
+    // PAO2 = FiO2*(baro-47) - PaCO2/RQ
+    const PAO2 = FiO2*(baro_mmHg-47) - (PaCO2/RQ);
+    return {id:"alveolar_oxygen_pao2", label:"Alveolar oxygen (PAO₂)", value:PAO2, unit:"mmHg", precision:0, notes:[]};
+  }
+});
+
+register({
+  id: "a_a_gradient",
+  label: "A–a gradient",
+  tags: ["pulmonary","gas_exchange"],
+  inputs: [
+    { key:"PAO2", required:true }, // from alveolar_oxygen_pao2
+    { key:"PaO2", required:true }  // arterial
+  ],
+  run: ({PAO2,PaO2})=>{
+    const grad = PAO2 - PaO2;
+    const notes=[grad>35?"elevated":"normal/age-dependent"];
+    return {id:"a_a_gradient", label:"A–a gradient", value:grad, unit:"mmHg", precision:0, notes};
+  }
+});
+
+register({
+  id: "ventilatory_ratio_surrogate",
+  label: "Ventilatory ratio (surrogate)",
+  tags: ["pulmonary","icu"],
+  inputs: [{ key:"index", required:true }],
+  run: ({index})=>{
+    const notes=[index>2?"inefficient ventilation":"near-normal"];
+    return {id:"ventilatory_ratio_surrogate", label:"Ventilatory ratio (surrogate)", value:index, unit:"index", precision:2, notes};
+  }
+});
+
+register({
+  id: "dead_space_vdvt_surrogate",
+  label: "Dead space fraction Vd/Vt (surrogate)",
+  tags: ["pulmonary","icu"],
+  inputs: [{ key:"ratio", required:true }],
+  run: ({ratio})=>{
+    const notes=[ratio>0.6?"high dead space":"acceptable"];
+    return {id:"dead_space_vdvt_surrogate", label:"Dead space fraction Vd/Vt (surrogate)", value:ratio, unit:"ratio", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   Symptoms / Misc Respiratory
+   ========================================================= */
+
+register({
+  id: "cough_vas_band",
+  label: "Cough severity VAS band",
+  tags: ["pulmonary","symptoms"],
+  inputs: [{ key:"score", required:true }], // 0–10
+  run: ({score})=>{
+    const notes=[score>=7?"severe":score>=4?"moderate":"mild"];
+    return {id:"cough_vas_band", label:"Cough severity VAS band", value:score, unit:"/10", precision:0, notes};
+  }
+});
+
+register({
+  id: "bronchiectasis_bsi_surrogate",
+  label: "Bronchiectasis Severity Index (surrogate)",
+  tags: ["pulmonary","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=9?"severe":score>=5?"moderate":"mild"];
+    return {id:"bronchiectasis_bsi_surrogate", label:"Bronchiectasis Severity Index (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
