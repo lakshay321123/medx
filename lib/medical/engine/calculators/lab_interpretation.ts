@@ -1387,3 +1387,220 @@ register({
   },
 });
 
+// ===================== MED-EXT3 (APPEND-ONLY) =====================
+/* If this import already exists at file top, remove this line. */
+
+/* ---------- qSOFA (full) ---------- */
+register({
+  id: "qsofa_full",
+  label: "qSOFA (full)",
+  tags: ["icu_scores", "sepsis"],
+  inputs: [
+    { key: "SBP", required: true },                 // ≤100 → +1
+    { key: "RRr", required: true },                 // ≥22 → +1
+    { key: "altered_mentation", required: true },   // boolean → +1
+  ],
+  run: ({ SBP, RRr, altered_mentation }) => {
+    const pts =
+      ((SBP ?? 999) <= 100 ? 1 : 0) +
+      ((RRr ?? 0) >= 22 ? 1 : 0) +
+      (altered_mentation ? 1 : 0);
+    const notes: string[] = [];
+    if (pts >= 2) notes.push("high risk (qSOFA ≥2)");
+    else notes.push("lower risk (qSOFA 0–1)");
+    return { id: "qsofa_full", label: "qSOFA (full)", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/* ---------- NEWS2 (Scale 1; add 2 points if on O2) ----------
+   RR, SpO2 (Scale 1), Temp, SBP, HR, Consciousness (AVPU), supplemental O2.
+*/
+register({
+  id: "news2",
+  label: "NEWS2",
+  tags: ["early_warning", "icu_scores"],
+  inputs: [
+    { key: "RRr", required: true },             // breaths/min
+    { key: "SaO2", required: true },            // %
+    { key: "on_o2", required: true },           // boolean
+    { key: "temp_c", required: true },          // °C
+    { key: "SBP", required: true },             // mmHg
+    { key: "HR", required: true },              // bpm
+    { key: "conscious_level", required: true }, // "A" | "V" | "P" | "U"
+  ],
+  run: ({ RRr, SaO2, on_o2, temp_c, SBP, HR, conscious_level }) => {
+    const pRR = RRr <= 8 ? 3 : RRr <= 11 ? 1 : RRr <= 20 ? 0 : RRr <= 24 ? 2 : 3;
+    const pO2 = SaO2 < 86 ? 3 : SaO2 <= 90 ? 2 : SaO2 <= 92 ? 1 : SaO2 <= 94 ? 1 : SaO2 <= 96 ? 0 : 0;
+    const pT  = temp_c < 35 ? 3 : temp_c <= 36 ? 1 : temp_c <= 38 ? 0 : temp_c <= 39 ? 1 : 2;
+    const pBP = SBP <= 90 ? 3 : SBP <= 100 ? 2 : SBP <= 110 ? 1 : SBP <= 219 ? 0 : 3;
+    const pHR = HR <= 40 ? 3 : HR <= 50 ? 1 : HR <= 90 ? 0 : HR <= 110 ? 1 : HR <= 130 ? 2 : 3;
+    const pC  = (conscious_level && conscious_level !== "A") ? 3 : 0;
+    const addO2 = on_o2 ? 2 : 0;
+    const total = pRR + pO2 + pT + pBP + pHR + pC + addO2;
+    const notes: string[] = [];
+    if (total >= 7) notes.push("high risk (≥7)");
+    else if (total >= 5) notes.push("urgent review (5–6)");
+    else if (total >= 1) notes.push("low–moderate (1–4)");
+    else notes.push("low (0)");
+    return { id: "news2", label: "NEWS2", value: total, unit: "points", precision: 0, notes };
+  },
+});
+
+/* ---------- HEART score (chest pain) ----------
+   Inputs are binned/categorical to avoid free-text NLP:
+   history_score: 0/1/2 (slightly/moderately/highly suspicious)
+   ecg_score: 0/1/2 (normal/nonspecific/ST-deviation)
+   age_band: "≤45" | "46–64" | "≥65"  → 0/1/2
+   risk_factors_count: 0 | 1–2 | ≥3_or_known_CAD → 0/1/2 (provide as enum)
+   troponin_band: "normal" | "1-3x" | ">3x" → 0/1/2
+*/
+register({
+  id: "heart_score",
+  label: "HEART score",
+  tags: ["cardiology", "risk"],
+  inputs: [
+    { key: "history_score", required: true },              // 0|1|2
+    { key: "ecg_score", required: true },                  // 0|1|2
+    { key: "age_band", required: true },                   // "≤45"|"46–64"|"≥65"
+    { key: "risk_factor_band", required: true },           // "0"|"1-2"|"≥3_or_known_CAD"
+    { key: "troponin_band", required: true },              // "normal"|"1-3x"|">3x"
+  ],
+  run: ({ history_score, ecg_score, age_band, risk_factor_band, troponin_band }) => {
+    const a = (age_band === "≥65" ? 2 : age_band === "46–64" ? 1 : 0);
+    const r = (risk_factor_band === "≥3_or_known_CAD" ? 2 : risk_factor_band === "1-2" ? 1 : 0);
+    const t = (troponin_band === ">3x" ? 2 : troponin_band === "1-3x" ? 1 : 0);
+    const total = (history_score ?? 0) + (ecg_score ?? 0) + a + r + t;
+    const notes: string[] = [];
+    if (total >= 7) notes.push("high risk (≥7)");
+    else if (total >= 4) notes.push("intermediate risk (4–6)");
+    else notes.push("low risk (0–3)");
+    return { id: "heart_score", label: "HEART score", value: total, unit: "points", precision: 0, notes };
+  },
+});
+
+/* ---------- Glasgow-Blatchford Score (GBS-lite surrogate) ----------
+   Simplified triage surrogate (not a replacement for full GBS).
+   BUN, Hb (sex-banded), SBP, HR, melena, syncope, hepatic disease, cardiac failure.
+*/
+register({
+  id: "gbs_lite",
+  label: "Glasgow-Blatchford (lite)",
+  tags: ["gastroenterology", "risk"],
+  inputs: [
+    { key: "BUN", required: true },                        // mg/dL
+    { key: "hemoglobin", required: true },                 // g/dL
+    { key: "sex", required: true },                        // "M"|"F"
+    { key: "SBP", required: true },                        // mmHg
+    { key: "HR", required: true },                         // bpm
+    { key: "melena", required: true },                     // boolean
+    { key: "syncope", required: true },                    // boolean
+    { key: "hepatic_disease", required: true },            // boolean
+    { key: "cardiac_failure", required: true },            // boolean
+  ],
+  run: (x) => {
+    let pts = 0;
+    // Coarse BUN bands
+    pts += x.BUN >= 28 ? 3 : x.BUN >= 22 ? 2 : x.BUN >= 18 ? 1 : 0;
+    // Hb (sex-specific)
+    if (x.sex === "M") pts += x.hemoglobin < 10 ? 3 : x.hemoglobin < 12 ? 1 : 0;
+    else               pts += x.hemoglobin < 10 ? 3 : x.hemoglobin < 11 ? 1 : 0;
+    // SBP
+    pts += x.SBP < 90 ? 3 : x.SBP < 100 ? 2 : x.SBP < 110 ? 1 : 0;
+    // HR tachy
+    pts += x.HR >= 100 ? 1 : 0;
+    // Clinical features
+    pts += x.melena ? 1 : 0;
+    pts += x.syncope ? 2 : 0;
+    pts += x.hepatic_disease ? 2 : 0;
+    pts += x.cardiac_failure ? 2 : 0;
+
+    const notes: string[] = [];
+    if (pts === 0) notes.push("very low risk; consider outpatient if stable");
+    else if (pts <= 3) notes.push("low–intermediate risk");
+    else notes.push("intermediate–high risk");
+    return { id: "gbs_lite", label: "Glasgow-Blatchford (lite)", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/* ---------- Hestia criteria (PE outpatient eligibility) ----------
+   If ANY criterion is true → NOT eligible (flag = 1).
+*/
+register({
+  id: "hestia_pe",
+  label: "Hestia criteria (PE outpatient)",
+  tags: ["pulmonary", "risk"],
+  inputs: [
+    { key: "hemodynamic_instability", required: true },
+    { key: "need_thrombolysis_or_embolectomy", required: true },
+    { key: "active_bleeding_or_high_risk", required: true },
+    { key: "severe_renal_or_liver_failure", required: true },
+    { key: "pregnancy", required: true },
+    { key: "social_care_inadequate", required: true },
+    { key: "need_opioids_iv", required: true },
+    { key: "oxygen_required_gt_24h", required: true },
+    { key: "contraindication_anticoag", required: true },
+  ],
+  run: (x) => {
+    const positives = Object.entries(x).filter(([_, v]) => !!v).map(([k]) => k);
+    const ineligible = positives.length > 0;
+    const notes: string[] = [];
+    notes.push(ineligible ? "NOT eligible for outpatient PE management" : "Eligible for outpatient pathway (if low risk otherwise)");
+    if (ineligible) notes.push(`Triggers: ${positives.join(", ")}`);
+    return { id: "hestia_pe", label: "Hestia criteria (PE outpatient)", value: ineligible ? 1 : 0, unit: "flag", precision: 0, notes };
+  },
+});
+
+/* ---------- BODE index (COPD) ----------
+   BMI (kg/m²) → 0 if >21 else 1
+   FEV1 %pred → 0: ≥65, 1: 50–64, 2: 36–49, 3: ≤35
+   mMRC dyspnea → 0:0–1, 1:2, 2:3, 3:4
+   6-min walk distance (m) → 0: ≥350, 1: 250–349, 2: 150–249, 3: ≤149
+   Total 0–10 (higher worse).
+*/
+register({
+  id: "bode_index",
+  label: "BODE index (COPD)",
+  tags: ["pulmonary"],
+  inputs: [
+    { key: "BMI", required: true },                          // kg/m²
+    { key: "fev1_percent_predicted", required: true },       // %
+    { key: "mmrc_dyspnea", required: true },                 // 0–4
+    { key: "six_minute_walk_m", required: true },            // meters
+  ],
+  run: ({ BMI, fev1_percent_predicted, mmrc_dyspnea, six_minute_walk_m }) => {
+    if ([BMI, fev1_percent_predicted, mmrc_dyspnea, six_minute_walk_m].some(v => v == null)) return null;
+    const pBMI = BMI > 21 ? 0 : 1;
+    const f = fev1_percent_predicted;
+    const pFEV1 = f >= 65 ? 0 : f >= 50 ? 1 : f >= 36 ? 2 : 3;
+    const d = mmrc_dyspnea;
+    const pDysp = d <= 1 ? 0 : d === 2 ? 1 : d === 3 ? 2 : 3;
+    const w = six_minute_walk_m;
+    const pWalk = w >= 350 ? 0 : w >= 250 ? 1 : w >= 150 ? 2 : 3;
+    const total = pBMI + pFEV1 + pDysp + pWalk;
+    return { id: "bode_index", label: "BODE index (COPD)", value: total, unit: "points", precision: 0, notes: [] };
+  },
+});
+
+/* ---------- SOAR (pneumonia discharge/mortality risk) ----------
+   S: SpO2 <92% (1), O: Orientation/Confusion (1), A: Age ≥65 (1), R: RR ≥30 (1)
+*/
+register({
+  id: "soar_score",
+  label: "SOAR score",
+  tags: ["pulmonary", "infectious_disease", "risk"],
+  inputs: [
+    { key: "SaO2", required: true },           // %
+    { key: "confusion", required: true },      // boolean
+    { key: "age", required: true },            // years
+    { key: "RRr", required: true },            // breaths/min
+  ],
+  run: ({ SaO2, confusion, age, RRr }) => {
+    const pts = ((SaO2 ?? 100) < 92 ? 1 : 0) + (confusion ? 1 : 0) + ((age ?? 0) >= 65 ? 1 : 0) + ((RRr ?? 0) >= 30 ? 1 : 0);
+    const notes: string[] = [];
+    if (pts >= 3) notes.push("high risk");
+    else if (pts === 2) notes.push("moderate risk");
+    else notes.push("low risk");
+    return { id: "soar_score", label: "SOAR score", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
