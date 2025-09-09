@@ -6520,3 +6520,174 @@ register({
     return {id:"framingham_percent_surrogate", label:"Framingham 10-yr risk surrogate", value:percent, unit:"%", precision:1, notes};
   }
 });
+
+// ===================== MED-EXT151–160 (APPEND-ONLY) =====================
+
+/* =========================================================
+   MED-EXT151 — YEARS criteria (PE) flag
+   Positive if any YEARS item present AND D-dimer above the item-specific threshold.
+   Caller supplies boolean 'any_years_item' and absolute 'ddimer_ng_ml'.
+   ========================================================= */
+register({
+  id: "years_pe_flag",
+  label: "YEARS criteria (PE) flag",
+  tags: ["pulmonary", "risk"],
+  inputs: [
+    { key: "any_years_item", required: true }, // hemoptysis OR DVT signs OR PE most likely
+    { key: "ddimer_ng_ml", required: true },   // ng/mL (fibrinogen equivalent units)
+  ],
+  run: ({ any_years_item, ddimer_ng_ml }) => {
+    const cutoff = any_years_item ? 500 : 1000;
+    const positive = ddimer_ng_ml >= cutoff;
+    const notes = [`cutoff=${cutoff} ng/mL`, positive ? "YEARS-positive" : "YEARS-negative"];
+    return { id: "years_pe_flag", label: "YEARS criteria (PE) flag", value: positive ? 1 : 0, unit: "flag", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT152 — CHA2DS2-VASc band (AF stroke risk)
+   ========================================================= */
+register({
+  id: "cha2ds2_vasc_band",
+  label: "CHA₂DS₂-VASc band",
+  tags: ["cardiology", "risk"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 2 ? "elevated risk (typical anticoagulation threshold in many guidelines)" : "lower risk"];
+    return { id: "cha2ds2_vasc_band", label: "CHA₂DS₂-VASc band", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT153 — TIMI risk (UA/NSTEMI) surrogate
+   ========================================================= */
+register({
+  id: "timi_ua_nstemi_surrogate",
+  label: "TIMI risk (UA/NSTEMI, surrogate)",
+  tags: ["cardiology", "risk"],
+  inputs: [{ key: "score", required: true }], // 0–7
+  run: ({ score }) => {
+    const notes = [score >= 5 ? "high risk" : score >= 3 ? "intermediate risk" : "low risk"];
+    return { id: "timi_ua_nstemi_surrogate", label: "TIMI risk (UA/NSTEMI, surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT154 — SIRS criteria count (0–4) with band
+   ========================================================= */
+register({
+  id: "sirs_count_band",
+  label: "SIRS count band",
+  tags: ["infectious_disease", "sepsis"],
+  inputs: [{ key: "sirs_count", required: true }],
+  run: ({ sirs_count }) => {
+    const notes = [sirs_count >= 2 ? "SIRS present (≥2)" : "SIRS not met"];
+    return { id: "sirs_count_band", label: "SIRS count band", value: sirs_count, unit: "criteria", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT155 — Alvarado score (appendicitis) surrogate
+   ========================================================= */
+register({
+  id: "alvarado_surrogate",
+  label: "Alvarado score (surrogate)",
+  tags: ["surgery", "gastroenterology", "risk"],
+  inputs: [{ key: "score", required: true }], // 0–10
+  run: ({ score }) => {
+    const notes = [score >= 7 ? "high probability" : score >= 5 ? "intermediate probability" : "low probability"];
+    return { id: "alvarado_surrogate", label: "Alvarado score (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT156 — Centor/McIsaac (strep pharyngitis) surrogate
+   ========================================================= */
+register({
+  id: "centor_mcisaac_surrogate",
+  label: "Centor/McIsaac (surrogate)",
+  tags: ["infectious_disease", "pediatrics", "ent"],
+  inputs: [{ key: "score", required: true }], // 0–5
+  run: ({ score }) => {
+    const notes = [score >= 4 ? "high probability band" : score >= 2 ? "intermediate band" : "low band"];
+    return { id: "centor_mcisaac_surrogate", label: "Centor/McIsaac (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT157 — SAAG (Serum–Ascites Albumin Gradient)
+   SAAG = serum_albumin − ascites_albumin
+   ========================================================= */
+register({
+  id: "saag_calc",
+  label: "SAAG (Serum–Ascites Albumin Gradient)",
+  tags: ["hepatology", "gastroenterology"],
+  inputs: [
+    { key: "serum_albumin", required: true },   // g/dL
+    { key: "ascites_albumin", required: true }, // g/dL
+  ],
+  run: ({ serum_albumin, ascites_albumin }) => {
+    const saag = serum_albumin - ascites_albumin;
+    const notes = [saag >= 1.1 ? "portal hypertensive ascites pattern (SAAG ≥1.1)" : "non-portal hypertensive ascites pattern"];
+    return { id: "saag_calc", label: "SAAG (Serum–Ascites Albumin Gradient)", value: saag, unit: "g/dL", precision: 2, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT158 — Corrected sodium for hyperglycemia
+   Common correction ≈ Na + 1.6 mEq/L for each 100 mg/dL glucose above 100.
+   ========================================================= */
+register({
+  id: "corrected_na_hyperglycemia",
+  label: "Corrected sodium (hyperglycemia)",
+  tags: ["electrolytes", "endocrine"],
+  inputs: [
+    { key: "Na_measured", required: true },   // mEq/L
+    { key: "glucose_mg_dl", required: true }, // mg/dL
+    { key: "factor_per_100", required: false }, // optional; default 1.6
+  ],
+  run: ({ Na_measured, glucose_mg_dl, factor_per_100 }) => {
+    const f = factor_per_100 != null ? factor_per_100 : 1.6;
+    const deltaBlocks = Math.max(0, (glucose_mg_dl - 100) / 100);
+    const corrected = Na_measured + f * deltaBlocks;
+    return { id: "corrected_na_hyperglycemia", label: "Corrected sodium (hyperglycemia)", value: corrected, unit: "mEq/L", precision: 1, notes: [`factor=${f}/100 mg/dL`] };
+  },
+});
+
+/* =========================================================
+   MED-EXT159 — Bicarbonate deficit (metabolic acidosis)
+   Approx deficit ≈ 0.5 × weight_kg × (target_HCO3 − HCO3)
+   ========================================================= */
+register({
+  id: "bicarbonate_deficit",
+  label: "Bicarbonate deficit (approx)",
+  tags: ["acid-base", "fluids"],
+  inputs: [
+    { key: "weight_kg", required: true },
+    { key: "HCO3", required: true },           // current
+    { key: "target_HCO3", required: true },    // desired (e.g., 22)
+  ],
+  run: ({ weight_kg, HCO3, target_HCO3 }) => {
+    const delta = target_HCO3 - HCO3;
+    const deficit = 0.5 * weight_kg * delta;
+    return { id: "bicarbonate_deficit", label: "Bicarbonate deficit (approx)", value: deficit, unit: "mEq", precision: 0, notes: [] };
+  },
+});
+
+/* =========================================================
+   MED-EXT160 — Winter’s expected PaCO₂ (metabolic acidosis)
+   Expected PaCO₂ ≈ 1.5 × HCO₃⁻ + 8 (±2)
+   ========================================================= */
+register({
+  id: "winters_expected_paco2",
+  label: "Winter’s expected PaCO₂",
+  tags: ["acid-base", "pulmonary"],
+  inputs: [{ key: "HCO3", required: true }],
+  run: ({ HCO3 }) => {
+    const expected = 1.5 * HCO3 + 8;
+    const lo = expected - 2;
+    const hi = expected + 2;
+    const notes = [`expected ${Math.round(expected)} mmHg (±2)`, `range ${Math.round(lo)}–${Math.round(hi)} mmHg`];
+    return { id: "winters_expected_paco2", label: "Winter’s expected PaCO₂", value: expected, unit: "mmHg", precision: 0, notes };
+  },
+});
