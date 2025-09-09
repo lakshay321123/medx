@@ -7158,3 +7158,468 @@ register({
   }
 });
 
+// ===================== MED-EXT191–220 (APPEND-ONLY) =====================
+
+/* =========================================================
+   MED-EXT191 — Bishop score surrogate
+   ========================================================= */
+register({
+  id: "bishop_score_surrogate",
+  label: "Bishop score surrogate",
+  tags: ["obstetrics"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=8?"favorable cervix":score<=4?"unfavorable":"intermediate"];
+    return {id:"bishop_score_surrogate", label:"Bishop score surrogate", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT192 — Apgar extended interpretation
+   ========================================================= */
+register({
+  id: "apgar_extended",
+  label: "Apgar extended band",
+  tags: ["pediatrics","obstetrics"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score<=3?"severe distress":score<=6?"moderate":"reassuring"];
+    return {id:"apgar_extended", label:"Apgar extended band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT193 — Ballard score surrogate (gestational age estimate)
+   ========================================================= */
+register({
+  id: "ballard_surrogate",
+  label: "Ballard score surrogate",
+  tags: ["neonatal","obstetrics"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const ga= (score*0.4+24).toFixed(1); // rough mapping
+    const notes=[`approx GA ${ga} weeks`];
+    return {id:"ballard_surrogate", label:"Ballard score surrogate", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT194 — Bhutani nomogram surrogate (bilirubin risk zone)
+   ========================================================= */
+register({
+  id: "bhutani_nomogram",
+  label: "Bhutani bilirubin risk zone",
+  tags: ["neonatal"],
+  inputs: [{ key:"zone", required:true }], // 1–4
+  run: ({zone})=>{
+    const notes=["Zone "+zone];
+    return {id:"bhutani_nomogram", label:"Bhutani bilirubin risk zone", value:zone, unit:"zone", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT195 — Pediatric weight estimate (age-based APLS)
+   Wt ≈ (Age+4)×2
+   ========================================================= */
+register({
+  id: "peds_weight_apls",
+  label: "Pediatric weight estimate (APLS)",
+  tags: ["pediatrics"],
+  inputs: [{ key:"age", required:true }],
+  run: ({age})=>{
+    const wt=(age+4)*2;
+    return {id:"peds_weight_apls", label:"Pediatric weight estimate (APLS)", value:wt, unit:"kg", precision:0, notes:[]};
+  }
+});
+
+/* =========================================================
+   MED-EXT196 — Pediatric fluid bolus estimate
+   Bolus = 20 mL/kg
+   ========================================================= */
+register({
+  id: "peds_fluid_bolus",
+  label: "Pediatric fluid bolus estimate",
+  tags: ["pediatrics","fluids"],
+  inputs: [{ key:"weight_kg", required:true }],
+  run: ({weight_kg})=>{
+    const vol=20*weight_kg;
+    return {id:"peds_fluid_bolus", label:"Pediatric fluid bolus estimate", value:vol, unit:"mL", precision:0, notes:[]};
+  }
+});
+
+/* =========================================================
+   MED-EXT197 — Murray lung injury score (surrogate)
+   ========================================================= */
+register({
+  id: "murray_lung_injury",
+  label: "Murray lung injury (surrogate)",
+  tags: ["icu","pulmonary"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=2.5?"severe":"milder"];
+    return {id:"murray_lung_injury", label:"Murray lung injury (surrogate)", value:score, unit:"points", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT198 — RSBI (Rapid Shallow Breathing Index)
+   RSBI = RR / VT(L)
+   ========================================================= */
+register({
+  id: "rsbi_calc",
+  label: "Rapid Shallow Breathing Index",
+  tags: ["icu","pulmonary"],
+  inputs: [
+    { key:"RR", required:true },
+    { key:"VT_ml", required:true }
+  ],
+  run: ({RR,VT_ml})=>{
+    if (VT_ml<=0) return null;
+    const val=RR/(VT_ml/1000);
+    const notes=[val<105?"weaning likely tolerated":"weaning less likely"];
+    return {id:"rsbi_calc", label:"Rapid Shallow Breathing Index", value:val, unit:"breaths/min/L", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT199 — Driving pressure = Plateau − PEEP
+   ========================================================= */
+register({
+  id: "driving_pressure",
+  label: "Driving pressure",
+  tags: ["icu","pulmonary"],
+  inputs: [
+    { key:"plateau", required:true },
+    { key:"peep", required:true }
+  ],
+  run: ({plateau,peep})=>{
+    const val=plateau-peep;
+    const notes=[val>15?"elevated":"ok"];
+    return {id:"driving_pressure", label:"Driving pressure", value:val, unit:"cmH₂O", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT200 — Compliance = VT / (Plateau−PEEP)
+   ========================================================= */
+register({
+  id: "resp_compliance",
+  label: "Respiratory compliance",
+  tags: ["icu","pulmonary"],
+  inputs: [
+    { key:"VT_ml", required:true },
+    { key:"plateau", required:true },
+    { key:"peep", required:true }
+  ],
+  run: ({VT_ml,plateau,peep})=>{
+    const denom=plateau-peep;
+    if (denom<=0) return null;
+    const val=VT_ml/denom;
+    return {id:"resp_compliance", label:"Respiratory compliance", value:val, unit:"mL/cmH₂O", precision:1, notes:[]};
+  }
+});
+
+/* =========================================================
+   MED-EXT201 — Stress index surrogate
+   ========================================================= */
+register({
+  id: "stress_index_surrogate",
+  label: "Stress index (surrogate)",
+  tags: ["icu","pulmonary"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>1.1?"overdistension":score<0.9?"atelectasis":"normal"];
+    return {id:"stress_index_surrogate", label:"Stress index (surrogate)", value:score, unit:"index", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT202 — Sokolow–Lyon LVH (ECG)
+   SV1+RV5/6 ≥35 mm
+   ========================================================= */
+register({
+  id: "sokolow_lyon_lvh",
+  label: "Sokolow–Lyon LVH",
+  tags: ["cardiology","ecg"],
+  inputs: [
+    { key:"SV1", required:true },
+    { key:"RV5", required:true },
+    { key:"RV6", required:true }
+  ],
+  run: ({SV1,RV5,RV6})=>{
+    const val=SV1+Math.max(RV5,RV6);
+    const notes=[val>=35?"LVH criteria met":"not met"];
+    return {id:"sokolow_lyon_lvh", label:"Sokolow–Lyon LVH", value:val, unit:"mm", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT203 — Cornell LVH index
+   ========================================================= */
+register({
+  id: "cornell_lvh",
+  label: "Cornell LVH index",
+  tags: ["cardiology","ecg"],
+  inputs: [
+    { key:"RaVL", required:true },
+    { key:"SV3", required:true },
+    { key:"sex", required:true }
+  ],
+  run: ({RaVL,SV3,sex})=>{
+    const val=RaVL+SV3+(sex==="F"?8:0);
+    const notes=[val>=28?"LVH criteria met":"not met"];
+    return {id:"cornell_lvh", label:"Cornell LVH index", value:val, unit:"mm", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT204 — Duke treadmill score surrogate
+   ========================================================= */
+register({
+  id: "duke_treadmill_surrogate",
+  label: "Duke treadmill score (surrogate)",
+  tags: ["cardiology","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score<=-11?"high risk":score<=4?"moderate":"low"];
+    return {id:"duke_treadmill_surrogate", label:"Duke treadmill score (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT205 — QT dispersion surrogate
+   ========================================================= */
+register({
+  id: "qt_dispersion_surrogate",
+  label: "QT dispersion surrogate",
+  tags: ["cardiology","ecg"],
+  inputs: [{ key:"dispersion_ms", required:true }],
+  run: ({dispersion_ms})=>{
+    const notes=[dispersion_ms>80?"prolonged":"ok"];
+    return {id:"qt_dispersion_surrogate", label:"QT dispersion surrogate", value:dispersion_ms, unit:"ms", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT206 — Heart rate–corrected JT interval (JTc)
+   JTc = QTc − QRS
+   ========================================================= */
+register({
+  id: "jtc_calc",
+  label: "JTc interval",
+  tags: ["cardiology","ecg"],
+  inputs: [
+    { key:"qtc_ms", required:true },
+    { key:"qrs_ms", required:true }
+  ],
+  run: ({qtc_ms,qrs_ms})=>{
+    const val=qtc_ms-qrs_ms;
+    const notes=[val>360?"prolonged":"normal"];
+    return {id:"jtc_calc", label:"JTc interval", value:val, unit:"ms", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT207 — PR interval band
+   ========================================================= */
+register({
+  id: "pr_interval_band",
+  label: "PR interval band",
+  tags: ["cardiology","ecg"],
+  inputs: [{ key:"pr_ms", required:true }],
+  run: ({pr_ms})=>{
+    const notes=[pr_ms>200?"first-degree AV block":pr_ms<120?"short PR":"normal"];
+    return {id:"pr_interval_band", label:"PR interval band", value:pr_ms, unit:"ms", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT208 — QRS duration band
+   ========================================================= */
+register({
+  id: "qrs_duration_band",
+  label: "QRS duration band",
+  tags: ["cardiology","ecg"],
+  inputs: [{ key:"qrs_ms", required:true }],
+  run: ({qrs_ms})=>{
+    const notes=[qrs_ms>=120?"wide QRS":"narrow QRS"];
+    return {id:"qrs_duration_band", label:"QRS duration band", value:qrs_ms, unit:"ms", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT209 — Axis deviation (QRS axis degrees)
+   ========================================================= */
+register({
+  id: "axis_deviation",
+  label: "QRS axis deviation",
+  tags: ["cardiology","ecg"],
+  inputs: [{ key:"axis_deg", required:true }],
+  run: ({axis_deg})=>{
+    const notes=[axis_deg<-30?"left axis":axis_deg>90?"right axis":"normal axis"];
+    return {id:"axis_deviation", label:"QRS axis deviation", value:axis_deg, unit:"degrees", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT210 — QTc Hodges correction = QT + 1.75×(HR−60)
+   ========================================================= */
+register({
+  id: "qtc_hodges",
+  label: "QTc (Hodges)",
+  tags: ["cardiology","ecg"],
+  inputs: [
+    { key:"QT_ms", required:true },
+    { key:"HR", required:true }
+  ],
+  run: ({QT_ms,HR})=>{
+    const val=QT_ms+1.75*(HR-60);
+    return {id:"qtc_hodges", label:"QTc (Hodges)", value:val, unit:"ms", precision:0, notes:[]};
+  }
+});
+
+/* =========================================================
+   MED-EXT211 — Tp-e interval band
+   ========================================================= */
+register({
+  id: "tpe_band",
+  label: "Tp-e interval band",
+  tags: ["cardiology","ecg"],
+  inputs: [{ key:"tpe_ms", required:true }],
+  run: ({tpe_ms})=>{
+    const notes=[tpe_ms>100?"prolonged":"normal"];
+    return {id:"tpe_band", label:"Tp-e interval band", value:tpe_ms, unit:"ms", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT212 — Tp-e/QT ratio
+   ========================================================= */
+register({
+  id: "tpe_qt_ratio",
+  label: "Tp-e/QT ratio",
+  tags: ["cardiology","ecg"],
+  inputs: [
+    { key:"tpe_ms", required:true },
+    { key:"qt_ms", required:true }
+  ],
+  run: ({tpe_ms,qt_ms})=>{
+    if (qt_ms<=0) return null;
+    const val=tpe_ms/qt_ms;
+    const notes=[val>0.28?"elevated":"normal"];
+    return {id:"tpe_qt_ratio", label:"Tp-e/QT ratio", value:val, unit:"ratio", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT213 — QT/RR slope surrogate
+   ========================================================= */
+register({
+  id: "qt_rr_slope",
+  label: "QT/RR slope (surrogate)",
+  tags: ["cardiology","ecg"],
+  inputs: [{ key:"slope", required:true }],
+  run: ({slope})=>{
+    const notes=[slope>0.2?"steep":"normal"];
+    return {id:"qt_rr_slope", label:"QT/RR slope (surrogate)", value:slope, unit:"slope", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT214 — Duke Treadmill angina index (surrogate)
+   ========================================================= */
+register({
+  id: "duke_angina_surrogate",
+  label: "Duke treadmill angina index (surrogate)",
+  tags: ["cardiology","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score<=-5?"severe":"ok"];
+    return {id:"duke_angina_surrogate", label:"Duke treadmill angina index (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT215 — Left atrial volume index (LAVI) band
+   ========================================================= */
+register({
+  id: "lavi_band",
+  label: "Left atrial volume index (LAVI)",
+  tags: ["cardiology","echo"],
+  inputs: [{ key:"lavi_ml_m2", required:true }],
+  run: ({lavi_ml_m2})=>{
+    const notes=[lavi_ml_m2>34?"dilated":"normal"];
+    return {id:"lavi_band", label:"Left atrial volume index (LAVI)", value:lavi_ml_m2, unit:"mL/m²", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT216 — RVSP (pulm HTN) surrogate
+   ========================================================= */
+register({
+  id: "rvsp_surrogate",
+  label: "RV systolic pressure (surrogate)",
+  tags: ["cardiology","echo"],
+  inputs: [{ key:"rvsp_mmHg", required:true }],
+  run: ({rvsp_mmHg})=>{
+    const notes=[rvsp_mmHg>=40?"pulmonary hypertension":"normal"];
+    return {id:"rvsp_surrogate", label:"RV systolic pressure (surrogate)", value:rvsp_mmHg, unit:"mmHg", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT217 — LV mass index surrogate
+   ========================================================= */
+register({
+  id: "lv_mass_index_surrogate",
+  label: "LV mass index surrogate",
+  tags: ["cardiology","echo"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>115?"elevated":"normal"];
+    return {id:"lv_mass_index_surrogate", label:"LV mass index surrogate", value:score, unit:"g/m²", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT218 — E/e' ratio surrogate
+   ========================================================= */
+register({
+  id: "e_over_e_surrogate",
+  label: "E/e' ratio surrogate",
+  tags: ["cardiology","echo"],
+  inputs: [{ key:"ratio", required:true }],
+  run: ({ratio})=>{
+    const notes=[ratio>14?"elevated filling pressure":"normal"];
+    return {id:"e_over_e_surrogate", label:"E/e' ratio surrogate", value:ratio, unit:"ratio", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT219 — TAPSE band
+   ========================================================= */
+register({
+  id: "tapse_band",
+  label: "TAPSE band",
+  tags: ["cardiology","echo"],
+  inputs: [{ key:"tapse_cm", required:true }],
+  run: ({tapse_cm})=>{
+    const notes=[tapse_cm<1.6?"reduced RV function":"normal"];
+    return {id:"tapse_band", label:"TAPSE band", value:tapse_cm, unit:"cm", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT220 — RV fractional area change (FAC) band
+   ========================================================= */
+register({
+  id: "rv_fac_band",
+  label: "RV fractional area change band",
+  tags: ["cardiology","echo"],
+  inputs: [{ key:"fac_pct", required:true }],
+  run: ({fac_pct})=>{
+    const notes=[fac_pct<35?"reduced RV function":"normal"];
+    return {id:"rv_fac_band", label:"RV fractional area change band", value:fac_pct, unit:"%", precision:0, notes};
+  }
+});
+
