@@ -663,10 +663,17 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         ];
 
         const endpoint = '/api/aidoc/chat';
+        const rid = crypto.randomUUID();
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: mode === 'doctor' ? 'doctor' : 'patient', messages: thread, threadId, context })
+          body: JSON.stringify({
+            mode: mode === 'doctor' ? 'doctor' : 'patient',
+            messages: thread,
+            threadId,
+            context,
+            clientRequestId: rid
+          })
         });
         if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
         const reader = res.body.getReader();
