@@ -3428,3 +3428,441 @@ register({
   },
 });
 
+// ===================== MED-EXT16–20 (APPEND-ONLY) =====================
+/* If this import already exists at file top, remove this line. */
+
+/* =========================================================
+   MED-EXT16 — Renal/ABG gates + TRALI/TACO + BISAP dispo
+   ========================================================= */
+
+/** Renal Doppler Resistive Index (RI) = (PSV - EDV)/PSV ; bands */
+register({
+  id: "renal_ri_bands",
+  label: "Renal Doppler RI (bands)",
+  tags: ["renal", "imaging"],
+  inputs: [
+    { key: "psv_cm_s", required: true },
+    { key: "edv_cm_s", required: true },
+  ],
+  run: ({ psv_cm_s, edv_cm_s }) => {
+    if ([psv_cm_s, edv_cm_s].some(v => v == null) || psv_cm_s <= 0) return null;
+    const ri = (psv_cm_s - edv_cm_s) / psv_cm_s;
+    const notes:string[] = [];
+    if (ri >= 0.8) notes.push("high RI (≥0.80)");
+    else if (ri >= 0.7) notes.push("borderline (0.70–0.79)");
+    else notes.push("within reference (<0.70)");
+    return { id: "renal_ri_bands", label: "Renal Doppler RI (bands)", value: ri, unit: "ratio", precision: 2, notes };
+  },
+});
+
+/** SIADH vs hypovolemia gate using uric acid / FEUA if available */
+register({
+  id: "siadh_vs_hypovolemia_gate",
+  label: "Hyponatremia gate (SIADH vs hypovolemia)",
+  tags: ["renal", "endocrine"],
+  inputs: [
+    { key: "plasma_uric", required: false }, // mg/dL
+    { key: "feua", required: false },        // % (from existing FEUA calc)
+  ],
+  run: ({ plasma_uric, feua }) => {
+    const notes: string[] = [];
+    let pattern = "indeterminate";
+    if (typeof feua === "number") {
+      if (feua > 10) { pattern = "SIADH pattern (FEUA >10%)"; }
+      else if (feua < 8) { pattern = "hypovolemic pattern (FEUA <8%)"; }
+      notes.push("interpreted via FEUA");
+    } else if (typeof plasma_uric === "number") {
+      if (plasma_uric < 4) { pattern = "SIADH pattern (low serum uric acid)"; }
+      else if (plasma_uric > 6) { pattern = "hypovolemic pattern (higher serum uric acid)"; }
+      notes.push("interpreted via serum uric acid");
+    } else {
+      notes.push("provide FEUA or serum uric acid");
+    }
+    return { id: "siadh_vs_hypovolemia_gate", label: "Hyponatremia gate (SIADH vs hypovolemia)", value: 0, unit: "note", precision: 0, notes: [pattern, ...notes] };
+  },
+});
+
+/** Metabolic alkalosis subtype mapper (chloride, K+, HTN) */
+register({
+  id: "met_alk_subtype",
+  label: "Metabolic alkalosis subtype (mapper)",
+  tags: ["acid-base", "renal"],
+  inputs: [
+    { key: "urine_Cl", required: true },      // mmol/L
+    { key: "hypokalemia", required: false },  // boolean
+    { key: "hypertension", required: false }, // boolean
+  ],
+  run: ({ urine_Cl, hypokalemia, hypertension }) => {
+    const notes:string[] = [];
+    if (urine_Cl < 20) {
+      notes.push("chloride-responsive (saline-respons.) pattern");
+      if (hypokalemia) notes.push("consider gastric losses/diuretics");
+    } else {
+      notes.push("chloride-resistant pattern");
+      if (hypertension) notes.push("consider mineralocorticoid excess");
+      else if (hypokalemia) notes.push("consider Bartter/Gitelman");
+    }
+    return { id: "met_alk_subtype", label: "Metabolic alkalosis subtype (mapper)", value: urine_Cl, unit: "mmol/L", precision: 0, notes };
+  },
+});
+
+/** TRALI vs TACO differentiation helper (non-diagnostic) */
+register({
+  id: "trali_taco_helper",
+  label: "Transfusion dyspnea helper (TRALI vs TACO)",
+  tags: ["transfusion", "critical_care"],
+  inputs: [
+    { key: "onset_hours", required: true },              // hours from transfusion
+    { key: "elevated_bnp_ntprobnp", required: false },   // boolean
+    { key: "cvp_or_volume_overload", required: false },  // boolean
+    { key: "fever_or_leukopenia", required: false },     // boolean
+  ],
+  run: (x) => {
+    const trali_support = (x.onset_hours <= 6) && !x.elevated_bnp_ntprobnp && !x.cvp_or_volume_overload && !!x.fever_or_leukopenia;
+    const taco_support  = (x.onset_hours <= 6) && (!!x.elevated_bnp_ntprobnp || !!x.cvp_or_volume_overload);
+    const notes:string[] = [];
+    if (trali_support) notes.push("pattern supports TRALI");
+    if (taco_support) notes.push("pattern supports TACO");
+    if (!trali_support && !taco_support) notes.push("pattern indeterminate");
+    return { id: "trali_taco_helper", label: "Transfusion dyspnea helper (TRALI vs TACO)", value: trali_support ? (taco_support ? 2 : 1) : (taco_support ? -1 : 0), unit: "flag", precision: 0, notes };
+  },
+});
+
+/** BISAP → disposition note */
+register({
+  id: "bisap_dispo",
+  label: "BISAP disposition note",
+  tags: ["gastroenterology", "risk"],
+  inputs: [{ key: "bisap", required: true }],
+  run: ({ bisap }) => {
+    if (bisap == null) return null;
+    const notes:string[] = [];
+    if (bisap >= 3) notes.push("higher risk — admit/close monitoring context");
+    else notes.push("lower risk — routine monitoring context");
+    return { id: "bisap_dispo", label: "BISAP disposition note", value: bisap, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT17 — Hepatic fibrosis/severity calculators
+   ========================================================= */
+
+/** FIB-4 index = (Age × AST) / (Platelets × sqrt(ALT)) */
+register({
+  id: "fib4",
+  label: "FIB-4 index",
+  tags: ["hepatology", "risk"],
+  inputs: [
+    { key: "age", required: true },
+    { key: "AST", required: true },
+    { key: "ALT", required: true },
+    { key: "platelets", required: true }, // x10^3/µL
+  ],
+  run: ({ age, AST, ALT, platelets }) => {
+    if ([age, AST, ALT, platelets].some(v => v == null) || ALT <= 0 || platelets <= 0) return null;
+    const fib4 = (age * AST) / (platelets * Math.sqrt(ALT));
+    const notes:string[] = [];
+    if (fib4 >= 3.25) notes.push("high risk for advanced fibrosis");
+    else if (fib4 <= 1.3) notes.push("low risk");
+    else notes.push("indeterminate");
+    return { id: "fib4", label: "FIB-4 index", value: fib4, unit: "index", precision: 2, notes };
+  },
+});
+
+/** APRI = (AST/ULN_AST) × 100 / Platelets(10^3/µL) */
+register({
+  id: "apri",
+  label: "APRI",
+  tags: ["hepatology", "risk"],
+  inputs: [
+    { key: "AST", required: true },
+    { key: "ULN_AST", required: true },
+    { key: "platelets", required: true },
+  ],
+  run: ({ AST, ULN_AST, platelets }) => {
+    if ([AST, ULN_AST, platelets].some(v => v == null) || ULN_AST <= 0 || platelets <= 0) return null;
+    const apri = (AST / ULN_AST) * 100 / platelets * 1000; // adjust for 10^3/µL units
+    const notes:string[] = [];
+    if (apri >= 1.0) notes.push("suggests significant fibrosis");
+    else notes.push("lower probability of significant fibrosis");
+    return { id: "apri", label: "APRI", value: apri, unit: "index", precision: 2, notes };
+  },
+});
+
+/** NAFLD Fibrosis Score (very simple surrogate bander) */
+register({
+  id: "nafld_fs_surrogate",
+  label: "NAFLD fibrosis surrogate",
+  tags: ["hepatology", "risk"],
+  inputs: [
+    { key: "age", required: true },
+    { key: "BMI", required: true },
+    { key: "diabetes", required: true },
+    { key: "AST_ALT_ratio", required: true },
+    { key: "platelets", required: true },
+    { key: "albumin", required: true },
+  ],
+  run: (x) => {
+    // Simple linear surrogate (not the full published equation)
+    let score = (x.age/10) + (x.BMI/5) + (x.diabetes?2:0) + (x.AST_ALT_ratio>=1?1:0) - (x.albumin>=4?1:0) - (x.platelets>=200?1:0);
+    const notes:string[] = [];
+    if (score >= 6) notes.push("high fibrosis risk (surrogate)");
+    else if (score >= 3) notes.push("intermediate (surrogate)");
+    else notes.push("low (surrogate)");
+    return { id: "nafld_fs_surrogate", label: "NAFLD fibrosis surrogate", value: score, unit: "index", precision: 1, notes };
+  },
+});
+
+/** MELD-Na (informational bands) */
+register({
+  id: "meld_na",
+  label: "MELD-Na",
+  tags: ["hepatology", "icu_scores"],
+  inputs: [
+    { key: "bilirubin", required: true }, // mg/dL
+    { key: "INR", required: true },
+    { key: "creatinine", required: true }, // mg/dL
+    { key: "Na", required: true },         // mmol/L
+  ],
+  run: ({ bilirubin, INR, creatinine, Na }) => {
+    if ([bilirubin, INR, creatinine, Na].some(v => v == null)) return null;
+    const b = Math.max(bilirubin, 1), i = Math.max(INR, 1), c = Math.max(creatinine, 1);
+    const meld = 3.78*Math.log(b) + 11.2*Math.log(i) + 9.57*Math.log(c) + 6.43;
+    const naClamped = Math.max(125, Math.min(137, Na));
+    const meldNa = Math.round(meld + 1.59 * (135 - naClamped));
+    const notes:string[] = [];
+    if (meldNa >= 30) notes.push("very high severity");
+    else if (meldNa >= 20) notes.push("high severity");
+    else if (meldNa >= 10) notes.push("moderate");
+    else notes.push("lower");
+    return { id: "meld_na", label: "MELD-Na", value: meldNa, unit: "score", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT18 — Cardiology risk set (TIMI/GRACE-lite/HAS-BLED/SI)
+   ========================================================= */
+
+/** TIMI (UA/NSTEMI) simplified sum 0–7 */
+register({
+  id: "timi_uanstemi",
+  label: "TIMI (UA/NSTEMI) simplified",
+  tags: ["cardiology", "risk"],
+  inputs: [
+    { key: "age_ge_65", required: true },
+    { key: "ge_3_risk_factors", required: true },   // CAD risk factors ≥3
+    { key: "known_cad_ge_50_stenosis", required: true },
+    { key: "aspirin_use_7d", required: true },
+    { key: "recent_severe_angina", required: true }, // ≥2 episodes/24h
+    { key: "st_deviation_ge_0_5mm", required: true },
+    { key: "elevated_biomarkers", required: true },
+  ],
+  run: (x) => {
+    const pts = Object.values(x).reduce((a,b)=>a+(b?1:0),0);
+    const notes:string[] = [];
+    if (pts >= 5) notes.push("high risk");
+    else if (pts >= 3) notes.push("intermediate risk");
+    else notes.push("low risk");
+    return { id: "timi_uanstemi", label: "TIMI (UA/NSTEMI) simplified", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/** GRACE-lite surrogate (not calibrated) */
+register({
+  id: "grace_lite",
+  label: "GRACE (surrogate)",
+  tags: ["cardiology", "risk"],
+  inputs: [
+    { key: "age", required: true },
+    { key: "HR", required: true },
+    { key: "SBP", required: true },
+    { key: "creatinine", required: true },
+    { key: "st_deviation", required: true },     // boolean
+    { key: "cardiac_arrest_onset", required: true },
+    { key: "elevated_biomarkers", required: true },
+    { key: "killip_class_ge_2", required: true },
+  ],
+  run: (x) => {
+    let s = (x.age/10) + (x.HR/50) + ((200 - Math.min(x.SBP,200))/40) + (x.creatinine/1.5);
+    s += (x.st_deviation?2:0) + (x.cardiac_arrest_onset?3:0) + (x.elevated_biomarkers?1.5:0) + (x.killip_class_ge_2?2:0);
+    const notes:string[] = [];
+    if (s >= 12) notes.push("high risk (surrogate)");
+    else if (s >= 7) notes.push("intermediate (surrogate)");
+    else notes.push("low (surrogate)");
+    return { id: "grace_lite", label: "GRACE (surrogate)", value: s, unit: "index", precision: 1, notes };
+  },
+});
+
+/** HAS-BLED bleeding risk (AF) 0–9 */
+register({
+  id: "has_bled",
+  label: "HAS-BLED",
+  tags: ["cardiology", "hematology", "risk"],
+  inputs: [
+    { key: "hypertension", required: true },
+    { key: "abnormal_renal", required: true },
+    { key: "abnormal_liver", required: true },
+    { key: "stroke_history", required: true },
+    { key: "bleeding_history", required: true },
+    { key: "labile_inr", required: true },
+    { key: "elderly_ge_65", required: true },
+    { key: "drugs_predispose_bleeding", required: true }, // antiplatelets/NSAIDs
+    { key: "alcohol_excess", required: true },
+  ],
+  run: (x) => {
+    const pts = Object.values(x).reduce((a,b)=>a+(b?1:0),0);
+    const notes:string[] = [];
+    if (pts >= 3) notes.push("high bleeding risk (≥3)");
+    else notes.push("lower bleeding risk");
+    return { id: "has_bled", label: "HAS-BLED", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/** Shock Index (SI = HR/SBP) and Age Shock Index (ASI = age*SI) */
+register({
+  id: "shock_index",
+  label: "Shock Index / Age Shock Index",
+  tags: ["hemodynamics", "risk"],
+  inputs: [
+    { key: "HR", required: true },
+    { key: "SBP", required: true },
+    { key: "age", required: true },
+  ],
+  run: ({ HR, SBP, age }) => {
+    if ([HR, SBP, age].some(v=>v==null) || SBP<=0) return null;
+    const si = HR / SBP;
+    const asi = age * si;
+    const notes:string[] = [];
+    if (si >= 1.0) notes.push("elevated SI (≥1.0)");
+    if (asi >= 50) notes.push("elevated ASI (≥50)");
+    if (notes.length===0) notes.push("within reference bands");
+    return { id: "shock_index", label: "Shock Index / Age Shock Index", value: si, unit: "SI (ASI in notes)", precision: 2, notes: [`ASI=${asi.toFixed(1)}`, ...notes] };
+  },
+});
+
+/* =========================================================
+   MED-EXT19 — Fluids/ABG helpers & renal dosing estimate
+   ========================================================= */
+
+/** Corrected sodium for hyperglycemia = Na + 1.6*((glucose-100)/100) */
+register({
+  id: "sodium_corrected_hyperglycemia",
+  label: "Corrected sodium (hyperglycemia)",
+  tags: ["electrolytes", "endocrine"],
+  inputs: [
+    { key: "Na", required: true },
+    { key: "glucose", required: true }, // mg/dL
+  ],
+  run: ({ Na, glucose }) => {
+    const corr = Na + 1.6 * Math.max(0, (glucose - 100)) / 100;
+    return { id: "sodium_corrected_hyperglycemia", label: "Corrected sodium (hyperglycemia)", value: corr, unit: "mmol/L", precision: 1, notes: [] };
+  },
+});
+
+/** Winter’s expected PaCO₂ for metabolic acidosis = 1.5*HCO₃ + 8 (±2) */
+register({
+  id: "winters_expected_paco2",
+  label: "Expected PaCO₂ (Winter’s)",
+  tags: ["acid-base", "pulmonary"],
+  inputs: [{ key: "HCO3", required: true }],
+  run: ({ HCO3 }) => {
+    const exp = 1.5 * HCO3 + 8;
+    return { id: "winters_expected_paco2", label: "Expected PaCO₂ (Winter’s)", value: exp, unit: "mmHg (±2)", precision: 0, notes: ["respiratory compensation target for metabolic acidosis"] };
+  },
+});
+
+/** Cockcroft–Gault creatinine clearance (mL/min) */
+register({
+  id: "cockcroft_gault",
+  label: "Creatinine clearance (Cockcroft–Gault)",
+  tags: ["renal", "pharmacology"],
+  inputs: [
+    { key: "age", required: true },
+    { key: "weight_kg", required: true },
+    { key: "sex", required: true },             // "M" | "F"
+    { key: "serum_creatinine", required: true } // mg/dL
+  ],
+  run: ({ age, weight_kg, sex, serum_creatinine }) => {
+    if ([age, weight_kg, sex, serum_creatinine].some(v=>v==null) || serum_creatinine<=0) return null;
+    const base = ((140 - age) * weight_kg) / (72 * serum_creatinine);
+    const crcl = sex === "F" ? base * 0.85 : base;
+    return { id: "cockcroft_gault", label: "Creatinine clearance (Cockcroft–Gault)", value: crcl, unit: "mL/min", precision: 0, notes: [] };
+  },
+});
+
+/** Delta anion gap narrative (AGcorr vs HCO3) to reinforce mixed disorders */
+register({
+  id: "delta_ag_narrative",
+  label: "Delta AG narrative",
+  tags: ["acid-base"],
+  inputs: [
+    { key: "anion_gap_albumin_corrected", required: true },
+    { key: "HCO3", required: true }
+  ],
+  run: ({ anion_gap_albumin_corrected, HCO3 }) => {
+    const delta = anion_gap_albumin_corrected - 12;
+    const expectedHCO3 = 24 - delta;
+    const notes:string[] = [];
+    if (HCO3 < expectedHCO3 - 3) notes.push("concurrent non-AG acidosis suggested");
+    else if (HCO3 > expectedHCO3 + 3) notes.push("concurrent metabolic alkalosis suggested");
+    else notes.push("HCO₃ matches expected for isolated HAGMA");
+    return { id: "delta_ag_narrative", label: "Delta AG narrative", value: 0, unit: "note", precision: 0, notes: [`ΔAG=${delta.toFixed(1)}`, `expected HCO₃≈${expectedHCO3.toFixed(1)}`] };
+  },
+});
+
+/* =========================================================
+   MED-EXT20 — Oxygenation & vitals helpers
+   ========================================================= */
+
+/** PF ratio = PaO₂ / FiO₂ with ARDS bands */
+register({
+  id: "pf_ratio",
+  label: "PF ratio (ARDS bands)",
+  tags: ["pulmonary", "icu_scores"],
+  inputs: [
+    { key: "PaO2", required: true },  // mmHg
+    { key: "FiO2", required: true },  // fraction 0–1
+  ],
+  run: ({ PaO2, FiO2 }) => {
+    if ([PaO2, FiO2].some(v=>v==null) || FiO2<=0) return null;
+    const pf = PaO2 / FiO2;
+    const notes:string[] = [];
+    if (pf < 100) notes.push("ARDS severe (<100)");
+    else if (pf < 200) notes.push("ARDS moderate (100–199)");
+    else if (pf <= 300) notes.push("ARDS mild (200–300)");
+    else notes.push("no ARDS by PF");
+    return { id: "pf_ratio", label: "PF ratio (ARDS bands)", value: pf, unit: "mmHg", precision: 0, notes };
+  },
+});
+
+/** Mean arterial pressure from SBP/DBP */
+register({
+  id: "map_from_bp",
+  label: "MAP (calculated)",
+  tags: ["hemodynamics"],
+  inputs: [
+    { key: "SBP", required: true },
+    { key: "DBP", required: true },
+  ],
+  run: ({ SBP, DBP }) => {
+    const map = (SBP + 2*DBP) / 3;
+    return { id: "map_from_bp", label: "MAP (calculated)", value: map, unit: "mmHg", precision: 0, notes: [] };
+  },
+});
+
+/** Corrected calcium (albumin) = Ca + 0.8*(4 - albumin) */
+register({
+  id: "corrected_calcium",
+  label: "Corrected calcium (albumin)",
+  tags: ["electrolytes"],
+  inputs: [
+    { key: "calcium", required: true },  // mg/dL
+    { key: "albumin", required: true },  // g/dL
+  ],
+  run: ({ calcium, albumin }) => {
+    if ([calcium, albumin].some(v=>v==null)) return null;
+    const corr = calcium + 0.8*(4 - albumin);
+    return { id: "corrected_calcium", label: "Corrected calcium (albumin)", value: corr, unit: "mg/dL", precision: 1, notes: [] };
+  },
+});
+
