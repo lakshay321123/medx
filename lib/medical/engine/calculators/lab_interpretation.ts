@@ -4781,3 +4781,265 @@ register({
   },
 });
 
+// ===================== MED-EXT51–60 (APPEND-ONLY) =====================
+/* If this import already exists at file top, remove this line. */
+
+/* =========================================================
+   MED-EXT51 — NEXUS C-Spine (alternative to CCR)
+   ========================================================= */
+
+/** NEXUS C-spine rule: imaging NOT required only if ALL are true:
+    - no midline tenderness, no intoxication, normal alertness, no focal neuro deficit, no distracting injury */
+register({
+  id: "nexus_cspine_flag",
+  label: "NEXUS C-Spine Rule (flag)",
+  tags: ["trauma", "risk"],
+  inputs: [
+    { key: "no_midline_tenderness", required: true },
+    { key: "no_intoxication", required: true },
+    { key: "normal_alertness", required: true },
+    { key: "no_focal_neuro_deficit", required: true },
+    { key: "no_distracting_injury", required: true },
+  ],
+  run: (x) => {
+    const allSafe = x.no_midline_tenderness && x.no_intoxication && x.normal_alertness && x.no_focal_neuro_deficit && x.no_distracting_injury;
+    // value: 0 = no imaging by NEXUS; 1 = imaging indicated
+    const notes = [allSafe ? "All low-risk present — no imaging by NEXUS" : "One or more criteria absent — imaging indicated"];
+    return { id: "nexus_cspine_flag", label: "NEXUS C-Spine Rule (flag)", value: allSafe ? 0 : 1, unit: "flag", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT52 — Platelet bands
+   ========================================================= */
+
+/** Platelet severity bands */
+register({
+  id: "platelet_band",
+  label: "Platelet count band",
+  tags: ["hematology", "risk"],
+  inputs: [{ key: "platelets", required: true }], // ×10^3/µL
+  run: ({ platelets }) => {
+    const notes:string[] = [];
+    if (platelets < 10) notes.push("critical thrombocytopenia (<10)");
+    else if (platelets < 20) notes.push("severe (10–19)");
+    else if (platelets < 50) notes.push("moderate (20–49)");
+    else if (platelets < 100) notes.push("mild (50–99)");
+    else notes.push("within/near reference (≥100)");
+    return { id: "platelet_band", label: "Platelet count band", value: platelets, unit: "×10^3/µL", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT53 — DIC (ISTH simplified surrogate)
+   ========================================================= */
+
+/** DIC score surrogate using coarse bins:
+    - Platelets: ≥100=0, 50–99=1, <50=2
+    - D-dimer/FDP: normal=0, moderate=2, strong=3  (pass as 'ddimer_band': 0|2|3)
+    - PT prolongation: <3s=0, 3–6s=1, >6s=2
+    - Fibrinogen: ≥100 mg/dL=0, <100=1
+    Score ≥5 -> overt DIC (surrogate, not diagnostic) */
+register({
+  id: "dic_surrogate",
+  label: "DIC score (surrogate)",
+  tags: ["hematology", "coagulation", "risk"],
+  inputs: [
+    { key: "platelets", required: true },        // ×10^3/µL
+    { key: "ddimer_band", required: true },      // 0|2|3
+    { key: "pt_prolong_sec", required: true },   // seconds above control
+    { key: "fibrinogen", required: true },       // mg/dL
+  ],
+  run: (x) => {
+    const pltPts = x.platelets < 50 ? 2 : (x.platelets < 100 ? 1 : 0);
+    const ddPts = x.ddimer_band; // expect 0,2,3
+    const ptPts = x.pt_prolong_sec > 6 ? 2 : (x.pt_prolong_sec >= 3 ? 1 : 0);
+    const fibPts = x.fibrinogen < 100 ? 1 : 0;
+    const total = pltPts + ddPts + ptPts + fibPts;
+    const notes = [total >= 5 ? "overt DIC (surrogate) ≥5" : "non-overt (surrogate)"];
+    return { id: "dic_surrogate", label: "DIC score (surrogate)", value: total, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT54 — Urine anion gap
+   ========================================================= */
+
+/** Urine anion gap (UAG) = UNa + UK − UCl
+    Negative UAG suggests high urinary NH4+ (e.g., diarrhea). Positive suggests RTA in NAGMA context. */
+register({
+  id: "urine_anion_gap",
+  label: "Urine anion gap",
+  tags: ["renal", "acid-base"],
+  inputs: [
+    { key: "urine_Na", required: true }, // mmol/L
+    { key: "urine_K", required: true },  // mmol/L
+    { key: "urine_Cl", required: true }, // mmol/L
+  ],
+  run: ({ urine_Na, urine_K, urine_Cl }) => {
+    const uag = urine_Na + urine_K - urine_Cl;
+    const notes:string[] = [];
+    if (uag < 0) notes.push("negative UAG → ↑ urinary NH4+ (diarrhea pattern)");
+    else notes.push("positive/zero UAG → consider RTA if NAGMA");
+    return { id: "urine_anion_gap", label: "Urine anion gap", value: uag, unit: "mmol/L", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT55 — Free water deficit (uses provided TBW factor)
+   ========================================================= */
+
+/** Free Water Deficit ≈ TBW × (Na/140 − 1)
+    Provide TBW directly or via factor×weight: TBW = tbw_factor * weight_kg */
+register({
+  id: "free_water_deficit",
+  label: "Free water deficit",
+  tags: ["electrolytes", "fluids"],
+  inputs: [
+    { key: "Na", required: true },              // mmol/L
+    { key: "tbw_liters" },                      // optional direct
+    { key: "weight_kg" },                       // optional if using factor
+    { key: "tbw_factor" },                      // e.g., adult M 0.6, adult F 0.5 (clinician supplies)
+  ],
+  run: ({ Na, tbw_liters, weight_kg, tbw_factor }) => {
+    let TBW = tbw_liters;
+    if (TBW == null && weight_kg != null && tbw_factor != null) TBW = tbw_factor * weight_kg;
+    if (TBW == null) return { id: "free_water_deficit", label: "Free water deficit", value: 0, unit: "L", precision: 1, notes: ["Provide tbw_liters or (weight_kg & tbw_factor)"] };
+    const deficit = TBW * (Na/140 - 1);
+    return { id: "free_water_deficit", label: "Free water deficit", value: deficit, unit: "L", precision: 1, notes: [] };
+  },
+});
+
+/* =========================================================
+   MED-EXT56 — MuLBSTA (viral pneumonia mortality) surrogate
+   ========================================================= */
+
+/** MuLBSTA surrogate: sum of present risk elements (0–6)
+    Elements (booleans expected here):
+    - multilobular_infiltrates, lymphopenia, bacterial_coinfection,
+      smoking_history, hypertension, age_ge_60 */
+register({
+  id: "mulbsta_surrogate",
+  label: "MuLBSTA (surrogate)",
+  tags: ["pulmonary", "infectious_disease", "risk"],
+  inputs: [
+    { key: "multilobular_infiltrates", required: true },
+    { key: "lymphopenia", required: true },
+    { key: "bacterial_coinfection", required: true },
+    { key: "smoking_history", required: true },
+    { key: "hypertension", required: true },
+    { key: "age_ge_60", required: true },
+  ],
+  run: (x) => {
+    const pts = Object.values(x).reduce((a,b)=>a+(b?1:0),0);
+    const notes:string[] = [];
+    if (pts >= 4) notes.push("high surrogate risk");
+    else if (pts >= 2) notes.push("intermediate surrogate risk");
+    else notes.push("low surrogate risk");
+    return { id: "mulbsta_surrogate", label: "MuLBSTA (surrogate)", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT57 — Sgarbossa (LBBB/ventricular-paced MI) simplified
+   ========================================================= */
+
+/** Sgarbossa simplified (flag):
+    Positive if ANY:
+    - concordant_ST_elev_ge_1mm
+    - concordant_ST_depr_V1toV3_ge_1mm
+    - excessively_discordant_ST_elev_ge_5mm */
+register({
+  id: "sgarbossa_flag",
+  label: "Sgarbossa criteria (flag, simplified)",
+  tags: ["cardiology", "ecg", "risk"],
+  inputs: [
+    { key: "concordant_ST_elev_ge_1mm", required: true },
+    { key: "concordant_ST_depr_V1toV3_ge_1mm", required: true },
+    { key: "excessively_discordant_ST_elev_ge_5mm", required: true },
+  ],
+  run: (x) => {
+    const pos = x.concordant_ST_elev_ge_1mm || x.concordant_ST_depr_V1toV3_ge_1mm || x.excessively_discordant_ST_elev_ge_5mm;
+    const notes = [pos ? "Sgarbossa positive (consider acute MI in LBBB/VP)" : "Sgarbossa negative"];
+    return { id: "sgarbossa_flag", label: "Sgarbossa criteria (flag, simplified)", value: pos?1:0, unit: "flag", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT58 — PERC (PE rule-out criteria) flag
+   ========================================================= */
+
+/** PERC: Rule out PE in *low pretest* only if ALL eight are true:
+    age<50, HR<100, SaO2≥95, no hemoptysis, no estrogen use,
+    no prior DVT/PE, no unilateral leg swelling, no recent surgery/trauma */
+register({
+  id: "perc_flag",
+  label: "PERC rule (flag)",
+  tags: ["pulmonary", "risk"],
+  inputs: [
+    { key: "age_lt_50", required: true },
+    { key: "hr_lt_100", required: true },
+    { key: "sao2_ge_95", required: true },
+    { key: "no_hemoptysis", required: true },
+    { key: "no_estrogen_use", required: true },
+    { key: "no_prior_dvt_pe", required: true },
+    { key: "no_unilateral_leg_swelling", required: true },
+    { key: "no_recent_surgery_trauma", required: true },
+  ],
+  run: (x) => {
+    const all = x.age_lt_50 && x.hr_lt_100 && x.sao2_ge_95 && x.no_hemoptysis && x.no_estrogen_use && x.no_prior_dvt_pe && x.no_unilateral_leg_swelling && x.no_recent_surgery_trauma;
+    const notes = [all ? "PERC negative — in low pretest can rule out without D-dimer" : "PERC positive/indeterminate"];
+    // value: 1 means "PERC negative (passes all)" to align with 'rule-out achieved' signaling
+    return { id: "perc_flag", label: "PERC rule (flag)", value: all ? 1 : 0, unit: "flag", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT59 — Fractional excretion of phosphate (FEPO₄)
+   ========================================================= */
+
+/** FEPO4 (%) = (U_PO4 × S_Cr) / (S_PO4 × U_Cr) × 100 */
+register({
+  id: "fepo4",
+  label: "FEPO₄",
+  tags: ["renal", "electrolytes"],
+  inputs: [
+    { key: "urine_phosphate", required: true },    // mg/dL or mmol/L (consistent units serum/urine)
+    { key: "serum_phosphate", required: true },
+    { key: "urine_creatinine", required: true },
+    { key: "serum_creatinine", required: true },
+  ],
+  run: (x) => {
+    if ([x.urine_phosphate, x.serum_phosphate, x.urine_creatinine, x.serum_creatinine].some(v => v == null) || x.serum_phosphate <= 0 || x.urine_creatinine <= 0) return null;
+    const fe = (x.urine_phosphate * x.serum_creatinine) / (x.serum_phosphate * x.urine_creatinine) * 100;
+    const notes:string[] = [];
+    if (fe > 20) notes.push("renal phosphate wasting pattern (>20%)");
+    else notes.push("non-wasting pattern (≤20%)");
+    return { id: "fepo4", label: "FEPO₄", value: fe, unit: "%", precision: 1, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT60 — Hepatorenal syndrome (support pattern)
+   ========================================================= */
+
+/** HRS support flag (informational, non-diagnostic)
+    Inputs reflect typical criteria presence/absence. Flag if pattern supportive. */
+register({
+  id: "hrs_support_flag",
+  label: "Hepatorenal syndrome (support pattern)",
+  tags: ["hepatology", "renal", "risk"],
+  inputs: [
+    { key: "cirrhosis_ascites", required: true },
+    { key: "aki_present", required: true },
+    { key: "no_shock", required: true },
+    { key: "no_nephrotoxins", required: true },
+    { key: "no_structural_kidney_disease", required: true }, // e.g., minimal protein/hematuria, normal US
+  ],
+  run: (x) => {
+    const supportive = x.cirrhosis_ascites && x.aki_present && x.no_shock && x.no_nephrotoxins && x.no_structural_kidney_disease;
+    const notes = [supportive ? "pattern supportive of HRS — clinical confirmation required" : "pattern not supportive"];
+    return { id: "hrs_support_flag", label: "Hepatorenal syndrome (support pattern)", value: supportive?1:0, unit: "flag", precision: 0, notes };
+  },
+});
+
