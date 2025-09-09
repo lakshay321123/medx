@@ -1090,3 +1090,300 @@ register({
   },
 });
 
+// ===================== MED-EXT1 (APPEND-ONLY) =====================
+/* If this import already exists at file top, remove this line. */
+
+/* ---------- ICU: SOFA Subscores (simple mappings) ---------- */
+/** SOFA Respiratory (uses PF ratio and ventilation boolean) */
+register({
+  id: "sofa_resp",
+  label: "SOFA respiratory",
+  tags: ["icu_scores", "pulmonary"],
+  inputs: [
+    { key: "pf_ratio", required: true },           // mmHg
+    { key: "on_vent", required: false },           // boolean (optional)
+  ],
+  run: ({ pf_ratio, on_vent }) => {
+    if (pf_ratio == null) return null;
+    let points = 0;
+    if (pf_ratio < 100 && on_vent) points = 4;
+    else if (pf_ratio < 200 && on_vent) points = 3;
+    else if (pf_ratio < 300) points = 2;
+    else if (pf_ratio < 400) points = 1;
+    return { id: "sofa_resp", label: "SOFA respiratory", value: points, unit: "points", precision: 0, notes: [] };
+  },
+});
+
+/** SOFA Coagulation (platelets) */
+register({
+  id: "sofa_coag",
+  label: "SOFA coagulation",
+  tags: ["icu_scores", "hematology"],
+  inputs: [{ key: "platelets", required: true }], // x10^3/µL
+  run: ({ platelets }) => {
+    if (platelets == null) return null;
+    let p = 0;
+    if (platelets < 20) p = 4;
+    else if (platelets < 50) p = 3;
+    else if (platelets < 100) p = 2;
+    else if (platelets < 150) p = 1;
+    return { id: "sofa_coag", label: "SOFA coagulation", value: p, unit: "points", precision: 0, notes: [] };
+  },
+});
+
+/** SOFA Liver (bilirubin) */
+register({
+  id: "sofa_liver",
+  label: "SOFA liver",
+  tags: ["icu_scores", "hepatology"],
+  inputs: [{ key: "bilirubin", required: true }], // mg/dL
+  run: ({ bilirubin }) => {
+    if (bilirubin == null) return null;
+    let p = 0;
+    if (bilirubin >= 12.0) p = 4;
+    else if (bilirubin >= 6.0) p = 3;
+    else if (bilirubin >= 2.0) p = 2;
+    else if (bilirubin >= 1.2) p = 1;
+    return { id: "sofa_liver", label: "SOFA liver", value: p, unit: "points", precision: 0, notes: [] };
+  },
+});
+
+/** SOFA Cardiovascular (simplified: MAP & vasopressor category) */
+register({
+  id: "sofa_cardio",
+  label: "SOFA cardiovascular",
+  tags: ["icu_scores", "hemodynamics"],
+  inputs: [
+    { key: "map_calc" },                        // mmHg
+    { key: "pressor_support" },                 // "none" | "dopamine_low" | "dopamine_mod_high" | "epi_low" | "epi_high" | "norepi_low" | "norepi_high"
+  ],
+  run: ({ map_calc, pressor_support }) => {
+    let p = 0;
+    if (pressor_support === "epi_high" || pressor_support === "norepi_high" || pressor_support === "dopamine_mod_high") p = 4;
+    else if (pressor_support === "epi_low" || pressor_support === "norepi_low") p = 3;
+    else if (pressor_support === "dopamine_low") p = 2;
+    else if (typeof map_calc === "number" && map_calc < 70) p = 1;
+    return { id: "sofa_cardio", label: "SOFA cardiovascular", value: p, unit: "points", precision: 0, notes: [] };
+  },
+});
+
+/** SOFA CNS (GCS) */
+register({
+  id: "sofa_cns",
+  label: "SOFA CNS",
+  tags: ["icu_scores", "neurology"],
+  inputs: [{ key: "gcs", required: true }],
+  run: ({ gcs }) => {
+    if (gcs == null) return null;
+    let p = 0;
+    if (gcs < 6) p = 4;
+    else if (gcs < 10) p = 3;
+    else if (gcs < 13) p = 2;
+    else if (gcs < 15) p = 1;
+    return { id: "sofa_cns", label: "SOFA CNS", value: p, unit: "points", precision: 0, notes: [] };
+  },
+});
+
+/** SOFA Renal (creatinine or urine output) */
+register({
+  id: "sofa_renal",
+  label: "SOFA renal",
+  tags: ["icu_scores", "renal"],
+  inputs: [
+    { key: "creatinine" },                      // mg/dL
+    { key: "urine_output_ml_per_day" },         // mL/day
+  ],
+  run: ({ creatinine, urine_output_ml_per_day }) => {
+    let p = 0;
+    if (typeof creatinine === "number") {
+      if (creatinine >= 5.0) p = Math.max(p, 4);
+      else if (creatinine >= 3.5) p = Math.max(p, 3);
+      else if (creatinine >= 2.0) p = Math.max(p, 2);
+      else if (creatinine >= 1.2) p = Math.max(p, 1);
+    }
+    if (typeof urine_output_ml_per_day === "number") {
+      if (urine_output_ml_per_day < 200) p = Math.max(p, 4);
+      else if (urine_output_ml_per_day < 500) p = Math.max(p, 3);
+    }
+    return { id: "sofa_renal", label: "SOFA renal", value: p, unit: "points", precision: 0, notes: [] };
+  },
+});
+
+/* ---------- ED/Medicine Rules ---------- */
+/** CURB-65 (pneumonia severity) */
+register({
+  id: "curb65",
+  label: "CURB-65",
+  tags: ["risk", "pulmonary", "infectious_disease"],
+  inputs: [
+    { key: "confusion", required: true },      // boolean
+    { key: "BUN", required: true },            // mg/dL (≥20 approximates urea >7 mmol/L)
+    { key: "RRr", required: true },            // breaths/min
+    { key: "SBP", required: true },            // mmHg
+    { key: "DBP", required: true },            // mmHg
+    { key: "age", required: true },            // years
+  ],
+  run: ({ confusion, BUN, RRr, SBP, DBP, age }) => {
+    const pts =
+      (confusion ? 1 : 0) +
+      ((BUN ?? 0) >= 20 ? 1 : 0) +
+      ((RRr ?? 0) >= 30 ? 1 : 0) +
+      ((SBP ?? 999) < 90 || (DBP ?? 999) <= 60 ? 1 : 0) +
+      ((age ?? 0) >= 65 ? 1 : 0);
+    const notes: string[] = [];
+    if (pts >= 3) notes.push("severe risk (≥3)");
+    else if (pts === 2) notes.push("moderate risk");
+    else notes.push("low risk");
+    return { id: "curb65", label: "CURB-65", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/** PERC rule (PE rule-out in low-risk patients) */
+register({
+  id: "perc_pe",
+  label: "PERC (PE rule-out)",
+  tags: ["risk", "pulmonary"],
+  inputs: [
+    { key: "age_lt_50", required: true },
+    { key: "hr_lt_100", required: true },
+    { key: "saO2_ge_95", required: true },
+    { key: "no_hemoptysis", required: true },
+    { key: "no_estrogen", required: true },
+    { key: "no_recent_surgery_trauma", required: true },
+    { key: "no_unilateral_leg_swelling", required: true },
+    { key: "no_prior_dvt_pe", required: true },
+  ],
+  run: (x) => {
+    const allNeg = x.age_lt_50 && x.hr_lt_100 && x.saO2_ge_95 && x.no_hemoptysis &&
+                   x.no_estrogen && x.no_recent_surgery_trauma && x.no_unilateral_leg_swelling && x.no_prior_dvt_pe;
+    const notes: string[] = [];
+    notes.push(allNeg ? "PERC negative (in low-risk context may rule out PE)" : "PERC positive");
+    return { id: "perc_pe", label: "PERC (PE rule-out)", value: allNeg ? 0 : 1, unit: "flag", precision: 0, notes };
+  },
+});
+
+/** Centor/McIsaac (strep pharyngitis) — McIsaac adjustment via age_band */
+register({
+  id: "centor_mcisaac",
+  label: "Centor/McIsaac",
+  tags: ["risk", "infectious_disease"],
+  inputs: [
+    { key: "tonsillar_exudate", required: true }, // boolean
+    { key: "tender_anterior_nodes", required: true },
+    { key: "fever_history", required: true },
+    { key: "cough_absent", required: true },
+    { key: "age_band", required: true },          // "3-14" | "15-44" | ">=45"
+  ],
+  run: (x) => {
+    let pts = (x.tonsillar_exudate?1:0) + (x.tender_anterior_nodes?1:0) + (x.fever_history?1:0) + (x.cough_absent?1:0);
+    if (x.age_band === "3-14") pts += 1;
+    else if (x.age_band === ">=45") pts -= 1;
+    const notes: string[] = [];
+    if (pts >= 4) notes.push("high probability (consider testing)");
+    else if (pts >= 2) notes.push("intermediate (test if available)");
+    else notes.push("low probability");
+    return { id: "centor_mcisaac", label: "Centor/McIsaac", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/** Ranson criteria (acute pancreatitis) — Admission */
+register({
+  id: "ranson_admission",
+  label: "Ranson (admission)",
+  tags: ["risk", "gastroenterology"],
+  inputs: [
+    { key: "age", required: true },                 // >55
+    { key: "WBC", required: true },                 // >16 (x10^3/µL)
+    { key: "glucose", required: true },             // >200 mg/dL
+    { key: "LDH", required: true },                 // >350 IU/L
+    { key: "AST", required: true },                 // >250 IU/L
+  ],
+  run: ({ age, WBC, glucose, LDH, AST }) => {
+    const pts = (age>55?1:0) + (WBC>16?1:0) + (glucose>200?1:0) + (LDH>350?1:0) + (AST>250?1:0);
+    const notes: string[] = [];
+    notes.push(`${pts} criteria at admission`);
+    return { id: "ranson_admission", label: "Ranson (admission)", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/** Ranson criteria (48h) — require pre-computed deltas from upstream if available */
+register({
+  id: "ranson_48h",
+  label: "Ranson (48h)",
+  tags: ["risk", "gastroenterology"],
+  inputs: [
+    { key: "hct_drop_pct", required: true },        // % drop in Hct (>10)
+    { key: "bun_increase_mgdl", required: true },   // rise (>5)
+    { key: "calcium", required: true },             // <8
+    { key: "PaO2", required: true },                // <60
+    { key: "base_deficit", required: true },        // >4
+    { key: "fluid_sequestration_L", required: true } // >6
+  ],
+  run: (x) => {
+    const pts = (x.hct_drop_pct>10?1:0) + (x.bun_increase_mgdl>5?1:0) + (x.calcium<8?1:0) + (x.PaO2<60?1:0) + (x.base_deficit>4?1:0) + (x.fluid_sequestration_L>6?1:0);
+    const notes: string[] = [];
+    notes.push(`${pts} criteria at 48h`);
+    return { id: "ranson_48h", label: "Ranson (48h)", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/* ---------- ECG: QTc (Bazett & Fridericia) ---------- */
+register({
+  id: "qtc_bazett",
+  label: "QTc (Bazett)",
+  tags: ["cardiology"],
+  inputs: [
+    { key: "QT_ms", required: true },               // ms
+    { key: "RR_interval_s", required: true },       // seconds
+  ],
+  run: ({ QT_ms, RR_interval_s }) => {
+    if ([QT_ms, RR_interval_s].some(v => v == null) || RR_interval_s <= 0) return null;
+    const qtc = QT_ms / Math.sqrt(RR_interval_s);
+    const notes: string[] = [];
+    if (qtc > 500) notes.push("markedly prolonged");
+    else if (qtc > 470) notes.push("prolonged");
+    else notes.push("normal/indeterminate by Bazett");
+    return { id: "qtc_bazett", label: "QTc (Bazett)", value: qtc, unit: "ms", precision: 0, notes };
+  },
+});
+
+register({
+  id: "qtc_fridericia",
+  label: "QTc (Fridericia)",
+  tags: ["cardiology"],
+  inputs: [
+    { key: "QT_ms", required: true },               // ms
+    { key: "RR_interval_s", required: true },       // seconds
+  ],
+  run: ({ QT_ms, RR_interval_s }) => {
+    if ([QT_ms, RR_interval_s].some(v => v == null) || RR_interval_s <= 0) return null;
+    const qtc = QT_ms / Math.cbrt(RR_interval_s);
+    const notes: string[] = [];
+    if (qtc > 500) notes.push("markedly prolonged");
+    else if (qtc > 470) notes.push("prolonged");
+    else notes.push("normal/indeterminate by Fridericia");
+    return { id: "qtc_fridericia", label: "QTc (Fridericia)", value: qtc, unit: "ms", precision: 0, notes };
+  },
+});
+
+/* ---------- Urine chemistry ---------- */
+/** Urine anion gap (UAG = UNa + UK − UCl) */
+register({
+  id: "urine_anion_gap",
+  label: "Urine anion gap",
+  tags: ["renal", "electrolytes"],
+  inputs: [
+    { key: "urine_Na", required: true },
+    { key: "urine_K", required: true },
+    { key: "urine_Cl", required: true },
+  ],
+  run: ({ urine_Na, urine_K, urine_Cl }) => {
+    if ([urine_Na, urine_K, urine_Cl].some(v => v == null)) return null;
+    const uag = urine_Na + urine_K - urine_Cl;
+    const notes: string[] = [];
+    if (uag < 0) notes.push("negative UAG (suggests ↑ urinary NH4⁺; e.g., diarrhea for NAGMA)");
+    else notes.push("positive/neutral UAG (reduced NH4⁺; consider RTA)");
+    return { id: "urine_anion_gap", label: "Urine anion gap", value: uag, unit: "mmol/L", precision: 0, notes };
+  },
+});
+
