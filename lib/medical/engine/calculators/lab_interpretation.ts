@@ -9795,3 +9795,208 @@ register({
   }
 });
 
+// ===================== MED-EXT431–460 (APPEND-ONLY) =====================
+/* If this import already exists at file top, remove this line. */
+
+/* =========================================================
+   Obstetrics & Gynecology
+   ========================================================= */
+
+register({
+  id: "bishop_score_surrogate",
+  label: "Bishop score (surrogate)",
+  tags: ["obstetrics","labor"],
+  inputs: [{ key:"score", required:true }], // 0–13
+  run: ({score})=>{
+    const notes=[score>=8?"favorable for induction":"unfavorable"];
+    return {id:"bishop_score_surrogate", label:"Bishop score (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "apgar_score_band",
+  label: "Apgar score band",
+  tags: ["pediatrics","neonatal"],
+  inputs: [{ key:"score", required:true }], // 0–10
+  run: ({score})=>{
+    const notes=[score<=3?"severe distress":score<=6?"moderate distress":"normal"];
+    return {id:"apgar_score_band", label:"Apgar score band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "hellp_flag",
+  label: "HELLP syndrome supportive flag",
+  tags: ["obstetrics"],
+  inputs: [
+    { key:"hemolysis", required:true }, // boolean
+    { key:"ast_alt_elevated", required:true }, // boolean
+    { key:"platelets_low", required:true } // boolean
+  ],
+  run: (x)=>{
+    const supportive=x.hemolysis && x.ast_alt_elevated && x.platelets_low;
+    return {id:"hellp_flag", label:"HELLP syndrome supportive flag", value:supportive?1:0, unit:"flag", precision:0, notes:[supportive?"criteria met":"criteria not met"]};
+  }
+});
+
+register({
+  id: "pih_flag",
+  label: "Pregnancy-induced hypertension flag",
+  tags: ["obstetrics"],
+  inputs: [
+    { key:"SBP", required:true },
+    { key:"DBP", required:true }
+  ],
+  run: ({SBP,DBP})=>{
+    const pos = SBP>=140 || DBP>=90;
+    return {id:"pih_flag", label:"Pregnancy-induced hypertension flag", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"criteria met":"criteria not met"]};
+  }
+});
+
+register({
+  id: "preeclampsia_flag",
+  label: "Preeclampsia supportive flag",
+  tags: ["obstetrics"],
+  inputs: [
+    { key:"pih_flag", required:true },
+    { key:"proteinuria", required:true } // boolean
+  ],
+  run: ({pih_flag,proteinuria})=>{
+    const supportive = pih_flag && proteinuria;
+    return {id:"preeclampsia_flag", label:"Preeclampsia supportive flag", value:supportive?1:0, unit:"flag", precision:0, notes:[supportive?"criteria met":"criteria not met"]};
+  }
+});
+
+register({
+  id: "gestational_age_from_lmp",
+  label: "Gestational age (from LMP)",
+  tags: ["obstetrics"],
+  inputs: [{ key:"days_since_lmp", required:true }],
+  run: ({days_since_lmp})=>{
+    const weeks=Math.floor(days_since_lmp/7);
+    const days=days_since_lmp%7;
+    return {id:"gestational_age_from_lmp", label:"Gestational age (from LMP)", value:weeks+(days/7), unit:"weeks", precision:1, notes:[`${weeks}w ${days}d`]};
+  }
+});
+
+register({
+  id: "gestational_diabetes_flag",
+  label: "Gestational diabetes flag (75g OGTT)",
+  tags: ["obstetrics","endocrine"],
+  inputs: [
+    { key:"fasting", required:true },
+    { key:"one_hr", required:true },
+    { key:"two_hr", required:true }
+  ],
+  run: ({fasting,one_hr,two_hr})=>{
+    const pos = fasting>=92 || one_hr>=180 || two_hr>=153;
+    return {id:"gestational_diabetes_flag", label:"Gestational diabetes flag (75g OGTT)", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"criteria met":"criteria not met"]};
+  }
+});
+
+/* =========================================================
+   Pediatrics — Scores & Flags
+   ========================================================= */
+
+register({
+  id: "pews_surrogate",
+  label: "Pediatric Early Warning Score (PEWS surrogate)",
+  tags: ["pediatrics","icu"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=5?"high risk":"lower"];
+    return {id:"pews_surrogate", label:"Pediatric Early Warning Score (PEWS surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "downes_score_surrogate",
+  label: "Downes respiratory distress score (surrogate)",
+  tags: ["pediatrics","respiratory"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=7?"severe distress":score>=4?"moderate":"mild"];
+    return {id:"downes_score_surrogate", label:"Downes respiratory distress score (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "silverman_score_surrogate",
+  label: "Silverman–Andersen score (surrogate)",
+  tags: ["pediatrics","respiratory"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=7?"severe distress":score>=4?"moderate":"mild"];
+    return {id:"silverman_score_surrogate", label:"Silverman–Andersen score (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "ballard_score_surrogate",
+  label: "Ballard maturity score (surrogate)",
+  tags: ["pediatrics","neonatal"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=35?"term":"preterm"];
+    return {id:"ballard_score_surrogate", label:"Ballard maturity score (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "snappe_ii_surrogate",
+  label: "SNAPPE-II neonatal severity (surrogate)",
+  tags: ["pediatrics","icu"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=50?"very high risk":score>=30?"high risk":"moderate/low"];
+    return {id:"snappe_ii_surrogate", label:"SNAPPE-II neonatal severity (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "bilirubin_risk_band",
+  label: "Neonatal bilirubin risk band",
+  tags: ["pediatrics","neonatal"],
+  inputs: [
+    { key:"bilirubin_mg_dl", required:true },
+    { key:"age_hours", required:true }
+  ],
+  run: ({bilirubin_mg_dl,age_hours})=>{
+    const notes=[bilirubin_mg_dl>=15 && age_hours<72?"high":"risk depends on nomogram"];
+    return {id:"bilirubin_risk_band", label:"Neonatal bilirubin risk band", value:bilirubin_mg_dl, unit:"mg/dL", precision:1, notes};
+  }
+});
+
+register({
+  id: "growth_z_bmi_band",
+  label: "Pediatric BMI-for-age Z-score band",
+  tags: ["pediatrics","growth"],
+  inputs: [{ key:"zscore", required:true }],
+  run: ({zscore})=>{
+    const notes=[zscore>2?"overweight/obese":zscore<-2?"underweight":"normal"];
+    return {id:"growth_z_bmi_band", label:"Pediatric BMI-for-age Z-score band", value:zscore, unit:"Z", precision:2, notes};
+  }
+});
+
+register({
+  id: "growth_z_height_band",
+  label: "Height-for-age Z-score band",
+  tags: ["pediatrics","growth"],
+  inputs: [{ key:"zscore", required:true }],
+  run: ({zscore})=>{
+    const notes=[zscore<-2?"stunted":"normal"];
+    return {id:"growth_z_height_band", label:"Height-for-age Z-score band", value:zscore, unit:"Z", precision:2, notes};
+  }
+});
+
+register({
+  id: "growth_z_weight_band",
+  label: "Weight-for-age Z-score band",
+  tags: ["pediatrics","growth"],
+  inputs: [{ key:"zscore", required:true }],
+  run: ({zscore})=>{
+    const notes=[zscore<-2?"underweight":"normal"];
+    return {id:"growth_z_weight_band", label:"Weight-for-age Z-score band", value:zscore, unit:"Z", precision:2, notes};
+  }
+});
+
