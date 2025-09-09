@@ -3428,3 +3428,285 @@ register({
   },
 });
 
+// ===================== MED-EXT31–40 (APPEND-ONLY) =====================
+
+/* =========================================================
+   MED-EXT31 — Stroke & Neuro Imaging Rules
+   ========================================================= */
+
+/** NIHSS severity bands (uses total NIHSS) */
+register({
+  id: "nihss_band",
+  label: "NIHSS severity band",
+  tags: ["neurology", "stroke"],
+  inputs: [{ key: "nihss_total", required: true }],
+  run: ({ nihss_total }) => {
+    const notes:string[] = [];
+    if (nihss_total >= 25) notes.push("very severe");
+    else if (nihss_total >= 16) notes.push("severe");
+    else if (nihss_total >= 5) notes.push("moderate");
+    else notes.push("minor");
+    return { id: "nihss_band", label: "NIHSS severity band", value: nihss_total, unit: "points", precision: 0, notes };
+  },
+});
+
+/** Canadian CT Head Rule simplified flag */
+register({
+  id: "canadian_ct_head_flag",
+  label: "Canadian CT Head Rule (flag)",
+  tags: ["trauma", "neurology"],
+  inputs: [
+    { key: "gcs_lt_15_2h", required: true },
+    { key: "suspected_open_depressed_skull", required: true },
+    { key: "signs_basilar_skull", required: true },
+    { key: "vomiting_ge_2", required: true },
+    { key: "age_ge_65", required: true },
+  ],
+  run: (x) => {
+    const pos = x.gcs_lt_15_2h || x.suspected_open_depressed_skull || x.signs_basilar_skull || x.vomiting_ge_2 || x.age_ge_65;
+    return { id: "canadian_ct_head_flag", label: "Canadian CT Head Rule (flag)", value: pos?1:0, unit: "flag", precision: 0, notes: [pos?"positive":"negative"] };
+  },
+});
+
+/* =========================================================
+   MED-EXT32 — Trauma & Orthopedic
+   ========================================================= */
+
+/** Ottawa Ankle Rule simplified */
+register({
+  id: "ottawa_ankle_flag",
+  label: "Ottawa Ankle Rule (flag)",
+  tags: ["trauma", "orthopedics"],
+  inputs: [
+    { key: "malleolar_pain", required: true },
+    { key: "bone_tenderness_posterior_tibia_fibula", required: true },
+    { key: "unable_weightbear_4steps", required: true },
+  ],
+  run: (x) => {
+    const pos = x.malleolar_pain && (x.bone_tenderness_posterior_tibia_fibula || x.unable_weightbear_4steps);
+    return { id: "ottawa_ankle_flag", label: "Ottawa Ankle Rule (flag)", value: pos?1:0, unit: "flag", precision: 0, notes: [pos?"positive":"negative"] };
+  },
+});
+
+/* =========================================================
+   MED-EXT33 — Burns & Pediatrics
+   ========================================================= */
+
+/** Parkland burn formula (fluid in 24h) = 4 mL × weight (kg) × %TBSA */
+register({
+  id: "parkland_formula",
+  label: "Parkland burn formula",
+  tags: ["burns", "critical_care"],
+  inputs: [
+    { key: "weight_kg", required: true },
+    { key: "tbsa_percent", required: true },
+  ],
+  run: ({ weight_kg, tbsa_percent }) => {
+    const vol = 4 * weight_kg * tbsa_percent;
+    return { id: "parkland_formula", label: "Parkland burn formula", value: vol, unit: "mL (24h)", precision: 0, notes: ["half in first 8h, rest over 16h"] };
+  },
+});
+
+/** Pediatric maintenance fluids (4-2-1 rule, mL/h) */
+register({
+  id: "peds_421_fluids",
+  label: "Pediatric maintenance fluids (4-2-1 rule)",
+  tags: ["pediatrics", "fluids"],
+  inputs: [{ key: "weight_kg", required: true }],
+  run: ({ weight_kg }) => {
+    let rate = 0;
+    if (weight_kg <= 10) rate = 4 * weight_kg;
+    else if (weight_kg <= 20) rate = 40 + 2*(weight_kg-10);
+    else rate = 60 + (weight_kg-20);
+    return { id: "peds_421_fluids", label: "Pediatric maintenance fluids (4-2-1 rule)", value: rate, unit: "mL/h", precision: 0, notes: [] };
+  },
+});
+
+/* =========================================================
+   MED-EXT34 — Oncology risk scores
+   ========================================================= */
+
+/** Caprini VTE risk (surgical patients, surrogate sum) */
+register({
+  id: "caprini_vte_surrogate",
+  label: "Caprini VTE risk (surrogate)",
+  tags: ["oncology", "hematology", "risk"],
+  inputs: [{ key: "risk_points", required: true }],
+  run: ({ risk_points }) => {
+    const notes:string[] = [];
+    if (risk_points >= 5) notes.push("highest risk");
+    else if (risk_points >= 3) notes.push("moderate–high risk");
+    else notes.push("low risk");
+    return { id: "caprini_vte_surrogate", label: "Caprini VTE risk (surrogate)", value: risk_points, unit: "points", precision: 0, notes };
+  },
+});
+
+/** MASCC febrile neutropenia risk index (simplified) */
+register({
+  id: "mascc_fn_surrogate",
+  label: "MASCC FN risk (surrogate)",
+  tags: ["oncology", "risk"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 21 ? "low risk (MASCC ≥21)" : "high risk (<21)"];
+    return { id: "mascc_fn_surrogate", label: "MASCC FN risk (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT35 — Endocrine: thyroid & adrenal
+   ========================================================= */
+
+/** Corrected calcium by albumin (repeat to ensure availability) */
+register({
+  id: "corrected_calcium2",
+  label: "Corrected calcium (albumin)",
+  tags: ["endocrine", "electrolytes"],
+  inputs: [
+    { key: "calcium", required: true },
+    { key: "albumin", required: true },
+  ],
+  run: ({ calcium, albumin }) => {
+    if ([calcium, albumin].some(v=>v==null)) return null;
+    return { id: "corrected_calcium2", label: "Corrected calcium (albumin)", value: calcium + 0.8*(4 - albumin), unit: "mg/dL", precision: 1, notes: [] };
+  },
+});
+
+/** Thyroid storm (Burch-Wartofsky surrogate score) */
+register({
+  id: "thyroid_storm_surrogate",
+  label: "Thyroid storm surrogate",
+  tags: ["endocrine", "risk"],
+  inputs: [{ key: "bwps_score", required: true }],
+  run: ({ bwps_score }) => {
+    const notes = [bwps_score >= 45 ? "thyroid storm likely" : bwps_score >= 25 ? "impending storm" : "unlikely"];
+    return { id: "thyroid_storm_surrogate", label: "Thyroid storm surrogate", value: bwps_score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT36 — ICU: Sepsis/ARDS adjuncts
+   ========================================================= */
+
+/** qSOFA score (0–3) */
+register({
+  id: "qsofa",
+  label: "qSOFA",
+  tags: ["sepsis", "icu_scores"],
+  inputs: [
+    { key: "sbp_le_100", required: true },
+    { key: "rr_ge_22", required: true },
+    { key: "gcs_le_14", required: true },
+  ],
+  run: (x) => {
+    const score = [x.sbp_le_100, x.rr_ge_22, x.gcs_le_14].filter(Boolean).length;
+    return { id: "qsofa", label: "qSOFA", value: score, unit: "points", precision: 0, notes: [score>=2?"high risk":"lower risk"] };
+  },
+});
+
+/** Berlin ARDS classification via PF ratio */
+register({
+  id: "berlin_ards_class",
+  label: "Berlin ARDS class",
+  tags: ["pulmonary", "icu_scores"],
+  inputs: [{ key: "pf_ratio", required: true }],
+  run: ({ pf_ratio }) => {
+    const notes:string[] = [];
+    if (pf_ratio < 100) notes.push("severe ARDS");
+    else if (pf_ratio < 200) notes.push("moderate ARDS");
+    else if (pf_ratio <= 300) notes.push("mild ARDS");
+    else notes.push("not ARDS by PF");
+    return { id: "berlin_ards_class", label: "Berlin ARDS class", value: pf_ratio, unit: "mmHg", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT37 — Nutrition
+   ========================================================= */
+
+/** BMI = weight / height² */
+register({
+  id: "bmi_calc",
+  label: "Body Mass Index",
+  tags: ["nutrition", "general"],
+  inputs: [
+    { key: "weight_kg", required: true },
+    { key: "height_cm", required: true },
+  ],
+  run: ({ weight_kg, height_cm }) => {
+    if ([weight_kg, height_cm].some(v=>v==null) || height_cm<=0) return null;
+    const bmi = weight_kg / ((height_cm/100)**2);
+    const notes:string[] = [];
+    if (bmi >= 30) notes.push("obese");
+    else if (bmi >= 25) notes.push("overweight");
+    else if (bmi >= 18.5) notes.push("normal");
+    else notes.push("underweight");
+    return { id: "bmi_calc", label: "Body Mass Index", value: bmi, unit: "kg/m²", precision: 1, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT38 — Hematology
+   ========================================================= */
+
+/** ANC = WBC × (%neutrophils + %bands)/100 */
+register({
+  id: "anc_calc",
+  label: "Absolute neutrophil count (ANC)",
+  tags: ["hematology"],
+  inputs: [
+    { key: "WBC", required: true },           // ×10^3/µL
+    { key: "pct_neutrophils", required: true },
+    { key: "pct_bands", required: true },
+  ],
+  run: (x) => {
+    const anc = x.WBC * (x.pct_neutrophils + x.pct_bands)/100;
+    const notes:string[] = [];
+    if (anc < 0.5) notes.push("severe neutropenia (<500/µL)");
+    else if (anc < 1.0) notes.push("moderate neutropenia");
+    else if (anc < 1.5) notes.push("mild neutropenia");
+    else notes.push("normal");
+    return { id: "anc_calc", label: "Absolute neutrophil count (ANC)", value: anc, unit: "×10^3/µL", precision: 2, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT39 — Obstetrics
+   ========================================================= */
+
+/** Bishop score (cervical favorability; input total from 0–13) */
+register({
+  id: "bishop_score_band",
+  label: "Bishop score band",
+  tags: ["obstetrics", "risk"],
+  inputs: [{ key: "bishop_score", required: true }],
+  run: ({ bishop_score }) => {
+    const notes:string[] = [];
+    if (bishop_score >= 9) notes.push("favorable");
+    else if (bishop_score >= 5) notes.push("intermediate");
+    else notes.push("unfavorable");
+    return { id: "bishop_score_band", label: "Bishop score band", value: bishop_score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT40 — General ICU severity
+   ========================================================= */
+
+/** APACHE II surrogate (0–71, simplified sum input) */
+register({
+  id: "apache2_surrogate",
+  label: "APACHE II (surrogate)",
+  tags: ["icu_scores", "risk"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes:string[] = [];
+    if (score >= 30) notes.push("very high mortality band");
+    else if (score >= 20) notes.push("high risk");
+    else if (score >= 10) notes.push("moderate");
+    else notes.push("low");
+    return { id: "apache2_surrogate", label: "APACHE II (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+
