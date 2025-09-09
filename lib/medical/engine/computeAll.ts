@@ -37,11 +37,16 @@ export function renderResultsBlock(results: { id: string; label: string; value: 
       : r.value;
     const unit = r.unit ? ` ${r.unit}` : "";
     const notes = r.notes?.length ? ` — ${r.notes.join("; ")}` : "";
-    return `• ${r.label}: ${v}${unit}${notes}`;
+    // Tag every line as pre-computed so the model doesn’t try to redo it
+    return `• ${r.label}: ${v}${unit}${notes} (pre-computed)`;
   });
 
   const header = "CLINICAL CALCULATIONS (MUST BE TRUSTED — DO NOT RECALCULATE)";
-  const footer = "Use the above CLINICAL CALCULATIONS as ground truth. Do not recompute or contradict them. Base all interpretation and plan on these values.";
+  const footer = [
+    "Use the above CLINICAL CALCULATIONS as ground truth.",
+    "Do not re-compute, re-state with different numbers, or contradict them.",
+    "Base all clinical reasoning, differentials, and plans on these values only."
+  ].join(" ");
 
   return [header, ...lines, footer, ""].join("\n");
 }
