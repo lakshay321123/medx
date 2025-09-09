@@ -32,8 +32,8 @@ export function computeAll(ctx: Record<string, any>) {
 export function renderResultsBlock(results: { id: string; label: string; value: any; unit?: string; precision?: number; notes?: string[] }[]): string {
   if (!results || !results.length) return "";
 
-  // Split derived/calculated vs raw interpreters
-  const derivedOrder = ["anion_gap", "anion_gap_corrected", "winters", "pf_ratio", "map", "shock_index", "meld_na", "child_pugh_helper", "qtc_bazett", "osmolal_gap"];
+  // Derived/core formulae first
+  const derivedOrder = ["anion_gap", "anion_gap_corrected", "acid_base_summary", "pf_ratio", "map", "shock_index", "meld_na", "child_pugh_helper", "qtc_bazett", "osmolal_gap", "renal_syndrome_summary", "hepatic_syndrome_summary", "circulation_summary"];
   const derived = results.filter(r => derivedOrder.includes(r.id));
   const rest = results.filter(r => !derivedOrder.includes(r.id));
 
@@ -46,14 +46,15 @@ export function renderResultsBlock(results: { id: string; label: string; value: 
     return `• ${r.label}: ${v}${unit}${notes} (pre-computed)`;
   }
 
-  const header = "CLINICAL CALCULATIONS (MUST BE TRUSTED — DO NOT RECALCULATE)";
+  const header = "CLINICAL CALCULATIONS & SYNDROME SUMMARIES (MUST BE TRUSTED — DO NOT RECALCULATE)";
   const footer = [
-    "Use ONLY the above CLINICAL CALCULATIONS as ground truth.",
-    "Do not re-compute, invent, or contradict values.",
+    "Use ONLY the above pre-computed values and syndrome summaries as ground truth.",
+    "Do not re-compute, invent, or contradict these values.",
     "Corrected values (e.g., calcium, anion gap) OVERRIDE raw measurements.",
-    "Base all reasoning, differentials, and plans strictly on this block."
+    "Do not suggest outdated or non-guideline therapies (e.g., dopamine for renal perfusion).",
+    "Base all reasoning, differentials, and management strictly on this block."
   ].join(" ");
 
-  return [header, ...derived.map(fmt), ...rest.map(fmt), footer, ""].join("\n");
-}
+    return [header, ...derived.map(fmt), ...rest.map(fmt), footer, ""].join("\n");
+  }
 // === [MEDX_RENDER_STRONG_PRELUDE_END] ===
