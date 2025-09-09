@@ -32,8 +32,15 @@ export function computeAll(ctx: Record<string, any>) {
 export function renderResultsBlock(results: { id: string; label: string; value: any; unit?: string; precision?: number; notes?: string[] }[]): string {
   if (!results || !results.length) return "";
 
-  // Derived/core formulae first
-  const derivedOrder = ["anion_gap", "anion_gap_corrected", "acid_base_summary", "pf_ratio", "map", "shock_index", "meld_na", "child_pugh_helper", "qtc_bazett", "osmolal_gap", "renal_syndrome_summary", "hepatic_syndrome_summary", "circulation_summary"];
+  const derivedOrder = [
+    "anion_gap", "anion_gap_corrected", "acid_base_summary",
+    "pf_ratio", "map", "shock_index", "osmolal_gap",
+    "meld_na", "child_pugh_helper", "qtc_bazett",
+    // Syndrome summaries (ensure these appear early)
+    "renal_syndrome_summary", "hepatic_syndrome_summary", "circulation_summary",
+    "sepsis_risk_summary", "endocrine_keto_hyperglycemia",
+    "lactate_status", "hematology_summary"
+  ];
   const derived = results.filter(r => derivedOrder.includes(r.id));
   const rest = results.filter(r => !derivedOrder.includes(r.id));
 
@@ -55,6 +62,6 @@ export function renderResultsBlock(results: { id: string; label: string; value: 
     "Base all reasoning, differentials, and management strictly on this block."
   ].join(" ");
 
-    return [header, ...derived.map(fmt), ...rest.map(fmt), footer, ""].join("\n");
-  }
+  return [header, ...derived.map(fmt), ...rest.map(fmt), footer, ""].join("\n");
+}
 // === [MEDX_RENDER_STRONG_PRELUDE_END] ===

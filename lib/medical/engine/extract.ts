@@ -113,6 +113,15 @@ export function extractAll(s: string): Record<string, any> {
   if (out.urine_cr == null)   out.urine_cr   = pickNum(/\burine\s*creat(?:inine)?[^0-9]*[:=]?\s*([0-9.]+)/, s);
   if (out.urine_urea == null) out.urine_urea = pickNum(/\burine\s*urea[^0-9]*[:=]?\s*([0-9.]+)/, s);
   // === [MEDX_CALC_URINE_END] ===
+  // === [MEDX_CALC_EXTRA_INPUTS_START] ===
+  if (out.pH == null) out.pH = pickNum(/\bpH[^0-9]*[:=]?\s*([0-9.]+)/i, s);
+  if (out.lactate == null) out.lactate = pickNum(/\blactate[^0-9]*[:=]?\s*([0-9.]+)/i, s);
+  if (out.beta_hydroxybutyrate == null) out.beta_hydroxybutyrate = pickNum(/\b(beta[-\s]?hydroxybutyrate|b[-\s]?ohb)[^0-9]*[:=]?\s*([0-9.]+)/i, s);
+  if (out.serum_ketones == null) out.serum_ketones = pickNum(/\bserum\s*ketones?[^0-9]*[:=]?\s*([0-9.]+)/i, s);
+  if (out.urine_ketones == null) out.urine_ketones = pickNum(/\burine\s*ketones?[^0-9]*[:=]?\s*([0-9.]+)/i, s);
+  if (out.Hb == null) out.Hb = pickNum(/\b(hb|hemoglobin)[^0-9]*[:=]?\s*([0-9.]+)/i, s);
+  if (out.platelets == null) out.platelets = pickNum(/\b(plt|platelets?)\b[^0-9]*[:=]?\s*([0-9.]+)/i, s);
+  // === [MEDX_CALC_EXTRA_INPUTS_END] ===
 
   return out;
 }
