@@ -1388,7 +1388,6 @@ register({
 });
 
 // ===================== MED-EXT3 (APPEND-ONLY) =====================
-/* If this import already exists at file top, remove this line. */
 
 /* ---------- qSOFA (full) ---------- */
 register({
@@ -1430,7 +1429,7 @@ register({
   ],
   run: ({ RRr, SaO2, on_o2, temp_c, SBP, HR, conscious_level }) => {
     const pRR = RRr <= 8 ? 3 : RRr <= 11 ? 1 : RRr <= 20 ? 0 : RRr <= 24 ? 2 : 3;
-    const pO2 = SaO2 < 86 ? 3 : SaO2 <= 90 ? 2 : SaO2 <= 92 ? 1 : SaO2 <= 94 ? 1 : SaO2 <= 96 ? 0 : 0;
+    const pO2 = SaO2 <= 91 ? 3 : SaO2 <= 93 ? 2 : SaO2 <= 95 ? 1 : 0;
     const pT  = temp_c < 35 ? 3 : temp_c <= 36 ? 1 : temp_c <= 38 ? 0 : temp_c <= 39 ? 1 : 2;
     const pBP = SBP <= 90 ? 3 : SBP <= 100 ? 2 : SBP <= 110 ? 1 : SBP <= 219 ? 0 : 3;
     const pHR = HR <= 40 ? 3 : HR <= 50 ? 1 : HR <= 90 ? 0 : HR <= 110 ? 1 : HR <= 130 ? 2 : 3;
@@ -1600,7 +1599,235 @@ register({
     if (pts >= 3) notes.push("high risk");
     else if (pts === 2) notes.push("moderate risk");
     else notes.push("low risk");
-    return { id: "soar_score", label: "SOAR score", value: pts, unit: "points", precision: 0, notes };
+  return { id: "soar_score", label: "SOAR score", value: pts, unit: "points", precision: 0, notes };
   },
 });
+
+// ===================== MED-EXT2 (APPEND-ONLY) =====================
+
+/* ---------- Wells DVT (leg DVT pre-test probability) ---------- */
+/* Classic 9-item model; low 0 or less, moderate 1–2, high ≥3 */
+register({
+  id: "wells_dvt",
+  label: "Wells DVT",
+  tags: ["risk", "vascular"],
+  inputs: [
+    { key: "active_cancer", required: true },            // +1
+    { key: "paralysis_or_immobilization", required: true }, // +1
+    { key: "recent_bedridden_or_surgery", required: true }, // +1
+    { key: "tenderness_deep_veins", required: true },    // +1
+    { key: "entire_leg_swollen", required: true },       // +1
+    { key: "calf_swelling_gt_3cm", required: true },     // +1
+    { key: "pitting_edema_symptomatic_leg", required: true }, // +1
+    { key: "collateral_superficial_veins", required: true },  // +1
+    { key: "alternative_dx_more_likely", required: true },    // −2
+  ],
+  run: (x) => {
+    let pts = 0;
+    pts += x.active_cancer ? 1 : 0;
+    pts += x.paralysis_or_immobilization ? 1 : 0;
+    pts += x.recent_bedridden_or_surgery ? 1 : 0;
+    pts += x.tenderness_deep_veins ? 1 : 0;
+    pts += x.entire_leg_swollen ? 1 : 0;
+    pts += x.calf_swelling_gt_3cm ? 1 : 0;
+    pts += x.pitting_edema_symptomatic_leg ? 1 : 0;
+    pts += x.collateral_superficial_veins ? 1 : 0;
+    pts += x.alternative_dx_more_likely ? -2 : 0;
+
+    const notes:string[] = [];
+    if (pts >= 3) notes.push("high probability (≥3)");
+    else if (pts >= 1) notes.push("moderate probability (1–2)");
+    else notes.push("low probability (≤0)");
+    return { id: "wells_dvt", label: "Wells DVT", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/* ---------- PSI-lite (very small surrogate for Pneumonia Severity Index) ---------- */
+/* This intentionally uses a tiny subset that correlates with risk bands.
+   Inputs map to 0–9 points; ≥5 = high, 3–4 = intermediate, 0–2 = low. */
+register({
+  id: "psi_lite",
+  label: "PSI-lite (surrogate)",
+  tags: ["risk", "pulmonary", "infectious_disease"],
+  inputs: [
+    { key: "age", required: true },                  // ≥65 +2
+    { key: "SBP", required: true },                  // <90 +2
+    { key: "RRr", required: true },                  // ≥30 +2
+    { key: "BUN", required: true },                  // ≥20 +2
+    { key: "SaO2", required: true },                 // <90% +1
+    { key: "confusion", required: true },            // +2
+  ],
+  run: ({ age, SBP, RRr, BUN, SaO2, confusion }) => {
+    let pts = 0;
+    if ((age ?? 0) >= 65) pts += 2;
+    if ((SBP ?? 999) < 90) pts += 2;
+    if ((RRr ?? 0) >= 30) pts += 2;
+    if ((BUN ?? 0) >= 20) pts += 2;
+    if ((SaO2 ?? 100) < 90) pts += 1;
+    if (confusion) pts += 2;
+
+    const notes:string[] = [];
+    if (pts >= 5) notes.push("high risk (surrogate of PSI IV–V)");
+    else if (pts >= 3) notes.push("intermediate risk");
+    else notes.push("low risk");
+    return { id: "psi_lite", label: "PSI-lite (surrogate)", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/* ---------- NUTRIC (modified; no IL-6) ---------- */
+/* Items: age, APACHE II, SOFA, comorbidities, days from hospital to ICU, low intake/weight loss (optional boolean marker)
+   0–9 points. ≥5 = high nutritional risk. */
+register({
+  id: "nutric_modified",
+  label: "NUTRIC (modified)",
+  tags: ["icu_scores", "nutrition"],
+  inputs: [
+    { key: "age", required: true },                       // 50–<75:1, ≥75:2
+    { key: "apache2", required: true },                   // 15–19:0, 20–27:1, 28–32:2, ≥33:3
+    { key: "sofa_total", required: true },                // 0–5:0, 6–9:1, 10–14:2 ≥15:3
+    { key: "comorbidities_ge_1", required: true },        // +1
+    { key: "days_from_hosp_to_icu", required: true },     // 0:0, 1–2:1, ≥3:2
+    { key: "low_intake_or_weight_loss" },                 // optional +1
+  ],
+  run: (x) => {
+    let pts = 0;
+    // Age
+    if (x.age >= 75) pts += 2; else if (x.age >= 50) pts += 1;
+    // APACHE II
+    const ap = x.apache2;
+    if (ap >= 33) pts += 3; else if (ap >= 28) pts += 2; else if (ap >= 20) pts += 1;
+    // SOFA
+    const sf = x.sofa_total;
+    if (sf >= 15) pts += 3; else if (sf >= 10) pts += 2; else if (sf >= 6) pts += 1;
+    // Comorbidities
+    if (x.comorbidities_ge_1) pts += 1;
+    // Days to ICU
+    const d = x.days_from_hosp_to_icu;
+    if (d >= 3) pts += 2; else if (d >= 1) pts += 1;
+    // Optional intake/weight loss marker
+    if (x.low_intake_or_weight_loss) pts += 1;
+
+    const notes:string[] = [];
+    if (pts >= 5) notes.push("high nutritional risk (≥5)");
+    else notes.push("lower nutritional risk");
+    return { id: "nutric_modified", label: "NUTRIC (modified)", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/* ---------- Sgarbossa (STEMI in LBBB) ---------- */
+/* Concordant STE ≥1mm = 5; Concordant STD V1–V3 ≥1mm = 3; Excessively discordant STE ≥5mm = 2
+   ≥3 strongly suggests MI. */
+register({
+  id: "sgarbossa",
+  label: "Sgarbossa criteria",
+  tags: ["cardiology", "ecg"],
+  inputs: [
+    { key: "concordant_ST_elevation_ge_1mm", required: true }, // boolean
+    { key: "concordant_ST_depression_V1toV3_ge_1mm", required: true }, // boolean
+    { key: "discordant_ST_elevation_ge_5mm", required: true }, // boolean
+  ],
+  run: (x) => {
+    const pts =
+      (x.concordant_ST_elevation_ge_1mm ? 5 : 0) +
+      (x.concordant_ST_depression_V1toV3_ge_1mm ? 3 : 0) +
+      (x.discordant_ST_elevation_ge_5mm ? 2 : 0);
+    const notes:string[] = [];
+    if (pts >= 3) notes.push("positive Sgarbossa (suggests MI in LBBB)");
+    else notes.push("negative/indeterminate");
+    return { id: "sgarbossa", label: "Sgarbossa criteria", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/* ---------- qCSI (quick COVID-19 Severity Index) ---------- */
+/* Uses respiratory rate, oxygen saturation, and O2 flow to score 0–12.
+   This is a simplified mapping for triage context. */
+register({
+  id: "qcsi",
+  label: "qCSI (simplified)",
+  tags: ["pulmonary", "infectious_disease"],
+  inputs: [
+    { key: "RRr", required: true },         // breaths/min
+    { key: "SaO2", required: true },        // %
+    { key: "oxygen_flow_L_min", required: true }, // L/min via NC
+  ],
+  run: ({ RRr, SaO2, oxygen_flow_L_min }) => {
+    // RR points
+    let rrp = 0;
+    if (RRr >= 28) rrp = 2;
+    else if (RRr >= 23) rrp = 1;
+
+    // SaO2 points
+    let sp = 0;
+    if (SaO2 < 88) sp = 5;
+    else if (SaO2 < 92) sp = 2;
+    else if (SaO2 < 95) sp = 1;
+
+    // O2 flow points
+    let op = 0;
+    if (oxygen_flow_L_min >= 4) op = 5;
+    else if (oxygen_flow_L_min >= 2) op = 2;
+    else if (oxygen_flow_L_min > 0) op = 1;
+
+    const pts = rrp + sp + op;
+    const notes:string[] = [];
+    if (pts >= 9) notes.push("high risk");
+    else if (pts >= 4) notes.push("intermediate risk");
+    else notes.push("low risk");
+    return { id: "qcsi", label: "qCSI (simplified)", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/* ---------- GOLD COPD stage by FEV1 %pred ---------- */
+register({
+  id: "gold_copd_stage",
+  label: "GOLD COPD stage (spirometry)",
+  tags: ["pulmonary"],
+  inputs: [
+    { key: "fev1_percent_predicted", required: true }, // %
+    { key: "post_bronchodilator", required: false },   // boolean, optional
+  ],
+  run: ({ fev1_percent_predicted, post_bronchodilator }) => {
+    if (fev1_percent_predicted == null) return null;
+    const f = fev1_percent_predicted;
+    let stage = "Unspecified";
+    if (f >= 80) stage = "GOLD 1 (mild)";
+    else if (f >= 50) stage = "GOLD 2 (moderate)";
+    else if (f >= 30) stage = "GOLD 3 (severe)";
+    else stage = "GOLD 4 (very severe)";
+    const notes:string[] = [];
+    if (post_bronchodilator === false) notes.push("use post-bronchodilator values for staging");
+    return { id: "gold_copd_stage", label: "GOLD COPD stage (spirometry)", value: f, unit: "% predicted", precision: 0, notes: [stage, ...notes] };
+  },
+});
+
+/* ---------- ABCD2 (TIA early stroke risk) ---------- */
+register({
+  id: "abcd2",
+  label: "ABCD2 (TIA risk)",
+  tags: ["neurology", "risk"],
+  inputs: [
+    { key: "age_ge_60", required: true },         // +1
+    { key: "bp_ge_140_90", required: true },      // +1
+    { key: "unilateral_weakness", required: true }, // +2
+    { key: "speech_disturb_no_weakness", required: true }, // +1
+    { key: "duration_ge_60min", required: true }, // +2
+    { key: "duration_10to59min", required: true }, // +1
+    { key: "diabetes", required: true },          // +1
+  ],
+  run: (x) => {
+    let pts = 0;
+    pts += x.age_ge_60 ? 1 : 0;
+    pts += x.bp_ge_140_90 ? 1 : 0;
+    pts += x.unilateral_weakness ? 2 : 0;
+    pts += (!x.unilateral_weakness && x.speech_disturb_no_weakness) ? 1 : 0;
+    pts += x.duration_ge_60min ? 2 : (x.duration_10to59min ? 1 : 0);
+    pts += x.diabetes ? 1 : 0;
+    const notes:string[] = [];
+    if (pts >= 6) notes.push("high risk (≥6)");
+    else if (pts >= 4) notes.push("moderate risk (4–5)");
+    else notes.push("low risk (≤3)");
+    return { id: "abcd2", label: "ABCD2 (TIA risk)", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
 
