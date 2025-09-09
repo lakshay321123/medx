@@ -9,34 +9,16 @@ import "katex/dist/katex.min.css";
 import { LinkBadge } from "./SafeLink";
 
 // --- Normalizer ---
-function normalize(raw: string): string {
-  if (!raw) return "";
-
-  let s = raw.trim();
-
-  // unwrap accidental full-message fences
-  const fence = /^```([a-zA-Z0-9_-]*)\s*\n([\s\S]*?)\n```$/m.exec(s);
-  if (fence) {
-    const lang = (fence[1] || "").toLowerCase();
-    if (!lang || lang === "txt" || lang === "text") s = fence[2];
-  }
-
-  // convert ====, ----, ____ to markdown horizontal rule
+// normalize: unwrap full-message fences, convert ==== to <hr>, bold-lines → headings, list bullets
+function normalize(raw: string){
+  let s = (raw||"").trim();
+  const f = /^```([a-z0-9_-]*)\s*\n([\s\S]*?)\n```$/i.exec(s);
+  if (f && (!f[1] || /^(txt|text)$/.test(f[1]))) s = f[2];
   s = s.replace(/^[=\-_]{4,}$/gm, "\n---\n");
-
-  // bold-only lines -> headings
-  s = s.replace(
-    /^(?:\*\*|__)\s*([^*\n][^*\n]+?)\s*(?:\*\*|__)\s*$/gm,
-    "### $1"
-  );
-
-  // force bullet points
+  s = s.replace(/^(?:\*\*|__)\s*([^*\n][^*\n]+?)\s*(?:\*\*|__)\s*$/gm, "### $1");
   s = s.replace(/^\*\s+/gm, "- ");
-
-  // compress extra newlines
   s = s.replace(/\n{3,}/g, "\n\n");
-
-  return s.trim() + "\n";
+  return s + "\n";
 }
 
 // --- Renderer ---
