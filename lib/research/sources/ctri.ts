@@ -105,19 +105,27 @@ function stripTags(s: string) {
 
 // ---- TrialRecord fetcher -------------------------------------------------
 
-export async function searchCTRI(q: string): Promise<TrialRecord[]> {
-  const raw = await fetchCTRI(q).catch(() => []);
-  return raw.map((r: any): TrialRecord => ({
-    registry: "CTRI",
-    registry_id: r.id,
-    title: r.title,
-    condition: undefined,
-    phase: r.phase,
-    status: r.status,
-    locations: r.country ? [r.country] : [],
-    url: r.url || "",
-    when: undefined,
-  }));
+export async function searchCTRI(query: string): Promise<TrialRecord[]> {
+  const raw = await fetchCTRI(query).catch(() => []);
+  return (raw || [])
+    .map((r: any): TrialRecord => ({
+      registry: "CTRI",
+      registry_id: String(r.regno || r.regId || r.id || "").trim(),
+      title: String(r.title || r.publicTitle || r.scientificTitle || "").trim(),
+      condition: String(r.condition || r.healthCondition || "").trim() || undefined,
+      phase: String(r.phase || r.trialPhase || "").trim() || undefined,
+      status: String(r.status || r.recruitmentStatus || "").trim() || undefined,
+      locations: Array.isArray(r.sites) ? r.sites : (r.city ? [r.city] : []),
+      url: r.url
+        ? String(r.url)
+        : `https://ctri.nic.in/Clinicaltrials/pmaindet2.php?trialid=${encodeURIComponent(r.trialid || r.id || "")}`,
+      when: {
+        registered: r.registeredOn ? String(r.registeredOn) : undefined,
+        updated: r.lastUpdatedOn ? String(r.lastUpdatedOn) : undefined,
+      },
+      snippet: (r.objective || r.briefSummary || "").toString().slice(0, 200),
+    }))
+    .filter((t) => t.registry_id && t.title);
 }
 
 

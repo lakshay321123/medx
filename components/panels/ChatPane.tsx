@@ -180,7 +180,7 @@ function PendingAnalysisCard({ label }: { label: string }) {
 
 function PendingChatCard({ label }: { label: string }) {
   return (
-    <article className="mr-auto max-w-[90%] rounded-2xl p-4 md:p-6 shadow-sm bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800">
+    <article className="mr-auto max-w-3xl rounded-2xl p-4 md:p-6 shadow-sm bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800 text-left whitespace-normal">
       <div className="text-sm text-slate-600 dark:text-slate-300">{label}</div>
     </article>
   );
@@ -190,7 +190,7 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
   const header = titleForCategory(m.category);
   if (m.pending) return <PendingAnalysisCard label="Analyzing file…" />;
   return (
-    <article className="mr-auto max-w-[90%] rounded-2xl p-4 md:p-6 shadow-sm space-y-2 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800">
+    <article className="mr-auto max-w-3xl rounded-2xl p-4 md:p-6 shadow-sm space-y-2 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800 text-left whitespace-normal">
       <header className="flex items-center gap-2">
         <h2 className="text-lg md:text-xl font-semibold">{header}</h2>
         {researchOn && (
@@ -243,7 +243,7 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
 function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onFollowUpClick: (text: string) => void; simple: boolean }) {
   if (m.pending) return <PendingChatCard label="Thinking…" />;
   return (
-    <article className="mr-auto max-w-[90%] rounded-2xl p-4 md:p-6 shadow-sm space-y-2 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800">
+    <article className="mr-auto max-w-3xl rounded-2xl p-4 md:p-6 shadow-sm space-y-2 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800 text-left whitespace-normal">
       <ChatMarkdown content={m.content} />
       {m.role === "assistant" && (m.citations?.length || 0) > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
@@ -1508,7 +1508,7 @@ ${systemCommon}` + baseSys;
             m.role === 'user' ? (
               <div
                 key={m.id}
-                className="ml-auto max-w-[85%] rounded-2xl px-4 py-3 shadow-sm bg-slate-200 text-slate-900 dark:bg-gray-700 dark:text-gray-100"
+                className="ml-auto max-w-3xl rounded-2xl px-4 py-3 shadow-sm bg-slate-200 text-slate-900 dark:bg-gray-700 dark:text-gray-100 text-left whitespace-normal"
               >
                 <ChatMarkdown content={m.content} />
               </div>
