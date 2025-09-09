@@ -9405,3 +9405,393 @@ register({
   }
 });
 
+// ===================== MED-EXT401–430 (APPEND-ONLY) =====================
+
+/* =========================================================
+   Cardiology — Risk scores & ECG details
+   ========================================================= */
+
+register({
+  id: "heart_score_surrogate",
+  label: "HEART score (surrogate)",
+  tags: ["cardiology","risk","ed"],
+  inputs: [{ key:"score", required:true }], // 0–10
+  run: ({score})=>{
+    const notes=[score>=7?"high risk":score>=4?"moderate risk":"low risk"];
+    return {id:"heart_score_surrogate", label:"HEART score (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "grace_surrogate",
+  label: "GRACE risk (surrogate)",
+  tags: ["cardiology","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=140?"high":score>=109?"intermediate":"low"];
+    return {id:"grace_surrogate", label:"GRACE risk (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "timi_stemi_surrogate",
+  label: "TIMI risk (STEMI, surrogate)",
+  tags: ["cardiology","risk"],
+  inputs: [{ key:"score", required:true }], // 0–14
+  run: ({score})=>{
+    const notes=[score>=8?"high":"lower"];
+    return {id:"timi_stemi_surrogate", label:"TIMI risk (STEMI, surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "killip_class_band",
+  label: "Killip class band",
+  tags: ["cardiology","heart_failure"],
+  inputs: [{ key:"class", required:true }], // 1–4
+  run: ({class:cls})=>{
+    const notes=[cls>=3?"high mortality band":cls==2?"rales/S3":"no failure"];
+    return {id:"killip_class_band", label:"Killip class band", value:cls, unit:"class", precision:0, notes};
+  }
+});
+
+register({
+  id: "syntax_surrogate",
+  label: "SYNTAX score (surrogate)",
+  tags: ["cardiology","interventional"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>32?"high":score>=23?"intermediate":"low"];
+    return {id:"syntax_surrogate", label:"SYNTAX score (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "wells_pe_surrogate",
+  label: "Wells score (PE, surrogate)",
+  tags: ["pulmonary","cardiology","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>6?"high":score>=2?"moderate":"low"];
+    return {id:"wells_pe_surrogate", label:"Wells score (PE, surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "wells_dvt_surrogate",
+  label: "Wells score (DVT, surrogate)",
+  tags: ["hematology","cardiology","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=3?"high":score>=1?"moderate":"low"];
+    return {id:"wells_dvt_surrogate", label:"Wells score (DVT, surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* QTc calculators */
+register({
+  id: "qtc_bazett",
+  label: "QTc (Bazett)",
+  tags: ["cardiology","ecg"],
+  inputs: [
+    { key:"QT_ms", required:true },
+    { key:"HR", required:true }
+  ],
+  run: ({QT_ms,HR})=>{
+    if (HR<=0) return null;
+    const RR = 60/HR; // seconds
+    const qtc = QT_ms / Math.sqrt(RR);
+    const notes=[qtc>480?"prolonged":"normal/borderline"];
+    return {id:"qtc_bazett", label:"QTc (Bazett)", value:qtc, unit:"ms", precision:0, notes};
+  }
+});
+
+register({
+  id: "qtc_fridericia",
+  label: "QTc (Fridericia)",
+  tags: ["cardiology","ecg"],
+  inputs: [
+    { key:"QT_ms", required:true },
+    { key:"HR", required:true }
+  ],
+  run: ({QT_ms,HR})=>{
+    if (HR<=0) return null;
+    const RR = 60/HR; // seconds
+    const qtc = QT_ms / Math.cbrt(RR);
+    const notes=[qtc>470?"prolonged":"normal/borderline"];
+    return {id:"qtc_fridericia", label:"QTc (Fridericia)", value:qtc, unit:"ms", precision:0, notes};
+  }
+});
+
+/* Hemodynamics helpers */
+register({
+  id: "rate_pressure_product",
+  label: "Rate–pressure product (RPP)",
+  tags: ["cardiology","hemodynamics"],
+  inputs: [
+    { key:"HR", required:true },
+    { key:"SBP", required:true }
+  ],
+  run: ({HR,SBP})=>{
+    const val=HR*SBP;
+    const notes=[val>20000?"high myocardial oxygen demand":"typical"];
+    return {id:"rate_pressure_product", label:"Rate–pressure product (RPP)", value:val, unit:"bpm·mmHg", precision:0, notes};
+  }
+});
+
+register({
+  id: "pulse_pressure_band",
+  label: "Pulse pressure band",
+  tags: ["cardiology","hemodynamics"],
+  inputs: [
+    { key:"SBP", required:true },
+    { key:"DBP", required:true }
+  ],
+  run: ({SBP,DBP})=>{
+    const pp=SBP-DBP;
+    const notes=[pp>60?"wide":pp<30?"narrow":"normal"];
+    return {id:"pulse_pressure_band", label:"Pulse pressure band", value:pp, unit:"mmHg", precision:0, notes};
+  }
+});
+
+register({
+  id: "cardiac_output_from_sv_hr",
+  label: "Cardiac output from SV & HR",
+  tags: ["cardiology","hemodynamics"],
+  inputs: [
+    { key:"SV_ml", required:true },
+    { key:"HR", required:true }
+  ],
+  run: ({SV_ml,HR})=>{
+    const co = (SV_ml*HR)/1000; // L/min
+    return {id:"cardiac_output_from_sv_hr", label:"Cardiac output from SV & HR", value:co, unit:"L/min", precision:2, notes:[]};
+  }
+});
+
+register({
+  id: "cardiac_index_from_co_bsa",
+  label: "Cardiac index from CO & BSA",
+  tags: ["cardiology","hemodynamics"],
+  inputs: [
+    { key:"CO_L_min", required:true },
+    { key:"BSA_m2", required:true }
+  ],
+  run: ({CO_L_min,BSA_m2})=>{
+    if (BSA_m2<=0) return null;
+    const ci=CO_L_min/BSA_m2;
+    const notes=[ci<2.2?"low cardiac index":"adequate"];
+    return {id:"cardiac_index_from_co_bsa", label:"Cardiac index from CO & BSA", value:ci, unit:"L/min/m²", precision:2, notes};
+  }
+});
+
+register({
+  id: "stroke_volume_from_lvot",
+  label: "Stroke volume from LVOT (SV = VTI×area)",
+  tags: ["cardiology","echo"],
+  inputs: [
+    { key:"lvot_diam_cm", required:true },
+    { key:"lvot_vti_cm", required:true }
+  ],
+  run: ({lvot_diam_cm,lvot_vti_cm})=>{
+    const radius=lvot_diam_cm/2;
+    const area=Math.PI*radius*radius; // cm²
+    const sv=area*lvot_vti_cm; // cm³ = mL
+    return {id:"stroke_volume_from_lvot", label:"Stroke volume from LVOT (SV = VTI×area)", value:sv, unit:"mL", precision:1, notes:[]};
+  }
+});
+
+register({
+  id: "svi_from_sv_bsa",
+  label: "Stroke volume index (SVI) from SV & BSA",
+  tags: ["cardiology","echo"],
+  inputs: [
+    { key:"SV_ml", required:true },
+    { key:"BSA_m2", required:true }
+  ],
+  run: ({SV_ml,BSA_m2})=>{
+    if (BSA_m2<=0) return null;
+    const svi=SV_ml/BSA_m2;
+    const notes=[svi<35?"low SVI":"normal"];
+    return {id:"svi_from_sv_bsa", label:"Stroke volume index (SVI) from SV & BSA", value:svi, unit:"mL/m²", precision:1, notes};
+  }
+});
+
+register({
+  id: "lvef_band",
+  label: "LVEF band",
+  tags: ["cardiology","echo"],
+  inputs: [{ key:"lvef_percent", required:true }],
+  run: ({lvef_percent})=>{
+    const notes=[lvef_percent<40?"reduced EF (HFrEF)":lvef_percent<50?"mildly reduced":"preserved"];
+    return {id:"lvef_band", label:"LVEF band", value:lvef_percent, unit:"%", precision:0, notes};
+  }
+});
+
+/* Biomarkers & ACS adjuncts */
+register({
+  id: "ntprobnp_band",
+  label: "NT-proBNP band",
+  tags: ["cardiology","heart_failure"],
+  inputs: [{ key:"ntprobnp_pg_ml", required:true }],
+  run: ({ntprobnp_pg_ml})=>{
+    const notes=[ntprobnp_pg_ml>1800?"very high":ntprobnp_pg_ml>300?"elevated":"low"];
+    return {id:"ntprobnp_band", label:"NT-proBNP band", value:ntprobnp_pg_ml, unit:"pg/mL", precision:0, notes};
+  }
+});
+
+register({
+  id: "troponin_delta_flag",
+  label: "Troponin delta flag",
+  tags: ["cardiology","ed"],
+  inputs: [
+    { key:"delta_ng_l", required:true },
+    { key:"ruleout_threshold", required:false } // default 5 ng/L
+  ],
+  run: ({delta_ng_l,ruleout_threshold})=>{
+    const thr = ruleout_threshold!=null?ruleout_threshold:5;
+    const pos = delta_ng_l>=thr;
+    return {id:"troponin_delta_flag", label:"Troponin delta flag", value:pos?1:0, unit:"flag", precision:0, notes:[`Δ=${delta_ng_l} ng/L`, pos?"exceeds delta threshold":"below threshold"]};
+  }
+});
+
+/* STEMI in LBBB — Sgarbossa */
+register({
+  id: "sgarbossa_surrogate",
+  label: "Sgarbossa score (surrogate)",
+  tags: ["cardiology","ecg"],
+  inputs: [{ key:"score", required:true }], // 0–10
+  run: ({score})=>{
+    const notes=[score>=3?"STEMI criteria met (classic Sgarbossa)":"criteria not met"];
+    return {id:"sgarbossa_surrogate", label:"Sgarbossa score (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "smith_modified_sgarbossa_surrogate",
+  label: "Smith-modified Sgarbossa (surrogate)",
+  tags: ["cardiology","ecg"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=3?"STEMI criteria met (modified)":"criteria not met"];
+    return {id:"smith_modified_sgarbossa_surrogate", label:"Smith-modified Sgarbossa (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "wellens_pattern_flag",
+  label: "Wellens pattern flag",
+  tags: ["cardiology","ecg"],
+  inputs: [{ key:"pattern_present", required:true }],
+  run: ({pattern_present})=>{
+    return {id:"wellens_pattern_flag", label:"Wellens pattern flag", value:pattern_present?1:0, unit:"flag", precision:0, notes:[pattern_present?"pattern present":"pattern absent"]};
+  }
+});
+
+register({
+  id: "pericarditis_ecg_flag",
+  label: "Pericarditis ECG flag",
+  tags: ["cardiology","ecg"],
+  inputs: [{ key:"criteria_count", required:true }], // e.g., diffuse ST↑, PR↓, pleuritic pain, friction rub
+  run: ({criteria_count})=>{
+    const pos=criteria_count>=2;
+    return {id:"pericarditis_ecg_flag", label:"Pericarditis ECG flag", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"criteria met (≥2)":"criteria not met"]};
+  }
+});
+
+register({
+  id: "bnp_band",
+  label: "BNP band",
+  tags: ["cardiology","heart_failure"],
+  inputs: [{ key:"bnp_pg_ml", required:true }],
+  run: ({bnp_pg_ml})=>{
+    const notes=[bnp_pg_ml>400?"high":bnp_pg_ml>100?"intermediate":"low"];
+    return {id:"bnp_band", label:"BNP band", value:bnp_pg_ml, unit:"pg/mL", precision:0, notes};
+  }
+});
+
+register({
+  id: "rcri_surrogate",
+  label: "RCRI (Revised Cardiac Risk Index) surrogate",
+  tags: ["cardiology","periop","risk"],
+  inputs: [{ key:"score", required:true }], // 0–6
+  run: ({score})=>{
+    const notes=[score>=3?"elevated cardiac risk":"lower"];
+    return {id:"rcri_surrogate", label:"RCRI (Revised Cardiac Risk Index) surrogate", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "ascvd_risk_surrogate",
+  label: "ASCVD 10-year risk (surrogate)",
+  tags: ["cardiology","prevention","risk"],
+  inputs: [{ key:"percent", required:true }],
+  run: ({percent})=>{
+    const notes=[percent>=20?"high":percent>=7.5?"intermediate":"borderline/low"];
+    return {id:"ascvd_risk_surrogate", label:"ASCVD 10-year risk (surrogate)", value:percent, unit:"%", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   Neurology — Stroke/SAH/Coma
+   ========================================================= */
+
+register({
+  id: "nihss_band",
+  label: "NIHSS severity band",
+  tags: ["neurology","stroke"],
+  inputs: [{ key:"score", required:true }], // 0–42
+  run: ({score})=>{
+    const notes=[score>=25?"very severe":score>=15?"severe":score>=5?"moderate":"mild"];
+    return {id:"nihss_band", label:"NIHSS severity band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "ich_score_surrogate",
+  label: "ICH score (surrogate)",
+  tags: ["neurology","neurocritical","risk"],
+  inputs: [{ key:"score", required:true }], // 0–6
+  run: ({score})=>{
+    const notes=[score>=3?"high mortality band":"lower"];
+    return {id:"ich_score_surrogate", label:"ICH score (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "hunt_hess_band",
+  label: "Hunt–Hess grade band (SAH)",
+  tags: ["neurology","neurocritical"],
+  inputs: [{ key:"grade", required:true }], // 1–5
+  run: ({grade})=>{
+    const notes=[grade>=4?"poor grade":"good/intermediate"];
+    return {id:"hunt_hess_band", label:"Hunt–Hess grade band (SAH)", value:grade, unit:"grade", precision:0, notes};
+  }
+});
+
+register({
+  id: "wfns_band",
+  label: "WFNS grade band (SAH)",
+  tags: ["neurology","neurocritical"],
+  inputs: [{ key:"grade", required:true }], // 1–5
+  run: ({grade})=>{
+    const notes=[grade>=4?"poor grade":"good/intermediate"];
+    return {id:"wfns_band", label:"WFNS grade band (SAH)", value:grade, unit:"grade", precision:0, notes};
+  }
+});
+
+register({
+  id: "gcs_total_band",
+  label: "GCS total & band",
+  tags: ["neurology","trauma"],
+  inputs: [
+    { key:"eye", required:true },     // 1–4
+    { key:"verbal", required:true },  // 1–5
+    { key:"motor", required:true }    // 1–6
+  ],
+  run: ({eye,verbal,motor})=>{
+    const total = eye+verbal+motor;
+    const notes=[total<=8?"severe":total<=12?"moderate":"mild"];
+    return {id:"gcs_total_band", label:"GCS total & band", value:total, unit:"points", precision:0, notes:[...notes, `E${eye}V${verbal}M${motor}`]};
+  }
+});
+
