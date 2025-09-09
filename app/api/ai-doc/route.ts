@@ -33,11 +33,42 @@ export async function POST(req: NextRequest) {
   const userId = await getUserId(req);
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const { threadId, message } = await req.json();
+  const { threadId, message, profileIntent, newProfile } = await req.json();
   if (!message) return NextResponse.json({ error: "no message" }, { status: 400 });
 
   // Ensure profile & load clinical state + memory
-  const profile = await prisma.patientProfile.upsert({ where: { userId }, update: {}, create: { userId } });
+  let profile = await prisma.patientProfile.findFirst({ where: { userId } });
+
+  // New patient quick-create (only for this call)
+  if (profileIntent === "new") {
+    const p = await prisma.patientProfile.create({
+      data: {
+        userId,
+        name: (newProfile?.name || "New Patient").slice(0, 80),
+        age: newProfile?.age ? Number(newProfile.age) : null,
+        sex: newProfile?.sex || null,
+        pregnant: newProfile?.pregnant === "yes" ? true
+                 : newProfile?.pregnant === "no" ? false
+                 : null,
+      } as any
+    });
+    profile = p;
+    // seed basic notes/meds from intake if provided
+    const ops: any[] = [];
+    if (newProfile?.symptoms) ops.push(prisma.note.create({ data: { profileId: p.id, body: `Symptoms: ${newProfile.symptoms}` }}));
+    if (newProfile?.allergies) ops.push(prisma.note.create({ data: { profileId: p.id, body: `Allergies: ${newProfile.allergies}` }}));
+    if (newProfile?.meds) {
+      const meds = String(newProfile.meds).split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
+      for (const m of meds) ops.push(prisma.medication.create({ data: { profileId: p.id, name: m } }));
+    }
+    if (ops.length) await prisma.$transaction(ops);
+  }
+
+  if (!profile) {
+    const p = await prisma.patientProfile.create({ data: { userId, name: "New Patient" } as any });
+    profile = p;
+  }
+
   const [labs, meds, conditions, mem] = await Promise.all([
     prisma.labResult.findMany({ where: { profileId: profile.id } }),
     prisma.medication.findMany({ where: { profileId: profile.id } }),

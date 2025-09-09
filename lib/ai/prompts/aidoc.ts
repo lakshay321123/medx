@@ -21,7 +21,7 @@ export function buildAiDocPrompt({ profile, labs, meds, conditions }: BuildInput
     "- Avoid generic test batteries (e.g., 'vitamin D, CRP, etc.') unless clearly warranted by active conditions or recent findings.",
     "",
     "Patient Snapshot:",
-    `- Demographics: name=${profile?.name ?? ""}, sex=${profile?.sex ?? ""}, bloodGroup=${profile?.bloodGroup ?? ""}`,
+    `- Demographics: Name: ${profile?.name || "—"}. Age: ${profile?.age ?? "—"}, Sex: ${profile?.sex ?? "—"}, Pregnant: ${profile?.pregnant ?? "—"}.`,
     `- Active Conditions: ${(conditions||[]).filter((c:any)=>c.status==='active').map((c:any)=>c.label).join(', ') || 'none recorded'}`,
     `- Meds: ${(meds||[]).map((m:any)=>m.name + (m.dose?(" "+m.dose):"")).join(', ') || 'none recorded'}`,
     `- Recent Labs (≤90d): ${recentLabs.map((l:any)=>`${l.name} ${l.value??""}${l.unit??""} (${new Date(l.takenAt).toISOString().slice(0,10)})`).join('; ') || 'none'}`,
