@@ -4,7 +4,10 @@ import { interpretTrialQuery, detectNewTopic } from "@/lib/research/queryInterpr
 import { buildCtgovExpr } from "@/lib/research/ctgovQuery";
 import { composeAnswer } from "@/lib/research/answerComposer";
 import { searchCtgovByExpr } from "@/lib/research/sources/ctgov";
-import { searchCtri } from "@/lib/research/sources/ctri";
+import { searchCtri, searchCTRI } from "@/lib/research/sources/ctri";
+import { searchNCT } from "@/lib/research/sources/nct";
+import type { TrialRecord } from "@/types/research";
+import { FEATURES } from "@/lib/config";
 import { searchPubMed } from "@/lib/research/sources/pubmed";
 import { searchEuropePmc } from "@/lib/research/sources/eupmc";
 import { searchCrossref } from "@/lib/research/sources/crossref";
@@ -151,5 +154,72 @@ async function safe<T>(fn: () => Promise<T>): Promise<T | null> {
   } catch {
     return null;
   }
+}
+
+// ---- Trials orchestration (registry-agnostic) -------------------------
+
+const INDIA_HINTS = [
+  " india ", " in india", "indian", " bharat ", " भारत ",
+  "delhi", "new delhi", "mumbai", "bombay", "bengaluru", "bangalore", "chennai",
+  "kolkata", "calcutta", "hyderabad", "pune", "ahmedabad", "gurgaon", "noida", "kochi",
+  "jaipur", "lucknow", "chandigarh", "indore", "bhopal", "surat", "nagpur", "goa",
+];
+
+function mentionsIndia(q: string) {
+  const s = ` ${q.toLowerCase()} `;
+  return INDIA_HINTS.some((h) => s.includes(h));
+}
+
+function normalizePhase(p?: string) {
+  if (!p) return undefined;
+  const s = p.toLowerCase();
+  if (s.includes("i") && s.includes("ii") && !s.includes("iii")) return "Phase I/II";
+  if (s.includes("ii") && s.includes("iii")) return "Phase II/III";
+  if (s.includes("iii")) return "Phase III";
+  if (s.includes("iv")) return "Phase IV";
+  if (s.includes("ii")) return "Phase II";
+  if (s.includes("i")) return "Phase I";
+  return p;
+}
+
+function keyForTrial(t: TrialRecord) {
+  const title = (t.title || "").toLowerCase().replace(/\W+/g, " ").trim();
+  const mon = (t.when?.registered || t.when?.updated || "").slice(0, 7);
+  const loc = (t.locations || []).join(",").toLowerCase().replace(/\W+/g, " ").slice(0, 80);
+  return `${title}|${mon}|${loc}`;
+}
+
+function dedupeTrials(items: TrialRecord[]) {
+  if (!FEATURES.TRIALS_DEDUPE) return items;
+  const seen = new Map<string, TrialRecord>();
+  for (const t of items) {
+    const k = keyForTrial(t);
+    if (!seen.has(k)) seen.set(k, t);
+  }
+  return Array.from(seen.values());
+}
+
+export async function orchestrateTrials(query: string, opts?: { country?: string }) {
+  const includeCTRI =
+    opts?.country?.toLowerCase() === "india" ||
+    (FEATURES.TRIALS_GEO_ROUTING && mentionsIndia(query));
+
+  const tasks: Promise<TrialRecord[]>[] = [searchNCT(query).catch(() => [])];
+  if (includeCTRI) tasks.push(searchCTRI(query).catch(() => []));
+
+  const batches = await Promise.all(tasks);
+  const merged = dedupeTrials(
+    batches
+      .flat()
+      .map((t) => ({
+        ...t,
+        phase: FEATURES.TRIALS_PHASE_NORMALIZE ? normalizePhase(t.phase) : t.phase,
+      }))
+  );
+
+  const order = (r: string) =>
+    includeCTRI ? (r === "CTRI" ? 0 : r === "NCT" ? 1 : 2) : r === "NCT" ? 0 : r === "CTRI" ? 1 : 2;
+
+  return merged.sort((a, b) => order(a.registry) - order(b.registry));
 }
 

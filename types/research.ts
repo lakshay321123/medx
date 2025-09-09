@@ -35,13 +35,14 @@ export type Trial = {
 };
 
 export type TrialRecord = {
-  registry: "NCT" | "CTRI" | "EUCTR" | "IRCT" | string;
-  registry_id: string;          // e.g. NCT01234567 or CTRI/2024/08/012345
+  registry: "NCT" | "CTRI" | "EUCTR" | string;
+  registry_id: string;                 // e.g. NCT01234567 or CTRI/2024/08/012345
   title: string;
   condition?: string;
-  phase?: string;
-  status?: string;
-  locations?: string[];
-  url: string;                   // deep link to the registry page
-  when?: { registered?: string; updated?: string };
+  phase?: string;                      // "Phase 2" / "Phase III" etc.
+  status?: string;                     // "Recruiting" / "Active" / "Completed"
+  locations?: string[];                // ["Mumbai, India", "Delhi, India"]
+  url: string;                         // deep link to registry page
+  when?: { registered?: string; updated?: string }; // ISO strings preferred
+  snippet?: string;                    // optional short blurb
 };

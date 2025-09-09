@@ -1,0 +1,5 @@
+export const FEATURES = {
+  TRIALS_DEDUPE: true,
+  TRIALS_GEO_ROUTING: true,
+  TRIALS_PHASE_NORMALIZE: true,
+};

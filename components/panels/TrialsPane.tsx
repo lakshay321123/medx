@@ -79,53 +79,47 @@ export default function TrialsPane() {
       <div className="text-sm text-gray-500">Informational only; not medical advice. Confirm eligibility with the sponsor.</div>
 
       {rows.length > 0 && (
-        <div className="overflow-auto border rounded">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="p-2 text-left">Title</th>
-                <th className="p-2">Phase</th>
-                <th className="p-2">Status</th>
-                <th className="p-2">Location</th>
-                <th className="p-2">ID</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-t">
-                  <td className="p-2">
-                    {r.title}
-                    {r.hints && r.hints.length > 0 && (
-                      <span className="ml-1" title={r.hints.join('; ')}>⚑</span>
-                    )}
-                  </td>
-                  <td className="p-2 text-center">{r.phase || "—"}</td>
-                  <td className="p-2 text-center">{r.status || "—"}</td>
-                  <td className="p-2 text-center">{r.country || "—"}</td>
-                  <td className="p-2">
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="text-[11px] px-1.5 py-0.5 rounded border">
-                        {(r.source || "").toUpperCase()}
-                      </span>
-                      {r.id ? (
-                        <a
-                          className="underline font-semibold"
-                          href={r.url}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {r.id}
-                        </a>
-                      ) : (
-                        "—"
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ul className="space-y-2">
+          {rows.map((r) => (
+            <li
+              key={`${r.source}:${r.id}`}
+              className="rounded border p-3 dark:border-gray-700"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] px-1.5 py-0.5 rounded border">
+                  {(r.source || "").toUpperCase()}
+                </span>
+                <a
+                  className="font-semibold hover:underline"
+                  href={r.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {r.id}
+                </a>
+              </div>
+
+              <div className="text-sm mt-1">{r.title}</div>
+
+              <div className="flex flex-wrap gap-2 mt-2">
+                {r.phase && (
+                  <span className="text-[11px] px-1.5 py-0.5 rounded border">
+                    {r.phase}
+                  </span>
+                )}
+                {r.status && (
+                  <span className="text-[11px] px-1.5 py-0.5 rounded border">
+                    {r.status}
+                  </span>
+                )}
+              </div>
+
+              {r.country ? (
+                <div className="text-xs text-slate-500 mt-1">{r.country}</div>
+              ) : null}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
