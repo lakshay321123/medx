@@ -1,5 +1,5 @@
 import type { RulesOut } from "./rules";
-import { redflagChecks } from "./rules/redflags"; // Additive import: red-flag library (local to AI Doc only)
+import { redflagChecks } from "./rules/redflags"; // local red-flag checks
 
 export function buildPersonalPlan(
   r: RulesOut,
@@ -23,15 +23,13 @@ export function buildPersonalPlan(
   try {
     const vitals = (extra as any)?.vitals ?? undefined;
     const symptomsText = (extra as any)?.symptomsText ?? "";
-    const alerts = redflagChecks({ vitals, symptomsText });
-    if (alerts && alerts.length) {
-      const existing = ((plan as any).softAlerts ?? r.softAlerts ?? []) as string[];
-      (plan as any).softAlerts = Array.from(new Set([...existing, ...alerts]));
-    } else if (r.softAlerts && r.softAlerts.length) {
-      (plan as any).softAlerts = Array.from(new Set(r.softAlerts));
+    const alerts = redflagChecks({ vitals, symptomsText }) || [];
+    const merged = [...(r.softAlerts ?? []), ...alerts];
+    if (merged.length) {
+      (plan as any).softAlerts = Array.from(new Set(merged));
     }
   } catch {
-    if (r.softAlerts && r.softAlerts.length) {
+    if (r.softAlerts?.length) {
       (plan as any).softAlerts = Array.from(new Set(r.softAlerts));
     }
     // never throw from planner for alerts
