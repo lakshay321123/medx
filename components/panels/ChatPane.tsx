@@ -368,7 +368,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const [ui, setUi] = useState<ChatUiState>(UI_DEFAULTS);
   const lastUserMessageText = useMemo(() => {
-    const arr = messages.slice().reverse();
+    const arr = (messages ?? []).slice().reverse();
     const m = arr.find(m => m?.role === 'user' && typeof m?.content === 'string');
     return (m?.content || '').trim();
   }, [messages]);
