@@ -1009,6 +1009,22 @@ ${systemCommon}` + baseSys;
           m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
         )
       );
+      if (researchMode) {
+        const lastUserMsg = text;
+        const audience = mode;
+        try {
+          const r = await fetch('/api/research/bundle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: lastUserMsg, filters, audience })
+          });
+          const data = await r.json();
+          const cites = Array.isArray(data?.citations) ? data.citations : [];
+          setMessages(prev => prev.map(msg =>
+            msg.id === pendingId ? { ...msg, citations: cites } : msg
+          ));
+        } catch {}
+      }
       if (threadId && main && main.trim()) {
         pushFullMem(threadId, "assistant", main);
         maybeIndexStructured(threadId, main);
