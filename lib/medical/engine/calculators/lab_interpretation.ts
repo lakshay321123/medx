@@ -1619,3 +1619,289 @@ register({
 });
 
 
+// ===================== MED-EXT5 (APPEND-ONLY) =====================
+/* If this import already exists at file top, remove this line. */
+
+/* ---------- Canadian C-Spine Rule (CCR) ----------
+   Logic (adult blunt trauma, GCS 15):
+   - If ANY high-risk → image.
+   - ELSE if ANY low-risk present → assess active rotation:
+       • If can rotate 45° left/right → no imaging.
+       • If cannot rotate → image.
+   - ELSE (no low-risk) → image.
+*/
+register({
+  id: "canadian_cspine_rule",
+  label: "Canadian C-Spine Rule (CCR)",
+  tags: ["trauma", "risk"],
+  inputs: [
+    // High-risk
+    { key: "age_ge_65", required: true },
+    { key: "dangerous_mechanism", required: true },          // ejected, high-speed MVC, rollover, axial load, etc.
+    { key: "paresthesias_in_extremities", required: true },
+    // Low-risk (safe assessment)
+    { key: "simple_rear_end_mvc", required: true },
+    { key: "sitting_in_ed", required: true },
+    { key: "ambulatory_any_time", required: true },
+    { key: "delayed_onset_neck_pain", required: true },
+    { key: "no_midline_c_spine_tenderness", required: true },
+    // Rotation exam
+    { key: "can_rotate_45_left_and_right", required: true }  // boolean
+  ],
+  run: (x) => {
+    const high = x.age_ge_65 || x.dangerous_mechanism || x.paresthesias_in_extremities;
+    const anyLow =
+      x.simple_rear_end_mvc || x.sitting_in_ed || x.ambulatory_any_time ||
+      x.delayed_onset_neck_pain || x.no_midline_c_spine_tenderness;
+
+    let image = false;
+    let reason = "";
+
+    if (high) { image = true; reason = "high-risk feature present"; }
+    else if (!anyLow) { image = true; reason = "no low-risk factor to allow safe assessment"; }
+    else {
+      image = !x.can_rotate_45_left_and_right;
+      reason = image ? "cannot rotate 45° left/right" : "low-risk + full rotation";
+    }
+
+    return {
+      id: "canadian_cspine_rule",
+      label: "Canadian C-Spine Rule (CCR)",
+      value: image ? 1 : 0,
+      unit: "flag",
+      precision: 0,
+      notes: [image ? "Imaging indicated" : "No imaging by CCR", reason]
+    };
+  },
+});
+
+/* ---------- PE Rule-out Pathway: PERC + Age-adjusted D-dimer ----------
+   Usage:
+   - Provide either 'pretest_band' ("low"|"intermediate"|"high") OR 'wells_pe' (points).
+   - If PERC negative AND pretest low → rule out.
+   - Else if pretest low/moderate and D-dimer < age-adjusted threshold → rule out.
+   - Else not ruled out.
+*/
+register({
+  id: "pe_ruleout_perc_ddimer",
+  label: "PE rule-out (PERC + age-adjusted D-dimer)",
+  tags: ["pulmonary", "risk"],
+  inputs: [
+    { key: "perc_negative", required: true },                  // boolean
+    { key: "age", required: true },                            // years
+    { key: "ddimer_feu_ng_ml", required: true },               // ng/mL FEU
+    { key: "pretest_band" },                                   // "low"|"intermediate"|"high" (optional)
+    { key: "wells_pe" }                                        // number (optional)
+  ],
+  run: ({ perc_negative, age, ddimer_feu_ng_ml, pretest_band, wells_pe }) => {
+    if ([perc_negative, age, ddimer_feu_ng_ml].some(v => v == null)) return null;
+
+    // Derive pretest if not provided
+    let band = pretest_band;
+    if (!band && typeof wells_pe === "number") {
+      band = wells_pe <= 1 ? "low" : (wells_pe <= 6 ? "intermediate" : "high");
+    }
+
+    // Age-adjusted threshold (FEU ng/mL)
+    const threshold = age >= 50 ? age * 10 : 500;
+    const ddNeg = ddimer_feu_ng_ml < threshold;
+
+    let ruledOut = false;
+    let reason = "";
+
+    if (perc_negative && band === "low") {
+      ruledOut = true; reason = "PERC negative in low pretest probability";
+    } else if ((band === "low" || band === "intermediate") && ddNeg) {
+      ruledOut = true; reason = "D-dimer negative (age-adjusted) in low/intermediate pretest";
+    } else {
+      ruledOut = false; reason = "Pathway not satisfied";
+    }
+
+    const notes: string[] = [
+      `age-adjusted D-dimer threshold: ${Math.round(threshold)} ng/mL`,
+      ddNeg ? "D-dimer negative" : "D-dimer positive",
+      band ? `pretest: ${band}` : "pretest: unspecified"
+    ];
+    notes.push(ruledOut ? "PE ruled out without imaging" : "Imaging/workup indicated");
+
+    return {
+      id: "pe_ruleout_perc_ddimer",
+      label: "PE rule-out (PERC + age-adjusted D-dimer)",
+      value: ruledOut ? 1 : 0,
+      unit: "flag",
+      precision: 0,
+      notes
+    };
+  },
+});
+
+/* ---------- Ottawa Ankle Rule ----------
+   X-ray indicated if: pain in malleolar zone AND (bony tenderness at posterior edge/tip of lateral OR medial malleolus)
+   OR inability to bear weight (4 steps) immediately and in ED.
+*/
+register({
+  id: "ottawa_ankle_rule",
+  label: "Ottawa Ankle Rule",
+  tags: ["trauma", "risk"],
+  inputs: [
+    { key: "pain_in_malleolar_zone", required: true },
+    { key: "bony_tenderness_post_edge_tip_lateral_malleolus", required: true },
+    { key: "bony_tenderness_post_edge_tip_medial_malleolus", required: true },
+    { key: "inability_to_bear_weight_4_steps", required: true },
+  ],
+  run: (x) => {
+    const boneTender =
+      x.bony_tenderness_post_edge_tip_lateral_malleolus ||
+      x.bony_tenderness_post_edge_tip_medial_malleolus;
+
+    const image = (x.pain_in_malleolar_zone && (boneTender || x.inability_to_bear_weight_4_steps));
+    return {
+      id: "ottawa_ankle_rule",
+      label: "Ottawa Ankle Rule",
+      value: image ? 1 : 0,
+      unit: "flag",
+      precision: 0,
+      notes: [image ? "Ankle X-ray indicated" : "No ankle X-ray by rule"]
+    };
+  },
+});
+
+/* ---------- Ottawa Knee Rule ----------
+   X-ray indicated if ANY: age ≥55, isolated patellar tenderness, fibular head tenderness,
+   cannot flex to 90°, or cannot bear weight (4 steps) immediately and in ED.
+*/
+register({
+  id: "ottawa_knee_rule",
+  label: "Ottawa Knee Rule",
+  tags: ["trauma", "risk"],
+  inputs: [
+    { key: "age", required: true },
+    { key: "isolated_patellar_tenderness", required: true },
+    { key: "tenderness_head_of_fibula", required: true },
+    { key: "cannot_flex_to_90", required: true },
+    { key: "inability_to_bear_weight_4_steps", required: true },
+  ],
+  run: (x) => {
+    const image = (x.age >= 55) ||
+                  x.isolated_patellar_tenderness ||
+                  x.tenderness_head_of_fibula ||
+                  x.cannot_flex_to_90 ||
+                  x.inability_to_bear_weight_4_steps;
+    return {
+      id: "ottawa_knee_rule",
+      label: "Ottawa Knee Rule",
+      value: image ? 1 : 0,
+      unit: "flag",
+      precision: 0,
+      notes: [image ? "Knee X-ray indicated" : "No knee X-ray by rule"]
+    };
+  },
+});
+
+/* ---------- Simplified Geneva Score (PE) ----------
+   Points mapping (sum):
+   - Age >65 (1), Previous DVT/PE (3), Surgery/fracture <1 mo (2), Active malignancy (2),
+     Unilateral lower limb pain (3), Hemoptysis (2),
+     HR 75–94 (3) or ≥95 (5),
+     Pain on deep venous palpation and unilateral edema (4).
+   Bands: 0–3 low, 4–10 intermediate, ≥11 high.
+*/
+register({
+  id: "simplified_geneva_pe",
+  label: "Simplified Geneva (PE)",
+  tags: ["pulmonary", "risk"],
+  inputs: [
+    { key: "age_gt_65", required: true },
+    { key: "previous_dvt_pe", required: true },
+    { key: "surgery_or_fracture_lt_1mo", required: true },
+    { key: "active_malignancy", required: true },
+    { key: "unilateral_lower_limb_pain", required: true },
+    { key: "hemoptysis", required: true },
+    { key: "HR", required: true }, // bpm
+    { key: "pain_on_deep_venous_palpation_and_unilateral_edema", required: true },
+  ],
+  run: (x) => {
+    let pts = 0;
+    pts += x.age_gt_65 ? 1 : 0;
+    pts += x.previous_dvt_pe ? 3 : 0;
+    pts += x.surgery_or_fracture_lt_1mo ? 2 : 0;
+    pts += x.active_malignancy ? 2 : 0;
+    pts += x.unilateral_lower_limb_pain ? 3 : 0;
+    pts += x.hemoptysis ? 2 : 0;
+    pts += x.HR >= 95 ? 5 : (x.HR >= 75 ? 3 : 0);
+    pts += x.pain_on_deep_venous_palpation_and_unilateral_edema ? 4 : 0;
+
+    const notes: string[] = [];
+    if (pts >= 11) notes.push("high probability");
+    else if (pts >= 4) notes.push("intermediate probability");
+    else notes.push("low probability");
+    return { id: "simplified_geneva_pe", label: "Simplified Geneva (PE)", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/* ---------- SOFA total (sum of subscores) ----------
+   Sums previously computed: sofa_resp, sofa_coag, sofa_liver, sofa_cardio, sofa_cns, sofa_renal.
+   If any missing, they count as 0 (conservative).
+*/
+register({
+  id: "sofa_total",
+  label: "SOFA total",
+  tags: ["icu_scores"],
+  inputs: [
+    { key: "sofa_resp" },
+    { key: "sofa_coag" },
+    { key: "sofa_liver" },
+    { key: "sofa_cardio" },
+    { key: "sofa_cns" },
+    { key: "sofa_renal" },
+  ],
+  run: (x) => {
+    const sum =
+      (Number.isFinite(x.sofa_resp) ? x.sofa_resp : 0) +
+      (Number.isFinite(x.sofa_coag) ? x.sofa_coag : 0) +
+      (Number.isFinite(x.sofa_liver) ? x.sofa_liver : 0) +
+      (Number.isFinite(x.sofa_cardio) ? x.sofa_cardio : 0) +
+      (Number.isFinite(x.sofa_cns) ? x.sofa_cns : 0) +
+      (Number.isFinite(x.sofa_renal) ? x.sofa_renal : 0);
+
+    const notes: string[] = [];
+    if (sum >= 11) notes.push("very high severity (SOFA ≥11)");
+    else if (sum >= 6) notes.push("high severity (SOFA 6–10)");
+    else notes.push("lower severity band (SOFA 0–5)");
+
+    return { id: "sofa_total", label: "SOFA total", value: sum, unit: "points", precision: 0, notes };
+  },
+});
+
+/* ---------- TBSA (Rule of Nines, adult) ----------
+   Provide percent involvement per region (0–100). Typical full-region weights:
+   Head 9, Each arm 9, Each leg 18, Anterior trunk 18, Posterior trunk 18, Perineum 1.
+   We accept direct percent inputs to support partial burns.
+*/
+register({
+  id: "tbsa_rule_of_nines_adult",
+  label: "TBSA (Rule of Nines, adult)",
+  tags: ["burns", "critical_care"],
+  inputs: [
+    { key: "head_pct", required: true },             // 0–9
+    { key: "arm_left_pct", required: true },         // 0–9
+    { key: "arm_right_pct", required: true },        // 0–9
+    { key: "leg_left_pct", required: true },         // 0–18
+    { key: "leg_right_pct", required: true },        // 0–18
+    { key: "anterior_trunk_pct", required: true },   // 0–18
+    { key: "posterior_trunk_pct", required: true },  // 0–18
+    { key: "perineum_pct", required: true },         // 0–1
+  ],
+  run: (x) => {
+    const vals = [
+      x.head_pct, x.arm_left_pct, x.arm_right_pct, x.leg_left_pct, x.leg_right_pct,
+      x.anterior_trunk_pct, x.posterior_trunk_pct, x.perineum_pct
+    ];
+    if (vals.some(v => v == null)) return null;
+    const total = vals.reduce((a,b) => a + (Number(b)||0), 0);
+    const capped = Math.max(0, Math.min(100, total));
+    const notes: string[] = [];
+    if (total !== capped) notes.push("capped to 100%");
+    return { id: "tbsa_rule_of_nines_adult", label: "TBSA (Rule of Nines, adult)", value: capped, unit: "% body surface", precision: 0, notes };
+  },
+});
