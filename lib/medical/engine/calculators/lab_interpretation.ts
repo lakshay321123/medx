@@ -164,9 +164,10 @@ register({
   inputs: [
     { key: "HCO3", required: true },
     { key: "anion_gap" }, // use if available
-    { key: "anion_gap_corrected" }
+    { key: "anion_gap_corrected" },
+    { key: "winters" } // expected PaCO2 from Winter’s formula
   ],
-  run: ({ HCO3, anion_gap, anion_gap_corrected }) => {
+  run: ({ HCO3, anion_gap, anion_gap_corrected, winters }) => {
     if (HCO3 == null) return null;
     const notes: string[] = [];
     let label = "Acid–base status";
@@ -179,6 +180,9 @@ register({
         notes.push("high anion gap metabolic acidosis");
       } else {
         notes.push("normal anion gap metabolic acidosis");
+      }
+      if (typeof winters === "number" && Number.isFinite(winters)) {
+        notes.push(`with respiratory compensation (expected PaCO₂ ≈ ${Math.round(winters)})`);
       }
     } else if (HCO3 > 28) {
       notes.push("metabolic alkalosis");
@@ -194,10 +198,10 @@ register({
 register({
   id: "sepsis_risk_summary",
   label: "Sepsis risk",
-  inputs: [{ key: "qsofa_partial" }, { key: "pf_ratio" }, { key: "SBP" }, { key: "RRr" }],
-  run: ({ qsofa_partial, pf_ratio, SBP, RRr }) => {
+  inputs: [{ key: "qsofa_partial" }, { key: "pf_ratio" }, { key: "SBP" }, { key: "RRr" }, { key: "lactate" }],
+  run: ({ qsofa_partial, pf_ratio, SBP, RRr, lactate }) => {
     const notes: string[] = [];
-    let risk = "indeterminate";
+    let risk: "high" | "intermediate" | "low" | "indeterminate" = "indeterminate";
 
     // Primary: qSOFA partial if available (mentation not auto-scored in Phase-1)
     if (typeof qsofa_partial === "number") {
@@ -213,6 +217,18 @@ register({
     }
     if (typeof SBP === "number" && SBP <= 100) notes.push("SBP ≤100");
     if (typeof RRr === "number" && RRr >= 22) notes.push("RR ≥22");
+    if (typeof lactate === "number") {
+      if (lactate >= 4) notes.push(`lactate ${lactate}`);
+      else if (lactate >= 2) notes.push(`lactate ${lactate}`);
+    }
+
+    // Deterministic escalation to HIGH if any hard trigger present
+    const hardHigh =
+      (typeof qsofa_partial === "number" && qsofa_partial >= 2) ||
+      (typeof lactate === "number" && lactate >= 4) ||
+      (typeof pf_ratio === "number" && pf_ratio < 100);
+    if (hardHigh) risk = "high";
+    else if (risk === "indeterminate") risk = "intermediate"; // default if signals present but not definitive
 
     return { id: "sepsis_risk_summary", label: "Sepsis risk", value: risk, notes };
   },

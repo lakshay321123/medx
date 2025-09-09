@@ -22,6 +22,8 @@ export function computeAll(ctx: Record<string, any>) {
           precision: res.precision,
           notes: res.notes ?? [],
         });
+        // Make downstream calculators see upstream results (e.g., 'winters' inside acid_base_summary)
+        (ctx as any)[res.id] = res.value;
       }
     } catch {}
   }
@@ -57,6 +59,7 @@ export function renderResultsBlock(results: { id: string; label: string; value: 
   const footer = [
     "Use ONLY the above pre-computed values and syndrome summaries as ground truth.",
     "Do not re-compute, invent, or contradict these values.",
+    "Do not generate or propose raw formula outputs (e.g., A–a gradient, recalculated anion gap, re-derived PF ratio); rely only on the pre-computed values above.",
     "Corrected values (e.g., calcium, anion gap) OVERRIDE raw measurements.",
     "Do not suggest outdated or non-guideline therapies (e.g., dopamine for renal perfusion).",
     "Base all reasoning, differentials, and management strictly on this block."
