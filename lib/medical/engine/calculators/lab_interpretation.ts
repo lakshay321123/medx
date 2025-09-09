@@ -103,3 +103,52 @@ register({
   },
 });
 
+/** Albumin status — hypoalbuminemia flag */
+register({
+  id: "albumin_status",
+  label: "Albumin",
+  inputs: [{ key: "albumin", required: true }],
+  run: ({ albumin }) => {
+    if (albumin == null) return null;
+    const notes: string[] = [];
+    if (albumin < 2.5) notes.push("marked hypoalbuminemia");
+    else if (albumin < 3.5) notes.push("hypoalbuminemia");
+    else notes.push("normal");
+    return { id: "albumin_status", label: "Albumin", value: albumin, unit: "g/dL", precision: 1, notes };
+  },
+});
+
+/** Bicarbonate status — acidosis flag */
+register({
+  id: "bicarbonate_status",
+  label: "Bicarbonate (HCO₃⁻)",
+  inputs: [{ key: "HCO3", required: true }],
+  run: ({ HCO3 }) => {
+    if (HCO3 == null) return null;
+    const notes: string[] = [];
+    if (HCO3 < 10) notes.push("severe metabolic acidosis");
+    else if (HCO3 < 18) notes.push("metabolic acidosis");
+    else if (HCO3 > 28) notes.push("metabolic alkalosis");
+    else notes.push("normal");
+    return { id: "bicarbonate_status", label: "Bicarbonate (HCO₃⁻)", value: HCO3, unit: "mmol/L", precision: 0, notes };
+  },
+});
+
+/** Renal summary — BUN/Cr qualitative impairment cue (does NOT replace eGFR calcs) */
+register({
+  id: "renal_bun_cr_summary",
+  label: "Renal (BUN/Cr)",
+  inputs: [{ key: "BUN", required: true }, { key: "creatinine", required: true }],
+  run: ({ BUN, creatinine }) => {
+    if (BUN == null || creatinine == null) return null;
+    const notes: string[] = [];
+    // Simple qualitative buckets
+    if (creatinine >= 3 || BUN >= 80) notes.push("significant azotemia / renal impairment");
+    else if (creatinine >= 2 || BUN >= 40) notes.push("moderate azotemia / renal impairment");
+    else if (creatinine >= 1.3 || BUN >= 25) notes.push("mild renal impairment");
+    else notes.push("no azotemia by BUN/Cr");
+    // Show combined for clinician context
+    const value = Number.isFinite(BUN / Math.max(0.1, creatinine)) ? BUN / Math.max(0.1, creatinine) : 0;
+    return { id: "renal_bun_cr_summary", label: "Renal (BUN/Cr)", value, notes };
+  },
+});
