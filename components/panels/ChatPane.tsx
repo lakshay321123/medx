@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState, RefObject, Fragment } from 'react';
+import { useEffect, useRef, useState, useMemo, RefObject, Fragment } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Header from '../Header';
 import ChatMarkdown from '@/components/ChatMarkdown';
@@ -34,6 +34,7 @@ import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
+const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
 
 async function computeEval(expr: string) {
   const r = await fetch("/api/compute/math", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ op:"eval", expr }) });
@@ -339,6 +340,12 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [commitError, setCommitError] = useState<string | null>(null);
   const [aidoc, setAidoc] = useState<any | null>(null);
   const [loadingAidoc, setLoadingAidoc] = useState(false);
+  const [showPatientChooser, setShowPatientChooser] = useState(false);
+  const [showNewIntake, setShowNewIntake] = useState(false);
+  const [intake, setIntake] = useState({
+    name: "", age: "", sex: "female", pregnant: "", symptoms: "", meds: "", allergies: ""
+  });
+  const [activeProfile, setActiveProfile] = useState<any>(null);
   const topAlerts = Array.isArray(aidoc?.softAlerts) ? aidoc.softAlerts : [];
   const planAlerts = Array.isArray(aidoc?.plan?.softAlerts)
     ? aidoc.plan.softAlerts
@@ -360,6 +367,13 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   };
 
   const [ui, setUi] = useState<ChatUiState>(UI_DEFAULTS);
+  const lastUserMessageText = useMemo(() => {
+    const arr = messages.slice().reverse();
+    const m = arr.find(m => m?.role === 'user' && typeof m?.content === 'string');
+    return (m?.content || '').trim();
+  }, [messages]);
+  const activeProfileName = activeProfile?.full_name || activeProfile?.name || 'current patient';
+  const activeProfileId = activeProfile?.id || null;
 
   const addAssistant = (text: string, opts?: Partial<ChatMessage>) =>
     setMessages(prev => [...prev, { id: uid(), role: 'assistant', kind: 'chat', content: text, ...opts } as any]);
@@ -371,11 +385,19 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }
 
   useEffect(() => {
+    const fetchProfile = () => {
+      fetch('/api/profile', { cache: 'no-store' })
+        .then(r => r.ok ? r.json() : null)
+        .then(j => setActiveProfile(j?.profile || null))
+        .catch(() => {});
+    };
     const onProfileUpdated = () => {
       // if profile thread is open, nudge a silent refresh of readiness/prompts
       // (kept light: we don’t spam messages, just clear cached “askedRecently”.)
       sessionStorage.removeItem('asked:proactive');
+      fetchProfile();
     };
+    fetchProfile();
     window.addEventListener('profile-updated', onProfileUpdated);
     return () => window.removeEventListener('profile-updated', onProfileUpdated);
   }, []);
@@ -1329,18 +1351,26 @@ ${systemCommon}` + baseSys;
     send(text, researchMode);
   }
 
-  async function runAiDoc() {
+  async function runAiDocWith(profileIntent: 'current' | 'new', newProfile?: any) {
     setLoadingAidoc(true);
     try {
+      const text = (note || '').trim() || lastUserMessageText || '';
       const r = await fetch('/api/ai-doc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ threadId, message: note })
+        body: JSON.stringify({
+          threadId,
+          message: text,
+          profileIntent,
+          newProfile
+        })
       });
       const data = await r.json();
       setAidoc(data);
     } finally {
       setLoadingAidoc(false);
+      setShowPatientChooser(false);
+      setShowNewIntake(false);
     }
   }
 
@@ -1639,11 +1669,17 @@ ${systemCommon}` + baseSys;
           {mode === 'doctor' && AIDOC_UI && (
             <button
               className="rounded-md px-3 py-1 border mb-2"
-              onClick={runAiDoc}
+              onClick={async () => {
+                if (AIDOC_PREFLIGHT) {
+                  setShowPatientChooser(true);
+                } else {
+                  runAiDocWith('current');
+                }
+              }}
               aria-label="AI Doc Next Steps"
               disabled={loadingAidoc}
             >
-              Next steps (AI Doc)
+              {loadingAidoc ? 'Analyzing…' : 'Next steps (AI Doc)'}
             </button>
           )}
           <form
@@ -1717,6 +1753,70 @@ ${systemCommon}` + baseSys;
           </form>
         </div>
       </div>
+      {/* Preflight chooser (flagged) */}
+      {AIDOC_UI && AIDOC_PREFLIGHT && showPatientChooser && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/20">
+          <div className="w-full max-w-md rounded-xl bg-white p-4 shadow-xl">
+            <div className="text-sm font-medium mb-3">Who is this about?</div>
+            {activeProfileId ? (
+              <button
+                className="w-full rounded-md border px-3 py-2 text-sm mb-2"
+                onClick={() => runAiDocWith('current')}
+              >
+                Use existing profile: <span className="font-semibold">{activeProfileName}</span>
+              </button>
+            ) : null}
+            <button
+              className="w-full rounded-md border px-3 py-2 text-sm"
+              onClick={() => { setShowNewIntake(true); setShowPatientChooser(false); }}
+            >
+              New patient
+            </button>
+            <div className="mt-3 text-xs opacity-70">You can switch later from Medical Profile.</div>
+          </div>
+        </div>
+      )}
+
+      {/* Mini intake for NEW patient (flagged) */}
+      {AIDOC_UI && AIDOC_PREFLIGHT && showNewIntake && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/20">
+          <div className="w-full max-w-md rounded-xl bg-white p-4 shadow-xl space-y-2">
+            <div className="text-sm font-medium">New patient – quick intake</div>
+            <input className="w-full rounded border px-2 py-1 text-sm" placeholder="Name"
+                   value={intake.name} onChange={e => setIntake(s => ({...s, name: e.target.value}))}/>
+            <div className="grid grid-cols-3 gap-2">
+              <input className="rounded border px-2 py-1 text-sm" placeholder="Age"
+                     value={intake.age} onChange={e => setIntake(s => ({...s, age: e.target.value}))}/>
+              <select className="rounded border px-2 py-1 text-sm" value={intake.sex}
+                      onChange={e => setIntake(s => ({...s, sex: e.target.value}))}>
+                <option value="female">Female</option>
+                <option value="male">Male</option>
+                <option value="other">Other</option>
+              </select>
+              <select className="rounded border px-2 py-1 text-sm" value={intake.pregnant}
+                      onChange={e => setIntake(s => ({...s, pregnant: e.target.value}))}>
+                <option value="">Pregnant?</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+                <option value="unknown">Unknown</option>
+              </select>
+            </div>
+            <textarea className="w-full rounded border px-2 py-1 text-sm" rows={2}
+                      placeholder="Key symptoms (e.g., fatigue, chest pain at rest)"
+                      value={intake.symptoms} onChange={e => setIntake(s => ({...s, symptoms: e.target.value}))}/>
+            <input className="w-full rounded border px-2 py-1 text-sm" placeholder="Current meds (name + dose)"
+                   value={intake.meds} onChange={e => setIntake(s => ({...s, meds: e.target.value}))}/>
+            <input className="w-full rounded border px-2 py-1 text-sm" placeholder="Allergies (e.g., penicillin)"
+                   value={intake.allergies} onChange={e => setIntake(s => ({...s, allergies: e.target.value}))}/>
+            <div className="flex gap-2 pt-1">
+              <button className="flex-1 rounded-md border px-3 py-2 text-sm"
+                      onClick={() => setShowNewIntake(false)}>Cancel</button>
+              <button className="flex-1 rounded-md border px-3 py-2 text-sm font-medium"
+                      onClick={() => runAiDocWith('new', intake)}>Start</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
