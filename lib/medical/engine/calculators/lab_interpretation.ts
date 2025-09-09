@@ -7664,3 +7664,216 @@ register({
     return {id:"rv_lv_ratio_band", label:"RV/LV ratio band", value:rv_lv_ratio, unit:"ratio", precision:2, notes};
   }
 });
+// ===================== MED-EXT221–250 (APPEND-ONLY) =====================
+/* =========================================================
+   Trauma / Emergency Scores
+   ========================================================= */
+
+register({
+  id: "revised_trauma_score",
+  label: "Revised Trauma Score (RTS)",
+  tags: ["trauma","icu"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score<4?"very severe":score<6?"severe":"mild"];
+    return {id:"revised_trauma_score", label:"Revised Trauma Score (RTS)", value:score, unit:"points", precision:1, notes};
+  }
+});
+
+register({
+  id: "triss_surrogate",
+  label: "TRISS probability (surrogate)",
+  tags: ["trauma","icu"],
+  inputs: [{ key:"prob", required:true }],
+  run: ({prob})=>{
+    const notes=[prob<0.25?"poor survival odds":prob>0.75?"good odds":"intermediate"];
+    return {id:"triss_surrogate", label:"TRISS probability (surrogate)", value:prob, unit:"probability", precision:2, notes};
+  }
+});
+
+register({
+  id: "nexus_cspine_flag",
+  label: "NEXUS C-spine rule flag",
+  tags: ["trauma"],
+  inputs: [{ key:"low_risk", required:true },{ key:"no_midline_tenderness", required:true }],
+  run: (x)=>{
+    const pos=!(x.low_risk && x.no_midline_tenderness);
+    return {id:"nexus_cspine_flag", label:"NEXUS C-spine rule flag", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"imaging indicated":"no imaging needed"]};
+  }
+});
+
+register({
+  id: "canadian_headct_flag",
+  label: "Canadian Head CT rule flag",
+  tags: ["trauma","neuro"],
+  inputs: [{ key:"high_risk_present", required:true }],
+  run: ({high_risk_present})=>{
+    return {id:"canadian_headct_flag", label:"Canadian Head CT rule flag", value:high_risk_present?1:0, unit:"flag", precision:0, notes:[high_risk_present?"CT indicated":"CT not indicated"]};
+  }
+});
+
+register({
+  id: "new_orleans_headct_flag",
+  label: "New Orleans Head CT rule flag",
+  tags: ["trauma","neuro"],
+  inputs: [{ key:"criteria_met", required:true }],
+  run: ({criteria_met})=>{
+    return {id:"new_orleans_headct_flag", label:"New Orleans Head CT rule flag", value:criteria_met?1:0, unit:"flag", precision:0, notes:[criteria_met?"CT indicated":"CT not indicated"]};
+  }
+});
+
+/* =========================================================
+   Surgery / Periop Risk
+   ========================================================= */
+
+register({
+  id: "nsqip_mica_surrogate",
+  label: "NSQIP MICA surrogate",
+  tags: ["surgery","periop"],
+  inputs: [{ key:"risk_percent", required:true }],
+  run: ({risk_percent})=>{
+    const notes=[risk_percent>=1?"elevated risk":"lower risk"];
+    return {id:"nsqip_mica_surrogate", label:"NSQIP MICA surrogate", value:risk_percent, unit:"%", precision:1, notes};
+  }
+});
+
+register({
+  id: "caprini_vte_surrogate",
+  label: "Caprini VTE risk (surrogate)",
+  tags: ["surgery","periop","hematology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=5?"highest risk":score>=3?"moderate-high":"low"];
+    return {id:"caprini_vte_surrogate", label:"Caprini VTE risk (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "possummortality_surrogate",
+  label: "POSSUM mortality risk (surrogate)",
+  tags: ["surgery"],
+  inputs: [{ key:"percent", required:true }],
+  run: ({percent})=>{
+    const notes=[percent>=10?"high":"lower"];
+    return {id:"possummortality_surrogate", label:"POSSUM mortality risk (surrogate)", value:percent, unit:"%", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   Rheumatology / Dermatology
+   ========================================================= */
+
+register({
+  id: "basdai_score",
+  label: "BASDAI score",
+  tags: ["rheumatology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=4?"active disease":"low activity"];
+    return {id:"basdai_score", label:"BASDAI score", value:score, unit:"index", precision:1, notes};
+  }
+});
+
+register({
+  id: "disease_activity_das28_crp",
+  label: "DAS28-CRP surrogate",
+  tags: ["rheumatology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>5.1?"high":score>=3.2?"moderate":score>=2.6?"low":"remission"];
+    return {id:"disease_activity_das28_crp", label:"DAS28-CRP surrogate", value:score, unit:"index", precision:1, notes};
+  }
+});
+
+register({
+  id: "pasi75_response_flag",
+  label: "PASI75 response flag",
+  tags: ["dermatology"],
+  inputs: [{ key:"improvement_percent", required:true }],
+  run: ({improvement_percent})=>{
+    const pos=improvement_percent>=75;
+    return {id:"pasi75_response_flag", label:"PASI75 response flag", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"PASI75 achieved":"not achieved"]};
+  }
+});
+
+register({
+  id: "pasi90_response_flag",
+  label: "PASI90 response flag",
+  tags: ["dermatology"],
+  inputs: [{ key:"improvement_percent", required:true }],
+  run: ({improvement_percent})=>{
+    const pos=improvement_percent>=90;
+    return {id:"pasi90_response_flag", label:"PASI90 response flag", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"PASI90 achieved":"not achieved"]};
+  }
+});
+
+register({
+  id: "scorad_index_band",
+  label: "SCORAD index band",
+  tags: ["dermatology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=50?"severe":score>=25?"moderate":"mild"];
+    return {id:"scorad_index_band", label:"SCORAD index band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "slaq_surrogate",
+  label: "SLAQ (SLE Activity Questionnaire) surrogate",
+  tags: ["rheumatology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=11?"active disease":"lower"];
+    return {id:"slaq_surrogate", label:"SLAQ (SLE Activity Questionnaire) surrogate", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   Extra Trauma / Misc
+   ========================================================= */
+
+register({
+  id: "barthel_adl_score",
+  label: "Barthel ADL score",
+  tags: ["geriatrics","functional"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score<60?"dependent":"independent"];
+    return {id:"barthel_adl_score", label:"Barthel ADL score", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "glasgow_outcome_scale",
+  label: "Glasgow Outcome Scale",
+  tags: ["neuro","trauma"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score<=3?"poor outcome":"favorable outcome"];
+    return {id:"glasgow_outcome_scale", label:"Glasgow Outcome Scale", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "mmse_band",
+  label: "MMSE cognitive band",
+  tags: ["neuro","geriatrics"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score<24?"cognitive impairment":"normal"];
+    return {id:"mmse_band", label:"MMSE cognitive band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "moca_band",
+  label: "MoCA cognitive band",
+  tags: ["neuro","geriatrics"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score<26?"cognitive impairment":"normal"];
+    return {id:"moca_band", label:"MoCA cognitive band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
