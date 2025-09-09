@@ -1,17 +1,19 @@
 import { register } from "../registry";
-import { pfRatioNotes } from "../interpret";
 
 register({
   id: "pf_ratio",
-  label: "PaO₂/FiO₂ ratio",
+  label: "PF ratio",
   inputs: [
     { key: "PaO2", required: true },
     { key: "FiO2", required: true },
   ],
   run: ({ PaO2, FiO2 }) => {
-    if (PaO2 == null || FiO2 == null || FiO2 === 0) return null;
-    const val = PaO2 / FiO2;
-    return { id: "pf_ratio", label: "PaO₂/FiO₂ ratio", value: val, precision: 0, notes: pfRatioNotes(val) };
+    if (!FiO2 || FiO2 <= 0) return null;
+    const val = PaO2! / FiO2;
+    const notes: string[] = [];
+    if (val < 200) notes.push("severe hypoxemia");
+    else if (val < 300) notes.push("moderate hypoxemia");
+    return { id: "pf_ratio", label: "PF ratio", value: val, precision: 0, notes };
   },
 });
 

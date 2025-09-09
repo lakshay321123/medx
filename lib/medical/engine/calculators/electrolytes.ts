@@ -17,6 +17,29 @@ register({
 });
 
 register({
+  id: "anion_gap_corrected",
+  label: "Anion gap (albumin-corrected)",
+  inputs: [
+    { key: "Na", required: true },
+    { key: "Cl", required: true },
+    { key: "HCO3", required: true },
+    { key: "albumin", required: true },
+    { key: "K" },
+  ],
+  run: ({ Na, Cl, HCO3, albumin, K }) => {
+    const ag = Na! + (K ?? 0) - (Cl! + HCO3!);
+    const corrected = ag + 2.5 * (4 - albumin!);
+    return {
+      id: "anion_gap_corrected",
+      label: "Anion gap (albumin-corrected)",
+      value: corrected,
+      unit: "mmol/L",
+      precision: 1,
+    };
+  },
+});
+
+register({
   id: "corrected_na_hyperglycemia",
   label: "Corrected Na (hyperglycemia, 1.6)",
   inputs: [

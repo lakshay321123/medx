@@ -14,3 +14,13 @@ export function computeAll(ctx: Record<string, any>) {
   }
   return out;
 }
+
+export function renderResultsBlock(results: { id: string; label: string; value: any; unit?: string; notes?: string[] }[]): string {
+  if (!results.length) return "";
+  const lines = results.map(r => {
+    const val = r.unit ? `${r.value} ${r.unit}` : String(r.value);
+    const notes = r.notes && r.notes.length ? ` — ${r.notes.join('; ')}` : "";
+    return `${r.label}: ${val}${notes}`;
+  });
+  return lines.join("\n");
+}

@@ -35,3 +35,22 @@ register({
     return { id: "crcl_cg", label: "CrCl (Cockcroft–Gault)", value: val, unit: "mL/min", precision: 0 };
   },
 });
+
+// Simplified Phase-1 eGFR (placeholder)
+register({
+  id: "egfr_ckdepi_simplified",
+  label: "eGFR (CKD-EPI, simplified)",
+  inputs: [{ key: "creatinine", required: true }],
+  run: ({ creatinine }) => {
+    const cr = Math.max(0.1, creatinine!);
+    const egfr = 80 * Math.pow(1 / cr, 1.1);
+    return {
+      id: "egfr_ckdepi_simplified",
+      label: "eGFR (CKD-EPI, simplified)",
+      value: egfr,
+      unit: "mL/min/1.73m²",
+      precision: 0,
+      notes: ["Phase-1 placeholder"],
+    };
+  },
+});

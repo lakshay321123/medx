@@ -30,6 +30,19 @@ register({
 });
 
 register({
+  id: "chadsvasc_detected",
+  label: "CHA₂DS₂-VASc (inputs needed)",
+  inputs: [],
+  run: () => ({
+    id: "chadsvasc_detected",
+    label: "CHA₂DS₂-VASc (inputs needed)",
+    value: 0,
+    precision: 0,
+    notes: ["Ask: age, sex, CHF, HTN, DM, stroke/TIA, vascular disease"],
+  }),
+});
+
+register({
   id: "has_bled",
   label: "HAS-BLED",
   inputs: [
@@ -56,4 +69,17 @@ register({
     if (ctx.alcohol) s++;
     return { id: "has_bled", label: "HAS-BLED", value: s };
   },
+});
+
+register({
+  id: "hasbled_detected",
+  label: "HAS-BLED (inputs needed)",
+  inputs: [],
+  run: () => ({
+    id: "hasbled_detected",
+    label: "HAS-BLED (inputs needed)",
+    value: 0,
+    precision: 0,
+    notes: ["Ask: HTN, renal/liver fx, stroke, bleeding, INR lability, age, drugs/alcohol"],
+  }),
 });

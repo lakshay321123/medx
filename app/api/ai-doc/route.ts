@@ -14,6 +14,9 @@ import { buildAiDocPrompt } from "@/lib/ai/prompts/aidoc";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { extractAll } from "@/lib/medical/engine/extract";
 import { computeAll } from "@/lib/medical/engine/computeAll";
+// === [MEDX_CALC_ROUTE_IMPORTS_START] ===
+import { composeCalcPrelude } from "@/lib/medical/engine/prelude";
+// === [MEDX_CALC_ROUTE_IMPORTS_END] ===
 
 async function getFeedbackSummary(conversationId: string) {
   try {
@@ -104,6 +107,11 @@ export async function POST(req: NextRequest) {
       "\n\n" +
       system;
   }
+
+  // === [MEDX_CALC_PRELUDE_START] ===
+  const __calcPrelude = composeCalcPrelude(message ?? "");
+  if (typeof system === "string") system = [__calcPrelude, system].filter(Boolean).join("\n");
+  // === [MEDX_CALC_PRELUDE_END] ===
 
   // Call LLM (JSON-only)
   const feedback_summary = await getFeedbackSummary(threadId || "");

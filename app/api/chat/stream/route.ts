@@ -2,6 +2,9 @@ import { NextRequest } from 'next/server';
 import { profileChatSystem } from '@/lib/profileChatSystem';
 import { extractAll } from '@/lib/medical/engine/extract';
 import { computeAll } from '@/lib/medical/engine/computeAll';
+// === [MEDX_CALC_ROUTE_IMPORTS_START] ===
+import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
+// === [MEDX_CALC_ROUTE_IMPORTS_END] ===
 export const runtime = 'edge';
 
 const recentReqs = new Map<string, number>();
@@ -65,6 +68,13 @@ export async function POST(req: NextRequest) {
       finalMessages = [{ role: 'system', content: sys }, ...finalMessages];
     } catch {}
   }
+  // === [MEDX_CALC_PRELUDE_START] ===
+  const latestUserMessage = messages.filter((m: any) => m.role === 'user').slice(-1)[0]?.content || "";
+  const __calcPrelude = composeCalcPrelude(latestUserMessage ?? "");
+  if (__calcPrelude) {
+    finalMessages = [{ role: 'system', content: __calcPrelude }, ...finalMessages];
+  }
+  // === [MEDX_CALC_PRELUDE_END] ===
 
   const upstream = await fetch(url, {
     method: 'POST',
