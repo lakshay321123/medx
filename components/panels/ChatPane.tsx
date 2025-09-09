@@ -1546,16 +1546,20 @@ ${systemCommon}` + baseSys;
               </>
             )}
 
-            {Array.isArray(aidoc?.softAlerts) && aidoc.softAlerts.length > 0 && (
-              <div className="mt-2 rounded-md border border-red-300 p-2">
-                <div className="text-sm font-semibold text-red-700">Important</div>
-                <ul className="list-disc pl-5 text-red-800">
-                  {aidoc.softAlerts.map((a: string, i: number) => (
-                    <li key={i} className="text-sm">{a}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {/* Accept alerts from either the top level or inside plan */}
+            {(() => {
+              const alerts = (aidoc?.softAlerts ?? aidoc?.plan?.softAlerts ?? []) as string[];
+              return Array.isArray(alerts) && alerts.length > 0 ? (
+                <div className="mt-2 rounded-md border border-red-300 p-2">
+                  <div className="text-sm font-semibold text-red-700">Important</div>
+                  <ul className="list-disc pl-5 text-red-800">
+                    {alerts.map((a: string, i: number) => (
+                      <li key={i} className="text-sm">{a}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null;
+            })()}
 
             {Array.isArray(aidoc?.rulesFired) && aidoc.rulesFired.length > 0 && (
               <details className="mt-2">
