@@ -4555,3 +4555,229 @@ register({
   },
 });
 
+// ===================== MED-EXT41–50 (APPEND-ONLY) =====================
+/* If this import already exists at file top, remove this line. */
+
+/* =========================================================
+   MED-EXT41 — Geriatrics / Frailty
+   ========================================================= */
+
+/** Charlson Comorbidity Index surrogate */
+register({
+  id: "charlson_surrogate",
+  label: "Charlson Comorbidity Index (surrogate)",
+  tags: ["geriatrics", "risk"],
+  inputs: [{ key: "points", required: true }],
+  run: ({ points }) => {
+    const notes = [points >= 5 ? "high burden" : points >= 3 ? "moderate" : "low"];
+    return { id: "charlson_surrogate", label: "Charlson Comorbidity Index (surrogate)", value: points, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT42 — Trauma Scores
+   ========================================================= */
+
+/** Revised Trauma Score (RTS surrogate input 0–12) */
+register({
+  id: "rts_surrogate",
+  label: "Revised Trauma Score (surrogate)",
+  tags: ["trauma", "icu_scores"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score <= 4 ? "very high mortality risk" : score <= 6 ? "high" : score <= 10 ? "moderate" : "low"];
+    return { id: "rts_surrogate", label: "Revised Trauma Score (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/** Injury Severity Score (ISS surrogate) */
+register({
+  id: "iss_surrogate",
+  label: "Injury Severity Score (surrogate)",
+  tags: ["trauma", "icu_scores"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 25 ? "very severe" : score >= 16 ? "severe" : score >= 9 ? "moderate" : "minor"];
+    return { id: "iss_surrogate", label: "Injury Severity Score (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT43 — Dialysis adequacy
+   ========================================================= */
+
+/** Kt/V (dialysis adequacy surrogate) */
+register({
+  id: "ktv_surrogate",
+  label: "Kt/V (dialysis adequacy surrogate)",
+  tags: ["renal", "dialysis"],
+  inputs: [{ key: "ktv", required: true }],
+  run: ({ ktv }) => {
+    const notes = [ktv >= 1.2 ? "adequate dialysis dose (surrogate)" : "suboptimal dialysis dose (surrogate)"];
+    return { id: "ktv_surrogate", label: "Kt/V (dialysis adequacy surrogate)", value: ktv, unit: "index", precision: 2, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT44 — Hematology/Coagulation
+   ========================================================= */
+
+/** INR banding */
+register({
+  id: "inr_band",
+  label: "INR band",
+  tags: ["hematology", "coagulation"],
+  inputs: [{ key: "INR", required: true }],
+  run: ({ INR }) => {
+    const notes:string[] = [];
+    if (INR >= 4.5) notes.push("very high");
+    else if (INR >= 3.0) notes.push("high");
+    else if (INR >= 2.0) notes.push("therapeutic (common for AF/VTE)");
+    else notes.push("subtherapeutic");
+    return { id: "inr_band", label: "INR band", value: INR, unit: "ratio", precision: 2, notes };
+  },
+});
+
+/** D-dimer interpretation (age-adjusted if age provided) */
+register({
+  id: "ddimer_interp",
+  label: "D-dimer interpretation",
+  tags: ["hematology", "pulmonary"],
+  inputs: [
+    { key: "ddimer_ng_ml", required: true },
+    { key: "age", required: false },
+  ],
+  run: ({ ddimer_ng_ml, age }) => {
+    let cutoff = 500;
+    if (age && age > 50) cutoff = age*10; // age-adjusted
+    const pos = ddimer_ng_ml > cutoff;
+    const notes = [`cutoff=${cutoff} ng/mL`, pos?"positive":"negative"];
+    return { id: "ddimer_interp", label: "D-dimer interpretation", value: pos?1:0, unit: "flag", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT45 — Neonatal
+   ========================================================= */
+
+/** APGAR banding (0–10) */
+register({
+  id: "apgar_band",
+  label: "APGAR band",
+  tags: ["neonatal", "risk"],
+  inputs: [{ key: "apgar_total", required: true }],
+  run: ({ apgar_total }) => {
+    const notes = [apgar_total <= 3 ? "low" : apgar_total <= 6 ? "intermediate" : "normal"];
+    return { id: "apgar_band", label: "APGAR band", value: apgar_total, unit: "points", precision: 0, notes };
+  },
+});
+
+/** Ballard score surrogate (prematurity) */
+register({
+  id: "ballard_surrogate",
+  label: "Ballard score (surrogate)",
+  tags: ["neonatal"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const weeks = 20 + Math.round(score/5); // surrogate mapping
+    return { id: "ballard_surrogate", label: "Ballard score (surrogate)", value: weeks, unit: "weeks GA (approx)", precision: 0, notes: [] };
+  },
+});
+
+/* =========================================================
+   MED-EXT46 — Endocrine / Metabolic
+   ========================================================= */
+
+/** HOMA-IR = (Glucose mg/dL × Insulin μU/mL) / 405 */
+register({
+  id: "homa_ir",
+  label: "HOMA-IR",
+  tags: ["endocrine", "metabolic"],
+  inputs: [
+    { key: "glucose", required: true },
+    { key: "insulin", required: true },
+  ],
+  run: ({ glucose, insulin }) => {
+    const val = (glucose * insulin) / 405;
+    const notes = [val >= 2.5 ? "insulin resistance (surrogate cutoff)" : "within reference"];
+    return { id: "homa_ir", label: "HOMA-IR", value: val, unit: "index", precision: 2, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT47 — ICU / Risk
+   ========================================================= */
+
+/** NEWS2 score surrogate */
+register({
+  id: "news2_surrogate",
+  label: "NEWS2 (surrogate)",
+  tags: ["icu_scores", "risk"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 7 ? "high risk" : score >= 5 ? "medium" : "low"];
+    return { id: "news2_surrogate", label: "NEWS2 (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT48 — Pulmonary / Oxygenation
+   ========================================================= */
+
+/** Alveolar-arterial (A–a) gradient simplified */
+register({
+  id: "aa_gradient",
+  label: "A–a gradient (simplified)",
+  tags: ["pulmonary", "acid-base"],
+  inputs: [
+    { key: "PaO2", required: true },
+    { key: "FiO2", required: true }, // fraction 0–1
+    { key: "PaCO2", required: true },
+  ],
+  run: ({ PaO2, FiO2, PaCO2 }) => {
+    const PAO2 = FiO2*713 - PaCO2/0.8; // alveolar gas equation simplified
+    const grad = PAO2 - PaO2;
+    const notes = [grad > 20 ? "elevated A–a" : "normal"];
+    return { id: "aa_gradient", label: "A–a gradient (simplified)", value: grad, unit: "mmHg", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT49 — Misc Risk
+   ========================================================= */
+
+/** Wells DVT simplified score input */
+register({
+  id: "wells_dvt_surrogate",
+  label: "Wells DVT (surrogate)",
+  tags: ["hematology", "risk"],
+  inputs: [{ key: "points", required: true }],
+  run: ({ points }) => {
+    const notes = [points >= 3 ? "high prob" : points >= 1 ? "moderate" : "low"];
+    return { id: "wells_dvt_surrogate", label: "Wells DVT (surrogate)", value: points, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT50 — General / Vitals
+   ========================================================= */
+
+/** Shock index pediatric band (HR/SBP, age input for cutoffs) */
+register({
+  id: "shock_index_peds",
+  label: "Shock Index (pediatric surrogate)",
+  tags: ["pediatrics", "hemodynamics"],
+  inputs: [
+    { key: "HR", required: true },
+    { key: "SBP", required: true },
+    { key: "age", required: true },
+  ],
+  run: ({ HR, SBP, age }) => {
+    if (!HR || !SBP || SBP<=0) return null;
+    const si = HR / SBP;
+    const cutoff = age<6 ? 1.2 : 0.9;
+    const notes = [si>cutoff ? "elevated SI for age" : "within ref"];
+    return { id: "shock_index_peds", label: "Shock Index (pediatric surrogate)", value: si, unit: "ratio", precision: 2, notes };
+  },
+});
+
