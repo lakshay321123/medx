@@ -306,7 +306,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     return (m?.content || '').trim();
   }, [messages]);
 
-  // Detect “new patient” intent from text
+  // Detect "new patient" intent from text
   const isNewPatientCue = useMemo(() => {
     const txt = (lastUserMessageText || '').toLowerCase();
     return /\b(new\s*pt|new patient|first visit|n\/p)\b/.test(txt);
