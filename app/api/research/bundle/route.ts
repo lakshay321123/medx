@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { orchestrateResearch, orchestrateTrials } from "@/lib/research/orchestrator";
 
+// Uses xml2js under the hood which depends on Node core modules
+// so ensure this route runs in a Node.js environment rather than Edge.
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {

@@ -345,6 +345,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [commitError, setCommitError] = useState<string | null>(null);
   const [aidoc, setAidoc] = useState<any | null>(null);
   const [loadingAidoc, setLoadingAidoc] = useState(false);
+  const topAlerts = Array.isArray(aidoc?.softAlerts) ? aidoc.softAlerts : [];
+  const planAlerts = Array.isArray(aidoc?.plan?.softAlerts)
+    ? aidoc.plan.softAlerts
+    : [];
+  const softAlerts = Array.from(new Set([...topAlerts, ...planAlerts]));
   const posted = useRef(new Set<string>());
   const bootedRef = useRef<{[k:string]:boolean}>({});
   const askedKey = (thread?: string|null, kind?: string)=> `aidoc:${thread||'med-profile'}:asked:${kind||'any'}`;
@@ -1546,11 +1551,12 @@ ${systemCommon}` + baseSys;
               </>
             )}
 
-            {Array.isArray(aidoc?.softAlerts) && aidoc.softAlerts.length > 0 && (
+            {/* Show alerts from both the top level and plan, deduplicated */}
+            {softAlerts.length > 0 && (
               <div className="mt-2 rounded-md border border-red-300 p-2">
                 <div className="text-sm font-semibold text-red-700">Important</div>
                 <ul className="list-disc pl-5 text-red-800">
-                  {aidoc.softAlerts.map((a: string, i: number) => (
+                  {softAlerts.map((a: string, i: number) => (
                     <li key={i} className="text-sm">{a}</li>
                   ))}
                 </ul>
