@@ -5043,3 +5043,368 @@ register({
   },
 });
 
+// ===================== MED-EXT81–100 (APPEND-ONLY) =====================
+/* If this import already exists at file top, remove this line. */
+
+/* =========================================================
+   MED-EXT81 — PE: Geneva (surrogate)
+   ========================================================= */
+
+/** Simplified Geneva score (surrogate sum) */
+register({
+  id: "geneva_pe_surrogate",
+  label: "Geneva score (surrogate)",
+  tags: ["pulmonary", "risk"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 11 ? "high risk" : score >= 4 ? "intermediate" : "low"];
+    return { id: "geneva_pe_surrogate", label: "Geneva score (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT82 — HEART (chest pain) surrogate
+   ========================================================= */
+
+register({
+  id: "heart_surrogate",
+  label: "HEART score (surrogate)",
+  tags: ["cardiology", "risk"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 7 ? "high risk" : score >= 4 ? "moderate" : "low"];
+    return { id: "heart_surrogate", label: "HEART score (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT83 — Troponin delta rule-out/rule-in flag (surrogate)
+   ========================================================= */
+
+register({
+  id: "troponin_delta_flag",
+  label: "Troponin delta flag (surrogate)",
+  tags: ["cardiology", "lab"],
+  inputs: [
+    { key: "trop_initial", required: true },   // ng/L (hs) or ng/mL (consistency assumed)
+    { key: "trop_repeat", required: true },    // same units
+    { key: "delta_cutoff", required: true },   // user-provided assay-specific absolute delta
+  ],
+  run: ({ trop_initial, trop_repeat, delta_cutoff }) => {
+    const delta = Math.abs((trop_repeat ?? 0) - (trop_initial ?? 0));
+    const notes:string[] = [];
+    if (delta >= delta_cutoff) notes.push("delta above cutoff (rule-in pathway)");
+    else notes.push("delta below cutoff (rule-out pathway if within assay limits)");
+    return { id: "troponin_delta_flag", label: "Troponin delta flag (surrogate)", value: delta, unit: "delta", precision: 1, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT84 — PSI/PORT (surrogate)
+   ========================================================= */
+
+register({
+  id: "psi_port_surrogate",
+  label: "PSI/PORT class (surrogate)",
+  tags: ["pulmonary", "infectious_disease", "risk"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 130 ? "Class V (very high)" : score >= 111 ? "Class IV" : score >= 91 ? "Class III" : score >= 71 ? "Class II" : "Class I"];
+    return { id: "psi_port_surrogate", label: "PSI/PORT class (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT85 — Braden scale (pressure injury) surrogate
+   ========================================================= */
+
+register({
+  id: "braden_surrogate",
+  label: "Braden scale (surrogate)",
+  tags: ["nursing", "risk"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score <= 12 ? "high risk" : score <= 14 ? "moderate risk" : score <= 18 ? "mild risk" : "minimal risk"];
+    return { id: "braden_surrogate", label: "Braden scale (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT86 — Pancreatitis (Ranson early) surrogate
+   ========================================================= */
+
+register({
+  id: "ranson_early_surrogate",
+  label: "Ranson early (surrogate)",
+  tags: ["gastroenterology", "risk"],
+  inputs: [{ key: "criteria_met", required: true }], // 0–5 at admission
+  run: ({ criteria_met }) => {
+    const notes = [criteria_met >= 3 ? "higher risk (surrogate)" : "lower risk"];
+    return { id: "ranson_early_surrogate", label: "Ranson early (surrogate)", value: criteria_met, unit: "criteria", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT87 — qCSI (COVID severity) surrogate
+   ========================================================= */
+
+register({
+  id: "qcsi_surrogate",
+  label: "qCSI (surrogate)",
+  tags: ["pulmonary", "infectious_disease", "icu_scores"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 10 ? "high risk" : score >= 6 ? "moderate" : "low"];
+    return { id: "qcsi_surrogate", label: "qCSI (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT88 — ROX index for HFNC
+   ========================================================= */
+
+register({
+  id: "rox_index",
+  label: "ROX index",
+  tags: ["pulmonary", "icu_scores"],
+  inputs: [
+    { key: "SpO2", required: true },  // %
+    { key: "FiO2", required: true },  // 0–1
+    { key: "RRr", required: true },   // breaths/min
+  ],
+  run: ({ SpO2, FiO2, RRr }) => {
+    if (FiO2 <= 0 || RRr <= 0) return null;
+    const rox = (SpO2 / FiO2) / RRr;
+    const notes = [rox >= 4.88 ? "favorable band" : "unfavorable band"];
+    return { id: "rox_index", label: "ROX index", value: rox, unit: "index", precision: 2, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT89 — S/F ratio (SpO2/FiO2)
+   ========================================================= */
+
+register({
+  id: "sf_ratio",
+  label: "S/F ratio",
+  tags: ["pulmonary"],
+  inputs: [
+    { key: "SpO2", required: true }, // %
+    { key: "FiO2", required: true }, // 0–1
+  ],
+  run: ({ SpO2, FiO2 }) => {
+    if (FiO2 <= 0) return null;
+    const sf = SpO2 / FiO2;
+    const notes = [sf < 235 ? "ARDS-equivalent severe band" : sf <= 315 ? "ARDS-equivalent moderate band" : "above ARDS-equivalent bands"];
+    return { id: "sf_ratio", label: "S/F ratio", value: sf, unit: "unitless", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT90 — Methemoglobin band
+   ========================================================= */
+
+register({
+  id: "methemoglobin_band",
+  label: "Methemoglobin level band",
+  tags: ["toxicology", "pulmonary"],
+  inputs: [{ key: "methemoglobin_pct", required: true }],
+  run: ({ methemoglobin_pct }) => {
+    const notes = [methemoglobin_pct >= 30 ? "severe" : methemoglobin_pct >= 20 ? "moderate" : methemoglobin_pct >= 10 ? "mild" : "normal"];
+    return { id: "methemoglobin_band", label: "Methemoglobin level band", value: methemoglobin_pct, unit: "%", precision: 1, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT91 — Carboxyhemoglobin band
+   ========================================================= */
+
+register({
+  id: "carboxyhemoglobin_band",
+  label: "Carboxyhemoglobin (COHb) band",
+  tags: ["toxicology", "pulmonary"],
+  inputs: [
+    { key: "cohb_pct", required: true },
+    { key: "smoker", required: true }, // boolean
+  ],
+  run: ({ cohb_pct, smoker }) => {
+    const upper = smoker ? 10 : 3; // rough reference upper limits
+    const notes = [cohb_pct > upper ? "elevated for status" : "within reference for status"];
+    return { id: "carboxyhemoglobin_band", label: "Carboxyhemoglobin (COHb) band", value: cohb_pct, unit: "%", precision: 1, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT92 — Sodium deficit (to target)
+   ========================================================= */
+
+register({
+  id: "sodium_deficit",
+  label: "Sodium deficit to target",
+  tags: ["electrolytes", "fluids"],
+  inputs: [
+    { key: "Na_current", required: true },
+    { key: "Na_target", required: true },
+    { key: "tbw_liters", required: true }, // TBW supplied (e.g., 0.6*kg)
+  ],
+  run: ({ Na_current, Na_target, tbw_liters }) => {
+    const deficit = (Na_target - Na_current) * tbw_liters;
+    const notes = [deficit >= 0 ? "deficit to correct hyponatremia" : "negative value indicates overshoot if applied"];
+    return { id: "sodium_deficit", label: "Sodium deficit to target", value: deficit, unit: "mEq", precision: 1, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT93 — Delta ratio (AG) calculator
+   ========================================================= */
+
+register({
+  id: "delta_ratio_calc",
+  label: "Delta ratio (AG)",
+  tags: ["acid-base"],
+  inputs: [
+    { key: "anion_gap", required: true },
+    { key: "HCO3", required: true },
+  ],
+  run: ({ anion_gap, HCO3 }) => {
+    const deltaAG = anion_gap - 12;
+    const deltaHCO3 = 24 - HCO3;
+    if (deltaHCO3 <= 0) return { id: "delta_ratio_calc", label: "Delta ratio (AG)", value: 0, unit: "ratio", precision: 2, notes: ["invalid for non-acidotic HCO₃"] };
+    const r = deltaAG / deltaHCO3;
+    const notes:string[] = [];
+    if (r < 0.4) notes.push("concurrent non-AG acidosis likely");
+    else if (r > 2) notes.push("concurrent metabolic alkalosis or chronic resp acidosis likely");
+    else notes.push("consistent with isolated HAGMA");
+    return { id: "delta_ratio_calc", label: "Delta ratio (AG)", value: r, unit: "ratio", precision: 2, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT94 — Bicarbonate gap note (ΔAG − ΔHCO₃)
+   ========================================================= */
+
+register({
+  id: "bicarb_gap_note",
+  label: "Bicarbonate gap note",
+  tags: ["acid-base"],
+  inputs: [
+    { key: "anion_gap", required: true },
+    { key: "HCO3", required: true },
+  ],
+  run: ({ anion_gap, HCO3 }) => {
+    const deltaAG = anion_gap - 12;
+    const deltaHCO3 = 24 - HCO3;
+    const gap = deltaAG - deltaHCO3;
+    const notes:string[] = [];
+    if (gap > 3) notes.push("excess AG → concomitant metabolic alkalosis");
+    else if (gap < -3) notes.push("insufficient AG → concomitant non-AG acidosis");
+    else notes.push("ΔAG matches ΔHCO₃");
+    return { id: "bicarb_gap_note", label: "Bicarbonate gap note", value: gap, unit: "mEq/L", precision: 1, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT95 — Fractional excretion of chloride (FECl)
+   ========================================================= */
+
+register({
+  id: "fecl_calc",
+  label: "FECl (calculated)",
+  tags: ["renal", "electrolytes"],
+  inputs: [
+    { key: "urine_Cl", required: true },
+    { key: "serum_Cl", required: true },
+    { key: "urine_creatinine", required: true },
+    { key: "serum_creatinine", required: true },
+  ],
+  run: (x) => {
+    if (x.serum_Cl <= 0 || x.urine_creatinine <= 0) return null;
+    const fe = (x.urine_Cl * x.serum_creatinine) / (x.serum_Cl * x.urine_creatinine) * 100;
+    const notes = [fe < 0.5 ? "very low FECl" : fe < 1 ? "low FECl" : fe <= 2 ? "borderline" : "higher FECl"];
+    return { id: "fecl_calc", label: "FECl (calculated)", value: fe, unit: "%", precision: 2, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT96 — Urine sodium band
+   ========================================================= */
+
+register({
+  id: "urine_na_band",
+  label: "Urine sodium band",
+  tags: ["renal", "electrolytes"],
+  inputs: [{ key: "urine_Na", required: true }],
+  run: ({ urine_Na }) => {
+    const notes = [urine_Na < 20 ? "low (prerenal pattern)" : urine_Na <= 40 ? "intermediate" : "high (intrinsic/diuretic pattern)"];
+    return { id: "urine_na_band", label: "Urine sodium band", value: urine_Na, unit: "mmol/L", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT97 — QTc (Bazett) calculator
+   ========================================================= */
+
+register({
+  id: "qtc_bazett",
+  label: "QTc (Bazett)",
+  tags: ["cardiology", "ecg"],
+  inputs: [
+    { key: "QT_ms", required: true },     // milliseconds
+    { key: "RR_sec", required: true },    // seconds (R-R interval)
+  ],
+  run: ({ QT_ms, RR_sec }) => {
+    if (RR_sec <= 0) return null;
+    const qtc = QT_ms / Math.sqrt(RR_sec);
+    return { id: "qtc_bazett", label: "QTc (Bazett)", value: qtc, unit: "ms", precision: 0, notes: [] };
+  },
+});
+
+/* =========================================================
+   MED-EXT98 — QTc band
+   ========================================================= */
+
+register({
+  id: "qtc_band",
+  label: "QTc band",
+  tags: ["cardiology", "ecg"],
+  inputs: [
+    { key: "qtc_ms", required: true },
+    { key: "sex", required: true }, // "M" | "F"
+  ],
+  run: ({ qtc_ms, sex }) => {
+    const cutoff = sex === "F" ? 470 : 450;
+    const notes = [qtc_ms >= 500 ? "very prolonged (≥500 ms)" : qtc_ms >= cutoff ? "prolonged" : "within reference"];
+    return { id: "qtc_band", label: "QTc band", value: qtc_ms, unit: "ms", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT99 — ORBIT bleeding score (surrogate)
+   ========================================================= */
+
+register({
+  id: "orbit_bleed_surrogate",
+  label: "ORBIT bleeding (surrogate)",
+  tags: ["cardiology", "hematology", "risk"],
+  inputs: [{ key: "score", required: true }],
+  run: ({ score }) => {
+    const notes = [score >= 7 ? "high risk" : score >= 4 ? "intermediate" : "low"];
+    return { id: "orbit_bleed_surrogate", label: "ORBIT bleeding (surrogate)", value: score, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT100 — CRB-65 (no BUN) band
+   ========================================================= */
+
+register({
+  id: "crb65_band",
+  label: "CRB-65 band",
+  tags: ["pulmonary", "infectious_disease", "risk"],
+  inputs: [{ key: "crb65", required: true }],
+  run: ({ crb65 }) => {
+    const notes = [crb65 >= 3 ? "high risk" : crb65 === 2 ? "intermediate" : "low"];
+    return { id: "crb65_band", label: "CRB-65 band", value: crb65, unit: "points", precision: 0, notes };
+  },
+});
+
