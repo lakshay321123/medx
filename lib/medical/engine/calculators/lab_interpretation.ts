@@ -2335,3 +2335,402 @@ register({
   },
 });
 
+// ===================== MED-EXT6–8 (APPEND-ONLY) =====================
+
+/* ---------- MED-EXT6 ---------- */
+/** NIHSS-lite mapper: just sum motor, language, vision for demo */
+register({
+  id: "nihss_lite",
+  label: "NIHSS (lite)",
+  tags: ["neurology", "stroke"],
+  inputs: [
+    { key: "motor_score", required: true },   // 0–4
+    { key: "language_score", required: true },// 0–3
+    { key: "vision_score", required: true },  // 0–3
+  ],
+  run: (x) => {
+    const total = (x.motor_score ?? 0) + (x.language_score ?? 0) + (x.vision_score ?? 0);
+    const notes:string[] = [];
+    if (total >= 15) notes.push("severe stroke");
+    else if (total >= 5) notes.push("moderate stroke");
+    else notes.push("minor stroke");
+    return { id: "nihss_lite", label: "NIHSS (lite)", value: total, unit: "points", precision: 0, notes };
+  },
+});
+
+/** Charlson Comorbidity Index (simplified bands) */
+register({
+  id: "charlson_index",
+  label: "Charlson Comorbidity Index",
+  tags: ["comorbidity", "risk"],
+  inputs: [
+    { key: "age", required: true },
+    { key: "num_comorbidities", required: true },
+  ],
+  run: ({ age, num_comorbidities }) => {
+    let pts = num_comorbidities ?? 0;
+    if (age >= 50) pts += Math.floor((age - 40) / 10); // age weighting
+    const notes:string[] = [];
+    notes.push(pts >= 5 ? "high comorbidity burden" : "lower comorbidity burden");
+    return { id: "charlson_index", label: "Charlson Index", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/** CURB-65 disposition helper */
+register({
+  id: "curb65_dispo",
+  label: "CURB-65 disposition",
+  tags: ["pulmonary", "risk"],
+  inputs: [{ key: "curb65", required: true }],
+  run: ({ curb65 }) => {
+    if (curb65 == null) return null;
+    const notes:string[] = [];
+    if (curb65 >= 3) notes.push("hospitalize, consider ICU");
+    else if (curb65 === 2) notes.push("admit to ward");
+    else notes.push("outpatient possible");
+    return { id: "curb65_dispo", label: "CURB-65 disposition", value: curb65, unit: "points", precision: 0, notes };
+  },
+});
+
+/** Vancomycin AUC flag (no dosing) */
+register({
+  id: "vanco_auc_flag",
+  label: "Vancomycin AUC flag",
+  tags: ["id", "pharmacology"],
+  inputs: [{ key: "auc_mcg_hr_ml", required: true }],
+  run: ({ auc_mcg_hr_ml }) => {
+    if (auc_mcg_hr_ml == null) return null;
+    const notes:string[] = [];
+    if (auc_mcg_hr_ml > 600) notes.push("AUC >600: toxicity risk");
+    else if (auc_mcg_hr_ml < 400) notes.push("AUC <400: underexposure");
+    else notes.push("AUC in target range (400–600)");
+    return { id: "vanco_auc_flag", label: "Vancomycin AUC flag", value: auc_mcg_hr_ml, unit: "mg·h/L", precision: 0, notes };
+  },
+});
+
+/** Fractional excretion uric acid (FEUA) */
+register({
+  id: "feua",
+  label: "FEUA",
+  tags: ["renal", "metabolic"],
+  inputs: [
+    { key: "urine_uric", required: true },
+    { key: "plasma_uric", required: true },
+    { key: "urine_creatinine", required: true },
+    { key: "plasma_creatinine", required: true },
+  ],
+  run: (x) => {
+    const feua = (x.urine_uric * x.plasma_creatinine) / (x.plasma_uric * x.urine_creatinine) * 100;
+    const notes:string[] = [];
+    notes.push(feua > 10 ? "suggests uricosuric state" : "normal/low");
+    return { id: "feua", label: "FEUA", value: feua, unit: "%", precision: 1, notes };
+  },
+});
+
+/** Hypercalcemia flag */
+register({
+  id: "hypercalcemia_flag",
+  label: "Hypercalcemia flag",
+  tags: ["electrolytes"],
+  inputs: [{ key: "calcium", required: true }],
+  run: ({ calcium }) => {
+    if (calcium == null) return null;
+    const notes:string[] = [];
+    if (calcium >= 14) notes.push("severe hypercalcemia");
+    else if (calcium >= 12) notes.push("moderate hypercalcemia");
+    else if (calcium > 10.5) notes.push("mild hypercalcemia");
+    else notes.push("normal");
+    return { id: "hypercalcemia_flag", label: "Hypercalcemia flag", value: calcium, unit: "mg/dL", precision: 1, notes };
+  },
+});
+
+/* ---------- MED-EXT7 ---------- */
+/** Canadian CT Head Rule (minor, pediatric variant) */
+register({
+  id: "canadian_ct_head_minor_peds",
+  label: "Canadian CT Head (peds)",
+  tags: ["trauma", "pediatrics"],
+  inputs: [
+    { key: "gcs", required: true },
+    { key: "suspected_skull_fracture", required: true },
+    { key: "worsening_headache", required: true },
+    { key: "vomiting", required: true },
+    { key: "amnesia", required: true },
+    { key: "dangerous_mechanism", required: true },
+  ],
+  run: (x) => {
+    const high = x.gcs < 15 || x.suspected_skull_fracture;
+    const medium = x.worsening_headache || x.vomiting || x.amnesia || x.dangerous_mechanism;
+    const notes:string[] = [];
+    if (high) notes.push("CT recommended (high risk)");
+    else if (medium) notes.push("consider CT (medium risk)");
+    else notes.push("CT not required");
+    return { id: "canadian_ct_head_minor_peds", label: "Canadian CT Head (peds)", value: high?2:medium?1:0, unit: "tier", precision: 0, notes };
+  },
+});
+
+/** PECARN pediatric head trauma rule (simplified) */
+register({
+  id: "pecarn_head_child",
+  label: "PECARN pediatric head trauma",
+  tags: ["trauma", "pediatrics"],
+  inputs: [
+    { key: "age_lt_2", required: true },
+    { key: "gcs", required: true },
+    { key: "altered_mental_status", required: true },
+    { key: "palpable_skull_fracture", required: true },
+    { key: "scalp_hematoma", required: true },
+    { key: "severe_mechanism", required: true },
+    { key: "not_acting_normally", required: true },
+  ],
+  run: (x) => {
+    const high = x.gcs < 15 || x.altered_mental_status || x.palpable_skull_fracture;
+    const medium = x.scalp_hematoma || x.severe_mechanism || x.not_acting_normally;
+    const notes:string[] = [];
+    if (high) notes.push("CT indicated (high risk)");
+    else if (medium) notes.push("CT vs obs (intermediate)");
+    else notes.push("CT not indicated");
+    return { id: "pecarn_head_child", label: "PECARN pediatric head", value: high?2:medium?1:0, unit: "tier", precision: 0, notes };
+  },
+});
+
+/** Ottawa SAH Rule */
+register({
+  id: "ottawa_sah_rule",
+  label: "Ottawa SAH Rule",
+  tags: ["neurology", "risk"],
+  inputs: [
+    { key: "age_ge_40", required: true },
+    { key: "neck_pain_stiffness", required: true },
+    { key: "witnessed_loc", required: true },
+    { key: "exertional_onset", required: true },
+    { key: "thunderclap_instant", required: true },
+    { key: "limited_neck_flexion", required: true },
+  ],
+  run: (x) => {
+    const any = x.age_ge_40||x.neck_pain_stiffness||x.witnessed_loc||x.exertional_onset||x.thunderclap_instant||x.limited_neck_flexion;
+    const notes:string[] = [];
+    notes.push(any ? "rule positive: CT/LP required" : "rule negative: SAH very unlikely");
+    return { id: "ottawa_sah_rule", label: "Ottawa SAH Rule", value: any?1:0, unit: "flag", precision: 0, notes };
+  },
+});
+
+/** PESI simplified bands */
+register({
+  id: "pesi_simplified",
+  label: "PESI (simplified bands)",
+  tags: ["pulmonary", "risk"],
+  inputs: [
+    { key: "age", required: true },
+    { key: "sex_male", required: true },
+    { key: "cancer", required: true },
+    { key: "chf", required: true },
+    { key: "chronic_lung", required: true },
+    { key: "HR", required: true },
+    { key: "SBP", required: true },
+    { key: "RRr", required: true },
+    { key: "temp_c", required: true },
+    { key: "SaO2", required: true },
+    { key: "altered_mental_status", required: true },
+  ],
+  run: (x) => {
+    let pts = x.age + (x.sex_male?10:0) + (x.cancer?30:0) + (x.chf?10:0) + (x.chronic_lung?10:0);
+    pts += x.HR >=110?20:0;
+    pts += x.SBP <100?30:0;
+    pts += x.RRr >=30?20:0;
+    pts += x.temp_c <36?20:0;
+    pts += x.SaO2 <90?20:0;
+    pts += x.altered_mental_status?60:0;
+    const notes:string[] = [];
+    if (pts >= 125) notes.push("very high risk");
+    else if (pts >= 105) notes.push("high risk");
+    else if (pts >= 85) notes.push("intermediate risk");
+    else notes.push("low risk");
+    return { id: "pesi_simplified", label: "PESI (simplified)", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/** HASI (hypoglycemia admission score, simplified) */
+register({
+  id: "hasi_score",
+  label: "HASI score",
+  tags: ["metabolic", "risk"],
+  inputs: [
+    { key: "age", required: true },
+    { key: "gcs_lt_15", required: true },
+    { key: "sepsis", required: true },
+    { key: "needs_iv_dextrose", required: true },
+  ],
+  run: (x) => {
+    let pts = 0;
+    pts += x.age >= 65 ? 1 : 0;
+    pts += x.gcs_lt_15 ? 1 : 0;
+    pts += x.sepsis ? 1 : 0;
+    pts += x.needs_iv_dextrose ? 1 : 0;
+    const notes:string[] = [];
+    if (pts >= 2) notes.push("admit");
+    else notes.push("discharge possible");
+    return { id: "hasi_score", label: "HASI score", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/* ---------- MED-EXT8 ---------- */
+/** APGAR score (newborn) */
+register({
+  id: "apgar_score",
+  label: "APGAR score",
+  tags: ["pediatrics", "obstetrics"],
+  inputs: [
+    { key: "appearance", required: true }, // 0–2
+    { key: "pulse", required: true },      // 0–2
+    { key: "grimace", required: true },    // 0–2
+    { key: "activity", required: true },   // 0–2
+    { key: "respiration", required: true },// 0–2
+  ],
+  run: (x) => {
+    const total = x.appearance + x.pulse + x.grimace + x.activity + x.respiration;
+    const notes:string[] = [];
+    if (total >= 7) notes.push("normal (7–10)");
+    else if (total >= 4) notes.push("moderately abnormal (4–6)");
+    else notes.push("critically low (0–3)");
+    return { id: "apgar_score", label: "APGAR score", value: total, unit: "points", precision: 0, notes };
+  },
+});
+
+/** Bishop Score (labor induction) */
+register({
+  id: "bishop_score",
+  label: "Bishop score",
+  tags: ["obstetrics"],
+  inputs: [
+    { key: "dilation_cm", required: true }, // 0–3
+    { key: "effacement_pct", required: true }, // 0–3
+    { key: "station", required: true }, // -3–+2
+    { key: "consistency", required: true }, // 0–2
+    { key: "position", required: true }, // 0–2
+  ],
+  run: (x) => {
+    const total = (x.dilation_cm ?? 0)+(x.effacement_pct ?? 0)+(x.station ?? 0)+(x.consistency ?? 0)+(x.position ?? 0);
+    const notes:string[] = [];
+    notes.push(total >= 8 ? "favorable cervix" : "unfavorable cervix");
+    return { id: "bishop_score", label: "Bishop score", value: total, unit: "points", precision: 0, notes };
+  },
+});
+
+/** Wells PE (full) */
+register({
+  id: "wells_pe",
+  label: "Wells PE (full)",
+  tags: ["pulmonary", "risk"],
+  inputs: [
+    { key: "clinical_signs_dvt", required: true },
+    { key: "alt_dx_less_likely", required: true },
+    { key: "hr_gt_100", required: true },
+    { key: "immobilization_recent_surgery", required: true },
+    { key: "prior_dvt_pe", required: true },
+    { key: "hemoptysis", required: true },
+    { key: "malignancy", required: true },
+  ],
+  run: (x) => {
+    let pts = 0;
+    pts += x.clinical_signs_dvt?3:0;
+    pts += x.alt_dx_less_likely?3:0;
+    pts += x.hr_gt_100?1.5:0;
+    pts += x.immobilization_recent_surgery?1.5:0;
+    pts += x.prior_dvt_pe?1.5:0;
+    pts += x.hemoptysis?1:0;
+    pts += x.malignancy?1:0;
+    const notes:string[] = [];
+    if (pts > 6) notes.push("high probability");
+    else if (pts >= 2) notes.push("moderate probability");
+    else notes.push("low probability");
+    return { id: "wells_pe", label: "Wells PE (full)", value: pts, unit: "points", precision: 1, notes };
+  },
+});
+
+/** Revised Cardiac Risk Index (RCRI) */
+register({
+  id: "rcri",
+  label: "Revised Cardiac Risk Index",
+  tags: ["cardiology", "risk"],
+  inputs: [
+    { key: "high_risk_surgery", required: true },
+    { key: "ischemic_heart_disease", required: true },
+    { key: "chf", required: true },
+    { key: "cerebrovascular_disease", required: true },
+    { key: "insulin_treatment", required: true },
+    { key: "creatinine_gt_2", required: true },
+  ],
+  run: (x) => {
+    let pts = 0;
+    pts += x.high_risk_surgery?1:0;
+    pts += x.ischemic_heart_disease?1:0;
+    pts += x.chf?1:0;
+    pts += x.cerebrovascular_disease?1:0;
+    pts += x.insulin_treatment?1:0;
+    pts += x.creatinine_gt_2?1:0;
+    const notes:string[] = [];
+    if (pts >= 3) notes.push("high risk");
+    else if (pts >= 1) notes.push("intermediate risk");
+    else notes.push("low risk");
+    return { id: "rcri", label: "RCRI", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/** Framingham 10yr risk (lite surrogate) */
+register({
+  id: "framingham_risk_lite",
+  label: "Framingham 10yr risk (lite)",
+  tags: ["cardiology", "risk"],
+  inputs: [
+    { key: "age", required: true },
+    { key: "sex_male", required: true },
+    { key: "total_chol", required: true },
+    { key: "hdl_chol", required: true },
+    { key: "SBP", required: true },
+    { key: "treated_bp", required: true },
+    { key: "smoker", required: true },
+    { key: "diabetes", required: true },
+  ],
+  run: (x) => {
+    let score = (x.age/10) + (x.sex_male?3:0) + (x.total_chol/50) - (x.hdl_chol/15);
+    score += (x.SBP/50) + (x.treated_bp?2:0) + (x.smoker?2:0) + (x.diabetes?2:0);
+    const notes:string[] = [];
+    if (score >= 25) notes.push("high risk");
+    else if (score >= 15) notes.push("intermediate risk");
+    else notes.push("low risk");
+    return { id: "framingham_risk_lite", label: "Framingham 10yr risk (lite)", value: score, unit: "%", precision: 0, notes };
+  },
+});
+
+/** CHA₂DS₂-VASc v2 with sex category */
+register({
+  id: "cha2ds2_vasc2",
+  label: "CHA₂DS₂-VASc v2",
+  tags: ["cardiology", "risk"],
+  inputs: [
+    { key: "age", required: true },
+    { key: "sex_female", required: true },
+    { key: "hf", required: true },
+    { key: "htn", required: true },
+    { key: "stroke_tia_thromboembolism", required: true },
+    { key: "vascular_disease", required: true },
+    { key: "diabetes", required: true },
+  ],
+  run: (x) => {
+    let pts = 0;
+    if (x.age >= 75) pts += 2;
+    else if (x.age >= 65) pts += 1;
+    pts += x.sex_female ? 1 : 0;
+    pts += x.hf ? 1 : 0;
+    pts += x.htn ? 1 : 0;
+    pts += x.stroke_tia_thromboembolism ? 2 : 0;
+    pts += x.vascular_disease ? 1 : 0;
+    pts += x.diabetes ? 1 : 0;
+    const notes:string[] = [];
+    if (pts >= 2) notes.push("anticoagulation recommended");
+    else if (pts === 1) notes.push("consider anticoagulation");
+    else notes.push("no anticoagulation needed");
+    return { id: "cha2ds2_vasc2", label: "CHA₂DS₂-VASc v2", value: pts, unit: "points", precision: 0, notes };
+  },
+});
