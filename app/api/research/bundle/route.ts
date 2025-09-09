@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { orchestrateResearch } from "@/lib/research/orchestrator";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   const { query, filters, audience } = await req.json();
