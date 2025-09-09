@@ -1,5 +1,3 @@
-// lib/medical/engine/registry.ts
-
 export type InputSpec = {
   key: string;
   unit?: string;
@@ -26,19 +24,4 @@ export type Formula = {
 };
 
 export const FORMULAE: Formula[] = [];
-
-// Raw register (legacy, no deduplication)
-export function register(formula: Formula) {
-  FORMULAE.push(formula);
-}
-
-// Idempotent register to avoid duplicate IDs across merges
-export function registerUnique(formula: Formula) {
-  const i = FORMULAE.findIndex(f => f.id === formula.id);
-  if (i === -1) {
-    FORMULAE.push(formula);
-  } else {
-    // Uncomment if you prefer replacement over skip:
-    // FORMULAE[i] = formula;
-  }
-}
+export function register(formula: Formula) { FORMULAE.push(formula); }
