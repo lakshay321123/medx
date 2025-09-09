@@ -1,4 +1,6 @@
 import { normalizePhase } from "./utils";
+import type { TrialRecord } from "@/types/research";
+import { fetchCTRI } from "@/lib/trials/fetchCTRI";
 
 export type Citation = {
   id: string;
@@ -100,4 +102,22 @@ export async function searchCtri(query: string, opts?: { max?: number }): Promis
 function stripTags(s: string) {
   return s.replace(/<[^>]*>/g, "");
 }
+
+// ---- TrialRecord fetcher -------------------------------------------------
+
+export async function searchCTRI(q: string): Promise<TrialRecord[]> {
+  const raw = await fetchCTRI(q).catch(() => []);
+  return raw.map((r: any): TrialRecord => ({
+    registry: "CTRI",
+    registry_id: r.id,
+    title: r.title,
+    condition: undefined,
+    phase: r.phase,
+    status: r.status,
+    locations: r.country ? [r.country] : [],
+    url: r.url || "",
+    when: undefined,
+  }));
+}
+
 
