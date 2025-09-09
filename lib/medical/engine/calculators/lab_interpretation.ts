@@ -3094,3 +3094,337 @@ register({
   },
 });
 
+// ===================== MED-EXT12–15 (APPEND-ONLY) =====================
+/* If this import already exists at file top, remove this line. */
+
+/* =========================================================
+   MED-EXT12 — Renal / Acid–Base Gates & SIADH helpers
+   ========================================================= */
+
+/** AKIN stage (harmonize with KDIGO; creatinine & urine output) */
+register({
+  id: "akin_stage",
+  label: "AKIN stage",
+  tags: ["renal", "icu_scores"],
+  inputs: [
+    { key: "creatinine", required: true },            // mg/dL
+    { key: "baseline_creatinine" },                   // mg/dL
+    { key: "creatinine_increase_48h" },               // mg/dL
+    { key: "urine_output_ml_per_kg_per_hr" },         // mL/kg/h
+    { key: "oliguria_hours" },                        // h
+    { key: "dialysis" },                              // boolean
+  ],
+  run: (x) => {
+    if (x.creatinine == null) return null;
+    let stage = 0; const notes: string[] = [];
+    const ratio = (x.baseline_creatinine && x.baseline_creatinine>0) ? x.creatinine / x.baseline_creatinine : null;
+    if (x.dialysis) { stage = 3; notes.push("renal replacement therapy"); }
+    if (ratio != null) {
+      if (ratio >= 3) { stage = Math.max(stage, 3); notes.push("Cr ≥3× baseline"); }
+      else if (ratio >= 2) { stage = Math.max(stage, 2); notes.push("Cr ≥2× baseline"); }
+      else if (ratio >= 1.5) { stage = Math.max(stage, 1); notes.push("Cr ≥1.5× baseline"); }
+    }
+    if (x.creatinine_increase_48h != null && x.creatinine_increase_48h >= 0.3) { stage = Math.max(stage, 1); notes.push("Cr rise ≥0.3 mg/dL (48h)"); }
+    const UO = x.urine_output_ml_per_kg_per_hr, h = x.oliguria_hours;
+    if (typeof UO === "number" && typeof h === "number") {
+      if (UO < 0.3 && h >= 24) { stage = Math.max(stage, 3); notes.push("UO <0.3 mL/kg/h ≥24h"); }
+      else if (UO < 0.5 && h >= 12) { stage = Math.max(stage, 2); notes.push("UO <0.5 mL/kg/h ≥12h"); }
+      else if (UO < 0.5 && h >= 6) { stage = Math.max(stage, 1); notes.push("UO <0.5 mL/kg/h 6–12h"); }
+    }
+    return { id: "akin_stage", label: "AKIN stage", value: stage, unit: "stage", precision: 0, notes: notes.length?notes:["insufficient criteria"] };
+  },
+});
+
+/** FENa vs FEUrea gate (oliguric AKI; diuretics favor FEUrea interpretation) */
+register({
+  id: "fena_feurea_gate",
+  label: "FENa/FEUrea interpretation gate",
+  tags: ["renal"],
+  inputs: [
+    { key: "FENa", required: false },          // %
+    { key: "FEUrea", required: false },        // %
+    { key: "on_diuretics", required: false },  // boolean
+  ],
+  run: ({ FENa, FEUrea, on_diuretics }) => {
+    const notes: string[] = [];
+    let interp = "indeterminate";
+    if (on_diuretics && typeof FEUrea === "number") {
+      if (FEUrea < 35) { interp = "prerenal pattern (FEUrea <35%)"; }
+      else { interp = "intrinsic pattern (FEUrea ≥35%)"; }
+      notes.push("interpret FEUrea due to diuretics");
+    } else if (!on_diuretics && typeof FENa === "number") {
+      if (FENa < 1) { interp = "prerenal pattern (FENa <1%)"; }
+      else { interp = "intrinsic pattern (FENa ≥1%)"; }
+      notes.push("interpret FENa (no diuretics)");
+    } else {
+      notes.push("need either FENa (no diuretics) or FEUrea (on diuretics)");
+    }
+    return { id: "fena_feurea_gate", label: "FENa/FEUrea interpretation gate", value: 0, unit: "note", precision: 0, notes: [interp, ...notes] };
+  },
+});
+
+/** Metabolic alkalosis chloride-responsiveness (urine chloride) */
+register({
+  id: "met_alk_chloride_responsive",
+  label: "Metabolic alkalosis: chloride-responsive flag",
+  tags: ["acid-base", "renal"],
+  inputs: [{ key: "urine_Cl", required: true }], // mmol/L
+  run: ({ urine_Cl }) => {
+    const notes:string[] = [];
+    if (urine_Cl < 10) notes.push("chloride-responsive (UCl <10)");
+    else if (urine_Cl <= 20) notes.push("likely chloride-responsive (UCl 10–20)");
+    else notes.push("chloride-resistant pattern (UCl >20)");
+    return { id: "met_alk_chloride_responsive", label: "Metabolic alkalosis: chloride-responsive flag", value: urine_Cl, unit: "mmol/L", precision: 0, notes };
+  },
+});
+
+/** SIADH support (hypotonic euvolemic with concentrated urine & high UNa) */
+register({
+  id: "siadh_support",
+  label: "SIADH support",
+  tags: ["endocrine", "renal"],
+  inputs: [
+    { key: "effective_osm", required: true }, // mOsm/kg
+    { key: "urine_osm_measured", required: true }, // mOsm/kg
+    { key: "urine_Na", required: true }, // mmol/L
+  ],
+  run: ({ effective_osm, urine_osm_measured, urine_Na }) => {
+    const hypo = effective_osm < 275;
+    const concentrated = urine_osm_measured > 100;
+    const highUNa = urine_Na >= 30;
+    const supportive = hypo && concentrated && highUNa;
+    const notes:string[] = [];
+    notes.push(supportive ? "pattern supports SIADH (clinical correlation required)" : "pattern not supportive");
+    return { id: "siadh_support", label: "SIADH support", value: supportive?1:0, unit: "flag", precision: 0, notes: [`hypotonic:${hypo}`, `Uosm>100:${concentrated}`, `UNa≥30:${highUNa}`] };
+  },
+});
+
+/** Uosm/Serum osm ratio (concentrating ability) */
+register({
+  id: "uosm_sosm_ratio",
+  label: "Uosm/Serum osm ratio",
+  tags: ["renal"],
+  inputs: [
+    { key: "urine_osm_measured", required: true },
+    { key: "measured_osm", required: true },
+  ],
+  run: ({ urine_osm_measured, measured_osm }) => {
+    if (measured_osm == null || measured_osm <= 0) return null;
+    const r = urine_osm_measured / measured_osm;
+    const notes:string[] = [];
+    if (r < 1) notes.push("dilute urine");
+    else if (r < 2) notes.push("moderately concentrated");
+    else notes.push("well concentrated");
+    return { id: "uosm_sosm_ratio", label: "Uosm/Serum osm ratio", value: r, unit: "ratio", precision: 2, notes };
+  },
+});
+
+/** Sodium correction rate safety (ΔNa per 24h) */
+register({
+  id: "sodium_correction_rate",
+  label: "Sodium correction rate safety",
+  tags: ["electrolytes", "safety"],
+  inputs: [
+    { key: "delta_Na_mEq", required: true },  // planned/observed Δ over 24h
+  ],
+  run: ({ delta_Na_mEq }) => {
+    const notes:string[] = [];
+    if (delta_Na_mEq > 12) notes.push("unsafe: ΔNa>12 mEq in 24h");
+    else if (delta_Na_mEq > 10) notes.push("caution: ΔNa 10–12");
+    else if (delta_Na_mEq >= 6) notes.push("typical target band 6–10");
+    else notes.push("slow correction (<6)");
+    return { id: "sodium_correction_rate", label: "Sodium correction rate safety", value: delta_Na_mEq, unit: "mEq/24h", precision: 1, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT13 — Neuro Hemorrhage & Coma utilities
+   ========================================================= */
+
+/** GCS total from components */
+register({
+  id: "gcs_total",
+  label: "GCS total",
+  tags: ["neurology"],
+  inputs: [
+    { key: "gcs_eye", required: true },     // 1–4
+    { key: "gcs_verbal", required: true },  // 1–5
+    { key: "gcs_motor", required: true },   // 1–6
+  ],
+  run: ({ gcs_eye, gcs_verbal, gcs_motor }) => {
+    const total = (gcs_eye ?? 0) + (gcs_verbal ?? 0) + (gcs_motor ?? 0);
+    const notes:string[] = [];
+    if (total <= 8) notes.push("severe");
+    else if (total <= 12) notes.push("moderate");
+    else notes.push("mild");
+    return { id: "gcs_total", label: "GCS total", value: total, unit: "points", precision: 0, notes };
+  },
+});
+
+/** ICH score (simplified) */
+register({
+  id: "ich_score",
+  label: "ICH score (simplified)",
+  tags: ["neurology", "risk"],
+  inputs: [
+    { key: "gcs_total", required: true },           // from above
+    { key: "ich_volume_ml", required: true },       // >30 mL
+    { key: "intraventricular_hemorrhage", required: true },
+    { key: "infratentorial_origin", required: true },
+    { key: "age_ge_80", required: true },
+  ],
+  run: (x) => {
+    let pts = 0;
+    pts += x.gcs_total <= 4 ? 2 : x.gcs_total <= 8 ? 1 : 0;
+    pts += x.ich_volume_ml > 30 ? 1 : 0;
+    pts += x.intraventricular_hemorrhage ? 1 : 0;
+    pts += x.infratentorial_origin ? 1 : 0;
+    pts += x.age_ge_80 ? 1 : 0;
+    const notes:string[] = [];
+    if (pts >= 3) notes.push("high risk");
+    else if (pts === 2) notes.push("intermediate risk");
+    else notes.push("lower risk");
+    return { id: "ich_score", label: "ICH score (simplified)", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/** Hunt–Hess (SAH severity, simplified mapping 1–5) */
+register({
+  id: "hunt_hess",
+  label: "Hunt–Hess grade (simplified)",
+  tags: ["neurology", "risk"],
+  inputs: [
+    { key: "grade", required: true }, // 1–5 chosen upstream by clinician/mapper
+  ],
+  run: ({ grade }) => {
+    if (grade == null) return null;
+    const notes:string[] = [];
+    notes.push(grade >= 4 ? "severe SAH" : grade >= 3 ? "moderate SAH" : "mild SAH");
+    return { id: "hunt_hess", label: "Hunt–Hess grade (simplified)", value: grade, unit: "grade", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT14 — Sepsis/ID Severity Flags
+   ========================================================= */
+
+/** Septic shock (Sepsis-3) biochemical flag */
+register({
+  id: "septic_shock_flag",
+  label: "Septic shock (Sepsis-3) flag",
+  tags: ["sepsis", "critical_care"],
+  inputs: [
+    { key: "on_vasopressors", required: true },       // boolean (to maintain MAP ≥65)
+    { key: "lactate", required: true },               // mmol/L
+  ],
+  run: ({ on_vasopressors, lactate }) => {
+    const flag = !!on_vasopressors && lactate > 2;
+    const notes:string[] = [];
+    notes.push(flag ? "meets Sepsis-3 shock criteria (pressors + lactate >2)" : "does not meet Sepsis-3 shock criteria");
+    return { id: "septic_shock_flag", label: "Septic shock (Sepsis-3) flag", value: flag?1:0, unit: "flag", precision: 0, notes };
+  },
+});
+
+/** qPitt (quick Pitt bacteremia score, simplified 0–5) */
+register({
+  id: "qpitt_simplified",
+  label: "qPitt (simplified)",
+  tags: ["infectious_disease", "risk"],
+  inputs: [
+    { key: "temp_c", required: true },          // ≤35 or ≥40
+    { key: "SBP", required: true },             // <90
+    { key: "RRr", required: true },             // ≥25
+    { key: "altered_mentation", required: true },
+    { key: "mechanical_ventilation", required: true },
+  ],
+  run: (x) => {
+    let pts = 0;
+    pts += (x.temp_c <= 35 || x.temp_c >= 40) ? 1 : 0;
+    pts += x.SBP < 90 ? 1 : 0;
+    pts += x.RRr >= 25 ? 1 : 0;
+    pts += x.altered_mentation ? 1 : 0;
+    pts += x.mechanical_ventilation ? 1 : 0;
+    const notes:string[] = [];
+    if (pts >= 3) notes.push("high risk");
+    else if (pts === 2) notes.push("intermediate risk");
+    else notes.push("low risk");
+    return { id: "qpitt_simplified", label: "qPitt (simplified)", value: pts, unit: "points", precision: 0, notes };
+  },
+});
+
+/** SOFA → mortality band (informational, non-calibrated) */
+register({
+  id: "sofa_mortality_band",
+  label: "SOFA mortality band",
+  tags: ["icu_scores", "sepsis"],
+  inputs: [{ key: "sofa_total", required: true }],
+  run: ({ sofa_total }) => {
+    if (sofa_total == null) return null;
+    const notes:string[] = [];
+    if (sofa_total >= 12) notes.push("very high mortality band");
+    else if (sofa_total >= 8) notes.push("high mortality band");
+    else if (sofa_total >= 4) notes.push("moderate mortality band");
+    else notes.push("lower mortality band");
+    return { id: "sofa_mortality_band", label: "SOFA mortality band", value: sofa_total, unit: "points", precision: 0, notes };
+  },
+});
+
+/* =========================================================
+   MED-EXT15 — Nutrition & Frailty Screens
+   ========================================================= */
+
+/** NRS-2002 (screening surrogate 0–7) */
+register({
+  id: "nrs_2002_surrogate",
+  label: "NRS-2002 (surrogate)",
+  tags: ["nutrition", "risk"],
+  inputs: [
+    { key: "nutritional_impairment_band", required: true }, // 0 none, 1 mild, 2 mod, 3 severe
+    { key: "disease_severity_band", required: true },       // 0 none, 1 mild, 2 mod, 3 severe
+    { key: "age_ge_70", required: true },                   // +1 if true
+  ],
+  run: ({ nutritional_impairment_band, disease_severity_band, age_ge_70 }) => {
+    const total = (nutritional_impairment_band ?? 0) + (disease_severity_band ?? 0) + (age_ge_70 ? 1 : 0);
+    const notes:string[] = [];
+    notes.push(total >= 3 ? "nutritional risk (≥3)" : "no nutritional risk (<3)");
+    return { id: "nrs_2002_surrogate", label: "NRS-2002 (surrogate)", value: total, unit: "points", precision: 0, notes };
+  },
+});
+
+/** MUST (Malnutrition Universal Screening Tool) surrogate 0–6 */
+register({
+  id: "must_surrogate",
+  label: "MUST (surrogate)",
+  tags: ["nutrition", "risk"],
+  inputs: [
+    { key: "bmi_band", required: true },           // 0: >20, 1: 18.5–20, 2: <18.5
+    { key: "weight_loss_band", required: true },   // 0: <5%, 1: 5–10%, 2: >10%
+    { key: "acute_disease_effect", required: true } // 0/2
+  ],
+  run: ({ bmi_band, weight_loss_band, acute_disease_effect }) => {
+    const total = (bmi_band ?? 0) + (weight_loss_band ?? 0) + (acute_disease_effect ?? 0);
+    const notes:string[] = [];
+    if (total >= 2) notes.push("high risk (≥2)");
+    else if (total === 1) notes.push("medium risk");
+    else notes.push("low risk");
+    return { id: "must_surrogate", label: "MUST (surrogate)", value: total, unit: "points", precision: 0, notes };
+  },
+});
+
+/** Clinical Frailty Scale (CFS) — input 1–9, banded */
+register({
+  id: "cfs_band",
+  label: "Clinical Frailty Scale (banded)",
+  tags: ["geriatrics", "risk"],
+  inputs: [{ key: "cfs", required: true }], // 1–9
+  run: ({ cfs }) => {
+    if (cfs == null) return null;
+    const notes:string[] = [];
+    if (cfs >= 7) notes.push("severe–very severe frailty (7–9)");
+    else if (cfs >= 5) notes.push("mild–moderate frailty (5–6)");
+    else if (cfs >= 3) notes.push("vulnerable (3–4)");
+    else notes.push("very fit to fit (1–2)");
+    return { id: "cfs_band", label: "Clinical Frailty Scale (banded)", value: cfs, unit: "score", precision: 0, notes };
+  },
+});
+
