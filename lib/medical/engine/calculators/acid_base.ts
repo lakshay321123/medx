@@ -34,3 +34,13 @@ register({
     return { id: "winters_pco2", label: "Expected pCO₂", value: val, unit: "mmHg", precision: 1 };
   },
 });
+
+register({
+  id: "winters",
+  label: "Expected pCO₂ (Winter’s)",
+  inputs: [{ key: "HCO3", required: true }],
+  run: ({ HCO3 }) => {
+    const exp = 1.5 * (HCO3!) + 8;
+    return { id: "winters", label: "Expected pCO₂ (Winter’s)", value: exp, unit: "mmHg", precision: 0, notes: ["±2 mmHg"] };
+  },
+});

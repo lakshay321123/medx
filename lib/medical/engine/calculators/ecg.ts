@@ -26,6 +26,8 @@ register({
   run: ({ QTms, HR }) => {
     if (QTms == null || HR == null) return null;
     const val = QTms / Math.sqrt(rr(HR));
-    return { id: "qtc_bazett", label: "QTc (Bazett)", value: val, unit: "ms", precision: 0 };
+    const notes: string[] = [];
+    if (val > 500) notes.push("markedly prolonged");
+    return { id: "qtc_bazett", label: "QTc (Bazett)", value: val, unit: "ms", precision: 0, notes };
   },
 });
