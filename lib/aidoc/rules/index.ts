@@ -1,6 +1,7 @@
 import { diabetesRules } from "./diabetes";
 import { lipidsRules } from "./lipids";
 import { htnRules } from "./htn";
+import { thyroidRules } from "./thyroid";
 
 export type RulesOut = { steps:string[]; nudges:string[]; fired:string[]; softAlerts:any[] };
 
@@ -9,6 +10,7 @@ export function runRules(ctx:{labs:any[]; meds:any[]; conditions:any[]; vitals?:
     diabetesRules(ctx),
     lipidsRules(ctx),
     htnRules(ctx),
+    thyroidRules(ctx),
   ];
   return {
     steps: Array.from(new Set(buckets.flatMap(b=>b.steps))),
