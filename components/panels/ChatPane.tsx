@@ -32,6 +32,8 @@ import { detectAdvancedDomain } from "@/lib/intents/advanced";
 import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
 
+const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
+
 async function computeEval(expr: string) {
   const r = await fetch("/api/compute/math", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ op:"eval", expr }) });
   const j = await r.json(); if (!j.ok) throw new Error(j.error||"compute failed"); return j.out as string;
@@ -341,6 +343,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [pendingCommitIds, setPendingCommitIds] = useState<string[]>([]);
   const [commitBusy, setCommitBusy] = useState<null | 'save' | 'discard'>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
+  const [aidoc, setAidoc] = useState<any | null>(null);
+  const [loadingAidoc, setLoadingAidoc] = useState(false);
   const posted = useRef(new Set<string>());
   const bootedRef = useRef<{[k:string]:boolean}>({});
   const askedKey = (thread?: string|null, kind?: string)=> `aidoc:${thread||'med-profile'}:asked:${kind||'any'}`;
@@ -1303,6 +1307,21 @@ ${systemCommon}` + baseSys;
     send(text, researchMode);
   }
 
+  async function runAiDoc() {
+    setLoadingAidoc(true);
+    try {
+      const r = await fetch('/api/ai-doc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ threadId, message: note })
+      });
+      const data = await r.json();
+      setAidoc(data);
+    } finally {
+      setLoadingAidoc(false);
+    }
+  }
+
   return (
     <div className="relative flex h-full flex-col">
       <Header
@@ -1494,6 +1513,47 @@ ${systemCommon}` + baseSys;
             )
         )}
       </div>
+      {AIDOC_UI && aidoc && (
+        <div className="mx-auto w-full max-w-3xl">
+          <div className="mt-3 rounded-lg border p-3 space-y-2">
+            <div className="text-sm font-medium">Observations</div>
+            <div className="text-sm opacity-90">{aidoc?.observations?.short}</div>
+
+            {Array.isArray(aidoc?.plan?.steps) && aidoc.plan.steps.length > 0 && (
+              <>
+                <div className="text-sm font-medium mt-2">Plan</div>
+                <ul className="list-disc pl-5 space-y-1">
+                  {aidoc.plan.steps.map((s: string, i: number) => (
+                    <li key={i} className="text-sm">{s}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            {Array.isArray(aidoc?.softAlerts) && aidoc.softAlerts.length > 0 && (
+              <div className="mt-2 rounded-md border border-red-300 p-2">
+                <div className="text-sm font-semibold text-red-700">Important</div>
+                <ul className="list-disc pl-5 text-red-800">
+                  {aidoc.softAlerts.map((a: string, i: number) => (
+                    <li key={i} className="text-sm">{a}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {Array.isArray(aidoc?.rulesFired) && aidoc.rulesFired.length > 0 && (
+              <details className="mt-2">
+                <summary className="cursor-pointer text-sm">Why these?</summary>
+                <ul className="list-disc pl-5">
+                  {aidoc.rulesFired.map((r: string, i: number) => (
+                    <li key={i} className="text-xs opacity-70">{r}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        </div>
+      )}
       {pendingCommitIds.length > 0 && (
         <div className="mx-auto my-4 max-w-3xl px-4 sm:px-6">
           <div className="rounded-lg border p-3 text-sm flex items-center gap-2 bg-white dark:bg-gray-800">
@@ -1551,8 +1611,18 @@ ${systemCommon}` + baseSys;
         </div>
       )}
     </div>
-    <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+  <div className="absolute bottom-4 left-0 right-0 flex justify-center">
         <div className="w-full max-w-3xl px-4">
+          {mode === 'doctor' && AIDOC_UI && (
+            <button
+              className="rounded-md px-3 py-1 border mb-2"
+              onClick={runAiDoc}
+              aria-label="AI Doc Next Steps"
+              disabled={loadingAidoc}
+            >
+              Next steps (AI Doc)
+            </button>
+          )}
           <form
             onSubmit={e => {
               e.preventDefault();
