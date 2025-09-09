@@ -23,7 +23,7 @@ describe("Medical calculators EXT1–50", () => {
   it("gives ARDS mild band", () => {
     const out = computeAll({ PaO2: 80, FiO2: 0.3 });
     const pf = out.filter(o => o.id === "pf_ratio").at(-1);
-    expect(pf?.notes?.[0]).toMatch(/ARDS mild/);
+    expect(pf?.notes?.[0]).toMatch(/mild ARDS/);
   });
 
   it("computes Cockcroft–Gault within expected range", () => {
