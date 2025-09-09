@@ -12,8 +12,8 @@ import { buildPersonalPlan } from "@/lib/aidoc/planner";
 import { extractPrefsFromUser } from "@/lib/aidoc/extractors/prefs";
 import { buildAiDocPrompt } from "@/lib/ai/prompts/aidoc";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { extractAll } from "@/lib/medical/extract";
-import { computeAll } from "@/lib/medical/calculators";
+import { extractAll } from "@/lib/medical/engine/extract";
+import { computeAll } from "@/lib/medical/engine/computeAll";
 
 async function getFeedbackSummary(conversationId: string) {
   try {
@@ -90,12 +90,17 @@ export async function POST(req: NextRequest) {
   let system = buildAiDocPrompt({ profile, labs, meds, conditions });
 
   const userText = String(message || "");
-  const extracted = extractAll(userText);
-  const computedLines = computeAll(extracted);
-  if (computedLines.length) {
+  const ctx = extractAll(userText);
+  const computed = computeAll(ctx);
+  if (computed.length) {
+    const lines = computed.map(r => {
+      const val = r.unit ? `${r.value} ${r.unit}` : String(r.value);
+      const notes = r.notes?.length ? ` — ${r.notes.join('; ')}` : '';
+      return `${r.label}: ${val}${notes}`;
+    });
     system =
-      "These clinical calculations are pre-computed by code. Use them exactly; do not re-calculate.\n" +
-      computedLines.join("\n") +
+      "Use the pre-computed clinical values below exactly. Do not re-calculate. If inputs are missing, state which values are required.\n" +
+      lines.join("\n") +
       "\n\n" +
       system;
   }

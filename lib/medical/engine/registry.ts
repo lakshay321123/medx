@@ -1,32 +1,44 @@
-export interface CalcInput {
-  key: string;
-  required?: boolean;
-}
+// lib/medical/engine/registry.ts
 
-export interface CalcResult {
+export type InputSpec = {
+  key: string;
+  unit?: string;
+  aliases?: string[];
+  required?: boolean;
+};
+
+export type CalcResult = {
   id: string;
   label: string;
   value?: number | string;
   unit?: string;
-  precision?: number;
   notes?: string[];
-}
+  precision?: number;
+};
 
-export interface Calculator {
+export type Formula = {
   id: string;
   label: string;
-  tags?: string[];
-  inputs: CalcInput[];
-  run: (ctx: Record<string, any>) => CalcResult | null | undefined;
+  inputs: InputSpec[];
+  run: (ctx: Record<string, any>) => CalcResult | null;
   priority?: number;
+  tags?: string[];
+};
+
+export const FORMULAE: Formula[] = [];
+
+// Raw register (legacy, no deduplication)
+export function register(formula: Formula) {
+  FORMULAE.push(formula);
 }
 
-const registry: Calculator[] = [];
-
-export function register(calc: Calculator) {
-  registry.push(calc);
-}
-
-export function getRegistry(): Calculator[] {
-  return registry.slice().sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
+// Idempotent register to avoid duplicate IDs across merges
+export function registerUnique(formula: Formula) {
+  const i = FORMULAE.findIndex(f => f.id === formula.id);
+  if (i === -1) {
+    FORMULAE.push(formula);
+  } else {
+    // Uncomment if you prefer replacement over skip:
+    // FORMULAE[i] = formula;
+  }
 }

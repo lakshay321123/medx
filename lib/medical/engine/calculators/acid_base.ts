@@ -1,4 +1,5 @@
-import { register } from "../registry";
+// lib/medical/engine/calculators/acid_base.ts
+import { registerUnique as register } from "../registry";
 
 // ===== Anion Gap (±K) =====
 register({
@@ -20,7 +21,6 @@ register({
 });
 
 // ===== Albumin-corrected Anion Gap =====
-// AG_corr = AG + 2.5 × (4.0 − albumin g/dL)
 register({
   id: "anion_gap_albumin_corrected",
   label: "Anion gap (albumin-corrected)",
@@ -30,7 +30,7 @@ register({
     { key: "Cl", required: true },
     { key: "HCO3", required: true },
     { key: "K" },
-    { key: "albumin" },
+    { key: "albumin", required: true },
   ],
   run: ({ Na, Cl, HCO3, K, albumin }) => {
     if (Na == null || Cl == null || HCO3 == null || albumin == null) return null;
@@ -51,11 +51,9 @@ register({
 });
 
 // ===== Delta Gap & Delta–Delta =====
-// deltaAG = AG_corr - 12 (use corrected if available; else raw)
-// expected HCO3 = 24 - deltaAG; delta-delta = (Observed HCO3 - expected HCO3)
 register({
   id: "delta_gap",
-  label: "Delta gap",
+  label: "Delta gap (ΔAG), Δ–Δ",
   tags: ["acid-base"],
   inputs: [
     { key: "Na", required: true },
@@ -72,7 +70,11 @@ register({
     const expectedHCO3 = 24 - dAG;
     const deltaDelta = HCO3 - expectedHCO3;
 
-    const notes: string[] = [];
+    const notes: string[] = [
+      `ΔAG: ${Number.isFinite(dAG) ? dAG.toFixed(1) : "—"}`,
+      `Expected HCO₃: ${Number.isFinite(expectedHCO3) ? expectedHCO3.toFixed(1) : "—"} mmol/L`,
+      `Δ–Δ: ${Number.isFinite(deltaDelta) ? deltaDelta.toFixed(1) : "—"} mmol/L`,
+    ];
     if (deltaDelta > 3) notes.push("concurrent metabolic alkalosis (↑ HCO₃)");
     if (deltaDelta < -3) notes.push("concurrent non-AG metabolic acidosis (↓ HCO₃)");
 
@@ -82,18 +84,13 @@ register({
       value: Number.isFinite(dAG) ? dAG : undefined,
       unit: "mmol/L",
       precision: 1,
-      notes: [
-        `ΔAG: ${Number.isFinite(dAG) ? dAG.toFixed(1) : "—"}`,
-        `Expected HCO₃: ${Number.isFinite(expectedHCO3) ? expectedHCO3.toFixed(1) : "—"} mmol/L`,
-        `Δ–Δ: ${Number.isFinite(deltaDelta) ? deltaDelta.toFixed(1) : "—"} mmol/L`,
-        ...notes,
-      ],
+      notes,
     };
   },
   priority: 12,
 });
 
-// ===== Corrected Sodium for Hyperglycemia =====
+// ===== Corrected Sodium (hyperglycemia) =====
 register({
   id: "corrected_na_1_6",
   label: "Corrected Na (1.6 factor)",
@@ -130,8 +127,7 @@ register({
   priority: 21,
 });
 
-// ===== Winter's Formula (expected pCO₂ in metabolic acidosis) =====
-// pCO2_expected = 1.5 × HCO3 + 8 ± 2
+// ===== Winter's Formula =====
 register({
   id: "winters_formula",
   label: "Expected pCO₂ (Winter’s formula)",
@@ -152,11 +148,10 @@ register({
   priority: 30,
 });
 
-// ===== Compensation heuristics (simple linear rules) =====
-// Metabolic alkalosis expected pCO₂: pCO₂ ≈ 0.7 × ΔHCO₃ + 40 ± 5
+// ===== Compensation heuristics =====
 register({
   id: "metabolic_alk_compensation",
-  label: "Expected pCO₂ in metabolic alkalosis",
+  label: "Expected pCO₂ (metabolic alkalosis)",
   tags: ["acid-base"],
   inputs: [{ key: "HCO3", required: true }],
   run: ({ HCO3 }) => {
@@ -175,8 +170,6 @@ register({
   priority: 31,
 });
 
-// Acute respiratory acidosis: ΔHCO₃ ≈ +1 mmol/L per +10 mmHg pCO₂ (chronic ≈ +3.5)
-// Acute respiratory alkalosis: ΔHCO₃ ≈ −2 mmol/L per −10 mmHg pCO₂ (chronic ≈ −5)
 register({
   id: "resp_comp_rules",
   label: "Respiratory compensation (heuristics)",
