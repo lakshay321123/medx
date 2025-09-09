@@ -10000,3 +10000,310 @@ register({
   }
 });
 
+// ===================== MED-EXT461–510 (APPEND-ONLY) =====================
+/* If this import already exists at file top, remove this line. */
+
+/* =========================================================
+   Rheumatology
+   ========================================================= */
+
+register({
+  id: "slei_sledai_surrogate",
+  label: "SLEDAI surrogate (disease activity)",
+  tags: ["rheumatology","sle"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    let band="mild";
+    if (score>=20) band="very high";
+    else if (score>=10) band="moderate";
+    return {id:"slei_sledai_surrogate", label:"SLEDAI surrogate (disease activity)", value:score, unit:"points", precision:0, notes:[band]};
+  }
+});
+
+register({
+  id: "rheum_das28_surrogate",
+  label: "DAS28 surrogate (RA activity)",
+  tags: ["rheumatology","ra"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    let band="remission";
+    if (score>5.1) band="high";
+    else if (score>3.2) band="moderate";
+    else if (score>2.6) band="low";
+    return {id:"rheum_das28_surrogate", label:"DAS28 surrogate (RA activity)", value:score, unit:"index", precision:2, notes:[band]};
+  }
+});
+
+register({
+  id: "rheum_cdai_surrogate",
+  label: "CDAI surrogate (RA activity)",
+  tags: ["rheumatology","ra"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    let band="remission";
+    if (score>22) band="high";
+    else if (score>10) band="moderate";
+    else if (score>2.8) band="low";
+    return {id:"rheum_cdai_surrogate", label:"CDAI surrogate (RA activity)", value:score, unit:"points", precision:1, notes:[band]};
+  }
+});
+
+register({
+  id: "basdai_surrogate",
+  label: "BASDAI surrogate (axSpA activity)",
+  tags: ["rheumatology","spondyloarthritis"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const band=score>=4?"active disease":"low activity";
+    return {id:"basdai_surrogate", label:"BASDAI surrogate (axSpA activity)", value:score, unit:"index", precision:1, notes:[band]};
+  }
+});
+
+/* =========================================================
+   Dermatology
+   ========================================================= */
+
+register({
+  id: "pasi_band",
+  label: "Psoriasis Area Severity Index (PASI) band",
+  tags: ["dermatology","psoriasis"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=10?"moderate-severe":"mild"];
+    return {id:"pasi_band", label:"Psoriasis Area Severity Index (PASI) band", value:score, unit:"points", precision:1, notes};
+  }
+});
+
+register({
+  id: "pasi_response_flag",
+  label: "PASI response flag (75/90/100)",
+  tags: ["dermatology","psoriasis"],
+  inputs: [
+    { key:"baseline", required:true },
+    { key:"current", required:true }
+  ],
+  run: ({baseline,current})=>{
+    if (baseline<=0) return null;
+    const improve=(baseline-current)/baseline*100;
+    let resp="none";
+    if (improve>=100) resp="PASI 100";
+    else if (improve>=90) resp="PASI 90";
+    else if (improve>=75) resp="PASI 75";
+    return {id:"pasi_response_flag", label:"PASI response flag (75/90/100)", value:improve, unit:"% improvement", precision:0, notes:[resp]};
+  }
+});
+
+register({
+  id: "easi_band",
+  label: "Eczema Area Severity Index (EASI) band",
+  tags: ["dermatology","eczema"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    let band="mild";
+    if (score>=21) band="severe";
+    else if (score>=7) band="moderate";
+    return {id:"easi_band", label:"Eczema Area Severity Index (EASI) band", value:score, unit:"points", precision:1, notes:[band]};
+  }
+});
+
+register({
+  id: "scorad_surrogate",
+  label: "SCORAD surrogate (atopic dermatitis)",
+  tags: ["dermatology","eczema"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    let band="mild";
+    if (score>=50) band="severe";
+    else if (score>=25) band="moderate";
+    return {id:"scorad_surrogate", label:"SCORAD surrogate (atopic dermatitis)", value:score, unit:"points", precision:1, notes:[band]};
+  }
+});
+
+/* =========================================================
+   Oncology — Performance & Risk
+   ========================================================= */
+
+register({
+  id: "ecog_band",
+  label: "ECOG performance status band",
+  tags: ["oncology"],
+  inputs: [{ key:"score", required:true }], // 0–5
+  run: ({score})=>{
+    let band="normal";
+    if (score>=4) band="bedbound";
+    else if (score>=2) band="restricted";
+    return {id:"ecog_band", label:"ECOG performance status band", value:score, unit:"score", precision:0, notes:[band]};
+  }
+});
+
+register({
+  id: "karnofsky_detailed",
+  label: "Karnofsky detailed band",
+  tags: ["oncology"],
+  inputs: [{ key:"score", required:true }], // 0–100
+  run: ({score})=>{
+    let band="good";
+    if (score<50) band="poor";
+    else if (score<70) band="moderate";
+    return {id:"karnofsky_detailed", label:"Karnofsky detailed band", value:score, unit:"%", precision:0, notes:[band]};
+  }
+});
+
+register({
+  id: "carg_toxicity_surrogate",
+  label: "CARG chemo toxicity risk (surrogate)",
+  tags: ["oncology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=9?"high":score>=6?"intermediate":"low"];
+    return {id:"carg_toxicity_surrogate", label:"CARG chemo toxicity risk (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "ripi_surrogate",
+  label: "R-IPI (lymphoma) surrogate",
+  tags: ["oncology","hematology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=4?"poor prognosis":score==3?"intermediate":"good"];
+    return {id:"ripi_surrogate", label:"R-IPI (lymphoma) surrogate", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "ipss_mds_surrogate",
+  label: "IPSS (MDS) surrogate",
+  tags: ["oncology","hematology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=1.5?"high risk":"low/intermediate"];
+    return {id:"ipss_mds_surrogate", label:"IPSS (MDS) surrogate", value:score, unit:"points", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   Toxicology & Metabolic Emergencies
+   ========================================================= */
+
+register({
+  id: "osmolar_gap_calc",
+  label: "Osmolar gap calculator",
+  tags: ["toxicology","metabolic"],
+  inputs: [
+    { key:"Na", required:true },
+    { key:"glucose_mg_dl", required:true },
+    { key:"BUN_mg_dl", required:true },
+    { key:"ethanol_mg_dl", required:true },
+    { key:"measured_osm", required:true }
+  ],
+  run: ({Na,glucose_mg_dl,BUN_mg_dl,ethanol_mg_dl,measured_osm})=>{
+    const calc=2*Na + (glucose_mg_dl/18) + (BUN_mg_dl/2.8) + (ethanol_mg_dl/4.6);
+    const gap=measured_osm-calc;
+    const notes=[gap>10?"elevated gap":"normal"];
+    return {id:"osmolar_gap_calc", label:"Osmolar gap calculator", value:gap, unit:"mOsm/kg", precision:1, notes};
+  }
+});
+
+register({
+  id: "acetaminophen_nomogram_flag",
+  label: "Acetaminophen nomogram supportive flag",
+  tags: ["toxicology"],
+  inputs: [
+    { key:"time_hr", required:true },
+    { key:"level_ug_ml", required:true }
+  ],
+  run: ({time_hr,level_ug_ml})=>{
+    const thresh = 150*Math.pow(0.5,(time_hr-4)/4);
+    const pos = level_ug_ml>=thresh;
+    return {id:"acetaminophen_nomogram_flag", label:"Acetaminophen nomogram supportive flag", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"above nomogram line":"below nomogram line"]};
+  }
+});
+
+register({
+  id: "salicylate_toxicity_band",
+  label: "Salicylate toxicity band",
+  tags: ["toxicology"],
+  inputs: [{ key:"level_mg_dl", required:true }],
+  run: ({level_mg_dl})=>{
+    let band="therapeutic";
+    if (level_mg_dl>=100) band="potentially lethal";
+    else if (level_mg_dl>=50) band="severe";
+    else if (level_mg_dl>=30) band="toxic";
+    return {id:"salicylate_toxicity_band", label:"Salicylate toxicity band", value:level_mg_dl, unit:"mg/dL", precision:0, notes:[band]};
+  }
+});
+
+register({
+  id: "ethylene_glycol_flag",
+  label: "Ethylene glycol poisoning supportive flag",
+  tags: ["toxicology"],
+  inputs: [
+    { key:"osm_gap", required:true },
+    { key:"anion_gap", required:true },
+    { key:"calcium_oxalate_crystals", required:true }
+  ],
+  run: ({osm_gap,anion_gap,calcium_oxalate_crystals})=>{
+    const pos = osm_gap>10 && anion_gap>12 && calcium_oxalate_crystals;
+    return {id:"ethylene_glycol_flag", label:"Ethylene glycol poisoning supportive flag", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"supportive pattern":"not supportive"]};
+  }
+});
+
+register({
+  id: "methanol_flag",
+  label: "Methanol poisoning supportive flag",
+  tags: ["toxicology"],
+  inputs: [
+    { key:"osm_gap", required:true },
+    { key:"anion_gap", required:true },
+    { key:"visual_symptoms", required:true }
+  ],
+  run: ({osm_gap,anion_gap,visual_symptoms})=>{
+    const pos=osm_gap>10 && anion_gap>12 && visual_symptoms;
+    return {id:"methanol_flag", label:"Methanol poisoning supportive flag", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"supportive pattern":"not supportive"]};
+  }
+});
+
+register({
+  id: "cyanide_lactate_flag",
+  label: "Cyanide toxicity supportive flag",
+  tags: ["toxicology"],
+  inputs: [
+    { key:"lactate", required:true },
+    { key:"severe_acidosis", required:true }
+  ],
+  run: ({lactate,severe_acidosis})=>{
+    const pos=lactate>8 && severe_acidosis;
+    return {id:"cyanide_lactate_flag", label:"Cyanide toxicity supportive flag", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"supportive pattern":"not supportive"]};
+  }
+});
+
+register({
+  id: "toxic_alcohol_flag",
+  label: "Generic toxic alcohol ingestion flag",
+  tags: ["toxicology"],
+  inputs: [
+    { key:"osm_gap", required:true },
+    { key:"anion_gap", required:true }
+  ],
+  run: ({osm_gap,anion_gap})=>{
+    const pos=osm_gap>10 && anion_gap>12;
+    return {id:"toxic_alcohol_flag", label:"Generic toxic alcohol ingestion flag", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"pattern present":"not supportive"]};
+  }
+});
+
+register({
+  id: "lactate_gap_calc",
+  label: "Lactate gap (arterial–venous)",
+  tags: ["critical_care","toxicology"],
+  inputs: [
+    { key:"arterial", required:true },
+    { key:"venous", required:true }
+  ],
+  run: ({arterial,venous})=>{
+    const gap=arterial-venous;
+    const notes=[gap>3?"large gap":"normal"];
+    return {id:"lactate_gap_calc", label:"Lactate gap (arterial–venous)", value:gap, unit:"mmol/L", precision:1, notes};
+  }
+});
+
