@@ -152,3 +152,39 @@ register({
     return { id: "renal_bun_cr_summary", label: "Renal (BUN/Cr)", value, notes };
   },
 });
+
+/**
+ * Acid–base summary: integrates HCO₃⁻ and anion gap into a plain-language status.
+ * Simplified Phase-2 logic: detects metabolic acidosis (high AG vs normal AG).
+ */
+register({
+  id: "acid_base_summary",
+  label: "Acid–base status",
+  inputs: [
+    { key: "HCO3", required: true },
+    { key: "anion_gap" }, // use if available
+    { key: "anion_gap_corrected" }
+  ],
+  run: ({ HCO3, anion_gap, anion_gap_corrected }) => {
+    if (HCO3 == null) return null;
+    const notes: string[] = [];
+    let label = "Acid–base status";
+
+    // Use corrected AG if available, else raw AG
+    const ag = anion_gap_corrected ?? anion_gap;
+
+    if (HCO3 < 18) {
+      if (ag != null && ag > 16) {
+        notes.push("high anion gap metabolic acidosis");
+      } else {
+        notes.push("normal anion gap metabolic acidosis");
+      }
+    } else if (HCO3 > 28) {
+      notes.push("metabolic alkalosis");
+    } else {
+      notes.push("no primary metabolic disorder detected");
+    }
+
+    return { id: "acid_base_summary", label, value: HCO3, unit: "mmol/L", precision: 0, notes };
+  },
+});
