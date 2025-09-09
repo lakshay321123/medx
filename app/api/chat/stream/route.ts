@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
-import { profileChatSystem } from '@/lib/profileChatSystem';
 import * as ecg from '@/lib/medical/ecg';
+import { profileChatSystem } from '@/lib/profileChatSystem';
 export const runtime = 'edge';
 
 const recentReqs = new Map<string, number>();
