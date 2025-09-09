@@ -6691,3 +6691,470 @@ register({
     return { id: "winters_expected_paco2", label: "Winter’s expected PaCO₂", value: expected, unit: "mmHg", precision: 0, notes };
   },
 });
+// ===================== MED-EXT161–190 (APPEND-ONLY) =====================
+
+/* =========================================================
+   MED-EXT161 — Charlson Comorbidity Index surrogate
+   ========================================================= */
+register({
+  id: "charlson_surrogate",
+  label: "Charlson Comorbidity Index (surrogate)",
+  tags: ["geriatrics","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=5?"high":"low/intermediate"];
+    return {id:"charlson_surrogate", label:"Charlson Comorbidity Index (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT162 — Elixhauser comorbidity surrogate
+   ========================================================= */
+register({
+  id: "elixhauser_surrogate",
+  label: "Elixhauser comorbidity surrogate",
+  tags: ["geriatrics","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=10?"high burden":"lower"];
+    return {id:"elixhauser_surrogate", label:"Elixhauser comorbidity surrogate", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT163 — Braden Q (pediatrics pressure injury risk)
+   ========================================================= */
+register({
+  id: "braden_q",
+  label: "Braden Q (pediatrics)",
+  tags: ["pediatrics","nursing"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score<=16?"at risk":"lower"];
+    return {id:"braden_q", label:"Braden Q (pediatrics)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT164 — CURB age-only (CRB65)
+   ========================================================= */
+register({
+  id: "crb65_simple",
+  label: "CRB-65 simple band",
+  tags: ["infectious_disease","pulmonary"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=3?"high":score==2?"moderate":"low"];
+    return {id:"crb65_simple", label:"CRB-65 simple band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT165 — NEWS2 expanded
+   ========================================================= */
+register({
+  id: "news2_full",
+  label: "NEWS2 full surrogate",
+  tags: ["icu_scores","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=7?"high":score>=5?"medium":"low"];
+    return {id:"news2_full", label:"NEWS2 full surrogate", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT166 — qSOFA score band
+   ========================================================= */
+register({
+  id: "qsofa_band",
+  label: "qSOFA score band",
+  tags: ["infectious_disease","sepsis"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=2?"positive qSOFA":"negative"];
+    return {id:"qsofa_band", label:"qSOFA score band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT167 — SOFA cardiovascular subscore (MAP/vasopressors)
+   ========================================================= */
+register({
+  id: "sofa_cv_subscore",
+  label: "SOFA cardiovascular subscore",
+  tags: ["icu_scores","sepsis"],
+  inputs: [
+    { key:"MAP", required:true },
+    { key:"on_vasopressors", required:true }
+  ],
+  run: ({MAP,on_vasopressors})=>{
+    let score=0;
+    if (on_vasopressors && MAP<70) score=4;
+    else if (MAP<70) score=1;
+    return {id:"sofa_cv_subscore", label:"SOFA cardiovascular subscore", value:score, unit:"points", precision:0, notes:[`CV subscore=${score}`]};
+  }
+});
+
+/* =========================================================
+   MED-EXT168 — Sepsis-3 septic shock supportive flag
+   ========================================================= */
+register({
+  id: "septic_shock_support",
+  label: "Septic shock supportive flag",
+  tags: ["sepsis","icu"],
+  inputs: [
+    { key:"lactate", required:true },
+    { key:"on_vasopressors", required:true }
+  ],
+  run: ({lactate,on_vasopressors})=>{
+    const supportive=lactate>2 && on_vasopressors;
+    return {id:"septic_shock_support", label:"Septic shock supportive flag", value:supportive?1:0, unit:"flag", precision:0, notes:[supportive?"supportive":"not supportive"]};
+  }
+});
+
+/* =========================================================
+   MED-EXT169 — Burn index (%TBSA×0.5+age)
+   ========================================================= */
+register({
+  id: "burn_index",
+  label: "Burn index",
+  tags: ["burns","risk"],
+  inputs: [
+    { key:"tbsa_percent", required:true },
+    { key:"age", required:true }
+  ],
+  run: ({tbsa_percent,age})=>{
+    const idx=tbsa_percent*0.5+age;
+    const notes=[idx>=100?"high":"lower"];
+    return {id:"burn_index", label:"Burn index", value:idx, unit:"index", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT170 — Pediatric GCS band
+   ========================================================= */
+register({
+  id: "peds_gcs_band",
+  label: "Pediatric GCS band",
+  tags: ["pediatrics","neuro"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score<=8?"severe":score<=12?"moderate":"mild"];
+    return {id:"peds_gcs_band", label:"Pediatric GCS band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT171 — Blatchford score surrogate (UGIB)
+   ========================================================= */
+register({
+  id: "blatchford_surrogate",
+  label: "Blatchford score (UGIB, surrogate)",
+  tags: ["gastroenterology","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=6?"high":"low"];
+    return {id:"blatchford_surrogate", label:"Blatchford score (UGIB, surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT172 — Rockall score surrogate
+   ========================================================= */
+register({
+  id: "rockall_surrogate",
+  label: "Rockall score (surrogate)",
+  tags: ["gastroenterology","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=6?"high":"low/moderate"];
+    return {id:"rockall_surrogate", label:"Rockall score (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT173 — Maddrey DF (alcoholic hepatitis)
+   DF=4.6×(PTpatient−PTcontrol)+bilirubin
+   ========================================================= */
+register({
+  id: "maddrey_df",
+  label: "Maddrey Discriminant Function",
+  tags: ["hepatology"],
+  inputs: [
+    { key:"pt_patient", required:true },
+    { key:"pt_control", required:true },
+    { key:"bilirubin", required:true }
+  ],
+  run: ({pt_patient,pt_control,bilirubin})=>{
+    const df=4.6*(pt_patient-pt_control)+bilirubin;
+    const notes=[df>=32?"severe AH":"milder"];
+    return {id:"maddrey_df", label:"Maddrey Discriminant Function", value:df, unit:"score", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT174 — Lille score surrogate (alcoholic hepatitis)
+   ========================================================= */
+register({
+  id: "lille_surrogate",
+  label: "Lille score (surrogate)",
+  tags: ["hepatology","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=0.45?"poor prognosis":"better"];
+    return {id:"lille_surrogate", label:"Lille score (surrogate)", value:score, unit:"index", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT175 — FIB-4 surrogate
+   ========================================================= */
+register({
+  id: "fib4_surrogate",
+  label: "FIB-4 index (surrogate)",
+  tags: ["hepatology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>3.25?"advanced fibrosis":score>1.45?"indeterminate":"low"];
+    return {id:"fib4_surrogate", label:"FIB-4 index (surrogate)", value:score, unit:"index", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT176 — NAFLD fibrosis score surrogate
+   ========================================================= */
+register({
+  id: "nafld_fibrosis_surrogate",
+  label: "NAFLD fibrosis score (surrogate)",
+  tags: ["hepatology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>0.675?"advanced":score<-1.455?"low":"indeterminate"];
+    return {id:"nafld_fibrosis_surrogate", label:"NAFLD fibrosis score (surrogate)", value:score, unit:"index", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT177 — APRI score surrogate
+   ========================================================= */
+register({
+  id: "apri_surrogate",
+  label: "APRI score (surrogate)",
+  tags: ["hepatology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>1.5?"advanced fibrosis":score>0.5?"significant":"minimal"];
+    return {id:"apri_surrogate", label:"APRI score (surrogate)", value:score, unit:"index", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT178 — MELD-XI (no INR) = 5.11×ln(bili)+11.76×ln(creatinine)+9.44
+   ========================================================= */
+register({
+  id: "meld_xi",
+  label: "MELD-XI (no INR)",
+  tags: ["hepatology"],
+  inputs: [
+    { key:"bilirubin", required:true },
+    { key:"creatinine", required:true }
+  ],
+  run: ({bilirubin,creatinine})=>{
+    const b=Math.max(1,bilirubin);
+    const c=Math.max(1,creatinine);
+    const score=5.11*Math.log(b)+11.76*Math.log(c)+9.44;
+    return {id:"meld_xi", label:"MELD-XI (no INR)", value:score, unit:"score", precision:1, notes:[]};
+  }
+});
+
+/* =========================================================
+   MED-EXT179 — MELD-Na simplified (bilirubin+INR+Cr+Na linear)
+   ========================================================= */
+register({
+  id: "meld_na_simplified",
+  label: "MELD-Na simplified surrogate",
+  tags: ["hepatology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=30?"very high":score>=20?"high":"lower"];
+    return {id:"meld_na_simplified", label:"MELD-Na simplified surrogate", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT180 — BARD score surrogate (NAFLD)
+   ========================================================= */
+register({
+  id: "bard_surrogate",
+  label: "BARD score surrogate",
+  tags: ["hepatology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=2?"high risk":"low"];
+    return {id:"bard_surrogate", label:"BARD score surrogate", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT181 — HOMA-IR = (Insulin μU/mL × Glucose mg/dL)/405
+   ========================================================= */
+register({
+  id: "homa_ir",
+  label: "HOMA-IR",
+  tags: ["endocrine","metabolic"],
+  inputs: [
+    { key:"insulin", required:true },
+    { key:"glucose", required:true }
+  ],
+  run: ({insulin,glucose})=>{
+    if (glucose<=0) return null;
+    const val=(insulin*glucose)/405;
+    return {id:"homa_ir", label:"HOMA-IR", value:val, unit:"index", precision:2, notes:[]};
+  }
+});
+
+/* =========================================================
+   MED-EXT182 — TyG index = ln[TG×glucose/2]
+   ========================================================= */
+register({
+  id: "tyg_index",
+  label: "TyG index",
+  tags: ["metabolic","endocrine"],
+  inputs: [
+    { key:"TG", required:true },
+    { key:"glucose", required:true }
+  ],
+  run: ({TG,glucose})=>{
+    const val=Math.log(TG*glucose/2);
+    return {id:"tyg_index", label:"TyG index", value:val, unit:"index", precision:2, notes:[]};
+  }
+});
+
+/* =========================================================
+   MED-EXT183 — Metabolic syndrome flag (ATP III simple)
+   ========================================================= */
+register({
+  id: "metabolic_syndrome_flag",
+  label: "Metabolic syndrome flag",
+  tags: ["metabolic","endocrine"],
+  inputs: [{ key:"criteria_met", required:true }],
+  run: ({criteria_met})=>{
+    const pos=criteria_met>=3;
+    return {id:"metabolic_syndrome_flag", label:"Metabolic syndrome flag", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"meets metabolic syndrome":"not met"]};
+  }
+});
+
+/* =========================================================
+   MED-EXT184 — Triglyceride-glucose waist surrogate
+   ========================================================= */
+register({
+  id: "tg_waist_surrogate",
+  label: "TG-waist surrogate",
+  tags: ["metabolic"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=8?"high":"low"];
+    return {id:"tg_waist_surrogate", label:"TG-waist surrogate", value:score, unit:"index", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT185 — REE (Mifflin-St Jeor)
+   REE = 10×W + 6.25×H − 5×Age + s
+   ========================================================= */
+register({
+  id: "mifflin_stjeor",
+  label: "Mifflin-St Jeor REE",
+  tags: ["nutrition","metabolic"],
+  inputs: [
+    { key:"weight", required:true },
+    { key:"height", required:true },
+    { key:"age", required:true },
+    { key:"sex", required:true } // "M"|"F"
+  ],
+  run: ({weight,height,age,sex})=>{
+    const s=sex==="M"?5:-161;
+    const val=10*weight+6.25*height-5*age+s;
+    return {id:"mifflin_stjeor", label:"Mifflin-St Jeor REE", value:val, unit:"kcal/day", precision:0, notes:[]};
+  }
+});
+
+/* =========================================================
+   MED-EXT186 — Harris-Benedict REE
+   ========================================================= */
+register({
+  id: "harris_benedict",
+  label: "Harris-Benedict REE",
+  tags: ["nutrition","metabolic"],
+  inputs: [
+    { key:"weight", required:true },
+    { key:"height", required:true },
+    { key:"age", required:true },
+    { key:"sex", required:true }
+  ],
+  run: ({weight,height,age,sex})=>{
+    let val=0;
+    if (sex==="M") val=66.5+13.8*weight+5*height-6.8*age;
+    else val=655+9.6*weight+1.8*height-4.7*age;
+    return {id:"harris_benedict", label:"Harris-Benedict REE", value:val, unit:"kcal/day", precision:0, notes:[]};
+  }
+});
+
+/* =========================================================
+   MED-EXT187 — Cunningham REE
+   REE = 500 + 22×LBM
+   ========================================================= */
+register({
+  id: "cunningham_ree",
+  label: "Cunningham REE",
+  tags: ["nutrition","metabolic"],
+  inputs: [{ key:"lbm", required:true }],
+  run: ({lbm})=>{
+    const val=500+22*lbm;
+    return {id:"cunningham_ree", label:"Cunningham REE", value:val, unit:"kcal/day", precision:0, notes:[]};
+  }
+});
+
+/* =========================================================
+   MED-EXT188 — Penn State REE surrogate
+   ========================================================= */
+register({
+  id: "penn_state_surrogate",
+  label: "Penn State REE surrogate",
+  tags: ["icu","nutrition"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=2000?"high":"lower"];
+    return {id:"penn_state_surrogate", label:"Penn State REE surrogate", value:score, unit:"kcal/day", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT189 — MUST nutrition risk surrogate
+   ========================================================= */
+register({
+  id: "must_surrogate",
+  label: "MUST nutrition risk (surrogate)",
+  tags: ["nutrition","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=2?"high":score==1?"moderate":"low"];
+    return {id:"must_surrogate", label:"MUST nutrition risk (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT190 — NRS-2002 nutrition risk surrogate
+   ========================================================= */
+register({
+  id: "nrs2002_surrogate",
+  label: "NRS-2002 (surrogate)",
+  tags: ["nutrition","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=3?"at risk":"not at risk"];
+    return {id:"nrs2002_surrogate", label:"NRS-2002 (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
