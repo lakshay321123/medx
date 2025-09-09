@@ -9,3 +9,5 @@ import "./endocrine";
 import "./toxicology";
 import "./icu";
 import "./icu_helpers";
+
+import "./lab_interpretation";
