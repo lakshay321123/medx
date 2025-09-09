@@ -56,6 +56,7 @@ register({
 
 // ---- Corrected Calcium (albumin) + status ----
 // Corrected Ca (mg/dL) = measured Ca + 0.8 * (4.0 - albumin)
+// === [MEDX_CORRECTED_CALCIUM_START] ===
 register({
   id: "corrected_calcium_status",
   label: "Corrected calcium",
@@ -68,9 +69,12 @@ register({
     else if (corrected < 8.5) notes.push("mild hypocalcemia");
     else if (corrected > 10.5) notes.push("hypercalcemia");
     else notes.push("normal");
+    // Explicitly override raw calcium interpretation
+    notes.push("corrected value overrides raw calcium");
     return { id: "corrected_calcium_status", label: "Corrected calcium", value: corrected, unit: "mg/dL", precision: 1, notes };
   },
 });
+// === [MEDX_CORRECTED_CALCIUM_END] ===
 
 // ---- INR status ----
 register({
