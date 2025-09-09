@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import Header from '../Header';
 import ChatMarkdown from '@/components/ChatMarkdown';
 import ResearchFilters from '@/components/ResearchFilters';
+import { LinkBadge } from '@/components/SafeLink';
 import TrialsTable from "@/components/TrialsTable";
 import type { TrialRow } from "@/types/trials";
 import { useResearchFilters } from '@/store/researchFilters';
@@ -172,17 +173,17 @@ No fabricated IDs. Provide themes, not specific trial numbers unless confident.`
 
 function PendingAnalysisCard({ label }: { label: string }) {
   return (
-    <article className="mr-auto max-w-[90%] rounded-2xl p-4 md:p-6 shadow-sm bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800">
+    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
       <div className="text-sm text-slate-600 dark:text-slate-300">{label}</div>
-    </article>
+    </div>
   );
 }
 
 function PendingChatCard({ label }: { label: string }) {
   return (
-    <article className="mr-auto max-w-3xl rounded-2xl p-4 md:p-6 shadow-sm bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800 text-left whitespace-normal">
+    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
       <div className="text-sm text-slate-600 dark:text-slate-300">{label}</div>
-    </article>
+    </div>
   );
 }
 
@@ -190,7 +191,7 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
   const header = titleForCategory(m.category);
   if (m.pending) return <PendingAnalysisCard label="Analyzing file…" />;
   return (
-    <article className="mr-auto max-w-3xl rounded-2xl p-4 md:p-6 shadow-sm space-y-2 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800 text-left whitespace-normal">
+    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl space-y-2">
       <header className="flex items-center gap-2">
         <h2 className="text-lg md:text-xl font-semibold">{header}</h2>
         {researchOn && (
@@ -236,33 +237,26 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
       <p className="text-xs text-amber-500/90 pt-2">
         AI assistance only — not a medical diagnosis. Confirm with a clinician.
       </p>
-    </article>
+    </div>
   );
 }
-
 function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onFollowUpClick: (text: string) => void; simple: boolean }) {
   if (m.pending) return <PendingChatCard label="Thinking…" />;
   return (
-    <article className="mr-auto max-w-3xl rounded-2xl p-4 md:p-6 shadow-sm space-y-2 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-800 text-left whitespace-normal">
+    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
       <ChatMarkdown content={m.content} />
       {m.role === "assistant" && (m.citations?.length || 0) > 0 && (
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           {(m.citations || []).slice(0, simple ? 3 : 6).map((c, i) => (
-            <a
-              key={i}
-              href={c.url}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-full border px-3 py-1 text-xs hover:bg-gray-100"
-            >
+            <LinkBadge key={i} href={c.url}>
               {c.source.toUpperCase()}
               {c.extra?.evidenceLevel ? ` · ${c.extra.evidenceLevel}` : ""}
-            </a>
+            </LinkBadge>
           ))}
         </div>
       )}
       {!therapyMode && (m.followUps?.length || 0) > 0 && (
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           {(m.followUps || []).map((f, i) => (
             <button
               key={i}
@@ -274,7 +268,7 @@ function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<Chat
           ))}
         </div>
       )}
-    </article>
+    </div>
   );
 }
 
