@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState, RefObject, Fragment } from 'react';
+import { useEffect, useRef, useState, RefObject, Fragment, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Header from '../Header';
 import ChatMarkdown from '@/components/ChatMarkdown';
@@ -34,6 +34,7 @@ import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
+const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
 
 async function computeEval(expr: string) {
   const r = await fetch("/api/compute/math", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ op:"eval", expr }) });
@@ -299,6 +300,18 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
   const { filters } = useResearchFilters();
 
+  const lastUserMessageText = useMemo(() => {
+    const arr = (messages ?? []).slice().reverse();
+    const m = arr.find(m => m?.role === 'user' && typeof m?.content === 'string');
+    return (m?.content || '').trim();
+  }, [messages]);
+
+  // Detect “new patient” intent from text
+  const isNewPatientCue = useMemo(() => {
+    const txt = (lastUserMessageText || '').toLowerCase();
+    return /\b(new\s*pt|new patient|first visit|n\/p)\b/.test(txt);
+  }, [lastUserMessageText]);
+
   // Auto-resize the textarea up to a max height
   useEffect(() => {
     const el = (inputRef?.current as unknown as HTMLTextAreaElement | null);
@@ -339,6 +352,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [commitError, setCommitError] = useState<string | null>(null);
   const [aidoc, setAidoc] = useState<any | null>(null);
   const [loadingAidoc, setLoadingAidoc] = useState(false);
+  const [, setShowPatientChooser] = useState(false);
+  const [, setShowNewIntake] = useState(false);
   const topAlerts = Array.isArray(aidoc?.softAlerts) ? aidoc.softAlerts : [];
   const planAlerts = Array.isArray(aidoc?.plan?.softAlerts)
     ? aidoc.plan.softAlerts
@@ -1639,7 +1654,17 @@ ${systemCommon}` + baseSys;
           {mode === 'doctor' && AIDOC_UI && (
             <button
               className="rounded-md px-3 py-1 border mb-2"
-              onClick={runAiDoc}
+              onClick={async () => {
+                if (AIDOC_PREFLIGHT) {
+                  if (isNewPatientCue) {
+                    setShowNewIntake(true);
+                  } else {
+                    setShowPatientChooser(true);
+                  }
+                } else {
+                  runAiDoc();
+                }
+              }}
               aria-label="AI Doc Next Steps"
               disabled={loadingAidoc}
             >
