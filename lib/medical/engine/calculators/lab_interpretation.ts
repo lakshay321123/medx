@@ -9165,3 +9165,243 @@ register({
   }
 });
 
+// ===================== MED-EXT371–400 (APPEND-ONLY) =====================
+
+/* =========================================================
+   Endocrine — Thyroid
+   ========================================================= */
+
+register({
+  id: "tsh_pregnancy_band",
+  label: "TSH band (pregnancy-specific)",
+  tags: ["endocrine","thyroid","pregnancy"],
+  inputs: [{ key:"tsh", required:true }],
+  run: ({tsh})=>{
+    const notes=[tsh<0.1?"suppressed":tsh>4?"elevated":"normal (trimester-dependent)"];
+    return {id:"tsh_pregnancy_band", label:"TSH band (pregnancy-specific)", value:tsh, unit:"mIU/L", precision:2, notes};
+  }
+});
+
+register({
+  id: "ft4_band",
+  label: "Free T4 band",
+  tags: ["endocrine","thyroid"],
+  inputs: [{ key:"ft4_ng_dl", required:true }],
+  run: ({ft4_ng_dl})=>{
+    const notes=[ft4_ng_dl<0.8?"low":ft4_ng_dl>1.8?"high":"normal"];
+    return {id:"ft4_band", label:"Free T4 band", value:ft4_ng_dl, unit:"ng/dL", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   Endocrine — Diabetes / Metabolic
+   ========================================================= */
+
+register({
+  id: "hba1c_band",
+  label: "HbA1c band",
+  tags: ["endocrine","diabetes"],
+  inputs: [{ key:"hba1c", required:true }],
+  run: ({hba1c})=>{
+    const notes=[hba1c>=6.5?"diabetes range":hba1c>=5.7?"prediabetes":"normal"];
+    return {id:"hba1c_band", label:"HbA1c band", value:hba1c, unit:"%", precision:1, notes};
+  }
+});
+
+register({
+  id: "homa_ir_calc",
+  label: "HOMA-IR",
+  tags: ["endocrine","diabetes"],
+  inputs: [
+    { key:"fasting_glucose_mg_dl", required:true },
+    { key:"fasting_insulin_uU_ml", required:true }
+  ],
+  run: ({fasting_glucose_mg_dl,fasting_insulin_uU_ml})=>{
+    const fg=fasting_glucose_mg_dl/18; // convert to mmol/L
+    const val=(fg*fasting_insulin_uU_ml)/22.5;
+    const notes=[val>2.5?"insulin resistance likely":"within range"];
+    return {id:"homa_ir_calc", label:"HOMA-IR", value:val, unit:"index", precision:2, notes};
+  }
+});
+
+register({
+  id: "homa_beta_calc",
+  label: "HOMA-%B (beta-cell function)",
+  tags: ["endocrine","diabetes"],
+  inputs: [
+    { key:"fasting_glucose_mg_dl", required:true },
+    { key:"fasting_insulin_uU_ml", required:true }
+  ],
+  run: ({fasting_glucose_mg_dl,fasting_insulin_uU_ml})=>{
+    const fg=fasting_glucose_mg_dl/18;
+    const val=(20*fasting_insulin_uU_ml)/(fg-3.5);
+    return {id:"homa_beta_calc", label:"HOMA-%B (beta-cell function)", value:val, unit:"%", precision:1, notes:[]};
+  }
+});
+
+register({
+  id: "fructosamine_band",
+  label: "Fructosamine band",
+  tags: ["endocrine","diabetes"],
+  inputs: [{ key:"fructosamine_umol_l", required:true }],
+  run: ({fructosamine_umol_l})=>{
+    const notes=[fructosamine_umol_l>285?"elevated":"within range"];
+    return {id:"fructosamine_band", label:"Fructosamine band", value:fructosamine_umol_l, unit:"µmol/L", precision:0, notes};
+  }
+});
+
+register({
+  id: "cpeptide_band",
+  label: "C-peptide band",
+  tags: ["endocrine","diabetes"],
+  inputs: [{ key:"cpeptide_ng_ml", required:true }],
+  run: ({cpeptide_ng_ml})=>{
+    const notes=[cpeptide_ng_ml<0.5?"low":cpeptide_ng_ml>5?"high":"normal"];
+    return {id:"cpeptide_band", label:"C-peptide band", value:cpeptide_ng_ml, unit:"ng/mL", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   Endocrine — Bone / Osteoporosis
+   ========================================================= */
+
+register({
+  id: "frax_major_band",
+  label: "FRAX major osteoporotic fracture risk band",
+  tags: ["endocrine","bone"],
+  inputs: [{ key:"percent", required:true }],
+  run: ({percent})=>{
+    const notes=[percent>=20?"high":percent>=10?"intermediate":"low"];
+    return {id:"frax_major_band", label:"FRAX major osteoporotic fracture risk band", value:percent, unit:"%", precision:1, notes};
+  }
+});
+
+register({
+  id: "frax_hip_band",
+  label: "FRAX hip fracture risk band",
+  tags: ["endocrine","bone"],
+  inputs: [{ key:"percent", required:true }],
+  run: ({percent})=>{
+    const notes=[percent>=3?"high":"low"];
+    return {id:"frax_hip_band", label:"FRAX hip fracture risk band", value:percent, unit:"%", precision:1, notes};
+  }
+});
+
+register({
+  id: "vitd_band",
+  label: "Vitamin D band",
+  tags: ["endocrine","bone"],
+  inputs: [{ key:"vitd_ng_ml", required:true }],
+  run: ({vitd_ng_ml})=>{
+    const notes=[vitd_ng_ml<20?"deficient":vitd_ng_ml<30?"insufficient":"sufficient"];
+    return {id:"vitd_band", label:"Vitamin D band", value:vitd_ng_ml, unit:"ng/mL", precision:1, notes};
+  }
+});
+
+register({
+  id: "calcium_corrected",
+  label: "Corrected calcium",
+  tags: ["endocrine","bone"],
+  inputs: [
+    { key:"serum_ca_mg_dl", required:true },
+    { key:"albumin_g_dl", required:true }
+  ],
+  run: ({serum_ca_mg_dl,albumin_g_dl})=>{
+    const val=serum_ca_mg_dl + 0.8*(4 - albumin_g_dl);
+    const notes=[val<8.5?"low":val>10.5?"high":"normal"];
+    return {id:"calcium_corrected", label:"Corrected calcium", value:val, unit:"mg/dL", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   Lipid / Metabolic
+   ========================================================= */
+
+register({
+  id: "non_hdl_calc",
+  label: "Non-HDL cholesterol",
+  tags: ["lipid","cardiology"],
+  inputs: [
+    { key:"tc_mg_dl", required:true },
+    { key:"hdl_mg_dl", required:true }
+  ],
+  run: ({tc_mg_dl,hdl_mg_dl})=>{
+    const val=tc_mg_dl-hdl_mg_dl;
+    const notes=[val>=160?"high":val>=130?"borderline":"desirable"];
+    return {id:"non_hdl_calc", label:"Non-HDL cholesterol", value:val, unit:"mg/dL", precision:0, notes};
+  }
+});
+
+register({
+  id: "apoB_apoA1_ratio",
+  label: "ApoB/ApoA1 ratio",
+  tags: ["lipid","cardiology"],
+  inputs: [
+    { key:"apoB", required:true },
+    { key:"apoA1", required:true }
+  ],
+  run: ({apoB,apoA1})=>{
+    if (apoA1<=0) return null;
+    const val=apoB/apoA1;
+    const notes=[val>=0.9?"high risk":"acceptable"];
+    return {id:"apoB_apoA1_ratio", label:"ApoB/ApoA1 ratio", value:val, unit:"ratio", precision:2, notes};
+  }
+});
+
+register({
+  id: "remnant_cholesterol",
+  label: "Remnant cholesterol (TC−HDL−LDL)",
+  tags: ["lipid","cardiology"],
+  inputs: [
+    { key:"tc_mg_dl", required:true },
+    { key:"hdl_mg_dl", required:true },
+    { key:"ldl_mg_dl", required:true }
+  ],
+  run: ({tc_mg_dl,hdl_mg_dl,ldl_mg_dl})=>{
+    const val=tc_mg_dl-hdl_mg_dl-ldl_mg_dl;
+    return {id:"remnant_cholesterol", label:"Remnant cholesterol (TC−HDL−LDL)", value:val, unit:"mg/dL", precision:0, notes:[val>30?"elevated":"normal"]};
+  }
+});
+
+/* =========================================================
+   Endocrine — Adrenal / Stress
+   ========================================================= */
+
+register({
+  id: "cortisol_morning_band",
+  label: "Morning cortisol band",
+  tags: ["endocrine","adrenal"],
+  inputs: [{ key:"cortisol_ug_dl", required:true }],
+  run: ({cortisol_ug_dl})=>{
+    const notes=[cortisol_ug_dl<3?"very low":cortisol_ug_dl>18?"normal/high":"indeterminate"];
+    return {id:"cortisol_morning_band", label:"Morning cortisol band", value:cortisol_ug_dl, unit:"µg/dL", precision:1, notes};
+  }
+});
+
+register({
+  id: "acth_stim_surrogate",
+  label: "ACTH stim test surrogate",
+  tags: ["endocrine","adrenal"],
+  inputs: [{ key:"delta_cortisol", required:true }],
+  run: ({delta_cortisol})=>{
+    const notes=[delta_cortisol>=9?"adequate response":"inadequate"];
+    return {id:"acth_stim_surrogate", label:"ACTH stim test surrogate", value:delta_cortisol, unit:"µg/dL", precision:1, notes};
+  }
+});
+
+register({
+  id: "aldosterone_renin_ratio",
+  label: "Aldosterone/renin ratio (ARR)",
+  tags: ["endocrine","adrenal"],
+  inputs: [
+    { key:"aldo_ng_dl", required:true },
+    { key:"renin_ng_ml_hr", required:true }
+  ],
+  run: ({aldo_ng_dl,renin_ng_ml_hr})=>{
+    if (renin_ng_ml_hr<=0) return null;
+    const val=aldo_ng_dl/renin_ng_ml_hr;
+    const notes=[val>30?"elevated ratio":"within range"];
+    return {id:"aldosterone_renin_ratio", label:"Aldosterone/renin ratio (ARR)", value:val, unit:"ratio", precision:1, notes};
+  }
+});
+
