@@ -1133,7 +1133,6 @@ register({
 });
 
 // ===================== MED-QA1 (Output Polish + Safety Locks) =====================
-import { register } from "../registry";
 
 /**
  * Safety lock post-processor.
