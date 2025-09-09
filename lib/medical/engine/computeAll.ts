@@ -36,7 +36,7 @@ export function renderResultsBlock(results: { id: string; label: string; value: 
     "anion_gap", "anion_gap_corrected", "acid_base_summary",
     "pf_ratio", "map", "shock_index", "osmolal_gap",
     "meld_na", "child_pugh_helper", "qtc_bazett",
-    // New syndrome summaries:
+    // Syndrome summaries (ensure these appear early)
     "renal_syndrome_summary", "hepatic_syndrome_summary", "circulation_summary",
     "sepsis_risk_summary", "endocrine_keto_hyperglycemia",
     "lactate_status", "hematology_summary"
@@ -57,8 +57,8 @@ export function renderResultsBlock(results: { id: string; label: string; value: 
   const footer = [
     "Use ONLY the above pre-computed values and syndrome summaries as ground truth.",
     "Do not re-compute, invent, or contradict these values.",
-    "Corrected values OVERRIDE raw measurements.",
-    "Do not suggest outdated/non-guideline therapies.",
+    "Corrected values (e.g., calcium, anion gap) OVERRIDE raw measurements.",
+    "Do not suggest outdated or non-guideline therapies (e.g., dopamine for renal perfusion).",
     "Base all reasoning, differentials, and management strictly on this block."
   ].join(" ");
 

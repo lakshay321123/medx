@@ -56,7 +56,6 @@ register({
 
 // ---- Corrected Calcium (albumin) + status ----
 // Corrected Ca (mg/dL) = measured Ca + 0.8 * (4.0 - albumin)
-// === [MEDX_CORRECTED_CALCIUM_START] ===
 register({
   id: "corrected_calcium_status",
   label: "Corrected calcium",
@@ -74,7 +73,6 @@ register({
     return { id: "corrected_calcium_status", label: "Corrected calcium", value: corrected, unit: "mg/dL", precision: 1, notes };
   },
 });
-// === [MEDX_CORRECTED_CALCIUM_END] ===
 
 // ---- INR status ----
 register({
@@ -122,7 +120,7 @@ register({
   },
 });
 
-/** Bicarbonate status — acidosis flag */
+/** Bicarbonate status — acidosis/alkalosis flag */
 register({
   id: "bicarbonate_status",
   label: "Bicarbonate (HCO₃⁻)",
@@ -146,7 +144,6 @@ register({
   run: ({ BUN, creatinine }) => {
     if (BUN == null || creatinine == null) return null;
     const notes: string[] = [];
-    // Simple qualitative buckets
     if (creatinine >= 3 || BUN >= 80) notes.push("significant azotemia / renal impairment");
     else if (creatinine >= 2 || BUN >= 40) notes.push("moderate azotemia / renal impairment");
     else if (creatinine >= 1.3 || BUN >= 25) notes.push("mild renal impairment");
@@ -247,8 +244,11 @@ register({
     if (Number.isFinite(g) && g >= 600 && !ket && (Number.isFinite(bicarb) ? bicarb > 18 : true)) {
       label = "probable HHS";
       notes.push("glucose ≥600 mg/dL; ketosis absent/unclear");
-    } else if (Number.isFinite(g) && g >= 250 && (ket || (Number.isFinite(ag) && ag > 16)) && (Number.isFinite(bicarb) && bicarb < 18 || Number.isFinite(pH) && pH < 7.30)) {
-      // crude DKA rule; severity by bicarb
+    } else if (
+      Number.isFinite(g) && g >= 250 &&
+      (ket || (Number.isFinite(ag) && ag > 16)) &&
+      ((Number.isFinite(bicarb) && bicarb < 18) || (Number.isFinite(pH) && pH < 7.30))
+    ) {
       if (Number.isFinite(bicarb) && bicarb < 10) notes.push("DKA — severe");
       else if (Number.isFinite(bicarb) && bicarb < 15) notes.push("DKA — moderate");
       else notes.push("DKA — mild");
@@ -296,5 +296,59 @@ register({
     }
     const val = [typeof Hb === "number" ? `Hb ${Hb}` : null, typeof platelets === "number" ? `Plt ${platelets}` : null].filter(Boolean).join(", ");
     return { id: "hematology_summary", label: "Hematology", value: val, notes };
+  },
+});
+
+/** Renal syndrome summary (BUN/Cr/eGFR) */
+register({
+  id: "renal_syndrome_summary",
+  label: "Renal syndrome",
+  inputs: [{ key: "BUN", required: true }, { key: "creatinine", required: true }],
+  run: ({ BUN, creatinine }) => {
+    if (BUN == null || creatinine == null) return null;
+    const notes: string[] = [];
+    if (creatinine >= 3 || BUN >= 80) notes.push("severe renal impairment / likely AKI or advanced CKD");
+    else if (creatinine >= 2 || BUN >= 40) notes.push("moderate renal impairment");
+    else if (creatinine >= 1.3 || BUN >= 25) notes.push("mild renal impairment");
+    else notes.push("normal renal function by BUN/Cr");
+    return { id: "renal_syndrome_summary", label: "Renal syndrome", value: `${BUN}/${creatinine}`, notes };
+  },
+});
+
+/** Hepatic syndrome summary (MELD-Na + Child-Pugh) */
+register({
+  id: "hepatic_syndrome_summary",
+  label: "Hepatic syndrome",
+  inputs: [{ key: "meld_na" }, { key: "child_pugh_helper" }, { key: "bilirubin" }, { key: "albumin" }, { key: "INR" }],
+  run: ({ meld_na, child_pugh_helper }) => {
+    const notes: string[] = [];
+    if (meld_na != null) {
+      if (meld_na >= 30) notes.push(`MELD-Na ${meld_na} — very advanced liver disease`);
+      else if (meld_na >= 20) notes.push(`MELD-Na ${meld_na} — advanced liver dysfunction`);
+      else if (meld_na >= 10) notes.push(`MELD-Na ${meld_na} — moderate dysfunction`);
+      else notes.push(`MELD-Na ${meld_na} — mild dysfunction`);
+    }
+    if (child_pugh_helper != null) {
+      notes.push("Child–Pugh inputs detected (albumin, bilirubin, INR) — use class for staging");
+    }
+    return { id: "hepatic_syndrome_summary", label: "Hepatic syndrome", value: "", notes };
+  },
+});
+
+/** Circulatory syndrome summary (MAP + Shock Index) */
+register({
+  id: "circulation_summary",
+  label: "Circulation",
+  inputs: [{ key: "SBP" }, { key: "DBP" }, { key: "HR" }],
+  run: ({ SBP, DBP, HR }) => {
+    if (SBP == null || DBP == null || HR == null) return null;
+    const map = (SBP + 2 * DBP) / 3;
+    const shockIdx = HR / Math.max(SBP, 1);
+    const notes: string[] = [];
+    if (map < 65 && shockIdx >= 0.9) notes.push("hypotensive shock (MAP <65 with elevated Shock Index)");
+    else if (map < 65) notes.push("hypotension with low perfusion (MAP <65)");
+    else if (shockIdx >= 0.9) notes.push("circulatory stress (elevated Shock Index)");
+    else notes.push("hemodynamically stable");
+    return { id: "circulation_summary", label: "Circulation", value: `MAP ${map.toFixed(0)}, SI ${shockIdx.toFixed(2)}`, notes };
   },
 });
