@@ -80,43 +80,28 @@ export default function TrialsPane() {
 
       {rows.length > 0 && (
         <ul className="space-y-2">
-          {rows.map((r) => (
-            <li
-              key={`${r.source}:${r.id}`}
-              className="rounded border p-3 dark:border-gray-700"
-            >
+          {rows.map((t: any) => (
+            <li key={`${t.registry}:${t.registry_id}`} className="rounded border p-3">
               <div className="flex items-center gap-2">
-                <span className="text-[11px] px-1.5 py-0.5 rounded border">
-                  {(r.source || "").toUpperCase()}
-                </span>
+                <span className="text-[11px] px-1.5 py-0.5 rounded border">{t.registry}</span>
                 <a
-                  className="font-semibold hover:underline"
-                  href={r.url}
+                  href={t.url}
                   target="_blank"
                   rel="noopener noreferrer"
+                  className="font-semibold hover:underline"
                 >
-                  {r.id}
+                  {t.registry_id}
                 </a>
               </div>
-
-              <div className="text-sm mt-1">{r.title}</div>
-
+              <div className="text-sm mt-1">{t.title}</div>
               <div className="flex flex-wrap gap-2 mt-2">
-                {r.phase && (
-                  <span className="text-[11px] px-1.5 py-0.5 rounded border">
-                    {r.phase}
-                  </span>
+                {t.phase && (
+                  <span className="text-[11px] px-1.5 py-0.5 rounded border">{t.phase}</span>
                 )}
-                {r.status && (
-                  <span className="text-[11px] px-1.5 py-0.5 rounded border">
-                    {r.status}
-                  </span>
+                {t.status && (
+                  <span className="text-[11px] px-1.5 py-0.5 rounded border">{t.status}</span>
                 )}
               </div>
-
-              {r.country ? (
-                <div className="text-xs text-slate-500 mt-1">{r.country}</div>
-              ) : null}
             </li>
           ))}
         </ul>
