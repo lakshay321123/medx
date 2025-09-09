@@ -7877,3 +7877,471 @@ register({
   }
 });
 
+// ===================== MED-EXT281–310 (APPEND-ONLY) =====================
+/* =========================================================
+   MED-EXT281 — Khorana VTE risk (cancer) surrogate
+   ========================================================= */
+register({
+  id: "khorana_vte_surrogate",
+  label: "Khorana VTE risk (surrogate)",
+  tags: ["oncology","hematology","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=3?"high":score==2?"intermediate":"low"];
+    return {id:"khorana_vte_surrogate", label:"Khorana VTE risk (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT282 — PLASMIC score (TTP) surrogate
+   ========================================================= */
+register({
+  id: "plasmic_surrogate",
+  label: "PLASMIC score (surrogate)",
+  tags: ["hematology","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=6?"high probability TTP":score>=5?"intermediate":"low"];
+    return {id:"plasmic_surrogate", label:"PLASMIC score (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT283 — ISTH DIC score (component-based simple calc)
+   Platelets: ≥100=0, 50–<100=1, <50=2
+   D-dimer/FDP: none=0, moderate=2, strong=3
+   PT prolong (sec): <3=0, 3–6=1, >6=2
+   Fibrinogen (g/L): ≥1.0=0, <1.0=1
+   ========================================================= */
+register({
+  id: "isth_dic_calc",
+  label: "ISTH DIC score (simplified)",
+  tags: ["hematology","coagulation"],
+  inputs: [
+    { key:"platelets_k", required:true },          // x10^3/µL
+    { key:"ddimer_band", required:true },          // "none"|"moderate"|"strong"
+    { key:"pt_prolong_sec", required:true },       // seconds over control
+    { key:"fibrinogen_g_l", required:true },       // g/L
+  ],
+  run: (x)=>{
+    let p = x.platelets_k>=100 ? 0 : x.platelets_k>=50 ? 1 : 2;
+    let d = x.ddimer_band==="strong" ? 3 : x.ddimer_band==="moderate" ? 2 : 0;
+    let pt= x.pt_prolong_sec>6 ? 2 : x.pt_prolong_sec>=3 ? 1 : 0;
+    let f = x.fibrinogen_g_l<1.0 ? 1 : 0;
+    const score=p+d+pt+f;
+    const notes=[score>=5?"overt DIC likely":"non-overt/observe"];
+    return {id:"isth_dic_calc", label:"ISTH DIC score (simplified)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT284 — Absolute neutrophil count (ANC)
+   ANC = WBC × (neut% + bands%)/100
+   ========================================================= */
+register({
+  id: "anc_calc",
+  label: "Absolute neutrophil count (ANC)",
+  tags: ["hematology","oncology"],
+  inputs: [
+    { key:"wbc_k", required:true },         // x10^3/µL
+    { key:"neut_pct", required:true },
+    { key:"bands_pct", required:false },
+  ],
+  run: ({wbc_k,neut_pct,bands_pct=0})=>{
+    const anc = wbc_k * (neut_pct + bands_pct) / 100;
+    return {id:"anc_calc", label:"Absolute neutrophil count (ANC)", value:anc, unit:"×10^3/µL", precision:2, notes:[]};
+  }
+});
+
+/* =========================================================
+   MED-EXT285 — Neutropenia band
+   ========================================================= */
+register({
+  id: "neutropenia_band",
+  label: "Neutropenia band",
+  tags: ["hematology"],
+  inputs: [{ key:"anc_k", required:true }], // ×10^3/µL
+  run: ({anc_k})=>{
+    const notes=[anc_k<0.5?"severe":anc_k<1?"moderate":anc_k<1.5?"mild":"normal"];
+    return {id:"neutropenia_band", label:"Neutropenia band", value:anc_k, unit:"×10^3/µL", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT286 — MASCC risk index (febrile neutropenia) surrogate
+   ========================================================= */
+register({
+  id: "mascc_surrogate",
+  label: "MASCC risk index (surrogate)",
+  tags: ["oncology","infectious_disease","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=21?"low risk complications":"high risk"];
+    return {id:"mascc_surrogate", label:"MASCC risk index (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT287 — Tumor lysis (Cairo–Bishop) supportive flag
+   ========================================================= */
+register({
+  id: "tls_support_flag",
+  label: "Tumor lysis syndrome (supportive flag)",
+  tags: ["oncology","metabolic"],
+  inputs: [{ key:"criteria_met", required:true }], // number of criteria
+  run: ({criteria_met})=>{
+    const pos=criteria_met>=2;
+    return {id:"tls_support_flag", label:"Tumor lysis syndrome (supportive flag)", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"laboratory TLS supportive":"not supportive"]};
+  }
+});
+
+/* =========================================================
+   MED-EXT288 — R-IPI (DLBCL) surrogate
+   ========================================================= */
+register({
+  id: "ripi_surrogate",
+  label: "R-IPI (surrogate)",
+  tags: ["oncology","hematology","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=3?"poor":score==2?"intermediate":"very good"];
+    return {id:"ripi_surrogate", label:"R-IPI (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT289 — FLIPI (follicular lymphoma) surrogate
+   ========================================================= */
+register({
+  id: "flipi_surrogate",
+  label: "FLIPI (surrogate)",
+  tags: ["oncology","hematology","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=3?"high risk":score==2?"intermediate":"low"];
+    return {id:"flipi_surrogate", label:"FLIPI (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT290 — IPSS (MDS) surrogate
+   ========================================================= */
+register({
+  id: "ipss_surrogate",
+  label: "IPSS (MDS) surrogate",
+  tags: ["hematology","oncology","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=1.5?"Int-2/High":score>=1?"Intermediate-1":"Low"];
+    return {id:"ipss_surrogate", label:"IPSS (MDS) surrogate", value:score, unit:"index", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT291 — IPSS-M surrogate
+   ========================================================= */
+register({
+  id: "ipssm_surrogate",
+  label: "IPSS-M (surrogate)",
+  tags: ["hematology","oncology","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=0.7?"high/very high":score>=0.4?"moderate":"low"];
+    return {id:"ipssm_surrogate", label:"IPSS-M (surrogate)", value:score, unit:"index", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT292 — R-ISS (myeloma) surrogate
+   ========================================================= */
+register({
+  id: "riss_surrogate",
+  label: "R-ISS (myeloma) surrogate",
+  tags: ["hematology","oncology","risk"],
+  inputs: [{ key:"stage", required:true }], // 1–3
+  run: ({stage})=>{
+    const notes=[stage==3?"poor":stage==2?"intermediate":"favorable"];
+    return {id:"riss_surrogate", label:"R-ISS (myeloma) surrogate", value:stage, unit:"stage", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT293 — MGUS (Mayo 3-2-1) risk surrogate
+   ========================================================= */
+register({
+  id: "mgus_mayo_surrogate",
+  label: "MGUS risk (Mayo) surrogate",
+  tags: ["hematology","oncology","risk"],
+  inputs: [{ key:"risk_factors", required:true }], // 0–3
+  run: ({risk_factors})=>{
+    const notes=[risk_factors>=2?"higher risk":"lower"];
+    return {id:"mgus_mayo_surrogate", label:"MGUS risk (Mayo) surrogate", value:risk_factors, unit:"factors", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT294 — Prostate Gleason Grade Group band
+   ========================================================= */
+register({
+  id: "gleason_grade_group",
+  label: "Gleason Grade Group band",
+  tags: ["oncology","urology"],
+  inputs: [{ key:"group", required:true }], // 1–5
+  run: ({group})=>{
+    const notes=[group>=4?"high grade":group==3?"intermediate":"low grade"];
+    return {id:"gleason_grade_group", label:"Gleason Grade Group band", value:group, unit:"group", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT295 — PSA risk band
+   ========================================================= */
+register({
+  id: "psa_risk_band",
+  label: "PSA risk band",
+  tags: ["oncology","urology"],
+  inputs: [{ key:"psa_ng_ml", required:true }],
+  run: ({psa_ng_ml})=>{
+    const notes=[psa_ng_ml>=20?"high":psa_ng_ml>=10?"intermediate":"low"];
+    return {id:"psa_risk_band", label:"PSA risk band", value:psa_ng_ml, unit:"ng/mL", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT296 — Deauville PET score band (1–5)
+   ========================================================= */
+register({
+  id: "deauville_pet_band",
+  label: "Deauville PET score band",
+  tags: ["oncology","nuclear"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score<=3?"complete/partial metabolic response band":"residual disease band"];
+    return {id:"deauville_pet_band", label:"Deauville PET score band", value:score, unit:"score", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT297 — TNM stage (generic) surrogate
+   ========================================================= */
+register({
+  id: "tnm_stage_surrogate",
+  label: "TNM stage (generic surrogate)",
+  tags: ["oncology"],
+  inputs: [{ key:"stage", required:true }], // I/II/III/IV
+  run: ({stage})=>{
+    const notes=["Stage "+String(stage).toUpperCase()];
+    return {id:"tnm_stage_surrogate", label:"TNM stage (generic surrogate)", value:String(stage).toUpperCase(), unit:"stage", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT298 — CA-125 band
+   ========================================================= */
+register({
+  id: "ca125_band",
+  label: "CA-125 band",
+  tags: ["oncology","gynecology"],
+  inputs: [{ key:"ca125_u_ml", required:true }],
+  run: ({ca125_u_ml})=>{
+    const notes=[ca125_u_ml>35?"elevated":"within reference"];
+    return {id:"ca125_band", label:"CA-125 band", value:ca125_u_ml, unit:"U/mL", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT299 — Transferrin saturation (TSAT) = Fe/TIBC×100
+   ========================================================= */
+register({
+  id: "tsat_calc",
+  label: "Transferrin saturation (TSAT)",
+  tags: ["hematology","iron"],
+  inputs: [
+    { key:"iron_ug_dl", required:true },
+    { key:"tibc_ug_dl", required:true }
+  ],
+  run: ({iron_ug_dl,tibc_ug_dl})=>{
+    if (tibc_ug_dl<=0) return null;
+    const tsat = (iron_ug_dl/tibc_ug_dl)*100;
+    const notes=[tsat<20?"low (iron deficiency pattern)":tsat>45?"high (overload pattern)":"normal"];
+    return {id:"tsat_calc", label:"Transferrin saturation (TSAT)", value:tsat, unit:"%", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT300 — Corrected reticulocyte count (CRC)
+   CRC = retic% × (Hct/45)
+   ========================================================= */
+register({
+  id: "retic_corrected",
+  label: "Corrected reticulocyte count",
+  tags: ["hematology"],
+  inputs: [
+    { key:"retic_percent", required:true },
+    { key:"hct_percent", required:true }
+  ],
+  run: ({retic_percent,hct_percent})=>{
+    const val=retic_percent*(hct_percent/45);
+    return {id:"retic_corrected", label:"Corrected reticulocyte count", value:val, unit:"%", precision:2, notes:[]};
+  }
+});
+
+/* =========================================================
+   MED-EXT301 — Reticulocyte production index (RPI)
+   RPI ≈ CRC / maturation_factor (use 1 if Hct ≥40; 1.5 if 35–39; 2 if 25–34; 2.5 if <25)
+   ========================================================= */
+register({
+  id: "rpi_calc",
+  label: "Reticulocyte production index (RPI)",
+  tags: ["hematology"],
+  inputs: [
+    { key:"crc_percent", required:true },
+    { key:"hct_percent", required:true }
+  ],
+  run: ({crc_percent,hct_percent})=>{
+    let mf=1;
+    if (hct_percent<25) mf=2.5;
+    else if (hct_percent<35) mf=2;
+    else if (hct_percent<40) mf=1.5;
+    const rpi=crc_percent/mf;
+    const notes=[rpi>=3?"appropriate marrow response":"inadequate response"];
+    return {id:"rpi_calc", label:"Reticulocyte production index (RPI)", value:rpi, unit:"index", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT302 — LDH band (hemolysis/tumor marker, simple)
+   ========================================================= */
+register({
+  id: "ldh_band",
+  label: "LDH band",
+  tags: ["hematology","oncology"],
+  inputs: [{ key:"ldh_u_l", required:true }, { key:"upper_limit", required:true }],
+  run: ({ldh_u_l,upper_limit})=>{
+    if (upper_limit<=0) return null;
+    const ratio=ldh_u_l/upper_limit;
+    const notes=[ratio>2?"markedly elevated":ratio>1?"elevated":"normal"];
+    return {id:"ldh_band", label:"LDH band", value:ratio, unit:"xULN", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT303 — INR therapeutic band (warfarin)
+   ========================================================= */
+register({
+  id: "inr_therapeutic_band",
+  label: "INR therapeutic band",
+  tags: ["hematology","coagulation"],
+  inputs: [{ key:"inr", required:true }],
+  run: ({inr})=>{
+    const notes=[inr>3.5?"supratherapeutic":inr>=2?"therapeutic (most indications)":"subtherapeutic"];
+    return {id:"inr_therapeutic_band", label:"INR therapeutic band", value:inr, unit:"", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT304 — Hematocrit estimate from Hb (≈ Hb×3)
+   ========================================================= */
+register({
+  id: "hct_from_hb_estimate",
+  label: "Hematocrit estimate from Hb",
+  tags: ["hematology"],
+  inputs: [{ key:"hb_g_dl", required:true }],
+  run: ({hb_g_dl})=>{
+    const est=hb_g_dl*3;
+    return {id:"hct_from_hb_estimate", label:"Hematocrit estimate from Hb", value:est, unit:"%", precision:0, notes:["~estimate"]};
+  }
+});
+
+/* =========================================================
+   MED-EXT305 — Pancytopenia flag
+   (WBC <4 ×10^3/µL, Hb <10 g/dL, Plt <100 ×10^3/µL)
+   ========================================================= */
+register({
+  id: "pancytopenia_flag",
+  label: "Pancytopenia flag",
+  tags: ["hematology"],
+  inputs: [
+    { key:"wbc_k", required:true },
+    { key:"hb_g_dl", required:true },
+    { key:"plt_k", required:true }
+  ],
+  run: ({wbc_k,hb_g_dl,plt_k})=>{
+    const pos = (wbc_k<4)&&(hb_g_dl<10)&&(plt_k<100);
+    return {id:"pancytopenia_flag", label:"Pancytopenia flag", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"criteria met":"criteria not met"]};
+  }
+});
+
+/* =========================================================
+   MED-EXT306 — Uric acid band (TLS context)
+   ========================================================= */
+register({
+  id: "uric_acid_band",
+  label: "Uric acid band",
+  tags: ["metabolic","oncology"],
+  inputs: [{ key:"uric_mg_dl", required:true }],
+  run: ({uric_mg_dl})=>{
+    const notes=[uric_mg_dl>=8?"elevated (TLS context)":uric_mg_dl<2?"low":"normal"];
+    return {id:"uric_acid_band", label:"Uric acid band", value:uric_mg_dl, unit:"mg/dL", precision:1, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT307 — Ferritin band (simple)
+   ========================================================= */
+register({
+  id: "ferritin_band",
+  label: "Ferritin band",
+  tags: ["hematology","iron"],
+  inputs: [{ key:"ferritin_ng_ml", required:true }],
+  run: ({ferritin_ng_ml})=>{
+    const notes=[ferritin_ng_ml<30?"iron deficiency likely":ferritin_ng_ml>300?"elevated/acute phase":"indeterminate"];
+    return {id:"ferritin_band", label:"Ferritin band", value:ferritin_ng_ml, unit:"ng/mL", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT308 — Sokal score (CML) surrogate
+   ========================================================= */
+register({
+  id: "sokal_surrogate",
+  label: "Sokal score (surrogate)",
+  tags: ["hematology","oncology","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>1?"high":score>=0.8?"intermediate":"low"];
+    return {id:"sokal_surrogate", label:"Sokal score (surrogate)", value:score, unit:"index", precision:2, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT309 — HCT-CI (transplant comorbidity) surrogate
+   ========================================================= */
+register({
+  id: "hctci_surrogate",
+  label: "HCT-CI (surrogate)",
+  tags: ["hematology","transplant","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=3?"higher NRM risk":"lower"];
+    return {id:"hctci_surrogate", label:"HCT-CI (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =========================================================
+   MED-EXT310 — RBC transfusion trigger flag (contextual)
+   (Supportive flag only; common inpatient threshold Hb<7, or <8 with CAD/symptoms)
+   ========================================================= */
+register({
+  id: "rbc_transfusion_trigger_flag",
+  label: "RBC transfusion trigger flag",
+  tags: ["hematology","transfusion"],
+  inputs: [
+    { key:"hb_g_dl", required:true },
+    { key:"cad_or_symptoms", required:true } // boolean
+  ],
+  run: ({hb_g_dl,cad_or_symptoms})=>{
+    const trigger = hb_g_dl<7 || (cad_or_symptoms && hb_g_dl<8);
+    return {id:"rbc_transfusion_trigger_flag", label:"RBC transfusion trigger flag", value:trigger?1:0, unit:"flag", precision:0, notes:[trigger?"trigger threshold met (supportive)":"threshold not met"]};
+  }
+});
