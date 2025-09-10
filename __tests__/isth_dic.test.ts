@@ -1,0 +1,1 @@
+<test content for isth_dic.test.ts>
