@@ -1,29 +1,35 @@
-import { register } from "../registry";
+// lib/medical/engine/calculators/burch_wartofsky.ts
+// Burch–Wartofsky Point Scale (simplified common bins).
 
-/**
- * Burch‑Wartofsky (thyroid storm) — simplified rubric.
- */
-export function runBurchWartofsky(i:{ temp_c:number, cns:boolean, gi_hepatic:boolean, tachycardia_bpm:number, heart_failure:boolean, afib:boolean, precipitating_event:boolean }){
-  if (i==null || [i.temp_c,i.tachycardia_bpm].some(v=>v==null || !isFinite(v as number))) return null;
-  let pts=0;
-  // Temperature
-  pts += i.temp_c>=41?30 : i.temp_c>=40?25 : i.temp_c>=39?20 : i.temp_c>=38?10 : i.temp_c>=37.2?5 : 0;
-  // CNS
-  pts += i.cns?20:0;
-  // GI/hepatic
-  pts += i.gi_hepatic?20:0;
-  // Heart rate
-  pts += i.tachycardia_bpm>=140?25 : i.tachycardia_bpm>=130?20 : i.tachycardia_bpm>=120?15 : i.tachycardia_bpm>=110?10 : i.tachycardia_bpm>=100?5 : 0;
-  // Heart failure
-  pts += i.heart_failure?10:0;
-  // Atrial fibrillation
-  pts += i.afib?10:0;
-  // Precipitant
-  pts += i.precipitating_event?10:0;
-  const band = pts>=45?"thyroid storm likely": pts>=25?"impending storm":"unlikely";
-  return { Burch_Wartofsky: pts, interpretation: band };
+export interface BWInput {
+  temp_c?: number | null;              // Temperature
+  cns?: "none"|"mild"|"moderate"|"severe"|"coma" | null;
+  gi_hepatic?: "none"|"moderate"|"severe" | null;
+  hr_bpm?: number | null;
+  heart_failure?: "none"|"mild"|"moderate"|"severe" | null;
+  atrial_fibrillation?: boolean | null;
+  precipitant_present?: boolean | null;
 }
-register({ id:"burch_wartofsky", label:"Burch‑Wartofsky (thyroid storm)", inputs:[
-  {key:"temp_c",required:true},{key:"cns",required:true},{key:"gi_hepatic",required:true},{key:"tachycardia_bpm",required:true},
-  {key:"heart_failure",required:true},{key:"afib",required:true},{key:"precipitating_event",required:true}
-], run: runBurchWartofsky as any });
+
+export interface BWOutput { points: number; suggestive: boolean; storm_likely: boolean; components: Record<string, number>; }
+
+function ptsTemp(t:number){ if(t>=41.1)return 30; if(t>=40)return 25; if(t>=39)return 20; if(t>=38.5)return 15; if(t>=38)return 10; if(t>=37.2)return 5; return 0; }
+function ptsCNS(x:BWInput["cns"]){ if(x==="coma")return 30; if(x==="severe")return 20; if(x==="moderate")return 10; if(x==="mild")return 10; return 0; }
+function ptsGI(x:BWInput["gi_hepatic"]){ if(x==="severe")return 20; if(x==="moderate")return 10; return 0; }
+function ptsHR(hr:number){ if(hr>=140)return 25; if(hr>=130)return 20; if(hr>=120)return 15; if(hr>=110)return 10; if(hr>=100)return 5; return 0; }
+function ptsHF(x:BWInput["heart_failure"]){ if(x==="severe")return 10; if(x==="moderate")return 10; if(x==="mild")return 5; return 0; }
+function ptsAF(b:boolean){ return b?10:0; }
+function ptsPrecip(b:boolean){ return b?10:0; }
+
+export function runBurchWartofsky(i: BWInput): BWOutput {
+  const comp: Record<string, number> = {};
+  comp.temp = (i.temp_c ?? null) !== null ? ptsTemp(i.temp_c as number) : 0;
+  comp.cns = ptsCNS(i.cns ?? "none");
+  comp.gi = ptsGI(i.gi_hepatic ?? "none");
+  comp.hr = (i.hr_bpm ?? null) !== null ? ptsHR(i.hr_bpm as number) : 0;
+  comp.hf = ptsHF(i.heart_failure ?? "none");
+  comp.af = ptsAF(!!i.atrial_fibrillation);
+  comp.precip = ptsPrecip(!!i.precipitant_present);
+  const pts = Object.values(comp).reduce((a,b)=>a+b,0);
+  return { points: pts, suggestive: pts >= 25, storm_likely: pts >= 45, components: comp };
+}

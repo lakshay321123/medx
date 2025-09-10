@@ -1,36 +1,68 @@
 // lib/medical/engine/calculators/charlson.ts
-import { round } from "./utils";
 
 export interface CharlsonInput {
   age_years?: number | null;
-  mi?: boolean; chf?: boolean; pvd?: boolean; cerebrovascular?: boolean;
-  dementia?: boolean; copd?: boolean; rheum?: boolean; pud?: boolean;
-  mild_liver?: boolean; diabetes?: boolean;
-  diabetes_end_organ?: boolean; hemiplegia?: boolean; mod_severe_renal?: boolean;
-  any_tumor?: boolean; leukemia?: boolean; lymphoma?: boolean;
-  mod_severe_liver?: boolean; metastatic_solid_tumor?: boolean; aids?: boolean;
+
+  // 1-point
+  mi?: boolean | null;
+  chf?: boolean | null;
+  pvd?: boolean | null;
+  cva_tia?: boolean | null;
+  dementia?: boolean | null;
+  copd?: boolean | null;
+  connective_tissue?: boolean | null;
+  pud?: boolean | null;
+  liver_mild?: boolean | null;
+  diabetes_no_end_organ?: boolean | null;
+
+  // 2-point
+  hemiplegia?: boolean | null;
+  renal_moderate_severe?: boolean | null;
+  diabetes_end_organ?: boolean | null;
+  malignancy?: boolean | null; // leukemia/lymphoma/solid tumor (non-metastatic)
+
+  // 3-point
+  liver_moderate_severe?: boolean | null;
+
+  // 6-point
+  metastatic_solid_tumor?: boolean | null;
+  aids?: boolean | null;
 }
 
-export function runCharlson(i: CharlsonInput) {
+export interface CharlsonOutput {
+  comorbidity_points: number;
+  age_points: number;
+  total_points: number;
+}
+
+function agePts(age:number): number {
+  if (age < 50) return 0;
+  if (age < 60) return 1;
+  if (age < 70) return 2;
+  if (age < 80) return 3;
+  return 4;
+}
+
+export function runCharlson(i: CharlsonInput): CharlsonOutput {
   let pts = 0;
-  const add = (b?: boolean, p=0) => { if (b) pts += p; };
+  const add = (b?: boolean | null, w:number=1)=>{ if (b) pts += w; };
 
-  add(i.mi, 1); add(i.chf,1); add(i.pvd,1); add(i.cerebrovascular,1);
-  add(i.dementia,1); add(i.copd,1); add(i.rheum,1); add(i.pud,1);
-  add(i.mild_liver,1); add(i.diabetes,1);
-  add(i.diabetes_end_organ,2); add(i.hemiplegia,2); add(i.mod_severe_renal,2);
-  add(i.any_tumor,2); add(i.leukemia,2); add(i.lymphoma,2);
-  add(i.mod_severe_liver,3); add(i.metastatic_solid_tumor,6); add(i.aids,6);
+  // 1-point
+  add(i.mi,1); add(i.chf,1); add(i.pvd,1); add(i.cva_tia,1); add(i.dementia,1);
+  add(i.copd,1); add(i.connective_tissue,1); add(i.pud,1); add(i.liver_mild,1);
+  add(i.diabetes_no_end_organ,1);
 
-  // Age-adjustment: +1 per decade starting 50–59 up to ≥80 → +4
-  let agePts = 0;
-  if (typeof i.age_years === "number") {
-    if (i.age_years >= 80) agePts = 4;
-    else if (i.age_years >= 70) agePts = 3;
-    else if (i.age_years >= 60) agePts = 2;
-    else if (i.age_years >= 50) agePts = 1;
-  }
+  // 2-point
+  add(i.hemiplegia,2); add(i.renal_moderate_severe,2); add(i.diabetes_end_organ,2);
+  add(i.malignancy,2);
 
-  const total = pts + agePts;
-  return { cci_points: pts, age_points: agePts, cci_total: total };
+  // 3-point
+  add(i.liver_moderate_severe,3);
+
+  // 6-point
+  add(i.metastatic_solid_tumor,6); add(i.aids,6);
+
+  const age = i.age_years ?? 0;
+  const apts = agePts(age);
+  return { comorbidity_points: pts, age_points: apts, total_points: pts + apts };
 }
