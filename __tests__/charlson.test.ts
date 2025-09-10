@@ -1,9 +1,9 @@
+import { test, expect } from "@jest/globals";
 import { runCharlson } from "../lib/medical/engine/calculators/charlson";
 
-test("Charlson with age points", () => {
-  const c = runCharlson({ age_years: 72, chf: true, diabetes: true, any_tumor: true });
-  // base: CHF=1, DM=1, Tumor=2 => 4; age 70–79 => +3
-  expect(c.cci_points).toBe(4);
-  expect(c.age_points).toBe(3);
-  expect(c.cci_total).toBe(7);
+test("Charlson with multiple comorbidities and age 72", () => {
+  const out = runCharlson({ age_years:72, chf:true, copd:true, diabetes_end_organ:true, malignancy:true });
+  expect(out.comorbidity_points).toBe(1 + 1 + 2 + 2); // CHF + COPD + DM end-organ + malignancy
+  expect(out.age_points).toBe(3);
+  expect(out.total_points).toBe(out.comorbidity_points + out.age_points);
 });
