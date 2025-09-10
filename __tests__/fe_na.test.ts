@@ -1,12 +1,11 @@
-import { runFeNa } from "@/lib/medical/engine/calculators/fe_na";
+  import { calc_fena } from "../../lib/medical/engine/calculators/fe_na";
 
-test("FeNa", () => {
-  const r = runFeNa({
-    urine_na_mEq_L: 40,
-    plasma_na_mEq_L: 140,
-    urine_cr_mg_dl: 100,
-    plasma_cr_mg_dl: 2,
-  });
-  // FeNa = (40*2)/(140*100)*100 = 800/14000*100 ≈ 5.714
-  expect(r.fena_percent).toBeCloseTo(5.714, 3);
+  describe("calc_fena", () => {
+
+it("computes FENa", () => {
+  const v = calc_fena({ urine_na: 40, serum_na: 140, urine_cr: 100, serum_cr: 2 });
+  // (40*2)/(140*100)*100 = 0.5714...
+  expect(v).toBeCloseTo(0.571, 3);
 });
+
+  });
