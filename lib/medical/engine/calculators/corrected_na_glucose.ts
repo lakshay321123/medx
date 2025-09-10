@@ -19,7 +19,7 @@ register({
     { key: "Na_meq_l", required: true },
     { key: "glucose_mg_dl", required: true },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const r = runCorrectedNa(ctx as CorrNaInputs);
     if (!r) return null;
     return { id: "corrected_na_glucose", label: "Corrected Na (hyperglycemia)", value: Number(r.corrected_na_meq_l.toFixed(1)), unit: "mEq/L", precision: 1, notes: [] };

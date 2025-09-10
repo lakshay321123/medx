@@ -25,7 +25,7 @@ register({
     { key: "urine_cr_mg_dl", required: true },
     { key: "plasma_cr_mg_dl", required: true },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const r = runFeNa(ctx as any);
     return { id: "fena", label: "FeNa", value: r.fena_pct, unit: "%", notes: [r.band.replaceAll("_"," ")], precision: 2 };
   },

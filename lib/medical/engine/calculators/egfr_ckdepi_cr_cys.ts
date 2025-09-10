@@ -30,7 +30,7 @@ register({
     { key: "scr_mg_dl", required: true },
     { key: "scys_mg_l", required: true },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const r = runEGFR_CrCys(ctx as any);
     return { id: "egfr_ckdepi_cr_cys", label: "eGFR CKD-EPI (Cr+Cys)", value: r.egfr_ml_min_1_73m2, unit: "mL/min/1.73m²", precision: 0 };
   },

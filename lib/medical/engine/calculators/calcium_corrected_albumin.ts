@@ -22,7 +22,7 @@ register({
     { key: "correction_per_g" },
     { key: "target_albumin_g_dl" },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const { calcium_mg_dl, albumin_g_dl, correction_per_g, target_albumin_g_dl } = ctx as CorrectedCaInput;
     if (calcium_mg_dl == null || albumin_g_dl == null) return null;
     const r = runCorrectedCa({ calcium_mg_dl, albumin_g_dl, correction_per_g, target_albumin_g_dl });

@@ -1,0 +1,438 @@
+diff --git a/__tests__/a_a_gradient_calc.test.ts b/__tests__/a_a_gradient_calc.test.ts
+new file mode 100644
+index 0000000..9cf99c1
+--- /dev/null
++++ b/__tests__/a_a_gradient_calc.test.ts
+@@ -0,0 +1,8 @@
++import { runAAG } from "../lib/medical/engine/calculators/a_a_gradient_calc";
++
++describe("a_a_gradient_calc", () => {
++  it("computes A–a gradient", () => {
++    const r = runAAG({ PaO2: 80, FiO2: 0.21, PaCO2: 40, age_years: 40 });
++    expect(r?.AA).toBeCloseTo(19.73, 2);
++  });
++});
+diff --git a/__tests__/body_size_tools.test.ts b/__tests__/body_size_tools.test.ts
+new file mode 100644
+index 0000000..c5f22b2
+--- /dev/null
++++ b/__tests__/body_size_tools.test.ts
+@@ -0,0 +1,18 @@
++import { runIBW, runAdjBW, runBSA } from "../lib/medical/engine/calculators/body_size_tools";
++
++describe("body_size_tools", () => {
++  it("calculates Devine IBW", () => {
++    const r = runIBW({ sex: "male", height_cm: 180 });
++    expect(r?.ibw_kg).toBeCloseTo(75.0, 1);
++  });
++
++  it("calculates Adjusted Body Weight", () => {
++    const r = runAdjBW({ actual_kg: 100, ibw_kg: 75 });
++    expect(r?.adj_bw_kg).toBeCloseTo(85.0, 1);
++  });
++
++  it("calculates BSA DuBois", () => {
++    const r = runBSA({ weight_kg: 70, height_cm: 170 });
++    expect(r?.bsa_m2).toBeCloseTo(1.81, 2);
++  });
++});
+diff --git a/__tests__/cardiology_risk.test.ts b/__tests__/cardiology_risk.test.ts
+new file mode 100644
+index 0000000..88f4224
+--- /dev/null
++++ b/__tests__/cardiology_risk.test.ts
+@@ -0,0 +1,10 @@
++import { FORMULAE } from "../lib/medical/engine/registry";
++import "../lib/medical/engine/calculators/cardiology_risk";
++
++describe("cardiology_risk", () => {
++  it("calculates CHA2DS2-VASc score", () => {
++    const f = FORMULAE.find(f => f.id === "cha2ds2_vasc")!;
++    const r = f.run({ age: 70, sex: "male", hx_chf: true, hx_htn: true, hx_vascular: true });
++    expect(r?.value).toBe(4);
++  });
++});
+diff --git a/__tests__/corrected_na_glucose.test.ts b/__tests__/corrected_na_glucose.test.ts
+new file mode 100644
+index 0000000..8d01095
+--- /dev/null
++++ b/__tests__/corrected_na_glucose.test.ts
+@@ -0,0 +1,8 @@
++import { runCorrectedNa } from "../lib/medical/engine/calculators/corrected_na_glucose";
++
++describe("corrected_na_glucose", () => {
++  it("adjusts sodium for hyperglycemia", () => {
++    const r = runCorrectedNa({ Na_meq_l: 130, glucose_mg_dl: 300 });
++    expect(r?.corrected_na_meq_l).toBeCloseTo(133.2, 1);
++  });
++});
+diff --git a/__tests__/crb65_score.test.ts b/__tests__/crb65_score.test.ts
+new file mode 100644
+index 0000000..21139e7
+--- /dev/null
++++ b/__tests__/crb65_score.test.ts
+@@ -0,0 +1,9 @@
++import { runCRB65 } from "../lib/medical/engine/calculators/crb65_score";
++
++describe("crb65_score", () => {
++  it("assesses pneumonia severity", () => {
++    const r = runCRB65({ confusion: true, rr_ge30: false, low_bp: true, age_ge65: true });
++    expect(r?.score).toBe(3);
++    expect(r?.band).toBe("high risk");
++  });
++});
+diff --git a/__tests__/gcs_total.test.ts b/__tests__/gcs_total.test.ts
+new file mode 100644
+index 0000000..098e853
+--- /dev/null
++++ b/__tests__/gcs_total.test.ts
+@@ -0,0 +1,8 @@
++import { runGCS } from "../lib/medical/engine/calculators/gcs_total";
++
++describe("gcs_total", () => {
++  it("sums component scores", () => {
++    const r = runGCS({ eye: 3, verbal: 4, motor: 6 });
++    expect(r?.total).toBe(13);
++  });
++});
+diff --git a/__tests__/pao2_alveolar.test.ts b/__tests__/pao2_alveolar.test.ts
+new file mode 100644
+index 0000000..a9c312e
+--- /dev/null
++++ b/__tests__/pao2_alveolar.test.ts
+@@ -0,0 +1,8 @@
++import { runPAO2 } from "../lib/medical/engine/calculators/pao2_alveolar";
++
++describe("pao2_alveolar", () => {
++  it("computes alveolar oxygen", () => {
++    const r = runPAO2({ FiO2: 0.5, PaCO2: 40 });
++    expect(r?.PAO2_mmHg).toBeCloseTo(306.5, 1);
++  });
++});
+diff --git a/__tests__/sf_ratio.test.ts b/__tests__/sf_ratio.test.ts
+new file mode 100644
+index 0000000..d298988
+--- /dev/null
++++ b/__tests__/sf_ratio.test.ts
+@@ -0,0 +1,8 @@
++import { runSF } from "../lib/medical/engine/calculators/sf_ratio";
++
++describe("sf_ratio", () => {
++  it("calculates S/F ratio", () => {
++    const r = runSF({ SpO2_pct: 95, FiO2: 0.5 });
++    expect(r?.sf_ratio).toBeCloseTo(190, 0);
++  });
++});
+diff --git a/lib/medical/engine/calculators/a_a_gradient_calc.ts b/lib/medical/engine/calculators/a_a_gradient_calc.ts
+index 7912443..0d4d6e3 100644
+--- a/lib/medical/engine/calculators/a_a_gradient_calc.ts
++++ b/lib/medical/engine/calculators/a_a_gradient_calc.ts
+@@ -45,7 +45,7 @@ register({
+     { key: "R" },
+     { key: "age_years" },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const r = runAAG(ctx as AAGInputs);
+     if (!r) return null;
+     const notes = r.notes ?? [];
+diff --git a/lib/medical/engine/calculators/body_size_tools.ts b/lib/medical/engine/calculators/body_size_tools.ts
+index 50a5c19..3a58aea 100644
+--- a/lib/medical/engine/calculators/body_size_tools.ts
++++ b/lib/medical/engine/calculators/body_size_tools.ts
+@@ -30,7 +30,7 @@ register({
+     { key: "sex", required: true },
+     { key: "height_cm", required: true },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const r = runIBW(ctx as any);
+     if (!r) return null;
+     return { id: "ibw_devine", label: "Ideal Body Weight (Devine)", value: r.ibw_kg, unit: "kg", precision: 1, notes: [] };
+@@ -45,7 +45,7 @@ register({
+     { key: "ibw_kg", required: true },
+     { key: "factor" },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const r = runAdjBW(ctx as any);
+     if (!r) return null;
+     return { id: "abw_adjusted", label: "Adjusted Body Weight", value: r.adj_bw_kg, unit: "kg", precision: 1, notes: [] };
+@@ -59,7 +59,7 @@ register({
+     { key: "weight_kg", required: true },
+     { key: "height_cm", required: true },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const r = runBSA(ctx as any);
+     if (!r) return null;
+     return { id: "bsa_dubois", label: "Body Surface Area (DuBois)", value: r.bsa_m2, unit: "m²", precision: 2, notes: [] };
+diff --git a/lib/medical/engine/calculators/bsa_rule_of_nines.ts b/lib/medical/engine/calculators/bsa_rule_of_nines.ts
+index c8534f1..4d76f02 100644
+--- a/lib/medical/engine/calculators/bsa_rule_of_nines.ts
++++ b/lib/medical/engine/calculators/bsa_rule_of_nines.ts
+@@ -22,7 +22,7 @@ register({
+     { key: "trunk_anterior" }, { key: "trunk_posterior" },
+     { key: "leg_left" }, { key: "leg_right" }, { key: "perineum" },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const r = runRuleOfNines(ctx);
+     return { id: "bsa_rule_of_nines", label: "TBSA", value: r.tbsa_pct, unit: "%", precision: 0 };
+   },
+diff --git a/lib/medical/engine/calculators/calcium_corrected_albumin.ts b/lib/medical/engine/calculators/calcium_corrected_albumin.ts
+index 7558b0c..1debfe3 100644
+--- a/lib/medical/engine/calculators/calcium_corrected_albumin.ts
++++ b/lib/medical/engine/calculators/calcium_corrected_albumin.ts
+@@ -22,7 +22,7 @@ register({
+     { key: "correction_per_g" },
+     { key: "target_albumin_g_dl" },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const { calcium_mg_dl, albumin_g_dl, correction_per_g, target_albumin_g_dl } = ctx as CorrectedCaInput;
+     if (calcium_mg_dl == null || albumin_g_dl == null) return null;
+     const r = runCorrectedCa({ calcium_mg_dl, albumin_g_dl, correction_per_g, target_albumin_g_dl });
+diff --git a/lib/medical/engine/calculators/calorie_goal.ts b/lib/medical/engine/calculators/calorie_goal.ts
+index dde551b..54bbe15 100644
+--- a/lib/medical/engine/calculators/calorie_goal.ts
++++ b/lib/medical/engine/calculators/calorie_goal.ts
+@@ -35,7 +35,7 @@ register({
+     { key: "activity_factor" },
+     { key: "stress_factor" },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const {
+       sex,
+       age,
+diff --git a/lib/medical/engine/calculators/cardiology_risk.ts b/lib/medical/engine/calculators/cardiology_risk.ts
+index aa0c4d8..9d60034 100644
+--- a/lib/medical/engine/calculators/cardiology_risk.ts
++++ b/lib/medical/engine/calculators/cardiology_risk.ts
+@@ -13,7 +13,7 @@ register({
+     { key: "hx_stroke_tia" },
+     { key: "hx_vascular" },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const { age, sex } = ctx;
+     if (age == null || !sex) return null;
+     let s = 0;
+@@ -55,7 +55,7 @@ register({
+     { key: "nsaid" },
+     { key: "alcohol" },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const { age } = ctx;
+     if (age == null) return null;
+     let s = 0;
+diff --git a/lib/medical/engine/calculators/corrected_na_glucose.ts b/lib/medical/engine/calculators/corrected_na_glucose.ts
+index 699d80d..c338dbc 100644
+--- a/lib/medical/engine/calculators/corrected_na_glucose.ts
++++ b/lib/medical/engine/calculators/corrected_na_glucose.ts
+@@ -19,7 +19,7 @@ register({
+     { key: "Na_meq_l", required: true },
+     { key: "glucose_mg_dl", required: true },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const r = runCorrectedNa(ctx as CorrNaInputs);
+     if (!r) return null;
+     return { id: "corrected_na_glucose", label: "Corrected Na (hyperglycemia)", value: Number(r.corrected_na_meq_l.toFixed(1)), unit: "mEq/L", precision: 1, notes: [] };
+diff --git a/lib/medical/engine/calculators/crb65_score.ts b/lib/medical/engine/calculators/crb65_score.ts
+index 9666378..0334e83 100644
+--- a/lib/medical/engine/calculators/crb65_score.ts
++++ b/lib/medical/engine/calculators/crb65_score.ts
+@@ -27,7 +27,7 @@ register({
+     { key: "low_bp", required: true },
+     { key: "age_ge65", required: true },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const r = runCRB65(ctx as CRB65Inputs);
+     if (!r) return null;
+     return { id: "crb65", label: "CRB-65", value: r.score, unit: "points", notes: [r.band], precision: 0 };
+diff --git a/lib/medical/engine/calculators/creatinine_clearance_cg.ts b/lib/medical/engine/calculators/creatinine_clearance_cg.ts
+index 9cf9c00..e36b29c 100644
+--- a/lib/medical/engine/calculators/creatinine_clearance_cg.ts
++++ b/lib/medical/engine/calculators/creatinine_clearance_cg.ts
+@@ -38,7 +38,7 @@ register({
+     { key: "height_cm" },
+     { key: "use_weight" },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const r = runCrCl_CG(ctx as any);
+     const notes: string[] = [];
+     if (r.ibw_kg != null) notes.push(`IBW ${r.ibw_kg} kg`);
+diff --git a/lib/medical/engine/calculators/egfr_ckdepi_2021_cr.ts b/lib/medical/engine/calculators/egfr_ckdepi_2021_cr.ts
+index c1ea57a..2383a57 100644
+--- a/lib/medical/engine/calculators/egfr_ckdepi_2021_cr.ts
++++ b/lib/medical/engine/calculators/egfr_ckdepi_2021_cr.ts
+@@ -22,7 +22,7 @@ register({
+     { key: "age", required: true },
+     { key: "scr_mg_dl", required: true },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const r = runEGFR_CKDEPI2021_CR(ctx as any);
+     return { id: "egfr_ckdepi_2021_cr", label: "eGFR CKD-EPI 2021 (Cr)", value: r.egfr_ml_min_1_73m2, unit: "mL/min/1.73m²", precision: 0 };
+   },
+diff --git a/lib/medical/engine/calculators/egfr_ckdepi_cr_cys.ts b/lib/medical/engine/calculators/egfr_ckdepi_cr_cys.ts
+index cc9e7c3..e3c3afd 100644
+--- a/lib/medical/engine/calculators/egfr_ckdepi_cr_cys.ts
++++ b/lib/medical/engine/calculators/egfr_ckdepi_cr_cys.ts
+@@ -30,7 +30,7 @@ register({
+     { key: "scr_mg_dl", required: true },
+     { key: "scys_mg_l", required: true },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const r = runEGFR_CrCys(ctx as any);
+     return { id: "egfr_ckdepi_cr_cys", label: "eGFR CKD-EPI (Cr+Cys)", value: r.egfr_ml_min_1_73m2, unit: "mL/min/1.73m²", precision: 0 };
+   },
+diff --git a/lib/medical/engine/calculators/fena.ts b/lib/medical/engine/calculators/fena.ts
+index 7e1073d..38d2a65 100644
+--- a/lib/medical/engine/calculators/fena.ts
++++ b/lib/medical/engine/calculators/fena.ts
+@@ -25,7 +25,7 @@ register({
+     { key: "urine_cr_mg_dl", required: true },
+     { key: "plasma_cr_mg_dl", required: true },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const r = runFeNa(ctx as any);
+     return { id: "fena", label: "FeNa", value: r.fena_pct, unit: "%", notes: [r.band.replaceAll("_"," ")], precision: 2 };
+   },
+diff --git a/lib/medical/engine/calculators/feurea.ts b/lib/medical/engine/calculators/feurea.ts
+index 32836e2..8601a03 100644
+--- a/lib/medical/engine/calculators/feurea.ts
++++ b/lib/medical/engine/calculators/feurea.ts
+@@ -25,7 +25,7 @@ register({
+     { key: "urine_cr_mg_dl", required: true },
+     { key: "plasma_cr_mg_dl", required: true },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const r = runFeUrea(ctx as any);
+     return { id: "feurea", label: "FeUrea", value: r.feurea_pct, unit: "%", notes: [r.band.replaceAll("_"," ")], precision: 1 };
+   },
+diff --git a/lib/medical/engine/calculators/gcs_total.ts b/lib/medical/engine/calculators/gcs_total.ts
+index 12a2778..0e8b785 100644
+--- a/lib/medical/engine/calculators/gcs_total.ts
++++ b/lib/medical/engine/calculators/gcs_total.ts
+@@ -21,7 +21,7 @@ register({
+     { key: "verbal", required: true },
+     { key: "motor", required: true },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const r = runGCS(ctx as GCSInputs);
+     if (!r) return null;
+     return { id: "gcs_total", label: "GCS (total)", value: r.total, unit: "points", precision: 0, notes: r.notes };
+diff --git a/lib/medical/engine/calculators/hhs_flags.ts b/lib/medical/engine/calculators/hhs_flags.ts
+index f5e6821..50f5680 100644
+--- a/lib/medical/engine/calculators/hhs_flags.ts
++++ b/lib/medical/engine/calculators/hhs_flags.ts
+@@ -36,7 +36,7 @@ register({
+     { key: "pH" }, { key: "bicarb_mEq_L" }, { key: "ketones_present" },
+     { key: "weight_kg" }, { key: "sex" }, { key: "age" },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const r = runHHS(ctx as any);
+     const notes: string[] = [];
+     if (r.hhs_likely) notes.push("HHS likely (clinical correlation required)");
+diff --git a/lib/medical/engine/calculators/kdigo_aki_stage.ts b/lib/medical/engine/calculators/kdigo_aki_stage.ts
+index 6df3c29..e2a9abe 100644
+--- a/lib/medical/engine/calculators/kdigo_aki_stage.ts
++++ b/lib/medical/engine/calculators/kdigo_aki_stage.ts
+@@ -24,7 +24,7 @@ register({
+     { key: "current_scr_mg_dl", required: true },
+     { key: "rrt_initiated" },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const r = runKDIGO_AKI(ctx as any);
+     return { id: "kdigo_aki_stage", label: "KDIGO AKI stage", value: r.stage, unit: "", notes: [`ratio ${r.ratio}×`], precision: 0 };
+   },
+diff --git a/lib/medical/engine/calculators/osmolality_and_gap.ts b/lib/medical/engine/calculators/osmolality_and_gap.ts
+index 3ef9442..74eb58d 100644
+--- a/lib/medical/engine/calculators/osmolality_and_gap.ts
++++ b/lib/medical/engine/calculators/osmolality_and_gap.ts
+@@ -25,7 +25,7 @@ register({
+     { key: "ethanol_mg_dl" },
+     { key: "measured_osm_mOsm_kg" },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const { Na_meq_l, glucose_mg_dl, bun_mg_dl, ethanol_mg_dl, measured_osm_mOsm_kg } = ctx as OsmInput;
+     if (Na_meq_l == null || glucose_mg_dl == null || bun_mg_dl == null) return null;
+     const r = runCalculatedOsm({ Na_meq_l, glucose_mg_dl, bun_mg_dl, ethanol_mg_dl, measured_osm_mOsm_kg });
+diff --git a/lib/medical/engine/calculators/padua_vte.ts b/lib/medical/engine/calculators/padua_vte.ts
+index e14f838..d125105 100644
+--- a/lib/medical/engine/calculators/padua_vte.ts
++++ b/lib/medical/engine/calculators/padua_vte.ts
+@@ -73,7 +73,7 @@ register({
+     bmi_ge_30?: boolean;
+     hormonal_treatment?: boolean;
+   }) => {
+-    const v = calc_padua_vte(ctx);
++    const v = calc_padua_vte(ctx as any);
+     const notes = [v >= 4 ? "high VTE risk" : "low VTE risk"];
+     return { id: "padua_vte", label: "Padua Prediction Score (VTE)", value: v, unit: "score", precision: 0, notes };
+   },
+diff --git a/lib/medical/engine/calculators/pao2_alveolar.ts b/lib/medical/engine/calculators/pao2_alveolar.ts
+index 86913b5..f9f61df 100644
+--- a/lib/medical/engine/calculators/pao2_alveolar.ts
++++ b/lib/medical/engine/calculators/pao2_alveolar.ts
+@@ -19,7 +19,7 @@ register({
+     { key: "PH2O_mmHg" },
+     { key: "R" },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const r = runPAO2(ctx as PAO2Inputs);
+     if (!r) return null;
+     return { id: "pao2_alveolar", label: "Alveolar O2 (PAO2)", value: Number(r.PAO2_mmHg.toFixed(0)), unit: "mmHg", precision: 0, notes: [] };
+diff --git a/lib/medical/engine/calculators/sf_ratio.ts b/lib/medical/engine/calculators/sf_ratio.ts
+index 72692c5..18b4198 100644
+--- a/lib/medical/engine/calculators/sf_ratio.ts
++++ b/lib/medical/engine/calculators/sf_ratio.ts
+@@ -18,7 +18,7 @@ register({
+     { key: "SpO2_pct", required: true },
+     { key: "FiO2", required: true },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const r = runSF(ctx as SFInputs);
+     if (!r) return null;
+     const notes:string[] = [];
+diff --git a/lib/medical/engine/calculators/timi_ua_nstemi.ts b/lib/medical/engine/calculators/timi_ua_nstemi.ts
+index eadd37f..db9df3f 100644
+--- a/lib/medical/engine/calculators/timi_ua_nstemi.ts
++++ b/lib/medical/engine/calculators/timi_ua_nstemi.ts
+@@ -54,7 +54,7 @@ register({
+     st_deviation_ge_0_5mm?: boolean;
+     elevated_markers?: boolean;
+   }) => {
+-    const v = calc_timi_ua_nstemi(ctx);
++    const v = calc_timi_ua_nstemi(ctx as any);
+     return { id: "timi_ua_nstemi", label: "TIMI (UA/NSTEMI)", value: v, unit: "score", precision: 0, notes: [] };
+   },
+ });
+diff --git a/lib/medical/engine/calculators/ttkg.ts b/lib/medical/engine/calculators/ttkg.ts
+index b39624f..e343965 100644
+--- a/lib/medical/engine/calculators/ttkg.ts
++++ b/lib/medical/engine/calculators/ttkg.ts
+@@ -20,7 +20,7 @@ register({
+     { key: "urine_osm_mOsm_kg", required: true },
+     { key: "plasma_osm_mOsm_kg", required: true },
+   ],
+-  run: (ctx) => {
++  run: (ctx: any) => {
+     const r = runTTKG(ctx as any);
+     return { id: "ttkg", label: "TTKG", value: r.ttkg, precision: 2 };
+   },
