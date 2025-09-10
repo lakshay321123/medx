@@ -1,10 +1,17 @@
-import { register } from "../registry";
+import { round } from "./utils";
 
-export function runLactateClearance(i:{ initial_mmol_L:number, later_mmol_L:number }){
-  if (i==null || [i.initial_mmol_L,i.later_mmol_L].some(v=>v==null || !isFinite(v as number))) return null;
-  const clr = ((i.initial_mmol_L - i.later_mmol_L) / i.initial_mmol_L) * 100;
-  return { lactate_clearance_pct: Number(clr.toFixed(1)) };
+export interface LactateInput {
+  lactate_initial_mmol_L: number;
+  lactate_followup_mmol_L: number;
 }
-register({ id:"lactate_clearance", label:"Lactate clearance %", inputs:[
-  {key:"initial_mmol_L",required:true},{key:"later_mmol_L",required:true}
-], run: runLactateClearance as any });
+
+export interface LactateClearance {
+  clearance_percent: number;
+  improved: boolean;
+}
+
+export function runLactateClearance(i: LactateInput): LactateClearance {
+  const { lactate_initial_mmol_L: L0, lactate_followup_mmol_L: L1 } = i;
+  const clearance = (L0 > 0) ? ((L0 - L1) / L0) * 100 : NaN;
+  return { clearance_percent: round(clearance, 1), improved: isFinite(clearance) && clearance >= 10 };
+}

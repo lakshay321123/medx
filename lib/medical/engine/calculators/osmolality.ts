@@ -1,25 +1,24 @@
+import { round } from "./utils";
 
-import { register } from "../registry";
-
-export type OsmInputs = { Na: number, glucose_mg_dL: number, BUN_mg_dL: number, ethanol_mg_dL?: number };
-export function runSerumOsmCalc({ Na, glucose_mg_dL, BUN_mg_dL, ethanol_mg_dL=0 }: OsmInputs) {
-  if ([Na,glucose_mg_dL,BUN_mg_dL,ethanol_mg_dL].some(v=>v==null || !isFinite(v as number))) return null;
-  const osm = 2*Na + glucose_mg_dL/18 + BUN_mg_dL/2.8 + ethanol_mg_dL/3.7;
-  return { serum_osm_mOsm_kg: Number(osm.toFixed(1)) };
+export interface OsmInput {
+  na_mEq_L: number;
+  bun_mg_dL: number;
+  glucose_mg_dL: number;
+  ethanol_mg_dL?: number; // optional
+  eg_mg_dL?: number;      // ethylene glycol (if available)
+  methanol_mg_dL?: number;
+  isopropanol_mg_dL?: number;
+  measured_mOsm_kg?: number;
 }
 
-export function runEffectiveOsm({ Na, glucose_mg_dL }: { Na:number, glucose_mg_dL:number }) {
-  if ([Na,glucose_mg_dL].some(v=>v==null || !isFinite(v as number))) return null;
-  const eff = 2*Na + glucose_mg_dL/18;
-  return { effective_osm_mOsm_kg: Number(eff.toFixed(1)) };
+export function calcSerumOsm(i: OsmInput) {
+  const base = 2 * i.na_mEq_L + i.bun_mg_dL / 2.8 + i.glucose_mg_dL / 18;
+  const ethanol = (i.ethanol_mg_dL ?? 0) / 3.7;
+  // Optional extensions—using approximate divisors for contribution
+  const eg = i.eg_mg_dL ? (i.eg_mg_dL / 6.2) : 0;
+  const meoh = i.methanol_mg_dL ? (i.methanol_mg_dL / 3.2) : 0;
+  const iso = i.isopropanol_mg_dL ? (i.isopropanol_mg_dL / 5.9) : 0;
+  const calc = base + ethanol + eg + meoh + iso;
+  const gap = i.measured_mOsm_kg !== undefined ? i.measured_mOsm_kg - calc : undefined;
+  return { calculated_mOsm_kg: round(calc, 1), osmolal_gap_mOsm_kg: gap !== undefined ? round(gap, 1) : undefined };
 }
-
-export function runOsmolarGap({ measured_osm_mOsm_kg, serum_osm_mOsm_kg }: { measured_osm_mOsm_kg:number, serum_osm_mOsm_kg:number }) {
-  if ([measured_osm_mOsm_kg,serum_osm_mOsm_kg].some(v=>v==null || !isFinite(v as number))) return null;
-  const gap = measured_osm_mOsm_kg - serum_osm_mOsm_kg;
-  return { osmolar_gap_mOsm_kg: Number(gap.toFixed(1)) };
-}
-
-register({ id:"serum_osm_calc", label:"Serum osmolality (calculated)", inputs:[{key:"Na",required:true},{key:"glucose_mg_dL",required:true},{key:"BUN_mg_dL",required:true},{key:"ethanol_mg_dL"}], run: runSerumOsmCalc as any });
-register({ id:"effective_osm", label:"Effective osmolality", inputs:[{key:"Na",required:true},{key:"glucose_mg_dL",required:true}], run: runEffectiveOsm as any });
-register({ id:"osmolar_gap", label:"Osmolar gap", inputs:[{key:"measured_osm_mOsm_kg",required:true},{key:"serum_osm_mOsm_kg",required:true}], run: runOsmolarGap as any });
