@@ -19,7 +19,7 @@ register({
     { key: "PH2O_mmHg" },
     { key: "R" },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const r = runPAO2(ctx as PAO2Inputs);
     if (!r) return null;
     return { id: "pao2_alveolar", label: "Alveolar O2 (PAO2)", value: Number(r.PAO2_mmHg.toFixed(0)), unit: "mmHg", precision: 0, notes: [] };

@@ -27,7 +27,7 @@ register({
     { key: "low_bp", required: true },
     { key: "age_ge65", required: true },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const r = runCRB65(ctx as CRB65Inputs);
     if (!r) return null;
     return { id: "crb65", label: "CRB-65", value: r.score, unit: "points", notes: [r.band], precision: 0 };

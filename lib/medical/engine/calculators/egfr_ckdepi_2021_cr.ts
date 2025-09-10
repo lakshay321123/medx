@@ -22,7 +22,7 @@ register({
     { key: "age", required: true },
     { key: "scr_mg_dl", required: true },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const r = runEGFR_CKDEPI2021_CR(ctx as any);
     return { id: "egfr_ckdepi_2021_cr", label: "eGFR CKD-EPI 2021 (Cr)", value: r.egfr_ml_min_1_73m2, unit: "mL/min/1.73m²", precision: 0 };
   },

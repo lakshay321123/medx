@@ -24,7 +24,7 @@ register({
     { key: "current_scr_mg_dl", required: true },
     { key: "rrt_initiated" },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const r = runKDIGO_AKI(ctx as any);
     return { id: "kdigo_aki_stage", label: "KDIGO AKI stage", value: r.stage, unit: "", notes: [`ratio ${r.ratio}×`], precision: 0 };
   },

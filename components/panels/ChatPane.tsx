@@ -1002,7 +1002,11 @@ ${systemCommon}` + baseSys;
 
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-conversation-id': conversationId,
+          'x-new-chat': messages.length === 0 ? 'true' : 'false'
+        },
         body: JSON.stringify({ mode: mode === 'doctor' ? 'doctor' : 'patient', messages: chatMessages, threadId, context })
       });
       if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);

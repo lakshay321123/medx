@@ -25,7 +25,7 @@ register({
     { key: "ethanol_mg_dl" },
     { key: "measured_osm_mOsm_kg" },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const { Na_meq_l, glucose_mg_dl, bun_mg_dl, ethanol_mg_dl, measured_osm_mOsm_kg } = ctx as OsmInput;
     if (Na_meq_l == null || glucose_mg_dl == null || bun_mg_dl == null) return null;
     const r = runCalculatedOsm({ Na_meq_l, glucose_mg_dl, bun_mg_dl, ethanol_mg_dl, measured_osm_mOsm_kg });

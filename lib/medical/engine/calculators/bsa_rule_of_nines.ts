@@ -22,7 +22,7 @@ register({
     { key: "trunk_anterior" }, { key: "trunk_posterior" },
     { key: "leg_left" }, { key: "leg_right" }, { key: "perineum" },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const r = runRuleOfNines(ctx);
     return { id: "bsa_rule_of_nines", label: "TBSA", value: r.tbsa_pct, unit: "%", precision: 0 };
   },

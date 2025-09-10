@@ -18,7 +18,7 @@ register({
     { key: "SpO2_pct", required: true },
     { key: "FiO2", required: true },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const r = runSF(ctx as SFInputs);
     if (!r) return null;
     const notes:string[] = [];
