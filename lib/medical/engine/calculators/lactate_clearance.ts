@@ -1,6 +1,9 @@
-
-/** Lactate clearance percentage over time. */
-export function lactateClearancePercent(initial_mmol_L: number, follow_mmol_L: number) {
-  if (!(initial_mmol_L > 0)) return null;
-  return ((initial_mmol_L - follow_mmol_L) / initial_mmol_L) * 100;
+/**
+ * Lactate clearance percent
+ * Clearance = ((initial - subsequent) / initial) * 100
+ */
+export interface LactateClearanceInput { initial_mmol_l: number; subsequent_mmol_l: number; }
+export interface LactateClearanceResult { clearance_percent: number; }
+export function runLactateClearance(i: LactateClearanceInput): LactateClearanceResult {
+  return { clearance_percent: ((i.initial_mmol_l - i.subsequent_mmol_l) / i.initial_mmol_l) * 100 };
 }

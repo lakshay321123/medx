@@ -1,41 +1,38 @@
-
-// lib/medical/engine/calculators/padua_vte.ts
-// Padua Prediction Score for VTE risk in medical inpatients (high risk if ≥4).
-
+/**
+ * Padua Prediction Score for VTE in medical inpatients
+ * Points:
+ * Active cancer 3, Previous VTE 3, Reduced mobility 3, Thrombophilia 3,
+ * Recent trauma or surgery less than 1 month 2,
+ * Age >= 70 1, Heart or respiratory failure 1, Acute MI or ischemic stroke 1,
+ * Acute infection or rheumatologic disorder 1, BMI >= 30 1, Hormonal therapy 1
+ * High risk if total >= 4
+ */
 export interface PaduaInput {
-  active_cancer: boolean;                        // 3
-  previous_vte: boolean;                         // 3
-  reduced_mobility: boolean;                     // 3
-  known_thrombophilic_condition: boolean;        // 3
-  recent_trauma_or_surgery_1month: boolean;     // 2
-  elderly_age_ge_70: boolean;                    // 1
-  heart_or_respiratory_failure: boolean;         // 1
-  acute_mi_or_ischemic_stroke: boolean;         // 1
-  acute_infection_or_rheumatologic_disorder: boolean; // 1
-  bmi_ge_30: boolean;                            // 1
-  ongoing_hormonal_treatment: boolean;           // 1
+  active_cancer: boolean;
+  previous_vte: boolean;
+  reduced_mobility: boolean;
+  thrombophilia: boolean;
+  recent_trauma_or_surgery_lt_1mo: boolean;
+  age: number;
+  heart_or_respiratory_failure: boolean;
+  acute_mi_or_stroke: boolean;
+  acute_infection_or_rheum: boolean;
+  bmi: number;
+  hormonal_therapy: boolean;
 }
-
-export interface PaduaOutput {
-  points: number;
-  high_risk: boolean;
-  components: Record<string, number>;
-}
-
-export function runPadua(i: PaduaInput): PaduaOutput {
-  const comp: Record<string, number> = {};
-  comp.active_cancer = i.active_cancer ? 3 : 0;
-  comp.previous_vte = i.previous_vte ? 3 : 0;
-  comp.reduced_mobility = i.reduced_mobility ? 3 : 0;
-  comp.known_thrombophilia = i.known_thrombophilic_condition ? 3 : 0;
-  comp.recent_trauma_or_surgery_1month = i.recent_trauma_or_surgery_1month ? 2 : 0;
-  comp.elderly_age_ge_70 = i.elderly_age_ge_70 ? 1 : 0;
-  comp.heart_or_respiratory_failure = i.heart_or_respiratory_failure ? 1 : 0;
-  comp.acute_mi_or_ischemic_stroke = i.acute_mi_or_ischemic_stroke ? 1 : 0;
-  comp.acute_infection_or_rheumatologic_disorder = i.acute_infection_or_rheumatologic_disorder ? 1 : 0;
-  comp.bmi_ge_30 = i.bmi_ge_30 ? 1 : 0;
-  comp.ongoing_hormonal_treatment = i.ongoing_hormonal_treatment ? 1 : 0;
-
-  const total = Object.values(comp).reduce((a,b)=>a+b,0);
-  return { points: total, high_risk: total >= 4, components: comp };
+export interface PaduaResult { score: number; high_risk: boolean; }
+export function runPadua(i: PaduaInput): PaduaResult {
+  let s = 0;
+  if (i.active_cancer) s += 3;
+  if (i.previous_vte) s += 3;
+  if (i.reduced_mobility) s += 3;
+  if (i.thrombophilia) s += 3;
+  if (i.recent_trauma_or_surgery_lt_1mo) s += 2;
+  if (i.age >= 70) s += 1;
+  if (i.heart_or_respiratory_failure) s += 1;
+  if (i.acute_mi_or_stroke) s += 1;
+  if (i.acute_infection_or_rheum) s += 1;
+  if (i.bmi >= 30) s += 1;
+  if (i.hormonal_therapy) s += 1;
+  return { score: s, high_risk: s >= 4 };
 }
