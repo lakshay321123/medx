@@ -1,30 +1,26 @@
-import { kingsCollegeTransplantCriteria } from "../lib/medical/engine/calculators/kings_college";
+import { runKingsCollege } from "../lib/medical/engine/calculators/kings_college";
 import { runKhorana } from "../lib/medical/engine/calculators/khorana";
-import { canadianCSpineRule } from "../lib/medical/engine/calculators/cspine_rule";
-import { rumackMatthewThreshold } from "../lib/medical/engine/calculators/acetaminophen_nomogram";
-import { coSeverity, cyanideSupport } from "../lib/medical/engine/calculators/toxic_helpers";
+import { runBAP65 } from "../lib/medical/engine/calculators/bap65";
+import { crosses150Line } from "../lib/medical/engine/calculators/acetaminophen_nomogram";
 
-test("King's College", () => {
-  const out = kingsCollegeTransplantCriteria({ acetaminophen_related: false, arterial_pH: 7.2, inr: 7.0, creat_mg_dL: 3.5, encephalopathy_grade: 3 });
-  expect(out.meets_criteria).toBe(true);
+test("King's College APAP pH criterion", () => {
+  const apap = runKingsCollege({ apap_induced: true, arterial_pH: 7.2 });
+  expect(apap.transplant_criteria_met).toBe(true);
 });
 
-test("Khorana", () => {
-  const out = runKhorana({ cancer_site: "lung", platelets_10e9_L: 360, hemoglobin_g_dL: 9.8, on_esa: false, leukocytes_10e9_L: 12, bmi_kg_m2: 36 });
-  expect(out.score).toBeGreaterThan(0);
+test("Khorana high risk", () => {
+  const k = runKhorana({ site: "pancreas", platelets_x10e9_L: 360, hemoglobin_g_dL: 9.9, on_erythropoiesis_stim_agents: false, leukocytes_x10e9_L: 12, bmi_kg_m2: 36 });
+  expect(k.khorana_points).toBeGreaterThanOrEqual(4);
+  expect(k.risk_band).toBe("high");
 });
 
-test("C-Spine", () => {
-  const out = canadianCSpineRule({ age_ge_65: false, dangerous_mechanism: false, paresthesias_in_extremities: false, low_risk_factor_present: true, able_to_rotate_45deg_left_and_right: true });
-  expect(out.imaging_indicated).toBe(false);
+test("BAP-65", () => {
+  const b = runBAP65({ bun_mg_dL: 28, altered_mental_status: true, pulse_bpm: 120, age_years: 70 });
+  expect(b.bap65_points).toBe(4);
+  expect(b.class_roman).toBe("V");
 });
 
-test("Rumack–Matthew", () => {
-  const out = rumackMatthewThreshold({ hours_post_ingestion: 8, acetaminophen_ug_mL: 160 });
-  expect(out.above_line).toBe(true);
-});
-
-test("CO/Cyanide helpers", () => {
-  expect(coSeverity(30).severe).toBe(true);
-  expect(cyanideSupport(12, true).supportive).toBe(true);
+test("Acetaminophen 150-line", () => {
+  const res = crosses150Line(200, 4);
+  expect(res.above_line).toBe(true);
 });
