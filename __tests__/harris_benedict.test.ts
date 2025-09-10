@@ -1,6 +1,14 @@
-import { runHarrisBenedict } from "@/lib/medical/engine/calculators/harris_benedict";
+  import { calc_harris_benedict } from "../lib/medical/engine/calculators/harris_benedict";
 
-test("Harris-Benedict", () => {
-  const r = runHarrisBenedict({ sex:"male", weight_kg:80, height_cm:180, age:40 });
-  expect(r.bee_kcal_day).toBeGreaterThan(1700);
+  describe("calc_harris_benedict", () => {
+
+it("computes BMR male", () => {
+  const v = calc_harris_benedict({ weight_kg: 70, height_cm: 175, age_years: 30, sex: "male" });
+  expect(Math.round(v!)).toBe(1701);
 });
+it("computes BMR female", () => {
+  const v = calc_harris_benedict({ weight_kg: 60, height_cm: 165, age_years: 30, sex: "female" });
+  expect(Math.round(v!)).toBe(1394);
+});
+
+  });
