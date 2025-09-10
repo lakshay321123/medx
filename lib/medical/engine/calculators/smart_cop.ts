@@ -1,31 +1,74 @@
-import { register } from "../registry";
-
 /**
- * SMART‑COP: SBP, Multilobar CXR, Albumin, RR, Tachycardia, Confusion, Oxygenation, pH.
+ * SMART-COP (Clin Infect Dis. 2008;47:375-84)
+ * Predicts need for Intensive Respiratory or Vasopressor Support (IRVS) in CAP.
+ * Points:
+ *  - Systolic BP <=90 mmHg: 2
+ *  - Multilobar CXR involvement: 1
+ *  - Albumin <3.5 g/dL (35 g/L): 1
+ *  - Respiratory rate: >=25 if age <=50; >=30 if age >50: 1
+ *  - Tachycardia >=125 bpm: 1
+ *  - Confusion (acute): 1
+ *  - Oxygenation (age-based): if age <=50 then PaO2<70 or SpO2<=93% or P/F<333 → 2; if age>50 then PaO2<60 or SpO2<=90% or P/F<250 → 2
+ *  - pH <7.35: 2
+ * Risk: 0–2 low; 3–4 moderate; 5–6 high; >=7 very high.
  */
-export function runSMARTCOP(i:{ sbp_mmHg:number, multilobar_involvement:boolean, albumin_g_L:number, rr_bpm:number, hr_bpm:number, confusion:boolean, pao2_mmHg?:number, fio2?:number, sao2_pct?:number, age_lt50:boolean, ph:number }){
-  if (i==null || [i.sbp_mmHg,i.albumin_g_L,i.rr_bpm,i.hr_bpm,i.ph].some(v=>v==null || !isFinite(v as number))) return null;
-  let pts=0;
-  if (i.sbp_mmHg<90) pts+=2;
-  if (i.multilobar_involvement) pts+=1;
-  if (i.albumin_g_L<35) pts+=1;
-  if ((i.age_lt50 && i.rr_bpm>=25) || (!i.age_lt50 && i.rr_bpm>=30)) pts+=1;
-  if (i.hr_bpm>=125) pts+=1;
-  if (i.confusion) pts+=1;
-  let ox=false;
-  if (i.pao2_mmHg!=null && isFinite(i.pao2_mmHg) && i.fio2!=null && isFinite(i.fio2)){
-    const pfr=i.pao2_mmHg/i.fio2;
-    ox = (i.age_lt50 ? pfr<333 : pfr<250);
-  } else if (i.sao2_pct!=null && isFinite(i.sao2_pct)){
-    ox = (i.age_lt50 ? i.sao2_pct<93 : i.sao2_pct<90);
-  }
-  if (ox) pts+=2;
-  if (i.ph<7.35) pts+=2;
-  let band="low"; if (pts>=5) band="high"; else if (pts>=3) band="moderate";
-  return { SMART_COP: pts, risk_band: band };
+
+export interface SMARTCOPInput {
+  age_years: number;
+  sbp_mmHg: number;
+  multilobar_infiltrates?: boolean;
+  albumin_g_dL?: number; // g/dL (use 35 g/L == 3.5 g/dL threshold)
+  rr_per_min?: number;
+  hr_bpm?: number;
+  confusion?: boolean;
+  spo2_perc?: number; // % on room air if possible
+  pao2_mmHg?: number;
+  p_f_ratio?: number; // PaO2/FiO2, optional alternative to PaO2/SpO2
+  ph_arterial?: number;
 }
-register({ id:"smart_cop", label:"SMART‑COP", inputs:[
-  {key:"sbp_mmHg",required:true},{key:"multilobar_involvement",required:true},{key:"albumin_g_L",required:true},
-  {key:"rr_bpm",required:true},{key:"hr_bpm",required:true},{key:"confusion",required:true},{key:"pao2_mmHg"},{key:"fio2"},{key:"sao2_pct"},
-  {key:"age_lt50",required:true},{key:"ph",required:true}
-], run: runSMARTCOP as any });
+
+export interface SMARTCOPOutput {
+  score: number;
+  risk: "Low" | "Moderate" | "High" | "Very high";
+  details: Record<string, number>;
+}
+
+export function runSMARTCOP(i: SMARTCOPInput): SMARTCOPOutput {
+  const d: Record<string, number> = {};
+  d.SBP = i.sbp_mmHg <= 90 ? 2 : 0;
+  d.Multilobar = i.multilobar_infiltrates ? 1 : 0;
+  d.Albumin = (i.albumin_g_dL !== undefined && i.albumin_g_dL < 3.5) ? 1 : 0;
+
+  const rrFlag = (i.rr_per_min !== undefined) && ((i.age_years <= 50 && i.rr_per_min >= 25) || (i.age_years > 50 && i.rr_per_min >= 30));
+  d.RespiratoryRate = rrFlag ? 1 : 0;
+
+  d.Tachycardia = (i.hr_bpm !== undefined && i.hr_bpm >= 125) ? 1 : 0;
+  d.Confusion = i.confusion ? 1 : 0;
+
+  let oxyMajor = false;
+  if (i.p_f_ratio !== undefined) {
+    if (i.age_years <= 50 && i.p_f_ratio < 333) oxyMajor = true;
+    if (i.age_years > 50 && i.p_f_ratio < 250) oxyMajor = true;
+  }
+  if (i.pao2_mmHg !== undefined) {
+    if (i.age_years <= 50 && i.pao2_mmHg < 70) oxyMajor = true;
+    if (i.age_years > 50 && i.pao2_mmHg < 60) oxyMajor = true;
+  }
+  if (i.spo2_perc !== undefined) {
+    if (i.age_years <= 50 && i.spo2_perc <= 93) oxyMajor = true;
+    if (i.age_years > 50 && i.spo2_perc <= 90) oxyMajor = true;
+  }
+  d.Oxygenation = oxyMajor ? 2 : 0;
+
+  d.pH = (i.ph_arterial !== undefined && i.ph_arterial < 7.35) ? 2 : 0;
+
+  const score = Object.values(d).reduce((a, b) => a + b, 0);
+
+  let risk: SMARTCOPOutput["risk"];
+  if (score <= 2) risk = "Low";
+  else if (score <= 4) risk = "Moderate";
+  else if (score <= 6) risk = "High";
+  else risk = "Very high";
+
+  return { score, risk, details: d };
+}

@@ -1,43 +1,54 @@
-// lib/medical/engine/calculators/edacs.ts
-import { round } from "./utils";
-
 /**
- * EDACS score (without the full ADP troponin/ECG gates).
- * Variables per Than et al.: age, sex, risk factors, pain characteristics.
- * This is a simplified implementation intended for risk stratification; ADP logic must be applied upstream.
+ * EDACS (Emergency Department Assessment of Chest Pain Score)
+ * Source: ACC summary of EDACS components and thresholds. See:
+ * - ACC: "Chest Pain Risk Stratification in the Emergency Department: Current Perspectives" (EDACS table). 
+ *
+ * NOTE: This is scoring only; your clinical pathways (e.g., EDACS-ADP with serial troponins) should be handled elsewhere.
  */
+
 export interface EDACSInput {
   age_years: number;
   male: boolean;
-  diaphoresis: boolean;
-  pain_radiation_to_arm_or_shoulder: boolean;
-  pain_worsened_with_inspiration: boolean; // negative points
-  pain_reproduced_by_palpation: boolean;   // negative points
-  known_risk_factors_count: number; // smoking, HTN, hyperlipidemia, DM, family hx, prior CAD (count)
+  known_cad_or_ge3_riskf?: boolean; // prior CAD OR ≥3 risk factors
+  diaphoresis?: boolean;
+  radiation_to_arm_or_shoulder?: boolean;
+  pain_described_as_pressure?: boolean;
+  pain_worse_with_inspiration?: boolean; // pleuritic → negative points
+  pain_reproducible_by_palpation?: boolean; // chest wall tenderness → negative points
 }
 
-export function runEDACS(i: EDACSInput) {
-  let pts = 0;
-  // Age banding (0–17)
-  if (i.age_years >= 50) pts += 17;
-  else if (i.age_years >= 45) pts += 14;
-  else if (i.age_years >= 40) pts += 11;
+export interface EDACSOutput {
+  score: number;
+  lowRiskCutoff16: boolean; // EDACS < 16 is commonly used in EDACS-ADP
+  details: Record<string, number>;
+}
 
-  // Male +6
-  if (i.male) pts += 6;
+function agePoints(age: number): number {
+  if (age < 18) return 0; // out of scope
+  if (age <= 45) return 2;
+  if (age <= 50) return 4;
+  if (age <= 55) return 6;
+  if (age <= 60) return 8;
+  if (age <= 65) return 10;
+  if (age <= 70) return 12;
+  if (age <= 75) return 14;
+  if (age <= 80) return 16;
+  if (age <= 85) return 18;
+  return 20; // ≥86
+}
 
-  // Risk factors (4–5 = 4, 3 = 3, 2 = 2, 1 = 1)
-  const rf = Math.max(0, Math.min(5, i.known_risk_factors_count));
-  if (rf >= 4) pts += 4;
-  else pts += rf;
+export function runEDACS(i: EDACSInput): EDACSOutput {
+  const details: Record<string, number> = {};
 
-  // Symptoms
-  if (i.diaphoresis) pts += 3;
-  if (i.pain_radiation_to_arm_or_shoulder) pts += 5;
+  details.age = agePoints(i.age_years);
+  details.male = i.male ? 6 : 0;
+  details.known_cad_or_ge3_riskf = i.known_cad_or_ge3_riskf ? 4 : 0;
+  details.diaphoresis = i.diaphoresis ? 3 : 0;
+  details.radiation_to_arm_or_shoulder = i.radiation_to_arm_or_shoulder ? 5 : 0;
+  details.pain_described_as_pressure = i.pain_described_as_pressure ? 3 : 0;
+  details.pain_worse_with_inspiration = i.pain_worse_with_inspiration ? -4 : 0;
+  details.pain_reproducible_by_palpation = i.pain_reproducible_by_palpation ? -6 : 0;
 
-  // Negative predictors
-  if (i.pain_worsened_with_inspiration) pts -= 4;
-  if (i.pain_reproduced_by_palpation) pts -= 6;
-
-  return { edacs_points: pts, low_risk_candidate: pts < 16 };
+  const score = Object.values(details).reduce((a, b) => a + b, 0);
+  return { score, lowRiskCutoff16: score < 16, details };
 }
