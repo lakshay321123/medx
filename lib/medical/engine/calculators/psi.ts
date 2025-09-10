@@ -1,40 +1,72 @@
-import { register } from "../registry";
+// lib/medical/engine/calculators/psi.ts
+import { round } from "./utils";
 
-export type PSIInputs = {
-  age_years:number, male:boolean, nursing_home:boolean,
-  neoplastic_disease:boolean, liver_disease:boolean, chf:boolean, cerebrovascular:boolean, renal_disease:boolean,
-  altered_mental_status:boolean, rr_bpm:number, sbp_mmHg:number, temp_c:number, hr_bpm:number,
-  ph_arterial:number, bun_mg_dL:number, sodium_mEq_L:number, glucose_mg_dL:number, hematocrit_pct:number, SaO2_pct:number,
-  pleural_effusion:boolean
-};
-export function runPSI(i:PSIInputs){
-  if (i==null) return null;
-  let s = i.age_years + (i.male?0:-10);
-  s += i.nursing_home?10:0;
-  if (i.neoplastic_disease) s+=30;
-  if (i.liver_disease) s+=20;
-  if (i.chf) s+=10;
-  if (i.cerebrovascular) s+=10;
-  if (i.renal_disease) s+=10;
-  if (i.altered_mental_status) s+=20;
-  if (i.rr_bpm>29) s+=20;
-  if (i.sbp_mmHg<90) s+=20;
-  if (i.temp_c<35 || i.temp_c>40) s+=15;
-  if (i.hr_bpm>124) s+=10;
-  if (i.ph_arterial<7.35) s+=30;
-  if (i.bun_mg_dL>29) s+=20;
-  if (i.sodium_mEq_L<130) s+=20;
-  if (i.glucose_mg_dL>249) s+=10;
-  if (i.hematocrit_pct<30) s+=10;
-  if (i.SaO2_pct<90) s+=10;
-  if (i.pleural_effusion) s+=10;
-  let cls = "I/II (≤70)"; if (s>130) cls="V (>130)"; else if (s>110) cls="IV (111–130)"; else if (s>90) cls="III (91–110)";
-  return { PSI: s, risk_class: cls };
+export interface PSIInput {
+  age_years: number;
+  female?: boolean;
+  nursing_home_resident?: boolean;
+
+  neoplastic_disease?: boolean;
+  liver_disease?: boolean;
+  chf?: boolean;
+  cerebrovascular_disease?: boolean;
+  renal_disease?: boolean;
+
+  altered_mental_status?: boolean;
+  respiratory_rate_ge_30?: boolean;
+  sbp_lt_90?: boolean;
+  temp_c?: number | null;
+  pulse_ge_125?: boolean;
+
+  ph_lt_7_35?: boolean;
+  bun_mg_dL?: number | null;
+  sodium_mEq_L?: number | null;
+  glucose_mg_dL?: number | null;
+  hematocrit_pct?: number | null;
+  pao2_mmHg?: number | null;
+  spo2_percent?: number | null;
+  pleural_effusion?: boolean;
 }
-register({ id:"psi_full", label:"Pneumonia Severity Index (PSI)", inputs:[
-  {key:"age_years",required:true},{key:"male",required:true},{key:"nursing_home",required:true},
-  {key:"neoplastic_disease",required:true},{key:"liver_disease",required:true},{key:"chf",required:true},{key:"cerebrovascular",required:true},{key:"renal_disease",required:true},
-  {key:"altered_mental_status",required:true},{key:"rr_bpm",required:true},{key:"sbp_mmHg",required:true},{key:"temp_c",required:true},{key:"hr_bpm",required:true},
-  {key:"ph_arterial",required:true},{key:"bun_mg_dL",required:true},{key:"sodium_mEq_L",required:true},{key:"glucose_mg_dL",required:true},{key:"hematocrit_pct",required:true},{key:"SaO2_pct",required:true},
-  {key:"pleural_effusion",required:true}
-], run: runPSI as any });
+
+export function runPSI(i: PSIInput) {
+  let pts = 0;
+
+  // Demographics
+  pts += i.age_years;
+  if (i.female) pts -= 10;
+  if (i.nursing_home_resident) pts += 10;
+
+  // Comorbidities
+  if (i.neoplastic_disease) pts += 30;
+  if (i.liver_disease) pts += 20;
+  if (i.chf) pts += 10;
+  if (i.cerebrovascular_disease) pts += 10;
+  if (i.renal_disease) pts += 10;
+
+  // Exam
+  if (i.altered_mental_status) pts += 20;
+  if (i.respiratory_rate_ge_30) pts += 20;
+  if (i.sbp_lt_90) pts += 20;
+  if (typeof i.temp_c === "number" && (i.temp_c < 35 || i.temp_c >= 40)) pts += 15;
+  if (i.pulse_ge_125) pts += 10;
+
+  // Labs/Imaging
+  if (i.ph_lt_7_35) pts += 30;
+  if (typeof i.bun_mg_dL === "number" && i.bun_mg_dL >= 30) pts += 20;
+  if (typeof i.sodium_mEq_L === "number" && i.sodium_mEq_L < 130) pts += 20;
+  if (typeof i.glucose_mg_dL === "number" && i.glucose_mg_dL >= 250) pts += 10;
+  if (typeof i.hematocrit_pct === "number" && i.hematocrit_pct < 30) pts += 10;
+  const hypoxemia = (typeof i.pao2_mmHg === "number" && i.pao2_mmHg < 60) ||
+                    (typeof i.spo2_percent === "number" && i.spo2_percent < 90);
+  if (hypoxemia) pts += 10;
+  if (i.pleural_effusion) pts += 10;
+
+  // Risk classes using score (Note: class I is special-case; we map by score ranges)
+  let klass: "II"|"III"|"IV"|"V";
+  if (pts <= 70) klass = "II";
+  else if (pts <= 90) klass = "III";
+  else if (pts <= 130) klass = "IV";
+  else klass = "V";
+
+  return { psi_points: pts, psi_class: klass };
+}

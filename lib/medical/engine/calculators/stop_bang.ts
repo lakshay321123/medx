@@ -1,12 +1,33 @@
-import { register } from "../registry";
+// lib/medical/engine/calculators/stop_bang.ts
+import { round } from "./utils";
 
-export function runSTOPBANG(i:{ snoring:boolean, tired:boolean, observed_apnea:boolean, high_bp:boolean, bmi_gt35:boolean, age_gt50:boolean, neck_circ_cm_gt40:boolean, male:boolean }){
-  if (i==null) return null;
-  const pts = Object.values(i).filter(Boolean).length;
-  let risk = "low (0–2)"; if (pts>=5) risk="high (5–8)"; else if (pts>=3) risk="intermediate (3–4)";
-  return { STOP_Bang: pts, risk_band: risk };
+export interface StopBangInput {
+  snoring_loud?: boolean;
+  tired_daytime?: boolean;
+  observed_apnea?: boolean;
+  high_bp_history?: boolean;
+  bmi_kg_m2?: number;
+  age_years?: number;
+  neck_circumference_cm?: number;
+  male?: boolean;
 }
-register({ id:"stop_bang", label:"STOP‑Bang (OSA)", inputs:[
-  {key:"snoring",required:true},{key:"tired",required:true},{key:"observed_apnea",required:true},{key:"high_bp",required:true},
-  {key:"bmi_gt35",required:true},{key:"age_gt50",required:true},{key:"neck_circ_cm_gt40",required:true},{key:"male",required:true}
-], run: runSTOPBANG as any });
+
+export function runSTOPBANG(i: StopBangInput) {
+  let pts = 0;
+  const add = (b?: boolean) => { if (b) pts += 1; };
+
+  add(i.snoring_loud);
+  add(i.tired_daytime);
+  add(i.observed_apnea);
+  add(i.high_bp_history);
+  if (typeof i.bmi_kg_m2 === "number" && i.bmi_kg_m2 >= 35) pts += 1;
+  if (typeof i.age_years === "number" && i.age_years > 50) pts += 1;
+  if (typeof i.neck_circumference_cm === "number" && i.neck_circumference_cm > 40) pts += 1;
+  add(i.male);
+
+  let risk: "low"|"intermediate"|"high" = "low";
+  if (pts >= 5) risk = "high";
+  else if (pts >= 3) risk = "intermediate";
+
+  return { stopbang_points: pts, risk_band: risk };
+}

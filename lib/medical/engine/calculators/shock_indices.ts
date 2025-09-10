@@ -1,40 +1,31 @@
-import { round } from "./utils";
+// lib/medical/engine/calculators/shock_indices.ts
+import { round, clamp } from "./utils";
 
-export interface ShockInput {
-  hr_bpm: number;
-  sbp_mmHg: number;
-  dbp_mmHg?: number;
-  age_years?: number;
+/** Shock Index (SI) = HR / SBP */
+export function shockIndex(hr_bpm: number, sbp_mmHg: number) {
+  const si = hr_bpm / Math.max(sbp_mmHg, 1e-6);
+  let band: "normal"|"elevated"|"high";
+  if (si < 0.7) band = "normal";
+  else if (si < 1.0) band = "elevated";
+  else band = "high";
+  return { si: round(si, 2), band };
 }
 
-export interface ShockOutput {
-  shock_index: number; // HR / SBP
-  diastolic_shock_index?: number; // HR / DBP
-  age_shock_index?: number; // Age * SI (commonly used proxy)
-  bands: {
-    shock_index: "low" | "normal" | "high";
-    diastolic_shock_index?: "normal" | "high";
-  };
-  notes?: string[];
+/** Modified Shock Index (MSI) = HR / MAP */
+export function modifiedShockIndex(hr_bpm: number, map_mmHg: number) {
+  const msi = hr_bpm / Math.max(map_mmHg, 1e-6);
+  return { msi: round(msi, 2) };
 }
 
-export function runShockIndices(i: ShockInput): ShockOutput {
-  const si = i.sbp_mmHg > 0 ? i.hr_bpm / i.sbp_mmHg : NaN;
-  const dsi = i.dbp_mmHg && i.dbp_mmHg > 0 ? i.hr_bpm / i.dbp_mmHg : undefined;
-  const asi = i.age_years ? (isFinite(si) ? i.age_years * si : undefined) : undefined;
+/** Diastolic Shock Index (DSI) = HR / DBP */
+export function diastolicShockIndex(hr_bpm: number, dbp_mmHg: number) {
+  const dsi = hr_bpm / Math.max(dbp_mmHg, 1e-6);
+  return { dsi: round(dsi, 2) };
+}
 
-  let siBand: "low" | "normal" | "high" = "normal";
-  if (isFinite(si)) {
-    if (si >= 0.9) siBand = "high";
-    else if (si < 0.5) siBand = "low";
-  }
-
-  const out: ShockOutput = {
-    shock_index: round(si, 2),
-    diastolic_shock_index: dsi !== undefined ? round(dsi, 2) : undefined,
-    age_shock_index: asi !== undefined ? round(asi, 2) : undefined,
-    bands: { shock_index: siBand, diastolic_shock_index: dsi !== undefined ? (dsi >= 1.4 ? "high" : "normal") : undefined },
-    notes: ["Use in context; not specific."]
-  };
-  return out;
+/** Age Shock Index (ASI) = age * SI */
+export function ageShockIndex(age_years: number, hr_bpm: number, sbp_mmHg: number) {
+  const { si } = shockIndex(hr_bpm, sbp_mmHg);
+  const asi = age_years * si;
+  return { asi: round(asi, 0) };
 }
