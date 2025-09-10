@@ -1,14 +1,12 @@
-export function isNumber(x: any): x is number {
-  return typeof x === 'number' && Number.isFinite(x);
+
+/** Shared math helpers (no external deps). */
+export const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+export const ln = (v: number) => Math.log(Math.max(v, 1e-9)); // guard
+export const round0to40 = (v: number) => clamp(Math.round(v), 6, 40);
+export const isFiniteNumber = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v as number);
+
+/** Safe float read with default. */
+export function num(x: any, d = 0) {
+  const n = typeof x === "string" ? Number(x) : x;
+  return Number.isFinite(n) ? (n as number) : d;
 }
-export function round(value: number, digits = 2): number {
-  const m = Math.pow(10, digits);
-  return Math.round(value * m) / m;
-}
-export function toFraction(x: number): number {
-  // Accept 21 (percent) => 0.21 if >1 and <=100 and likely percentage
-  if (!isNumber(x)) return NaN;
-  if (x > 1 && x <= 100) return x / 100;
-  return x;
-}
-export type Band<T extends string> = { band: T; detail?: string };

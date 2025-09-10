@@ -1,26 +1,24 @@
 
-import { register } from "../registry";
-
 /**
- * CLIF-C ACLF score (requires CLIF-OF score). Common published formula approximation:
- * CLIF-C ACLF = 10 × (0.33 × CLIF_OF + 0.04 × Age + 0.63 × ln(WBC) − 2)
- * Returns 0–100 scale. If CLIF_OF not supplied, returns needs.
+ * CLIF-C ACLF score (requires CLIF-C OF score, age, and WBC).
+ * Formula: CLIF-C ACLF = 10 * (0.33 * CLIF-OF + 0.04 * age + 0.63 * ln(WBC) - 2)
+ * WBC in 10^9/L (i.e., ×10^9 cells/L). 
+ * 
+ * References: Engelmann et al. 2018 (CCM) and EFCLIF calculators page.
  */
-export type CLIFInputs = {
-  clif_of_score?: number,
-  age_years: number,
-  wbc_g_L: number // 10^9/L
+import { ln, num } from "./utils";
+
+export type CLIFCInputs = {
+  clif_of_score: number;   // integer 6–18 typically
+  age_years: number;
+  wbc_10e9_L: number;      // 10^9/L
 };
 
-export function runCLIF_C_ACLF(i:CLIFInputs){
-  if ([i.age_years,i.wbc_g_L].some(v=>v==null || !isFinite(v as number))) return null;
-  if (i.clif_of_score==null || !isFinite(i.clif_of_score as number)) return { needs:["clif_of_score"] };
-  const val = 10 * (0.33 * i.clif_of_score + 0.04 * i.age_years + 0.63 * Math.log(i.wbc_g_L) - 2.0);
-  const score = Math.max(0, Math.min(100, val));
-  let band = "low"; if (score>=64) band="very high"; else if (score>=54) band="high"; else if (score>=46) band="moderate";
-  return { CLIF_C_ACLF: Number(score.toFixed(1)), band, note:"Formula approx; verify against reference implementation." };
+export function runCLIFC_ACLF(i: CLIFCInputs) {
+  const of = num(i.clif_of_score);
+  const age = num(i.age_years);
+  const wbc = Math.max(num(i.wbc_10e9_L), 0.1);
+  const score = 10 * (0.33 * of + 0.04 * age + 0.63 * ln(wbc) - 2);
+  const band = score >= 70 ? "very high" : score >= 60 ? "high" : score >= 50 ? "intermediate" : "lower";
+  return { CLIF_C_ACLF: Math.round(score), risk_band: band };
 }
-
-register({ id:"clif_c_aclf", label:"CLIF-C ACLF", inputs:[
-  {key:"clif_of_score"},{key:"age_years",required:true},{key:"wbc_g_L",required:true}
-], run: runCLIF_C_ACLF as any });
