@@ -1,18 +1,35 @@
+import { register } from "../registry";
+
 /**
- * Albumin-corrected anion gap (AGcorr) in mEq/L
- * If Na, Cl, HCO3 provided, compute AG = Na - (Cl + HCO3); else use provided AG
- * AGcorr = AG + 2.5*(4 - albumin_g_dl)
+ * Corrected Anion Gap for albumin
+ * Corrected AG = AG + 2.5 * (4 - albumin_g_dl)
  */
-export interface AGCorrInput {
-  albumin_g_dl: number;
-  na?: number;
-  cl?: number;
-  hco3?: number;
-  ag?: number;
+export function calc_anion_gap_corrected({
+  Na, Cl, HCO3, albumin_g_dl
+}: {
+  Na: number,
+  Cl: number,
+  HCO3: number,
+  albumin_g_dl: number
+}) {
+  const ag = Na - (Cl + HCO3);
+  const corrected = ag + 2.5 * (4 - albumin_g_dl);
+  return { ag, corrected };
 }
-export interface AGCorrResult { ag: number; ag_corrected: number; }
-export function runAnionGapCorrected(i: AGCorrInput): AGCorrResult {
-  const ag = i.ag != null ? i.ag : ((i.na ?? 0) - ((i.cl ?? 0) + (i.hco3 ?? 0)));
-  const corrected = ag + 2.5 * (4 - i.albumin_g_dl);
-  return { ag, ag_corrected: corrected };
-}
+
+register({
+  id: "anion_gap_corrected",
+  label: "Corrected Anion Gap",
+  tags: ["electrolytes", "acid-base"],
+  inputs: [
+    { key: "Na", required: true },
+    { key: "Cl", required: true },
+    { key: "HCO3", required: true },
+    { key: "albumin_g_dl", required: true }
+  ],
+  run: ({ Na, Cl, HCO3, albumin_g_dl }: { Na: number; Cl: number; HCO3: number; albumin_g_dl: number; }) => {
+    const r = calc_anion_gap_corrected({ Na, Cl, HCO3, albumin_g_dl });
+    const notes = [`AG=${Math.round(r.ag)}`, `corrected for albumin`];
+    return { id: "anion_gap_corrected", label: "Corrected Anion Gap", value: r.corrected, unit: "mEq/L", precision: 0, notes, extra: r };
+  },
+});

@@ -1,30 +1,34 @@
 import { register } from "../registry";
 
 /**
- * Free water deficit ≈ TBW * (Na/target - 1)
- * TBW: 0.6*wt (male), 0.5*wt (female). Default target Na=140.
+ * Free Water Deficit = TBW * (Na/140 - 1)
+ * TBW = weight_kg * factor (male 0.6, female 0.5)
  */
-export type FWDInputs = { sex: "male"|"female"; weight_kg: number; Na_meq_l: number; target_na?: number };
-
-export function runFWD({ sex, weight_kg, Na_meq_l, target_na=140 }: FWDInputs) {
-  if (!sex || [weight_kg,Na_meq_l,target_na].some(v=>v==null)) return null;
-  const tbw = (sex === "female" ? 0.5 : 0.6) * weight_kg;
-  const deficit = tbw * (Na_meq_l/target_na - 1);
-  return { free_water_deficit_L: deficit };
+export function calc_free_water_deficit({
+  serum_na, weight_kg, sex
+}: {
+  serum_na: number,
+  weight_kg: number,
+  sex: "male" | "female"
+}) {
+  const factor = sex === "male" ? 0.6 : 0.5;
+  const tbw = weight_kg * factor;
+  const deficit = tbw * (serum_na / 140 - 1);
+  return { tbw, deficit };
 }
 
 register({
   id: "free_water_deficit",
-  label: "Free water deficit",
+  label: "Free Water Deficit",
+  tags: ["nephrology", "electrolytes"],
   inputs: [
-    { key: "sex", required: true },
+    { key: "serum_na", required: true },
     { key: "weight_kg", required: true },
-    { key: "Na_meq_l", required: true },
-    { key: "target_na" },
+    { key: "sex", required: true }
   ],
-  run: (ctx) => {
-    const r = runFWD(ctx as FWDInputs);
-    if (!r) return null;
-    return { id: "free_water_deficit", label: "Free water deficit", value: Number(r.free_water_deficit_L.toFixed(1)), unit: "L", precision: 1, notes: [] };
+  run: ({ serum_na, weight_kg, sex }: { serum_na: number; weight_kg: number; sex: "male" | "female"; }) => {
+    const r = calc_free_water_deficit({ serum_na, weight_kg, sex });
+    const notes = [`TBW≈${Math.round(r.tbw)} L`];
+    return { id: "free_water_deficit", label: "Free Water Deficit", value: r.deficit, unit: "L", precision: 1, notes, extra: r };
   },
 });
