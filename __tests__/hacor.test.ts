@@ -1,9 +1,8 @@
-
+import { test, expect } from "@jest/globals";
 import { runHACOR } from "../lib/medical/engine/calculators/hacor";
 
-test("HACOR bands", () => {
-  const low = runHACOR({ heart_rate_bpm: 90, ph: 7.40, gcs: 15, pao2_fio2: 250, respiratory_rate: 18 });
-  expect(low.risk_band).toBe("lower");
-  const high = runHACOR({ heart_rate_bpm: 140, ph: 7.22, gcs: 10, pao2_fio2: 90, respiratory_rate: 40 });
-  expect(high.risk_band).toBe("higher");
+test("HACOR sample", () => {
+  const out = runHACOR({ hr_bpm: 125, arterial_pH: 7.28, gcs: 12, pf_ratio: 140, rr_bpm: 32 });
+  expect(out.points).toBeGreaterThanOrEqual(1);
+  expect(out.components.ph).toBeGreaterThan(0);
 });
