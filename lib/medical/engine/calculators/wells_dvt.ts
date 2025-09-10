@@ -1,37 +1,56 @@
+
 // lib/medical/engine/calculators/wells_dvt.ts
-// Wells score for DVT probability.
+// Wells score for DVT likelihood.
 
 export interface WellsDVTInput {
-  active_cancer?: boolean | null;
-  paralysis_paresis_or_recent_plaster_immobilization?: boolean | null;
-  recently_bedridden_gt_3d_or_major_surgery_within_12w?: boolean | null;
-  localized_tenderness_along_deep_veins?: boolean | null;
-  entire_leg_swollen?: boolean | null;
-  calf_swelling_gt_3cm?: boolean | null;
-  pitting_edema_confined_to_symptomatic_leg?: boolean | null;
-  collateral_superficial_veins_nonvaricose?: boolean | null;
-  alternative_diagnosis_as_likely_or_more_likely?: boolean | null;
+  active_cancer: boolean;
+  paralysis_or_recent_immobilization_of_lower_extremities: boolean;
+  recently_bedridden_ge_3_days_or_major_surgery_within_12_weeks: boolean;
+  localized_tenderness_along_deep_veins: boolean;
+  entire_leg_swollen: boolean;
+  calf_swelling_gt_3cm_compared_to_asymptomatic: boolean;
+  pitting_edema_confined_to_symptomatic_leg: boolean;
+  collateral_superficial_veins: boolean;
+  previously_documented_dvt: boolean;
+  alternative_diagnosis_at_least_as_likely: boolean; // subtract 2 if true
 }
 
 export interface WellsDVTOutput {
   points: number;
-  category: "unlikely" | "likely";
+  interpretation: "DVT unlikely" | "DVT likely" | "low" | "moderate" | "high";
   components: Record<string, number>;
 }
 
 export function runWellsDVT(i: WellsDVTInput): WellsDVTOutput {
   const comp: Record<string, number> = {};
-  comp.active_cancer = i.active_cancer ? 1 : 0;
-  comp.paralysis_or_immob = i.paralysis_paresis_or_recent_plaster_immobilization ? 1 : 0;
-  comp.bedridden_or_surgery = i.recently_bedridden_gt_3d_or_major_surgery_within_12w ? 1 : 0;
-  comp.tenderness = i.localized_tenderness_along_deep_veins ? 1 : 0;
-  comp.entire_leg_swollen = i.entire_leg_swollen ? 1 : 0;
-  comp.calf_swelling = i.calf_swelling_gt_3cm ? 1 : 0;
-  comp.pitting_edema = i.pitting_edema_confined_to_symptomatic_leg ? 1 : 0;
-  comp.collateral_veins = i.collateral_superficial_veins_nonvaricose ? 1 : 0;
-  comp.alt_dx = i.alternative_diagnosis_as_likely_or_more_likely ? -2 : 0;
+  const pos = [
+    ["active_cancer", i.active_cancer],
+    ["paralysis_or_recent_immobilization_of_lower_extremities", i.paralysis_or_recent_immobilization_of_lower_extremities],
+    ["recently_bedridden_ge_3_days_or_major_surgery_within_12_weeks", i.recently_bedridden_ge_3_days_or_major_surgery_within_12_weeks],
+    ["localized_tenderness_along_deep_veins", i.localized_tenderness_along_deep_veins],
+    ["entire_leg_swollen", i.entire_leg_swollen],
+    ["calf_swelling_gt_3cm_compared_to_asymptomatic", i.calf_swelling_gt_3cm_compared_to_asymptomatic],
+    ["pitting_edema_confined_to_symptomatic_leg", i.pitting_edema_confined_to_symptomatic_leg],
+    ["collateral_superficial_veins", i.collateral_superficial_veins],
+    ["previously_documented_dvt", i.previously_documented_dvt],
+  ] as const;
+  let total = 0;
+  for (const [k, v] of pos) {
+    comp[k] = v ? 1 : 0;
+    if (v) total += 1;
+  }
+  comp.alternative_diagnosis = i.alternative_diagnosis_at_least_as_likely ? -2 : 0;
+  if (i.alternative_diagnosis_at_least_as_likely) total -= 2;
 
-  const pts = Object.values(comp).reduce((a,b)=>a+b,0);
-  const category = pts >= 2 ? "likely" : "unlikely";
-  return { points: pts, category, components: comp };
+  // Two common interpretations:
+  // (A) Dichotomous: ≥2 likely, <2 unlikely.
+  // (B) 3-tier: ≥3 high, 1–2 moderate, 0 low.
+  let interp: WellsDVTOutput["interpretation"];
+  if (total >= 3) interp = "high";
+  else if (total >= 1) interp = "moderate";
+  else interp = "low";
+  // Also report the dichotomy for convenience:
+  if (total >= 2) interp = "DVT likely"; else if (total < 2) interp = "DVT unlikely";
+
+  return { points: total, interpretation: interp, components: comp };
 }
