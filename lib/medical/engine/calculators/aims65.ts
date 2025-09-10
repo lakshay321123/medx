@@ -1,6 +1,6 @@
+
 // lib/medical/engine/calculators/aims65.ts
-// AIMS65 for upper GI bleed: Albumin <3.0 g/dL, INR >1.5, Mental status altered, SBP ≤90 mmHg, Age ≥65.
-// 1 point each (0–5). Higher score indicates higher short-term mortality risk.
+// AIMS65 for upper GI bleed: Albumin <3.0, INR >1.5, altered mental status, SBP ≤90, age ≥65.
 
 export interface AIMS65Input {
   albumin_g_dL?: number | null;
@@ -10,25 +10,15 @@ export interface AIMS65Input {
   age_years?: number | null;
 }
 
-export interface AIMS65Output {
-  points: number; // 0–5
-  flags: {
-    alb_lt_3: boolean;
-    inr_gt_1_5: boolean;
-    ams: boolean;
-    sbp_le_90: boolean;
-    age_ge_65: boolean;
-  };
-}
+export interface AIMS65Output { points: number; components: Record<string, number>; }
 
 export function runAIMS65(i: AIMS65Input): AIMS65Output {
-  const alb_lt_3 = (i.albumin_g_dL ?? Infinity) < 3.0;
-  const inr_gt_1_5 = (i.inr ?? -Infinity) > 1.5;
-  const ams = !!i.altered_mental_status;
-  const sbp_le_90 = (i.sbp_mmHg ?? Infinity) <= 90;
-  const age_ge_65 = (i.age_years ?? -Infinity) >= 65;
-
-  const points = (alb_lt_3?1:0)+(inr_gt_1_5?1:0)+(ams?1:0)+(sbp_le_90?1:0)+(age_ge_65?1:0);
-
-  return { points, flags: { alb_lt_3, inr_gt_1_5, ams, sbp_le_90, age_ge_65 } };
+  const comp: Record<string, number> = {};
+  comp.alb = (i.albumin_g_dL ?? 10) < 3.0 ? 1 : 0;
+  comp.inr = (i.inr ?? 0) > 1.5 ? 1 : 0;
+  comp.ams = i.altered_mental_status ? 1 : 0;
+  comp.sbp = (i.sbp_mmHg ?? 200) <= 90 ? 1 : 0;
+  comp.age = (i.age_years ?? 0) >= 65 ? 1 : 0;
+  const pts = Object.values(comp).reduce((a,b)=>a+b,0);
+  return { points: pts, components: comp };
 }

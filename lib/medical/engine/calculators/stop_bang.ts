@@ -1,33 +1,24 @@
-// lib/medical/engine/calculators/stop_bang.ts
-import { round } from "./utils";
 
-export interface StopBangInput {
-  snoring_loud?: boolean;
-  tired_daytime?: boolean;
-  observed_apnea?: boolean;
-  high_bp_history?: boolean;
-  bmi_kg_m2?: number;
-  age_years?: number;
-  neck_circumference_cm?: number;
-  male?: boolean;
+// lib/medical/engine/calculators/stop_bang.ts
+
+export interface STOPBangInput {
+  snoring?: boolean | null;
+  tired?: boolean | null;
+  observed_apnea?: boolean | null;
+  high_bp?: boolean | null;
+  bmi_over_35?: boolean | null;
+  age_over_50?: boolean | null;
+  neck_circ_over_40cm?: boolean | null;
+  male?: boolean | null;
 }
 
-export function runSTOPBANG(i: StopBangInput) {
-  let pts = 0;
-  const add = (b?: boolean) => { if (b) pts += 1; };
+export interface STOPBangOutput { points: number; risk_band: "low"|"intermediate"|"high"; }
 
-  add(i.snoring_loud);
-  add(i.tired_daytime);
-  add(i.observed_apnea);
-  add(i.high_bp_history);
-  if (typeof i.bmi_kg_m2 === "number" && i.bmi_kg_m2 >= 35) pts += 1;
-  if (typeof i.age_years === "number" && i.age_years > 50) pts += 1;
-  if (typeof i.neck_circumference_cm === "number" && i.neck_circumference_cm > 40) pts += 1;
-  add(i.male);
-
-  let risk: "low"|"intermediate"|"high" = "low";
-  if (pts >= 5) risk = "high";
-  else if (pts >= 3) risk = "intermediate";
-
-  return { stopbang_points: pts, risk_band: risk };
+export function runSTOPBang(i: STOPBangInput): STOPBangOutput {
+  const bools = [i.snoring,i.tired,i.observed_apnea,i.high_bp,i.bmi_over_35,i.age_over_50,i.neck_circ_over_40cm,i.male];
+  const pts = bools.reduce((a,b)=>a+(b?1:0),0);
+  let band: "low"|"intermediate"|"high" = "low";
+  if (pts >= 5) band = "high";
+  else if (pts >= 3) band = "intermediate";
+  return { points: pts, risk_band: band };
 }

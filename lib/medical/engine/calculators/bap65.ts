@@ -1,7 +1,6 @@
+
 // lib/medical/engine/calculators/bap65.ts
-// BAP-65 score for AECOPD disposition risk
-// Criteria: BUN ≥25 mg/dL, Altered mental status, Pulse ≥110 bpm, Age ≥65 years
-// Points: 1 per criterion (0–4). Risk groups: A=0, B=1, C=2, D=3–4.
+// BAP-65 for AECOPD disposition: BUN>=25, Altered mental status, Pulse>=109, Age>=65.
 
 export interface BAP65Input {
   bun_mg_dL?: number | null;
@@ -10,40 +9,16 @@ export interface BAP65Input {
   age_years?: number | null;
 }
 
-export type BAP65Group = "A" | "B" | "C" | "D";
+export interface BAP65Output { points: number; class_label: "I"|"II"|"III"|"IV"; components: Record<string, number>; }
 
-export interface BAP65Output {
-  points: number;              // 0–4
-  group: BAP65Group;           // A/B/C/D
-  flags: {
-    bun_ge_25: boolean;
-    ams: boolean;
-    pulse_ge_110: boolean;
-    age_ge_65: boolean;
-  };
-}
-
-/** Compute BAP-65 score for AECOPD */
 export function runBAP65(i: BAP65Input): BAP65Output {
-  const bun_ge_25 = (i.bun_mg_dL ?? -Infinity) >= 25;
-  const ams = !!i.altered_mental_status;
-  const pulse_ge_110 = (i.pulse_bpm ?? -Infinity) >= 110;
-  const age_ge_65 = (i.age_years ?? -Infinity) >= 65;
-
-  const points =
-    (bun_ge_25 ? 1 : 0) +
-    (ams ? 1 : 0) +
-    (pulse_ge_110 ? 1 : 0) +
-    (age_ge_65 ? 1 : 0);
-
-  let group: BAP65Group = "A";
-  if (points === 1) group = "B";
-  else if (points === 2) group = "C";
-  else if (points >= 3) group = "D";
-
-  return {
-    points,
-    group,
-    flags: { bun_ge_25, ams, pulse_ge_110, age_ge_65 },
-  };
+  const comp: Record<string, number> = {};
+  comp.bun = (i.bun_mg_dL ?? 0) >= 25 ? 1 : 0;
+  comp.ams = i.altered_mental_status ? 1 : 0;
+  comp.pulse = (i.pulse_bpm ?? 0) >= 109 ? 1 : 0;
+  comp.age = (i.age_years ?? 0) >= 65 ? 1 : 0;
+  const pts = Object.values(comp).reduce((a,b)=>a+b,0);
+  let cls: "I"|"II"|"III"|"IV" = "I";
+  if (pts === 1) cls = "II"; else if (pts === 2) cls = "III"; else if (pts >= 3) cls = "IV";
+  return { points: pts, class_label: cls, components: comp };
 }
