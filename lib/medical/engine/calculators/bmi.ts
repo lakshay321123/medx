@@ -1,16 +1,36 @@
+import { register } from "../registry";
 /**
- * Body Mass Index (kg/m^2) and WHO band
+ * BMI — Body Mass Index
+ * Inputs: weight_kg, height_cm | height_m
  */
-export interface BMIInput { weight_kg: number; height_cm: number; }
-export interface BMIResult { bmi: number; band: "underweight" | "normal" | "overweight" | "obesity" | "severe_obesity"; }
-export function runBMI(i: BMIInput): BMIResult {
-  const m = i.height_cm / 100;
-  const bmi = i.weight_kg / (m*m);
-  let band: BMIResult["band"] = "normal";
-  if (bmi < 18.5) band = "underweight";
-  else if (bmi < 25) band = "normal";
-  else if (bmi < 30) band = "overweight";
-  else if (bmi < 35) band = "obesity";
-  else band = "severe_obesity";
-  return { bmi, band };
+export function calc_bmi({ weight_kg, height_cm, height_m }: { weight_kg: number, height_cm?: number, height_m?: number }) {
+  if (weight_kg == null) return null;
+  const h = (height_m != null ? height_m : (height_cm != null ? height_cm / 100 : null));
+  if (h == null || h <= 0) return null;
+  const v = weight_kg / (h * h);
+  return v;
 }
+
+function classifyBMI(v: number): string {
+  if (v < 18.5) return "underweight";
+  if (v < 25) return "normal";
+  if (v < 30) return "overweight";
+  return "obesity";
+}
+
+register({
+  id: "bmi",
+  label: "Body Mass Index",
+  tags: ["nutrition", "vitals"],
+  inputs: [
+    { key: "weight_kg", required: true },
+    { key: "height_cm" },
+    { key: "height_m" },
+  ],
+  run: ({ weight_kg, height_cm, height_m }) => {
+    const v = calc_bmi({ weight_kg, height_cm, height_m });
+    if (v == null) return null;
+    const notes = [classifyBMI(v)];
+    return { id: "bmi", label: "Body Mass Index", value: v, unit: "kg/m²", precision: 1, notes };
+  },
+});

@@ -1,21 +1,27 @@
+import { register } from "../registry";
 /**
- * Corrected Calcium
- * If albumin in g/dL: Ca_corr = Ca_meas + 0.8*(4 - Alb_g_dL)
- * If albumin in g/L:  Ca_corr = Ca_meas + 0.02*(40 - Alb_g_L)
+ * Corrected Calcium (mg/dL) = measured + 0.8*(4 - albumin)
  */
-export interface CorrCalciumInput {
-  ca_measured_mg_dl: number;
-  albumin_g_dl?: number;
-  albumin_g_l?: number;
+export function calc_corrected_calcium({ ca_mg_dl, albumin_g_dl }:
+  { ca_mg_dl: number, albumin_g_dl: number }) {
+  if (ca_mg_dl == null || albumin_g_dl == null) return null;
+  return ca_mg_dl + 0.8 * (4 - albumin_g_dl);
 }
-export interface CorrCalciumResult {
-  corrected_ca_mg_dl: number;
-}
-export function runCorrectedCalcium(i: CorrCalciumInput): CorrCalciumResult {
-  if (i.albumin_g_dl != null) {
-    return { corrected_ca_mg_dl: i.ca_measured_mg_dl + 0.8*(4 - i.albumin_g_dl) };
-  } else if (i.albumin_g_l != null) {
-    return { corrected_ca_mg_dl: i.ca_measured_mg_dl + 0.02*(40 - i.albumin_g_l) };
-  }
-  return { corrected_ca_mg_dl: i.ca_measured_mg_dl };
-}
+
+register({
+  id: "corrected_calcium",
+  label: "Albumin-corrected Calcium",
+  tags: ["electrolytes"],
+  inputs: [
+    { key: "ca_mg_dl", required: true },
+    { key: "albumin_g_dl", required: true },
+  ],
+  run: ({ ca_mg_dl, albumin_g_dl }) => {
+    const v = calc_corrected_calcium({ ca_mg_dl, albumin_g_dl });
+    if (v == null) return null;
+    const notes: string[] = [];
+    if (v < 8.5) notes.push("hypocalcemia");
+    else if (v > 10.5) notes.push("hypercalcemia");
+    return { id: "corrected_calcium", label: "Albumin-corrected Calcium", value: v, unit: "mg/dL", precision: 1, notes };
+  },
+});
