@@ -1,8 +1,6 @@
+import { runAIMS65 } from "@/lib/medical/engine/calculators/aims65";
 
-import { test, expect } from "@jest/globals";
-import { runAIMS65 } from "../lib/medical/engine/calculators/aims65";
-
-test("AIMS65 typical high", () => {
-  const out = runAIMS65({ albumin_g_dL:2.5, inr:1.8, altered_mental_status:true, sbp_mmHg:85, age_years:70 });
-  expect(out.points).toBe(5);
+test("AIMS65 sum", () => {
+  const r = runAIMS65({ albumin_g_dl:2.8, inr:1.6, altered_mental_status:true, sbp_mmHg:85, age:70 });
+  expect(r.score).toBe(5);
 });
