@@ -1,74 +1,300 @@
-import { register } from "../registry";
+// lib/medical/engine/calculators/apache_ii.ts
+// APACHE II: Acute Physiology And Chronic Health Evaluation II
+// Total = APS (12 vars) + Age points + Chronic health points
+// Sources: Knaus WA et al. Crit Care Med. 1985;13(10):818–29 (table logic encoded below)
 
-/**
- * APACHE II (core). Provide worst values in first 24h. Returns total (APS+age+chronic health).
- * Missing inputs -> returns {needs:[...]}
- */
-export type APACHEInputs = {
-  temp_c:number, map_mmHg:number, hr_bpm:number, rr_bpm:number, aoa:number, // A-a gradient OR alveolar-oxygen, supply A-a or PaO2
-  pao2_mmHg?:number, fio2?:number, aa_gradient_mmHg?:number,
-  ph:number, sodium_mEq_L:number, potassium_mEq_L:number, creat_mg_dL:number, hematocrit_pct:number, wbc_k_uL:number,
-  gcs:number,
-  age_years:number,
-  chronic_organ_insufficiency:boolean, post_op:boolean
-};
-export function runAPACHEII(i:APACHEInputs){
-  const needs:string[]=[];
-  function need(k:string,v:any){ if(v==null || (typeof v==='number' && !isFinite(v))) needs.push(k); }
-  ["temp_c","map_mmHg","hr_bpm","rr_bpm","ph","sodium_mEq_L","potassium_mEq_L","creat_mg_dL","hematocrit_pct","wbc_k_uL","gcs","age_years"].forEach(k=>need(k,(i as any)[k]));
-  if (!((i.aa_gradient_mmHg!=null && isFinite(i.aa_gradient_mmHg)) || (i.pao2_mmHg!=null && isFinite(i.pao2_mmHg)))) needs.push("aa_gradient_mmHg or pao2_mmHg");
-  if (needs.length) return { needs };
-
-  function rangeScore(val:number, ranges:[number,number,number][], default0=true){
-    for (const [min,max,score] of ranges) if (val>=min && val<=max) return score;
-    return default0?0:0;
-  }
-
-  let aps=0;
-  // Temperature (rectal, C)
-  aps += rangeScore(i.temp_c, [[41, 100, 4],[39,40.9,3],[38.5,38.9,1],[36,38.4,0],[34,35.9,1],[32,33.9,2],[30,31.9,3],[-100,29.9,4]]);
-  // MAP
-  aps += rangeScore(i.map_mmHg, [[160,1000,4],[130,159,3],[110,129,2],[70,109,0],[50,69,2],[-100,49,4]]);
-  // HR
-  aps += rangeScore(i.hr_bpm, [[180,1000,4],[140,179,3],[110,139,2],[70,109,0],[55,69,2],[40,54,3],[-100,39,4]]);
-  // RR
-  aps += rangeScore(i.rr_bpm, [[50,1000,4],[35,49,3],[25,34,1],[12,24,0],[10,11,1],[6,9,2],[-100,5,4]]);
-  // Oxygenation: A-a gradient if FiO2>=0.5 else PaO2
-  if (i.aa_gradient_mmHg!=null && isFinite(i.aa_gradient_mmHg)){
-    aps += rangeScore(i.aa_gradient_mmHg, [[500,10000,4],[350,499,3],[200,349,2],[0,199,0]]);
-  } else {
-    const pao2=i.pao2_mmHg as number;
-    aps += rangeScore(pao2, [[70,10000,0],[61,70,1],[55,60,3],[-100,54,4]]);
-  }
-  // Arterial pH
-  aps += rangeScore(i.ph, [[7.7,10,4],[7.6,7.69,3],[7.5,7.59,1],[7.33,7.49,0],[7.25,7.32,2],[7.15,7.24,3],[-10,7.14,4]]);
-  // Na
-  aps += rangeScore(i.sodium_mEq_L, [[180,400,4],[160,179,3],[155,159,2],[150,154,1],[130,149,0],[120,129,2],[111,119,3],[-100,110,4]]);
-  // K
-  aps += rangeScore(i.potassium_mEq_L, [[7,20,4],[6,6.9,3],[5.5,5.9,1],[3.5,5.4,0],[3,3.4,1],[2.5,2.9,2],[-10,2.4,4]]);
-  // Creatinine (no ARF bonus here—keep simple)
-  aps += rangeScore(i.creat_mg_dL, [[3.5,100,4],[2,3.4,3],[1.5,1.9,2],[0.6,1.4,0],[-100,0.5,2]]);
-  // Hct
-  aps += rangeScore(i.hematocrit_pct, [[60,100,4],[50,59.9,2],[46,49.9,1],[30,45.9,0],[20,29.9,2],[-100,19.9,4]]);
-  // WBC
-  aps += rangeScore(i.wbc_k_uL, [[40,1000,4],[20,39.9,2],[15,19.9,1],[3,14.9,0],[1,2.9,2],[-100,0.9,4]]);
-  // GCS
-  aps += (15 - i.gcs);
+export interface ApacheIIInput {
+  // Acute physiology (worst in first 24h)
+  temp_c?: number;                 // core/rectal °C
+  map_mmHg?: number;               // mean arterial pressure
+  hr_bpm?: number;                 // heart rate
+  rr_bpm?: number;                 // respiratory rate
+  fio2?: number;                   // fraction (0.21–1.0), if >=0.5 prefer A–aDO2 path
+  pao2_mmHg?: number;              // arterial PaO2 (used if FiO2 < 0.5 or A–a not available)
+  aado2_mmHg?: number;             // A–a gradient (used if FiO2 >= 0.5)
+  ph_arterial?: number;            // arterial pH (preferred for acid–base)
+  hco3_mEq_L?: number;             // only used if no ABG pH available (serum bicarb/total CO2)
+  sodium_mEq_L?: number;
+  potassium_mEq_L?: number;
+  creat_mg_dL?: number;
+  creat_acute_renal_failure?: boolean; // doubles creatinine points when true
+  hematocrit_pct?: number;
+  wbc_k_uL?: number;               // ×10^3/µL
+  gcs?: number;                    // 3–15 (use post-resuscitation)
 
   // Age
-  let agePts=0;
-  agePts += i.age_years>=75?6 : i.age_years>=65?5 : i.age_years>=55?3 : i.age_years>=45?2 : 0;
+  age_years?: number;
+
+  // Chronic health (severe organ insufficiency or immunocompromised)
+  has_severe_chronic_illness?: boolean;
+  admission_type?: "nonoperative" | "emergency_postop" | "elective_postop" | "unknown";
+}
+
+export interface ApacheIIResult {
+  id: "apache_ii";
+  title: "APACHE II";
+  aps_points?: number;                 // Acute Physiology Score (sum of 12 items)
+  age_points?: number;
+  chronic_health_points?: number;
+  total?: number;                      // present only when complete
+  missing: string[];                   // which inputs were missing for a complete total
+  notes: string[];                     // guardrails/info
+}
+
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+function scoreTempC(t: number): number {
+  if (t >= 41) return 4;
+  if (t >= 39 && t < 41) return 3;
+  if (t >= 38.5 && t < 39) return 1;
+  if (t >= 36 && t < 38.5) return 0;
+  if (t >= 34 && t < 36) return 1;
+  if (t >= 32 && t < 34) return 2;
+  if (t >= 30 && t < 32) return 3;
+  return 4; // <30
+}
+
+function scoreMAP(m: number): number {
+  if (m >= 160) return 4;
+  if (m >= 130) return 3;
+  if (m >= 110) return 2;
+  if (m >= 70) return 0;
+  if (m >= 50) return 2;
+  return 4; // <50
+}
+
+function scoreHR(hr: number): number {
+  if (hr >= 180) return 4;
+  if (hr >= 140) return 3;
+  if (hr >= 110) return 2;
+  if (hr >= 70) return 0;
+  if (hr >= 55) return 2;
+  if (hr >= 40) return 3;
+  return 4; // <40
+}
+
+function scoreRR(rr: number): number {
+  if (rr >= 50) return 4;
+  if (rr >= 35) return 3;
+  if (rr >= 25) return 1;
+  if (rr >= 12) return 0;
+  if (rr >= 10) return 1;
+  if (rr >= 6) return 2;
+  return 4; // <6
+}
+
+// Oxygenation block: If FiO2 >= 0.5, use A–aDO2; else use PaO2 (per APACHE II table)
+function scoreOx(fio2?: number, pao2?: number, aado2?: number): { points: number; needs?: string } {
+  if (fio2 == null) {
+    // fallback: try to score by what we have (PaO2 path)
+    if (pao2 == null) return { points: 0, needs: "fio2 or pao2" };
+    return { points: scorePaO2(pao2) };
+  }
+  if (fio2 >= 0.5) {
+    if (aado2 == null) return { points: 0, needs: "aado2_mmHg (since FiO2 ≥ 0.5)" };
+    return { points: scoreAaDO2(aado2) };
+  }
+  // fio2 < 0.5 path
+  if (pao2 == null) return { points: 0, needs: "pao2_mmHg (since FiO2 < 0.5)" };
+  return { points: scorePaO2(pao2) };
+}
+
+function scoreAaDO2(a: number): number {
+  if (a >= 500) return 4;
+  if (a >= 350) return 3;
+  if (a >= 200) return 2;
+  return 0; // <200
+}
+
+function scorePaO2(p: number): number {
+  if (p >= 70) return 0;
+  if (p >= 61) return 1;
+  if (p >= 55) return 3;
+  return 4; // <55
+}
+
+function scoreAcidBase(ph?: number, hco3?: number): { points: number; needs?: string } {
+  if (ph != null) return { points: scorePH(ph) };
+  if (hco3 != null) return { points: scoreHCO3(hco3) };
+  return { points: 0, needs: "ph_arterial or hco3_mEq_L" };
+}
+
+function scorePH(ph: number): number {
+  if (ph >= 7.7) return 4;
+  if (ph >= 7.6) return 3;
+  if (ph >= 7.5) return 1;
+  if (ph >= 7.33) return 0;
+  if (ph >= 7.25) return 2;
+  if (ph >= 7.15) return 3;
+  return 4; // <7.15
+}
+
+function scoreHCO3(h: number): number {
+  if (h >= 52) return 4;
+  if (h >= 41) return 3;
+  if (h >= 32) return 1;
+  if (h >= 22) return 0;
+  if (h >= 18) return 2;
+  if (h >= 15) return 3;
+  return 4; // <15
+}
+
+function scoreNa(na: number): number {
+  if (na >= 180) return 4;
+  if (na >= 160) return 3;
+  if (na >= 155) return 2;
+  if (na >= 150) return 1;
+  if (na >= 130) return 0;
+  if (na >= 120) return 2;
+  if (na >= 111) return 3;
+  return 4; // ≤110
+}
+
+function scoreK(k: number): number {
+  if (k >= 7) return 4;
+  if (k >= 6) return 3;
+  if (k >= 5.5) return 1;
+  if (k >= 3.5) return 0;
+  if (k >= 3.0) return 1;
+  if (k >= 2.5) return 2;
+  return 4; // <2.5
+}
+
+function scoreCreat(cr: number, arf: boolean): number {
+  let pts = 0;
+  if (cr >= 3.5) pts = 4;
+  else if (cr >= 2.0) pts = 3;
+  else if (cr >= 1.5) pts = 2;
+  else if (cr >= 0.6) pts = 0;
+  else pts = 2; // <0.6
+  return arf ? pts * 2 : pts;
+}
+
+function scoreHct(h: number): number {
+  if (h >= 60) return 4;
+  if (h >= 50) return 2;
+  if (h >= 46) return 1;
+  if (h >= 30) return 0;
+  if (h >= 20) return 2;
+  return 4; // <20
+}
+
+function scoreWBC(w: number): number {
+  if (w >= 40) return 4;
+  if (w >= 20) return 2;
+  if (w >= 15) return 1;
+  if (w >= 3) return 0;
+  if (w >= 1) return 2;
+  return 4; // <1
+}
+
+function scoreGCS(g: number): number {
+  const gcs = clamp(g, 3, 15);
+  return 15 - gcs; // per APACHE II
+}
+
+function agePoints(age: number): number {
+  if (age >= 75) return 6;
+  if (age >= 65) return 5;
+  if (age >= 55) return 3;
+  if (age >= 45) return 2;
+  return 0;
+}
+
+function chronicPoints(hasSevere: boolean, type: ApacheIIInput["admission_type"]): number {
+  if (!hasSevere) return 0;
+  if (type === "elective_postop") return 2;
+  if (type === "nonoperative" || type === "emergency_postop") return 5;
+  return 5; // default conservative if unknown
+}
+
+export function runAPACHEII(input: ApacheIIInput): ApacheIIResult {
+  const i = input;
+  const missing: string[] = [];
+  const notes: string[] = [];
+
+  // Acute physiology (12 items)
+  const parts: number[] = [];
+
+  if (i.temp_c == null) missing.push("temp_c");
+  else parts.push(scoreTempC(i.temp_c));
+
+  if (i.map_mmHg == null) missing.push("map_mmHg");
+  else parts.push(scoreMAP(i.map_mmHg));
+
+  if (i.hr_bpm == null) missing.push("hr_bpm");
+  else parts.push(scoreHR(i.hr_bpm));
+
+  if (i.rr_bpm == null) missing.push("rr_bpm");
+  else parts.push(scoreRR(i.rr_bpm));
+
+  const ox = scoreOx(i.fio2, i.pao2_mmHg, i.aado2_mmHg);
+  if (ox.needs) missing.push(ox.needs);
+  else parts.push(ox.points);
+
+  const ab = scoreAcidBase(i.ph_arterial, i.hco3_mEq_L);
+  if (ab.needs) missing.push(ab.needs);
+  else parts.push(ab.points);
+
+  if (i.sodium_mEq_L == null) missing.push("sodium_mEq_L");
+  else parts.push(scoreNa(i.sodium_mEq_L));
+
+  if (i.potassium_mEq_L == null) missing.push("potassium_mEq_L");
+  else parts.push(scoreK(i.potassium_mEq_L));
+
+  if (i.creat_mg_dL == null) missing.push("creat_mg_dL");
+  else parts.push(scoreCreat(i.creat_mg_dL, !!i.creat_acute_renal_failure));
+
+  if (i.hematocrit_pct == null) missing.push("hematocrit_pct");
+  else parts.push(scoreHct(i.hematocrit_pct));
+
+  if (i.wbc_k_uL == null) missing.push("wbc_k_uL");
+  else parts.push(scoreWBC(i.wbc_k_uL));
+
+  if (i.gcs == null) {
+    missing.push("gcs");
+  } else {
+    if (i.gcs < 15) notes.push("GCS points are calculated post-resuscitation per APACHE II.");
+    parts.push(scoreGCS(i.gcs));
+  }
+
+  const aps = parts.reduce((a, b) => a + b, 0);
+
+  // Age
+  let agePts: number | undefined = undefined;
+  if (i.age_years == null) {
+    missing.push("age_years");
+  } else {
+    agePts = agePoints(i.age_years);
+  }
 
   // Chronic health
-  const chronic = (i.chronic_organ_insufficiency && i.post_op)?2 : (i.chronic_organ_insufficiency?5:0);
+  let chPts: number | undefined = undefined;
+  if (i.has_severe_chronic_illness == null || i.admission_type == null) {
+    // Allow zero if clearly absent
+    if (i.has_severe_chronic_illness === false) {
+      chPts = 0;
+    } else {
+      missing.push("has_severe_chronic_illness");
+      missing.push("admission_type");
+    }
+  } else {
+    chPts = chronicPoints(i.has_severe_chronic_illness, i.admission_type);
+  }
 
-  const total = aps + agePts + chronic;
-  return { APACHE_II: total, APS: aps, agePts, chronicPts: chronic };
+  const result: ApacheIIResult = {
+    id: "apache_ii",
+    title: "APACHE II",
+    aps_points: aps,
+    age_points: agePts,
+    chronic_health_points: chPts,
+    missing,
+    notes,
+  };
+
+  if (missing.length === 0 && agePts != null && chPts != null) {
+    result.total = aps + agePts + chPts;
+  }
+
+  return result;
 }
-register({ id:"apache_ii", label:"APACHE II", inputs:[
-  {key:"temp_c",required:true},{key:"map_mmHg",required:true},{key:"hr_bpm",required:true},{key:"rr_bpm",required:true},
-  {key:"pao2_mmHg"},{key:"fio2"},{key:"aa_gradient_mmHg"},
-  {key:"ph",required:true},{key:"sodium_mEq_L",required:true},{key:"potassium_mEq_L",required:true},{key:"creat_mg_dL",required:true},
-  {key:"hematocrit_pct",required:true},{key:"wbc_k_uL",required:true},{key:"gcs",required:true},{key:"age_years",required:true},
-  {key:"chronic_organ_insufficiency",required:true},{key:"post_op",required:true}
-], run: runAPACHEII as any });
