@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { appendMessage } from "@/lib/memory/store";
 import { decideContext } from "@/lib/memory/contextRouter";
@@ -67,13 +68,38 @@ export async function POST(req: Request) {
     researchOn = true;
   }
 
+  const headers = req.headers;
+  let conversationId = headers.get("x-conversation-id");
+  let isNewChat = headers.get("x-new-chat") === "true";
+  if (!conversationId) {
+    conversationId = randomUUID();
+    isNewChat = true;
+    console.log("missing_conversation_id");
+  }
+  const respond = (data: any, init?: ResponseInit) => {
+    const res = NextResponse.json(data, init);
+    res.headers.set("x-conversation-id", conversationId!);
+    return res;
+  };
+  if (isNewChat) {
+    console.log("new_chat_started", { conversationId });
+  }
+  const ISOLATE = process.env.NEW_CHAT_ISOLATION !== "false";
+  const ALLOW_ROLL = process.env.ALLOW_CONTEXT_ROLLFORWARD === "true";
+  if (ISOLATE) {
+    activeThreadId = conversationId;
+    if (isNewChat) {
+      await prisma.chatThread.delete({ where: { id: activeThreadId } }).catch(() => {});
+    }
+  }
+
   const nctMatch = userMessage.match(/\bNCT\d{8}\b/i);
   if (nctMatch && (mode === "doctor" || mode === "research")) {
     const nctId = nctMatch[0].toUpperCase();
     const trial = await fetchTrialByNct(nctId);
     if (!trial) {
       const msg = `I couldn't find details for ${nctId} right now. Please check the ID or try again later.`;
-      return NextResponse.json({ ok: true, text: msg });
+      return respond({ ok: true, text: msg });
     }
     const prompt = mode === "doctor"
       ? singleTrialClinicianPrompt(trial)
@@ -88,7 +114,7 @@ export async function POST(req: Request) {
       },
       { role: "user", content: prompt },
     ], { temperature: 0.25, max_tokens: 1200 });
-    return NextResponse.json({ ok: true, text: reply });
+    return respond({ ok: true, text: reply });
   }
 
   // Detect general trial queries (non-NCT)
@@ -148,9 +174,9 @@ export async function POST(req: Request) {
         { role: "user", content: prompt },
       ]);
 
-      return NextResponse.json({ ok: true, reply });
+      return respond({ ok: true, reply });
     } else {
-      return NextResponse.json({ ok: true, reply: "I couldn't find matching trials right now." });
+      return respond({ ok: true, reply: "I couldn't find matching trials right now." });
     }
   }
 
@@ -172,16 +198,19 @@ export async function POST(req: Request) {
     out = polishResponse(out);
     out = sanitizeLLM(out);
     const final = finalReplyGuard(userMessage, out);
-    return NextResponse.json({ text: final });
+    return respond({ text: final });
   }
 
   if (shouldReset(text)) {
     // start new thread logic here
-    return NextResponse.json({ ok: true, threadId: null, text: "Starting fresh. What would you like to do next?" });
+    return respond({ ok: true, threadId: null, text: "Starting fresh. What would you like to do next?" });
   }
 
   // 1) Context routing (continue/clarify/newThread)
-  const decision = await decideContext(userId, activeThreadId, text);
+  const decision =
+    ALLOW_ROLL && !ISOLATE
+      ? await decideContext(userId, activeThreadId, text)
+      : { action: "continue", threadId: activeThreadId } as any;
 
   let threadId = activeThreadId;
   let stack = await loadTopicStack(activeThreadId);
@@ -202,7 +231,26 @@ export async function POST(req: Request) {
       await saveTopicStack(activeThreadId, stack);
       threadId = activeThreadId; // stay in same thread but switch topic stack active node
     } else {
-      return NextResponse.json({ ok: true, clarify: true, options: decision.candidates });
+      return respond({ ok: true, clarify: true, options: decision.candidates });
+    }
+  }
+
+  // ensure thread exists when continuing
+  if (decision.action === "continue") {
+    const exists = await prisma.chatThread.findUnique({ where: { id: threadId } });
+    if (!exists) {
+      const t = await prisma.chatThread.create({ data: { id: threadId, userId, title: "New topic" } });
+      threadId = t.id;
+      await seedTopicEmbedding(threadId, text);
+      stack = await loadTopicStack(threadId);
+      stack = pushTopic(stack, "New topic");
+      await saveTopicStack(threadId, stack);
+    } else if (isNewChat) {
+      stack = await loadTopicStack(threadId);
+      if (stack.nodes.length === 0) {
+        stack = pushTopic(stack, "New topic");
+        await saveTopicStack(threadId, stack);
+      }
     }
   }
 
@@ -255,14 +303,14 @@ export async function POST(req: Request) {
   const contextString = messages.map((m: any) => m.content).join(" ");
   const clarifier = disambiguate(text, contextString);
   if (clarifier) {
-    return NextResponse.json({ ok: true, threadId, text: clarifier });
+    return respond({ ok: true, threadId, text: clarifier });
   }
 
   // Clarification check (with memory)
   const bundle = await buildContextBundle(threadId);
   const clarifierWithMem = disambiguateWithMemory(text, bundle.memories ?? []);
   if (clarifierWithMem) {
-    return NextResponse.json({ ok: true, threadId, text: clarifierWithMem });
+    return respond({ ok: true, threadId, text: clarifierWithMem });
   }
   const feedback_summary = await getFeedbackSummary(threadId || "");
   let assistant = await callGroq(messages, {
@@ -295,5 +343,5 @@ export async function POST(req: Request) {
   // 8) Optional natural pacing (2–4s)
   await new Promise(r => setTimeout(r, 1800 + Math.random() * 1200));
 
-  return NextResponse.json({ ok: true, threadId, text: assistant });
+  return respond({ ok: true, threadId, text: assistant });
 }
