@@ -1,0 +1,21 @@
+{
+  "slug": "paracetamol",
+  "name": "Paracetamol",
+  "active_ingredients": [{"name":"Paracetamol (Acetaminophen)","strength":500,"unit":"mg"}],
+  "is_otc": true,
+  "requires_prescription": false,
+  "indications": ["Fever", "Mild to moderate pain"],
+  "adult_dose": "500–1000 mg every 6–8 hours; max 3000 mg/day unless advised otherwise.",
+  "pediatric_dose": "10–15 mg/kg/dose every 6–8 hours; max 60 mg/kg/day.",
+  "contraindications": ["Severe liver disease", "Allergy to acetaminophen"],
+  "common_side_effects": ["Nausea", "Rash (rare)"],
+  "serious_side_effects": ["Liver injury with overdose or alcohol use"],
+  "interactions": ["Alcohol (↑ hepatotoxicity)", "Warfarin (↑ INR with chronic use)"],
+  "pregnancy_safety": "Generally considered safe at recommended doses.",
+  "lactation_safety": "Compatible.",
+  "age_min_years": 0,
+  "brands": ["Crocin", "Calpol", "Dolo 650"],
+  "country_rules": { "IN": { "is_otc": true, "requires_prescription": false } },
+  "references": ["https://www.who.int/medicines/"],
+  "updated_at": "2025-09-11T00:00:00Z"
+}

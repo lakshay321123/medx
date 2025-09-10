@@ -30,3 +30,10 @@ export const flags = {
   enableNominatim: true,
   enableOverpass: true,
 };
+
+export const FLAGS = {
+  carryContextAcrossNewChats:
+    process.env.CARRY_CONTEXT_ACROSS_NEW_CHATS === "true",
+  applyMedicalPolicy:
+    process.env.APPLY_MEDICAL_POLICY === "true",
+} as const;

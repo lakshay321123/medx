@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, useMemo, RefObject, Fragment } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { FLAGS } from "@/lib/flags";
 import Header from '../Header';
 import ChatMarkdown from '@/components/ChatMarkdown';
 import ResearchFilters from '@/components/ResearchFilters';
@@ -281,7 +282,7 @@ function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onF
   );
 }
 
-export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: RefObject<HTMLInputElement> } = {}) {
+export default function ChatPane({ inputRef: externalInputRef, conversationId }: { inputRef?: RefObject<HTMLInputElement>; conversationId?: string } = {}) {
 
   const { country } = useCountry();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
@@ -333,7 +334,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   // ADD: stable fallback thread key for default chat
   const stableThreadId = threadId || 'default-thread';
   const isProfileThread = threadId === 'med-profile' || context === 'profile';
-  const conversationId = threadId || (isProfileThread ? 'med-profile' : 'unknown');
+  const activeConversationId = conversationId ?? threadId ?? (isProfileThread ? 'med-profile' : 'unknown');
   const currentMode: 'patient'|'doctor'|'research'|'therapy' = therapyMode ? 'therapy' : (researchMode ? 'research' : mode);
   const [pendingCommitIds, setPendingCommitIds] = useState<string[]>([]);
   const [commitBusy, setCommitBusy] = useState<null | 'save' | 'discard'>(null);
@@ -532,7 +533,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             try {
               const sess = await safeJson(fetch('/api/auth/session'));
               const userId = sess?.user?.id;
-              if (userId) {
+              if (userId && FLAGS.carryContextAcrossNewChats && activeConversationId) {
                 try {
                   const r = await fetch(`/api/therapy/notes?userId=${userId}&limit=3`);
                   const { notes } = await r.json();
@@ -576,7 +577,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     } else {
       root.classList.remove('therapy-mode');
     }
-  }, [therapyMode]);
+  }, [therapyMode, activeConversationId]);
 
 
   async function send(text: string, researchMode: boolean) {
@@ -1555,7 +1556,7 @@ ${systemCommon}` + baseSys;
                   simple={currentMode === 'patient'}
                 />
                 <FeedbackBar
-                  conversationId={conversationId}
+                  conversationId={activeConversationId}
                   messageId={m.id}
                   mode={currentMode}
                   model={undefined}

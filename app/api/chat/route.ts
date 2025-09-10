@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { FLAGS } from "@/lib/flags";
+import { applyMedicalPolicy } from "@/lib/safety/medicalPolicy";
 import { prisma } from "@/lib/prisma";
 import { appendMessage } from "@/lib/memory/store";
 import { decideContext } from "@/lib/memory/contextRouter";
@@ -286,6 +288,11 @@ export async function POST(req: Request) {
 
   assistant = sanitizeLLM(assistant);
   assistant = finalReplyGuard(text, assistant);
+
+  if (FLAGS.applyMedicalPolicy) {
+    const requiresPrescription = false;
+    assistant = applyMedicalPolicy(assistant, { requiresPrescription });
+  }
 
   // 7) Save assistant + summary
   await appendMessage({ threadId, role: "assistant", content: assistant });
