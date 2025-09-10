@@ -1,43 +1,41 @@
+// lib/medical/engine/calculators/rifle_akin.ts
 import { round } from "./utils";
 
 export interface RenalInput {
-  creat_baseline_mg_dL: number;
   creat_current_mg_dL: number;
-  urine_mL_kg_h_6h?: number;
-  urine_mL_kg_h_12h?: number;
-  rrt_initiated?: boolean;
+  creat_baseline_mg_dL: number;
+  creat_rise_mg_dL_48h?: number | null;
+  rrt_initiated?: boolean | null;
+  urine_mL_kg_h_6h?: number | null;
+  urine_mL_kg_h_12h?: number | null;
+  urine_mL_kg_h_24h?: number | null;
+  anuria_hrs_12h?: boolean | null;
 }
 
-export type Stage = "none" | "risk" | "injury" | "failure" | "loss" | "esrd";
-export type AKIN = 0 | 1 | 2 | 3;
+export function runRIFLE_AKIN(i: RenalInput) {
+  const ratio = i.creat_baseline_mg_dL > 0 ? (i.creat_current_mg_dL / i.creat_baseline_mg_dL) : Infinity;
+  const delta48 = i.creat_rise_mg_dL_48h ?? 0;
+  const u6 = i.urine_mL_kg_h_6h ?? Infinity;
+  const u12 = i.urine_mL_kg_h_12h ?? Infinity;
+  const u24 = i.urine_mL_kg_h_24h ?? Infinity;
 
-export function runRIFLE(i: RenalInput) {
-  if (i.rrt_initiated) return { stage: "failure" as Stage, reason: "RRT initiated → at least Failure" };
-  const ratio = i.creat_baseline_mg_dL > 0 ? i.creat_current_mg_dL / i.creat_baseline_mg_dL : NaN;
-  let stage: Stage = "none";
-  if (isFinite(ratio)) {
-    if (ratio >= 3 || i.creat_current_mg_dL >= 4.0) stage = "failure";
-    else if (ratio >= 2) stage = "injury";
-    else if (ratio >= 1.5) stage = "risk";
-  }
-  const u12 = i.urine_mL_kg_h_12h;
-  if (u12 !== undefined) {
-    if (u12 < 0.3) stage = ["none","risk","injury","failure"].includes(stage) ? "failure" : stage;
-  }
-  return { stage, ratio: round(ratio,2) };
-}
+  // AKIN (KDIGO-ish): stage 3 if RRT
+  let akin = 0;
+  if (i.rrt_initiated) akin = 3;
+  else if (ratio >= 3 || (i.creat_current_mg_dL >= 4.0 && (i.creat_baseline_mg_dL > 0))) akin = 3;
+  else if (ratio >= 2) akin = 2;
+  else if (ratio >= 1.5 || delta48 >= 0.3) akin = 1;
 
-export function runAKIN(i: RenalInput) {
-  if (i.rrt_initiated) return { stage: 3 as AKIN, reason: "RRT initiated" };
-  const delta = i.creat_current_mg_dL - i.creat_baseline_mg_dL;
-  const ratio = i.creat_baseline_mg_dL > 0 ? i.creat_current_mg_dL / i.creat_baseline_mg_dL : NaN;
-  let stage: AKIN = 0;
-  if (isFinite(delta) && isFinite(ratio)) {
-    if (delta >= 0.3 || ratio >= 1.5) stage = 1;
-    if (ratio >= 2.0) stage = 2;
-    if (ratio >= 3.0 || i.creat_current_mg_dL >= 4.0) stage = 3;
-  }
-  const u6 = i.urine_mL_kg_h_6h;
-  if (u6 !== undefined && u6 < 0.5) stage = Math.max(stage, 1) as AKIN;
-  return { stage, delta: round(delta,2), ratio: round(ratio,2) };
+  // Urine outputs can upgrade staging
+  if (akin < 3 && (u24 < 0.3 || (i.anuria_hrs_12h ?? false))) akin = 3;
+  else if (akin < 2 && u12 < 0.5) akin = 2;
+  else if (akin < 1 && u6 < 0.5) akin = 1;
+
+  // RIFLE mapping (Risk, Injury, Failure) using similar thresholds
+  let rifle: "None" | "Risk" | "Injury" | "Failure" = "None";
+  if (ratio >= 3 || (i.creat_current_mg_dL >= 4.0 && (i.creat_baseline_mg_dL > 0)) || u24 < 0.3 || (i.anuria_hrs_12h ?? false)) rifle = "Failure";
+  else if (ratio >= 2 || u12 < 0.5) rifle = "Injury";
+  else if (ratio >= 1.5 || u6 < 0.5) rifle = "Risk";
+
+  return { AKIN_stage: akin, RIFLE_class: rifle, creat_ratio: round(ratio, 2), delta48: round(delta48, 2) };
 }

@@ -1,27 +1,42 @@
-import { round } from "./utils";
+// lib/medical/engine/calculators/sodium_tools.ts
+import { round, clamp } from "./utils";
 
-export type Sex = "male" | "female";
-export function tbwEstimate(weight_kg: number, sex: Sex, age_years?: number) {
-  const elderly = age_years !== undefined && age_years >= 65;
-  const factor = sex === "male" ? (elderly ? 0.5 : 0.6) : (elderly ? 0.45 : 0.5);
-  return round(weight_kg * factor, 2);
+export interface TBWInput {
+  weight_kg: number;
+  sex?: "male" | "female";
+  tbw_factor_override?: number | null; // if provided, use directly
 }
 
-export function adrogueMadiasDeltaNaPerL(serumNa_mEq_L: number, infusateNa_mEq_L: number, weight_kg: number, sex: Sex, age_years?: number) {
-  const TBW = tbwEstimate(weight_kg, sex, age_years);
-  const delta = (infusateNa_mEq_L - serumNa_mEq_L) / (TBW + 1);
-  return { TBW_L: TBW, predicted_deltaNa_per_L: round(delta, 2) };
+/** Simple TBW = factor × weight. Default factors: male 0.6, female 0.5. */
+export function calcTBW(i: TBWInput) {
+  const f = (typeof i.tbw_factor_override === "number")
+    ? i.tbw_factor_override!
+    : (i.sex === "female" ? 0.5 : 0.6);
+  return { tbw_L: round(f * i.weight_kg, 2), factor_used: f };
 }
 
-export function safeNaCorrectionPlanner(startNa_mEq_L: number, targetNa_mEq_L: number, hours: number) {
-  const delta = targetNa_mEq_L - startNa_mEq_L;
-  const ratePer24 = (delta / hours) * 24;
-  const limit24 = 8; // conservative default
-  const limit48 = 18;
-  return {
-    planned_delta_mEq: round(delta, 2),
-    projected_24h_rate_mEq: round(ratePer24, 2),
-    exceeds_24h_limit: ratePer24 > limit24,
-    guardrails: { limit_24h_mEq: limit24, limit_48h_mEq: limit48 }
-  };
+export interface AdrogueMadiasInput {
+  serum_na_mEq_L: number;
+  infusate_na_mEq_L: number;
+  infusate_k_mEq_L?: number | null;
+  tbw_L: number;
+}
+
+/** Adrogué–Madias predicted ΔNa per liter infused: ΔNa = ([Na_inf + K_inf] − [Na_serum]) / (TBW + 1) */
+export function adrogueMadiasDeltaPerLiter(i: AdrogueMadiasInput) {
+  const kinf = i.infusate_k_mEq_L ?? 0;
+  const delta = ((i.infusate_na_mEq_L + kinf) - i.serum_na_mEq_L) / Math.max(i.tbw_L + 1, 1e-6);
+  return { delta_na_per_L_mEq: round(delta, 2) };
+}
+
+export function predictDeltaForVolume(i: AdrogueMadiasInput & { liters: number }) {
+  const { delta_na_per_L_mEq } = adrogueMadiasDeltaPerLiter(i);
+  return { predicted_delta_mEq: round(delta_na_per_L_mEq * i.liters, 2) };
+}
+
+export function safeCorrectionGuardrail(current_na: number, planned_delta_24h_mEq: number, high_risk: boolean) {
+  const maxAllowed = high_risk ? 8 : 10;
+  const over = planned_delta_24h_mEq > maxAllowed;
+  const target_na_24h = current_na + clamp(planned_delta_24h_mEq, -maxAllowed, maxAllowed);
+  return { max_allowed_delta_mEq_24h: maxAllowed, exceeds_limit: over, target_na_24h };
 }

@@ -1,24 +1,41 @@
-import { round } from "./utils";
+// lib/medical/engine/calculators/osmolality.ts
+import { round, num } from "./utils";
 
 export interface OsmInput {
   na_mEq_L: number;
-  bun_mg_dL: number;
-  glucose_mg_dL: number;
-  ethanol_mg_dL?: number; // optional
-  eg_mg_dL?: number;      // ethylene glycol (if available)
-  methanol_mg_dL?: number;
-  isopropanol_mg_dL?: number;
-  measured_mOsm_kg?: number;
+  glu_mg_dL?: number | null;
+  bun_mg_dL?: number | null;
+  ethanol_mg_dL?: number | null;
+  methanol_mg_dL?: number | null;
+  ethylene_glycol_mg_dL?: number | null;
+  isopropanol_mg_dL?: number | null;
+  measured_osm_mOsm_kg?: number | null;
 }
 
-export function calcSerumOsm(i: OsmInput) {
-  const base = 2 * i.na_mEq_L + i.bun_mg_dL / 2.8 + i.glucose_mg_dL / 18;
-  const ethanol = (i.ethanol_mg_dL ?? 0) / 3.7;
-  // Optional extensions—using approximate divisors for contribution
-  const eg = i.eg_mg_dL ? (i.eg_mg_dL / 6.2) : 0;
-  const meoh = i.methanol_mg_dL ? (i.methanol_mg_dL / 3.2) : 0;
-  const iso = i.isopropanol_mg_dL ? (i.isopropanol_mg_dL / 5.9) : 0;
-  const calc = base + ethanol + eg + meoh + iso;
-  const gap = i.measured_mOsm_kg !== undefined ? i.measured_mOsm_kg - calc : undefined;
-  return { calculated_mOsm_kg: round(calc, 1), osmolal_gap_mOsm_kg: gap !== undefined ? round(gap, 1) : undefined };
+const safe = (x: any) => (typeof x === "number" && Number.isFinite(x) ? x : 0);
+
+/** Traditional calculated serum osmolality plus optional alcohol contributions. */
+export function calcOsm(i: OsmInput) {
+  const na = i.na_mEq_L;
+  const glu = safe(i.glu_mg_dL);
+  const bun = safe(i.bun_mg_dL);
+  const base = (2 * na) + (glu / 18) + (bun / 2.8);
+
+  // Optional alcohol contributions (mg/dL → mOsm/kg approx factors)
+  const ethanol = safe(i.ethanol_mg_dL) / 3.7;
+  const methanol = safe(i.methanol_mg_dL) / 3.2;
+  const eg = safe(i.ethylene_glycol_mg_dL) / 6.2;
+  const iso = safe(i.isopropanol_mg_dL) / 6.0;
+
+  const calculated = base + ethanol + methanol + eg + iso;
+  const effective = (2 * na) + (glu / 18);
+  const gap = (typeof i.measured_osm_mOsm_kg === "number" && Number.isFinite(i.measured_osm_mOsm_kg))
+    ? i.measured_osm_mOsm_kg - calculated
+    : null;
+
+  return {
+    osmolality_calc_mOsm_kg: round(calculated, 1),
+    osmolality_effective_mOsm_kg: round(effective, 1),
+    osmolal_gap_mOsm_kg: gap == null ? null : round(gap, 1),
+  };
 }
