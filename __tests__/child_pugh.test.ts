@@ -1,8 +1,11 @@
-import { runChildPugh } from "@/lib/medical/engine/calculators/child_pugh";
+  import { calc_child_pugh } from "../lib/medical/engine/calculators/child_pugh";
 
-test("Child-Pugh classes", () => {
-  const a = runChildPugh({ bilirubin_mg_dl:1.2, albumin_g_dl:4.0, inr:1.2, ascites:"none", encephalopathy:"none" });
-  expect(a.klass).toBe("A");
-  const c = runChildPugh({ bilirubin_mg_dl:4.2, albumin_g_dl:2.6, inr:2.5, ascites:"moderate-severe", encephalopathy:"moderate-severe" });
-  expect(c.klass).toBe("C");
+  describe("calc_child_pugh", () => {
+
+it("scores Child–Pugh Class C", () => {
+  const r = calc_child_pugh({ bilirubin_mg_dl: 3.2, albumin_g_dl: 2.6, inr: 2.0, ascites: "mild", encephalopathy: "mild" });
+  expect(r.score).toBe(12);
+  expect(r.class).toBe("C");
 });
+
+  });

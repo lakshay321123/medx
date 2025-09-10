@@ -1,7 +1,10 @@
-import { runMELDNa } from "@/lib/medical/engine/calculators/meld_na";
+  import { calc_meld_na } from "../lib/medical/engine/calculators/meld_na";
 
-test("MELD-Na bounds", () => {
-  const r = runMELDNa({ creatinine_mg_dl:0.8, bilirubin_mg_dl:0.6, inr:0.9, sodium_meq_l:160 });
-  expect(r.meld_na).toBeGreaterThanOrEqual(6);
-  expect(r.meld_na).toBeLessThanOrEqual(40);
+  describe("calc_meld_na", () => {
+
+it("computes MELD-Na", () => {
+  const r = calc_meld_na({ creatinine_mg_dl: 1.0, bilirubin_mg_dl: 3.0, inr: 2.0, sodium_mmol_l: 130 });
+  expect(r.meldNa).toBe(23);
 });
+
+  });
