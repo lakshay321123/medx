@@ -1,7 +1,6 @@
-import { bodeScore } from "../lib/medical/engine/calculators/bode_index";
+import { runBODE } from "@/lib/medical/engine/calculators/bode_index";
 
-test("BODE sample", () => {
-  const out = bodeScore({ bmi: 20, fev1_pct_pred: 40, mmrc: 3, sixmwd_m: 300 });
-  expect(out.total).toBe(6);
-  expect(out.quartile).toBe(3);
+test("BODE index total", () => {
+  const r = runBODE({ bmi:20, fev1_percent_predicted:30, mmrc:4, six_mwd_m:100 });
+  expect(r.score).toBe(1 + 3 + 3 + 3);
 });
