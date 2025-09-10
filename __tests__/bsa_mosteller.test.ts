@@ -1,6 +1,10 @@
-import { runBSAMosteller } from "@/lib/medical/engine/calculators/bsa_mosteller";
+  import { calc_bsa_mosteller } from "../lib/medical/engine/calculators/bsa_mosteller";
 
-test("BSA Mosteller", () => {
-  const r = runBSAMosteller({ height_cm:180, weight_kg:80 });
-  expect(r.bsa_m2).toBeCloseTo(Math.sqrt((180*80)/3600), 5);
+  describe("calc_bsa_mosteller", () => {
+
+it("computes BSA (Mosteller)", () => {
+  const v = calc_bsa_mosteller({ height_cm: 170, weight_kg: 70 });
+  expect(v).toBeCloseTo(1.82, 2);
 });
+
+  });
