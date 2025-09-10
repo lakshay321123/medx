@@ -1,35 +1,30 @@
+import { register } from "../registry";
+
 /**
- * Free Water Deficit:
- * FWD = TBW * ((Na_measured / Na_desired) - 1)
- * Commonly Na_desired = 140 mEq/L
- * TBW: male ~0.6 * weight(kg), female ~0.5; elderly may use 0.5/0.45
+ * Free water deficit ≈ TBW * (Na/target - 1)
+ * TBW: 0.6*wt (male), 0.5*wt (female). Default target Na=140.
  */
-export interface FWDInput {
-  sex: "male" | "female";
-  age?: number;
-  weight_kg: number;
-  na_measured: number;
-  na_desired?: number; // default 140
-  tbw_factor_override?: number; // optional explicit TBW factor
-}
-export interface FWDResult {
-  tbw_l: number;
-  fwd_l: number;
-}
-export function runFreeWaterDeficit(i: FWDInput): FWDResult {
-  const desired = i.na_desired ?? 140;
+export type FWDInputs = { sex: "male"|"female"; weight_kg: number; Na_meq_l: number; target_na?: number };
 
-  // Determine TBW factor (override > age/sex defaults)
-  let factor: number;
-  if (i.tbw_factor_override != null) {
-    factor = i.tbw_factor_override;
-  } else {
-    const elderly = (i.age ?? 0) >= 65;
-    if (i.sex === "male") factor = elderly ? 0.5 : 0.6;
-    else factor = elderly ? 0.45 : 0.5;
-  }
-
-  const tbw = factor * i.weight_kg;
-  const fwd = tbw * ((i.na_measured / desired) - 1);
-  return { tbw_l: tbw, fwd_l: fwd };
+export function runFWD({ sex, weight_kg, Na_meq_l, target_na=140 }: FWDInputs) {
+  if (!sex || [weight_kg,Na_meq_l,target_na].some(v=>v==null)) return null;
+  const tbw = (sex === "female" ? 0.5 : 0.6) * weight_kg;
+  const deficit = tbw * (Na_meq_l/target_na - 1);
+  return { free_water_deficit_L: deficit };
 }
+
+register({
+  id: "free_water_deficit",
+  label: "Free water deficit",
+  inputs: [
+    { key: "sex", required: true },
+    { key: "weight_kg", required: true },
+    { key: "Na_meq_l", required: true },
+    { key: "target_na" },
+  ],
+  run: (ctx) => {
+    const r = runFWD(ctx as FWDInputs);
+    if (!r) return null;
+    return { id: "free_water_deficit", label: "Free water deficit", value: Number(r.free_water_deficit_L.toFixed(1)), unit: "L", precision: 1, notes: [] };
+  },
+});
