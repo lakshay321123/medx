@@ -1,20 +1,32 @@
-import { register } from "../registry";
+// lib/medical/engine/calculators/decaf.ts
+// DECAF for AECOPD mortality risk: Dyspnea eMRCD grade, Eosinopenia, Consolidation, Acidaemia, Atrial fibrillation.
 
-/**
- * DECAF score (AECOPD): Dyspnea (eMRCD 5a/5b), Eosinopenia (<0.05), Consolidation, Acidemia (pH<7.30), AF.
- */
-export function runDECAF(i:{ emrcd_5a:boolean, emrcd_5b:boolean, eos_abs_k_uL:number, consolidation:boolean, ph:number, atrial_fibrillation:boolean }){
-  if (i==null || i.eos_abs_k_uL==null || !isFinite(i.eos_abs_k_uL) || i.ph==null || !isFinite(i.ph)) return null;
-  let pts = 0;
-  if (i.emrcd_5a) pts+=1;
-  if (i.emrcd_5b) pts+=2;
-  if (i.eos_abs_k_uL<0.05) pts+=1;
-  if (i.consolidation) pts+=1;
-  if (i.ph<7.30) pts+=1;
-  if (i.atrial_fibrillation) pts+=1;
-  let band="low"; if (pts>=3) band="high"; else if (pts==2) band="intermediate";
-  return { DECAF: pts, risk_band: band };
+export interface DECAFInput {
+  emrcd_grade?: 1|2|3|4|5; // use 5 for 5a or 5b, provide five_b flag below
+  emrcd_five_b?: boolean | null;
+  eos_abs_x10e9_L?: number | null;   // absolute eosinophils in 10^9 per L
+  consolidation_on_cxr?: boolean | null;
+  arterial_pH?: number | null;
+  atrial_fibrillation?: boolean | null;
 }
-register({ id:"decaf_aecopd", label:"DECAF (AECOPD)", inputs:[
-  {key:"emrcd_5a",required:true},{key:"emrcd_5b",required:true},{key:"eos_abs_k_uL",required:true},{key:"consolidation",required:true},{key:"ph",required:true},{key:"atrial_fibrillation",required:true}
-], run: runDECAF as any });
+
+export interface DECAFOutput {
+  points: number; // 0 to 6
+  components: { dyspnea: number; eosinopenia: number; consolidation: number; acidaemia: number; af: number };
+}
+
+export function runDECAF(i: DECAFInput): DECAFOutput {
+  let dysp = 0;
+  if (i.emrcd_grade === 5) {
+    dysp = i.emrcd_five_b ? 2 : 1;
+  } else {
+    dysp = 0;
+  }
+  const eosinopenia = (i.eos_abs_x10e9_L ?? Infinity) < 0.05 ? 1 : 0;
+  const consolidation = i.consolidation_on_cxr ? 1 : 0;
+  const acidaemia = (i.arterial_pH ?? Infinity) < 7.30 ? 1 : 0;
+  const af = i.atrial_fibrillation ? 1 : 0;
+
+  const total = dysp + eosinopenia + consolidation + acidaemia + af;
+  return { points: total, components: { dyspnea: dysp, eosinopenia, consolidation, acidaemia, af } };
+}
