@@ -1,3 +1,4 @@
+// Domain group imports (keep these)
 import "./electrolytes";
 import "./acid_base";
 import "./ecg";
@@ -9,5 +10,92 @@ import "./endocrine";
 import "./toxicology";
 import "./icu";
 import "./icu_helpers";
-
 import "./lab_interpretation";
+
+// --- Pack 2 (existing) ---
+import "./rcri";
+import "./ariscat";
+import "./stop_bang";
+import "./free_water_deficit";
+import "./bicarbonate_deficit";
+import "./fe_na";
+import "./fe_urea";
+import "./urine_anion_gap";
+import "./serum_osmolality_advanced";
+import "./osmolal_gap";
+import "./corrected_calcium";
+import "./delta_gap";
+import "./sodium_correction_rate";
+import "./maintenance_fluids_421";
+import "./bsa_mosteller";
+import "./cockcroft_gault";
+import "./ideal_body_weight_devine";
+import "./adjusted_body_weight";
+import "./qtc_bazett_framingham";
+import "./sodium_deficit";
+
+// --- Pack 3 ---
+import "./pas_appendicitis";
+import "./pram_asthma";
+import "./pews_full";
+import "./pediatric_gcs";
+import "./nexus_cspine";
+import "./canadian_ct_head";
+import "./timi_ua_nstemi";
+import "./heart_score";
+import "./cha2ds2_vasc";
+import "./has_bled";
+import "./meld_na";
+import "./child_pugh";
+import "./aa_gradient";
+import "./pf_ratio";
+import "./wells_dvt";
+import "./wells_pe";
+import "./years_pe";
+import "./bap65_copd";
+import "./news2";
+import "./sofa_simple";
+
+// --- Pack 4 ---
+import "./egfr_ckd_epi_2021";
+import "./egfr_mdrd";
+import "./aims65";
+import "./crb65";
+import "./apfel_ponv";
+import "./age_adjusted_ddimer";
+import "./shock_index";
+import "./map_calc";
+import "./anion_gap_corrected";
+import "./hh_ph";
+import "./cao2";
+import "./do2";
+import "./ttkg";
+import "./urine_osmolality_estimate";
+import "./phenytoin_sheiner_tozer";
+import "./calcium_phosphate_product";
+import "./bmi";
+import "./harris_benedict";
+import "./mifflin_st_jeor";
+import "./maintenance_fluids_holliday_segar";
+
+// --- Pack 5 ---
+import "./abcd2_tia";
+import "./nihss_total";
+import "./ottawa_sah_rule";
+import "./padua_vte";
+import "./qsofa";
+import "./nutric_simplified";
+import "./nafld_fibrosis_score";
+import "./de_ritis_ratio";
+import "./ldl_friedewald";
+import "./non_hdl";
+import "./homa_ir";
+import "./tg_hdl_ratio";
+import "./nlr";
+import "./plr";
+import "./lactate_clearance";
+import "./haps_pancreatitis";
+import "./rockall_post";
+import "./bode_index";
+import "./qtc_fridericia";
+import "./alvarado_appendicitis";
