@@ -1,22 +1,60 @@
+import { register } from "../registry";
+
 /**
- * TIMI risk score for UA/NSTEMI (0–7)
- * Criteria: age >=65, 3+ risk factors, known CAD >=50, ASA in last 7 days,
- * severe angina (>=2 episodes/24h), ST deviation >=0.5 mm, positive markers.
+ * TIMI Risk Score for UA/NSTEMI
+ * One point each criterion (0–7 total)
  */
-export interface TIMIInput {
-  age_ge_65: boolean;
-  risk_factors_ge_3: boolean;
-  known_cad_ge_50: boolean;
-  asa_last_7d: boolean;
-  severe_angina_2plus_24h: boolean;
-  st_deviation: boolean;
-  positive_markers: boolean;
+export function calc_timi_ua_nstemi({
+  age_ge_65,
+  at_least_3_risk_factors,
+  known_cad_stenosis_ge_50,
+  aspirin_use_past_7d,
+  severe_angina_recent,
+  st_deviation_ge_0_5mm,
+  elevated_markers
+}: {
+  age_ge_65?: boolean,
+  at_least_3_risk_factors?: boolean,
+  known_cad_stenosis_ge_50?: boolean,
+  aspirin_use_past_7d?: boolean,
+  severe_angina_recent?: boolean,
+  st_deviation_ge_0_5mm?: boolean,
+  elevated_markers?: boolean
+}) {
+  let s = 0;
+  if (age_ge_65) s += 1;
+  if (at_least_3_risk_factors) s += 1;
+  if (known_cad_stenosis_ge_50) s += 1;
+  if (aspirin_use_past_7d) s += 1;
+  if (severe_angina_recent) s += 1;
+  if (st_deviation_ge_0_5mm) s += 1;
+  if (elevated_markers) s += 1;
+  return s;
 }
-export interface TIMIResult { score: number; band: "low" | "intermediate" | "high"; }
-export function runTIMI(i: TIMIInput): TIMIResult {
-  const s = [i.age_ge_65, i.risk_factors_ge_3, i.known_cad_ge_50, i.asa_last_7d, i.severe_angina_2plus_24h, i.st_deviation, i.positive_markers].filter(Boolean).length;
-  let b: TIMIResult["band"] = "low";
-  if (s >= 5) b = "high";
-  else if (s >= 3) b = "intermediate";
-  return { score: s, band: b };
-}
+
+register({
+  id: "timi_ua_nstemi",
+  label: "TIMI (UA/NSTEMI)",
+  tags: ["cardiology", "risk"],
+  inputs: [
+    { key: "age_ge_65" },
+    { key: "at_least_3_risk_factors" },
+    { key: "known_cad_stenosis_ge_50" },
+    { key: "aspirin_use_past_7d" },
+    { key: "severe_angina_recent" },
+    { key: "st_deviation_ge_0_5mm" },
+    { key: "elevated_markers" }
+  ],
+  run: (ctx: {
+    age_ge_65?: boolean;
+    at_least_3_risk_factors?: boolean;
+    known_cad_stenosis_ge_50?: boolean;
+    aspirin_use_past_7d?: boolean;
+    severe_angina_recent?: boolean;
+    st_deviation_ge_0_5mm?: boolean;
+    elevated_markers?: boolean;
+  }) => {
+    const v = calc_timi_ua_nstemi(ctx);
+    return { id: "timi_ua_nstemi", label: "TIMI (UA/NSTEMI)", value: v, unit: "score", precision: 0, notes: [] };
+  },
+});
