@@ -1,6 +1,11 @@
-import { runBicarbonateDeficit } from "@/lib/medical/engine/calculators/bicarbonate_deficit";
+  import { calc_bicarbonate_deficit } from "../lib/medical/engine/calculators/bicarbonate_deficit";
 
-test("Bicarbonate deficit", () => {
-  const r = runBicarbonateDeficit({ weight_kg:70, current_hco3:12, desired_hco3:22 });
-  expect(r.deficit_meq).toBeCloseTo(0.5*70*10, 2);
+  describe("calc_bicarbonate_deficit", () => {
+
+it("computes bicarbonate deficit with default target", () => {
+  const r = calc_bicarbonate_deficit({ actual_hco3: 12, weight_kg: 70 });
+  expect(r.target).toBe(24);
+  expect(r.deficit).toBe(420);
 });
+
+  });

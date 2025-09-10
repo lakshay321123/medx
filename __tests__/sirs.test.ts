@@ -1,7 +1,10 @@
-import { test, expect } from "@jest/globals";
-import { runSIRS } from "../lib/medical/engine/calculators/sirs";
+  import { calc_sirs } from "../lib/medical/engine/calculators/sirs";
 
-test("SIRS", () => {
-  const out = runSIRS({ temp_c: 39, hr: 110, rr: 22, wbc_k: 14, bands_pct: 15 });
-  expect(out.count).toBeGreaterThanOrEqual(3);
+  describe("calc_sirs", () => {
+
+it("counts SIRS criteria = 4", () => {
+  const v = calc_sirs({ temp_c: 38.5, hr: 100, rr: 22, wbc: 15 });
+  expect(v).toBe(4);
 });
+
+  });
