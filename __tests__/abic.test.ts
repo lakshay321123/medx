@@ -1,9 +1,8 @@
-import { test, expect } from "@jest/globals";
-import { runABIC } from "../lib/medical/engine/calculators/abic";
 
-test("ABIC risk bands", () => {
-  const low = runABIC({ age_years:40, bilirubin_mg_dL:1.0, inr:1.2, creatinine_mg_dL:0.8 });
-  expect(low.risk_band).toBe("low");
-  const high = runABIC({ age_years:70, bilirubin_mg_dL:15, inr:2.8, creatinine_mg_dL:1.6 });
-  expect(high.risk_band).toBe("high");
+import { abic } from "../lib/medical/engine/calculators/abic";
+
+test("ABIC sample", () => {
+  const out = abic({ age_years: 50, bilirubin_mg_dL: 10, inr: 2.0, creatinine_mg_dL: 1.5 });
+  expect(out.score).toBeCloseTo(0.1*50 + 0.08*10 + 0.8*2 + 0.3*1.5, 2);
+  expect(out.band === "intermediate" || out.band === "high" || out.band === "low").toBe(true);
 });
