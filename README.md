@@ -17,6 +17,7 @@ This project includes:
    - `HF_API_TOKEN`
    - optional: `HF_CHEST_MODEL` `HF_BONE_MODEL`
    - for OpenAI summaries: `OPENAI_API_KEY`, `OPENAI_TEXT_MODEL`, `OPENAI_VISION_MODEL`
+   - optional meds micro-summary: `MEDS_SHORT_SUMMARY` (`true|false`), `MEDS_SHORT_SUMMARY_MAX_CHARS`
 2. `npm install`
 3. `npm run dev`
 
