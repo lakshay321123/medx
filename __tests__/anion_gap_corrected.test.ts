@@ -1,8 +1,11 @@
-import { runAnionGapCorrected } from "@/lib/medical/engine/calculators/anion_gap_corrected";
+  import { calc_anion_gap_corrected } from "../lib/medical/engine/calculators/anion_gap_corrected";
 
-test("Corrected AG", () => {
-  const r = runAnionGapCorrected({ albumin_g_dl:2.0, na:140, cl:100, hco3:24 });
-  // AG = 16; correction adds 5
-  expect(r.ag).toBe(16);
-  expect(r.ag_corrected).toBeCloseTo(21, 2);
+  describe("calc_anion_gap_corrected", () => {
+
+it("computes corrected anion gap for albumin", () => {
+  const r = calc_anion_gap_corrected({ Na: 140, Cl: 104, HCO3: 24, albumin_g_dl: 2.0 });
+  expect(r.ag).toBe(12);
+  expect(r.corrected).toBe(17);
 });
+
+  });
