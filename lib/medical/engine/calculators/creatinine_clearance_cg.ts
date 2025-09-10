@@ -38,7 +38,7 @@ register({
     { key: "height_cm" },
     { key: "use_weight" },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const r = runCrCl_CG(ctx as any);
     const notes: string[] = [];
     if (r.ibw_kg != null) notes.push(`IBW ${r.ibw_kg} kg`);
