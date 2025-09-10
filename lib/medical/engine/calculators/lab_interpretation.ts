@@ -10307,3 +10307,632 @@ register({
   }
 });
 
+// ===================== MED-EXT511–560 (APPEND-ONLY) =====================
+/* If this import already exists at file top, remove this line. */
+
+/* ========= ICU early warning / sepsis staging ========= */
+
+register({
+  id: "news2_band",
+  label: "NEWS2 band",
+  tags: ["icu","sepsis","ed"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=7?"high":score>=5?"urgent":"low"];
+    return {id:"news2_band", label:"NEWS2 band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "mews_band",
+  label: "MEWS band",
+  tags: ["icu","ed"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=5?"high":"low/moderate"];
+    return {id:"mews_band", label:"MEWS band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "piro_sepsis_stage_surrogate",
+  label: "PIRO sepsis stage (surrogate)",
+  tags: ["sepsis","icu"],
+  inputs: [{ key:"stage", required:true }], // 1–4
+  run: ({stage})=>{
+    const notes=[stage>=3?"severe":"moderate/mild"];
+    return {id:"piro_sepsis_stage_surrogate", label:"PIRO sepsis stage (surrogate)", value:stage, unit:"stage", precision:0, notes};
+  }
+});
+
+/* =================== Shock & hemodynamics =================== */
+
+register({
+  id: "shock_index",
+  label: "Shock index (HR/SBP)",
+  tags: ["icu","hemodynamics"],
+  inputs: [{ key:"HR", required:true }, { key:"SBP", required:true }],
+  run: ({HR,SBP})=>{
+    if (SBP<=0) return null;
+    const val=HR/SBP;
+    const notes=[val>=0.9?"elevated":"normal"];
+    return {id:"shock_index", label:"Shock index (HR/SBP)", value:val, unit:"ratio", precision:2, notes};
+  }
+});
+
+register({
+  id: "modified_shock_index",
+  label: "Modified shock index (HR/MAP)",
+  tags: ["icu","hemodynamics"],
+  inputs: [{ key:"HR", required:true }, { key:"MAP", required:true }],
+  run: ({HR,MAP})=>{
+    if (MAP<=0) return null;
+    const val=HR/MAP;
+    const notes=[val>1.3?"elevated":"acceptable"];
+    return {id:"modified_shock_index", label:"Modified shock index (HR/MAP)", value:val, unit:"ratio", precision:2, notes};
+  }
+});
+
+register({
+  id: "map_calc",
+  label: "Mean arterial pressure (MAP)",
+  tags: ["hemodynamics"],
+  inputs: [{ key:"SBP", required:true }, { key:"DBP", required:true }],
+  run: ({SBP,DBP})=>{
+    const val = (SBP + 2*DBP)/3;
+    const notes=[val<65?"low MAP":"ok"];
+    return {id:"map_calc", label:"Mean arterial pressure (MAP)", value:val, unit:"mmHg", precision:0, notes};
+  }
+});
+
+register({
+  id: "svr_calc",
+  label: "Systemic vascular resistance (SVR)",
+  tags: ["hemodynamics","cardiology","icu"],
+  inputs: [
+    { key:"MAP", required:true },
+    { key:"RAP", required:true },     // right atrial pressure
+    { key:"CO_L_min", required:true }
+  ],
+  run: ({MAP,RAP,CO_L_min})=>{
+    if (CO_L_min<=0) return null;
+    const val = ((MAP - RAP)/CO_L_min)*80;
+    const notes=[val<800?"low":val>1200?"high":"normal"];
+    return {id:"svr_calc", label:"Systemic vascular resistance (SVR)", value:val, unit:"dyn·s·cm⁻⁵", precision:0, notes};
+  }
+});
+
+register({
+  id: "pvr_calc",
+  label: "Pulmonary vascular resistance (PVR)",
+  tags: ["hemodynamics","pulmonary","icu"],
+  inputs: [
+    { key:"mPAP", required:true },
+    { key:"PAWP", required:true },
+    { key:"CO_L_min", required:true }
+  ],
+  run: ({mPAP,PAWP,CO_L_min})=>{
+    if (CO_L_min<=0) return null;
+    const val = ((mPAP - PAWP)/CO_L_min)*80;
+    const notes=[val>240?"elevated":"normal"];
+    return {id:"pvr_calc", label:"Pulmonary vascular resistance (PVR)", value:val, unit:"dyn·s·cm⁻⁵", precision:0, notes};
+  }
+});
+
+/* =================== Oxygenation / ventilation =================== */
+
+register({
+  id: "rox_index",
+  label: "ROX index (SpO₂/FiO₂ ÷ RR)",
+  tags: ["pulmonary","icu"],
+  inputs: [{ key:"SpO2", required:true }, { key:"FiO2", required:true }, { key:"RR", required:true }],
+  run: ({SpO2,FiO2,RR})=>{
+    if (FiO2<=0 || RR<=0) return null;
+    const val = (SpO2/FiO2)/RR;
+    const notes=[val<3.85?"low (HFNC failure risk)":"favorable"];
+    return {id:"rox_index", label:"ROX index (SpO₂/FiO₂ ÷ RR)", value:val, unit:"index", precision:2, notes};
+  }
+});
+
+register({
+  id: "oxygenation_index",
+  label: "Oxygenation Index (OI)",
+  tags: ["pulmonary","icu"],
+  inputs: [{ key:"FiO2", required:true }, { key:"MAP", required:true }, { key:"PaO2", required:true }],
+  run: ({FiO2,MAP,PaO2})=>{
+    if (PaO2<=0) return null;
+    const val = (FiO2*MAP*100)/PaO2;
+    const notes=[val>=16?"severe":"mild/moderate"];
+    return {id:"oxygenation_index", label:"Oxygenation Index (OI)", value:val, unit:"index", precision:1, notes};
+  }
+});
+
+register({
+  id: "oxygen_saturation_index",
+  label: "Oxygen Saturation Index (OSI)",
+  tags: ["pulmonary","icu"],
+  inputs: [{ key:"FiO2", required:true }, { key:"MAP", required:true }, { key:"SpO2", required:true }],
+  run: ({FiO2,MAP,SpO2})=>{
+    if (SpO2<=0) return null;
+    const val = (FiO2*MAP*100)/SpO2;
+    const notes=[val>=7.5?"severe":"mild/moderate"];
+    return {id:"oxygen_saturation_index", label:"Oxygen Saturation Index (OSI)", value:val, unit:"index", precision:2, notes};
+  }
+});
+
+register({
+  id: "mechanical_power_surrogate",
+  label: "Mechanical power (surrogate)",
+  tags: ["pulmonary","icu","ventilation"],
+  inputs: [{ key:"index", required:true }],
+  run: ({index})=>{
+    const notes=[index>17?"high strain":"acceptable"];
+    return {id:"mechanical_power_surrogate", label:"Mechanical power (surrogate)", value:index, unit:"J/min (index)", precision:1, notes};
+  }
+});
+
+register({
+  id: "ibw_devine",
+  label: "Ideal body weight (Devine)",
+  tags: ["anthropometrics"],
+  inputs: [{ key:"sex", required:true }, { key:"height_cm", required:true }],
+  run: ({sex,height_cm})=>{
+    const inches = height_cm/2.54;
+    const base = sex==="F"?45.5:50;
+    const ibw = base + 2.3*Math.max(0, inches-60);
+    return {id:"ibw_devine", label:"Ideal body weight (Devine)", value:ibw, unit:"kg", precision:1, notes:[]};
+  }
+});
+
+register({
+  id: "vt_per_kg_ibw",
+  label: "Tidal volume per kg IBW",
+  tags: ["pulmonary","ventilation"],
+  inputs: [{ key:"VT_ml", required:true }, { key:"IBW_kg", required:true }],
+  run: ({VT_ml,IBW_kg})=>{
+    if (IBW_kg<=0) return null;
+    const val = VT_ml/IBW_kg;
+    const notes=[val>8?"above lung-protective":"lung-protective"];
+    return {id:"vt_per_kg_ibw", label:"Tidal volume per kg IBW", value:val, unit:"mL/kg", precision:1, notes};
+  }
+});
+
+register({
+  id: "fio2_from_nc_flow",
+  label: "FiO₂ estimate from nasal cannula flow",
+  tags: ["pulmonary"],
+  inputs: [{ key:"flow_l_min", required:true }, { key:"room_air_fio2", required:false }],
+  run: ({flow_l_min,room_air_fio2=0.21})=>{
+    const est = room_air_fio2 + 0.04*Math.min(Math.max(flow_l_min,0),15);
+    return {id:"fio2_from_nc_flow", label:"FiO₂ estimate from nasal cannula flow", value:est, unit:"fraction", precision:2, notes:["approximation"]};
+  }
+});
+
+register({
+  id: "minute_ventilation",
+  label: "Minute ventilation",
+  tags: ["pulmonary","ventilation"],
+  inputs: [{ key:"VT_ml", required:true }, { key:"RR", required:true }],
+  run: ({VT_ml,RR})=>{
+    const val = (VT_ml*RR)/1000;
+    return {id:"minute_ventilation", label:"Minute ventilation", value:val, unit:"L/min", precision:1, notes:[]};
+  }
+});
+
+register({
+  id: "p01_band",
+  label: "P0.1 (occlusion pressure) band",
+  tags: ["pulmonary","ventilation"],
+  inputs: [{ key:"p01_cmH2O", required:true }],
+  run: ({p01_cmH2O})=>{
+    const notes=[p01_cmH2O>4?"high drive":p01_cmH2O<1?"low drive":"normal"];
+    return {id:"p01_band", label:"P0.1 (occlusion pressure) band", value:p01_cmH2O, unit:"cmH₂O", precision:1, notes};
+  }
+});
+
+register({
+  id: "cstat_calc",
+  label: "Static compliance (Cstat)",
+  tags: ["pulmonary","ventilation"],
+  inputs: [{ key:"VT_ml", required:true }, { key:"plateau", required:true }, { key:"PEEP", required:true }],
+  run: ({VT_ml,plateau,PEEP})=>{
+    const denom=plateau-PEEP; if (denom<=0) return null;
+    const val=VT_ml/denom;
+    return {id:"cstat_calc", label:"Static compliance (Cstat)", value:val, unit:"mL/cmH₂O", precision:1, notes:[]};
+  }
+});
+
+register({
+  id: "cdyn_calc",
+  label: "Dynamic compliance (Cdyn)",
+  tags: ["pulmonary","ventilation"],
+  inputs: [{ key:"VT_ml", required:true }, { key:"PIP", required:true }, { key:"PEEP", required:true }],
+  run: ({VT_ml,PIP,PEEP})=>{
+    const denom=PIP-PEEP; if (denom<=0) return null;
+    const val=VT_ml/denom;
+    return {id:"cdyn_calc", label:"Dynamic compliance (Cdyn)", value:val, unit:"mL/cmH₂O", precision:1, notes:[]};
+  }
+});
+
+register({
+  id: "static_compliance_band",
+  label: "Static compliance band",
+  tags: ["pulmonary","ventilation"],
+  inputs: [{ key:"cstat_ml_cmH2O", required:true }],
+  run: ({cstat_ml_cmH2O})=>{
+    const notes=[cstat_ml_cmH2O<30?"very low":cstat_ml_cmH2O<50?"low":"normal"];
+    return {id:"static_compliance_band", label:"Static compliance band", value:cstat_ml_cmH2O, unit:"mL/cmH₂O", precision:0, notes};
+  }
+});
+
+/* =================== Renal & electrolytes =================== */
+
+register({
+  id: "fe_urea_calc",
+  label: "Fractional excretion of urea (FEUrea)",
+  tags: ["renal"],
+  inputs: [
+    { key:"urine_urea", required:true },
+    { key:"plasma_urea", required:true },
+    { key:"urine_cr", required:true },
+    { key:"plasma_cr", required:true }
+  ],
+  run: ({urine_urea,plasma_urea,urine_cr,plasma_cr})=>{
+    if (plasma_urea<=0 || urine_cr<=0 || plasma_cr<=0) return null;
+    const val = (urine_urea*plasma_cr)/(plasma_urea*urine_cr)*100;
+    const notes=[val<35?"prerenal pattern more likely":"intrinsic more likely"];
+    return {id:"fe_urea_calc", label:"Fractional excretion of urea (FEUrea)", value:val, unit:"%", precision:1, notes};
+  }
+});
+
+register({
+  id: "fe_na_calc",
+  label: "Fractional excretion of sodium (FENa)",
+  tags: ["renal"],
+  inputs: [
+    { key:"urine_na", required:true },
+    { key:"plasma_na", required:true },
+    { key:"urine_cr", required:true },
+    { key:"plasma_cr", required:true }
+  ],
+  run: ({urine_na,plasma_na,urine_cr,plasma_cr})=>{
+    if (plasma_na<=0 || urine_cr<=0 || plasma_cr<=0) return null;
+    const val = (urine_na*plasma_cr)/(plasma_na*urine_cr)*100;
+    const notes=[val<1?"prerenal pattern":"intrinsic pattern"];
+    return {id:"fe_na_calc", label:"Fractional excretion of sodium (FENa)", value:val, unit:"%", precision:2, notes};
+  }
+});
+
+register({
+  id: "kdigo_aki_stage_surrogate",
+  label: "KDIGO AKI stage (surrogate)",
+  tags: ["renal","icu"],
+  inputs: [{ key:"stage", required:true }], // 1–3
+  run: ({stage})=>{
+    const notes=[stage==3?"stage 3 (severe)":stage==2?"stage 2":"stage 1"];
+    return {id:"kdigo_aki_stage_surrogate", label:"KDIGO AKI stage (surrogate)", value:stage, unit:"stage", precision:0, notes};
+  }
+});
+
+register({
+  id: "sodium_correction_hyperglycemia",
+  label: "Sodium correction for hyperglycemia",
+  tags: ["electrolytes","endocrine"],
+  inputs: [{ key:"measured_na", required:true }, { key:"glucose_mg_dl", required:true }],
+  run: ({measured_na,glucose_mg_dl})=>{
+    const corr = measured_na + 1.6*((glucose_mg_dl-100)/100);
+    return {id:"sodium_correction_hyperglycemia", label:"Sodium correction for hyperglycemia", value:corr, unit:"mEq/L", precision:1, notes:["approximate"]};
+  }
+});
+
+register({
+  id: "serum_osmolality_calc",
+  label: "Serum osmolality (calculated)",
+  tags: ["electrolytes","metabolic"],
+  inputs: [
+    { key:"Na", required:true },
+    { key:"glucose_mg_dl", required:true },
+    { key:"BUN_mg_dl", required:true }
+  ],
+  run: ({Na,glucose_mg_dl,BUN_mg_dl})=>{
+    const val = 2*Na + (glucose_mg_dl/18) + (BUN_mg_dl/2.8);
+    return {id:"serum_osmolality_calc", label:"Serum osmolality (calculated)", value:val, unit:"mOsm/kg", precision:1, notes:[]};
+  }
+});
+
+register({
+  id: "anion_gap_calc",
+  label: "Anion gap (AG) = Na − (Cl + HCO3)",
+  tags: ["acid_base","electrolytes"],
+  inputs: [{ key:"Na", required:true }, { key:"Cl", required:true }, { key:"HCO3", required:true }],
+  run: ({Na,Cl,HCO3})=>{
+    const ag = Na - (Cl + HCO3);
+    return {id:"anion_gap_calc", label:"Anion gap (AG)", value:ag, unit:"mEq/L", precision:0, notes:[]};
+  }
+});
+
+register({
+  id: "delta_gap_calc",
+  label: "Delta gap (AG−12) − (24−HCO3)",
+  tags: ["acid_base"],
+  inputs: [{ key:"AG", required:true }, { key:"HCO3", required:true }],
+  run: ({AG,HCO3})=>{
+    const val = (AG-12) - (24-HCO3);
+    const notes=[val>0?"concurrent metabolic alkalosis":"concurrent non-gap acidosis"];
+    return {id:"delta_gap_calc", label:"Delta gap (AG−12) − (24−HCO3)", value:val, unit:"mEq/L", precision:1, notes};
+  }
+});
+
+register({
+  id: "bicarbonate_deficit",
+  label: "Bicarbonate deficit estimate",
+  tags: ["acid_base"],
+  inputs: [{ key:"weight_kg", required:true }, { key:"HCO3_current", required:true }, { key:"HCO3_target", required:true }],
+  run: ({weight_kg,HCO3_current,HCO3_target})=>{
+    const val = 0.5*weight_kg*(HCO3_target - HCO3_current);
+    return {id:"bicarbonate_deficit", label:"Bicarbonate deficit estimate", value:val, unit:"mEq", precision:0, notes:["supportive estimate only"]};
+  }
+});
+
+/* =================== Neuro ICU / delirium =================== */
+
+register({
+  id: "rass_band",
+  label: "RASS band",
+  tags: ["icu","neurology"],
+  inputs: [{ key:"score", required:true }], // −5 to +4
+  run: ({score})=>{
+    const notes=[score<-3?"deep sedation":score>1?"agitated":"light/target"];
+    return {id:"rass_band", label:"RASS band", value:score, unit:"score", precision:0, notes};
+  }
+});
+
+register({
+  id: "cam_icu_flag",
+  label: "CAM-ICU delirium flag",
+  tags: ["icu","neurology"],
+  inputs: [{ key:"features_met", required:true }],
+  run: ({features_met})=>{
+    const pos = features_met>=3;
+    return {id:"cam_icu_flag", label:"CAM-ICU delirium flag", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"delirium present":"not present"]};
+  }
+});
+
+register({
+  id: "four_score_band",
+  label: "FOUR score band",
+  tags: ["neurocritical","icu"],
+  inputs: [{ key:"score", required:true }], // 0–16
+  run: ({score})=>{
+    const notes=[score<=8?"severe":"moderate/mild"];
+    return {id:"four_score_band", label:"FOUR score band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "npi_pupil_band",
+  label: "NPi pupillometry band",
+  tags: ["neurology","neurocritical"],
+  inputs: [{ key:"npi", required:true }],
+  run: ({npi})=>{
+    const notes=[npi<3?"abnormal":"normal"];
+    return {id:"npi_pupil_band", label:"NPi pupillometry band", value:npi, unit:"index", precision:1, notes};
+  }
+});
+
+/* =================== GI bleed / liver =================== */
+
+register({
+  id: "glasgow_blatchford_surrogate",
+  label: "Glasgow-Blatchford score (surrogate)",
+  tags: ["gastroenterology","bleeding","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=12?"high":score>=1?"intermediate":"very low"];
+    return {id:"glasgow_blatchford_surrogate", label:"Glasgow-Blatchford score (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "rockall_postendo_surrogate",
+  label: "Rockall post-endoscopy (surrogate)",
+  tags: ["gastroenterology","bleeding","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=6?"high":"lower"];
+    return {id:"rockall_postendo_surrogate", label:"Rockall post-endoscopy (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "maddrey_df_calc",
+  label: "Maddrey DF (alcoholic hepatitis)",
+  tags: ["hepatology"],
+  inputs: [{ key:"PT_sec", required:true }, { key:"control_PT_sec", required:true }, { key:"bilirubin_mg_dl", required:true }],
+  run: ({PT_sec,control_PT_sec,bilirubin_mg_dl})=>{
+    const df = 4.6*(PT_sec - control_PT_sec) + bilirubin_mg_dl;
+    const notes=[df>=32?"severe":"less severe"];
+    return {id:"maddrey_df_calc", label:"Maddrey DF (alcoholic hepatitis)", value:df, unit:"index", precision:1, notes};
+  }
+});
+
+register({
+  id: "lille_surrogate",
+  label: "Lille score (surrogate)",
+  tags: ["hepatology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=0.45?"non-response likely":"response likely"];
+    return {id:"lille_surrogate", label:"Lille score (surrogate)", value:score, unit:"index", precision:2, notes};
+  }
+});
+
+/* =================== Endocrine water balance flags =================== */
+
+register({
+  id: "siadh_support_flag",
+  label: "SIADH supportive flag",
+  tags: ["endocrine","electrolytes"],
+  inputs: [
+    { key:"serum_osm", required:true },
+    { key:"urine_na", required:true },
+    { key:"euvolemic", required:true } // boolean
+  ],
+  run: ({serum_osm,urine_na,euvolemic})=>{
+    const pos = serum_osm<275 && urine_na>30 && euvolemic;
+    return {id:"siadh_support_flag", label:"SIADH supportive flag", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"supportive pattern":"not supportive"]};
+  }
+});
+
+register({
+  id: "di_support_flag",
+  label: "Diabetes insipidus supportive flag",
+  tags: ["endocrine"],
+  inputs: [
+    { key:"urine_osm", required:true },
+    { key:"serum_na", required:true }
+  ],
+  run: ({urine_osm,serum_na})=>{
+    const pos = urine_osm<300 && serum_na>145;
+    return {id:"di_support_flag", label:"Diabetes insipidus supportive flag", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"supportive pattern":"not supportive"]};
+  }
+});
+
+/* =================== Toxicology quick bands =================== */
+
+register({
+  id: "cohb_band",
+  label: "Carboxyhemoglobin (COHb) band",
+  tags: ["toxicology","pulmonary"],
+  inputs: [{ key:"cohb_percent", required:true }],
+  run: ({cohb_percent})=>{
+    const notes=[cohb_percent>=25?"severe":cohb_percent>=10?"elevated":"near-normal"];
+    return {id:"cohb_band", label:"Carboxyhemoglobin (COHb) band", value:cohb_percent, unit:"%", precision:1, notes};
+  }
+});
+
+register({
+  id: "methemoglobin_band",
+  label: "Methemoglobin band",
+  tags: ["toxicology","hematology"],
+  inputs: [{ key:"metHb_percent", required:true }],
+  run: ({metHb_percent})=>{
+    const notes=[metHb_percent>=20?"symptomatic risk":metHb_percent>=10?"elevated":"normal"];
+    return {id:"methemoglobin_band", label:"Methemoglobin band", value:metHb_percent, unit:"%", precision:1, notes};
+  }
+});
+
+/* =================== Critical illness scores / peri-op =================== */
+
+register({
+  id: "bisap_surrogate",
+  label: "BISAP pancreatitis risk (surrogate)",
+  tags: ["gastroenterology","icu","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=3?"higher mortality risk":"lower"];
+    return {id:"bisap_surrogate", label:"BISAP pancreatitis risk (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "apache_ii_surrogate",
+  label: "APACHE II (surrogate)",
+  tags: ["icu","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=25?"very high":"moderate/low"];
+    return {id:"apache_ii_surrogate", label:"APACHE II (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "sirs_count_band",
+  label: "SIRS criteria count band",
+  tags: ["icu","sepsis"],
+  inputs: [{ key:"count", required:true }],
+  run: ({count})=>{
+    const notes=[count>=2?"SIRS positive":"SIRS negative"];
+    return {id:"sirs_count_band", label:"SIRS criteria count band", value:count, unit:"count", precision:0, notes};
+  }
+});
+
+register({
+  id: "ariscat_surrogate",
+  label: "ARISCAT postop pulmonary risk (surrogate)",
+  tags: ["periop","pulmonary","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=45?"high":score>=26?"intermediate":"low"];
+    return {id:"ariscat_surrogate", label:"ARISCAT postop pulmonary risk (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "padua_vte_surrogate",
+  label: "Padua VTE risk (medical inpatients, surrogate)",
+  tags: ["hematology","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=4?"high risk":"low"];
+    return {id:"padua_vte_surrogate", label:"Padua VTE risk (medical inpatients, surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "hscore_hlh_surrogate",
+  label: "HScore for HLH (surrogate)",
+  tags: ["hematology","immunology","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=169?"high probability":"lower probability"];
+    return {id:"hscore_hlh_surrogate", label:"HScore for HLH (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "sofa_band",
+  label: "SOFA band",
+  tags: ["icu","sepsis","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=11?"very high":score>=6?"high":"lower"];
+    return {id:"sofa_band", label:"SOFA band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "shock_lactate_band",
+  label: "Shock lactate risk band",
+  tags: ["icu","sepsis"],
+  inputs: [{ key:"lactate_mmol_l", required:true }],
+  run: ({lactate_mmol_l})=>{
+    const notes=[lactate_mmol_l>=4?"high risk":lactate_mmol_l>=2?"intermediate":"lower"];
+    return {id:"shock_lactate_band", label:"Shock lactate risk band", value:lactate_mmol_l, unit:"mmol/L", precision:1, notes};
+  }
+});
+
+register({
+  id: "dka_severity_band",
+  label: "DKA severity band",
+  tags: ["endocrine","metabolic"],
+  inputs: [{ key:"pH", required:true }, { key:"HCO3", required:true }],
+  run: ({pH,HCO3})=>{
+    let band="mild";
+    if (pH<7.0 || HCO3<5) band="severe";
+    else if (pH<7.24 || HCO3<10) band="moderate";
+    return {id:"dka_severity_band", label:"DKA severity band", value:HCO3, unit:"mEq/L", precision:0, notes:[band]};
+  }
+});
+
+register({
+  id: "hhs_support_flag",
+  label: "HHS supportive flag",
+  tags: ["endocrine","metabolic"],
+  inputs: [{ key:"glucose_mg_dl", required:true }, { key:"effective_osm", required:true }, { key:"pH", required:true }],
+  run: ({glucose_mg_dl,effective_osm,pH})=>{
+    const pos = glucose_mg_dl>600 && effective_osm>320 && pH>7.3;
+    return {id:"hhs_support_flag", label:"HHS supportive flag", value:pos?1:0, unit:"flag", precision:0, notes:[pos?"supportive pattern":"not supportive"]};
+  }
+});
+
