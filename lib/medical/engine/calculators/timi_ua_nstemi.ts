@@ -1,26 +1,22 @@
-// lib/medical/engine/calculators/timi_ua_nstemi.ts
-// TIMI risk score for UA or NSTEMI.
-
-export interface TIMIUAInput {
-  age_ge_65?: boolean | null;
-  cad_risk_factors_ge_3?: boolean | null;
-  known_cad_stenosis_ge_50?: boolean | null;
-  aspirin_use_past_7d?: boolean | null;
-  severe_angina_recent?: boolean | null; // 2 or more episodes in 24 h
-  st_deviation_ge_0_5mm?: boolean | null;
-  elevated_cardiac_markers?: boolean | null;
+/**
+ * TIMI risk score for UA/NSTEMI (0–7)
+ * Criteria: age >=65, 3+ risk factors, known CAD >=50, ASA in last 7 days,
+ * severe angina (>=2 episodes/24h), ST deviation >=0.5 mm, positive markers.
+ */
+export interface TIMIInput {
+  age_ge_65: boolean;
+  risk_factors_ge_3: boolean;
+  known_cad_ge_50: boolean;
+  asa_last_7d: boolean;
+  severe_angina_2plus_24h: boolean;
+  st_deviation: boolean;
+  positive_markers: boolean;
 }
-
-export interface TIMIUAOutput { points: number; }
-
-export function runTIMI_UA_NSTEMI(i: TIMIUAInput): TIMIUAOutput {
-  const pts =
-    (i.age_ge_65?1:0)+
-    (i.cad_risk_factors_ge_3?1:0)+
-    (i.known_cad_stenosis_ge_50?1:0)+
-    (i.aspirin_use_past_7d?1:0)+
-    (i.severe_angina_recent?1:0)+
-    (i.st_deviation_ge_0_5mm?1:0)+
-    (i.elevated_cardiac_markers?1:0);
-  return { points: pts };
+export interface TIMIResult { score: number; band: "low" | "intermediate" | "high"; }
+export function runTIMI(i: TIMIInput): TIMIResult {
+  const s = [i.age_ge_65, i.risk_factors_ge_3, i.known_cad_ge_50, i.asa_last_7d, i.severe_angina_2plus_24h, i.st_deviation, i.positive_markers].filter(Boolean).length;
+  let b: TIMIResult["band"] = "low";
+  if (s >= 5) b = "high";
+  else if (s >= 3) b = "intermediate";
+  return { score: s, band: b };
 }
