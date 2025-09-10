@@ -10936,3 +10936,298 @@ register({
   }
 });
 
+// ===================== MED-EXT561–610 (APPEND-ONLY) =====================
+
+/* =================== ICU / Ventilation advanced =================== */
+
+register({
+  id: "stress_index_band",
+  label: "Stress index band",
+  tags: ["icu","ventilation"],
+  inputs: [{ key:"index", required:true }],
+  run: ({index})=>{
+    const notes=[index>1.05?"overdistension":index<0.95?"atelectasis":"normal"];
+    return {id:"stress_index_band", label:"Stress index band", value:index, unit:"index", precision:2, notes};
+  }
+});
+
+register({
+  id: "driving_pressure_calc",
+  label: "Driving pressure (ΔP)",
+  tags: ["icu","ventilation"],
+  inputs: [{ key:"plateau", required:true }, { key:"PEEP", required:true }],
+  run: ({plateau,PEEP})=>{
+    const val=plateau-PEEP;
+    const notes=[val>15?"high":"acceptable"];
+    return {id:"driving_pressure_calc", label:"Driving pressure (ΔP)", value:val, unit:"cmH₂O", precision:0, notes};
+  }
+});
+
+register({
+  id: "ventilatory_ratio",
+  label: "Ventilatory ratio",
+  tags: ["icu","ventilation"],
+  inputs: [
+    { key:"VE_measured", required:true },
+    { key:"PaCO2", required:true },
+    { key:"predicted_VE", required:true },
+    { key:"predicted_PaCO2", required:true }
+  ],
+  run: ({VE_measured,PaCO2,predicted_VE,predicted_PaCO2})=>{
+    if (predicted_VE<=0 || predicted_PaCO2<=0) return null;
+    const val=(VE_measured*PaCO2)/(predicted_VE*predicted_PaCO2);
+    const notes=[val>2?"inefficient ventilation":"ok"];
+    return {id:"ventilatory_ratio", label:"Ventilatory ratio", value:val, unit:"index", precision:2, notes};
+  }
+});
+
+register({
+  id: "rsbi_index",
+  label: "Rapid Shallow Breathing Index (RSBI)",
+  tags: ["icu","ventilation"],
+  inputs: [{ key:"RR", required:true }, { key:"VT_ml", required:true }],
+  run: ({RR,VT_ml})=>{
+    if (VT_ml<=0) return null;
+    const val=RR/(VT_ml/1000);
+    const notes=[val<105?"favorable":"unfavorable"];
+    return {id:"rsbi_index", label:"Rapid Shallow Breathing Index (RSBI)", value:val, unit:"breaths/min/L", precision:0, notes};
+  }
+});
+
+register({
+  id: "lung_injury_score_surrogate",
+  label: "Murray lung injury score (surrogate)",
+  tags: ["icu","pulmonary"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=2.5?"severe":"less severe"];
+    return {id:"lung_injury_score_surrogate", label:"Murray lung injury score (surrogate)", value:score, unit:"index", precision:1, notes};
+  }
+});
+
+/* =================== Peri-op & risk =================== */
+
+register({
+  id: "possums_score_surrogate",
+  label: "POSSUM surgical risk (surrogate)",
+  tags: ["surgery","periop"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=40?"high":"moderate/low"];
+    return {id:"possums_score_surrogate", label:"POSSUM surgical risk (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "nsqip_mica_surrogate",
+  label: "NSQIP MICA risk (surrogate)",
+  tags: ["surgery","periop"],
+  inputs: [{ key:"percent", required:true }],
+  run: ({percent})=>{
+    const notes=[percent>=1?"elevated":"low"];
+    return {id:"nsqip_mica_surrogate", label:"NSQIP MICA risk (surrogate)", value:percent, unit:"%", precision:1, notes};
+  }
+});
+
+register({
+  id: "caprini_vte_surrogate",
+  label: "Caprini VTE risk (surrogate)",
+  tags: ["periop","hematology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=5?"high":score>=3?"moderate":"low"];
+    return {id:"caprini_vte_surrogate", label:"Caprini VTE risk (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =================== Hematology / bleeding =================== */
+
+register({
+  id: "hasbled_score_band",
+  label: "HAS-BLED bleeding risk band",
+  tags: ["hematology","cardiology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=3?"high risk":"low/moderate"];
+    return {id:"hasbled_score_band", label:"HAS-BLED bleeding risk band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "cha2ds2_vasc_band",
+  label: "CHA₂DS₂-VASc stroke risk band",
+  tags: ["hematology","cardiology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=2?"anticoagulation usually indicated":"low"];
+    return {id:"cha2ds2_vasc_band", label:"CHA₂DS₂-VASc stroke risk band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "plasmiс_score_surrogate",
+  label: "PLASMIC score (TTP surrogate)",
+  tags: ["hematology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=6?"high probability":"low/intermediate"];
+    return {id:"plasmiс_score_surrogate", label:"PLASMIC score (TTP surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "dic_score_isth_surrogate",
+  label: "DIC score (ISTH surrogate)",
+  tags: ["hematology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=5?"overt DIC":"not overt"];
+    return {id:"dic_score_isth_surrogate", label:"DIC score (ISTH surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+/* =================== Infectious disease =================== */
+
+register({
+  id: "curb65_band",
+  label: "CURB-65 pneumonia severity band",
+  tags: ["infectious_disease","pulmonary"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=3?"severe":score>=2?"moderate":"mild"];
+    return {id:"curb65_band", label:"CURB-65 pneumonia severity band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "psi_pneumonia_surrogate",
+  label: "PSI/PORT pneumonia severity (surrogate)",
+  tags: ["infectious_disease","pulmonary"],
+  inputs: [{ key:"class", required:true }], // I–V
+  run: ({class:cls})=>{
+    const notes=[cls>3?"severe":"mild/moderate"];
+    return {id:"psi_pneumonia_surrogate", label:"PSI/PORT pneumonia severity (surrogate)", value:cls, unit:"class", precision:0, notes};
+  }
+});
+
+register({
+  id: "qCSI_covid_surrogate",
+  label: "qCSI COVID-19 severity (surrogate)",
+  tags: ["infectious_disease","pulmonary"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=6?"high":"lower"];
+    return {id:"qCSI_covid_surrogate", label:"qCSI COVID-19 severity (surrogate)", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "apri_index",
+  label: "APRI index",
+  tags: ["hepatology"],
+  inputs: [{ key:"AST", required:true }, { key:"ULN_AST", required:true }, { key:"platelets", required:true }],
+  run: ({AST,ULN_AST,platelets})=>{
+    if (ULN_AST<=0 || platelets<=0) return null;
+    const val=((AST/ULN_AST)*100)/platelets*100;
+    const notes=[val>1?"significant fibrosis":"less likely"];
+    return {id:"apri_index", label:"APRI index", value:val, unit:"index", precision:2, notes};
+  }
+});
+
+register({
+  id: "fib4_index",
+  label: "FIB-4 index",
+  tags: ["hepatology"],
+  inputs: [
+    { key:"age", required:true },
+    { key:"AST", required:true },
+    { key:"ALT", required:true },
+    { key:"platelets", required:true }
+  ],
+  run: ({age,AST,ALT,platelets})=>{
+    if (platelets<=0 || ALT<=0) return null;
+    const val=(age*AST)/(platelets*Math.sqrt(ALT));
+    const notes=[val>3.25?"advanced fibrosis":val>1.45?"indeterminate":"unlikely"];
+    return {id:"fib4_index", label:"FIB-4 index", value:val, unit:"index", precision:2, notes};
+  }
+});
+
+/* =================== Sleep & OSA =================== */
+
+register({
+  id: "stopbang_score_band",
+  label: "STOP-BANG OSA risk band",
+  tags: ["sleep","pulmonary"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=5?"high":score>=3?"intermediate":"low"];
+    return {id:"stopbang_score_band", label:"STOP-BANG OSA risk band", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "berlin_osa_flag",
+  label: "Berlin questionnaire OSA risk flag",
+  tags: ["sleep","pulmonary"],
+  inputs: [{ key:"high_risk", required:true }],
+  run: ({high_risk})=>{
+    return {id:"berlin_osa_flag", label:"Berlin questionnaire OSA risk flag", value:high_risk?1:0, unit:"flag", precision:0, notes:[high_risk?"high risk":"low risk"]};
+  }
+});
+
+/* =================== Rare / specialty =================== */
+
+register({
+  id: "frs_cardiac_surgery_surrogate",
+  label: "EuroSCORE/STS risk surrogate",
+  tags: ["cardiac_surgery","risk"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=10?"high":"moderate/low"];
+    return {id:"frs_cardiac_surgery_surrogate", label:"EuroSCORE/STS risk surrogate", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "mELD3_surrogate",
+  label: "MELD-3.0 surrogate",
+  tags: ["hepatology"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=30?"high":"lower"];
+    return {id:"mELD3_surrogate", label:"MELD-3.0 surrogate", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "dai_tbi_surrogate",
+  label: "Diffuse Axonal Injury (DAI) severity surrogate",
+  tags: ["neurotrauma"],
+  inputs: [{ key:"grade", required:true }],
+  run: ({grade})=>{
+    const notes=[grade>=3?"severe":"mild/moderate"];
+    return {id:"dai_tbi_surrogate", label:"Diffuse Axonal Injury (DAI) severity surrogate", value:grade, unit:"grade", precision:0, notes};
+  }
+});
+
+register({
+  id: "phq2_screen",
+  label: "PHQ-2 depression screen",
+  tags: ["psychiatry"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score>=3?"positive screen":"negative"];
+    return {id:"phq2_screen", label:"PHQ-2 depression screen", value:score, unit:"points", precision:0, notes};
+  }
+});
+
+register({
+  id: "moca_band",
+  label: "MoCA cognitive impairment band",
+  tags: ["geriatrics","cognition"],
+  inputs: [{ key:"score", required:true }],
+  run: ({score})=>{
+    const notes=[score<26?"impaired":"normal"];
+    return {id:"moca_band", label:"MoCA cognitive impairment band", value:score, unit:"points", precision:0, notes};
+  }
+});
