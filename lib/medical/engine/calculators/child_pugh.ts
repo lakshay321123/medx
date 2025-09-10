@@ -1,24 +1,43 @@
+import { register } from "../registry";
 /**
- * Child-Pugh score (5–15) with A/B/C class
- * Inputs: bilirubin mg/dL, albumin g/dL, INR, ascites (none/mild/mod-severe), encephalopathy (none/mild/mod-severe)
+ * Child–Pugh Score
  */
-export type CPClass = "A" | "B" | "C";
-export interface ChildPughInput {
-  bilirubin_mg_dl: number;
-  albumin_g_dl: number;
-  inr: number;
-  ascites: "none" | "mild" | "moderate-severe";
-  encephalopathy: "none" | "mild" | "moderate-severe";
+function scoreBilirubin(b: number): number { if (b < 2) return 1; if (b <= 3) return 2; return 3; }
+function scoreAlbumin(a: number): number { if (a > 3.5) return 1; if (a >= 2.8) return 2; return 3; }
+function scoreINR(i: number): number { if (i < 1.7) return 1; if (i <= 2.3) return 2; return 3; }
+function scoreAscites(a: string): number { const x=a.toLowerCase(); if (x==="none") return 1; if (x==="mild") return 2; return 3; }
+function scoreEncephalopathy(e: string): number { const x=e.toLowerCase(); if (x==="none") return 1; if (x==="mild") return 2; return 3; }
+
+export function calc_child_pugh({
+  bilirubin_mg_dl, albumin_g_dl, inr, ascites, encephalopathy
+}: {
+  bilirubin_mg_dl: number,
+  albumin_g_dl: number,
+  inr: number,
+  ascites: "none" | "mild" | "moderate",
+  encephalopathy: "none" | "mild" | "moderate"
+}) {
+  const s = scoreBilirubin(bilirubin_mg_dl) + scoreAlbumin(albumin_g_dl) + scoreINR(inr) + scoreAscites(ascites) + scoreEncephalopathy(encephalopathy);
+  let cls = "A";
+  if (s >= 10) cls = "C";
+  else if (s >= 7) cls = "B";
+  return { score: s, class: cls };
 }
-export interface ChildPughResult { points: number; klass: CPClass; }
-function pts_bilirubin(v: number) { return v < 2 ? 1 : (v <= 3 ? 2 : 3); }
-function pts_albumin(v: number) { return v > 3.5 ? 1 : (v >= 2.8 ? 2 : 3); }
-function pts_inr(v: number) { return v < 1.7 ? 1 : (v <= 2.3 ? 2 : 3); }
-function pts_tri(v: "none" | "mild" | "moderate-severe") { return v === "none" ? 1 : (v === "mild" ? 2 : 3); }
-export function runChildPugh(i: ChildPughInput): ChildPughResult {
-  const s = pts_bilirubin(i.bilirubin_mg_dl) + pts_albumin(i.albumin_g_dl) + pts_inr(i.inr) + pts_tri(i.ascites) + pts_tri(i.encephalopathy);
-  let k: CPClass = "A";
-  if (s >= 10) k = "C";
-  else if (s >= 7) k = "B";
-  return { points: s, klass: k };
-}
+
+register({
+  id: "child_pugh",
+  label: "Child–Pugh",
+  tags: ["hepatology"],
+  inputs: [
+    { key: "bilirubin_mg_dl", required: true },
+    { key: "albumin_g_dl", required: true },
+    { key: "inr", required: true },
+    { key: "ascites", required: true },
+    { key: "encephalopathy", required: true }
+  ],
+  run: (ctx) => {
+    const r = calc_child_pugh(ctx);
+    const notes = [`Class ${r.class}`];
+    return { id: "child_pugh", label: "Child–Pugh", value: r.score, unit: "score", precision: 0, notes, extra: r };
+  },
+});
