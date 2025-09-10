@@ -25,7 +25,7 @@ register({
     { key: "urine_cr_mg_dl", required: true },
     { key: "plasma_cr_mg_dl", required: true },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const r = runFeUrea(ctx as any);
     return { id: "feurea", label: "FeUrea", value: r.feurea_pct, unit: "%", notes: [r.band.replaceAll("_"," ")], precision: 1 };
   },

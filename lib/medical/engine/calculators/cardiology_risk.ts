@@ -13,7 +13,7 @@ register({
     { key: "hx_stroke_tia" },
     { key: "hx_vascular" },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const { age, sex } = ctx;
     if (age == null || !sex) return null;
     let s = 0;
@@ -55,7 +55,7 @@ register({
     { key: "nsaid" },
     { key: "alcohol" },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const { age } = ctx;
     if (age == null) return null;
     let s = 0;

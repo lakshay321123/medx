@@ -54,7 +54,7 @@ register({
     st_deviation_ge_0_5mm?: boolean;
     elevated_markers?: boolean;
   }) => {
-    const v = calc_timi_ua_nstemi(ctx);
+    const v = calc_timi_ua_nstemi(ctx as any);
     return { id: "timi_ua_nstemi", label: "TIMI (UA/NSTEMI)", value: v, unit: "score", precision: 0, notes: [] };
   },
 });

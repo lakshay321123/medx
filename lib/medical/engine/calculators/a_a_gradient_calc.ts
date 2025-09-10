@@ -45,7 +45,7 @@ register({
     { key: "R" },
     { key: "age_years" },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const r = runAAG(ctx as AAGInputs);
     if (!r) return null;
     const notes = r.notes ?? [];

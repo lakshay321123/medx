@@ -35,7 +35,7 @@ register({
     { key: "activity_factor" },
     { key: "stress_factor" },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const {
       sex,
       age,

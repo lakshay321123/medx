@@ -36,7 +36,7 @@ register({
     { key: "pH" }, { key: "bicarb_mEq_L" }, { key: "ketones_present" },
     { key: "weight_kg" }, { key: "sex" }, { key: "age" },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const r = runHHS(ctx as any);
     const notes: string[] = [];
     if (r.hhs_likely) notes.push("HHS likely (clinical correlation required)");

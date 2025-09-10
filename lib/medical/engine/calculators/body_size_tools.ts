@@ -30,7 +30,7 @@ register({
     { key: "sex", required: true },
     { key: "height_cm", required: true },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const r = runIBW(ctx as any);
     if (!r) return null;
     return { id: "ibw_devine", label: "Ideal Body Weight (Devine)", value: r.ibw_kg, unit: "kg", precision: 1, notes: [] };
@@ -45,7 +45,7 @@ register({
     { key: "ibw_kg", required: true },
     { key: "factor" },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const r = runAdjBW(ctx as any);
     if (!r) return null;
     return { id: "abw_adjusted", label: "Adjusted Body Weight", value: r.adj_bw_kg, unit: "kg", precision: 1, notes: [] };
@@ -59,7 +59,7 @@ register({
     { key: "weight_kg", required: true },
     { key: "height_cm", required: true },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const r = runBSA(ctx as any);
     if (!r) return null;
     return { id: "bsa_dubois", label: "Body Surface Area (DuBois)", value: r.bsa_m2, unit: "m²", precision: 2, notes: [] };

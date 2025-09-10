@@ -73,7 +73,7 @@ register({
     bmi_ge_30?: boolean;
     hormonal_treatment?: boolean;
   }) => {
-    const v = calc_padua_vte(ctx);
+    const v = calc_padua_vte(ctx as any);
     const notes = [v >= 4 ? "high VTE risk" : "low VTE risk"];
     return { id: "padua_vte", label: "Padua Prediction Score (VTE)", value: v, unit: "score", precision: 0, notes };
   },

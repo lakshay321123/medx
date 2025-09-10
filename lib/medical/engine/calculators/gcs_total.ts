@@ -21,7 +21,7 @@ register({
     { key: "verbal", required: true },
     { key: "motor", required: true },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const r = runGCS(ctx as GCSInputs);
     if (!r) return null;
     return { id: "gcs_total", label: "GCS (total)", value: r.total, unit: "points", precision: 0, notes: r.notes };

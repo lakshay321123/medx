@@ -20,7 +20,7 @@ register({
     { key: "urine_osm_mOsm_kg", required: true },
     { key: "plasma_osm_mOsm_kg", required: true },
   ],
-  run: (ctx) => {
+  run: (ctx: any) => {
     const r = runTTKG(ctx as any);
     return { id: "ttkg", label: "TTKG", value: r.ttkg, precision: 2 };
   },
