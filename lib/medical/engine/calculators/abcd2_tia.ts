@@ -19,7 +19,7 @@ export interface ABCD2Result { score: number; band: "low" | "moderate" | "high";
 export function runABCD2(i: ABCD2Input): ABCD2Result {
   let s = 0;
   if (i.age >= 60) s += 1;
-  if (i.sbp_mmHg >= 140 or i.dbp_mmHg >= 90) s += 1;
+  if (i.sbp_mmHg >= 140 || i.dbp_mmHg >= 90) s += 1; // <-- fixed here
   if (i.unilateral_weakness) s += 2;
   else if (i.speech_impairment_without_weakness) s += 1;
   if (i.duration_minutes >= 60) s += 2;
