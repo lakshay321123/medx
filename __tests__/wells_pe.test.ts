@@ -1,8 +1,14 @@
-import { runWellsPE } from "@/lib/medical/engine/calculators/wells_pe";
+  import { calc_wells_pe } from "../lib/medical/engine/calculators/wells_pe";
 
-test("Wells PE scoring", () => {
-  const r = runWellsPE({ dvt_signs:true, pe_most_likely:true, hr_gt_100:false, immobilization_or_surgery:false, previous_dvt_pe:false, hemoptysis:false, cancer:false });
-  expect(r.score).toBe(6);
-  expect(r.band).toBe("moderate");
-  expect(r.likely).toBe(true);
+  describe("calc_wells_pe", () => {
+
+it("scores Wells PE", () => {
+  const v = calc_wells_pe({
+    dvt_signs: true, pe_most_likely: true, heart_rate: 110,
+    recent_surgery_or_immobilization: false, prior_dvt_pe: false,
+    hemoptysis: true, malignancy: false
+  });
+  expect(v).toBeCloseTo(8.5, 1);
 });
+
+  });
