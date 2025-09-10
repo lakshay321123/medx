@@ -1,22 +1,49 @@
 // lib/medical/engine/calculators/bap65.ts
-import { round } from "./utils";
+// BAP-65 score for AECOPD disposition risk
+// Criteria: BUN ≥25 mg/dL, Altered mental status, Pulse ≥110 bpm, Age ≥65 years
+// Points: 1 per criterion (0–4). Risk groups: A=0, B=1, C=2, D=3–4.
 
-/** BAP-65: BUN ≥25, Altered mental status, Pulse ≥109, Age ≥65. */
 export interface BAP65Input {
-  bun_mg_dL: number;
-  altered_mental_status: boolean;
-  pulse_bpm: number;
-  age_years: number;
+  bun_mg_dL?: number | null;
+  altered_mental_status?: boolean | null;
+  pulse_bpm?: number | null;
+  age_years?: number | null;
 }
 
-export function runBAP65(i: BAP65Input) {
-  let pts = 0;
-  pts += i.bun_mg_dL >= 25 ? 1 : 0;
-  pts += i.altered_mental_status ? 1 : 0;
-  pts += i.pulse_bpm >= 109 ? 1 : 0;
-  pts += i.age_years >= 65 ? 1 : 0;
+export type BAP65Group = "A" | "B" | "C" | "D";
 
-  // Classes I–V often reported; with 0–4 points mapping to I–V
-  const klass = pts + 1; // 0→I(1), 1→II(2), ..., 4→V(5)
-  return { bap65_points: pts, class_roman: ["I","II","III","IV","V"][pts] ?? "I" };
+export interface BAP65Output {
+  points: number;              // 0–4
+  group: BAP65Group;           // A/B/C/D
+  flags: {
+    bun_ge_25: boolean;
+    ams: boolean;
+    pulse_ge_110: boolean;
+    age_ge_65: boolean;
+  };
+}
+
+/** Compute BAP-65 score for AECOPD */
+export function runBAP65(i: BAP65Input): BAP65Output {
+  const bun_ge_25 = (i.bun_mg_dL ?? -Infinity) >= 25;
+  const ams = !!i.altered_mental_status;
+  const pulse_ge_110 = (i.pulse_bpm ?? -Infinity) >= 110;
+  const age_ge_65 = (i.age_years ?? -Infinity) >= 65;
+
+  const points =
+    (bun_ge_25 ? 1 : 0) +
+    (ams ? 1 : 0) +
+    (pulse_ge_110 ? 1 : 0) +
+    (age_ge_65 ? 1 : 0);
+
+  let group: BAP65Group = "A";
+  if (points === 1) group = "B";
+  else if (points === 2) group = "C";
+  else if (points >= 3) group = "D";
+
+  return {
+    points,
+    group,
+    flags: { bun_ge_25, ams, pulse_ge_110, age_ge_65 },
+  };
 }
