@@ -1,11 +1,24 @@
 import path from "path";
 import fs from "fs/promises";
+import crypto from "crypto";
 import { groqChat, openaiText, ChatMsg } from "@/lib/llm";
 import { getDailyMed } from "@/lib/dailymed";
 import { getRxCUI } from "@/lib/rxnorm";
 
-const CACHE_DIR = path.join(process.cwd(), "data/meds-cache");
+const FILE_CACHE_ENABLED =
+  (process.env.MEDS_FILE_CACHE || "true").toLowerCase() === "true";
+const CACHE_DIR = path.join(
+  process.cwd(),
+  process.env.MEDS_CACHE_DIR || "data/meds_cache"
+);
 const TTL_DAYS = Number(process.env.MEDS_CACHE_TTL_DAYS || 90);
+const MAX_BYTES =
+  Number(process.env.MEDS_CACHE_MAX_MB || 200) * 1024 * 1024;
+const SOURCE_VERSION = process.env.MEDS_SOURCE_VERSION || "1";
+
+type CachePayload = { card: any; meta: any };
+type CacheEntry = { payload: CachePayload; expires_at: number };
+const memCache = new Map<string, CacheEntry>();
 
 const ALIASES: Record<string, string> = {
   tylenol: "acetaminophen",
@@ -37,24 +50,76 @@ async function normalize(name: string): Promise<{ slug: string; canonical: strin
   throw new Error("normalize_failed");
 }
 
-async function readCache(slug: string) {
+function getCacheKey(slug: string, country: string) {
+  const input = `${slug}|${country}|${SOURCE_VERSION}`;
+  return crypto.createHash("sha256").update(input).digest("hex");
+}
+
+async function trimCache() {
+  if (!FILE_CACHE_ENABLED) return;
   try {
-    const p = path.join(CACHE_DIR, `${slug}.json`);
-    const raw = await fs.readFile(p, "utf8");
-    const data = JSON.parse(raw);
-    if (Date.now() < Number(data.expires_at)) {
-      return { cached: true, payload: data.payload };
+    const files = await fs.readdir(CACHE_DIR);
+    const stats = await Promise.all(
+      files.map(async (f) => {
+        const fp = path.join(CACHE_DIR, f);
+        const s = await fs.stat(fp);
+        return { fp, mtime: s.mtimeMs, size: s.size };
+      })
+    );
+    let total = stats.reduce((acc, s) => acc + s.size, 0);
+    if (total <= MAX_BYTES) return;
+    stats.sort((a, b) => a.mtime - b.mtime);
+    for (const s of stats) {
+      await fs.unlink(s.fp).catch(() => {});
+      total -= s.size;
+      if (total <= MAX_BYTES) break;
     }
-  } catch {}
+    console.log("meds_cache_trim", { mb: Math.round(total / 1024 / 1024) });
+  } catch (e) {
+    console.warn("meds_cache_trim_fail", e);
+  }
+}
+
+async function readCache(key: string): Promise<CachePayload | null> {
+  const now = Date.now();
+  const mem = memCache.get(key);
+  if (mem && mem.expires_at > now) {
+    console.log("meds_cache_hit_mem", { key });
+    return mem.payload;
+  }
+  if (!FILE_CACHE_ENABLED) return null;
+  try {
+    const p = path.join(CACHE_DIR, `${key}.json`);
+    const raw = await fs.readFile(p, "utf8");
+    const data = JSON.parse(raw) as CacheEntry & { fetched_at?: number };
+    if (now < data.expires_at) {
+      memCache.set(key, { payload: data.payload, expires_at: data.expires_at });
+      await fs.utimes(p, new Date(), new Date()).catch(() => {});
+      console.log("meds_cache_hit_file", { key });
+      return data.payload;
+    }
+    await fs.unlink(p).catch(() => {});
+  } catch (e) {
+    // corrupt JSON or other read issues
+    await fs.unlink(path.join(CACHE_DIR, `${key}.json`)).catch(() => {});
+  }
+  console.log("meds_cache_miss", { key });
   return null;
 }
 
-async function writeCache(slug: string, payload: any) {
+async function writeCache(key: string, payload: CachePayload) {
+  const expires_at = Date.now() + TTL_DAYS * 24 * 60 * 60 * 1000;
+  memCache.set(key, { payload, expires_at });
+  if (!FILE_CACHE_ENABLED) return;
   try {
-    const p = path.join(CACHE_DIR, `${slug}.json`);
-    const expires_at = Date.now() + TTL_DAYS * 24 * 60 * 60 * 1000;
-    await fs.writeFile(p, JSON.stringify({ expires_at, payload }, null, 2), "utf8");
-  } catch {}
+    await fs.mkdir(CACHE_DIR, { recursive: true });
+    const p = path.join(CACHE_DIR, `${key}.json`);
+    const record = { payload, fetched_at: Date.now(), expires_at };
+    await fs.writeFile(p, JSON.stringify(record, null, 2), "utf8");
+    await trimCache();
+  } catch (e: any) {
+    console.warn("meds_cache_write_fail", e?.message);
+  }
 }
 
 async function gatherSources(slug: string, canonical: string, country: string) {
@@ -124,11 +189,20 @@ async function synthesize(canonical: string, notes: string, refs: string[]) {
   }
 }
 
-export async function getMedicationSummary({ name, country, lang }:{ name: string; country: string; lang: string }) {
+export async function getMedicationSummary({
+  name,
+  country,
+  lang,
+}: {
+  name: string;
+  country: string;
+  lang: string;
+}) {
   const { slug, canonical } = await normalize(name);
-  const cached = await readCache(slug);
+  const key = getCacheKey(slug, country);
+  const cached = await readCache(key);
   if (cached) {
-    return { ...cached.payload, meta: { ...cached.payload.meta, cached: true } };
+    return { ...cached, meta: { ...cached.meta, cached: true, ttl_days: TTL_DAYS } };
   }
   const { refs, notes } = await gatherSources(slug, canonical, country);
   if (refs.length < 2) {
@@ -146,6 +220,6 @@ export async function getMedicationSummary({ name, country, lang }:{ name: strin
     },
     meta: { slug, country, cached: false, ttl_days: TTL_DAYS },
   };
-  await writeCache(slug, card);
+  await writeCache(key, card);
   return card;
 }
