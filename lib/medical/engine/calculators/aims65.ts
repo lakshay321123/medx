@@ -1,24 +1,21 @@
-
-// lib/medical/engine/calculators/aims65.ts
-// AIMS65 for upper GI bleed: Albumin <3.0, INR >1.5, altered mental status, SBP ≤90, age ≥65.
-
+/**
+ * AIMS65 for upper GI bleeding (0–5)
+ * Albumin < 3.0 g/dL, INR > 1.5, Altered mental status, SBP <= 90, Age >= 65
+ */
 export interface AIMS65Input {
-  albumin_g_dL?: number | null;
-  inr?: number | null;
-  altered_mental_status?: boolean | null;
-  sbp_mmHg?: number | null;
-  age_years?: number | null;
+  albumin_g_dl: number;
+  inr: number;
+  altered_mental_status: boolean;
+  sbp_mmHg: number;
+  age: number;
 }
-
-export interface AIMS65Output { points: number; components: Record<string, number>; }
-
-export function runAIMS65(i: AIMS65Input): AIMS65Output {
-  const comp: Record<string, number> = {};
-  comp.alb = (i.albumin_g_dL ?? 10) < 3.0 ? 1 : 0;
-  comp.inr = (i.inr ?? 0) > 1.5 ? 1 : 0;
-  comp.ams = i.altered_mental_status ? 1 : 0;
-  comp.sbp = (i.sbp_mmHg ?? 200) <= 90 ? 1 : 0;
-  comp.age = (i.age_years ?? 0) >= 65 ? 1 : 0;
-  const pts = Object.values(comp).reduce((a,b)=>a+b,0);
-  return { points: pts, components: comp };
+export interface AIMS65Result { score: number; }
+export function runAIMS65(i: AIMS65Input): AIMS65Result {
+  let s = 0;
+  if (i.albumin_g_dl < 3.0) s += 1;
+  if (i.inr > 1.5) s += 1;
+  if (i.altered_mental_status) s += 1;
+  if (i.sbp_mmHg <= 90) s += 1;
+  if (i.age >= 65) s += 1;
+  return { score: s };
 }
