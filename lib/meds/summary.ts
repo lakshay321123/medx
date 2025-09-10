@@ -1,6 +1,6 @@
 import path from "path";
 import fs from "fs/promises";
-import { groqChat, openaiText } from "@/lib/llm";
+import { groqChat, openaiText, ChatMsg } from "@/lib/llm";
 import { getDailyMed } from "@/lib/dailymed";
 import { getRxCUI } from "@/lib/rxnorm";
 
@@ -104,7 +104,7 @@ async function synthesize(canonical: string, notes: string, refs: string[]) {
     Brands: "",
   };
   const prompt = `You are a cautious medical assistant. Using the information below, summarize medication facts for ${canonical} in JSON with keys Actives, Uses, AdultDose, PediatricDose, SideEffects, Serious, Contraindications, Interactions, Pregnancy, Lactation, Brands. Be concise. Do not provide prescriptive dosing; only ranges or maxima if mentioned.\n\nINFO:\n${notes}`;
-  const messages = [
+  const messages: ChatMsg[] = [
     { role: "system", content: "You carefully write medical drug information." },
     { role: "user", content: prompt },
   ];
