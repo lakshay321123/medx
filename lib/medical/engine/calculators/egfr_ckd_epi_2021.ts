@@ -1,22 +1,28 @@
 /**
- * eGFR (CKD-EPI 2021, creatinine, race-free)
- * eGFR = 142 * min(Scr/k, 1)^a * max(Scr/k, 1)^-1.200 * 0.9938^Age * (1.012 if female)
- * k = 0.7 for female, 0.9 for male
- * a = -0.241 for female, -0.302 for male
+ * eGFR (CKD-EPI 2021, race-free)
+ * Ref: Inker LA et al. NEJM 2021.
+ * Inputs: age (years), sex ("male" | "female"), Scr (mg/dL)
+ * Output: ml/min/1.73 m²
  */
-export interface CKDEPI2021Input {
+export interface CKDEPI21Input {
+  age_years: number;
   sex: "male" | "female";
-  age: number;
   scr_mg_dl: number;
 }
-export interface CKDEPI2021Result { egfr_ml_min_1_73m2: number; }
-export function runEGFR_CKDEPI_2021(i: CKDEPI2021Input): CKDEPI2021Result {
-  const k = i.sex === "female" ? 0.7 : 0.9;
-  const a = i.sex === "female" ? -0.241 : -0.302;
-  const ratio = i.scr_mg_dl / k;
-  const minTerm = Math.min(ratio, 1);
-  const maxTerm = Math.max(ratio, 1);
-  let egfr = 142 * Math.pow(minTerm, a) * Math.pow(maxTerm, -1.200) * Math.pow(0.9938, i.age);
-  if (i.sex === "female") egfr *= 1.012;
-  return { egfr_ml_min_1_73m2: egfr };
+export interface CKDEPI21Result {
+  egfr_ml_min_1_73: number;
+}
+
+export function runEGFR_CKDEPI_2021(i: CKDEPI21Input): CKDEPI21Result {
+  const age = Math.max(0, i.age_years);
+  const scr = Math.max(0.01, i.scr_mg_dl); // avoid zero
+  const female = i.sex === "female";
+
+  const k = female ? 0.7 : 0.9;
+  const a = female ? -0.241 : -0.302;
+  const minScr = Math.min(scr / k, 1);
+  const maxScr = Math.max(scr / k, 1);
+
+  const egfr = 142 * Math.pow(minScr, a) * Math.pow(maxScr, -1.200) * Math.pow(0.9938, age) * (female ? 1.012 : 1);
+  return { egfr_ml_min_1_73: egfr };
 }
