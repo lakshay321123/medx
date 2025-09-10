@@ -1,19 +1,33 @@
+import { register } from "../registry";
+
 /**
- * Bicarbonate Deficit (approx):
- * Deficit (mEq) = factor * weight_kg * (desired_hco3 - current_hco3)
- * Common factor 0.5 for adults (ECF distribution)
+ * Bicarbonate Deficit = (target - actual) * 0.5 * weight_kg
+ * Default target: 24 mEq/L
  */
-export interface BicarbDeficitInput {
-  weight_kg: number;
-  current_hco3: number;
-  desired_hco3: number; // e.g., 22
-  factor?: number; // default 0.5
+export function calc_bicarbonate_deficit({
+  actual_hco3, weight_kg, target_hco3
+}: {
+  actual_hco3: number,
+  weight_kg: number,
+  target_hco3?: number
+}) {
+  const target = target_hco3 ?? 24;
+  const deficit = (target - actual_hco3) * 0.5 * weight_kg;
+  return { target, deficit };
 }
-export interface BicarbDeficitResult {
-  deficit_meq: number;
-}
-export function runBicarbonateDeficit(i: BicarbDeficitInput): BicarbDeficitResult {
-  const factor = i.factor ?? 0.5;
-  const deficit = factor * i.weight_kg * (i.desired_hco3 - i.current_hco3);
-  return { deficit_meq: deficit };
-}
+
+register({
+  id: "bicarbonate_deficit",
+  label: "Bicarbonate Deficit",
+  tags: ["acid-base", "critical care"],
+  inputs: [
+    { key: "actual_hco3", required: true },
+    { key: "weight_kg", required: true },
+    { key: "target_hco3" }
+  ],
+  run: ({ actual_hco3, weight_kg, target_hco3 }: { actual_hco3: number; weight_kg: number; target_hco3?: number; }) => {
+    const r = calc_bicarbonate_deficit({ actual_hco3, weight_kg, target_hco3 });
+    const notes = [`target=${r.target} mEq/L`];
+    return { id: "bicarbonate_deficit", label: "Bicarbonate Deficit", value: r.deficit, unit: "mEq", precision: 0, notes, extra: r };
+  },
+});
