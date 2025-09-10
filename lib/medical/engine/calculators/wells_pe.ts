@@ -1,29 +1,70 @@
+import { register } from "../registry";
+
 /**
- * Wells PE score
- * Points: DVT signs 3, PE most likely 3, HR>100 1.5, immobilization/surgery 1.5, previous DVT/PE 1.5, hemoptysis 1, cancer 1
- * Bands: >6 high, 2–6 moderate, <2 low; Also likely if >4
+ * Wells Score for Pulmonary Embolism
  */
-export interface WellsPEInput {
-  dvt_signs: boolean;
-  pe_most_likely: boolean;
-  hr_gt_100: boolean;
-  immobilization_or_surgery: boolean;
-  previous_dvt_pe: boolean;
-  hemoptysis: boolean;
-  cancer: boolean;
-}
-export interface WellsPEResult { score: number; band: "low" | "moderate" | "high"; likely: boolean; }
-export function runWellsPE(i: WellsPEInput): WellsPEResult {
+export function calc_wells_pe({
+  dvt_signs, pe_most_likely, heart_rate, recent_surgery_or_immobilization, prior_dvt_pe, hemoptysis, malignancy
+}: {
+  dvt_signs?: boolean,
+  pe_most_likely?: boolean,
+  heart_rate?: number,
+  recent_surgery_or_immobilization?: boolean,
+  prior_dvt_pe?: boolean,
+  hemoptysis?: boolean,
+  malignancy?: boolean
+}) {
   let s = 0;
-  if (i.dvt_signs) s += 3;
-  if (i.pe_most_likely) s += 3;
-  if (i.hr_gt_100) s += 1.5;
-  if (i.immobilization_or_surgery) s += 1.5;
-  if (i.previous_dvt_pe) s += 1.5;
-  if (i.hemoptysis) s += 1;
-  if (i.cancer) s += 1;
-  let b: WellsPEResult["band"] = "low";
-  if (s > 6) b = "high";
-  else if (s >= 2) b = "moderate";
-  return { score: s, band: b, likely: s > 4 };
+  if (dvt_signs) s += 3;
+  if (pe_most_likely) s += 3;
+  if ((heart_rate ?? 0) > 100) s += 1.5;
+  if (recent_surgery_or_immobilization) s += 1.5;
+  if (prior_dvt_pe) s += 1.5;
+  if (hemoptysis) s += 1;
+  if (malignancy) s += 1;
+  return s;
 }
+
+register({
+  id: "wells_pe",
+  label: "Wells Score (PE)",
+  tags: ["pulmonology", "emergency"],
+  inputs: [
+    { key: "dvt_signs" },
+    { key: "pe_most_likely" },
+    { key: "heart_rate" },
+    { key: "recent_surgery_or_immobilization" },
+    { key: "prior_dvt_pe" },
+    { key: "hemoptysis" },
+    { key: "malignancy" }
+  ],
+  run: ({
+    dvt_signs,
+    pe_most_likely,
+    heart_rate,
+    recent_surgery_or_immobilization,
+    prior_dvt_pe,
+    hemoptysis,
+    malignancy,
+  }: {
+    dvt_signs?: boolean;
+    pe_most_likely?: boolean;
+    heart_rate?: number;
+    recent_surgery_or_immobilization?: boolean;
+    prior_dvt_pe?: boolean;
+    hemoptysis?: boolean;
+    malignancy?: boolean;
+  }) => {
+    const v = calc_wells_pe({
+      dvt_signs,
+      pe_most_likely,
+      heart_rate,
+      recent_surgery_or_immobilization,
+      prior_dvt_pe,
+      hemoptysis,
+      malignancy,
+    });
+    const notes = [v > 6 ? "high pretest probability" : v >= 2 ? "moderate pretest probability" : "low pretest probability"];
+    return { id: "wells_pe", label: "Wells Score (PE)", value: v, unit: "score", precision: 1, notes };
+  },
+});

@@ -1,48 +1,76 @@
 import { register } from "../registry";
 
 /**
- * PERC rule (Pulmonary Embolism Rule-out Criteria)
- * Pass = all 8 are true.
+ * PERC Rule
  */
-export type PERCInputs = {
-  age_lt50: boolean;
-  hr_lt100: boolean;
-  spo2_ge95: boolean;
-  no_hemoptysis: boolean;
-  no_estrogen: boolean;
-  no_prior_dvt_pe: boolean;
-  no_unilateral_leg_swelling: boolean;
-  no_recent_surgery_trauma: boolean;
-};
-
-export function runPERC(i: PERCInputs) {
-  const flags = [
-    i.age_lt50, i.hr_lt100, i.spo2_ge95, i.no_hemoptysis, i.no_estrogen,
-    i.no_prior_dvt_pe, i.no_unilateral_leg_swelling, i.no_recent_surgery_trauma
-  ];
-  if (flags.some(v => v == null)) return null;
-  const passed = flags.every(Boolean);
-  const score = flags.filter(Boolean).length;
-  const notes = [passed ? "PERC negative (all 8 met)" : "PERC positive (≥1 criterion failed)"];
-  return { passed, score, notes };
+export function calc_perc({
+  age_years, heart_rate, spo2_percent, hemoptysis, estrogen_use, prior_dvt_pe, unilateral_leg_swelling, recent_surgery_trauma
+}: {
+  age_years?: number,
+  heart_rate?: number,
+  spo2_percent?: number,
+  hemoptysis?: boolean,
+  estrogen_use?: boolean,
+  prior_dvt_pe?: boolean,
+  unilateral_leg_swelling?: boolean,
+  recent_surgery_trauma?: boolean
+}) {
+  let pos = 0;
+  if ((age_years ?? 0) >= 50) pos += 1;
+  if ((heart_rate ?? 0) >= 100) pos += 1;
+  if ((spo2_percent ?? 100) < 95) pos += 1;
+  if (hemoptysis) pos += 1;
+  if (estrogen_use) pos += 1;
+  if (prior_dvt_pe) pos += 1;
+  if (unilateral_leg_swelling) pos += 1;
+  if (recent_surgery_trauma) pos += 1;
+  return pos;
 }
 
 register({
   id: "perc_rule",
-  label: "PERC rule",
+  label: "PERC Rule (PE)",
+  tags: ["pulmonology", "emergency"],
   inputs: [
-    { key: "age_lt50", required: true },
-    { key: "hr_lt100", required: true },
-    { key: "spo2_ge95", required: true },
-    { key: "no_hemoptysis", required: true },
-    { key: "no_estrogen", required: true },
-    { key: "no_prior_dvt_pe", required: true },
-    { key: "no_unilateral_leg_swelling", required: true },
-    { key: "no_recent_surgery_trauma", required: true },
+    { key: "age_years" },
+    { key: "heart_rate" },
+    { key: "spo2_percent" },
+    { key: "hemoptysis" },
+    { key: "estrogen_use" },
+    { key: "prior_dvt_pe" },
+    { key: "unilateral_leg_swelling" },
+    { key: "recent_surgery_trauma" }
   ],
-  run: (ctx) => {
-    const r = runPERC(ctx as PERCInputs);
-    if (!r) return null;
-    return { id: "perc_rule", label: "PERC rule", value: r.passed ? "pass" : "fail", notes: r.notes, precision: 0 };
+  run: ({
+    age_years,
+    heart_rate,
+    spo2_percent,
+    hemoptysis,
+    estrogen_use,
+    prior_dvt_pe,
+    unilateral_leg_swelling,
+    recent_surgery_trauma,
+  }: {
+    age_years?: number;
+    heart_rate?: number;
+    spo2_percent?: number;
+    hemoptysis?: boolean;
+    estrogen_use?: boolean;
+    prior_dvt_pe?: boolean;
+    unilateral_leg_swelling?: boolean;
+    recent_surgery_trauma?: boolean;
+  }) => {
+    const v = calc_perc({
+      age_years,
+      heart_rate,
+      spo2_percent,
+      hemoptysis,
+      estrogen_use,
+      prior_dvt_pe,
+      unilateral_leg_swelling,
+      recent_surgery_trauma,
+    });
+    const notes = [v === 0 ? "PERC negative (if low pretest)" : "PERC positive"];
+    return { id: "perc_rule", label: "PERC Rule (PE)", value: v, unit: "criteria", precision: 0, notes };
   },
 });
