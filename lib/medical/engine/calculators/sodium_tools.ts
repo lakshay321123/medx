@@ -1,42 +1,51 @@
+
 // lib/medical/engine/calculators/sodium_tools.ts
-import { round, clamp } from "./utils";
+// TBW calculator, Adrogué–Madias ΔNa/L prediction, and safe correction guardrails.
+
+export type Sex = "male"|"female";
 
 export interface TBWInput {
   weight_kg: number;
-  sex?: "male" | "female";
-  tbw_factor_override?: number | null; // if provided, use directly
+  sex: Sex;
+  age_years?: number;
+  factor_override?: number; // if provided, overrides default factors
 }
 
-/** Simple TBW = factor × weight. Default factors: male 0.6, female 0.5. */
-export function calcTBW(i: TBWInput) {
-  const f = (typeof i.tbw_factor_override === "number")
-    ? i.tbw_factor_override!
-    : (i.sex === "female" ? 0.5 : 0.6);
-  return { tbw_L: round(f * i.weight_kg, 2), factor_used: f };
+export function tbwLiters(i: TBWInput): number {
+  if (!isFinite(i.weight_kg) || i.weight_kg <= 0) return NaN;
+  if (i.factor_override && i.factor_override > 0) return i.weight_kg * i.factor_override;
+  const age = i.age_years ?? 40;
+  // Simple, common clinical factors
+  const factor = (i.sex === "male")
+    ? (age >= 65 ? 0.5 : 0.6)
+    : (age >= 65 ? 0.45 : 0.5);
+  return i.weight_kg * factor;
 }
 
-export interface AdrogueMadiasInput {
-  serum_na_mEq_L: number;
-  infusate_na_mEq_L: number;
-  infusate_k_mEq_L?: number | null;
-  tbw_L: number;
+export function adrogueMadiasDeltaNaPerL(serumNa_mEqL: number, infusateNa_mEqL: number, tbw_L: number): number {
+  if (!isFinite(serumNa_mEqL) || !isFinite(infusateNa_mEqL) || !isFinite(tbw_L) || tbw_L <= 0) return NaN;
+  return (infusateNa_mEqL - serumNa_mEqL) / (tbw_L + 1.0);
 }
 
-/** Adrogué–Madias predicted ΔNa per liter infused: ΔNa = ([Na_inf + K_inf] − [Na_serum]) / (TBW + 1) */
-export function adrogueMadiasDeltaPerLiter(i: AdrogueMadiasInput) {
-  const kinf = i.infusate_k_mEq_L ?? 0;
-  const delta = ((i.infusate_na_mEq_L + kinf) - i.serum_na_mEq_L) / Math.max(i.tbw_L + 1, 1e-6);
-  return { delta_na_per_L_mEq: round(delta, 2) };
+export interface NaCorrectionPlanInput {
+  currentNa_mEqL: number;
+  proposedRise_24h_mEq: number;
+  high_risk_ods?: boolean; // malnutrition, alcoholism, advanced liver dz, hypokalemia
 }
 
-export function predictDeltaForVolume(i: AdrogueMadiasInput & { liters: number }) {
-  const { delta_na_per_L_mEq } = adrogueMadiasDeltaPerLiter(i);
-  return { predicted_delta_mEq: round(delta_na_per_L_mEq * i.liters, 2) };
+export interface NaCorrectionPlanOutput {
+  max_allowed_24h_mEq: number;  // guardrail (default 8; 6 if high risk)
+  clampedRise_24h_mEq: number;  // proposedRise clamped to guardrail
+  proposed_rate_mEq_per_h: number;
+  warning: string | null;
 }
 
-export function safeCorrectionGuardrail(current_na: number, planned_delta_24h_mEq: number, high_risk: boolean) {
-  const maxAllowed = high_risk ? 8 : 10;
-  const over = planned_delta_24h_mEq > maxAllowed;
-  const target_na_24h = current_na + clamp(planned_delta_24h_mEq, -maxAllowed, maxAllowed);
-  return { max_allowed_delta_mEq_24h: maxAllowed, exceeds_limit: over, target_na_24h };
+export function planNaCorrection(i: NaCorrectionPlanInput): NaCorrectionPlanOutput {
+  const max_allowed = i.high_risk_ods ? 6 : 8;
+  const clamped = Math.min(Math.max(i.proposedRise_24h_mEq, 0), max_allowed);
+  const rate = clamped / 24.0;
+  const warn = (i.proposedRise_24h_mEq > max_allowed)
+    ? `Proposed rise exceeds guardrail (${max_allowed} mEq/L/24h)`
+    : null;
+  return { max_allowed_24h_mEq: max_allowed, clampedRise_24h_mEq: clamped, proposed_rate_mEq_per_h: rate, warning: warn };
 }

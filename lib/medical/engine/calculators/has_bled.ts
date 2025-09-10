@@ -1,19 +1,34 @@
-import { register } from "../registry";
 
-export type HASBLEDInputs = {
-  hypertension:boolean, abnormal_renal:boolean, abnormal_liver:boolean,
-  stroke:boolean, bleeding:boolean, labile_inr:boolean, age_gt65:boolean,
-  drugs_antiplatelet_nsaid:boolean, alcohol:boolean
-};
-export function runHASBLED(i:HASBLEDInputs){
-  if (i==null) return null;
-  const abn = (i.abnormal_renal?1:0) + (i.abnormal_liver?1:0);
-  const drugs_alc = (i.drugs_antiplatelet_nsaid?1:0) + (i.alcohol?1:0);
-  const pts = (i.hypertension?1:0) + Math.min(abn,2) + (i.stroke?1:0) + (i.bleeding?1:0) + (i.labile_inr?1:0) + (i.age_gt65?1:0) + Math.min(drugs_alc,2);
-  return { HAS_BLED: pts, high_risk: pts>=3 };
+// lib/medical/engine/calculators/has_bled.ts
+// HAS-BLED bleeding risk for AF anticoagulation.
+
+export interface HASBLEDInput {
+  hypertension?: boolean; // SBP > 160
+  abnormal_renal?: boolean;
+  abnormal_liver?: boolean;
+  stroke_history?: boolean;
+  bleeding_history_or_predisposition?: boolean;
+  labile_inr?: boolean; // if on warfarin
+  elderly_gt_65?: boolean;
+  drugs_predisposing_bleeding?: boolean; // antiplatelets, NSAIDs
+  alcohol_excess?: boolean;
 }
-register({ id:"has_bled", label:"HAS‑BLED", inputs:[
-  {key:"hypertension",required:true},{key:"abnormal_renal",required:true},{key:"abnormal_liver",required:true},
-  {key:"stroke",required:true},{key:"bleeding",required:true},{key:"labile_inr",required:true},{key:"age_gt65",required:true},
-  {key:"drugs_antiplatelet_nsaid",required:true},{key:"alcohol",required:true}
-], run: runHASBLED as any });
+
+export interface HASBLEDOutput { points: number; components: Record<string, number>; }
+
+export function hasBled(i: HASBLEDInput): HASBLEDOutput {
+  const comp: Record<string, number> = {};
+  comp.hypertension = i.hypertension ? 1 : 0;
+  // Abnormal renal/liver can give up to 2 total (1 each)
+  comp.abnormal_renal = i.abnormal_renal ? 1 : 0;
+  comp.abnormal_liver = i.abnormal_liver ? 1 : 0;
+  comp.stroke = i.stroke_history ? 1 : 0;
+  comp.bleeding = i.bleeding_history_or_predisposition ? 1 : 0;
+  comp.labile_inr = i.labile_inr ? 1 : 0;
+  comp.elderly = i.elderly_gt_65 ? 1 : 0;
+  // Drugs/alcohol up to 2 total
+  comp.drugs = i.drugs_predisposing_bleeding ? 1 : 0;
+  comp.alcohol = i.alcohol_excess ? 1 : 0;
+  const points = Object.values(comp).reduce((a,b)=>a+b,0);
+  return { points, components: comp };
+}

@@ -1,23 +1,29 @@
-import { register } from "../registry";
 
-export type CHA2DS2VAScInputs = {
-  congestive_hf:boolean, hypertension:boolean, age_years:number,
-  diabetes:boolean, stroke_tia_thromboembolism:boolean,
-  vascular_disease:boolean, female:boolean
-};
-export function runCHA2DS2VASc(i:CHA2DS2VAScInputs){
-  if (i==null || i.age_years==null || !isFinite(i.age_years)) return null;
-  let pts = 0;
-  pts += i.congestive_hf?1:0;
-  pts += i.hypertension?1:0;
-  pts += i.age_years>=75?2 : i.age_years>=65?1:0;
-  pts += i.diabetes?1:0;
-  pts += i.stroke_tia_thromboembolism?2:0;
-  pts += i.vascular_disease?1:0;
-  pts += i.female?1:0;
-  return { CHA2DS2_VASc: pts };
+// lib/medical/engine/calculators/cha2ds2_vasc.ts
+// CHA2DS2-VASc stroke risk score in AF.
+
+export interface CHA2DS2VASCInput {
+  congestive_heart_failure?: boolean; // 1
+  hypertension?: boolean;             // 1
+  age_years?: number;                 // 65-74 => 1; >=75 => 2
+  diabetes?: boolean;                 // 1
+  stroke_tia_thromboembolism?: boolean; // 2
+  vascular_disease?: boolean;         // 1 (MI, PAD, or aortic plaque)
+  sex_female?: boolean;               // 1 (but only counts if other risk present in some schemas; we sum raw points here)
 }
-register({ id:"cha2ds2_vasc", label:"CHA₂DS₂‑VASc", inputs:[
-  {key:"congestive_hf",required:true},{key:"hypertension",required:true},{key:"age_years",required:true},
-  {key:"diabetes",required:true},{key:"stroke_tia_thromboembolism",required:true},{key:"vascular_disease",required:true},{key:"female",required:true}
-], run: runCHA2DS2VASc as any });
+
+export interface CHA2DS2VASCOutput { points: number; }
+
+export function cha2ds2vasc(i: CHA2DS2VASCInput): CHA2DS2VASCOutput {
+  let pts = 0;
+  if (i.congestive_heart_failure) pts += 1;
+  if (i.hypertension) pts += 1;
+  const age = i.age_years ?? 0;
+  if (age >= 75) pts += 2;
+  else if (age >= 65) pts += 1;
+  if (i.diabetes) pts += 1;
+  if (i.stroke_tia_thromboembolism) pts += 2;
+  if (i.vascular_disease) pts += 1;
+  if (i.sex_female) pts += 1;
+  return { points: pts };
+}
