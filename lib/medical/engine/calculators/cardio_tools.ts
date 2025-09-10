@@ -6,7 +6,7 @@ import * as U from "./utils";
 
 // Safe local round fallback if utils.round is not present in your tree.
 const round: (v: number, d?: number) => number =
-  // @ts-ignore – allow optional chaining in case round isn't exported yet
+  // @ts-ignore – optional chaining guard for trees without utils.round
   (U as any).round ?? ((v: number, decimals = 0) => {
     if (!Number.isFinite(v)) return v as number;
     const p = Math.pow(10, decimals);
@@ -109,7 +109,7 @@ export function runHEART(i: HEARTInput) {
 
 export interface SgarbossaLeadData {
   lead: string;
-  st_mm: number;       // positive for STE, negative for STD
+  st_mm: number;        // positive for STE, negative for STD
   s_mm?: number | null; // S-wave depth (absolute magnitude). Needed for discordant rule.
   is_V1_to_V3?: boolean;
 }
@@ -215,4 +215,27 @@ export function runCharlson(i: CharlsonInput) {
 
   // Optional age adjustment: +1 per decade ≥50 (i.e., 50–59:+1, 60–69:+2, 70–79:+3, ≥80:+4)
   let age_points = 0;
-  const age = typeof i.age_years === "number" ? i.age_years :
+  const age = typeof i.age_years === "number" ? i.age_years : null;
+  if (age != null) {
+    if (age >= 80) age_points = 4;
+    else if (age >= 70) age_points = 3;
+    else if (age >= 60) age_points = 2;
+    else if (age >= 50) age_points = 1;
+  }
+
+  const total = score + age_points;
+  return { score, age_points, total };
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                   Exports                                  */
+/* -------------------------------------------------------------------------- */
+
+export const CardioTools = {
+  runTIMI_UA_NSTEMI,
+  runTIMI_STEMI,
+  runHEART,
+  runModifiedSgarbossa,
+  runKillipClass,
+  runCharlson,
+};
