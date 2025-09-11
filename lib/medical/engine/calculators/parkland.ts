@@ -1,20 +1,23 @@
-// lib/medical/engine/calculators/parkland.ts
-export interface ParklandInput {
-  weight_kg?: number | null;
-  tbsa_percent?: number | null;
-  hours_since_burn?: number | null; // to guide remaining in 8h window
-}
-export interface ParklandOutput { total_ml_24h: number; first8h_ml: number; next16h_ml: number; remaining_first8h_ml?: number | null; }
+// Batch 14 calculator
+export type ParklandInputs = { weight_kg: number; tbsa_percent: number };
 
-export function runParkland(i: ParklandInput): ParklandOutput {
-  const w = i.weight_kg ?? 0, tbsa = i.tbsa_percent ?? 0;
-  const total = 4 * w * tbsa; // mL
-  const first8 = total / 2;
-  const next16 = total - first8;
-  let remaining: number | null = null;
-  if (i.hours_since_burn != null) {
-    const elapsed = Math.max(0, Math.min(8, i.hours_since_burn));
-    remaining = first8 * (1 - elapsed/8);
-  }
-  return { total_ml_24h: total, first8h_ml: first8, next16h_ml: next16, remaining_first8h_ml: remaining };
+export function calc_parkland(i: ParklandInputs): { total_ml: number; first8h_ml: number; next16h_ml: number } {
+  const total = 4 * i.weight_kg * i.tbsa_percent;
+  return { total_ml: total, first8h_ml: total/2, next16h_ml: total/2 };
 }
+
+const def = {
+  id: "parkland",
+  label: "Parkland Formula (burn resuscitation)",
+  inputs: [
+    { id: "weight_kg", label: "Weight (kg)", type: "number", min: 1, max: 300 },
+    { id: "tbsa_percent", label: "TBSA burned (%)", type: "number", min: 0, max: 100 }
+  ],
+  run: (args: ParklandInputs) => {
+    const r = calc_parkland(args);
+    const notes = [`First 8h: ${r.first8h_ml.toFixed(0)} mL`, `Next 16h: ${r.next16h_ml.toFixed(0)} mL`];
+    return { id: "parkland", label: "Parkland Formula", value: r.total_ml, unit: "mL (24h)", precision: 0, notes, extra: r };
+  },
+};
+
+export default def;

@@ -1,33 +1,24 @@
-// Auto-generated calculator. Sources cited in PR. No placeholders.
-// Keep structure consistent with other calculators in MedX.
+// Batch 14 calculator
+export type CGInputs = { sex: "male"|"female"; age_years: number; weight_kg: number; scr_mg_dl: number };
 
-
-export type CgInputs = {
-  age_years: number;
-  weight_kg: number;
-  sex: "male" | "female";
-  creatinine_mg_dl: number;
-};
-
-export function calc_cockcroft_gault({ age_years, weight_kg, sex, creatinine_mg_dl }: CgInputs): number {
-  if (creatinine_mg_dl <= 0) return NaN;
-  let crcl = ((140 - age_years) * weight_kg) / (72 * creatinine_mg_dl);
-  if (sex === "female") crcl *= 0.85;
-  return crcl;
+export function calc_cockcroft_gault(i: CGInputs): number {
+  if (i.scr_mg_dl <= 0) return NaN;
+  const base = ((140 - i.age_years) * i.weight_kg) / (72 * i.scr_mg_dl);
+  return i.sex === "female" ? base * 0.85 : base;
 }
 
 const def = {
   id: "cockcroft_gault",
-  label: "Cockcroft–Gault (CrCl)",
+  label: "Creatinine Clearance (Cockcroft–Gault)",
   inputs: [
-    { id: "age_years", label: "Age", type: "number", min: 0, max: 120 },
+    { id: "sex", label: "Sex", type: "select", options: [{label:"Male", value:"male"},{label:"Female", value:"female"}] },
+    { id: "age_years", label: "Age (years)", type: "number", min: 0, max: 120 },
     { id: "weight_kg", label: "Weight (kg)", type: "number", min: 1, max: 300 },
-    { id: "sex", label: "Sex", type: "select", options: [{label:"Male", value:"male"}, {label:"Female", value:"female"}] },
-    { id: "creatinine_mg_dl", label: "Creatinine (mg/dL)", type: "number", min: 0 }
+    { id: "scr_mg_dl", label: "Serum creatinine (mg/dL)", type: "number", min: 0.1, max: 20 }
   ],
-  run: (args: CgInputs) => {
+  run: (args: CGInputs) => {
     const v = calc_cockcroft_gault(args);
-    return { id: "cockcroft_gault", label: "Cockcroft–Gault (CrCl)", value: v, unit: "mL/min", precision: 1, notes: [] };
+    return { id: "cockcroft_gault", label: "CrCl (Cockcroft–Gault)", value: v, unit: "mL/min", precision: 1, notes: [] };
   },
 };
 
