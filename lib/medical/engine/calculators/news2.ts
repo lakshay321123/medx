@@ -1,85 +1,40 @@
 export type NEWS2Inputs = {
-  rr: number;
-  spo2_percent: number;
-  on_supplemental_o2: boolean;
-  temp_c: number;
-  sbp: number;
-  hr: number;
-  consciousness: "alert" | "vpu" | "new_confusion";
+  rr: number;             // breaths/min
+  spo2_percent: number;   // %
+  temp_c: number;         // °C
+  sbp: number;            // mmHg
+  hr: number;             // bpm
+  consciousness: "A"|"C"|"V"|"P"|"U";
+  on_supplemental_o2?: boolean;
 };
 
-function score_rr(rr: number): number {
-  if (rr <= 8) return 3;
-  if (rr <= 11) return 1;
-  if (rr <= 20) return 0;
-  if (rr <= 24) return 2;
-  return 3;
-}
-function score_spo2(spo2: number): number {
-  if (spo2 >= 96) return 0;
-  if (spo2 >= 94) return 1;
-  if (spo2 >= 92) return 2;
-  return 3;
-}
-function score_temp(t: number): number {
-  if (t <= 35.0) return 3;
-  if (t <= 36.0) return 1;
-  if (t <= 38.0) return 0;
-  if (t <= 39.0) return 1;
-  return 2;
-}
-function score_sbp(s: number): number {
-  if (s <= 90) return 3;
-  if (s <= 100) return 2;
-  if (s <= 110) return 1;
-  if (s <= 219) return 0;
-  return 3;
-}
-function score_hr(h: number): number {
-  if (h <= 40) return 3;
-  if (h <= 50) return 1;
-  if (h <= 90) return 0;
-  if (h <= 110) return 1;
-  if (h <= 130) return 2;
-  return 3;
-}
-function score_conscious(c: "alert"|"vpu"|"new_confusion"): number {
-  return c === "alert" ? 0 : 3;
-}
+function score_rr(x:number){ if (x<=8) return 3; if (x<=11) return 1; if (x<=20) return 0; if (x<=24) return 2; return 3; }
+function score_spo2(x:number){ if (x<=91) return 3; if (x<=93) return 2; if (x<=95) return 1; return 0; }
+function score_temp(x:number){ if (x<=35.0) return 3; if (x<=36.0) return 1; if (x<=38.0) return 0; if (x<=39.0) return 1; return 2; }
+function score_sbp(x:number){ if (x<=90) return 3; if (x<=100) return 2; if (x<=110) return 1; if (x<=219) return 0; return 3; }
+function score_hr(x:number){ if (x<=40) return 3; if (x<=50) return 1; if (x<=90) return 0; if (x<=110) return 1; if (x<=130) return 2; return 3; }
+function score_conscious(s:NEWS2Inputs["consciousness"]){ return s==="A" ? 0 : 3; }
 
 export function calc_news2(i: NEWS2Inputs): { score: number; risk: "low"|"medium"|"high" } {
-  const subscores = [
-    score_rr(i.rr),
-    score_spo2(i.spo2_percent),
-    score_temp(i.temp_c),
-    score_sbp(i.sbp),
-    score_hr(i.hr),
-    score_conscious(i.consciousness)
-  ];
-  const s = subscores.reduce((a,b)=>a+b, 0) + (i.on_supplemental_o2 ? 2 : 0);
+  const s = score_rr(i.rr) + score_spo2(i.spo2_percent) + score_temp(i.temp_c) + score_sbp(i.sbp) + score_hr(i.hr) + score_conscious(i.consciousness) + (i.on_supplemental_o2 ? 2 : 0);
+  const any3 = [score_rr(i.rr), score_spo2(i.spo2_percent), score_temp(i.temp_c), score_sbp(i.sbp), score_hr(i.hr), score_conscious(i.consciousness)].some(x => x === 3);
   let risk: "low"|"medium"|"high" = "low";
-  const any3 = subscores.some(x => x === 3);
   if (s >= 7) risk = "high";
   else if (s >= 5 || any3) risk = "medium";
-  else risk = "low";
   return { score: s, risk };
 }
 
 const def = {
   id: "news2",
-  label: "NEWS2 (Scale 1)",
+  label: "NEWS2",
   inputs: [
-    { id: "rr", label: "Respiratory rate (/min)", type: "number", min: 0 },
-    { id: "spo2_percent", label: "SpO2 (%)", type: "number", min: 0, max: 100 },
-    { id: "on_supplemental_o2", label: "On supplemental O2", type: "boolean" },
-    { id: "temp_c", label: "Temperature (°C)", type: "number", min: 30, max: 43 },
+    { id: "rr", label: "Respiratory rate (breaths/min)", type: "number", min: 0 },
+    { id: "spo2_percent", label: "SpO₂ (%)", type: "number", min: 0, max: 100 },
+    { id: "temp_c", label: "Temperature (°C)", type: "number", min: 25, max: 45 },
     { id: "sbp", label: "Systolic BP (mmHg)", type: "number", min: 0 },
     { id: "hr", label: "Heart rate (bpm)", type: "number", min: 0 },
-    { id: "consciousness", label: "Consciousness", type: "select", options: [
-      {label:"Alert", value:"alert"},
-      {label:"Responds to Voice/Pain or Unresponsive", value:"vpu"},
-      {label:"New confusion", value:"new_confusion"}
-    ]}
+    { id: "consciousness", label: "AVPU", type: "select", options: [{label:"Alert (A)", value:"A"},{label:"Voice (V)", value:"V"},{label:"Pain (P)", value:"P"},{label:"Unresponsive (U)", value:"U"},{label:"New confusion (C)", value:"C"}] },
+    { id: "on_supplemental_o2", label: "On supplemental O₂", type: "boolean" }
   ],
   run: (args: NEWS2Inputs) => {
     const r = calc_news2(args);
