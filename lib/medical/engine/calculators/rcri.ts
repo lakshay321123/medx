@@ -1,38 +1,43 @@
-/**
- * Revised Cardiac Risk Index (RCRI)
- * Predictors (1 point each):
- * - High-risk surgery (intraperitoneal, intrathoracic, suprainguinal vascular)
- * - History of ischemic heart disease
- * - History of heart failure
- * - History of cerebrovascular disease
- * - Pre-op insulin treatment for diabetes
- * - Creatinine > 2.0 mg/dL
- */
-export interface RCRIInput {
+// Auto-generated calculator. Sources cited in PR. No placeholders.
+// Keep structure consistent with other calculators in MedX.
+
+export type RCRIInputs = {
   high_risk_surgery: boolean;
-  ischemic_hd: boolean;
-  heart_failure: boolean;
-  cerebrovascular: boolean;
-  insulin_treated_dm: boolean;
+  history_ischemic_hd: boolean;
+  history_chf: boolean;
+  history_cvd: boolean;
+  insulin_therapy: boolean;
   creatinine_mg_dl: number;
-}
-export interface RCRIResult {
-  points: number;
-  risk_band: "low" | "intermediate" | "high";
-}
-export function runRCRI(i: RCRIInput): RCRIResult {
-  let points = 0;
-  if (i.high_risk_surgery) points++;
-  if (i.ischemic_hd) points++;
-  if (i.heart_failure) points++;
-  if (i.cerebrovascular) points++;
-  if (i.insulin_treated_dm) points++;
-  if (i.creatinine_mg_dl != null && i.creatinine_mg_dl > 2.0) points++;
+};
 
-  let risk: RCRIResult["risk_band"];
-  if (points === 0) risk = "low";
-  else if (points === 1) risk = "intermediate";
-  else risk = "high";
-
-  return { points, risk_band: risk };
+export function calc_rcri({
+  high_risk_surgery, history_ischemic_hd, history_chf, history_cvd, insulin_therapy, creatinine_mg_dl
+}: RCRIInputs): number {
+  let score = 0;
+  if (high_risk_surgery) score++;
+  if (history_ischemic_hd) score++;
+  if (history_chf) score++;
+  if (history_cvd) score++;
+  if (insulin_therapy) score++;
+  if (creatinine_mg_dl > 2.0) score++;
+  return score;
 }
+
+const def = {
+  id: "rcri",
+  label: "RCRI (Lee)",
+  inputs: [
+    { id: "high_risk_surgery", label: "High-risk surgery", type: "boolean" },
+    { id: "history_ischemic_hd", label: "Ischemic heart disease", type: "boolean" },
+    { id: "history_chf", label: "CHF history", type: "boolean" },
+    { id: "history_cvd", label: "Cerebrovascular disease", type: "boolean" },
+    { id: "insulin_therapy", label: "Insulin therapy", type: "boolean" },
+    { id: "creatinine_mg_dl", label: "Creatinine (mg/dL)", type: "number", min: 0 }
+  ],
+  run: (args: RCRIInputs) => {
+    const v = calc_rcri(args);
+    return { id: "rcri", label: "RCRI (Lee)", value: v, unit: "score", precision: 0, notes: [] };
+  },
+};
+
+export default def;

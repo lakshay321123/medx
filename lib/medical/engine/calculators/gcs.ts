@@ -1,12 +1,28 @@
-// lib/medical/engine/calculators/gcs.ts
-export interface GCSInput { eye?: number | null; verbal?: number | null; motor?: number | null; }
-export interface GCSOutput { total: number; severity: "mild"|"moderate"|"severe"; }
+// Auto-generated calculator. Sources cited in PR. No placeholders.
+// Keep structure consistent with other calculators in MedX.
 
-export function runGCS(i: GCSInput): GCSOutput {
-  const e = i.eye ?? 1, v = i.verbal ?? 1, m = i.motor ?? 1;
-  const total = e + v + m;
-  let severity: GCSOutput["severity"] = "mild";
-  if (total <= 8) severity = "severe";
-  else if (total <= 12) severity = "moderate";
-  return { total, severity };
+export type GCSInputs = {
+  eye: 1|2|3|4;
+  verbal: 1|2|3|4|5;
+  motor: 1|2|3|4|5|6;
+};
+
+export function calc_gcs({ eye, verbal, motor }: GCSInputs): number {
+  return eye + verbal + motor;
 }
+
+const def = {
+  id: "gcs",
+  label: "Glasgow Coma Scale (GCS)",
+  inputs: [
+    { id: "eye", label: "Eye (1–4)", type: "number", min: 1, max: 4, step: 1 },
+    { id: "verbal", label: "Verbal (1–5)", type: "number", min: 1, max: 5, step: 1 },
+    { id: "motor", label: "Motor (1–6)", type: "number", min: 1, max: 6, step: 1 }
+  ],
+  run: (args: GCSInputs) => {
+    const v = calc_gcs(args);
+    return { id: "gcs", label: "GCS", value: v, unit: "score", precision: 0, notes: [] };
+  },
+};
+
+export default def;

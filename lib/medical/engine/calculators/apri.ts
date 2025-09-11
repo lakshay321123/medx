@@ -1,18 +1,29 @@
-// lib/medical/engine/calculators/apri.ts
-export interface APRIInput {
-  ast_u_l?: number | null;
-  ast_uln_u_l?: number | null;
-  platelets_10e9_L?: number | null;
-}
-export interface APRIOutput { score: number; band: "low"|"possible_fibrosis"|"suggests_cirrhosis"; }
+// Auto-generated calculator. Sources cited in PR. No placeholders.
+// Keep structure consistent with other calculators in MedX.
 
-export function runAPRI(i: APRIInput): APRIOutput {
-  if (i.ast_u_l == null || i.ast_uln_u_l == null || i.platelets_10e9_L == null) {
-    return { score: NaN, band: "low" };
-  }
-  const score = ((i.ast_u_l / i.ast_uln_u_l) / i.platelets_10e9_L) * 100;
-  let band: APRIOutput["band"] = "low";
-  if (score >= 1.0 && score < 2.0) band = "possible_fibrosis";
-  else if (score >= 2.0) band = "suggests_cirrhosis";
-  return { score, band };
+export type ApriInputs = {
+  ast_u_l: number;
+  ast_uln_u_l: number;
+  platelets_10e9_l: number;
+};
+
+export function calc_apri({ ast_u_l, ast_uln_u_l, platelets_10e9_l }: ApriInputs): number {
+  if (ast_uln_u_l <= 0 || platelets_10e9_l <= 0) return NaN;
+  return ((ast_u_l / ast_uln_u_l) * 100) / platelets_10e9_l;
 }
+
+const def = {
+  id: "apri",
+  label: "APRI",
+  inputs: [
+    { id: "ast_u_l", label: "AST (U/L)", type: "number", min: 0 },
+    { id: "ast_uln_u_l", label: "AST ULN (U/L)", type: "number", min: 1 },
+    { id: "platelets_10e9_l", label: "Platelets (×10^9/L)", type: "number", min: 1 }
+  ],
+  run: ({ ast_u_l, ast_uln_u_l, platelets_10e9_l }: ApriInputs) => {
+    const v = calc_apri({ ast_u_l, ast_uln_u_l, platelets_10e9_l });
+    return { id: "apri", label: "APRI", value: v, unit: "index", precision: 2, notes: [] };
+  },
+};
+
+export default def;

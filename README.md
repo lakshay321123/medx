@@ -10,6 +10,7 @@ This project includes:
 
 ## Run
 1. Copy `.env.example` → `.env.local` and fill:
+   - `NEXT_PUBLIC_SUPABASE_URL` `NEXT_PUBLIC_SUPABASE_ANON_KEY` `SUPABASE_SERVICE_ROLE_KEY`
    - `NCBI_API_KEY` `OPENFDA_API_KEY`
    - `ICD11_CLIENT_ID` `ICD11_CLIENT_SECRET`
    - `LLM_BASE_URL` (e.g., `https://llm.your-vpc/v1` for vLLM/Ollama OpenAI-compatible API)
@@ -17,6 +18,7 @@ This project includes:
    - `HF_API_TOKEN`
    - optional: `HF_CHEST_MODEL` `HF_BONE_MODEL`
    - for OpenAI summaries: `OPENAI_API_KEY`, `OPENAI_TEXT_MODEL`, `OPENAI_VISION_MODEL`
+   - optional meds micro-summary: `MEDS_SHORT_SUMMARY` (`true|false`), `MEDS_SHORT_SUMMARY_MAX_CHARS`
 2. `npm install`
 3. `npm run dev`
 
