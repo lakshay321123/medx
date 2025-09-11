@@ -1,10 +1,11 @@
 import path from "path";
 import fs from "fs/promises";
-import { groqChat, openaiText, ChatMsg } from "@/lib/llm";
-import { getDailyMed } from "@/lib/dailymed";
-import { getRxCUI } from "@/lib/rxnorm";
 
-const CACHE_DIR = path.join(process.cwd(), "data/meds-cache");
+type ChatMsg = { role: "system" | "user" | "assistant"; content: string };
+
+const CACHE_DIR = process.env.MEDS_CACHE_DIR || "/tmp/meds-cache";
+await fs.mkdir(CACHE_DIR, { recursive: true }).catch(() => {});
+
 const TTL_DAYS = Number(process.env.MEDS_CACHE_TTL_DAYS || 90);
 
 const SOURCE_WHITELIST = (process.env.MEDS_SOURCE_WHITELIST || "").toLowerCase() === "true";
@@ -87,12 +88,30 @@ async function writeCache(slug: string, payload: any) {
   } catch {}
 }
 
+async function fetchRxCUI(drug: string) {
+  try {
+    const url = `https://rxnav.nlm.nih.gov/REST/rxcui.json?name=${encodeURIComponent(drug)}`;
+    const r = await fetch(url, { headers: { Accept: "application/json" } });
+    if (r.ok) return r.json();
+  } catch {}
+  return null;
+}
+
+async function fetchDailyMedSetId(drug: string) {
+  try {
+    const url = `https://dailymed.nlm.nih.gov/dailymed/services/v2/spls.json?drug_name=${encodeURIComponent(drug)}&pagesize=5`;
+    const r = await fetch(url, { headers: { Accept: "application/json" } });
+    if (r.ok) return r.json();
+  } catch {}
+  return null;
+}
+
 async function gatherSources(slug: string, canonical: string, country: string) {
   const refs: string[] = [];
   let notes: string[] = [];
   // RxNorm
   try {
-    const rx = await getRxCUI(canonical);
+    const rx = await fetchRxCUI(canonical);
     if (rx?.idGroup?.rxnormId?.[0]) {
       const rxcui = rx.idGroup.rxnormId[0];
       refs.push(`https://rxnav.nlm.nih.gov/REST/rxcui/${rxcui}`);
@@ -101,7 +120,7 @@ async function gatherSources(slug: string, canonical: string, country: string) {
 
   // DailyMed
   try {
-    const dm = await getDailyMed(canonical);
+    const dm = await fetchDailyMedSetId(canonical);
     const setid = dm?.data?.[0]?.setid;
     if (setid) {
       const url = `https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=${setid}`;
@@ -158,6 +177,34 @@ async function determineBadge(slug: string, country: string) {
   return { badge: uniq[0] === "OTC" ? "OTC" : "Rx" };
 }
 
+async function llmSummarize(messages: ChatMsg[]) {
+  const providers = [
+    {
+      url: process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
+      key: process.env.OPENAI_API_KEY,
+      model: process.env.OPENAI_TEXT_MODEL || "gpt-4o-mini",
+    },
+    {
+      url: process.env.LLM_BASE_URL || "https://api.groq.com/openai/v1",
+      key: process.env.LLM_API_KEY,
+      model: process.env.LLM_MODEL_ID || "llama-3.1-70b-versatile",
+    },
+  ];
+  for (const p of providers) {
+    if (!p.key) continue;
+    try {
+      const r = await fetch(`${p.url}/chat/completions`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${p.key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: p.model, messages, temperature: 0.2 }),
+      });
+      const j = await r.json();
+      if (r.ok) return j.choices?.[0]?.message?.content || "";
+    } catch {}
+  }
+  return "";
+}
+
 async function synthesize(canonical: string, notes: string, refs: string[]) {
   const base = {
     Actives: "",
@@ -177,14 +224,7 @@ async function synthesize(canonical: string, notes: string, refs: string[]) {
     { role: "system", content: "You carefully write medical drug information." },
     { role: "user", content: prompt },
   ];
-  let out = "";
-  try {
-    out = await openaiText(messages);
-  } catch {
-    try {
-      out = await groqChat(messages);
-    } catch {}
-  }
+  const out = await llmSummarize(messages);
   try {
     const j = JSON.parse(out);
     return { ...base, ...j };
