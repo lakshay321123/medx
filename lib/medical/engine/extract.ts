@@ -18,12 +18,12 @@ export function extractAll(s: string): Record<string, any> {
   const t = (s || "").toLowerCase();
 
   const out: Record<string, any> = {
-    Na: pickNum(/\bna[^0-9]*[:=]?\s*([0-9.]+)/, t),
-    K: pickNum(/\bk[^a-z0-9]?[^0-9]*[:=]?\s*([0-9.]+)/, t),
-    Cl: pickNum(/\bcl[^a-z0-9]?[^0-9]*[:=]?\s*([0-9.]+)/, t),
+    Na: pickNum(/\b(?:na|sodium)\b[^0-9:=]*[:=]?\s*([0-9.]+)/i, t),
+    K: pickNum(/\b(?:k|potassium)\b[^0-9:=]*[:=]?\s*([0-9.]+)/i, t),
+    Cl: pickNum(/\b(?:chloride|cl)\b[^0-9:=]*[:=]?\s*([0-9.]+)/i, t),
     HCO3: pickNum(/\b(hco3|bicarb)[^0-9]*[:=]?\s*([0-9.]+)/, t),
     Mg: pickNum(/\bmg[^a-z0-9]?[^0-9]*[:=]?\s*([0-9.]+)/, t),
-    Ca: pickNum(/\bca[^a-z0-9]?[^0-9]*[:=]?\s*([0-9.]+)/, t),
+    Ca: pickNum(/\b(?:calcium|ca)\b[^0-9:=]*[:=]?\s*([0-9.]+)/i, t),
     glucose_mgdl: pickNum(/\b(glucose|fpg)[^0-9]*[:=]?\s*([0-9.]+)\s*mg\/?dl/, t),
     glucose_mmol: pickNum(/\b(glucose|fpg)[^0-9]*[:=]?\s*([0-9.]+)\s*mmol/, t),
     BUN: pickNum(/\bbun[^0-9]*[:=]?\s*([0-9.]+)/, t),
@@ -75,12 +75,12 @@ export function extractAll(s: string): Record<string, any> {
   }
 
   // === [MEDX_CALC_INPUTS_START] ===
-  if (out.Na == null)       out.Na       = pickNum(/\bna[^0-9]*[:=]?\s*([0-9.]+)/, t);
-  if (out.K == null)        out.K        = pickNum(/\bk[^a-z0-9]*[:=]?\s*([0-9.]+)/, t);
-  if (out.Cl == null)       out.Cl       = pickNum(/\bcl[^0-9]*[:=]?\s*([0-9.]+)/, t);
+  if (out.Na == null)       out.Na       = pickNum(/\b(?:na|sodium)\b[^0-9:=]*[:=]?\s*([0-9.]+)/i, t);
+  if (out.K == null)        out.K        = pickNum(/\b(?:k|potassium)\b[^0-9:=]*[:=]?\s*([0-9.]+)/i, t);
+  if (out.Cl == null)       out.Cl       = pickNum(/\b(?:chloride|cl)\b[^0-9:=]*[:=]?\s*([0-9.]+)/i, t);
   if (out.HCO3 == null)     out.HCO3     = pickNum(/\b(hco3|bicarb)[^0-9]*[:=]?\s*([0-9.]+)/, t);
   if (out.albumin == null)  out.albumin  = pickNum(/\balb(?:umin)?[^0-9]*[:=]?\s*([0-9.]+)/, t);
-  if (out.Ca == null)       out.Ca       = pickNum(/\bca[^0-9]*[:=]?\s*([0-9.]+)/, t);
+  if (out.Ca == null)       out.Ca       = pickNum(/\b(?:calcium|ca)\b[^0-9:=]*[:=]?\s*([0-9.]+)/i, t);
 
   if (out.creatinine == null) out.creatinine = pickNum(/\bcreat(?:inine)?[^0-9]*[:=]?\s*([0-9.]+)/, t);
   if (out.BUN == null)        out.BUN        = pickNum(/\bbun[^0-9]*[:=]?\s*([0-9.]+)/, t);

@@ -12,6 +12,7 @@ const recentReqs = new Map<string, number>();
 
 export async function POST(req: NextRequest) {
   const { messages = [], context, clientRequestId, mode } = await req.json();
+  const showClinicalPrelude = (mode === 'doctor' || mode === 'research');
   const now = Date.now();
   for (const [id, ts] of recentReqs.entries()) {
     if (now - ts > 60_000) recentReqs.delete(id);
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
   const ctx = extractAll(userText);
   const computed = computeAll(ctx);
 
-  if (computed.length) {
+  if (showClinicalPrelude && computed.length) {
     const lines = computed.map(r => {
       const val = r.unit ? `${r.value} ${r.unit}` : String(r.value);
       const notes = r.notes?.length ? ` — ${r.notes.join('; ')}` : '';
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
   // === [MEDX_CALC_PRELUDE_START] ===
   const latestUserMessage = messages.filter((m: any) => m.role === 'user').slice(-1)[0]?.content || "";
   const __calcPrelude = composeCalcPrelude(latestUserMessage ?? "");
-  if (__calcPrelude) {
+  if (showClinicalPrelude && __calcPrelude) {
     finalMessages = [{ role: 'system', content: __calcPrelude }, ...finalMessages];
   }
   // === [MEDX_CALC_PRELUDE_END] ===
