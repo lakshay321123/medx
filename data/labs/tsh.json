@@ -1,0 +1,19 @@
+{
+  "aliases": ["tsh", "thyroid stimulating hormone", "thyroid-stimulating hormone"],
+  "name": "TSH",
+  "purpose": "Measures thyroid-stimulating hormone to help evaluate thyroid function",
+  "adult_range": "0.4–4.0 mIU/L",
+  "high_means": [
+    "Possible hypothyroidism",
+    "Pituitary causes (rare)"
+  ],
+  "low_means": [
+    "Possible hyperthyroidism"
+  ],
+  "prep": [
+    "No special preparation unless instructed"
+  ],
+  "references": [
+    "https://medlineplus.gov/lab-tests/tsh-test/"
+  ]
+}
