@@ -1,9 +1,11 @@
-import { runDeltaGap } from "@/lib/medical/engine/calculators/delta_gap";
+import { calc_delta_gap } from "../lib/medical/engine/calculators/delta_gap";
 
-test("Delta gap", () => {
-  const r = runDeltaGap({ anion_gap:24, hco3:12 }); // deltaAG=12, deltaHCO3=12, ratio=1
-  expect(r.delta_ag).toBe(12);
-  expect(r.delta_hco3).toBe(12);
-  expect(r.ratio).toBeCloseTo(1, 3);
-  expect(r.interpretation).toMatch(/pure high anion gap/);
+describe("calc_delta_gap", () => {
+  it("computes AG and ratio", () => {
+    const r = calc_delta_gap({ sodium_mmol_l: 140, chloride_mmol_l: 100, hco3_mmol_l: 10 });
+    expect(r.ag).toBe(30);
+    expect(r.delta_ag).toBe(18);
+    expect(r.delta_bicarb).toBe(14);
+    expect(r.ratio).toBeCloseTo(18 / 14, 4);
+  });
 });

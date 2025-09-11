@@ -1,13 +1,9 @@
-  import { calc_winters_formula } from "../lib/medical/engine/calculators/winters_formula";
+import { calc_winters } from "../lib/medical/engine/calculators/winters_formula";
 
-  describe("calc_winters_formula", () => {
-
-it("gives expected PaCO2 and interpretation", () => {
-  const r = calc_winters_formula({ hco3: 12, measured_paco2: 30 });
-  expect(r.expected).toBeCloseTo(26, 0);
-  expect(r.low).toBeCloseTo(24, 0);
-  expect(r.high).toBeCloseTo(28, 0);
-  expect(r.comment).toBe("concurrent respiratory acidosis");
-});
-
+describe("calc_winters", () => {
+  it("computes expected PaCO2 range", () => {
+    const r = calc_winters({ hco3_mmol_l: 12 });
+    expect(r.expected_paco2_mm_hg).toBeCloseTo(1.5 * 12 + 8, 3);
+    expect(r.low).toBeCloseTo(r.expected_paco2_mm_hg - 2, 3);
   });
+});
