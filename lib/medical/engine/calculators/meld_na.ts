@@ -1,47 +1,41 @@
-import { register } from "../registry";
+// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
 
-/**
- * MELD-Na (2016)
- */
-export function calc_meld_na({
-  creatinine_mg_dl, bilirubin_mg_dl, inr, sodium_mmol_l
-}: {
-  creatinine_mg_dl: number,
-  bilirubin_mg_dl: number,
-  inr: number,
-  sodium_mmol_l: number
-}) {
-  const cr = Math.max(creatinine_mg_dl, 1.0);
-  const bili = Math.max(bilirubin_mg_dl, 1.0);
-  const _inr = Math.max(inr, 1.0);
-  const meld = (0.957 * Math.log(cr) + 0.378 * Math.log(bili) + 1.120 * Math.log(_inr) + 0.643) * 10;
-  const Na = Math.min(Math.max(sodium_mmol_l, 125), 137);
-  const meldNa = Math.round(meld + 1.32 * (137 - Na) - 0.033 * meld * (137 - Na));
-  return { meld, meldNa };
+export type MELDNaInputs = {
+  creatinine_mg_dl: number;
+  bilirubin_mg_dl: number;
+  inr: number;
+  sodium_mmol_l: number;
+  on_dialysis?: boolean;
+};
+
+function lnClip(x: number): number {
+  return Math.log(Math.max(x, 1.0));
 }
 
-register({
+export function calc_meld_na(i: MELDNaInputs): { meld: number; meldNa: number } {
+  const cr = Math.min(i.on_dialysis ? 4.0 : i.creatinine_mg_dl, 4.0);
+  const bili = i.bilirubin_mg_dl;
+  const inr = i.inr;
+  const meld = Math.round(0.957 * lnClip(cr) + 0.378 * lnClip(bili) + 1.12 * lnClip(inr) + 0.643);
+  const na = Math.max(125, Math.min(i.sodium_mmol_l, 137));
+  const meldNa = Math.round(meld + 1.32 * (137 - na) - 0.033 * meld * (137 - na));
+  return { meld, meldNa: Math.max(6, Math.min(meldNa, 40)) };
+}
+
+const def = {
   id: "meld_na",
   label: "MELD-Na",
-  tags: ["hepatology"],
   inputs: [
-    { key: "creatinine_mg_dl", required: true },
-    { key: "bilirubin_mg_dl", required: true },
-    { key: "inr", required: true },
-    { key: "sodium_mmol_l", required: true }
+    { id: "creatinine_mg_dl", label: "Creatinine (mg/dL)", type: "number", min: 0 },
+    { id: "bilirubin_mg_dl", label: "Bilirubin (mg/dL)", type: "number", min: 0 },
+    { id: "inr", label: "INR", type: "number", min: 0 },
+    { id: "sodium_mmol_l", label: "Sodium (mmol/L)", type: "number", min: 100, max: 200 },
+    { id: "on_dialysis", label: "On dialysis", type: "boolean" }
   ],
-  run: ({
-    creatinine_mg_dl,
-    bilirubin_mg_dl,
-    inr,
-    sodium_mmol_l,
-  }: {
-    creatinine_mg_dl: number;
-    bilirubin_mg_dl: number;
-    inr: number;
-    sodium_mmol_l: number;
-  }) => {
-    const r = calc_meld_na({ creatinine_mg_dl, bilirubin_mg_dl, inr, sodium_mmol_l });
+  run: (args: MELDNaInputs) => {
+    const r = calc_meld_na(args);
     return { id: "meld_na", label: "MELD-Na", value: r.meldNa, unit: "score", precision: 0, notes: [], extra: r };
   },
-});
+};
+
+export default def;

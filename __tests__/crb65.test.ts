@@ -1,10 +1,10 @@
-  import { calc_crb65 } from "../lib/medical/engine/calculators/crb65";
+// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
 
-  describe("calc_crb65", () => {
+import { calc_crb65 } from "../lib/medical/engine/calculators/crb65";
 
-it("scores CRB-65", () => {
-  const v = calc_crb65({ confusion: false, resp_rate: 30, sbp: 88, dbp: 58, age_years: 67 });
-  expect(v).toBe(3);
-});
-
+describe("calc_crb65", () => {
+  it("scores correctly", () => {
+    const v = calc_crb65({ confusion: false, resp_rate: 30, sbp: 95, dbp: 60, age_years: 70 });
+    expect(v).toBe(3);
   });
+});
