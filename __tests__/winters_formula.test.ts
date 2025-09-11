@@ -1,10 +1,10 @@
-import { calc_winters } from "../lib/medical/engine/calculators/winters_formula";
+import { calc_winters, winters_notes } from "../lib/medical/engine/calculators/winters_formula";
 
-describe("calc_winters", () => {
-  it("computes 1.5*HCO3 + 8 ±2", () => {
-    const r = calc_winters({ hco3_mmol_l: 20 });
-    expect(r.expected_paco2_mm_hg).toBeCloseTo(1.5*20+8, 6);
-    expect(r.low).toBeCloseTo(1.5*20+8-2, 6);
-    expect(r.high).toBeCloseTo(1.5*20+8+2, 6);
-  });
+test("Winter's formula", () => {
+  const r = calc_winters({ hco3_mmol_l: 16 });
+  expect(r.expected_paco2_mm_hg).toBeCloseTo(32.0, 1); // 1.5*16+8=32
+  expect(r.low).toBeCloseTo(30.0, 1);
+  expect(r.high).toBeCloseTo(34.0, 1);
+  const notes = winters_notes(r);
+  expect(notes[0]).toContain("Expected PaCO2");
 });
