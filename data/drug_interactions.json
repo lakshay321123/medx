@@ -1,0 +1,14 @@
+[
+  {
+    "drugs": ["warfarin", "aspirin"],
+    "severity": "Major",
+    "note": "Risk of bleeding",
+    "reference": "https://rxnav.nlm.nih.gov"
+  },
+  {
+    "drugs": ["ibuprofen", "aspirin"],
+    "severity": "Moderate",
+    "note": "Reduced antiplatelet effect",
+    "reference": "https://rxnav.nlm.nih.gov"
+  }
+]
