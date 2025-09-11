@@ -1,32 +1,21 @@
-import { register } from "../registry";
+export type QTcInputs = { qt_ms: number; hr_bpm: number };
 
-/**
- * QTc (Bazett) = QT / sqrt(RR). RR from HR if provided.
- */
-export function calc_qtc_bazett({
-  qt_ms, rr_s, heart_rate_bpm
-}: {
-  qt_ms: number,
-  rr_s?: number,
-  heart_rate_bpm?: number
-}) {
-  const RR = rr_s ?? (heart_rate_bpm ? 60 / heart_rate_bpm : undefined);
-  if (RR == null || RR <= 0) return { qtc_ms: NaN, rr_s: RR };
-  const qtc_ms = qt_ms / Math.sqrt(RR);
-  return { qtc_ms, rr_s: RR };
+export function calc_qtc_bazett(i: QTcInputs): number {
+  const rr_s = 60 / Math.max(1, i.hr_bpm);
+  return i.qt_ms / Math.sqrt(rr_s);
 }
 
-register({
+const def = {
   id: "qtc_bazett",
   label: "QTc (Bazett)",
-  tags: ["cardiology"],
   inputs: [
-    { key: "qt_ms", required: true },
-    { key: "rr_s" },
-    { key: "heart_rate_bpm" }
+    { id: "qt_ms", label: "QT (ms)", type: "number", min: 0 },
+    { id: "hr_bpm", label: "Heart rate (bpm)", type: "number", min: 1 }
   ],
-  run: ({ qt_ms, rr_s, heart_rate_bpm }: { qt_ms: number; rr_s?: number; heart_rate_bpm?: number; }) => {
-    const r = calc_qtc_bazett({ qt_ms, rr_s, heart_rate_bpm });
-    return { id: "qtc_bazett", label: "QTc (Bazett)", value: r.qtc_ms, unit: "ms", precision: 0, notes: [], extra: r };
+  run: (args: QTcInputs) => {
+    const v = calc_qtc_bazett(args);
+    return { id: "qtc_bazett", label: "QTc (Bazett)", value: v, unit: "ms", precision: 0, notes: [] };
   },
-});
+};
+
+export default def;
