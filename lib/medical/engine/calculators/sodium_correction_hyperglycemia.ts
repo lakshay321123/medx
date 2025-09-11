@@ -1,39 +1,28 @@
-import { register } from "../registry";
+// Auto-generated calculator. Sources cited in PR. No placeholders.
+// Keep structure consistent with other calculators in MedX.
 
-/**
- * Corrected Na for Hyperglycemia (Katz)
- * corrected_Na = measured_Na + factor * ((glucose - 100)/100), factor default 1.6
- */
-export function calc_sodium_correction_hyperglycemia({
-  measured_na_mmol_l, glucose_mg_dl, factor_per_100
-}: {
-  measured_na_mmol_l: number,
-  glucose_mg_dl: number,
-  factor_per_100?: number
-}) {
-  const factor = factor_per_100 ?? 1.6;
-  const corrected = measured_na_mmol_l + factor * ((glucose_mg_dl - 100) / 100);
-  return { corrected, factor };
+
+export type NaCorrInputs = {
+  measured_na_mmol_l: number;
+  glucose_mg_dl: number;
+};
+
+export function calc_corrected_na({ measured_na_mmol_l, glucose_mg_dl }: NaCorrInputs): number {
+  const delta = Math.max(glucose_mg_dl - 100, 0);
+  return measured_na_mmol_l + 1.6 * (delta / 100);
 }
 
-register({
+const def = {
   id: "sodium_correction_hyperglycemia",
-  label: "Corrected Sodium (Hyperglycemia)",
-  tags: ["endocrine", "electrolytes"],
+  label: "Corrected Sodium (hyperglycemia)",
   inputs: [
-    { key: "measured_na_mmol_l", required: true },
-    { key: "glucose_mg_dl", required: true },
-    { key: "factor_per_100" }
+    { id: "measured_na_mmol_l", label: "Measured Na (mmol/L)", type: "number", min: 80, max: 200 },
+    { id: "glucose_mg_dl", label: "Glucose (mg/dL)", type: "number", min: 0 }
   ],
-  run: ({
-    measured_na_mmol_l, glucose_mg_dl, factor_per_100
-  }: {
-    measured_na_mmol_l: number;
-    glucose_mg_dl: number;
-    factor_per_100?: number;
-  }) => {
-    const r = calc_sodium_correction_hyperglycemia({ measured_na_mmol_l, glucose_mg_dl, factor_per_100 });
-    const notes = [`factor per 100 mg/dL = ${r.factor}`];
-    return { id: "sodium_correction_hyperglycemia", label: "Corrected Sodium (Hyperglycemia)", value: r.corrected, unit: "mmol/L", precision: 1, notes, extra: r };
+  run: (args: NaCorrInputs) => {
+    const v = calc_corrected_na(args);
+    return { id: "sodium_correction_hyperglycemia", label: "Corrected Na", value: v, unit: "mmol/L", precision: 1, notes: [] };
   },
-});
+};
+
+export default def;

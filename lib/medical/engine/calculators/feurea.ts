@@ -1,32 +1,33 @@
-import { register } from "../registry";
+// Auto-generated calculator. Sources cited in PR. No placeholders.
+// Keep structure consistent with other calculators in MedX.
 
-export interface FeUreaInput {
+
+export type FeUreaInputs = {
   urine_urea_mg_dl: number;
-  plasma_bun_mg_dl: number;
+  plasma_urea_mg_dl: number; // BUN
   urine_cr_mg_dl: number;
   plasma_cr_mg_dl: number;
-}
-export function runFeUrea(i: FeUreaInput) {
-  const feurea = (i.urine_urea_mg_dl * i.plasma_cr_mg_dl) / (i.plasma_bun_mg_dl * i.urine_cr_mg_dl) * 100;
-  let band: "prerenal_suggested" | "intrinsic_possible" | "indeterminate" = "indeterminate";
-  if (isFinite(feurea)) {
-    if (feurea < 35) band = "prerenal_suggested";
-    else if (feurea > 50) band = "intrinsic_possible";
-  }
-  return { feurea_pct: Number(feurea.toFixed(1)), band };
+};
+
+export function calc_feurea(i: FeUreaInputs): number {
+  if (i.plasma_urea_mg_dl <= 0 || i.urine_cr_mg_dl <= 0) return NaN;
+  return (i.urine_urea_mg_dl * i.plasma_cr_mg_dl) / (i.plasma_urea_mg_dl * i.urine_cr_mg_dl) * 100;
 }
 
-register({
+const def = {
   id: "feurea",
-  label: "FeUrea (fractional excretion urea)",
+  label: "FeUrea (%)",
   inputs: [
-    { key: "urine_urea_mg_dl", required: true },
-    { key: "plasma_bun_mg_dl", required: true },
-    { key: "urine_cr_mg_dl", required: true },
-    { key: "plasma_cr_mg_dl", required: true },
+    { id: "urine_urea_mg_dl", label: "Urine urea nitrogen (mg/dL)", type: "number", min: 0 },
+    { id: "plasma_urea_mg_dl", label: "Plasma urea (BUN) (mg/dL)", type: "number", min: 0 },
+    { id: "urine_cr_mg_dl", label: "Urine Creatinine (mg/dL)", type: "number", min: 0 },
+    { id: "plasma_cr_mg_dl", label: "Plasma Creatinine (mg/dL)", type: "number", min: 0 }
   ],
-  run: (ctx: any) => {
-    const r = runFeUrea(ctx as any);
-    return { id: "feurea", label: "FeUrea", value: r.feurea_pct, unit: "%", notes: [r.band.replaceAll("_"," ")], precision: 1 };
+  run: (args: FeUreaInputs) => {
+    const v = calc_feurea(args);
+    const notes = [v < 35 ? "Suggests prerenal or HF" : "Suggests ATN"];
+    return { id: "feurea", label: "FeUrea", value: v, unit: "%", precision: 1, notes };
   },
-});
+};
+
+export default def;

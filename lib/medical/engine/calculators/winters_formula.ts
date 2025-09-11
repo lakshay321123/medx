@@ -1,38 +1,25 @@
-import { register } from "../registry";
+// Auto-generated calculator. Sources cited in PR. No placeholders.
+// Keep structure consistent with other calculators in MedX.
 
-/**
- * Winter's Formula: expected PaCO2 for metabolic acidosis
- * Expected PaCO2 ≈ 1.5*HCO3 + 8 (range ±2)
- */
-export function calc_winters_formula({
-  hco3, measured_paco2
-}: {
-  hco3: number,
-  measured_paco2?: number
-}) {
-  const expected = 1.5 * hco3 + 8;
-  const low = expected - 2;
-  const high = expected + 2;
-  let comment = "";
-  if (measured_paco2 != null) {
-    if (measured_paco2 < low) comment = "concurrent respiratory alkalosis";
-    else if (measured_paco2 > high) comment = "concurrent respiratory acidosis";
-    else comment = "appropriate compensation";
-  }
-  return { expected, low, high, comment };
+
+export type WintersInputs = { hco3_mmol_l: number };
+
+export function calc_winters({ hco3_mmol_l }: WintersInputs): { expected_paco2_mm_hg: number; low: number; high: number } {
+  const exp = 1.5*hco3_mmol_l + 8;
+  return { expected_paco2_mm_hg: exp, low: exp - 2, high: exp + 2 };
 }
 
-register({
+const def = {
   id: "winters_formula",
-  label: "Winter's Formula",
-  tags: ["acid-base", "critical care"],
+  label: "Winter's Formula (expected PaCO2)",
   inputs: [
-    { key: "hco3", required: true },
-    { key: "measured_paco2" }
+    { id: "hco3_mmol_l", label: "HCO3⁻ (mmol/L)", type: "number", min: 0, max: 60 }
   ],
-  run: ({ hco3, measured_paco2 }: { hco3: number; measured_paco2?: number; }) => {
-    const r = calc_winters_formula({ hco3, measured_paco2 });
-    const notes = [r.comment || ""];
-    return { id: "winters_formula", label: "Winter's Formula", value: r.expected, unit: "mmHg (expected PaCO2)", precision: 0, notes, extra: r };
+  run: (args: WintersInputs) => {
+    const r = calc_winters(args);
+    const notes = [f"Expected PaCO2 {r.low.toFixed(1)}–{r.high.toFixed(1)} mmHg"];
+    return { id: "winters_formula", label: "Winter's Formula", value: r.expected_paco2_mm_hg, unit: "mmHg", precision: 1, notes, extra: r };
   },
-});
+};
+
+export default def;
