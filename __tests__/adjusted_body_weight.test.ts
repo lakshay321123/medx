@@ -1,11 +1,10 @@
-// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
-
 import { calc_adjusted_body_weight } from "../lib/medical/engine/calculators/adjusted_body_weight";
 
 describe("calc_adjusted_body_weight", () => {
-  it("uses 0.4 correction when actual > IBW", () => {
-    const r = calc_adjusted_body_weight({ sex: "male", height_cm: 180, actual_weight_kg: 100 });
-    expect(r.adjbw).toBeGreaterThan(80);
-    expect(r.adjbw).toBeLessThan(100);
+  it("returns IBW + 0.4*(actual-IBW)", () => {
+    const r = calc_adjusted_body_weight({ actual_weight_kg: 120, height_cm: 180, sex: "male" });
+    const inches = 180/2.54;
+    const ibw = 50 + 2.3*(inches-60);
+    expect(r.adjbw).toBeCloseTo(ibw + 0.4*(120 - ibw), 6);
   });
 });
