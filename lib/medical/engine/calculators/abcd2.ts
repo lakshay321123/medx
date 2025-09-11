@@ -1,45 +1,42 @@
-// Auto-generated calculator. Sources cited in PR. No placeholders.
-// Keep structure consistent with other calculators in MedX.
+// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
 
 export type ABCD2Inputs = {
-  age_years: number;
-  sbp_mm_hg: number;
-  dbp_mm_hg: number;
-  unilateral_weakness: boolean;
-  speech_disturbance_without_weakness: boolean;
-  duration_minutes: number;
+  age_ge_60: boolean;
+  bp_ge_140_90: boolean;
+  clinical: "weakness" | "speech" | "other";
+  duration_min: number;
   diabetes: boolean;
 };
 
-export function calc_abcd2({
-  age_years, sbp_mm_hg, dbp_mm_hg, unilateral_weakness, speech_disturbance_without_weakness, duration_minutes, diabetes
-}: ABCD2Inputs): number {
-  let score = 0;
-  if (age_years >= 60) score += 1;
-  if (sbp_mm_hg >= 140 || dbp_mm_hg >= 90) score += 1;
-  if (unilateral_weakness) score += 2;
-  else if (speech_disturbance_without_weakness) score += 1;
-  if (duration_minutes >= 60) score += 2;
-  else if (duration_minutes >= 10) score += 1;
-  if (diabetes) score += 1;
-  return score;
+export function calc_abcd2(i: ABCD2Inputs): number {
+  let s = 0;
+  if (i.age_ge_60) s += 1;
+  if (i.bp_ge_140_90) s += 1;
+  if (i.clinical === "weakness") s += 2;
+  else if (i.clinical === "speech") s += 1;
+  if (i.duration_min >= 60) s += 2;
+  else if (i.duration_min >= 10) s += 1;
+  if (i.diabetes) s += 1;
+  return s;
 }
 
 const def = {
   id: "abcd2",
-  label: "ABCD2 (TIA)",
+  label: "ABCD2 (TIA risk)",
   inputs: [
-    { id: "age_years", label: "Age", type: "number", min: 0, max: 120 },
-    { id: "sbp_mm_hg", label: "SBP (mmHg)", type: "number", min: 0 },
-    { id: "dbp_mm_hg", label: "DBP (mmHg)", type: "number", min: 0 },
-    { id: "unilateral_weakness", label: "Unilateral weakness", type: "boolean" },
-    { id: "speech_disturbance_without_weakness", label: "Speech disturbance only", type: "boolean" },
-    { id: "duration_minutes", label: "Duration (min)", type: "number", min: 0 },
+    { id: "age_ge_60", label: "Age ≥60", type: "boolean" },
+    { id: "bp_ge_140_90", label: "BP ≥140/90", type: "boolean" },
+    { id: "clinical", label: "Clinical feature", type: "select", options: [
+      {label:"Unilateral weakness", value:"weakness"},
+      {label:"Speech disturbance without weakness", value:"speech"},
+      {label:"Other", value:"other"}
+    ]},
+    { id: "duration_min", label: "Duration (min)", type: "number", min: 0 },
     { id: "diabetes", label: "Diabetes", type: "boolean" }
   ],
   run: (args: ABCD2Inputs) => {
     const v = calc_abcd2(args);
-    return { id: "abcd2", label: "ABCD2 (TIA)", value: v, unit: "score", precision: 0, notes: [] };
+    return { id: "abcd2", label: "ABCD2", value: v, unit: "score", precision: 0, notes: [] };
   },
 };
 
