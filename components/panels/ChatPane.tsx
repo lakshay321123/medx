@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useMemo, RefObject, Fragment } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Header from '../Header';
+import { useRouter } from 'next/navigation';
 import ChatMarkdown from '@/components/ChatMarkdown';
 import ResearchFilters from '@/components/ResearchFilters';
 import { LinkBadge } from '@/components/SafeLink';
@@ -21,7 +22,7 @@ import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials
 import FeedbackBar from "@/components/FeedbackBar";
 import type { ChatMessage as BaseChatMessage } from "@/types/chat";
 import type { AnalysisCategory } from '@/lib/context';
-import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle, upsertThreadIndex } from '@/lib/chatThreads';
+import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle, upsertThreadIndex, createNewThreadId } from '@/lib/chatThreads';
 import { useMemoryStore } from "@/lib/memory/useMemoryStore";
 import { summarizeTrials } from "@/lib/research/summarizeTrials";
 import { computeTrialStats, type TrialStats } from "@/lib/research/trialStats";
@@ -328,12 +329,27 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }
 
   const params = useSearchParams();
+  const router = useRouter(); // auto-new-thread
   const threadId = params.get('threadId');
   const context = params.get('context');
   // ADD: stable fallback thread key for default chat
   const stableThreadId = threadId || 'default-thread';
   const isProfileThread = threadId === 'med-profile' || context === 'profile';
-  const conversationId = threadId || (isProfileThread ? 'med-profile' : 'unknown');
+  const conversationId =
+    threadId ||
+    (isProfileThread
+      ? 'med-profile'
+      : (typeof window !== 'undefined'
+          ? ((window as any).__medxEphemeralId ||= crypto.randomUUID())
+          : 'ephemeral'));
+
+  // Auto-create a fresh thread when landing on /?panel=chat with no threadId
+  useEffect(() => {
+    if (!threadId && !isProfileThread) {
+      const id = createNewThreadId();
+      router.replace(`/?panel=chat&threadId=${id}`);
+    }
+  }, [threadId, isProfileThread, router]);
   const currentMode: 'patient'|'doctor'|'research'|'therapy' = therapyMode ? 'therapy' : (researchMode ? 'research' : mode);
   const [pendingCommitIds, setPendingCommitIds] = useState<string[]>([]);
   const [commitBusy, setCommitBusy] = useState<null | 'save' | 'discard'>(null);
