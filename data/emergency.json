@@ -1,0 +1,6 @@
+{
+  "US": { "ambulance": "911", "police": "911", "fire": "911" },
+  "IN": { "ambulance": "108", "police": "100", "fire": "101" },
+  "UK": { "ambulance": "999", "police": "999", "fire": "999" },
+  "CA": { "ambulance": "911", "police": "911", "fire": "911" }
+}
