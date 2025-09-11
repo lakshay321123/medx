@@ -1,36 +1,34 @@
-// Batch 14 calculator
 export type BISAPInputs = {
   bun_mg_dl: number;
-  gcs: number;
-  sirs_criteria_count: number; // 0–4
-  age_years: number;
+  impaired_mental_status: boolean;
+  sirs_ge_2: boolean;
+  age_ge_60: boolean;
   pleural_effusion: boolean;
 };
 
-export function calc_bisap(i: BISAPInputs): { score: number; high_risk: boolean } {
+export function calc_bisap(i: BISAPInputs): number {
   let s = 0;
-  if (i.bun_mg_dl > 25) s += 1;
-  if (i.gcs < 15) s += 1;
-  if (i.sirs_criteria_count >= 2) s += 1;
-  if (i.age_years > 60) s += 1;
-  if (i.pleural_effusion) s += 1;
-  return { score: s, high_risk: s >= 3 };
+  s += i.bun_mg_dl > 25 ? 1 : 0;
+  s += i.impaired_mental_status ? 1 : 0;
+  s += i.sirs_ge_2 ? 1 : 0;
+  s += i.age_ge_60 ? 1 : 0;
+  s += i.pleural_effusion ? 1 : 0;
+  return s;
 }
 
 const def = {
   id: "bisap",
-  label: "BISAP (acute pancreatitis)",
+  label: "BISAP (acute pancreatitis severity)",
   inputs: [
     { id: "bun_mg_dl", label: "BUN (mg/dL)", type: "number", min: 0 },
-    { id: "gcs", label: "GCS", type: "number", min: 3, max: 15, step: 1 },
-    { id: "sirs_criteria_count", label: "SIRS criteria (0–4)", type: "number", min: 0, max: 4, step: 1 },
-    { id: "age_years", label: "Age (years)", type: "number", min: 0, max: 120 },
+    { id: "impaired_mental_status", label: "Impaired mental status (GCS<15)", type: "boolean" },
+    { id: "sirs_ge_2", label: "SIRS ≥2", type: "boolean" },
+    { id: "age_ge_60", label: "Age ≥60", type: "boolean" },
     { id: "pleural_effusion", label: "Pleural effusion", type: "boolean" }
   ],
   run: (args: BISAPInputs) => {
-    const r = calc_bisap(args);
-    const notes = [r.high_risk ? "high risk (BISAP ≥3)" : "low/moderate risk"];
-    return { id: "bisap", label: "BISAP", value: r.score, unit: "points", precision: 0, notes, extra: r };
+    const v = calc_bisap(args);
+    return { id: "bisap", label: "BISAP", value: v, unit: "points", precision: 0, notes: [] };
   },
 };
 
