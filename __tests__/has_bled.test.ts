@@ -1,10 +1,12 @@
-  import { calc_has_bled } from "../lib/medical/engine/calculators/has_bled";
+import { calc_has_bled } from "../lib/medical/engine/calculators/has_bled";
 
-  describe("calc_has_bled", () => {
-
-it("scores HAS-BLED", () => {
-  const v = calc_has_bled({ htn: true, renal: true, liver: false, stroke: false, bleeding: true, labil_inr: false, age_gt_65: true, drugs_alcohol: true });
-  expect(v).toBe(5);
-});
-
+describe("calc_has_bled", () => {
+  it("sums risk factors correctly", () => {
+    const v = calc_has_bled({
+      age_years: 70, htn_sbp_gt_160: true, abnormal_renal: true, abnormal_liver: false,
+      stroke_history: false, bleeding_history: true, labile_inr: true,
+      drugs_predisposing: false, alcohol_excess: true
+    });
+    expect(v).toBe(6);
   });
+});

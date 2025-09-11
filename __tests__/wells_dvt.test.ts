@@ -1,20 +1,13 @@
-  import { calc_wells_dvt } from "../lib/medical/engine/calculators/wells_dvt";
+import { calc_wells_dvt } from "../lib/medical/engine/calculators/wells_dvt";
 
-  describe("calc_wells_dvt", () => {
-
-it("scores Wells DVT (high)", () => {
-  const v = calc_wells_dvt({
-    active_cancer: true,
-    paralysis_paresis_recent_plaster: true,
-    recently_bedridden_or_major_surgery: true,
-    localized_tenderness_deep_veins: true,
-    entire_leg_swollen: true,
-    calf_swelling_gt_3cm: true,
-    pitting_edema_symptomatic_leg: true,
-    collateral_superficial_veins: true,
-    alternative_diagnosis_as_likely: false,
+describe("calc_wells_dvt", () => {
+  it("applies -2 for alternative diagnosis", () => {
+    const v = calc_wells_dvt({
+      active_cancer: true, paralysis_immobilization: true, bedridden_3d_or_surgery_12w: false,
+      localized_tenderness: true, entire_leg_swollen: false, calf_swelling_ge_3cm: true,
+      pitting_edema_symptomatic_leg: false, collateral_superficial_veins: false,
+      previous_dvt: true, alternative_dx_as_likely: true
+    });
+    expect(v).toBe(1+1+0+1+0+1+0+0+1-2);
   });
-  expect(v).toBe(8);
 });
-
-  });

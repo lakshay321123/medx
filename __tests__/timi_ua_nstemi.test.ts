@@ -1,18 +1,11 @@
-  import { calc_timi_ua_nstemi } from "../lib/medical/engine/calculators/timi_ua_nstemi";
+import { calc_timi_ua_nstemi } from "../lib/medical/engine/calculators/timi_ua_nstemi";
 
-  describe("calc_timi_ua_nstemi", () => {
-
-it("sums criteria (5/7)", () => {
-  const v = calc_timi_ua_nstemi({
-    age_ge_65: true,
-    at_least_3_risk_factors: true,
-    known_cad_stenosis_ge_50: true,
-    aspirin_use_past_7d: false,
-    severe_angina_recent: true,
-    st_deviation_ge_0_5mm: true,
-    elevated_markers: false,
+describe("calc_timi_ua_nstemi", () => {
+  it("gives max score 7 with all risk present", () => {
+    const v = calc_timi_ua_nstemi({
+      age_years: 70, cad_risk_factors_count: 5, known_cad_stenosis_ge_50: true, aspirin_in_last_7d: true,
+      severe_angina_2plus_24h: true, st_deviation_ge_0_5mm: true, elevated_markers: true
+    });
+    expect(v).toBe(7);
   });
-  expect(v).toBe(5);
 });
-
-  });
