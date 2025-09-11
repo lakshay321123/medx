@@ -1,27 +1,46 @@
-// lib/medical/engine/calculators/abcd2.ts
+// Auto-generated calculator. Sources cited in PR. No placeholders.
+// Keep structure consistent with other calculators in MedX.
 
-export interface ABCD2Input {
-  age_ge_60?: boolean | null;
-  sbp_ge_140_or_dbp_ge_90?: boolean | null;
-  clinical_unilateral_weakness?: boolean | null;
-  clinical_speech_disturbance_without_weakness?: boolean | null;
-  duration_min?: number | null;
-  diabetes?: boolean | null;
+export type ABCD2Inputs = {
+  age_years: number;
+  sbp_mm_hg: number;
+  dbp_mm_hg: number;
+  unilateral_weakness: boolean;
+  speech_disturbance_without_weakness: boolean;
+  duration_minutes: number;
+  diabetes: boolean;
+};
+
+export function calc_abcd2({
+  age_years, sbp_mm_hg, dbp_mm_hg, unilateral_weakness, speech_disturbance_without_weakness, duration_minutes, diabetes
+}: ABCD2Inputs): number {
+  let score = 0;
+  if (age_years >= 60) score += 1;
+  if (sbp_mm_hg >= 140 || dbp_mm_hg >= 90) score += 1;
+  if (unilateral_weakness) score += 2;
+  else if (speech_disturbance_without_weakness) score += 1;
+  if (duration_minutes >= 60) score += 2;
+  else if (duration_minutes >= 10) score += 1;
+  if (diabetes) score += 1;
+  return score;
 }
 
-export interface ABCD2Output { points: number; risk_band: "low"|"moderate"|"high"; components: Record<string, number>; }
+const def = {
+  id: "abcd2",
+  label: "ABCD2 (TIA)",
+  inputs: [
+    { id: "age_years", label: "Age", type: "number", min: 0, max: 120 },
+    { id: "sbp_mm_hg", label: "SBP (mmHg)", type: "number", min: 0 },
+    { id: "dbp_mm_hg", label: "DBP (mmHg)", type: "number", min: 0 },
+    { id: "unilateral_weakness", label: "Unilateral weakness", type: "boolean" },
+    { id: "speech_disturbance_without_weakness", label: "Speech disturbance only", type: "boolean" },
+    { id: "duration_minutes", label: "Duration (min)", type: "number", min: 0 },
+    { id: "diabetes", label: "Diabetes", type: "boolean" }
+  ],
+  run: (args: ABCD2Inputs) => {
+    const v = calc_abcd2(args);
+    return { id: "abcd2", label: "ABCD2 (TIA)", value: v, unit: "score", precision: 0, notes: [] };
+  },
+};
 
-export function runABCD2(i: ABCD2Input): ABCD2Output {
-  const comp: Record<string, number> = {};
-  comp.age = i.age_ge_60 ? 1 : 0;
-  comp.bp = i.sbp_ge_140_or_dbp_ge_90 ? 1 : 0;
-  comp.clinical = i.clinical_unilateral_weakness ? 2 : (i.clinical_speech_disturbance_without_weakness ? 1 : 0);
-  const d = i.duration_min ?? 0;
-  comp.duration = d >= 60 ? 2 : (d >= 10 ? 1 : 0);
-  comp.dm = i.diabetes ? 1 : 0;
-  const pts = Object.values(comp).reduce((a,b)=>a+b,0);
-  let band: "low"|"moderate"|"high" = "low";
-  if (pts >= 6) band = "high";
-  else if (pts >= 4) band = "moderate";
-  return { points: pts, risk_band: band, components: comp };
-}
+export default def;
