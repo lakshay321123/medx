@@ -1,27 +1,30 @@
-import { register } from "../registry";
+// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
 
-export interface TTKGInput {
-  urine_k_meq_l: number;
-  plasma_k_meq_l: number;
-  urine_osm_mOsm_kg: number;
-  plasma_osm_mOsm_kg: number;
-}
-export function runTTKG(i: TTKGInput) {
-  const ttkg = (i.urine_k_meq_l / i.plasma_k_meq_l) * (i.plasma_osm_mOsm_kg / i.urine_osm_mOsm_kg);
-  return { ttkg: Number(ttkg.toFixed(2)) };
+export type TTKGInputs = {
+  urine_k_mmol_l: number;
+  plasma_k_mmol_l: number;
+  urine_osm_mosm_kg: number;
+  plasma_osm_mosm_kg: number;
+};
+
+export function calc_ttkg(i: TTKGInputs): number {
+  if (i.plasma_k_mmol_l <= 0 || i.urine_osm_mosm_kg <= 0) return NaN;
+  return (i.urine_k_mmol_l / i.plasma_k_mmol_l) * (i.plasma_osm_mosm_kg / i.urine_osm_mosm_kg);
 }
 
-register({
+const def = {
   id: "ttkg",
-  label: "TTKG (trans-tubular K gradient)",
+  label: "Transtubular Potassium Gradient (TTKG)",
   inputs: [
-    { key: "urine_k_meq_l", required: true },
-    { key: "plasma_k_meq_l", required: true },
-    { key: "urine_osm_mOsm_kg", required: true },
-    { key: "plasma_osm_mOsm_kg", required: true },
+    { id: "urine_k_mmol_l", label: "Urine K (mmol/L)", type: "number", min: 0 },
+    { id: "plasma_k_mmol_l", label: "Plasma K (mmol/L)", type: "number", min: 0 },
+    { id: "urine_osm_mosm_kg", label: "Urine Osm (mOsm/kg)", type: "number", min: 1 },
+    { id: "plasma_osm_mosm_kg", label: "Plasma Osm (mOsm/kg)", type: "number", min: 1 }
   ],
-  run: (ctx: any) => {
-    const r = runTTKG(ctx as any);
-    return { id: "ttkg", label: "TTKG", value: r.ttkg, precision: 2 };
+  run: (args: TTKGInputs) => {
+    const v = calc_ttkg(args);
+    return { id: "ttkg", label: "TTKG", value: v, unit: "", precision: 1, notes: [] };
   },
-});
+};
+
+export default def;

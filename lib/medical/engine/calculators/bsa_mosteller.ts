@@ -1,11 +1,6 @@
-// Auto-generated calculator. Sources cited in PR. No placeholders.
-// Keep structure consistent with other calculators in MedX.
+// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
 
-
-export type BSAInputs = {
-  height_cm: number;
-  weight_kg: number;
-};
+export type BSAInputs = { height_cm: number; weight_kg: number };
 
 export function calc_bsa_mosteller({ height_cm, weight_kg }: BSAInputs): number {
   return Math.sqrt((height_cm * weight_kg) / 3600);
