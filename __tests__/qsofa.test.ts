@@ -1,8 +1,9 @@
 import { calc_qsofa } from "../lib/medical/engine/calculators/qsofa";
 
 describe("calc_qsofa", () => {
-  it("scores 3 components", () => {
-    const v = calc_qsofa({ sbp_mm_hg: 90, rr_bpm: 30, gcs_lt_15: false });
-    expect(v).toBe(2);
+  it("flags high risk at >=2", () => {
+    const r = calc_qsofa({ rr: 30, sbp: 90, gcs: 15 });
+    expect(r.score).toBeGreaterThanOrEqual(2);
+    expect(r.high_risk).toBe(true);
   });
 });
