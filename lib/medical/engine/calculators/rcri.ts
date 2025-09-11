@@ -1,42 +1,41 @@
-// Auto-generated calculator. Sources cited in PR. No placeholders.
-// Keep structure consistent with other calculators in MedX.
-
 export type RCRIInputs = {
   high_risk_surgery: boolean;
-  history_ischemic_hd: boolean;
-  history_chf: boolean;
-  history_cvd: boolean;
-  insulin_therapy: boolean;
+  ischemic_hd: boolean;
+  chf: boolean;
+  cerebrovascular_disease: boolean;
+  insulin_tx: boolean;
   creatinine_mg_dl: number;
 };
 
-export function calc_rcri({
-  high_risk_surgery, history_ischemic_hd, history_chf, history_cvd, insulin_therapy, creatinine_mg_dl
-}: RCRIInputs): number {
-  let score = 0;
-  if (high_risk_surgery) score++;
-  if (history_ischemic_hd) score++;
-  if (history_chf) score++;
-  if (history_cvd) score++;
-  if (insulin_therapy) score++;
-  if (creatinine_mg_dl > 2.0) score++;
-  return score;
+export function calc_rcri(i: RCRIInputs): { score: number; risk: "low"|"elevated"|"high" } {
+  let s = 0;
+  if (i.high_risk_surgery) s += 1;
+  if (i.ischemic_hd) s += 1;
+  if (i.chf) s += 1;
+  if (i.cerebrovascular_disease) s += 1;
+  if (i.insulin_tx) s += 1;
+  if (i.creatinine_mg_dl > 2.0) s += 1;
+  let risk: "low"|"elevated"|"high" = "low";
+  if (s >= 3) risk = "high";
+  else if (s >= 1) risk = "elevated";
+  return { score: s, risk };
 }
 
 const def = {
   id: "rcri",
-  label: "RCRI (Lee)",
+  label: "Revised Cardiac Risk Index (RCRI)",
   inputs: [
     { id: "high_risk_surgery", label: "High-risk surgery", type: "boolean" },
-    { id: "history_ischemic_hd", label: "Ischemic heart disease", type: "boolean" },
-    { id: "history_chf", label: "CHF history", type: "boolean" },
-    { id: "history_cvd", label: "Cerebrovascular disease", type: "boolean" },
-    { id: "insulin_therapy", label: "Insulin therapy", type: "boolean" },
+    { id: "ischemic_hd", label: "History of ischemic heart disease", type: "boolean" },
+    { id: "chf", label: "History of CHF", type: "boolean" },
+    { id: "cerebrovascular_disease", label: "History of cerebrovascular disease", type: "boolean" },
+    { id: "insulin_tx", label: "Diabetes on insulin", type: "boolean" },
     { id: "creatinine_mg_dl", label: "Creatinine (mg/dL)", type: "number", min: 0 }
   ],
   run: (args: RCRIInputs) => {
-    const v = calc_rcri(args);
-    return { id: "rcri", label: "RCRI (Lee)", value: v, unit: "score", precision: 0, notes: [] };
+    const r = calc_rcri(args);
+    const notes = [r.risk];
+    return { id: "rcri", label: "RCRI", value: r.score, unit: "points", precision: 0, notes, extra: r };
   },
 };
 
