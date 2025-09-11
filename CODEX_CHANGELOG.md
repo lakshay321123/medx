@@ -33,6 +33,7 @@
 - gcs_total.test.ts
 - pao2_alveolar.test.ts
 - sf_ratio.test.ts
+- mentalHealthResources.test.ts
 
 ## Items skipped (tests already present)
 - bsa_rule_of_nines
