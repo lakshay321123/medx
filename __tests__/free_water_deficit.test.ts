@@ -1,11 +1,9 @@
-  import { calc_free_water_deficit } from "../lib/medical/engine/calculators/free_water_deficit";
+import { calc_free_water_deficit } from "../lib/medical/engine/calculators/free_water_deficit";
 
-  describe("calc_free_water_deficit", () => {
-
-it("computes free water deficit (male, 70 kg, Na 155)", () => {
-  const r = calc_free_water_deficit({ serum_na: 155, weight_kg: 70, sex: "male" });
-  expect(Math.round(r.tbw)).toBe(42);
-  expect(r.deficit).toBeCloseTo(4.5, 1);
-});
-
+describe("calc_free_water_deficit", () => {
+  it("computes example deficit", () => {
+    const v = calc_free_water_deficit({ sex: "male", weight_kg: 70, sodium_mmol_l: 160 });
+    const tbw = 0.6*70;
+    expect(v).toBeCloseTo(tbw * (160/140 - 1), 4);
   });
+});
