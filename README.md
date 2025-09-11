@@ -7,6 +7,7 @@ This project includes:
 - Dark/Light theme, PWA manifest
 - Minimal UI with Patient/Clinician toggle
 - API wrappers for PubMed, openFDA, ClinicalTrials, DailyMed, RxNorm, ICD-11
+- Nearby care search powered by OpenStreetMap's Overpass API
 
 ## Run
 1. Copy `.env.example` → `.env.local` and fill:
@@ -19,6 +20,7 @@ This project includes:
    - optional: `HF_CHEST_MODEL` `HF_BONE_MODEL`
    - for OpenAI summaries: `OPENAI_API_KEY`, `OPENAI_TEXT_MODEL`, `OPENAI_VISION_MODEL`
    - optional meds micro-summary: `MEDS_SHORT_SUMMARY` (`true|false`), `MEDS_SHORT_SUMMARY_MAX_CHARS`
+   - nearby care: `FEATURE_NEARBY`, `OVERPASS_API_URL`, `OVERPASS_USER_AGENT`, `NEARBY_DEFAULT_RADIUS_KM`, `NEARBY_MAX_RESULTS`, `NEARBY_CACHE_TTL_SEC`, `NEXT_PUBLIC_NEARBY_DEFAULT_RADIUS_KM`
 2. `npm install`
 3. `npm run dev`
 
