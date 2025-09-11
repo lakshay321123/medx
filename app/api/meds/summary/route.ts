@@ -4,6 +4,9 @@ import { getMedicationSummary } from "@/lib/meds/summary";
 
 const ENABLED = (process.env.MEDS_FLOW_ENABLED || "").toLowerCase() === "true";
 const DEFAULT_REGION = process.env.DEFAULT_REGION || "US";
+const STABLE = (process.env.API_STABLE_CONTRACTS || "").toLowerCase() === "true";
+const VERSION = process.env.API_CONTRACT_VERSION || "v1";
+const SOURCE_VERSION = process.env.MEDS_SOURCE_VERSION || null;
 
 export async function GET(req: NextRequest) {
   if (!ENABLED) {
@@ -19,10 +22,19 @@ export async function GET(req: NextRequest) {
   try {
     const data = await getMedicationSummary({ name, country, lang });
     console.log("meds_summary", { name, country, refs: data.card.references.length });
+    if (STABLE) {
+      data.meta = {
+        version: VERSION,
+        sourceVersion: SOURCE_VERSION,
+        slug: data.meta?.slug ?? null,
+        country: data.meta?.country ?? null,
+        cached: data.meta?.cached ?? null,
+      };
+    }
     return NextResponse.json(data);
   } catch (e: any) {
-    const msg = e?.message === "normalize_failed" ? "normalize_failed" : e?.message || "error";
-    const status = msg === "normalize_failed" ? 404 : 500;
+    const msg = e?.message || "error";
+    const status = ["normalize_failed", "no_valid_refs"].includes(msg) ? 404 : 500;
     return NextResponse.json({ error: msg }, { status });
   }
 }
