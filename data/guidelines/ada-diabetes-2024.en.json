@@ -1,10 +1,10 @@
 {
   "title": "ADA Diabetes 2024",
   "bullets": [
-    "A1c target individualized...",
-    "Statin therapy by risk..."
+    "Individualize A1c targets based on age, comorbidities, and hypoglycemia risk",
+    "Use statin therapy according to cardiovascular risk profile"
   ],
   "refs": [
-    "https://example.com/ada2024"
+    "https://doi.org/10.2337/dc24-S001"
   ]
 }
