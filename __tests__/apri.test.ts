@@ -1,8 +1,8 @@
-import { test, expect } from "@jest/globals";
-import { runAPRI } from "../lib/medical/engine/calculators/apri";
+import { calc_apri } from "../lib/medical/engine/calculators/apri";
 
-test("APRI example", () => {
-  const out = runAPRI({ ast_u_l:80, ast_uln_u_l:40, platelets_10e9_L:100 });
-  expect(out.score).toBeCloseTo(2.0, 1);
-  expect(out.band).toBe("suggests_cirrhosis");
+describe("calc_apri", () => {
+  it("computes APRI with standard ULN 40", () => {
+    const v = calc_apri({ ast_u_l: 80, ast_uln_u_l: 40, platelets_10e9_l: 200 });
+    expect(v).toBeCloseTo(1.0, 2);
+  });
 });

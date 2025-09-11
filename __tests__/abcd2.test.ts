@@ -1,8 +1,12 @@
-import { test, expect } from "@jest/globals";
-import { runABCD2 } from "../lib/medical/engine/calculators/abcd2";
+import { calc_abcd2 } from "../lib/medical/engine/calculators/abcd2";
 
-test("ABCD2 moderate", () => {
-  const out = runABCD2({ age_ge_60:true, sbp_ge_140_or_dbp_ge_90:true, clinical_unilateral_weakness:false, clinical_speech_disturbance_without_weakness:true, duration_min:30, diabetes:true });
-  expect(out.points).toBe(1+1+1+1+1);
-  expect(out.risk_band).toBe("moderate");
+describe("calc_abcd2", () => {
+  it("computes a typical high-risk example", () => {
+    const v = calc_abcd2({
+      age_years: 70, sbp_mm_hg: 150, dbp_mm_hg: 95,
+      unilateral_weakness: true, speech_disturbance_without_weakness: false,
+      duration_minutes: 75, diabetes: true
+    });
+    expect(v).toBe(7);
+  });
 });
