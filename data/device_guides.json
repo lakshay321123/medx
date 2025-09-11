@@ -1,0 +1,18 @@
+{
+  "bp": {
+    "steps": [
+      "Sit upright and rest your arm on a table.",
+      "Wrap the cuff around your upper arm.",
+      "Press start and remain still until the reading appears."
+    ],
+    "images": []
+  },
+  "glucometer": {
+    "steps": [
+      "Insert a test strip into the device.",
+      "Use a lancet to obtain a drop of blood.",
+      "Touch the strip to the blood and read the result."
+    ],
+    "images": []
+  }
+}
