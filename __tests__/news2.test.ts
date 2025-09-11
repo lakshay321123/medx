@@ -1,11 +1,9 @@
-// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
-
 import { calc_news2 } from "../lib/medical/engine/calculators/news2";
 
 describe("calc_news2", () => {
-  it("computes risk banding", () => {
-    const r = calc_news2({ rr: 28, spo2_percent: 90, on_supplemental_o2: true, temp_c: 39.2, sbp: 88, hr: 140, consciousness: "vpu" });
-    expect(r.score).toBeGreaterThanOrEqual(7);
-    expect(r.risk).toBe("high");
+  it("bumps risk to medium if any component is 3", () => {
+    const r = calc_news2({ rr: 8, spo2_percent: 99, temp_c: 37, sbp: 130, hr: 70, consciousness: "A", on_supplemental_o2: false });
+    expect(r.score).toBeGreaterThan(0);
+    expect(r.risk).toBe("medium");
   });
 });

@@ -1,11 +1,8 @@
-  import { calc_feurea } from "../lib/medical/engine/calculators/fe_urea";
+import { calc_fe_urea } from "../lib/medical/engine/calculators/fe_urea";
 
-  describe("calc_feurea", () => {
-
-it("computes FEUrea", () => {
-  const v = calc_feurea({ urine_urea: 300, serum_urea: 30, urine_cr: 50, serum_cr: 2 });
-  // (300*2)/(30*50)*100 = 40%
-  expect(Math.round(v!)).toBe(40);
-});
-
+describe("calc_fe_urea", () => {
+  it("computes (Uurea*Pcr)/(Purea*Ucr)*100", () => {
+    const v = calc_fe_urea({ urine_urea_mg_dl: 400, plasma_urea_mg_dl: 40, urine_cr_mg_dl: 100, plasma_cr_mg_dl: 2 });
+    expect(v).toBeCloseTo((400*2)/(40*100)*100, 6);
   });
+});
