@@ -1,11 +1,11 @@
-import { calc_heart } from "../lib/medical/engine/calculators/heart_score";
+// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
 
-describe("calc_heart", () => {
-  it("computes a high-risk example", () => {
-    const v = calc_heart({
-      history: "high", ecg: "st_depression", age_years: 70, risk_factors_count: 3,
-      known_atherosclerotic_disease: false, troponin_multiple_uln: 4
-    });
-    expect(v).toBe(2+2+2+2+2);
+import { calc_heart_score } from "../lib/medical/engine/calculators/heart_score";
+
+describe("calc_heart_score", () => {
+  it("classifies high risk at >=7", () => {
+    const r = calc_heart_score({ history: 2, ecg: 2, age_group: 1, risk_factors: 1, troponin: 1 });
+    expect(r.score).toBe(7);
+    expect(r.risk).toBe("high");
   });
 });

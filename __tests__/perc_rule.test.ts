@@ -1,11 +1,11 @@
-import { calc_perc } from "../lib/medical/engine/calculators/perc_rule";
+// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
 
-describe("calc_perc", () => {
-  it("is negative when all criteria absent", () => {
-    const v = calc_perc({
-      age_ge_50: false, hr_ge_100: false, sao2_lt_95: false, hemoptysis: false,
-      estrogen_use: false, prior_dvt_pe: false, unilateral_leg_swelling: false, recent_surgery_trauma: false
-    });
-    expect(v).toBe(0);
+import { calc_perc_rule } from "../lib/medical/engine/calculators/perc_rule";
+
+describe("calc_perc_rule", () => {
+  it("is negative only when all criteria satisfied", () => {
+    const r = calc_perc_rule({ age_lt_50: true, hr_lt_100: true, sao2_ge_95: true, no_hemoptysis: true, no_estrogen_use: true, no_prior_dvt_pe: true, no_unilateral_leg_swelling: true, no_recent_surgery_or_trauma: true });
+    expect(r.positive_count).toBe(8);
+    expect(r.perc_negative).toBe(true);
   });
 });
