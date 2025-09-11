@@ -1,10 +1,8 @@
-  import { calc_sirs } from "../lib/medical/engine/calculators/sirs";
+import { calc_sirs } from "../lib/medical/engine/calculators/sirs";
 
-  describe("calc_sirs", () => {
-
-it("counts SIRS criteria = 4", () => {
-  const v = calc_sirs({ temp_c: 38.5, hr: 100, rr: 22, wbc: 15 });
-  expect(v).toBe(4);
-});
-
+describe("calc_sirs", () => {
+  it("meets 4 criteria when all abnormal", () => {
+    const v = calc_sirs({ temp_c: 39, hr_bpm: 120, rr_bpm: 24, paco2_mm_hg: 30, wbc_10e9_l: 15, bands_percent: 12 });
+    expect(v).toBe(4);
   });
+});

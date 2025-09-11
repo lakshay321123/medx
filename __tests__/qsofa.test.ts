@@ -1,10 +1,8 @@
-  import { calc_qsofa } from "../lib/medical/engine/calculators/qsofa";
+import { calc_qsofa } from "../lib/medical/engine/calculators/qsofa";
 
-  describe("calc_qsofa", () => {
-
-it("scores qSOFA = 3", () => {
-  const v = calc_qsofa({ resp_rate: 22, sbp: 90, gcs: 14 });
-  expect(v).toBe(3);
-});
-
+describe("calc_qsofa", () => {
+  it("scores 3 when all criteria met", () => {
+    const v = calc_qsofa({ rr_per_min: 30, sbp_mm_hg: 90, gcs_total: 10 });
+    expect(v).toBe(3);
   });
+});

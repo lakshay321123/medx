@@ -1,6 +1,11 @@
-import { runCHA2DS2VASc } from "@/lib/medical/engine/calculators/cha2ds2_vasc";
+import { calc_cha2ds2_vasc } from "../lib/medical/engine/calculators/cha2ds2_vasc";
 
-test("CHA2DS2-VASc", () => {
-  const r = runCHA2DS2VASc({ chf:true, htn:true, age:78, dm:true, stroke_tia_thromboembolism:true, vascular_disease:true, female_sex:false });
-  expect(r.score).toBe(8);
+describe("calc_cha2ds2_vasc", () => {
+  it("scores a typical high-risk female", () => {
+    const v = calc_cha2ds2_vasc({
+      age_years: 78, sex: "female", chf: true, htn: true, diabetes: true, stroke_tia_te: false, vascular_disease: true
+    });
+    // 2(age75+)+1(sex)+1(chf)+1(htn)+1(dm)+1(vasc)=7
+    expect(v).toBe(7);
+  });
 });
