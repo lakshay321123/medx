@@ -1,20 +1,37 @@
-// lib/medical/engine/calculators/ottawa_ankle.ts
-export interface OttawaAnkleInput {
-  malleolar_pain?: boolean | null;
-  navicular_pain?: boolean | null;
-  base_5th_metatarsal_pain?: boolean | null;
-  inability_bear_weight_4steps?: boolean | null;
-  bone_tender_posterior_edge_lat_malleolus?: boolean | null;
-  bone_tender_posterior_edge_med_malleolus?: boolean | null;
-}
-export interface OttawaAnkleOutput { need_radiograph: boolean; reasons: string[]; }
+export type OttawaAnkleInputs = {
+  pain_in_malleolar_zone: boolean;
+  bone_tenderness_posterior_edge_or_tip_lateral_malleolus: boolean;
+  bone_tenderness_posterior_edge_or_tip_medial_malleolus: boolean;
+  inability_to_bear_weight_4_steps: boolean;
+};
 
-export function runOttawaAnkle(i: OttawaAnkleInput): OttawaAnkleOutput {
-  const reasons: string[] = [];
-  const midfoot = i.navicular_pain || i.base_5th_metatarsal_pain;
-  const ankle_bone_tender = i.bone_tender_posterior_edge_lat_malleolus || i.bone_tender_posterior_edge_med_malleolus;
-  if (i.malleolar_pain && ankle_bone_tender) reasons.push("malleolar bone tenderness");
-  if (midfoot && (i.navicular_pain || i.base_5th_metatarsal_pain)) reasons.push("midfoot bone tenderness");
-  if (i.inability_bear_weight_4steps) reasons.push("inability to bear weight");
-  return { need_radiograph: reasons.length > 0, reasons };
+export function calc_ottawa_ankle(i: OttawaAnkleInputs): { criteria_met: number; imaging_recommended: boolean } {
+  const c1 = i.pain_in_malleolar_zone &&
+    (i.bone_tenderness_posterior_edge_or_tip_lateral_malleolus ||
+     i.bone_tenderness_posterior_edge_or_tip_medial_malleolus ||
+     i.inability_to_bear_weight_4_steps);
+  const criteria = [
+    i.bone_tenderness_posterior_edge_or_tip_lateral_malleolus,
+    i.bone_tenderness_posterior_edge_or_tip_medial_malleolus,
+    i.inability_to_bear_weight_4_steps
+  ].filter(Boolean).length;
+  return { criteria_met: criteria, imaging_recommended: !!c1 };
 }
+
+const def = {
+  id: "ottawa_ankle",
+  label: "Ottawa Ankle Rules",
+  inputs: [
+    { id: "pain_in_malleolar_zone", label: "Pain in malleolar zone", type: "boolean" },
+    { id: "bone_tenderness_posterior_edge_or_tip_lateral_malleolus", label: "Bone tenderness at posterior edge/tip lateral malleolus", type: "boolean" },
+    { id: "bone_tenderness_posterior_edge_or_tip_medial_malleolus", label: "Bone tenderness at posterior edge/tip medial malleolus", type: "boolean" },
+    { id: "inability_to_bear_weight_4_steps", label: "Inability to bear weight (4 steps)", type: "boolean" }
+  ],
+  run: (args: OttawaAnkleInputs) => {
+    const r = calc_ottawa_ankle(args);
+    const notes = [r.imaging_recommended ? "X-ray indicated" : "No X-ray per rules"];
+    return { id: "ottawa_ankle", label: "Ottawa Ankle", value: r.criteria_met, unit: "criteria", precision: 0, notes, extra: r };
+  },
+};
+
+export default def;
