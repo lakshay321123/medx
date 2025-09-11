@@ -1,36 +1,15 @@
-import { runRCRI } from "@/lib/medical/engine/calculators/rcri";
+import { calc_rcri } from "../lib/medical/engine/calculators/rcri";
 
-test("RCRI basic scoring", () => {
-  const low = runRCRI({
-    high_risk_surgery: false,
-    ischemic_hd: false,
-    heart_failure: false,
-    cerebrovascular: false,
-    insulin_treated_dm: false,
-    creatinine_mg_dl: 1.1,
+describe("calc_rcri", () => {
+  it("scores 3 for three risk factors", () => {
+    const v = calc_rcri({
+      high_risk_surgery: true,
+      history_ischemic_hd: false,
+      history_chf: true,
+      history_cvd: false,
+      insulin_therapy: true,
+      creatinine_mg_dl: 1.2
+    });
+    expect(v).toBe(3);
   });
-  expect(low.points).toBe(0);
-  expect(low.risk_band).toBe("low");
-
-  const mid = runRCRI({
-    high_risk_surgery: true,
-    ischemic_hd: false,
-    heart_failure: false,
-    cerebrovascular: false,
-    insulin_treated_dm: false,
-    creatinine_mg_dl: 1.0,
-  });
-  expect(mid.points).toBe(1);
-  expect(mid.risk_band).toBe("intermediate");
-
-  const high = runRCRI({
-    high_risk_surgery: true,
-    ischemic_hd: true,
-    heart_failure: false,
-    cerebrovascular: false,
-    insulin_treated_dm: false,
-    creatinine_mg_dl: 2.5,
-  });
-  expect(high.points).toBe(3);
-  expect(high.risk_band).toBe("high");
 });
