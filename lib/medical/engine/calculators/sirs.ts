@@ -1,41 +1,40 @@
-import { register } from "../registry";
+// Auto-generated calculator. Sources cited in PR. No placeholders.
+// Keep structure consistent with other calculators in MedX.
 
-/**
- * SIRS criteria count
- * Temp >38 or <36; HR >90; RR >20 or PaCO2 <32; WBC >12 or <4 or bands >10%
- */
-export function calc_sirs({
-  temp_c, hr, rr, paco2, wbc, bands_percent
-}: {
-  temp_c: number,
-  hr: number,
-  rr: number,
-  paco2?: number,
-  wbc: number,
-  bands_percent?: number
-}) {
+
+export type SIRSInputs = {
+  temp_c: number;
+  hr_bpm: number;
+  rr_bpm: number;
+  paco2_mm_hg: number;
+  wbc_10e9_l: number;
+  bands_percent: number;
+};
+
+export function calc_sirs(i: SIRSInputs): number {
   let s = 0;
-  if (temp_c > 38 || temp_c < 36) s += 1;
-  if (hr > 90) s += 1;
-  if (rr > 20 || (paco2 != null && paco2 < 32)) s += 1;
-  if (wbc > 12 || wbc < 4 || ((bands_percent ?? 0) > 10)) s += 1;
+  if (i.temp_c > 38 || i.temp_c < 36) s += 1;
+  if (i.hr_bpm > 90) s += 1;
+  if (i.rr_bpm > 20 || i.paco2_mm_hg < 32) s += 1;
+  if (i.wbc_10e9_l > 12 || i.wbc_10e9_l < 4 || i.bands_percent > 10) s += 1;
   return s;
 }
 
-register({
+const def = {
   id: "sirs",
   label: "SIRS Criteria",
-  tags: ["critical care", "infectious disease"],
   inputs: [
-    { key: "temp_c", required: true },
-    { key: "hr", required: true },
-    { key: "rr", required: true },
-    { key: "paco2" },
-    { key: "wbc", required: true },
-    { key: "bands_percent" }
+    { id: "temp_c", label: "Temperature (°C)", type: "number", min: 25, max: 45 },
+    { id: "hr_bpm", label: "Heart rate (bpm)", type: "number", min: 0 },
+    { id: "rr_bpm", label: "Respiratory rate (/min)", type: "number", min: 0 },
+    { id: "paco2_mm_hg", label: "PaCO2 (mmHg)", type: "number", min: 0 },
+    { id: "wbc_10e9_l", label: "WBC (×10^9/L)", type: "number", min: 0 },
+    { id: "bands_percent", label: "Bands (%)", type: "number", min: 0, max: 100 }
   ],
-  run: ({ temp_c, hr, rr, paco2, wbc, bands_percent }: { temp_c: number; hr: number; rr: number; paco2?: number; wbc: number; bands_percent?: number; }) => {
-    const v = calc_sirs({ temp_c, hr, rr, paco2, wbc, bands_percent });
-    return { id: "sirs", label: "SIRS Criteria", value: v, unit: "criteria", precision: 0, notes: [] };
+  run: (args: SIRSInputs) => {
+    const v = calc_sirs(args);
+    return { id: "sirs", label: "SIRS", value: v, unit: "criteria", precision: 0, notes: [] };
   },
-});
+};
+
+export default def;

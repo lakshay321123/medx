@@ -1,42 +1,37 @@
-import { register } from "../registry";
+// Auto-generated calculator. Sources cited in PR. No placeholders.
+// Keep structure consistent with other calculators in MedX.
 
-/**
- * Alveolar–arterial (A–a) O2 gradient
- * PAO2 = FiO2*(Pb - PH2O) - PaCO2/R
- * A–a = PAO2 - PaO2
- */
-export function calc_aa_gradient({
-  fio2, pao2, paco2, pb, r
-}: {
-  fio2?: number, // fraction 0-1, default 0.21
-  pao2: number,  // arterial PaO2 (mmHg)
-  paco2: number, // arterial PaCO2 (mmHg)
-  pb?: number,   // barometric pressure (mmHg), default 760
-  r?: number     // respiratory quotient, default 0.8
-}) {
-  const FiO2 = (fio2 ?? 0.21);
-  const Pb = (pb ?? 760);
+
+export type AAGradientInputs = {
+  fio2: number; // 0.21 - 1.0
+  pao2_mm_hg: number;
+  paco2_mm_hg: number;
+  barometric_mm_hg?: number; // default 760
+  r?: number; // default 0.8
+};
+
+export function calc_aa_gradient(i: AAGradientInputs): number {
+  const Patm = (typeof i.barometric_mm_hg === "number") ? i.barometric_mm_hg : 760;
+  const R = (typeof i.r === "number") ? i.r : 0.8;
   const PH2O = 47;
-  const R = (r ?? 0.8);
-  const PAO2 = FiO2 * (Pb - PH2O) - (paco2 / R);
-  const Aa = PAO2 - pao2;
-  return { PAO2, Aa };
+  const PAO2 = i.fio2 * (Patm - PH2O) - (i.paco2_mm_hg / R);
+  return PAO2 - i.pao2_mm_hg;
 }
 
-register({
+const def = {
   id: "aa_gradient",
-  label: "A–a O2 Gradient",
-  tags: ["pulmonology", "critical care"],
+  label: "A–a Gradient",
   inputs: [
-    { key: "fio2" },
-    { key: "pao2", required: true },
-    { key: "paco2", required: true },
-    { key: "pb" },
-    { key: "r" }
+    { id: "fio2", label: "FiO2 (fraction)", type: "number", min: 0.21, max: 1, step: 0.01 },
+    { id: "pao2_mm_hg", label: "PaO2 (mmHg)", type: "number", min: 0 },
+    { id: "paco2_mm_hg", label: "PaCO2 (mmHg)", type: "number", min: 0 },
+    { id: "barometric_mm_hg", label: "Barometric pressure (mmHg)", type: "number", min: 400, max: 800 },
+    { id: "r", label: "Respiratory quotient R", type: "number", min: 0.5, max: 1.0, step: 0.05 }
   ],
-  run: ({ fio2, pao2, paco2, pb, r }: { fio2?: number; pao2: number; paco2: number; pb?: number; r?: number; }) => {
-    const res = calc_aa_gradient({ fio2, pao2, paco2, pb, r });
-    const notes = [`PAO2≈${Math.round(res.PAO2)}`];
-    return { id: "aa_gradient", label: "A–a O2 Gradient", value: res.Aa, unit: "mmHg", precision: 0, notes, extra: res };
+  run: (args: AAGradientInputs) => {
+    const v = calc_aa_gradient(args);
+    return { id: "aa_gradient", label: "A–a Gradient", value: v, unit: "mmHg", precision: 1, notes: [] };
   },
-});
+};
+
+export default def;
