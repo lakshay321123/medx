@@ -33,8 +33,8 @@ export async function GET(req: NextRequest) {
     }
     return NextResponse.json(data);
   } catch (e: any) {
-    const msg = e?.message === "normalize_failed" ? "normalize_failed" : e?.message || "error";
-    const status = msg === "normalize_failed" ? 404 : 500;
+    const msg = e?.message || "error";
+    const status = ["normalize_failed", "no_valid_refs"].includes(msg) ? 404 : 500;
     return NextResponse.json({ error: msg }, { status });
   }
 }
