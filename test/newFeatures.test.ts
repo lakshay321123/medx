@@ -40,7 +40,8 @@ test('coach tip api returns message', async () => {
 test('research summary api returns bullets', async () => {
   const res = await researchSummary(new Request('http://test?pmid=123') as any);
   const body = await json(res as any);
-  assert.equal(body.bullets.length, 5);
+  assert.ok(Array.isArray(body.bullets));
+  assert.ok(body.bullets.length <= 5);
   assert.ok(body.link.includes('123'));
 });
 

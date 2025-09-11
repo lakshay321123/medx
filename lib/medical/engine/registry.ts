@@ -24,4 +24,13 @@ export type Formula = {
 };
 
 export const FORMULAE: Formula[] = [];
-export function register(formula: Formula) { FORMULAE.push(formula); }
+export function register(formula: Formula) {
+  if (FORMULAE.some(f => f.id === formula.id)) {
+    if (process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.warn(`[registry] Duplicate id skipped: ${formula.id}`);
+    }
+    return;
+  }
+  FORMULAE.push(formula);
+}

@@ -29,16 +29,21 @@ export async function POST(req: NextRequest) {
 }
 
 async function webSearch(q: string): Promise<SearchResult[]> {
+  const endpoint = (process.env.SEARCH_API_URL || '').trim();
+  if (!endpoint) return [];
   try {
-    const res = await fetch(`https://ddg-api.herokuapp.com/search?q=${encodeURIComponent(q)}`);
+    const res = await fetch(`${endpoint}?q=${encodeURIComponent(q)}`, { cache: 'no-store' });
     if (!res.ok) return [];
     const j = await res.json();
-    return (j.results || []).map((r: any) => ({
-      title: r.title,
-      snippet: r.description,
-      url: r.url,
-      source: 'web'
-    }));
+    const arr = Array.isArray(j.results) ? j.results : Array.isArray(j) ? j : [];
+    return arr
+      .map((r: any) => ({
+        title: r.title || r.name || '',
+        snippet: r.snippet || r.description || '',
+        url: r.url || r.link || '',
+        source: 'web'
+      }))
+      .filter((r: SearchResult) => r.title && r.url);
   } catch {
     return [];
   }

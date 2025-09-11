@@ -1,6 +1,12 @@
 import { FORMULAE } from "./registry";
 import "./calculators";
 
+function isAcceptableValue(v: any): boolean {
+  if (v == null) return false;
+  if (typeof v === "number") return Number.isFinite(v);
+  return true; // strings and objects allowed
+}
+
 export function computeAll(ctx: Record<string, any>) {
   const out: {
     id: string;
@@ -13,7 +19,7 @@ export function computeAll(ctx: Record<string, any>) {
   for (const f of FORMULAE.sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100))) {
     try {
       const res = f.run(ctx);
-      if (res && res.value != null) {
+      if (res && isAcceptableValue(res.value)) {
         out.push({
           id: res.id,
           label: res.label,
