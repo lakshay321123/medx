@@ -4,7 +4,22 @@ export function detectLifestyleQuery(text: string): boolean {
   return re.test(text);
 }
 
-export function getLifestyleTips() {
+type TranslationMeta = { translation?: string };
+
+export type LifestyleTips = {
+  nutrition: string[];
+  exercise: string[];
+  stress: string[];
+  references: string[];
+  meta?: TranslationMeta;
+};
+
+export type LifestyleTipsResponse = {
+  lifestyle: LifestyleTips;
+  meta?: TranslationMeta;
+};
+
+export function getLifestyleTips(): LifestyleTipsResponse {
   return {
     lifestyle: {
       nutrition: ["Eat whole grains, fruits, vegetables"],
