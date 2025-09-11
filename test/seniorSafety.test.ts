@@ -7,27 +7,32 @@ describe('senior safety tips', () => {
     process.env.SENIOR_AGE_THRESHOLD = '65';
   });
 
-  it('injects tips for seniors', async () => {
-    const { injectSeniorTips } = await import('@/lib/rules/seniorSafety');
-    const cards = [{ lines: ['Base line'] }];
-    const out = injectSeniorTips(cards, { age: 70, meds: [] });
-    const lines = out[0].lines.join('\n');
-    assert.ok(lines.includes('fall risk'));
-    assert.ok(lines.includes('kidney function'));
+  it('returns card with tips for seniors', async () => {
+    const { injectSeniorTips } = await import(`@/lib/rules/seniorSafety?${Date.now()}`);
+    const out = injectSeniorTips([], { age: 70 });
+    assert.equal(out.length, 1);
+    const card = (out[0] as any).senior_safety;
+    assert.ok(card.home.length >= 2);
+    assert.ok(card.medications.length >= 1);
+    assert.ok(card.exercise.length >= 1);
   });
 
-  it('adds interaction tip when polypharmacy', async () => {
-    const { injectSeniorTips } = await import('@/lib/rules/seniorSafety');
-    const cards = [{ lines: [] }];
-    const out = injectSeniorTips(cards, { age: 80, meds: [1,2,3,4,5] });
-    const lines = out[0].lines.join('\n').toLowerCase();
-    assert.ok(lines.includes('interaction'));
+  it('skips when below age threshold', async () => {
+    const { injectSeniorTips } = await import(`@/lib/rules/seniorSafety?${Date.now()}`);
+    const out = injectSeniorTips([], { age: 60 });
+    assert.equal(out.length, 0);
   });
 
-  it('skips when age unknown', async () => {
-    const { injectSeniorTips } = await import('@/lib/rules/seniorSafety');
-    const cards = [{ lines: ['only'] }];
-    const out = injectSeniorTips(cards, {});
-    assert.equal(out[0].lines.length, 1);
+  it('triggers when flagged as senior', async () => {
+    const { injectSeniorTips } = await import(`@/lib/rules/seniorSafety?${Date.now()}`);
+    const out = injectSeniorTips([], { flags: { senior: true } });
+    assert.equal(out.length, 1);
+  });
+
+  it('skips when feature disabled', async () => {
+    process.env.SENIOR_SAFETY_TIPS = 'false';
+    const { injectSeniorTips } = await import(`@/lib/rules/seniorSafety?${Date.now()}`);
+    const out = injectSeniorTips([], { age: 80 });
+    assert.equal(out.length, 0);
   });
 });

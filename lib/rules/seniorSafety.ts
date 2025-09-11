@@ -1,25 +1,35 @@
-const ENABLED = (process.env.SENIOR_SAFETY_TIPS || 'false').toLowerCase() === 'true';
-const AGE_THRESHOLD = Number(process.env.SENIOR_AGE_THRESHOLD || 65);
+export interface SeniorSafetyCard {
+  senior_safety: {
+    home: string[];
+    medications: string[];
+    exercise: string[];
+  };
+}
 
-export interface PackCard { lines: string[] }
+export type PackCard = SeniorSafetyCard | Record<string, any>;
 
 export function injectSeniorTips(cards: PackCard[], patient: any): PackCard[] {
-  if (!ENABLED) return cards;
+  const enabled = (process.env.SENIOR_SAFETY_TIPS || 'false').toLowerCase() === 'true';
+  const ageThreshold = Number(process.env.SENIOR_AGE_THRESHOLD || 65);
+  if (!enabled) return cards;
   const age = typeof patient?.age === 'number' ? patient.age : undefined;
-  const isSenior = (age !== undefined && age >= AGE_THRESHOLD) || patient?.flags?.senior;
+  const isSenior = (age !== undefined && age >= ageThreshold) || patient?.flags?.senior;
   if (!isSenior) return cards;
-  const tips = [
-    'May increase fall risk; rise slowly.',
-    'Check kidney function with clinician if used regularly.'
-  ];
-  const poly = Array.isArray(patient?.meds) && patient.meds.length >= 5;
-  if (poly) tips.push('Interaction check with clinician.');
-  let count = 0;
-  const out = cards.map(card => {
-    const lines = [...card.lines, ...tips];
-    count += tips.length;
-    return { ...card, lines };
-  });
-  if (count) console.log('senior tips injected', { count });
-  return out;
+  const card: SeniorSafetyCard = {
+    senior_safety: {
+      home: [
+        'Install grab bars in bathrooms',
+        'Night lights in hallways',
+        'Schedule regular vision and hearing checks'
+      ],
+      medications: [
+        'Review meds causing drowsiness or dizziness'
+      ],
+      exercise: [
+        'Tai Chi or balance classes'
+      ]
+    }
+  };
+  console.log('senior safety card generated', { count: 1 });
+  return [...cards, card];
 }
