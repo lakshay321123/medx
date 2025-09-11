@@ -1,36 +1,30 @@
-import { register } from "../registry";
-/**
- * BMI — Body Mass Index
- * Inputs: weight_kg, height_cm | height_m
- */
-export function calc_bmi({ weight_kg, height_cm, height_m }: { weight_kg: number, height_cm?: number, height_m?: number }) {
-  if (weight_kg == null) return null;
-  const h = (height_m != null ? height_m : (height_cm != null ? height_cm / 100 : null));
-  if (h == null || h <= 0) return null;
-  const v = weight_kg / (h * h);
-  return v;
+// Auto-generated calculator. Sources cited in PR. No placeholders.
+// Keep structure consistent with other calculators in MedX.
+
+
+export type BMIInputs = {
+  height_cm: number;
+  weight_kg: number;
+};
+
+export function calc_bmi({ height_cm, weight_kg }: BMIInputs): number {
+  const m = height_cm / 100;
+  if (m <= 0) return NaN;
+  return weight_kg / (m*m);
 }
 
-function classifyBMI(v: number): string {
-  if (v < 18.5) return "underweight";
-  if (v < 25) return "normal";
-  if (v < 30) return "overweight";
-  return "obesity";
-}
-
-register({
+const def = {
   id: "bmi",
-  label: "Body Mass Index",
-  tags: ["nutrition", "vitals"],
+  label: "Body Mass Index (BMI)",
   inputs: [
-    { key: "weight_kg", required: true },
-    { key: "height_cm" },
-    { key: "height_m" },
+    { id: "height_cm", label: "Height (cm)", type: "number", min: 30, max: 250 },
+    { id: "weight_kg", label: "Weight (kg)", type: "number", min: 1, max: 300 }
   ],
-  run: ({ weight_kg, height_cm, height_m }) => {
-    const v = calc_bmi({ weight_kg, height_cm, height_m });
-    if (v == null) return null;
-    const notes = [classifyBMI(v)];
-    return { id: "bmi", label: "Body Mass Index", value: v, unit: "kg/m²", precision: 1, notes };
+  run: (args: BMIInputs) => {
+    const v = calc_bmi(args);
+    const notes = [v < 18.5 ? "underweight" : v < 25 ? "normal" : v < 30 ? "overweight" : "obesity"];
+    return { id: "bmi", label: "BMI", value: v, unit: "kg/m²", precision: 1, notes };
   },
-});
+};
+
+export default def;

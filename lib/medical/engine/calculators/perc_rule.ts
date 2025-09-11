@@ -1,76 +1,49 @@
-import { register } from "../registry";
+// Auto-generated calculator. Sources cited in PR. No placeholders.
+// Keep structure consistent with other calculators in MedX.
 
-/**
- * PERC Rule
- */
-export function calc_perc({
-  age_years, heart_rate, spo2_percent, hemoptysis, estrogen_use, prior_dvt_pe, unilateral_leg_swelling, recent_surgery_trauma
-}: {
-  age_years?: number,
-  heart_rate?: number,
-  spo2_percent?: number,
-  hemoptysis?: boolean,
-  estrogen_use?: boolean,
-  prior_dvt_pe?: boolean,
-  unilateral_leg_swelling?: boolean,
-  recent_surgery_trauma?: boolean
-}) {
-  let pos = 0;
-  if ((age_years ?? 0) >= 50) pos += 1;
-  if ((heart_rate ?? 0) >= 100) pos += 1;
-  if ((spo2_percent ?? 100) < 95) pos += 1;
-  if (hemoptysis) pos += 1;
-  if (estrogen_use) pos += 1;
-  if (prior_dvt_pe) pos += 1;
-  if (unilateral_leg_swelling) pos += 1;
-  if (recent_surgery_trauma) pos += 1;
-  return pos;
+
+export type PERCInputs = {
+  age_ge_50: boolean;
+  hr_ge_100: boolean;
+  sao2_lt_95: boolean;
+  hemoptysis: boolean;
+  estrogen_use: boolean;
+  prior_dvt_pe: boolean;
+  unilateral_leg_swelling: boolean;
+  recent_surgery_trauma: boolean;
+};
+
+export function calc_perc(i: PERCInputs): number {
+  let s = 0;
+  if (i.age_ge_50) s += 1;
+  if (i.hr_ge_100) s += 1;
+  if (i.sao2_lt_95) s += 1;
+  if (i.hemoptysis) s += 1;
+  if (i.estrogen_use) s += 1;
+  if (i.prior_dvt_pe) s += 1;
+  if (i.unilateral_leg_swelling) s += 1;
+  if (i.recent_surgery_trauma) s += 1;
+  return s;
 }
 
-register({
+const def = {
   id: "perc_rule",
   label: "PERC Rule (PE)",
-  tags: ["pulmonology", "emergency"],
   inputs: [
-    { key: "age_years" },
-    { key: "heart_rate" },
-    { key: "spo2_percent" },
-    { key: "hemoptysis" },
-    { key: "estrogen_use" },
-    { key: "prior_dvt_pe" },
-    { key: "unilateral_leg_swelling" },
-    { key: "recent_surgery_trauma" }
+    { id: "age_ge_50", label: "Age ≥50", type: "boolean" },
+    { id: "hr_ge_100", label: "HR ≥100", type: "boolean" },
+    { id: "sao2_lt_95", label: "SaO2 <95%", type: "boolean" },
+    { id: "hemoptysis", label: "Hemoptysis", type: "boolean" },
+    { id: "estrogen_use", label: "Estrogen use", type: "boolean" },
+    { id: "prior_dvt_pe", label: "Prior DVT/PE", type: "boolean" },
+    { id: "unilateral_leg_swelling", label: "Unilateral leg swelling", type: "boolean" },
+    { id: "recent_surgery_trauma", label: "Recent surgery/trauma", type: "boolean" }
   ],
-  run: ({
-    age_years,
-    heart_rate,
-    spo2_percent,
-    hemoptysis,
-    estrogen_use,
-    prior_dvt_pe,
-    unilateral_leg_swelling,
-    recent_surgery_trauma,
-  }: {
-    age_years?: number;
-    heart_rate?: number;
-    spo2_percent?: number;
-    hemoptysis?: boolean;
-    estrogen_use?: boolean;
-    prior_dvt_pe?: boolean;
-    unilateral_leg_swelling?: boolean;
-    recent_surgery_trauma?: boolean;
-  }) => {
-    const v = calc_perc({
-      age_years,
-      heart_rate,
-      spo2_percent,
-      hemoptysis,
-      estrogen_use,
-      prior_dvt_pe,
-      unilateral_leg_swelling,
-      recent_surgery_trauma,
-    });
+  run: (args: PERCInputs) => {
+    const v = calc_perc(args);
     const notes = [v === 0 ? "PERC negative (if low pretest)" : "PERC positive"];
-    return { id: "perc_rule", label: "PERC Rule (PE)", value: v, unit: "criteria", precision: 0, notes };
+    return { id: "perc_rule", label: "PERC Rule", value: v, unit: "criteria", precision: 0, notes };
   },
-});
+};
+
+export default def;

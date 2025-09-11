@@ -1,10 +1,26 @@
-/**
- * Age-adjusted D-dimer threshold (FEU ng/mL)
- * Age >=50: threshold = age * 10; Age <50: threshold = 500
- */
-export interface AgeAdjDDimerInput { age: number; }
-export interface AgeAdjDDimerResult { threshold_feu_ng_ml: number; }
-export function runAgeAdjustedDDimer(i: AgeAdjDDimerInput): AgeAdjDDimerResult {
-  const thr = i.age >= 50 ? i.age * 10 : 500;
-  return { threshold_feu_ng_ml: thr };
+// Auto-generated calculator. Sources cited in PR. No placeholders.
+// Keep structure consistent with other calculators in MedX.
+
+
+export type DdInputs = {
+  age_years: number;
+};
+
+export function calc_age_adjusted_ddimer({ age_years }: DdInputs): number {
+  if (age_years <= 50) return 500;
+  return age_years * 10;
 }
+
+const def = {
+  id: "age_adjusted_ddimer",
+  label: "Age-adjusted D-dimer cutoff",
+  inputs: [
+    { id: "age_years", label: "Age", type: "number", min: 0, max: 120 }
+  ],
+  run: (args: DdInputs) => {
+    const v = calc_age_adjusted_ddimer(args);
+    return { id: "age_adjusted_ddimer", label: "Age-adjusted D-dimer", value: v, unit: "ng/mL FEU", precision: 0, notes: [] };
+  },
+};
+
+export default def;
