@@ -1,10 +1,14 @@
-import { runLDL_Friedewald } from "@/lib/medical/engine/calculators/ldl_friedewald";
+// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
 
-test("LDL Friedewald valid and invalid", () => {
-  const ok = runLDL_Friedewald({ total_chol_mg_dl:200, hdl_mg_dl:50, trig_mg_dl:150 });
-  expect(ok.valid).toBe(true);
-  expect(ok.ldl_mg_dl).toBeCloseTo(200 - 50 - 150/5, 3);
-  const bad = runLDL_Friedewald({ total_chol_mg_dl:200, hdl_mg_dl:50, trig_mg_dl:450 });
-  expect(bad.valid).toBe(false);
-  expect(bad.ldl_mg_dl).toBeNull();
+import { calc_ldl_friedewald } from "../lib/medical/engine/calculators/ldl_friedewald";
+
+describe("calc_ldl_friedewald", () => {
+  it("computes LDL when TG < 400", () => {
+    const v = calc_ldl_friedewald({ total_chol_mg_dl: 200, hdl_mg_dl: 50, triglycerides_mg_dl: 150 });
+    expect(v).toBeCloseTo(200 - 50 - 30, 6);
+  });
+  it("returns NaN when TG >= 400", () => {
+    const v = calc_ldl_friedewald({ total_chol_mg_dl: 200, hdl_mg_dl: 50, triglycerides_mg_dl: 450 });
+    expect(Number.isNaN(v)).toBe(true);
+  });
 });

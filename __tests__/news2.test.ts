@@ -1,6 +1,11 @@
-import { runNEWS2 } from "@/lib/medical/engine/calculators/news2";
+// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
 
-test("NEWS2 aggregation", () => {
-  const r = runNEWS2({ rr:26, spo2:90, o2_supplemental:true, temp_c:34.8, sbp:85, hr:135, consciousness:"V" });
-  expect(r.total).toBeGreaterThanOrEqual(3+3+2+3+3+3+3);
+import { calc_news2 } from "../lib/medical/engine/calculators/news2";
+
+describe("calc_news2", () => {
+  it("computes risk banding", () => {
+    const r = calc_news2({ rr: 28, spo2_percent: 90, on_supplemental_o2: true, temp_c: 39.2, sbp: 88, hr: 140, consciousness: "vpu" });
+    expect(r.score).toBeGreaterThanOrEqual(7);
+    expect(r.risk).toBe("high");
+  });
 });

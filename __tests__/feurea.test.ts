@@ -1,9 +1,10 @@
+// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
+
 import { calc_feurea } from "../lib/medical/engine/calculators/feurea";
 
 describe("calc_feurea", () => {
-  it("computes FeUrea example", () => {
-    const v = calc_feurea({ urine_urea_mg_dl: 300, plasma_urea_mg_dl: 60, urine_cr_mg_dl: 100, plasma_cr_mg_dl: 2 });
-    // (300 * 2) / (60 * 100) * 100 = 10
-    expect(v).toBeCloseTo(10, 3);
+  it("computes FEUrea %", () => {
+    const v = calc_feurea({ uurea_mg_dl: 300, purea_mg_dl: 40, ucr_mg_dl: 100, pcr_mg_dl: 2 });
+    expect(v).toBeCloseTo((300*2)/(40*100)*100, 6);
   });
 });
