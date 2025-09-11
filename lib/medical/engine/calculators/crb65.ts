@@ -1,51 +1,36 @@
-import { register } from "../registry";
+// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
 
-/**
- * CRB-65 (no urea)
- */
-export function calc_crb65({
-  confusion, resp_rate, sbp, dbp, age_years
-}: {
-  confusion?: boolean,
-  resp_rate?: number,
-  sbp?: number,
-  dbp?: number,
-  age_years?: number
-}) {
+export type CRB65Inputs = {
+  confusion: boolean;
+  resp_rate: number;
+  sbp: number;
+  dbp: number;
+  age_years: number;
+};
+
+export function calc_crb65({ confusion, resp_rate, sbp, dbp, age_years }: CRB65Inputs): number {
   let s = 0;
   if (confusion) s += 1;
-  if ((resp_rate ?? 0) >= 30) s += 1;
-  const lowBP = ((sbp ?? 200) < 90) || ((dbp ?? 200) <= 60);
-  if (lowBP) s += 1;
-  if ((age_years ?? 0) >= 65) s += 1;
+  if (resp_rate >= 30) s += 1;
+  if (sbp < 90 || dbp <= 60) s += 1;
+  if (age_years >= 65) s += 1;
   return s;
 }
 
-register({
+const def = {
   id: "crb65",
-  label: "CRB-65",
-  tags: ["pulmonology", "infectious disease"],
+  label: "CRB-65 (Pneumonia; no labs)",
   inputs: [
-    { key: "confusion" },
-    { key: "resp_rate" },
-    { key: "sbp" },
-    { key: "dbp" },
-    { key: "age_years" }
+    { id: "confusion", label: "Confusion", type: "boolean" },
+    { id: "resp_rate", label: "Respiratory rate (/min)", type: "number", min: 0 },
+    { id: "sbp", label: "Systolic BP (mmHg)", type: "number", min: 0 },
+    { id: "dbp", label: "Diastolic BP (mmHg)", type: "number", min: 0 },
+    { id: "age_years", label: "Age (years)", type: "number", min: 0, max: 120 }
   ],
-  run: ({
-    confusion,
-    resp_rate,
-    sbp,
-    dbp,
-    age_years,
-  }: {
-    confusion?: boolean;
-    resp_rate?: number;
-    sbp?: number;
-    dbp?: number;
-    age_years?: number;
-  }) => {
-    const v = calc_crb65({ confusion, resp_rate, sbp, dbp, age_years });
+  run: (args: CRB65Inputs) => {
+    const v = calc_crb65(args);
     return { id: "crb65", label: "CRB-65", value: v, unit: "score", precision: 0, notes: [] };
   },
-});
+};
+
+export default def;
