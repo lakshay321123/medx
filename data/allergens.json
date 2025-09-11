@@ -1,0 +1,8 @@
+[
+  {
+    "allergen": "peanut",
+    "cross": ["soy"],
+    "severity": "high",
+    "reference": "https://example.com/peanut"
+  }
+]

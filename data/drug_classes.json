@@ -1,0 +1,8 @@
+[
+  {
+    "allergen": "aspirin",
+    "cross": ["ibuprofen"],
+    "severity": "moderate",
+    "reference": "https://example.com/nsaid"
+  }
+]
