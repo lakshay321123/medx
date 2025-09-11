@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { extractTextFromPDF, rasterizeFirstPage } from "@/lib/pdftext";
 import { COUNTRIES } from "@/data/countries";
+import { analyzeLabText } from "@/lib/labReport";
+import { extractAll } from "@/lib/medical/engine/extract";
+import { computeAll } from "@/lib/medical/engine/computeAll";
+import { dualEngineSummarize } from "@/lib/reports/dualEngine";
 
 const OAI_KEY = process.env.OPENAI_API_KEY!;
 const MODEL_TEXT = process.env.OPENAI_TEXT_MODEL || "gpt-5";
@@ -132,6 +136,43 @@ export async function POST(req: Request) {
       }
       if (text.length > 100) {
         category = await classifyText(text);
+
+        const FLAGS = {
+          DUAL: process.env.REPORT_DUAL_ENGINE === "true",
+          USE_CALC: process.env.REPORT_USE_CALCULATORS === "true",
+          LLM: process.env.REPORT_LLM_ENABLED === "true",
+          REGION: process.env.REPORT_REGION_DEFAULT || "IN",
+          ASSUME_ADULT: process.env.REPORT_ASSUME_ADULT_IF_UNKNOWN === "true",
+          MAX_REVIEW: Number(process.env.REPORT_LLM_MAX_REVIEW_PASSES || 2),
+        };
+
+        if (FLAGS.DUAL && FLAGS.LLM && category === "lab_report") {
+          const labFacts = analyzeLabText(text, { region: FLAGS.REGION });
+          const result = await dualEngineSummarize({
+            kind: "lab",
+            rawText: text,
+            facts: labFacts,
+            region: FLAGS.REGION,
+            assumeAdultIfUnknown: FLAGS.ASSUME_ADULT,
+            maxReviewPasses: FLAGS.MAX_REVIEW,
+          });
+          return NextResponse.json(result, { status: 200 });
+        }
+
+        if (FLAGS.DUAL && FLAGS.LLM && FLAGS.USE_CALC && category !== "lab_report") {
+          const ctx = extractAll(text);
+          const derived = computeAll(ctx);
+          const result = await dualEngineSummarize({
+            kind: "generic",
+            rawText: text,
+            calcFacts: derived,
+            region: FLAGS.REGION,
+            assumeAdultIfUnknown: FLAGS.ASSUME_ADULT,
+            maxReviewPasses: FLAGS.MAX_REVIEW,
+          });
+          return NextResponse.json(result, { status: 200 });
+        }
+
         const basePrompt = promptForCategory(category, doctorMode);
         const systemPrompt = `User country: ${country.code3} (${country.name}).\nLocalize counseling, OTC examples, and triage advice to this country when relevant.\nDo not invent brand names; use generics if uncertain.\n` + basePrompt;
         const r = await fetch("https://api.openai.com/v1/chat/completions", {
