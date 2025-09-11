@@ -1,29 +1,24 @@
-// Auto-generated. No placeholders. Typed run(args).
-export type FeUreaInputs = {
-  urine_urea_mg_dl: number;
-  plasma_urea_mg_dl: number; // BUN
-  urine_cr_mg_dl: number;
-  plasma_cr_mg_dl: number;
-};
+// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
 
-export function calc_feurea(i: FeUreaInputs): number {
-  if (i.plasma_urea_mg_dl <= 0 || i.urine_cr_mg_dl <= 0) return NaN;
-  return (i.urine_urea_mg_dl * i.plasma_cr_mg_dl) / (i.plasma_urea_mg_dl * i.urine_cr_mg_dl) * 100;
+export type FEUreaInputs = { uurea_mg_dl: number; purea_mg_dl: number; ucr_mg_dl: number; pcr_mg_dl: number };
+
+export function calc_feurea({ uurea_mg_dl, purea_mg_dl, ucr_mg_dl, pcr_mg_dl }: FEUreaInputs): number {
+  if (purea_mg_dl <= 0 || ucr_mg_dl <= 0 || pcr_mg_dl <= 0) return NaN;
+  return (uurea_mg_dl * pcr_mg_dl) / (purea_mg_dl * ucr_mg_dl) * 100;
 }
 
 const def = {
   id: "feurea",
-  label: "FeUrea (%)",
+  label: "Fractional Excretion of Urea (FEUrea)",
   inputs: [
-    { id: "urine_urea_mg_dl", label: "Urine urea nitrogen (mg/dL)", type: "number", min: 0 },
-    { id: "plasma_urea_mg_dl", label: "Plasma urea (BUN) (mg/dL)", type: "number", min: 0 },
-    { id: "urine_cr_mg_dl", label: "Urine Creatinine (mg/dL)", type: "number", min: 0 },
-    { id: "plasma_cr_mg_dl", label: "Plasma Creatinine (mg/dL)", type: "number", min: 0 }
+    { id: "uurea_mg_dl", label: "Urine Urea (mg/dL)", type: "number", min: 0 },
+    { id: "purea_mg_dl", label: "Plasma Urea (mg/dL)", type: "number", min: 1 },
+    { id: "ucr_mg_dl", label: "Urine Creatinine (mg/dL)", type: "number", min: 1 },
+    { id: "pcr_mg_dl", label: "Plasma Creatinine (mg/dL)", type: "number", min: 0.1 }
   ],
-  run: (args: FeUreaInputs) => {
+  run: (args: FEUreaInputs) => {
     const v = calc_feurea(args);
-    const notes = [v < 35 ? "Suggests prerenal or HF" : "Suggests ATN"];
-    return { id: "feurea", label: "FeUrea", value: v, unit: "%", precision: 1, notes };
+    return { id: "feurea", label: "FEUrea", value: v, unit: "%", precision: 2, notes: [] };
   },
 };
 

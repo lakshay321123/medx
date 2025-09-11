@@ -1,9 +1,10 @@
-// Auto-generated fix. No placeholders. Typed run(args).
+// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
+
 export type WintersInputs = { hco3_mmol_l: number };
 
-export function calc_winters({ hco3_mmol_l }: WintersInputs): { expected_paco2_mm_hg: number; low: number; high: number } {
-  const exp = 1.5 * hco3_mmol_l + 8;
-  return { expected_paco2_mm_hg: exp, low: exp - 2, high: exp + 2 };
+export function calc_winters(i: WintersInputs): { expected_paco2_mm_hg: number; low: number; high: number } {
+  const expected = 1.5 * i.hco3_mmol_l + 8;
+  return { expected_paco2_mm_hg: expected, low: expected - 2, high: expected + 2 };
 }
 
 const def = {

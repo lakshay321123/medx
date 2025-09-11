@@ -1,31 +1,24 @@
-// Auto-generated. No placeholders. Typed run(args) signatures to avoid ctx typing issues.
+// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
 
+export type FENaInputs = { una_mmol_l: number; pna_mmol_l: number; ucr_mg_dl: number; pcr_mg_dl: number };
 
-export type FeNaInputs = {
-  urine_na_mmol_l: number;
-  plasma_na_mmol_l: number;
-  urine_cr_mg_dl: number;
-  plasma_cr_mg_dl: number;
-};
-
-export function calc_fena(i: FeNaInputs): number {
-  if (i.plasma_na_mmol_l <= 0 || i.urine_cr_mg_dl <= 0) return NaN;
-  return (i.urine_na_mmol_l * i.plasma_cr_mg_dl) / (i.plasma_na_mmol_l * i.urine_cr_mg_dl) * 100;
+export function calc_fena({ una_mmol_l, pna_mmol_l, ucr_mg_dl, pcr_mg_dl }: FENaInputs): number {
+  if (pna_mmol_l <= 0 || ucr_mg_dl <= 0 || pcr_mg_dl <= 0) return NaN;
+  return (una_mmol_l * pcr_mg_dl) / (pna_mmol_l * ucr_mg_dl) * 100;
 }
 
 const def = {
   id: "fena",
-  label: "FeNa (%)",
+  label: "Fractional Excretion of Sodium (FENa)",
   inputs: [
-    { id: "urine_na_mmol_l", label: "Urine Na (mmol/L)", type: "number", min: 0 },
-    { id: "plasma_na_mmol_l", label: "Plasma Na (mmol/L)", type: "number", min: 0 },
-    { id: "urine_cr_mg_dl", label: "Urine Creatinine (mg/dL)", type: "number", min: 0 },
-    { id: "plasma_cr_mg_dl", label: "Plasma Creatinine (mg/dL)", type: "number", min: 0 }
+    { id: "una_mmol_l", label: "Urine Na (mmol/L)", type: "number", min: 0 },
+    { id: "pna_mmol_l", label: "Plasma Na (mmol/L)", type: "number", min: 1 },
+    { id: "ucr_mg_dl", label: "Urine Creatinine (mg/dL)", type: "number", min: 1 },
+    { id: "pcr_mg_dl", label: "Plasma Creatinine (mg/dL)", type: "number", min: 0.1 }
   ],
-  run: (args: FeNaInputs) => {
+  run: (args: FENaInputs) => {
     const v = calc_fena(args);
-    const notes = [v < 1 ? "Suggests prerenal" : v > 2 ? "Suggests ATN" : "Indeterminate"];
-    return { id: "fena", label: "FeNa", value: v, unit: "%", precision: 1, notes };
+    return { id: "fena", label: "FENa", value: v, unit: "%", precision: 2, notes: [] };
   },
 };
 
