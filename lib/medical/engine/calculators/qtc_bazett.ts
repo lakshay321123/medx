@@ -1,4 +1,4 @@
-export type QTcInputs = { qt_ms: number; hr_bpm: number };
+export type QTcInputs = { qt_ms:number; hr_bpm:number };
 
 export function calc_qtc_bazett(i: QTcInputs): number {
   const rr_s = 60 / Math.max(1, i.hr_bpm);
@@ -9,8 +9,8 @@ const def = {
   id: "qtc_bazett",
   label: "QTc (Bazett)",
   inputs: [
-    { id: "qt_ms", label: "QT (ms)", type: "number", min: 0 },
-    { id: "hr_bpm", label: "Heart rate (bpm)", type: "number", min: 1 }
+    { id: "qt_ms", label: "QT (ms)", type: "number", min: 100, max: 800 },
+    { id: "hr_bpm", label: "Heart rate (bpm)", type: "number", min: 1, max: 300 }
   ],
   run: (args: QTcInputs) => {
     const v = calc_qtc_bazett(args);

@@ -1,35 +1,23 @@
-import { register } from "../registry";
-/**
- * Fractional Excretion of Urea (FEUrea%) = (UrineUrea * SerumCr) / (SerumUrea * UrineCr) * 100
- * Use when on diuretics.
- */
-export function calc_feurea({ urine_urea, serum_urea, urine_cr, serum_cr }:
-  { urine_urea: number, serum_urea: number, urine_cr: number, serum_cr: number }) {
-  if ([urine_urea, serum_urea, urine_cr, serum_cr].some(v => v == null || v <= 0)) return null;
-  return (urine_urea * serum_cr) / (serum_urea * urine_cr) * 100;
+export type FeUreaInputs = { urine_urea_mg_dl:number; plasma_urea_mg_dl:number; urine_cr_mg_dl:number; plasma_cr_mg_dl:number };
+
+export function calc_fe_urea(i: FeUreaInputs): number {
+  if (i.plasma_urea_mg_dl === 0 || i.urine_cr_mg_dl === 0) return 0;
+  return (i.urine_urea_mg_dl * i.plasma_cr_mg_dl) / (i.plasma_urea_mg_dl * i.urine_cr_mg_dl) * 100;
 }
 
-function interpretFEUrea(v: number): string {
-  if (v == null) return "";
-  if (v < 35) return "suggests prerenal azotemia";
-  if (v > 50) return "suggests intrinsic renal injury";
-  return "borderline";
-}
-
-register({
+const def = {
   id: "fe_urea",
-  label: "Fractional Excretion of Urea (FEUrea)",
-  tags: ["nephrology"],
+  label: "Fractional Excretion of Urea (FeUrea)",
   inputs: [
-    { key: "urine_urea", required: true },
-    { key: "serum_urea", required: true },
-    { key: "urine_cr", required: true },
-    { key: "serum_cr", required: true },
+    { id: "urine_urea_mg_dl", label: "Urine urea nitrogen (mg/dL)", type: "number", min: 0 },
+    { id: "plasma_urea_mg_dl", label: "Plasma urea nitrogen (mg/dL)", type: "number", min: 0 },
+    { id: "urine_cr_mg_dl", label: "Urine creatinine (mg/dL)", type: "number", min: 0 },
+    { id: "plasma_cr_mg_dl", label: "Plasma creatinine (mg/dL)", type: "number", min: 0 }
   ],
-  run: ({ urine_urea, serum_urea, urine_cr, serum_cr }) => {
-    const v = calc_feurea({ urine_urea, serum_urea, urine_cr, serum_cr });
-    if (v == null) return null;
-    const notes = [interpretFEUrea(v)];
-    return { id: "fe_urea", label: "Fractional Excretion of Urea (FEUrea)", value: v, unit: "%", precision: 1, notes };
+  run: (args: FeUreaInputs) => {
+    const v = calc_fe_urea(args);
+    return { id: "fe_urea", label: "FeUrea", value: v, unit: "%", precision: 2, notes: [] };
   },
-});
+};
+
+export default def;

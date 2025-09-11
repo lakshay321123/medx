@@ -1,6 +1,4 @@
-// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
-
-export type CRB65Inputs = {
+export type CRBInputs = {
   confusion: boolean;
   resp_rate: number;
   sbp: number;
@@ -8,28 +6,28 @@ export type CRB65Inputs = {
   age_years: number;
 };
 
-export function calc_crb65({ confusion, resp_rate, sbp, dbp, age_years }: CRB65Inputs): number {
+export function calc_crb65(i: CRBInputs): number {
   let s = 0;
-  if (confusion) s += 1;
-  if (resp_rate >= 30) s += 1;
-  if (sbp < 90 || dbp <= 60) s += 1;
-  if (age_years >= 65) s += 1;
+  s += i.confusion ? 1 : 0;
+  s += i.resp_rate >= 30 ? 1 : 0;
+  s += (i.sbp < 90 || i.dbp <= 60) ? 1 : 0;
+  s += i.age_years >= 65 ? 1 : 0;
   return s;
 }
 
 const def = {
   id: "crb65",
-  label: "CRB-65 (Pneumonia; no labs)",
+  label: "CRB-65 (pneumonia severity)",
   inputs: [
     { id: "confusion", label: "Confusion", type: "boolean" },
-    { id: "resp_rate", label: "Respiratory rate (/min)", type: "number", min: 0 },
+    { id: "resp_rate", label: "Respiratory rate (breaths/min)", type: "number", min: 0 },
     { id: "sbp", label: "Systolic BP (mmHg)", type: "number", min: 0 },
     { id: "dbp", label: "Diastolic BP (mmHg)", type: "number", min: 0 },
-    { id: "age_years", label: "Age (years)", type: "number", min: 0, max: 120 }
+    { id: "age_years", label: "Age (years)", type: "number", min: 0 }
   ],
-  run: (args: CRB65Inputs) => {
+  run: (args: CRBInputs) => {
     const v = calc_crb65(args);
-    return { id: "crb65", label: "CRB-65", value: v, unit: "score", precision: 0, notes: [] };
+    return { id: "crb65", label: "CRB-65", value: v, unit: "points", precision: 0, notes: [] };
   },
 };
 
