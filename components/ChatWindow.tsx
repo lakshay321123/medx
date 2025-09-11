@@ -10,8 +10,9 @@ export function ChatWindow() {
   const handleSend = async (content: string) => {
     // after sending user message, persist thread if needed
     await persistIfTemp();
-    // placeholder assistant reply
-    addMessage({ role: "assistant", content: "..." });
+    // For now, echo the user's message as the assistant reply
+    // In a real implementation, replace this with a call to your backend/AI service
+    addMessage({ role: "assistant", content: `You said: ${content}` });
   };
 
   return (
