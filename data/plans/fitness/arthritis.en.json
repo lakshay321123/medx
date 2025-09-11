@@ -1,0 +1,10 @@
+{
+  "title": "Arthritis rehab (2 weeks)",
+  "days": [
+    {
+      "day": 1,
+      "sessions": ["10 min warm-up walk", "Gentle knee ROM x10", "Ice 10 min"]
+    }
+  ],
+  "notes": ["Stop if pain > 6/10"]
+}

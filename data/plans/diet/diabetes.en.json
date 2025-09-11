@@ -1,0 +1,10 @@
+{
+  "title": "Diabetes diet (sample week)",
+  "meals": [
+    {
+      "time": "breakfast",
+      "options": ["Oats + curd", "Moong chilla"]
+    }
+  ],
+  "tips": ["Low GI foods", "Limit sweets"]
+}
