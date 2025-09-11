@@ -5,3 +5,4 @@ node_modules
 
 # SQLite database
 *.db
+tsconfig.tsbuildinfo
