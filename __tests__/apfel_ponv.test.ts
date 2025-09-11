@@ -1,6 +1,8 @@
-import { runApfelPONV } from "@/lib/medical/engine/calculators/apfel_ponv";
+import { calc_apfel_ponv } from "../lib/medical/engine/calculators/apfel_ponv";
 
-test("Apfel PONV", () => {
-  const r = runApfelPONV({ female:true, non_smoker:true, history_ponv_or_motion:false, postop_opioids:true });
-  expect(r.score).toBe(3);
+describe("calc_apfel_ponv", () => {
+  it("0–4 risk factors", () => {
+    const v = calc_apfel_ponv({ female: true, non_smoker: true, history_ponv_motion: false, postoperative_opioids: true });
+    expect(v).toBe(3);
+  });
 });
