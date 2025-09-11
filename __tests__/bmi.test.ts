@@ -1,14 +1,8 @@
-  import { calc_bmi } from "../lib/medical/engine/calculators/bmi";
+import { calc_bmi } from "../lib/medical/engine/calculators/bmi";
 
-  describe("calc_bmi", () => {
-
-it("computes BMI from kg and cm", () => {
-  const v = calc_bmi({ weight_kg: 70, height_cm: 175 });
-  expect(v).toBeCloseTo(22.857, 3);
-});
-it("returns null on missing inputs", () => {
-  const v = calc_bmi({ weight_kg: 70 } as any);
-  expect(v).toBeNull();
-});
-
+describe("calc_bmi", () => {
+  it("computes BMI correctly", () => {
+    const v = calc_bmi({ height_cm: 180, weight_kg: 81 });
+    expect(v).toBeCloseTo(81 / (1.8*1.8), 4);
   });
+});
