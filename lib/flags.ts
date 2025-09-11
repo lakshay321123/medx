@@ -25,6 +25,7 @@ export const flags = {
   // Nutrition & safety
   enableUSDA: true,
   enableVAERS: true,
+  enableAllergyChecker: (process.env.ALLERGY_CHECKER || 'true').toLowerCase() === 'true',
 
   // Geodata
   enableNominatim: true,
