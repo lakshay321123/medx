@@ -1,27 +1,27 @@
-import { register } from "../registry";
-/**
- * Corrected Calcium (mg/dL) = measured + 0.8*(4 - albumin)
- */
-export function calc_corrected_calcium({ ca_mg_dl, albumin_g_dl }:
-  { ca_mg_dl: number, albumin_g_dl: number }) {
-  if (ca_mg_dl == null || albumin_g_dl == null) return null;
-  return ca_mg_dl + 0.8 * (4 - albumin_g_dl);
+// Auto-generated calculator. Sources cited in PR. No placeholders.
+// Keep structure consistent with other calculators in MedX.
+
+
+export type CorrectedCalciumInputs = {
+  calcium_mg_dl: number;
+  albumin_g_dl: number;
+};
+
+export function calc_corrected_calcium({ calcium_mg_dl, albumin_g_dl }: CorrectedCalciumInputs): number {
+  return calcium_mg_dl + 0.8 * (4.0 - albumin_g_dl);
 }
 
-register({
+const def = {
   id: "corrected_calcium",
-  label: "Albumin-corrected Calcium",
-  tags: ["electrolytes"],
+  label: "Corrected Calcium (albumin)",
   inputs: [
-    { key: "ca_mg_dl", required: true },
-    { key: "albumin_g_dl", required: true },
+    { id: "calcium_mg_dl", label: "Calcium (mg/dL)", type: "number", min: 0 },
+    { id: "albumin_g_dl", label: "Albumin (g/dL)", type: "number", min: 0 }
   ],
-  run: ({ ca_mg_dl, albumin_g_dl }) => {
-    const v = calc_corrected_calcium({ ca_mg_dl, albumin_g_dl });
-    if (v == null) return null;
-    const notes: string[] = [];
-    if (v < 8.5) notes.push("hypocalcemia");
-    else if (v > 10.5) notes.push("hypercalcemia");
-    return { id: "corrected_calcium", label: "Albumin-corrected Calcium", value: v, unit: "mg/dL", precision: 1, notes };
+  run: (args: CorrectedCalciumInputs) => {
+    const v = calc_corrected_calcium(args);
+    return { id: "corrected_calcium", label: "Corrected Calcium", value: v, unit: "mg/dL", precision: 2, notes: [] };
   },
-});
+};
+
+export default def;
