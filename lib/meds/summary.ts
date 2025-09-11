@@ -7,6 +7,36 @@ import { getRxCUI } from "@/lib/rxnorm";
 const CACHE_DIR = path.join(process.cwd(), "data/meds-cache");
 const TTL_DAYS = Number(process.env.MEDS_CACHE_TTL_DAYS || 90);
 
+const SOURCE_WHITELIST = (process.env.MEDS_SOURCE_WHITELIST || "").toLowerCase() === "true";
+const APPLY_POLICY = (process.env.APPLY_MEDICAL_POLICY || "").toLowerCase() === "true";
+const WHITELIST_PATH = process.env.MEDS_WHITELIST_PATH || path.join(process.cwd(), "data/whitelist_domains.json");
+const COUNTRY_RULES_PATH = process.env.COUNTRY_RULES_PATH || path.join(process.cwd(), "data/country_rules.json");
+
+let whitelistCache: string[] | null = null;
+let countryRulesCache: Record<string, any> | null = null;
+
+async function loadWhitelist() {
+  if (whitelistCache) return whitelistCache;
+  try {
+    const raw = await fs.readFile(WHITELIST_PATH, "utf8");
+    whitelistCache = JSON.parse(raw);
+  } catch {
+    whitelistCache = [];
+  }
+  return whitelistCache;
+}
+
+async function loadCountryRules() {
+  if (countryRulesCache) return countryRulesCache;
+  try {
+    const raw = await fs.readFile(COUNTRY_RULES_PATH, "utf8");
+    countryRulesCache = JSON.parse(raw);
+  } catch {
+    countryRulesCache = {};
+  }
+  return countryRulesCache;
+}
+
 const ALIASES: Record<string, string> = {
   tylenol: "acetaminophen",
   crocin: "paracetamol",
@@ -89,6 +119,45 @@ async function gatherSources(slug: string, canonical: string, country: string) {
   return { refs, notes: notes.filter(Boolean).join("\n") };
 }
 
+async function filterRefs(refs: string[]) {
+  if (!SOURCE_WHITELIST) return refs;
+  const whitelist = await loadWhitelist();
+  const allowed = new Set(whitelist.map(w => w.toLowerCase()));
+  const out: string[] = [];
+  for (const r of refs) {
+    try {
+      const host = new URL(r).hostname.toLowerCase();
+      if (allowed.has(host)) {
+        out.push(r);
+      } else {
+        console.warn("meds_nonwhitelist_ref", { url: r });
+      }
+    } catch {
+      console.warn("meds_nonwhitelist_ref", { url: r });
+    }
+  }
+  return out;
+}
+
+async function determineBadge(slug: string, country: string) {
+  if (!APPLY_POLICY) return { badge: "Rx" };
+  const rules = await loadCountryRules();
+  const region = rules[country.toUpperCase()] || {};
+  const entry = region[slug];
+  const source = COUNTRY_RULES_PATH;
+  if (!entry) {
+    console.log("meds_country_rule", { slug, country, source, applied: false });
+    return { badge: "Rx", note: "availability may vary." };
+  }
+  const statuses = Array.isArray(entry) ? entry : [entry];
+  console.log("meds_country_rule", { slug, country, source, rule: statuses });
+  const uniq = Array.from(new Set(statuses.map((s: string) => s.toUpperCase())));
+  if (uniq.length > 1) {
+    return { badge: "Rx", note: "conflicting classifications" };
+  }
+  return { badge: uniq[0] === "OTC" ? "OTC" : "Rx" };
+}
+
 async function synthesize(canonical: string, notes: string, refs: string[]) {
   const base = {
     Actives: "",
@@ -131,20 +200,24 @@ export async function getMedicationSummary({ name, country, lang }:{ name: strin
     return { ...cached.payload, meta: { ...cached.payload.meta, cached: true } };
   }
   const { refs, notes } = await gatherSources(slug, canonical, country);
-  if (refs.length < 2) {
-    throw new Error("insufficient_sources");
+  const filteredRefs = await filterRefs(refs);
+  if (filteredRefs.length === 0) {
+    throw new Error("no_valid_refs");
   }
-  const summary = await synthesize(canonical, notes, refs);
-  const badge = "OTC"; // placeholder – real logic could vary by country
+  const summary = await synthesize(canonical, notes, filteredRefs);
+  const imp = /\b(take|give|use|apply|administer|consume)\b/gi;
+  summary.AdultDose = summary.AdultDose.replace(imp, "").trim();
+  summary.PediatricDose = summary.PediatricDose.replace(imp, "").trim();
+  const { badge, note } = await determineBadge(slug, country);
   const card = {
     card: {
       title: `${canonical} • ${badge}`,
       summary,
       badges: [badge],
       legal: "General information only — not medical advice.",
-      references: refs,
+      references: filteredRefs,
     },
-    meta: { slug, country, cached: false, ttl_days: TTL_DAYS },
+    meta: { slug, country, cached: false, ttl_days: TTL_DAYS, ...(note ? { policy_note: note } : {}) },
   };
   await writeCache(slug, card);
   return card;

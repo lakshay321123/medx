@@ -1,0 +1,10 @@
+{
+  "US": {
+    "acetaminophen": "OTC",
+    "metformin": "Rx"
+  },
+  "IN": {
+    "paracetamol": "OTC",
+    "metformin": "Rx"
+  }
+}
