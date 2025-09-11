@@ -3,6 +3,7 @@ import { strict as assert } from 'node:assert';
 import { normalizeTopic } from '@/lib/topic/normalize';
 import { routeIntent } from '@/lib/intent-router';
 import { buildMedicationShortSummary } from '@/lib/meds/shortSummary';
+import { chronicMedEducation } from '@/lib/meds/chronicEdu';
 
 describe('topic normalize', () => {
   it('maps slip disk to canonical', () => {
@@ -40,5 +41,14 @@ describe('medication micro-summary', () => {
     assert.ok(out.summary.split('\n').length >= 2);
     assert.ok(out.serious.startsWith('Serious side-effects'));
     assert.ok(out.summary.length <= parseInt(process.env.MEDS_SHORT_SUMMARY_MAX_CHARS || '320'));
+  });
+});
+
+describe('chronic medication education', () => {
+  it('normalizes names, dedups and notes unknown', () => {
+    const res = chronicMedEducation(['Glucophage', 'metformin', 'UnknownMed']);
+    assert.equal(res.chronicMeds.length, 1);
+    assert.equal(res.chronicMeds[0].name, 'Metformin');
+    assert.deepEqual(res.unrecognized, ['UnknownMed']);
   });
 });
