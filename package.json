@@ -8,7 +8,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint || true",
-    "test": "vitest run test/aidoc.vendor.test.ts test/aidoc.redflags.test.ts && tsx --test test/medx.test.ts test/selfLearning.test.ts test/pediatricFlow.test.ts test/clarifyMinimal.test.ts test/vaccineIntent.test.ts test/seniorSafety.test.ts test/firstAidCards.test.ts test/symptomTriage.test.ts test/drugInteractions.test.ts test/mentalHealthResources.test.ts"
+    "test": "vitest run test/aidoc.vendor.test.ts test/aidoc.redflags.test.ts && tsx --test test/medx.test.ts test/selfLearning.test.ts test/pediatricFlow.test.ts test/clarifyMinimal.test.ts test/vaccineIntent.test.ts test/seniorSafety.test.ts test/firstAidCards.test.ts test/symptomTriage.test.ts test/drugInteractions.test.ts test/mentalHealthResources.test.ts test/womensHealthBasics.test.ts"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.78",
