@@ -1,41 +1,48 @@
-/**
- * Revised Geneva score (2006) for PE probability.
- * Points (per Le Gal et al. and common references):
- *  Age > 65: +1
- *  Previous DVT/PE: +3
- *  Surgery under GA or lower limb fracture within 1 month: +2
- *  Active malignancy: +2
- *  Unilateral lower-limb pain: +3
- *  Hemoptysis: +2
- *  Heart rate 75–94: +3; >=95: +5
- *  Pain on deep venous palpation AND unilateral edema: +4
- * Bands: 0–3 low, 4–10 intermediate, >=11 high.
- */
-export interface GenevaInput {
+export type RevisedGenevaInputs = {
   age_gt_65: boolean;
-  previous_vte: boolean;
-  surgery_or_fracture_past_month: boolean;
-  active_cancer: boolean;
-  unilateral_leg_pain: boolean;
+  previous_dvt_pe: boolean;
+  surgery_or_fracture_last_month: boolean;
+  active_malignancy: boolean;
+  unilateral_lower_limb_pain: boolean;
   hemoptysis: boolean;
-  heart_rate: number;
-  pain_on_dvp_and_unilateral_edema: boolean;
+  hr_bpm: number; // 75-94 => 3; >=95 => 5
+  pain_on_palpaption_edema: boolean;
+};
+
+export function calc_revised_geneva(i: RevisedGenevaInputs): { score:number; risk:"low"|"intermediate"|"high" } {
+  let s = 0;
+  s += i.age_gt_65 ? 1 : 0;
+  s += i.previous_dvt_pe ? 3 : 0;
+  s += i.surgery_or_fracture_last_month ? 2 : 0;
+  s += i.active_malignancy ? 2 : 0;
+  s += i.unilateral_lower_limb_pain ? 3 : 0;
+  s += i.hemoptysis ? 2 : 0;
+  s += i.hr_bpm >= 95 ? 5 : (i.hr_bpm >= 75 ? 3 : 0);
+  s += i.pain_on_palpaption_edema ? 4 : 0;
+  let risk:"low"|"intermediate"|"high" = "low";
+  if (s >= 11) risk = "high";
+  else if (s >= 4) risk = "intermediate";
+  return { score: s, risk };
 }
-export interface GenevaResult {
-  total: number;
-  band: "low"|"intermediate"|"high";
-}
-export function revisedGeneva(i: GenevaInput): GenevaResult {
-  let total = 0;
-  total += i.age_gt_65 ? 1 : 0;
-  total += i.previous_vte ? 3 : 0;
-  total += i.surgery_or_fracture_past_month ? 2 : 0;
-  total += i.active_cancer ? 2 : 0;
-  total += i.unilateral_leg_pain ? 3 : 0;
-  total += i.hemoptysis ? 2 : 0;
-  if (i.heart_rate >= 95) total += 5;
-  else if (i.heart_rate >= 75) total += 3;
-  total += i.pain_on_dvp_and_unilateral_edema ? 4 : 0;
-  const band = (total <= 3) ? "low" : (total <= 10) ? "intermediate" : "high";
-  return { total, band };
-}
+
+const def = {
+  id: "revised_geneva",
+  label: "Revised Geneva Score (PE)",
+  inputs: [
+    { id: "age_gt_65", label: "Age >65", type: "boolean" },
+    { id: "previous_dvt_pe", label: "Previous DVT/PE", type: "boolean" },
+    { id: "surgery_or_fracture_last_month", label: "Surgery/fracture <1 month", type: "boolean" },
+    { id: "active_malignancy", label: "Active malignancy", type: "boolean" },
+    { id: "unilateral_lower_limb_pain", label: "Unilateral lower limb pain", type: "boolean" },
+    { id: "hemoptysis", label: "Hemoptysis", type: "boolean" },
+    { id: "hr_bpm", label: "Heart rate (bpm)", type: "number", min: 0 },
+    { id: "pain_on_palpaption_edema", label: "Pain on deep venous palpation and unilateral edema", type: "boolean" }
+  ],
+  run: (args: RevisedGenevaInputs) => {
+    const r = calc_revised_geneva(args);
+    const notes = [r.risk];
+    return { id: "revised_geneva", label: "Revised Geneva", value: r.score, unit: "points", precision: 0, notes, extra: r };
+  },
+};
+
+export default def;

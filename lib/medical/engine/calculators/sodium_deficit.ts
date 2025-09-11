@@ -1,29 +1,22 @@
-// Auto-generated. No placeholders. Typed run(args).
-export type NaDefInputs = {
-  sex: "male" | "female";
-  weight_kg: number;
-  current_na_mmol_l: number;
-  target_na_mmol_l: number;
-};
+export type NaDefInputs = { current_na_mmol_l:number; desired_na_mmol_l:number; weight_kg:number; sex:"male"|"female" };
 
 export function calc_sodium_deficit(i: NaDefInputs): number {
-  const tbw_factor = i.sex === "male" ? 0.6 : 0.5;
-  const tbw = tbw_factor * i.weight_kg;
-  return tbw * (i.target_na_mmol_l - i.current_na_mmol_l);
+  const tbw = (i.sex === "male" ? 0.6 : 0.5) * i.weight_kg;
+  return (i.desired_na_mmol_l - i.current_na_mmol_l) * tbw;
 }
 
 const def = {
   id: "sodium_deficit",
-  label: "Sodium Deficit (mEq)",
+  label: "Sodium Deficit (hyponatremia)",
   inputs: [
-    { id: "sex", label: "Sex", type: "select", options: [{label:"Male", value:"male"},{label:"Female", value:"female"}]},
-    { id: "weight_kg", label: "Weight (kg)", type: "number", min: 1, max: 300 },
     { id: "current_na_mmol_l", label: "Current Na (mmol/L)", type: "number", min: 80, max: 200 },
-    { id: "target_na_mmol_l", label: "Target Na (mmol/L)", type: "number", min: 80, max: 200 }
+    { id: "desired_na_mmol_l", label: "Desired Na (mmol/L)", type: "number", min: 80, max: 200 },
+    { id: "weight_kg", label: "Weight (kg)", type: "number", min: 1, max: 400 },
+    { id: "sex", label: "Sex", type: "select", options:[{label:"Male",value:"male"},{label:"Female",value:"female"}] }
   ],
   run: (args: NaDefInputs) => {
     const v = calc_sodium_deficit(args);
-    return { id: "sodium_deficit", label: "Sodium Deficit", value: v, unit: "mEq", precision: 0, notes: [] };
+    return { id: "sodium_deficit", label: "Sodium Deficit", value: v, unit: "mmol", precision: 0, notes: [] };
   },
 };
 
