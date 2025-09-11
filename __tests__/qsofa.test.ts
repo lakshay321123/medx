@@ -1,10 +1,8 @@
-// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
-
 import { calc_qsofa } from "../lib/medical/engine/calculators/qsofa";
 
 describe("calc_qsofa", () => {
-  it("adds criteria", () => {
-    const v = calc_qsofa({ resp_rate: 24, sbp: 95, gcs: 14 });
-    expect(v).toBe(3);
+  it("sums three binary criteria", () => {
+    const v = calc_qsofa({ rr_ge_22: true, sbp_le_100: true, altered_mentation: false });
+    expect(v).toBe(2);
   });
 });
