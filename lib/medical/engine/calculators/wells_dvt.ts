@@ -1,29 +1,29 @@
 export type WellsDVTInputs = {
   active_cancer: boolean;
-  paralysis_or_recent_immobilization: boolean;
-  bedridden_recent_surgery: boolean;
-  localized_tenderness: boolean;
+  paralysis_paresis_or_cast: boolean;
+  recently_bedridden_or_surgery: boolean;
+  localized_tenderness_dvt: boolean;
   entire_leg_swollen: boolean;
-  calf_swelling_ge_3cm: boolean;
-  pitting_edema: boolean;
+  calf_swelling_gt_3cm: boolean;
+  pitting_edema_symptomatic_leg: boolean;
   collateral_superficial_veins: boolean;
   previous_dvt: boolean;
-  alternative_diagnosis_more_likely: boolean; // subtracts 2
+  alternative_diagnosis_as_likely: boolean; // -2
 };
 
-export function calc_wells_dvt(i: WellsDVTInputs): { score: number; risk: "low"|"moderate"|"high" } {
+export function calc_wells_dvt(i: WellsDVTInputs): { score:number; risk:"low"|"moderate"|"high" } {
   let s = 0;
-  if (i.active_cancer) s += 1;
-  if (i.paralysis_or_recent_immobilization) s += 1;
-  if (i.bedridden_recent_surgery) s += 1;
-  if (i.localized_tenderness) s += 1;
-  if (i.entire_leg_swollen) s += 1;
-  if (i.calf_swelling_ge_3cm) s += 1;
-  if (i.pitting_edema) s += 1;
-  if (i.collateral_superficial_veins) s += 1;
-  if (i.previous_dvt) s += 1;
-  if (i.alternative_diagnosis_more_likely) s -= 2;
-  let risk: "low"|"moderate"|"high" = "low";
+  s += i.active_cancer ? 1 : 0;
+  s += i.paralysis_paresis_or_cast ? 1 : 0;
+  s += i.recently_bedridden_or_surgery ? 1 : 0;
+  s += i.localized_tenderness_dvt ? 1 : 0;
+  s += i.entire_leg_swollen ? 1 : 0;
+  s += i.calf_swelling_gt_3cm ? 1 : 0;
+  s += i.pitting_edema_symptomatic_leg ? 1 : 0;
+  s += i.collateral_superficial_veins ? 1 : 0;
+  s += i.previous_dvt ? 1 : 0;
+  s += i.alternative_diagnosis_as_likely ? -2 : 0;
+  let risk:"low"|"moderate"|"high" = "low";
   if (s >= 3) risk = "high";
   else if (s >= 1) risk = "moderate";
   return { score: s, risk };
@@ -34,15 +34,15 @@ const def = {
   label: "Wells Score (DVT)",
   inputs: [
     { id: "active_cancer", label: "Active cancer", type: "boolean" },
-    { id: "paralysis_or_recent_immobilization", label: "Paralysis/recent immobilization", type: "boolean" },
-    { id: "bedridden_recent_surgery", label: "Bedridden ≥3 days or major surgery <12 w", type: "boolean" },
-    { id: "localized_tenderness", label: "Localized tenderness along deep veins", type: "boolean" },
+    { id: "paralysis_paresis_or_cast", label: "Paralysis/paresis or recent plaster immobilization", type: "boolean" },
+    { id: "recently_bedridden_or_surgery", label: "Bedridden >3 days or major surgery <12 weeks", type: "boolean" },
+    { id: "localized_tenderness_dvt", label: "Localized tenderness along deep venous system", type: "boolean" },
     { id: "entire_leg_swollen", label: "Entire leg swollen", type: "boolean" },
-    { id: "calf_swelling_ge_3cm", label: "Calf swelling ≥3 cm", type: "boolean" },
-    { id: "pitting_edema", label: "Pitting edema (symptomatic leg)", type: "boolean" },
-    { id: "collateral_superficial_veins", label: "Collateral superficial veins", type: "boolean" },
+    { id: "calf_swelling_gt_3cm", label: "Calf swelling >3 cm vs. other leg", type: "boolean" },
+    { id: "pitting_edema_symptomatic_leg", label: "Pitting edema confined to symptomatic leg", type: "boolean" },
+    { id: "collateral_superficial_veins", label: "Collateral superficial (nonvaricose) veins", type: "boolean" },
     { id: "previous_dvt", label: "Previous DVT", type: "boolean" },
-    { id: "alternative_diagnosis_more_likely", label: "Alternative diagnosis as likely or more", type: "boolean" }
+    { id: "alternative_diagnosis_as_likely", label: "Alternative diagnosis as likely/more likely", type: "boolean" }
   ],
   run: (args: WellsDVTInputs) => {
     const r = calc_wells_dvt(args);

@@ -1,32 +1,42 @@
-/**
- * ABCD2 TIA score (0 to 7)
- * A: Age >= 60 years (1)
- * B: Blood pressure >=140 systolic or >=90 diastolic (1)
- * C: Clinical features: unilateral weakness (2) or speech impairment without weakness (1)
- * D: Duration: >=60 minutes (2) or 10 to 59 minutes (1)
- * D: Diabetes (1)
- */
-export interface ABCD2Input {
-  age: number;
-  sbp_mmHg: number;
-  dbp_mmHg: number;
+export type ABCD2Inputs = {
+  age_ge_60: boolean;
+  sbp_ge_140_or_dbp_ge_90: boolean;
   unilateral_weakness: boolean;
   speech_impairment_without_weakness: boolean;
-  duration_minutes: number;
+  duration_min: number;
   diabetes: boolean;
-}
-export interface ABCD2Result { score: number; band: "low" | "moderate" | "high"; }
-export function runABCD2(i: ABCD2Input): ABCD2Result {
+};
+
+export function calc_abcd2(i: ABCD2Inputs): { score:number; risk:"low"|"moderate"|"high" } {
   let s = 0;
-  if (i.age >= 60) s += 1;
-  if (i.sbp_mmHg >= 140 || i.dbp_mmHg >= 90) s += 1; // <-- fixed here
-  if (i.unilateral_weakness) s += 2;
-  else if (i.speech_impairment_without_weakness) s += 1;
-  if (i.duration_minutes >= 60) s += 2;
-  else if (i.duration_minutes >= 10) s += 1;
-  if (i.diabetes) s += 1;
-  let band: ABCD2Result["band"] = "low";
-  if (s >= 6) band = "high";
-  else if (s >= 4) band = "moderate";
-  return { score: s, band };
+  s += i.age_ge_60 ? 1 : 0;
+  s += i.sbp_ge_140_or_dbp_ge_90 ? 1 : 0;
+  s += i.unilateral_weakness ? 2 : 0;
+  s += (!i.unilateral_weakness && i.speech_impairment_without_weakness) ? 1 : 0;
+  s += i.duration_min >= 60 ? 2 : (i.duration_min >= 10 ? 1 : 0);
+  s += i.diabetes ? 1 : 0;
+  let risk:"low"|"moderate"|"high" = "low";
+  if (s >= 6) risk = "high";
+  else if (s >= 4) risk = "moderate";
+  return { score: s, risk };
 }
+
+const def = {
+  id: "abcd2_tia",
+  label: "ABCD² (TIA risk)",
+  inputs: [
+    { id: "age_ge_60", label: "Age ≥60", type: "boolean" },
+    { id: "sbp_ge_140_or_dbp_ge_90", label: "BP ≥140/90", type: "boolean" },
+    { id: "unilateral_weakness", label: "Unilateral weakness", type: "boolean" },
+    { id: "speech_impairment_without_weakness", label: "Speech impairment without weakness", type: "boolean" },
+    { id: "duration_min", label: "Duration (minutes)", type: "number", min: 0 },
+    { id: "diabetes", label: "Diabetes", type: "boolean" }
+  ],
+  run: (args: ABCD2Inputs) => {
+    const r = calc_abcd2(args);
+    const notes = [r.risk];
+    return { id: "abcd2_tia", label: "ABCD²", value: r.score, unit: "points", precision: 0, notes, extra: r };
+  },
+};
+
+export default def;

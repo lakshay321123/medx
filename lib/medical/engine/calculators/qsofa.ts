@@ -1,25 +1,25 @@
-export type qSOFAInputs = { sbp_mm_hg: number; rr_bpm: number; gcs_lt_15: boolean };
+export type qSOFAInputs = { rr:number; sbp:number; gcs:number };
 
-export function calc_qsofa(i: qSOFAInputs): number {
+export function calc_qsofa(i: qSOFAInputs): { score:number; high_risk:boolean } {
   let s = 0;
-  s += (i.sbp_mm_hg <= 100) ? 1 : 0;
-  s += (i.rr_bpm >= 22) ? 1 : 0;
-  s += i.gcs_lt_15 ? 1 : 0;
-  return s;
+  if (i.rr >= 22) s++;
+  if (i.sbp <= 100) s++;
+  if (i.gcs < 15) s++;
+  return { score: s, high_risk: s >= 2 };
 }
 
 const def = {
   id: "qsofa",
-  label: "qSOFA (sepsis risk)",
+  label: "qSOFA",
   inputs: [
-    { id: "sbp_mm_hg", label: "Systolic BP (mmHg)", type: "number", min: 0 },
-    { id: "rr_bpm", label: "Respiratory rate (breaths/min)", type: "number", min: 0 },
-    { id: "gcs_lt_15", label: "Altered mentation (GCS<15)", type: "boolean" }
+    { id: "rr", label: "Respiratory rate (breaths/min)", type: "number", min: 0 },
+    { id: "sbp", label: "Systolic BP (mmHg)", type: "number", min: 0 },
+    { id: "gcs", label: "GCS", type: "number", min: 3, max: 15 }
   ],
   run: (args: qSOFAInputs) => {
-    const v = calc_qsofa(args);
-    const notes = [v >= 2 ? "high risk (≥2)" : ""];
-    return { id: "qsoFA".toLowerCase(), label: "qSOFA", value: v, unit: "criteria", precision: 0, notes: notes.filter(Boolean) };
+    const r = calc_qsofa(args);
+    const notes = [r.high_risk ? "High risk (≥2)" : ""];
+    return { id: "qsofa", label: "qSOFA", value: r.score, unit: "criteria", precision: 0, notes: notes.filter(Boolean), extra: r };
   },
 };
 
