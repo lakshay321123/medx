@@ -1,6 +1,9 @@
-import { runNEXUS } from "@/lib/medical/engine/calculators/nexus_cspine";
+// Batch 14 test
+import { calc_nexus_cspine } from "../lib/medical/engine/calculators/nexus_cspine";
 
-test("NEXUS clear", () => {
-  const r = runNEXUS({ midline_tenderness:false, intoxication:false, neuro_deficit:false, distracting_injury:false, altered_mental_status:false });
-  expect(r.clearable_without_imaging).toBe(true);
+describe("calc_nexus_cspine", () => {
+  it("true only when all criteria met", () => {
+    const r = calc_nexus_cspine({ no_midline_tenderness: true, no_intoxication: true, normal_alertness: true, no_focal_neurologic_deficit: true, no_painful_distracting_injury: true });
+    expect(r.all_low_risk).toBe(true);
+  });
 });
