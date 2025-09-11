@@ -11,7 +11,12 @@ const BASE_FILTERS: Record<import("./types").NearbyType, Filter[]> = {
   specialist: [{ k: "amenity", v: "doctors" }, { k: "healthcare", v: "doctor" }],
   hospital: [{ k: "amenity", v: "hospital" }, { k: "healthcare", v: "hospital" }],
   clinic: [{ k: "amenity", v: "clinic" }, { k: "healthcare", v: "clinic" }],
-  lab: [{ k: "healthcare", v: "laboratory" }, { k: "amenity", v: "laboratory" }],
+  lab: [
+    { k: "healthcare", v: "laboratory" },
+    { k: "amenity", v: "laboratory" },
+    { k: "amenity", v: "diagnostic_centre" },
+    { k: "healthcare", v: "diagnostic_centre" },
+  ],
   pharmacy: [{ k: "amenity", v: "pharmacy" }],
 };
 
@@ -31,7 +36,7 @@ export function buildOverpassQuery(
   );
 
   const specialityClause =
-    type === "specialist" && speciality
+    speciality
       ? `  nwr["healthcare:speciality"~"${speciality}", i](around:${radiusM},${lat},${lng});\n`
       : "";
 
