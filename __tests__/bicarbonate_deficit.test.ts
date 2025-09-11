@@ -1,11 +1,10 @@
-  import { calc_bicarbonate_deficit } from "../lib/medical/engine/calculators/bicarbonate_deficit";
+// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
 
-  describe("calc_bicarbonate_deficit", () => {
+import { calc_bicarbonate_deficit } from "../lib/medical/engine/calculators/bicarbonate_deficit";
 
-it("computes bicarbonate deficit with default target", () => {
-  const r = calc_bicarbonate_deficit({ actual_hco3: 12, weight_kg: 70 });
-  expect(r.target).toBe(24);
-  expect(r.deficit).toBe(420);
-});
-
+describe("calc_bicarbonate_deficit", () => {
+  it("computes TBW * delta", () => {
+    const v = calc_bicarbonate_deficit({ sex: "male", weight_kg: 70, current_hco3_mmol_l: 10, target_hco3_mmol_l: 24 });
+    expect(v).toBeCloseTo(0.6 * 70 * (24 - 10), 3);
   });
+});

@@ -1,6 +1,10 @@
-import { runTTKG } from "@/lib/medical/engine/calculators/ttkg";
+// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
 
-test("TTKG", () => {
-  const r = runTTKG({ urine_k_meq_l:60, plasma_k_meq_l:3, urine_osm_mosm_kg:600, plasma_osm_mosm_kg:300 });
-  expect(r.ttkg).toBeCloseTo(10, 3);
+import { calc_ttkg } from "../lib/medical/engine/calculators/ttkg";
+
+describe("calc_ttkg", () => {
+  it("computes ratio", () => {
+    const v = calc_ttkg({ urine_k_mmol_l: 60, plasma_k_mmol_l: 3, urine_osm_mosm_kg: 600, plasma_osm_mosm_kg: 300 });
+    expect(v).toBeCloseTo((60/3) * (300/600), 3);
+  });
 });
