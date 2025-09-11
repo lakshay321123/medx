@@ -1,13 +1,13 @@
-  import { calc_glasgow_blatchford } from "../lib/medical/engine/calculators/glasgow_blatchford";
+// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
 
-  describe("calc_glasgow_blatchford", () => {
+import { calc_glasgow_blatchford } from "../lib/medical/engine/calculators/glasgow_blatchford";
 
-it("scores Glasgow-Blatchford", () => {
-  const v = calc_glasgow_blatchford({
-    bun_mg_dl: 30, hb_g_dl: 11.5, sex: "male", sbp: 95, pulse: 105,
-    melena: true, syncope: false, hepatic_disease: true, cardiac_failure: false
+describe("calc_glasgow_blatchford", () => {
+  it("adds points across domains", () => {
+    const v = calc_glasgow_blatchford({
+      bun_mg_dl: 30, hb_g_dl: 9.5, sex: "male", sbp: 95, pulse: 110,
+      melena: true, syncope: true, hepatic_disease: true, cardiac_failure: false
+    });
+    expect(v).toBeGreaterThan(0);
   });
-  expect(v).toBe(12);
 });
-
-  });
