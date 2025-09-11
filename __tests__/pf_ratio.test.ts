@@ -1,11 +1,10 @@
-  import { calc_pf_ratio } from "../lib/medical/engine/calculators/pf_ratio";
+// Auto-generated calculators for MedX. No ellipses. Typed run(args) signatures.
 
-  describe("calc_pf_ratio", () => {
+import { calc_pf_ratio } from "../lib/medical/engine/calculators/pf_ratio";
 
-it("computes P/F ratio and ARDS band", () => {
-  const r = calc_pf_ratio({ pao2: 80, fio2: 0.5 });
-  expect(r.ratio).toBeCloseTo(160, 0);
-  expect(r.band).toBe("moderate ARDS range");
-});
-
+describe("calc_pf_ratio", () => {
+  it("divides PaO2 by FiO2", () => {
+    const v = calc_pf_ratio({ pao2_mm_hg: 80, fio2: 0.4 });
+    expect(v).toBeCloseTo(200, 3);
   });
+});

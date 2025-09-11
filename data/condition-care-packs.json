@@ -1,0 +1,94 @@
+{
+  "type 2 diabetes": {
+    "lifestyle": [
+      "30–45 min brisk walk, 5 days/week",
+      "Plate method: half veggies, quarter lean protein, quarter whole grains",
+      "Limit sugary drinks"
+    ],
+    "monitoring": [
+      "Check fasting blood sugar as directed",
+      "Record readings and trends",
+      "Inspect feet weekly"
+    ],
+    "adherence": [
+      "Take medications as prescribed",
+      "Don't stop meds without doctor advice"
+    ],
+    "red_flags": [
+      "Blood sugar >300 mg/dL with symptoms → ER",
+      "Blurry vision, extreme thirst, or confusion"
+    ],
+    "references": {
+      "default": ["https://www.who.int/news-room/fact-sheets/detail/diabetes"],
+      "us": ["https://www.cdc.gov/diabetes/basics/type2.html"]
+    }
+  },
+  "hypertension": {
+    "lifestyle": [
+      "150 min moderate exercise weekly",
+      "Reduce salt to <2g sodium/day",
+      "DASH-style meals"
+    ],
+    "monitoring": [
+      "Check blood pressure at home twice weekly",
+      "Log readings to share with your doctor"
+    ],
+    "adherence": [
+      "Take meds consistently each day",
+      "Avoid stopping meds suddenly"
+    ],
+    "red_flags": [
+      "BP ≥180/120 mmHg with chest pain or shortness of breath → ER",
+      "Severe headache or vision changes"
+    ],
+    "references": {
+      "default": ["https://www.who.int/news-room/fact-sheets/detail/hypertension"],
+      "us": ["https://www.cdc.gov/bloodpressure/index.htm"]
+    }
+  },
+  "asthma": {
+    "lifestyle": [
+      "Identify and avoid triggers",
+      "Warm-up before exercise",
+      "No smoking"
+    ],
+    "monitoring": [
+      "Use peak flow meter daily if advised",
+      "Track symptoms and inhaler use"
+    ],
+    "adherence": [
+      "Use controller inhaler daily as prescribed",
+      "Carry rescue inhaler"
+    ],
+    "red_flags": [
+      "Rapid worsening breathing or lips turning blue → ER",
+      "Rescue inhaler not lasting 4 hours"
+    ],
+    "references": {
+      "default": ["https://www.who.int/news-room/fact-sheets/detail/asthma"],
+      "us": ["https://www.cdc.gov/asthma/basics.html"]
+    }
+  },
+  "generic": {
+    "lifestyle": [
+      "Balanced meals with fruits, vegetables, and lean protein",
+      "Stay active 150 min/week",
+      "Avoid smoking"
+    ],
+    "monitoring": [
+      "Track symptoms and vital signs",
+      "Schedule regular check-ups"
+    ],
+    "adherence": [
+      "Take medicines as directed",
+      "Use reminders or pillboxes"
+    ],
+    "red_flags": [
+      "Sudden worsening symptoms",
+      "High fever or trouble breathing"
+    ],
+    "references": {
+      "default": ["https://www.who.int/health-topics/chronic-diseases"]
+    }
+  }
+}

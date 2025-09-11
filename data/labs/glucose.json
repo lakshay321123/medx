@@ -1,0 +1,18 @@
+{
+  "aliases": ["glucose", "fasting glucose", "fasting blood glucose"],
+  "name": "Glucose (Fasting)",
+  "purpose": "Measures sugar levels after fasting to screen for diabetes",
+  "adult_range": "70–99 mg/dL",
+  "high_means": [
+    "Possible diabetes or impaired glucose tolerance"
+  ],
+  "low_means": [
+    "Possible hypoglycemia"
+  ],
+  "prep": [
+    "Typically an 8-hour fast"
+  ],
+  "references": [
+    "https://medlineplus.gov/lab-tests/glucose-test/"
+  ]
+}

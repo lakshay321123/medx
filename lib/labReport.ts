@@ -24,7 +24,7 @@ export type SystemName =
   | 'vitaminsHormones'
   | 'other';
 
-type PatientHints = { name?: string; age?: number; sex?: string };
+type PatientHints = { name?: string; age?: number; sex?: string; region?: string };
 
 type RawRow = {
   test: string;
