@@ -1,0 +1,13 @@
+{
+  "questions": [
+    "Could these liver tests indicate fatty liver or another condition?",
+    "Do I need an ultrasound to investigate my liver?",
+    "Could any medications be affecting these liver results?"
+  ],
+  "monitoring": [
+    "Repeat liver function tests in 2–4 weeks"
+  ],
+  "references": [
+    "https://www.cdc.gov/hepatitis/faqs/index.htm"
+  ]
+}

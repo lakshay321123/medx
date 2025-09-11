@@ -1,0 +1,15 @@
+{
+  "questions": [
+    "Are there any warning signs I should watch for?",
+    "What follow-up tests might be needed?",
+    "How could these findings affect my current treatments?",
+    "When should I schedule a follow-up appointment?",
+    "Is there anything in my lifestyle that could influence these results?"
+  ],
+  "monitoring": [
+    "Keep track of any new or worsening symptoms"
+  ],
+  "references": [
+    "https://medlineplus.gov/"
+  ]
+}
