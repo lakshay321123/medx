@@ -1,23 +1,25 @@
-/**
- * eGFR (MDRD 4-variable, traditional)
- * Output in ml/min/1.73 m²
- * Optional: race_black flag to include legacy race coefficient (1.212)
- */
-export interface MDRDInput {
-  age_years: number;
-  sex: "male" | "female";
-  scr_mg_dl: number;
-  race_black?: boolean; // default false
-}
-export interface MDRDResult {
-  egfr_ml_min_1_73: number;
+// Batch 14 calculator
+export type MDRDInputs = { sex: "male"|"female"; age_years: number; scr_mg_dl: number };
+
+export function calc_egfr_mdrd(i: MDRDInputs): number {
+  if (i.scr_mg_dl <= 0) return NaN;
+  let egfr = 175 * Math.pow(i.scr_mg_dl, -1.154) * Math.pow(i.age_years, -0.203);
+  if (i.sex === "female") egfr *= 0.742;
+  return egfr;
 }
 
-export function runEGFR_MDRD(i: MDRDInput): MDRDResult {
-  const age = Math.max(0, i.age_years);
-  const scr = Math.max(0.01, i.scr_mg_dl);
-  let egfr = 175 * Math.pow(scr, -1.154) * Math.pow(age, -0.203);
-  if (i.sex === "female") egfr *= 0.742;
-  if (i.race_black) egfr *= 1.212;
-  return { egfr_ml_min_1_73: egfr };
-}
+const def = {
+  id: "egfr_mdrd",
+  label: "eGFR (MDRD-4)",
+  inputs: [
+    { id: "sex", label: "Sex", type: "select", options: [{label:"Male", value:"male"},{label:"Female", value:"female"}] },
+    { id: "age_years", label: "Age (years)", type: "number", min: 0, max: 120 },
+    { id: "scr_mg_dl", label: "Serum creatinine (mg/dL)", type: "number", min: 0.1, max: 20 }
+  ],
+  run: (args: MDRDInputs) => {
+    const v = calc_egfr_mdrd(args);
+    return { id: "egfr_mdrd", label: "eGFR (MDRD-4)", value: v, unit: "mL/min/1.73m²", precision: 0, notes: [] };
+  },
+};
+
+export default def;

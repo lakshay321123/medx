@@ -1,21 +1,32 @@
-/**
- * NEXUS cervical spine rule
- * Imaging needed if any criteria present:
- * - Midline tenderness
- * - Intoxication
- * - Focal neurological deficit
- * - Distracting injury
- * - Altered mental status
- */
-export interface NexusInput {
-  midline_tenderness: boolean;
-  intoxication: boolean;
-  neuro_deficit: boolean;
-  distracting_injury: boolean;
-  altered_mental_status: boolean;
+// Batch 14 calculator
+export type NEXUSInputs = {
+  no_midline_tenderness: boolean;
+  no_intoxication: boolean;
+  normal_alertness: boolean;
+  no_focal_neurologic_deficit: boolean;
+  no_painful_distracting_injury: boolean;
+};
+
+export function calc_nexus_cspine(i: NEXUSInputs): { all_low_risk: boolean } {
+  const all_low = i.no_midline_tenderness && i.no_intoxication && i.normal_alertness && i.no_focal_neurologic_deficit && i.no_painful_distracting_injury;
+  return { all_low_risk: all_low };
 }
-export interface NexusResult { clearable_without_imaging: boolean; }
-export function runNEXUS(i: NexusInput): NexusResult {
-  const any = i.midline_tenderness || i.intoxication || i.neuro_deficit || i.distracting_injury || i.altered_mental_status;
-  return { clearable_without_imaging: !any };
-}
+
+const def = {
+  id: "nexus_cspine",
+  label: "NEXUS C-spine (low-risk rule)",
+  inputs: [
+    { id: "no_midline_tenderness", label: "No midline c-spine tenderness", type: "boolean" },
+    { id: "no_intoxication", label: "No intoxication", type: "boolean" },
+    { id: "normal_alertness", label: "Normal alertness", type: "boolean" },
+    { id: "no_focal_neurologic_deficit", label: "No focal neurologic deficit", type: "boolean" },
+    { id: "no_painful_distracting_injury", label: "No painful distracting injury", type: "boolean" }
+  ],
+  run: (args: NEXUSInputs) => {
+    const r = calc_nexus_cspine(args);
+    const notes = [r.all_low_risk ? "All low-risk present → imaging often not required" : "Rule not satisfied"];
+    return { id: "nexus_cspine", label: "NEXUS C-spine", value: r.all_low_risk ? 1 : 0, unit: "flag", precision: 0, notes, extra: r };
+  },
+};
+
+export default def;

@@ -1,37 +1,36 @@
-// Auto-generated calculator. Sources cited in PR. No placeholders.
-// Keep structure consistent with other calculators in MedX.
-
-export type BisapInputs = {
+// Batch 14 calculator
+export type BISAPInputs = {
   bun_mg_dl: number;
-  impaired_mental_status: boolean;
-  sirs_count: number; // 0-4
+  gcs: number;
+  sirs_criteria_count: number; // 0–4
   age_years: number;
   pleural_effusion: boolean;
 };
 
-export function calc_bisap({ bun_mg_dl, impaired_mental_status, sirs_count, age_years, pleural_effusion }: BisapInputs): number {
-  let score = 0;
-  if (bun_mg_dl > 25) score++;
-  if (impaired_mental_status) score++;
-  if (sirs_count >= 2) score++;
-  if (age_years > 60) score++;
-  if (pleural_effusion) score++;
-  return score;
+export function calc_bisap(i: BISAPInputs): { score: number; high_risk: boolean } {
+  let s = 0;
+  if (i.bun_mg_dl > 25) s += 1;
+  if (i.gcs < 15) s += 1;
+  if (i.sirs_criteria_count >= 2) s += 1;
+  if (i.age_years > 60) s += 1;
+  if (i.pleural_effusion) s += 1;
+  return { score: s, high_risk: s >= 3 };
 }
 
 const def = {
   id: "bisap",
-  label: "BISAP (Acute Pancreatitis)",
+  label: "BISAP (acute pancreatitis)",
   inputs: [
     { id: "bun_mg_dl", label: "BUN (mg/dL)", type: "number", min: 0 },
-    { id: "impaired_mental_status", label: "Impaired mental status", type: "boolean" },
-    { id: "sirs_count", label: "SIRS count (0-4)", type: "number", min: 0, max: 4, step: 1 },
-    { id: "age_years", label: "Age", type: "number", min: 0, max: 120 },
+    { id: "gcs", label: "GCS", type: "number", min: 3, max: 15, step: 1 },
+    { id: "sirs_criteria_count", label: "SIRS criteria (0–4)", type: "number", min: 0, max: 4, step: 1 },
+    { id: "age_years", label: "Age (years)", type: "number", min: 0, max: 120 },
     { id: "pleural_effusion", label: "Pleural effusion", type: "boolean" }
   ],
-  run: ({ bun_mg_dl, impaired_mental_status, sirs_count, age_years, pleural_effusion }: BisapInputs) => {
-    const v = calc_bisap({ bun_mg_dl, impaired_mental_status, sirs_count, age_years, pleural_effusion });
-    return { id: "bisap", label: "BISAP", value: v, unit: "score", precision: 0, notes: [] };
+  run: (args: BISAPInputs) => {
+    const r = calc_bisap(args);
+    const notes = [r.high_risk ? "high risk (BISAP ≥3)" : "low/moderate risk"];
+    return { id: "bisap", label: "BISAP", value: r.score, unit: "points", precision: 0, notes, extra: r };
   },
 };
 
