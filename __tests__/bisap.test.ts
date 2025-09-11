@@ -1,10 +1,8 @@
-// Batch 14 test
 import { calc_bisap } from "../lib/medical/engine/calculators/bisap";
 
 describe("calc_bisap", () => {
-  it("flags high risk at >=3", () => {
-    const r = calc_bisap({ bun_mg_dl: 30, gcs: 14, sirs_criteria_count: 2, age_years: 65, pleural_effusion: false });
-    expect(r.score).toBeGreaterThanOrEqual(3);
-    expect(r.high_risk).toBe(true);
+  it("sums five binary factors", () => {
+    const v = calc_bisap({ bun_mg_dl: 30, impaired_mental_status: true, sirs_ge_2: true, age_ge_60: false, pleural_effusion: true });
+    expect(v).toBe(4);
   });
 });
