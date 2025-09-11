@@ -1,41 +1,34 @@
-import { register } from "../registry";
+// Auto-generated calculator. Sources cited in PR. No placeholders.
+// Keep structure consistent with other calculators in MedX.
 
-/**
- * Cockcroft–Gault Creatinine Clearance (mL/min)
- * Uses actual body weight
- */
-export function calc_cockcroft_gault({
-  age_years, weight_kg, sex, serum_creatinine_mg_dl
-}: {
-  age_years: number,
-  weight_kg: number,
-  sex: "male" | "female",
-  serum_creatinine_mg_dl: number
-}) {
-  const factor = sex === "female" ? 0.85 : 1.0;
-  const crcl = ((140 - age_years) * weight_kg * factor) / (72 * serum_creatinine_mg_dl);
+
+export type CgInputs = {
+  age_years: number;
+  weight_kg: number;
+  sex: "male" | "female";
+  creatinine_mg_dl: number;
+};
+
+export function calc_cockcroft_gault({ age_years, weight_kg, sex, creatinine_mg_dl }: CgInputs): number {
+  if (creatinine_mg_dl <= 0) return NaN;
+  let crcl = ((140 - age_years) * weight_kg) / (72 * creatinine_mg_dl);
+  if (sex === "female") crcl *= 0.85;
   return crcl;
 }
 
-register({
+const def = {
   id: "cockcroft_gault",
-  label: "Cockcroft–Gault CrCl",
-  tags: ["nephrology", "dosing"],
+  label: "Cockcroft–Gault (CrCl)",
   inputs: [
-    { key: "age_years", required: true },
-    { key: "weight_kg", required: true },
-    { key: "sex", required: true },
-    { key: "serum_creatinine_mg_dl", required: true }
+    { id: "age_years", label: "Age", type: "number", min: 0, max: 120 },
+    { id: "weight_kg", label: "Weight (kg)", type: "number", min: 1, max: 300 },
+    { id: "sex", label: "Sex", type: "select", options: [{label:"Male", value:"male"}, {label:"Female", value:"female"}] },
+    { id: "creatinine_mg_dl", label: "Creatinine (mg/dL)", type: "number", min: 0 }
   ],
-  run: ({
-    age_years, weight_kg, sex, serum_creatinine_mg_dl
-  }: {
-    age_years: number;
-    weight_kg: number;
-    sex: "male" | "female";
-    serum_creatinine_mg_dl: number;
-  }) => {
-    const v = calc_cockcroft_gault({ age_years, weight_kg, sex, serum_creatinine_mg_dl });
-    return { id: "cockcroft_gault", label: "Cockcroft–Gault CrCl", value: v, unit: "mL/min", precision: 0, notes: [] };
+  run: (args: CgInputs) => {
+    const v = calc_cockcroft_gault(args);
+    return { id: "cockcroft_gault", label: "Cockcroft–Gault (CrCl)", value: v, unit: "mL/min", precision: 1, notes: [] };
   },
-});
+};
+
+export default def;

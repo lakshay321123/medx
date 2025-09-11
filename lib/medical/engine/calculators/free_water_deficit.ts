@@ -1,34 +1,31 @@
-import { register } from "../registry";
+// Auto-generated calculator. Sources cited in PR. No placeholders.
+// Keep structure consistent with other calculators in MedX.
 
-/**
- * Free Water Deficit = TBW * (Na/140 - 1)
- * TBW = weight_kg * factor (male 0.6, female 0.5)
- */
-export function calc_free_water_deficit({
-  serum_na, weight_kg, sex
-}: {
-  serum_na: number,
-  weight_kg: number,
-  sex: "male" | "female"
-}) {
-  const factor = sex === "male" ? 0.6 : 0.5;
-  const tbw = weight_kg * factor;
-  const deficit = tbw * (serum_na / 140 - 1);
-  return { tbw, deficit };
+
+export type FWDInputs = {
+  sex: "male" | "female";
+  weight_kg: number;
+  sodium_mmol_l: number;
+};
+
+export function calc_free_water_deficit({ sex, weight_kg, sodium_mmol_l }: FWDInputs): number {
+  const tbw_factor = sex === "male" ? 0.6 : 0.5;
+  const tbw = tbw_factor * weight_kg;
+  return tbw * (sodium_mmol_l / 140 - 1);
 }
 
-register({
+const def = {
   id: "free_water_deficit",
   label: "Free Water Deficit",
-  tags: ["nephrology", "electrolytes"],
   inputs: [
-    { key: "serum_na", required: true },
-    { key: "weight_kg", required: true },
-    { key: "sex", required: true }
+    { id: "sex", label: "Sex", type: "select", options: [{label:"Male", value:"male"}, {label:"Female", value:"female"}] },
+    { id: "weight_kg", label: "Weight (kg)", type: "number", min: 1, max: 300 },
+    { id: "sodium_mmol_l", label: "Na (mmol/L)", type: "number", min: 120, max: 200 }
   ],
-  run: ({ serum_na, weight_kg, sex }: { serum_na: number; weight_kg: number; sex: "male" | "female"; }) => {
-    const r = calc_free_water_deficit({ serum_na, weight_kg, sex });
-    const notes = [`TBW≈${Math.round(r.tbw)} L`];
-    return { id: "free_water_deficit", label: "Free Water Deficit", value: r.deficit, unit: "L", precision: 1, notes, extra: r };
+  run: (args: FWDInputs) => {
+    const v = calc_free_water_deficit(args);
+    return { id: "free_water_deficit", label: "Free Water Deficit", value: v, unit: "L", precision: 2, notes: [] };
   },
-});
+};
+
+export default def;
