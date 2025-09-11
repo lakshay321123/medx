@@ -1,4 +1,3 @@
-// Batch 14 calculator
 export type ParklandInputs = { weight_kg: number; tbsa_percent: number };
 
 export function calc_parkland(i: ParklandInputs): { total_ml: number; first8h_ml: number; next16h_ml: number } {
@@ -10,13 +9,13 @@ const def = {
   id: "parkland",
   label: "Parkland Formula (burn resuscitation)",
   inputs: [
-    { id: "weight_kg", label: "Weight (kg)", type: "number", min: 1, max: 300 },
-    { id: "tbsa_percent", label: "TBSA burned (%)", type: "number", min: 0, max: 100 }
+    { id: "weight_kg", label: "Weight (kg)", type: "number", min: 1, max: 400 },
+    { id: "tbsa_percent", label: "TBSA burn (%)", type: "number", min: 0, max: 100 }
   ],
   run: (args: ParklandInputs) => {
     const r = calc_parkland(args);
-    const notes = [`First 8h: ${r.first8h_ml.toFixed(0)} mL`, `Next 16h: ${r.next16h_ml.toFixed(0)} mL`];
-    return { id: "parkland", label: "Parkland Formula", value: r.total_ml, unit: "mL (24h)", precision: 0, notes, extra: r };
+    const notes = ["Give first half in 8h from time of burn"];
+    return { id: "parkland", label: "Parkland Fluid", value: r.total_ml, unit: "mL/24h", precision: 0, notes, extra: r };
   },
 };
 

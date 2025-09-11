@@ -1,41 +1,38 @@
-// Auto-generated calculator. Sources cited in PR. No placeholders.
-// Keep structure consistent with other calculators in MedX.
-
-export type SPESIInputs = {
+export type sPESIInputs = {
   age_years: number;
   cancer: boolean;
-  chronic_cardiopulm: boolean;
-  heart_rate_bpm: number;
+  chronic_cardiopulmonary: boolean;
+  hr_bpm: number;
   sbp_mm_hg: number;
-  sao2_percent: number;
+  spo2_percent: number;
 };
 
-export function calc_spesi({ age_years, cancer, chronic_cardiopulm, heart_rate_bpm, sbp_mm_hg, sao2_percent }: SPESIInputs): number {
-  let score = 0;
-  if (age_years > 80) score++;
-  if (cancer) score++;
-  if (chronic_cardiopulm) score++;
-  if (heart_rate_bpm >= 110) score++;
-  if (sbp_mm_hg < 100) score++;
-  if (sao2_percent < 90) score++;
-  return score;
+export function calc_spesi(i: sPESIInputs): { score: number; risk: "low"|"high" } {
+  let s = 0;
+  if (i.age_years > 80) s += 1;
+  if (i.cancer) s += 1;
+  if (i.chronic_cardiopulmonary) s += 1;
+  if (i.hr_bpm >= 110) s += 1;
+  if (i.sbp_mm_hg < 100) s += 1;
+  if (i.spo2_percent < 90) s += 1;
+  return { score: s, risk: s === 0 ? "low" : "high" };
 }
 
 const def = {
   id: "spesi",
-  label: "sPESI (PE)",
+  label: "Simplified PESI (sPESI)",
   inputs: [
-    { id: "age_years", label: "Age", type: "number", min: 0, max: 120 },
+    { id: "age_years", label: "Age (years)", type: "number", min: 0, max: 120 },
     { id: "cancer", label: "Active cancer", type: "boolean" },
-    { id: "chronic_cardiopulm", label: "Chronic cardiopulmonary disease", type: "boolean" },
-    { id: "heart_rate_bpm", label: "Heart rate (bpm)", type: "number", min: 0 },
-    { id: "sbp_mm_hg", label: "SBP (mmHg)", type: "number", min: 0 },
-    { id: "sao2_percent", label: "SaO2 (%)", type: "number", min: 0, max: 100 }
+    { id: "chronic_cardiopulmonary", label: "Chronic cardiopulmonary disease", type: "boolean" },
+    { id: "hr_bpm", label: "Heart rate (bpm)", type: "number", min: 0, max: 300 },
+    { id: "sbp_mm_hg", label: "Systolic BP (mmHg)", type: "number", min: 0, max: 300 },
+    { id: "spo2_percent", label: "O₂ saturation (%)", type: "number", min: 0, max: 100 }
   ],
-  run: (args: SPESIInputs) => {
-    const v = calc_spesi(args);
-    const notes = [v === 0 ? "low 30-day risk" : "elevated risk"];
-    return { id: "spesi", label: "sPESI", value: v, unit: "score", precision: 0, notes };
+  run: (args: sPESIInputs) => {
+    const r = calc_spesi(args);
+    const notes = [r.risk === "low" ? "sPESI 0 = low risk" : "high risk"];
+    return { id: "spesi", label: "sPESI", value: r.score, unit: "points", precision: 0, notes, extra: r };
   },
 };
 
