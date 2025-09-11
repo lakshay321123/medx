@@ -2,23 +2,23 @@ export type AlvaradoInputs = {
   migration_rlq: boolean;
   anorexia: boolean;
   nausea_vomiting: boolean;
-  rlq_tenderness: boolean;
-  rebound_pain: boolean;
-  fever: boolean;
+  tenderness_rlq: boolean;
+  rebound: boolean;
+  elevated_temperature: boolean;
   leukocytosis: boolean;
   left_shift: boolean;
 };
 
 export function calc_alvarado(i: AlvaradoInputs): number {
   let s = 0;
-  if (i.migration_rlq) s += 1;
-  if (i.anorexia) s += 1;
-  if (i.nausea_vomiting) s += 1;
-  if (i.rlq_tenderness) s += 2;
-  if (i.rebound_pain) s += 1;
-  if (i.fever) s += 1;
-  if (i.leukocytosis) s += 2;
-  if (i.left_shift) s += 1;
+  s += i.migration_rlq ? 1 : 0;
+  s += i.anorexia ? 1 : 0;
+  s += i.nausea_vomiting ? 1 : 0;
+  s += i.tenderness_rlq ? 2 : 0;
+  s += i.rebound ? 1 : 0;
+  s += i.elevated_temperature ? 1 : 0;
+  s += i.leukocytosis ? 2 : 0;
+  s += i.left_shift ? 1 : 0;
   return s;
 }
 
@@ -29,9 +29,9 @@ const def = {
     { id: "migration_rlq", label: "Migration of pain to RLQ", type: "boolean" },
     { id: "anorexia", label: "Anorexia", type: "boolean" },
     { id: "nausea_vomiting", label: "Nausea/vomiting", type: "boolean" },
-    { id: "rlq_tenderness", label: "RLQ tenderness", type: "boolean" },
-    { id: "rebound_pain", label: "Rebound pain", type: "boolean" },
-    { id: "fever", label: "Fever", type: "boolean" },
+    { id: "tenderness_rlq", label: "Tenderness in RLQ", type: "boolean" },
+    { id: "rebound", label: "Rebound pain", type: "boolean" },
+    { id: "elevated_temperature", label: "Elevated temperature", type: "boolean" },
     { id: "leukocytosis", label: "Leukocytosis", type: "boolean" },
     { id: "left_shift", label: "Left shift (neutrophilia)", type: "boolean" }
   ],

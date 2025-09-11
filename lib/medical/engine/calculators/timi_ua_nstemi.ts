@@ -1,44 +1,40 @@
-export type TIMIUAInputs = {
+export type TIMIInputs = {
   age_ge_65: boolean;
   at_least_3_risk_factors_cad: boolean;
-  known_cad_stenosis_ge_50: boolean;
-  asa_in_last_7d: boolean;
-  recent_severe_angina: boolean;
-  st_deviation_ge_0_5mm: boolean;
-  positive_biomarker: boolean;
+  known_cad_ge_50_stenosis: boolean;
+  st_deviation: boolean;
+  two_angina_episodes_24h: boolean;
+  aspirin_last_7d: boolean;
+  elevated_markers: boolean;
 };
 
-export function calc_timi_ua_nstemi(i: TIMIUAInputs): { score: number; risk: "low"|"intermediate"|"high" } {
+export function calc_timi_ua_nstemi(i: TIMIInputs): number {
   let s = 0;
-  if (i.age_ge_65) s += 1;
-  if (i.at_least_3_risk_factors_cad) s += 1;
-  if (i.known_cad_stenosis_ge_50) s += 1;
-  if (i.asa_in_last_7d) s += 1;
-  if (i.recent_severe_angina) s += 1;
-  if (i.st_deviation_ge_0_5mm) s += 1;
-  if (i.positive_biomarker) s += 1;
-  let risk: "low"|"intermediate"|"high" = "low";
-  if (s >= 5) risk = "high";
-  else if (s >= 3) risk = "intermediate";
-  return { score: s, risk };
+  s += i.age_ge_65 ? 1 : 0;
+  s += i.at_least_3_risk_factors_cad ? 1 : 0;
+  s += i.known_cad_ge_50_stenosis ? 1 : 0;
+  s += i.st_deviation ? 1 : 0;
+  s += i.two_angina_episodes_24h ? 1 : 0;
+  s += i.aspirin_last_7d ? 1 : 0;
+  s += i.elevated_markers ? 1 : 0;
+  return s;
 }
 
 const def = {
   id: "timi_ua_nstemi",
-  label: "TIMI Risk Score (UA/NSTEMI)",
+  label: "TIMI (UA/NSTEMI)",
   inputs: [
     { id: "age_ge_65", label: "Age ≥65", type: "boolean" },
-    { id: "at_least_3_risk_factors_cad", label: "≥3 CAD risk factors", type: "boolean" },
-    { id: "known_cad_stenosis_ge_50", label: "Known CAD (stenosis ≥50%)", type: "boolean" },
-    { id: "asa_in_last_7d", label: "ASA use in last 7 days", type: "boolean" },
-    { id: "recent_severe_angina", label: "≥2 angina episodes in 24h", type: "boolean" },
-    { id: "st_deviation_ge_0_5mm", label: "ST deviation ≥0.5 mm", type: "boolean" },
-    { id: "positive_biomarker", label: "Positive cardiac marker", type: "boolean" }
+    { id: "at_least_3_risk_factors_cad", label: "≥3 risk factors for CAD", type: "boolean" },
+    { id: "known_cad_ge_50_stenosis", label: "Known CAD ≥50% stenosis", type: "boolean" },
+    { id: "st_deviation", label: "ST deviation ≥0.5 mm", type: "boolean" },
+    { id: "two_angina_episodes_24h", label: "≥2 angina episodes in last 24h", type: "boolean" },
+    { id: "aspirin_last_7d", label: "Aspirin use in last 7 days", type: "boolean" },
+    { id: "elevated_markers", label: "Elevated cardiac markers", type: "boolean" }
   ],
-  run: (args: TIMIUAInputs) => {
-    const r = calc_timi_ua_nstemi(args);
-    const notes = [r.risk];
-    return { id: "timi_ua_nstemi", label: "TIMI UA/NSTEMI", value: r.score, unit: "points", precision: 0, notes, extra: r };
+  run: (args: TIMIInputs) => {
+    const v = calc_timi_ua_nstemi(args);
+    return { id: "timi_ua_nstemi", label: "TIMI (UA/NSTEMI)", value: v, unit: "points", precision: 0, notes: [] };
   },
 };
 

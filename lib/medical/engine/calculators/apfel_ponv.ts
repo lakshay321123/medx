@@ -1,27 +1,27 @@
-/**
- * Apfel PONV risk score (0–4)
- * 1 point each: female sex, non-smoker, history PONV/motion sickness, post-op opioids planned
- * Common probability table approximation: 0≈10%, 1≈20%, 2≈40%, 3≈60%, 4≈80%
- */
-export interface ApfelInput {
-  female: boolean;
-  non_smoker: boolean;
-  history_ponv_or_motion_sickness: boolean;
-  postop_opioids_planned: boolean;
-}
-export interface ApfelResult {
-  score: number;
-  risk_percent: number;
-}
+export type ApfelInputs = { female: boolean; non_smoker: boolean; history_ponv_motion: boolean; postoperative_opioids: boolean };
 
-export function runApfelPONV(i: ApfelInput): ApfelResult {
+export function calc_apfel_ponv(i: ApfelInputs): number {
   let s = 0;
-  if (i.female) s += 1;
-  if (i.non_smoker) s += 1;
-  if (i.history_ponv_or_motion_sickness) s += 1;
-  if (i.postop_opioids_planned) s += 1;
-
-  const table = [10, 20, 40, 60, 80];
-  const risk = table[Math.max(0, Math.min(4, s))];
-  return { score: s, risk_percent: risk };
+  s += i.female ? 1 : 0;
+  s += i.non_smoker ? 1 : 0;
+  s += i.history_ponv_motion ? 1 : 0;
+  s += i.postoperative_opioids ? 1 : 0;
+  return s;
 }
+
+const def = {
+  id: "apfel_ponv",
+  label: "Apfel Score (PONV)",
+  inputs: [
+    { id: "female", label: "Female", type: "boolean" },
+    { id: "non_smoker", label: "Non-smoker", type: "boolean" },
+    { id: "history_ponv_motion", label: "History of PONV or motion sickness", type: "boolean" },
+    { id: "postoperative_opioids", label: "Postoperative opioids planned", type: "boolean" }
+  ],
+  run: (args: ApfelInputs) => {
+    const v = calc_apfel_ponv(args);
+    return { id: "apfel_ponv", label: "Apfel (PONV)", value: v, unit: "risk factors", precision: 0, notes: [] };
+  },
+};
+
+export default def;
