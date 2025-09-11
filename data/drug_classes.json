@@ -4,5 +4,11 @@
     "cross": ["ibuprofen"],
     "severity": "moderate",
     "reference": "https://example.com/nsaid"
+  },
+  {
+    "allergen": "penicillin",
+    "cross": ["amoxicillin"],
+    "severity": "high",
+    "reference": "https://example.com/penicillin"
   }
 ]

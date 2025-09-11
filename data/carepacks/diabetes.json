@@ -1,0 +1,23 @@
+{
+  "en": {
+    "summary": {
+      "title": "At a glance",
+      "items": ["What it is", "Key risks", "When to see a doctor"]
+    },
+    "labs": {
+      "title": "Key labs to know",
+      "labs": [
+        { "name": "HbA1c", "why": "3-month sugar control", "target": "<7% (individualized)" }
+      ]
+    },
+    "vaccines": {
+      "title": "Vaccines to discuss",
+      "items": ["Influenza", "Pneumococcal (per age/risk)"]
+    },
+    "red_flags": {
+      "title": "Red flags",
+      "items": ["Chest pain", "Severe breathlessness"]
+    },
+    "references": ["calc:diabetes-basics", "guideline:ADA-2024"]
+  }
+}
