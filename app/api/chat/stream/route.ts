@@ -12,7 +12,7 @@ export const revalidate = 0;
 function corsify(res: Response, extra?: Record<string, string>) {
   const h = new Headers(res.headers);
   h.set('Access-Control-Allow-Origin', '*');
-  h.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS,HEAD');
+  h.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD');
   h.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   h.set('Access-Control-Max-Age', '86400');
   h.set('Cache-Control', 'no-store');
@@ -75,7 +75,7 @@ async function handleChat(req: NextRequest, payload: any) {
   for (const [id, ts] of recentReqs.entries()) if (now - ts > 60_000) recentReqs.delete(id);
   if (clientRequestId) {
     const ts = recentReqs.get(clientRequestId);
-    if (ts && now - ts < 60_000) return corsify(new Response(null, { status: 409 }));
+    if (ts && now - ts < 60_000) return corsify(new Response(null, { status: 409 }), { 'X-Chat-Route-Method': method });
     recentReqs.set(clientRequestId, now);
   }
 
@@ -157,11 +157,11 @@ async function handleChat(req: NextRequest, payload: any) {
   const num = (x: any) => (typeof x === 'number' ? x : Number(x));
   const g = num((ctx as any).glucose ?? (ctx as any).glucose_mg_dl);
   const bicarb = num((ctx as any).HCO3 ?? (ctx as any).bicarb ?? (ctx as any).bicarbonate);
-  const ph = num((ctx as any).pH);
+  const pH = num((ctx as any).pH);
   const kVal = num((ctx as any).K ?? (ctx as any).potassium);
   const hyperglycemicCrisis =
     (Number.isFinite(g) && g >= 250) &&
-    ((Number.isFinite(bicarb) && bicarb <= 18) || (Number.isFinite(ph) && ph < 7.30));
+    ((Number.isFinite(bicarb) && bicarb <= 18) || (Number.isFinite(pH) && pH < 7.30));
   const hyperkalemiaDanger  = Number.isFinite(kVal) && kVal >= 6.0;
 
   const mustShow = new Set<string>([
@@ -208,10 +208,7 @@ async function handleChat(req: NextRequest, payload: any) {
   // Groq compose & stream
   const upstream = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${key}`,
-    },
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
     body: JSON.stringify({
       model,
       stream: true,
@@ -229,6 +226,7 @@ async function handleChat(req: NextRequest, payload: any) {
       'X-Task-Mode': taskMode,
       'X-Verify-Timeout': '60000',
       'X-Verify-Used': verdict ? '1' : '0',
+      'X-Chat-Route-Method': method,
     });
   }
 
@@ -238,12 +236,13 @@ async function handleChat(req: NextRequest, payload: any) {
       'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS,HEAD',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Access-Control-Max-Age': '86400',
       'X-Task-Mode': taskMode,
       'X-Verify-Timeout': '60000',
       'X-Verify-Used': verdict ? '1' : '0',
+      'X-Chat-Route-Method': method,
     },
   });
 }
@@ -261,13 +260,10 @@ async function readPayloadFromGET(req: NextRequest) {
   return { mode, context, messages };
 }
 
-export async function GET(req: NextRequest) {
-  const payload = await readPayloadFromGET(req);
-  return handleChat(req, payload);
-}
-export async function POST(req: NextRequest) {
-  const payload = await req.json().catch(() => ({}));
-  return handleChat(req, payload);
-}
-export async function OPTIONS() { return corsify(new Response(null, { status: 204 })); }
-export async function HEAD()    { return corsify(new Response(null, { status: 200 })); }
+export async function GET(req: NextRequest)   { const p = await readPayloadFromGET(req); return handleChat(req, p); }
+export async function POST(req: NextRequest)  { const p = await req.json().catch(() => ({})); return handleChat(req, p); }
+export async function PUT(req: NextRequest)   { const p = await req.json().catch(() => ({})); return handleChat(req, p); }
+export async function PATCH(req: NextRequest) { const p = await req.json().catch(() => ({})); return handleChat(req, p); }
+export async function DELETE(req: NextRequest){ const p = await req.json().catch(() => ({})); return handleChat(req, p); }
+export async function OPTIONS()               { return corsify(new Response(null, { status: 204 })); }
+export async function HEAD()                  { return corsify(new Response(null, { status: 200 })); }
