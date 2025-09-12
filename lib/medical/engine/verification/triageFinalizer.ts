@@ -1,4 +1,4 @@
-import { askOpenAIJson, askGroqJson, hasOpenAI, hasGroq } from "../../../llm/safeLLM";
+import { askOpenAIJson, askGroqJson, hasOpenAI, hasGroq } from "@/lib/llm/safeLLM";
 
 type NumDict = Record<string, number | string | boolean | null>;
 
