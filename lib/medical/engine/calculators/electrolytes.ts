@@ -35,7 +35,7 @@ register({
     const agk = Na + (K ?? 0) - (Cl + HCO3);
     const notes: string[] = [];
     if (agk > 16) notes.push("elevated anion gap (+K)");
-    return { id: "anion_gap_with_k", label: "Anion gap (+K⁺)", value: agk, unit: "mmol/L", precision: 1, notes };
+    return { id: "anion_gap_with_k", label: "Anion gap (+K⁺)", value: +agk.toFixed(1), unit: "mmol/L", precision: 1, notes };
   },
 });
 
