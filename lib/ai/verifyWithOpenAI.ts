@@ -51,7 +51,7 @@ export async function verifyWithOpenAI(args: {
 
     let parsed: import("./verify_prompt").Verdict | null = null;
     try { parsed = JSON.parse(content); } catch { return null; }
-    if (!parsed || parsed.version !== "v2") return null;
+    if (!parsed || parsed.version !== "v2" || typeof parsed.final_text !== "string") return null;
     return parsed;
   } catch {
     return null;

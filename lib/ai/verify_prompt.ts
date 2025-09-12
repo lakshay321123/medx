@@ -12,12 +12,19 @@ Return STRICT JSON (no prose). Compute using ONLY standard formulas:
 - DKA requires glucose ≥ 250 mg/dL plus acidosis (HCO3 ≤ 18 or pH < 7.30)
 - HHS threshold: effective osmolality ≥ 320 mOsm/kg or measured ≥ 320
 
+Inputs may use aliases; treat these as the same:
+- Glucose ≡ glucose_mgdl ≡ glucose_mg_dl ≡ glu
+- HCO3 ≡ bicarb ≡ bicarbonate
+- pCO2 ≡ PaCO2 ≡ pco2
+- Osm_measured ≡ measured_osm ≡ measured_osmolality ≡ osmolality
+- Na ≡ sodium, K ≡ potassium, Cl ≡ chloride, Cr ≡ creatinine, Alb ≡ albumin
+
 Rules:
-- If required inputs are missing, omit that metric.
+- If required inputs are missing, omit only that metric and include a clear "warnings" entry listing what is missing.
 - Do not invent non-standard metrics such as lactate to pH ratio.
 - Risk scores (qSOFA, SIRS, NEWS2, CURB-65) must be omitted unless all required vitals are present.
 - If calculator hints conflict with physiology, correct them and record the correction in "corrections".
-- Produce a concise human-readable "final_text" that exactly reflects your computed values and interpretation.
+- You MUST always produce a concise human-readable "final_text" that reflects computed values and interpretation.
 `;
 
 export type Verdict = {
@@ -40,7 +47,7 @@ export type Verdict = {
   };
   corrections?: string[];
   warnings?: string[];
-  final_text?: string;        // ready-to-display summary
+  final_text: string;         // now treated as mandatory
 };
 
 export function buildVerifyUserContent(payload: {
@@ -50,7 +57,7 @@ export function buildVerifyUserContent(payload: {
   conversation?: Array<{role: string; content: string}>;
 }) {
   return JSON.stringify({
-    instruction: "Compute and verify per VERIFY_SYSTEM. Return strict JSON matching keys in example_template. Omit any keys you cannot justify from inputs.",
+    instruction: "Compute and verify per VERIFY_SYSTEM. Return strict JSON matching keys in example_template. Omit any metric you cannot justify; still produce 'final_text' with what is known.",
     example_template: {
       ok: true,
       version: "v2",

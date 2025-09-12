@@ -30,102 +30,113 @@ async function sha256Hex(input: string): Promise<string> {
   return out;
 }
 
-// Emit SSE in OpenAI "chat.completion.chunk" shape so the frontend sees choices[0].delta.content
+// OpenAI-shaped streaming chunks so the UI renders text
 function sseFromText(text: string, model = 'gpt-5-verified') {
   const enc = new TextEncoder();
   const ts = Math.floor(Date.now() / 1000);
-  const CHUNK = 800; // characters per chunk
+  const CHUNK = 800;
 
   const frames: string[] = [];
   for (let i = 0; i < text.length; i += CHUNK) {
     const piece = text.slice(i, i + CHUNK);
-    const payload = {
-      id: `local-${ts}-${(i / CHUNK) | 0}`,
-      object: 'chat.completion.chunk',
-      created: ts,
-      model,
-      choices: [{ index: 0, delta: { content: piece }, finish_reason: null }]
-    };
-    frames.push(`data: ${JSON.stringify(payload)}\n\n`);
+    const id = `local-${ts}-${(i / CHUNK) | 0}`;
+    frames.push(
+      `data: ${JSON.stringify({ id, object: 'chat.completion.chunk', created: ts, model, choices: [{ index: 0, delta: { content: piece }, finish_reason: null }] })}\n\n`
+    );
   }
-
-  // terminal frame (empty delta + finish_reason)
-  const donePayload = {
-    id: `local-${ts}-done`,
-    object: 'chat.completion.chunk',
-    created: ts,
-    model,
-    choices: [{ index: 0, delta: {}, finish_reason: 'stop' }]
-  };
-  frames.push(`data: ${JSON.stringify(donePayload)}\n\n`);
+  const doneId = `local-${ts}-done`;
+  frames.push(
+    `data: ${JSON.stringify({ id: doneId, object: 'chat.completion.chunk', created: ts, model, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\n`
+  );
   frames.push(`data: [DONE]\n\n`);
 
   return new ReadableStream({
-    start(controller) {
-      for (const frame of frames) controller.enqueue(enc.encode(frame));
-      controller.close();
-    }
+    start(controller) { for (const f of frames) controller.enqueue(enc.encode(f)); controller.close(); }
   });
 }
 
-// Parse last balanced JSON block from user text
+// ---- helpers: parse embedded JSON and normalize lab keys ----
+
 function extractEmbeddedJSONObject(text: string): any | null {
   let bestStart = -1, bestEnd = -1;
   const s = String(text || '');
-  const n = s.length;
-  const stack: number[] = [];
+  const stack:number[] = [];
   let inStr: '"' | "'" | null = null;
-  for (let i = 0; i < n; i++) {
-    const ch = s[i];
-    const prev = i > 0 ? s[i - 1] : '';
-    if (inStr) { if (ch === inStr && prev !== '\\') inStr = null; continue; }
-    if (ch === '"' || ch === "'") { inStr = ch as any; continue; }
-    if (ch === '{') stack.push(i);
-    else if (ch === '}' && stack.length) { const start = stack.pop()!; bestStart = start; bestEnd = i; }
+  for (let i=0;i<s.length;i++){
+    const ch = s[i], prev = i>0? s[i-1] : '';
+    if (inStr){ if (ch===inStr && prev!=='\\') inStr=null; continue; }
+    if (ch=='"'||ch==="'"){ inStr=ch as any; continue; }
+    if (ch=='{') stack.push(i);
+    else if (ch=='}' && stack.length){ bestStart = stack.pop()!, bestEnd = i; }
   }
-  if (bestStart >= 0 && bestEnd > bestStart) {
-    const candidate = s.slice(bestStart, bestEnd + 1).trim();
+  if (bestStart>=0 && bestEnd>bestStart) {
+    const candidate = s.slice(bestStart, bestEnd+1).trim();
     try { return JSON.parse(candidate); } catch {}
   }
   return null;
 }
+const num = (x:any)=> (typeof x==='number' ? x : Number(x));
+const hasNum = (x:any)=> Number.isFinite(num(x));
 
-// Lightweight regex overlay for key lab values; normalize obvious decimal shifts
-type KV = Record<string, number>;
-function extractKVFromText(text: string): KV {
-  const out: KV = {};
-  const s = String(text || '');
-  const num = String.raw`(-?\d+(?:\.\d+)?)`;
-  const defs: Array<{k:string; pat:RegExp}> = [
-    { k: 'Na',  pat: new RegExp(String.raw`\b(?:Na|sodium)\b[^\d\-]*${num}`, 'i') },
-    { k: 'K',   pat: new RegExp(String.raw`\b(?:K|potassium)\b[^\d\-]*${num}`, 'i') },
-    { k: 'Cl',  pat: new RegExp(String.raw`\b(?:Cl|chloride)\b[^\d\-]*${num}`, 'i') },
-    { k: 'HCO3',pat: new RegExp(String.raw`\b(?:HCO3|bicarb(?:onate)?)\b[^\d\-]*${num}`, 'i') },
-    { k: 'Glucose', pat: new RegExp(String.raw`\b(?:glucose|GLU)\b[^\d\-]*${num}(?:\s*mg\/?dL)?`, 'i') },
-    { k: 'BUN', pat: new RegExp(String.raw`\b(?:BUN|urea(?:\s*nitrogen)?)\b[^\d\-]*${num}`, 'i') },
-    { k: 'Cr',  pat: new RegExp(String.raw`\b(?:Cr|creatinine|creat)\b[^\d\-]*${num}`, 'i') },
-    { k: 'Albumin', pat: new RegExp(String.raw`\b(?:albumin|alb)\b[^\d\-]*${num}`, 'i') },
-    { k: 'pH',  pat: new RegExp(String.raw`\b(?:pH|ph)\b[^\d\-]*${num}`, 'i') },
-    { k: 'pCO2',pat: new RegExp(String.raw`\b(?:pCO2|PaCO2)\b[^\d\-]*${num}`, 'i') },
-    { k: 'Osm_measured', pat: new RegExp(String.raw`\b(?:measured\s*osm(?:olality)?|osm_measured|osmolality)\b[^\d\-]*${num}`, 'i') },
-    { k: 'Lactate', pat: new RegExp(String.raw`\b(?:lactate|lact)\b[^\d\-]*${num}`, 'i') },
+function canonicalizeCtx(anyCtx: Record<string, any>) {
+  const c: Record<string, any> = { ...anyCtx };
+
+  // alias mapping -> canonical
+  const map: Array<[string, string]> = [
+    ['sodium','Na'], ['na','Na'],
+    ['potassium','K'], ['k','K'],
+    ['chloride','Cl'], ['cl','Cl'],
+    ['bicarb','HCO3'], ['bicarbonate','HCO3'], ['hco3','HCO3'],
+    ['glucose_mgdl','Glucose'], ['glucose_mg_dl','Glucose'], ['glu','Glucose'], ['glucose','Glucose'],
+    ['urea','BUN'],
+    ['creatinine','Cr'], ['creat','Cr'], ['cr','Cr'],
+    ['alb','Albumin'],
+    ['ph','pH'],
+    ['paco2','pCO2'], ['pco2','pCO2'],
+    ['measured_osm','Osm_measured'], ['measured_osmolality','Osm_measured'], ['osmolality','Osm_measured']
   ];
-  for (const d of defs) {
-    const m = d.pat.exec(s);
-    if (m) {
-      const v = Number(m[1]);
-      if (Number.isFinite(v)) out[d.k] = v;
-    }
+  for (const [src, dst] of map) {
+    if (c[src] !== undefined && c[dst] === undefined) c[dst] = c[src];
   }
-  if (out.K !== undefined && out.K > 25 && out.K / 100 >= 2 && out.K / 100 <= 12) out.K = +(out.K / 100).toFixed(2);
-  return out;
+
+  // normalize obvious decimal shift for K (e.g., 580 → 5.80)
+  if (hasNum(c.K) && num(c.K) > 25 && num(c.K) < 1200) c.K = +(num(c.K)/100).toFixed(2);
+
+  // coerce numerics
+  ['Na','K','Cl','HCO3','Glucose','BUN','Cr','Albumin','pH','pCO2','Osm_measured','Lactate'].forEach(k=>{
+    if (c[k] !== undefined) c[k] = num(c[k]);
+  });
+
+  return c;
 }
 
-function mergeCtxFromUserText(userText: string) {
-  const extracted = extractAll(userText) || {};
-  const kv = extractKVFromText(userText);
-  const jsonBlock = extractEmbeddedJSONObject(userText) || {};
-  return Object.assign({}, extracted, kv, jsonBlock);
+function textFromMessages(msgs: Array<{role:string; content:string}>){
+  let s=''; for (const m of msgs) if (m.role==='user') s += (m.content||'')+'\n'; return s;
+}
+
+// basic local fallback summary if verify fails completely
+function localFallback(ctx: Record<string, any>) {
+  const Na = num(ctx.Na), Cl = num(ctx.Cl), HCO3 = num(ctx.HCO3), Alb = num(ctx.Albumin);
+  const Glu = num(ctx.Glucose), BUN = num(ctx.BUN), Meas = num(ctx.Osm_measured);
+  const pH  = num(ctx.pH), pCO2 = num(ctx.pCO2);
+  const ag = (hasNum(Na)&&hasNum(Cl)&&hasNum(HCO3)) ? +(Na - (Cl + HCO3)).toFixed(2) : undefined;
+  const agc = (ag!==undefined && hasNum(Alb)) ? +(ag + 2.5*(4 - Alb)).toFixed(2) : undefined;
+  const osm = (hasNum(Na)&&hasNum(Glu)&&hasNum(BUN)) ? +(2*Na + Glu/18 + BUN/2.8).toFixed(2) : undefined;
+  const og  = (osm!==undefined && hasNum(Meas)) ? +(Meas - osm).toFixed(2) : undefined;
+  const winters = hasNum(HCO3) ? +(1.5*HCO3 + 8).toFixed(2) : undefined;
+
+  const labs: string[] = [];
+  ['Na','K','Cl','HCO3','Glucose','BUN','Cr','Albumin','pH','pCO2','Osm_measured','Lactate'].forEach(k=>{
+    if (ctx[k] !== undefined && Number.isFinite(num(ctx[k]))) labs.push(`${k} ${num(ctx[k])}`);
+  });
+  const derived: string[] = [];
+  if (ag!==undefined) derived.push(`AG ${ag}`);
+  if (agc!==undefined) derived.push(`AG-corr ${agc}`);
+  if (osm!==undefined) derived.push(`Serum osm ${osm}`);
+  if (og!==undefined) derived.push(`Osm gap ${og}`);
+  if (winters!==undefined) derived.push(`Winter's expected pCO2 ${winters}`);
+
+  return `Clinical summary (verified-fallback):\n- Labs: ${labs.join(', ')}\n- Derived: ${derived.join(', ') || 'insufficient to derive'}\n- Interpretation: computed locally due to verifier unavailability\nRules applied: standard formulas.`;
 }
 
 async function handle(req: NextRequest, payload: any) {
@@ -134,6 +145,7 @@ async function handle(req: NextRequest, payload: any) {
   const clientRequestId = payload?.clientRequestId;
   const mode = payload?.mode;
 
+  // dedupe 60s
   const now = Date.now();
   for (const [id, ts] of Array.from(recentReqs.entries())) if (now - ts > 60_000) recentReqs.delete(id);
   if (clientRequestId) {
@@ -143,18 +155,21 @@ async function handle(req: NextRequest, payload: any) {
   }
 
   // collect user text
-  let userText = '';
   const nonSystem: Array<{role:string; content:string}> = [];
   for (const m of messages) if (m && m.role !== 'system') nonSystem.push(m);
-  for (const m of nonSystem) if (m.role === 'user') userText += String(m.content || '') + '\n';
+  const userText = textFromMessages(nonSystem);
 
-  // build ctx and first-pass calculators (hints only)
-  const ctx = mergeCtxFromUserText(userText);
+  // merge sources → ctx
+  const extracted = extractAll(userText) || {};
+  const embedded = extractEmbeddedJSONObject(userText) || {};
+  const ctxRaw = { ...embedded, ...extracted };
+  const ctx = canonicalizeCtx(ctxRaw);
+
+  // first-pass calculators (hints only)
   const computed = computeAll(ctx) || [];
 
-  // verify and compute with OpenAI (authoritative)
+  // ask OpenAI verifier
   const cacheKey = await sha256Hex(JSON.stringify({ ctx, ver: 'openai-final-v2' }));
-  // Simple per-request call; add a Map cache if desired
   const verdict = await verifyWithOpenAI({
     mode: String(mode || 'default'),
     ctx,
@@ -163,8 +178,10 @@ async function handle(req: NextRequest, payload: any) {
     timeoutMs: 60_000
   });
 
-  const finalText = verdict?.final_text ||
-    'Clinical summary (verified):\n- Interpretation: insufficient inputs\nRules applied: standard formulas.';
+  // final text: prefer verifier, else local fallback with actual numbers
+  const finalText = (verdict && typeof verdict.final_text === 'string' && verdict.final_text.trim())
+    ? verdict.final_text
+    : localFallback(ctx);
 
   const stream = sseFromText(finalText);
   return new Response(stream, {
@@ -176,8 +193,8 @@ async function handle(req: NextRequest, payload: any) {
       'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Access-Control-Max-Age': '86400',
-      'X-Verify-Used': verdict ? '1' : '0',
-      'X-Chat-Route-Method': method
+      'X-Chat-Route-Method': method,
+      'X-Verify-Used': verdict ? '1' : '0'
     },
   });
 }
@@ -204,3 +221,4 @@ export async function PATCH(req: NextRequest) { const p = await req.json().catch
 export async function DELETE(req: NextRequest){ const p = await req.json().catch(() => ({})); return handle(req, p); }
 export async function OPTIONS() { return corsify(new Response(null, { status: 204 })); }
 export async function HEAD()    { return corsify(new Response(null, { status: 200 })); }
+
