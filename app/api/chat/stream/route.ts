@@ -17,7 +17,11 @@ function corsify(res: Response, extra?: Record<string, string>) {
   h.set('Access-Control-Max-Age', '86400');
   h.set('Cache-Control', 'no-store');
   if (extra) {
-    for (const k of Object.keys(extra)) h.set(k, String(extra[k]));
+    const ks = Object.keys(extra);
+    for (let i = 0; i < ks.length; i++) {
+      const k = ks[i];
+      h.set(k, String(extra[k]));
+    }
   }
   return new Response(res.body, { status: res.status, headers: h });
 }
@@ -46,6 +50,7 @@ function cacheSet(key: string, v: Verdict, ttlMs: number) {
   verdictCache.set(key, { v: v, exp: Date.now() + ttlMs });
 }
 
+// Keep doc-mode clinical prelude tight and relevant
 function filterComputedForDocMode(items: any[], latestUser: string) {
   const msg = (latestUser || '').toLowerCase();
   const mentions = function (s: string) { return msg.indexOf(s) >= 0; };
@@ -53,7 +58,8 @@ function filterComputedForDocMode(items: any[], latestUser: string) {
   const needsPE = mentions('chest pain') || mentions('pleur') || mentions('shortness of breath') || /\bsob\b/.test(msg);
 
   const out: any[] = [];
-  for (const r of items || []) {
+  for (let i = 0; i < (items ? items.length : 0); i++) {
+    const r = items[i];
     if (!r) continue;
     if (!(Number.isFinite(r.value) || typeof r.value === 'string')) continue;
     const noteStr = Array.isArray(r.notes) ? r.notes.join(' ').toLowerCase() : '';
@@ -65,6 +71,7 @@ function filterComputedForDocMode(items: any[], latestUser: string) {
     else if (/(perc)/i.test(lbl)) keep = needsPE;
     else if (/(glasgow-blatchford|ottawa|ankle|knee|head|rockall|apgar|bishop|pasi|burn|maddrey|fib-4|apri|child-?pugh|meld)/i.test(lbl)) keep = false;
     else keep = /(curb-?65|news2|qsofa|sirs)/i.test(lbl);
+
     if (keep) out.push(r);
   }
   return out;
@@ -77,10 +84,12 @@ async function handle(req: NextRequest, payload: any) {
   const clientRequestId = payload && payload.clientRequestId;
   const mode = payload && payload.mode;
 
+  // dedupe by clientRequestId for 60s
   const now = Date.now();
-  for (const entry of Array.from(recentReqs.entries())) {
-    const id = entry[0];
-    const ts = entry[1];
+  const entries = Array.from(recentReqs.entries());
+  for (let i = 0; i < entries.length; i++) {
+    const id = entries[i][0];
+    const ts = entries[i][1];
     if (now - ts > 60_000) recentReqs.delete(id);
   }
   if (clientRequestId) {
@@ -91,40 +100,57 @@ async function handle(req: NextRequest, payload: any) {
     recentReqs.set(clientRequestId, now);
   }
 
+  // Groq compose endpoint
   const base  = process.env.LLM_BASE_URL || 'https://api.groq.com/openai/v1';
   const model = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
   const key   = process.env.LLM_API_KEY || '';
   const url   = (base.replace(/\/$/, '')) + '/chat/completions';
 
-  let finalMessages: any[] = [];
-  for (const m of messages) if (m && m.role !== 'system') finalMessages.push(m);
+  // remove incoming system prompts
+  const finalMessages: any[] = [];
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    if (m && m.role !== 'system') finalMessages.push(m);
+  }
 
+  // gather user text for extraction
   let userText = '';
   const onlyUsers: any[] = [];
-  for (const m of finalMessages) if (m.role === 'user') onlyUsers.push(m);
-  for (const u of onlyUsers) userText += String(u && u.content ? u.content : '') + '\n';
+  for (let i = 0; i < finalMessages.length; i++) {
+    const m = finalMessages[i];
+    if (m.role === 'user') onlyUsers.push(m);
+  }
+  for (let i = 0; i < onlyUsers.length; i++) {
+    const u = onlyUsers[i];
+    userText += String(u && u.content ? u.content : '') + '\n';
+  }
   const latestUserMessage = onlyUsers.length ? String(onlyUsers[onlyUsers.length - 1].content || '') : '';
 
+  // calculators
   const ctx = extractAll(userText);
   const computed = computeAll(ctx);
-
   const taskMode = computed && computed.length ? 'analyzing' : 'thinking';
 
+  // joint decision rules
   const JOINT_RULES = 'JOINT DECISION PROTOCOL:\n' +
     'You and the Calculators work together.\n' +
     'Treat calculator outputs as a first pass and correct edge or missing-input errors.\n' +
-    'Cross-check physiology: Winters expected pCO2, osmolality 275–295 normal, albumin-corrected anion gap, potassium bands, renal flags.\n' +
+    'Cross-check physiology: Winters expected pCO2, osmolality 275-295 normal, albumin-corrected anion gap, potassium bands, renal flags.\n' +
     'If conflict exists, use your corrected values.\n' +
     'Be decisive; calculators are data, not directives.\n' +
     'Do not output any verification badge or correction line to the user.';
 
-  finalMessages = [{ role: 'system', content: JOINT_RULES }].concat(finalMessages);
+  finalMessages.unshift({ role: 'system', content: JOINT_RULES });
 
+  // OpenAI verify first (1 minute), cached 10 minutes by ctx signature
   const cacheKey = await sha256Hex(JSON.stringify({ ctx: ctx, ver: 'v1' }));
   let verdict = cacheGet(cacheKey);
   if (!verdict) {
     const convo: Array<{ role: string; content: string }> = [];
-    for (const m of finalMessages) convo.push({ role: m.role, content: m.content });
+    for (let i = 0; i < finalMessages.length; i++) {
+      const m = finalMessages[i];
+      convo.push({ role: m.role, content: m.content });
+    }
     verdict = await verifyWithOpenAI({
       mode: String(mode || 'default'),
       ctx: ctx,
@@ -135,25 +161,35 @@ async function handle(req: NextRequest, payload: any) {
     if (verdict) cacheSet(cacheKey, verdict, 10 * 60 * 1000);
   }
 
+  // overlay corrections: GPT-5 wins
   let blended = computed.slice();
   if (verdict && verdict.corrected_values && typeof verdict.corrected_values === 'object') {
     const byId = new Map<string, any>();
-    for (const r of blended) if (r && r.id) byId.set(String(r.id), r);
+    for (let i = 0; i < blended.length; i++) {
+      const r = blended[i];
+      if (r && r.id) byId.set(String(r.id), r);
+    }
 
-    for (const k of Object.keys(verdict.corrected_values)) {
+    const keys = Object.keys(verdict.corrected_values);
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
       const v: any = (verdict.corrected_values as any)[k];
       const t = byId.get(k);
       if (t) {
         if (v && typeof v === 'object' && Object.prototype.hasOwnProperty.call(v, 'value')) {
-          for (const prop of Object.keys(v)) (t as any)[prop] = (v as any)[prop];
+          const vkeys = Object.keys(v);
+          for (let j = 0; j < vkeys.length; j++) {
+            const prop = vkeys[j];
+            (t as any)[prop] = (v as any)[prop];
+          }
         } else {
           (t as any).value = v;
         }
         const existingNotes = Array.isArray((t as any).notes) ? (t as any).notes : [];
         const newNotes = v && Array.isArray(v.notes) ? v.notes : [];
         const mergedNotesMap = new Map<string, boolean>();
-        for (const n of existingNotes) mergedNotesMap.set(String(n), true);
-        for (const n of newNotes) mergedNotesMap.set(String(n), true);
+        for (let j = 0; j < existingNotes.length; j++) mergedNotesMap.set(String(existingNotes[j]), true);
+        for (let j = 0; j < newNotes.length; j++) mergedNotesMap.set(String(newNotes[j]), true);
         const mergedNotes = Array.from(mergedNotesMap.keys());
         if (mergedNotes.length) (t as any).notes = mergedNotes;
       } else {
@@ -171,6 +207,7 @@ async function handle(req: NextRequest, payload: any) {
     blended = Array.from(byId.values());
   }
 
+  // crisis promotion cues (from inputs)
   const toNum = function (x: any) { return typeof x === 'number' ? x : Number(x); };
   const g = toNum(ctx && ctx.glucose !== undefined ? ctx.glucose : ctx && ctx.glucose_mg_dl);
   const bicarb = toNum(ctx && ctx.HCO3 !== undefined ? ctx.HCO3 : (ctx && ctx.bicarb !== undefined ? ctx.bicarb : ctx && ctx.bicarbonate));
@@ -184,17 +221,25 @@ async function handle(req: NextRequest, payload: any) {
     'hyponatremia_tonicity', 'hyperkalemia_severity', 'potassium_status', 'dka_severity', 'hhs_flags'
   ]);
   const promoted: any[] = [];
-  for (const r of blended) if (r && mustShow.has(r.id)) promoted.push(r);
+  for (let i = 0; i < blended.length; i++) {
+    const r = blended[i];
+    if (r && mustShow.has(r.id)) promoted.push(r);
+  }
   const crisisPromoted = (hyperglycemicCrisis || hyperkalemiaDanger) ? promoted : [];
 
+  // doctor/research prelude
   const showPrelude = (mode === 'doctor') || (mode === 'research') || /trial|research/i.test(String(mode || ''));
   if (showPrelude) {
     const filtered = filterComputedForDocMode(blended, latestUserMessage || '');
     const merged: any[] = [];
-    for (const r of crisisPromoted) merged.push(r);
-    for (const r of filtered) merged.push(r);
+    for (let i = 0; i < crisisPromoted.length; i++) merged.push(crisisPromoted[i]);
+    for (let i = 0; i < filtered.length; i++) merged.push(filtered[i]);
+
     const mapById = new Map<string, any>();
-    for (const r of merged) if (r && r.id && !mapById.has(r.id)) mapById.set(String(r.id), r);
+    for (let i = 0; i < merged.length; i++) {
+      const r = merged[i];
+      if (r && r.id && !mapById.has(r.id)) mapById.set(String(r.id), r);
+    }
 
     const linesArr: string[] = [];
     const valuesArr = Array.from(mapById.values());
@@ -205,15 +250,17 @@ async function handle(req: NextRequest, payload: any) {
       linesArr.push(String(r.label || r.id) + ': ' + val + notesLine);
     }
     if (linesArr.length) {
-      finalMessages = [{ role: 'system', content: linesArr.join('\n') }].concat(finalMessages);
+      finalMessages.unshift({ role: 'system', content: linesArr.join('\n') });
     }
   }
 
+  // optional calc prelude if we actually added computed lines just above
   const calcPrelude = composeCalcPrelude(latestUserMessage || '');
   if (showPrelude && calcPrelude && finalMessages.length && finalMessages[0] && (finalMessages[0] as any).role === 'system') {
-    finalMessages = [{ role: 'system', content: calcPrelude }].concat(finalMessages);
+    finalMessages.unshift({ role: 'system', content: calcPrelude });
   }
 
+  // profile context
   if (context === 'profile') {
     try {
       const origin = req.nextUrl.origin;
@@ -231,10 +278,11 @@ async function handle(req: NextRequest, payload: any) {
         profile: p && (p.profile || p) ? (p.profile || p) : null,
         packet: pk && pk.text ? pk.text : '',
       });
-      finalMessages = [{ role: 'system', content: sys }].concat(finalMessages);
+      finalMessages.unshift({ role: 'system', content: sys });
     } catch {}
   }
 
+  // call Groq and stream
   const upstream = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
