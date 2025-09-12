@@ -5,5 +5,4 @@ export const FormulaSpecs: Record<string, string> = {
   effective_osmolality: "Effective_Osm = 2 * Na + (glucose_mgdl / 18)",
   winter_expected_pco2: "Expected_pCO2 = 1.5 * HCO3 + 8 (ignore ±2 for computation)",
   delta_gap: "Delta_Gap = ((Na - (Cl + HCO3)) - 12) - (24 - HCO3)",
-  // add more as needed — keep constants/units aligned with your TS calculators
 };
