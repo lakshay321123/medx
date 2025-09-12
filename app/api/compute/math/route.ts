@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { evalMath, derive, simplify, solveEqn } from "@/lib/compute/math";
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   const { op, expr, var: v } = await req.json();
