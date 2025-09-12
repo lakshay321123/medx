@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server';
 import { profileChatSystem } from '@/lib/profileChatSystem';
 import { extractAll, normalizeCtx } from '@/lib/medical/engine/extract';
 import { computeAll } from '@/lib/medical/engine/computeAll';
-import crypto from 'crypto';
 // import { composeCalcPrelude } from '@/lib/medical/engine/prelude'; // intentionally not used
 import { verifyWithOpenAI } from '@/lib/ai/verifyWithOpenAI';
 import { cacheGet, cacheSet } from '@/lib/ai/cache';
@@ -39,6 +38,14 @@ function filterComputedForDocMode(items: any[], latestUser: string) {
 export const runtime = 'edge';
 
 const recentReqs = new Map<string, number>();
+
+async function sha256Hex(input: string) {
+  const data = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
 
 export async function POST(req: NextRequest) {
   const { messages = [], context, clientRequestId, mode } = await req.json();
@@ -96,7 +103,7 @@ export async function POST(req: NextRequest) {
   finalMessages = [{ role: 'system', content: JOINT_DECISION_RULES }, ...finalMessages];
 
   // === GPT-5 VERIFICATION (10s, cached) ===
-  const ctxHash = crypto.createHash('sha256').update(JSON.stringify({ ctx, computedVersion: 'v1' })).digest('hex');
+  const ctxHash = await sha256Hex(JSON.stringify({ ctx, computedVersion: 'v1' }));
   const runVerify = showClinicalPrelude || /trial|research/i.test(mode || '') || computed?.length > 0;
 
   let verdict = null as Awaited<ReturnType<typeof verifyWithOpenAI>>;
