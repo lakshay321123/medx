@@ -125,3 +125,24 @@ export function extractAll(s: string): Record<string, any> {
 
   return out;
 }
+
+export function normalizeCtx(raw: Record<string, any>): Record<string, any> {
+  const ctx: Record<string, any> = { ...raw };
+  const alias = (from: string, to: string) => {
+    if (ctx[from] != null && ctx[to] == null) ctx[to] = ctx[from];
+  };
+  alias('Na', 'Na_meq_l');
+  alias('Na', 'na_mmol_l');
+  alias('K', 'K_meq_l');
+  alias('Cl', 'Cl_meq_l');
+  alias('HCO3', 'bicarb_mEq_L');
+  alias('HCO3', 'HCO3_mEq_L');
+  alias('glucose_mgdl', 'glucose_mg_dl');
+  alias('glucose_mgdl', 'glucose');
+  alias('BUN', 'bun_mg_dl');
+  alias('creatinine', 'creatinine_mg_dl');
+  alias('ethanol_mgdl', 'ethanol_mg_dl');
+  alias('measured_osm', 'measured_osm_mOsm_kg');
+  alias('measured_osm', 'osm_meas');
+  return ctx;
+}
