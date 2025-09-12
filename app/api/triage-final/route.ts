@@ -27,7 +27,13 @@ export async function POST(req: NextRequest) {
 
     // 2) OpenAI final say (schema-validated)
     const must = (process.env.OPENAI_FINAL_SAY || "true").toLowerCase() === "true";
-    if (!must || !process.env.OPENAI_API_KEY) {
+    if (must && !process.env.OPENAI_API_KEY) {
+      return NextResponse.json(
+        { ok: false, error: "OPENAI_FINAL_SAY is true but OPENAI_API_KEY is missing" },
+        { status: 500 }
+      );
+    }
+    if (!must) {
       return NextResponse.json({ ok: true, source: base ? "local" : "none", triage: base?.triage || base });
     }
 

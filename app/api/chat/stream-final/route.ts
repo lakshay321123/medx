@@ -39,5 +39,11 @@ export async function POST(req: Request) {
     const err = upstream ? await upstream.text() : "Upstream error";
     return new Response(`OpenAI stream error: ${err}`, { status: 500 });
   }
-  return new Response(upstream.body, { headers: { "Content-Type": "text/event-stream; charset=utf-8" } });
+  return new Response(upstream.body, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "x-medx-provider": "openai",
+      "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-5"
+    }
+  });
 }
