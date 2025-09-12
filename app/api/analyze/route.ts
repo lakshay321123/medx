@@ -1,3 +1,6 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 import { extractTextFromPDF, rasterizeFirstPage } from "@/lib/pdftext";
 import { COUNTRIES } from "@/data/countries";
@@ -9,9 +12,6 @@ import { dualEngineSummarize } from "@/lib/reports/dualEngine";
 const OAI_KEY = process.env.OPENAI_API_KEY!;
 const MODEL_TEXT = process.env.OPENAI_TEXT_MODEL || "gpt-5";
 const MODEL_VISION = process.env.OPENAI_VISION_MODEL || "gpt-5";
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 async function classifyText(text: string): Promise<string> {
   const r = await fetch("https://api.openai.com/v1/chat/completions", {

@@ -1,3 +1,6 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 import { NextRequest } from 'next/server';
 import { profileChatSystem } from '@/lib/profileChatSystem';
 import { extractAll, canonicalizeInputs } from '@/lib/medical/engine/extract';
@@ -33,7 +36,6 @@ function filterComputedForDocMode(items: any[], latestUser: string) {
       return /(curb-?65|news2|qsofa|sirs)/i.test(lbl);
     });
 }
-export const runtime = 'edge';
 
 const recentReqs = new Map<string, number>();
 

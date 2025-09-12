@@ -1,11 +1,11 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 
 const OAI_KEY = process.env.OPENAI_API_KEY!;
 const MODEL_VISION = process.env.OPENAI_VISION_MODEL || "gpt-5"; // images
 const MODEL_TEXT   = process.env.OPENAI_TEXT_MODEL   || "gpt-5"; // PDFs
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 function toDataUrl(buf: Buffer, mime = "image/jpeg") {
   return `data:${mime};base64,${buf.toString("base64")}`;

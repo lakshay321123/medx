@@ -10,12 +10,21 @@ const OAI_TEXT  = process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini';
 const OAI_VISON = process.env.OPENAI_VISION_MODEL || 'gpt-4o-mini';
 
 // --- Groq (text)
-export async function groqChat(messages: ChatMsg[], model = GROQ_MODEL, temperature = 0.2) {
+export async function groqChat(
+  opts: ChatMsg[] | { system?: string; messages: ChatMsg[]; model?: string; temperature?: number; max_tokens?: number; response_format?: any },
+  model?: string,
+  temperature = 0.2
+) {
+  if (Array.isArray(opts)) {
+    return groqChat({ messages: opts, model, temperature });
+  }
   if (!GROQ_KEY) throw new Error('LLM_API_KEY (Groq) missing');
+  const { system, messages, model: m = GROQ_MODEL, temperature: t = 0.2, max_tokens = 1200, response_format } = opts;
+  const msgs = system ? [{ role: 'system', content: system }, ...messages] : messages;
   const r = await fetch(`${GROQ_URL}/chat/completions`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${GROQ_KEY}`, 'Content-Type':'application/json' },
-    body: JSON.stringify({ model, messages, temperature })
+    body: JSON.stringify({ model: m, messages: msgs, temperature: t, max_tokens, response_format })
   });
   const j = await r.json();
   if (!r.ok) throw new Error(`Groq: ${j?.error?.message || r.statusText}`);
@@ -23,12 +32,21 @@ export async function groqChat(messages: ChatMsg[], model = GROQ_MODEL, temperat
 }
 
 // --- OpenAI (text)
-export async function openaiText(messages: ChatMsg[], model = OAI_TEXT, temperature = 0.2) {
+export async function openaiText(
+  opts: ChatMsg[] | { system?: string; messages: ChatMsg[]; model?: string; temperature?: number; max_tokens?: number; response_format?: any },
+  model?: string,
+  temperature = 0.2
+) {
+  if (Array.isArray(opts)) {
+    return openaiText({ messages: opts, model, temperature });
+  }
   if (!OAI_KEY) throw new Error('OPENAI_API_KEY missing');
+  const { system, messages, model: m = OAI_TEXT, temperature: t = 0.2, max_tokens = 1200, response_format } = opts;
+  const msgs = system ? [{ role: 'system', content: system }, ...messages] : messages;
   const r = await fetch(`${OAI_URL}/chat/completions`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${OAI_KEY}`, 'Content-Type':'application/json' },
-    body: JSON.stringify({ model, messages, temperature })
+    body: JSON.stringify({ model: m, messages: msgs, temperature: t, max_tokens, response_format })
   });
   const j = await r.json();
   if (!r.ok) throw new Error(`OpenAI: ${j?.error?.message || r.statusText}`);
@@ -81,4 +99,3 @@ export async function askLLM({ prompt, mode }:{ prompt: string; mode?: string })
     // no-op
   }
 }
-
