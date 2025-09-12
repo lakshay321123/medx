@@ -30,12 +30,39 @@ async function sha256Hex(input: string): Promise<string> {
   return out;
 }
 
-function sseFromText(text: string) {
+// Emit SSE in OpenAI "chat.completion.chunk" shape so the frontend sees choices[0].delta.content
+function sseFromText(text: string, model = 'gpt-5-verified') {
   const enc = new TextEncoder();
+  const ts = Math.floor(Date.now() / 1000);
+  const CHUNK = 800; // characters per chunk
+
+  const frames: string[] = [];
+  for (let i = 0; i < text.length; i += CHUNK) {
+    const piece = text.slice(i, i + CHUNK);
+    const payload = {
+      id: `local-${ts}-${(i / CHUNK) | 0}`,
+      object: 'chat.completion.chunk',
+      created: ts,
+      model,
+      choices: [{ index: 0, delta: { content: piece }, finish_reason: null }]
+    };
+    frames.push(`data: ${JSON.stringify(payload)}\n\n`);
+  }
+
+  // terminal frame (empty delta + finish_reason)
+  const donePayload = {
+    id: `local-${ts}-done`,
+    object: 'chat.completion.chunk',
+    created: ts,
+    model,
+    choices: [{ index: 0, delta: {}, finish_reason: 'stop' }]
+  };
+  frames.push(`data: ${JSON.stringify(donePayload)}\n\n`);
+  frames.push(`data: [DONE]\n\n`);
+
   return new ReadableStream({
     start(controller) {
-      controller.enqueue(enc.encode(`data: ${JSON.stringify({ delta: { content: text } })}\n\n`));
-      controller.enqueue(enc.encode(`data: [DONE]\n\n`));
+      for (const frame of frames) controller.enqueue(enc.encode(frame));
       controller.close();
     }
   });
