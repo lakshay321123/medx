@@ -15,7 +15,7 @@ Return STRICT JSON (no prose). Compute from inputs using ONLY standard formulas:
 Rules:
 - If required inputs are missing, omit that metric.
 - Do NOT invent ad-hoc metrics (e.g., lactate:pH ratio).
-- Risk scores (qSOFA/SIRS/NEWS2/CURB-65) MUST be omitted unless *all* required vitals are present.
+- Risk scores (qSOFA/SIRS/NEWS2/CURB-65) MUST be omitted unless all required vitals are present.
 - If upstream “calculator” hints conflict with physiology, correct them and state the correction in "corrections".
 - Produce a concise human-readable "final_text" summary that exactly reflects your computed values.
 `;
@@ -71,7 +71,7 @@ export function buildVerifyUserContent(payload: {
       },
       corrections: [],
       warnings: [],
-      final_text: "Clinical summary (verified):\n- Labs: ...\n- Derived: ...\n- Interpretation: ...\nRules applied: ..."
+      final_text: "Clinical summary (verified):\\n- Labs: {values}\\n- Derived: {values}\\n- Interpretation: {summary}\\nRules applied: standard formulas."
     },
     mode: payload.mode || "default",
     inputs: payload.ctx || {},
