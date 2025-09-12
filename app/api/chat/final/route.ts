@@ -39,5 +39,11 @@ export async function POST(req: Request) {
   }
 
   const reply = await ensureMinDelay(callOpenAIChat([{ role: "system", content: system }, ...messages]));
-  return NextResponse.json({ ok: true, provider, reply });
+  return new Response(JSON.stringify({ ok: true, provider: "openai", reply }), {
+    headers: {
+      "content-type": "application/json",
+      "x-medx-provider": "openai",
+      "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-5",
+    },
+  });
 }
