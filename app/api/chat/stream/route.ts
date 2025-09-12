@@ -207,6 +207,50 @@ async function handle(req: NextRequest, payload: any) {
     blended = Array.from(byId.values());
   }
 
+  // ----- LOCKED VALUES for the composer (force reuse of verified numbers, block bad scores) -----
+  function hasNum(x: any) { return typeof x === 'number' && isFinite(x); }
+
+  const allowQSOFA = (hasNum((ctx as any).respiratory_rate) || hasNum((ctx as any).rr)) &&
+                     (hasNum((ctx as any).sbp) || hasNum((ctx as any).systolic_bp)) &&
+                     (hasNum((ctx as any).gcs) || typeof (ctx as any).altered_mentation === 'boolean');
+
+  const allowSIRS  = (hasNum((ctx as any).temp_c) || hasNum((ctx as any).temp_f)) &&
+                     hasNum((ctx as any).hr) &&
+                     (hasNum((ctx as any).respiratory_rate) || hasNum((ctx as any).rr)) &&
+                     hasNum((ctx as any).wbc);
+
+  const lockPairs: Array<{ k: string; v: string }> = [];
+  const whitelist = new Set<string>([
+    'anion_gap', 'anion_gap_albumin_corrected', 'serum_osm_calc', 'osmolar_gap',
+    'effective_osm', 'hyponatremia_tonicity', 'dka_flags', 'dka_severity',
+    'hhs_flags', 'hyperkalemia_severity', 'potassium_status', 'winters_expected_pco2',
+    'mixed_acid_base_flag', 'corrected_sodium'
+  ]);
+
+  for (let i = 0; i < blended.length; i++) {
+    const r = blended[i];
+    if (!r || !r.id) continue;
+    if (!whitelist.has(String(r.id))) continue;
+    const val = r.unit ? String(r.value) + ' ' + String(r.unit) : String(r.value);
+    lockPairs.push({ k: String(r.label || r.id), v: val });
+  }
+
+  let lockText = 'LOCKED VALUES (authoritative; do not contradict; do not recalculate):\n';
+  for (let i = 0; i < lockPairs.length; i++) {
+    const p = lockPairs[i];
+    lockText += p.k + ': ' + p.v + '\n';
+  }
+  lockText += 'Hard requirements:\n';
+  lockText += ' - Use serum osmolality = 2*Na + Glucose/18 + BUN/2.8. Do not include creatinine.\n';
+  lockText += ' - Use anion gap = Na - (Cl + HCO3). Albumin-corrected AG = AG + 2.5*(4 - albumin).\n';
+  lockText += ' - Use Winters expected pCO2 = 1.5*HCO3 + 8 (±2) to classify respiratory compensation.\n';
+  lockText += ' - DKA needs glucose ≥ 250 with acidosis; HHS uses effective osmolality ≥ 320.\n';
+  lockText += ' - Do not create non-standard metrics such as lactate to pH ratio.\n';
+  if (!allowQSOFA || !allowSIRS) {
+    lockText += ' - Do not compute or mention qSOFA, SIRS, NEWS2, or CURB-65 unless all required inputs are present.\n';
+  }
+  finalMessages.unshift({ role: 'system', content: lockText });
+
   // crisis promotion cues (from inputs)
   const toNum = function (x: any) { return typeof x === 'number' ? x : Number(x); };
   const g = toNum(ctx && ctx.glucose !== undefined ? ctx.glucose : ctx && ctx.glucose_mg_dl);
