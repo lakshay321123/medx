@@ -1,12 +1,5 @@
-import { VERIFY_SYSTEM, buildVerifyUserContent } from "./verify_prompt";
-
-export type Verdict = {
-  ok: boolean;
-  version: string;
-  corrected_values?: Record<string, any>;
-  corrections?: string[];
-  final_assertions?: Record<string, any>;
-};
+// lib/ai/verifyWithOpenAI.ts
+import { VERIFY_SYSTEM, buildVerifyUserContent, Verdict } from "./verify_prompt";
 
 function timeout<T>(p: Promise<T>, ms: number) {
   return new Promise<T>((resolve, reject) => {
@@ -16,10 +9,10 @@ function timeout<T>(p: Promise<T>, ms: number) {
 }
 
 export async function verifyWithOpenAI(args: {
-  mode: string;
+  mode?: string;
   ctx: Record<string, any>;
-  computed: Array<any>;
-  conversation?: Array<{ role: string; content: string }>;
+  computed?: Array<any>;
+  conversation?: Array<{role: string; content: string}>;
   signal?: AbortSignal;
   timeoutMs?: number;   // default 60_000
 }): Promise<Verdict | null> {
@@ -57,7 +50,7 @@ export async function verifyWithOpenAI(args: {
 
     let parsed: Verdict | null = null;
     try { parsed = JSON.parse(content); } catch { return null; }
-    if (!parsed || parsed.version !== "v1") return null;
+    if (!parsed || parsed.version !== "v2") return null;
     return parsed;
   } catch {
     return null; // silent fallback
