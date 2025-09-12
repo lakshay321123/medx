@@ -1,5 +1,6 @@
 // lib/ai/verifyWithOpenAI.ts
-import { VERIFY_SYSTEM, buildVerifyUserContent, Verdict } from "./verify_prompt";
+import { VERIFY_SYSTEM, buildVerifyUserContent } from "./verify_prompt";
+export type { Verdict } from "./verify_prompt"; // <-- re-export with final_text in it
 
 function timeout<T>(p: Promise<T>, ms: number) {
   return new Promise<T>((resolve, reject) => {
@@ -15,7 +16,7 @@ export async function verifyWithOpenAI(args: {
   conversation?: Array<{role: string; content: string}>;
   signal?: AbortSignal;
   timeoutMs?: number;   // default 60_000
-}): Promise<Verdict | null> {
+}): Promise<import("./verify_prompt").Verdict | null> {
   const { mode, ctx, computed, conversation, signal, timeoutMs = 60_000 } = args;
 
   const base  = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
@@ -48,7 +49,7 @@ export async function verifyWithOpenAI(args: {
     const content = data?.choices?.[0]?.message?.content;
     if (!content) return null;
 
-    let parsed: Verdict | null = null;
+    let parsed: import("./verify_prompt").Verdict | null = null;
     try { parsed = JSON.parse(content); } catch { return null; }
     if (!parsed || parsed.version !== "v2") return null;
     return parsed;
