@@ -1,7 +1,7 @@
 // lib/medical/engine/calculators/acid_base_core.ts
 import { register } from "../registry";
 
-// ---------- Canonical Anion Gap (NO potassium) ----------
+// Canonical AG (no K)
 register({
   id: "anion_gap",
   label: "Anion gap",
@@ -20,7 +20,7 @@ register({
   },
 });
 
-// ---------- Albumin-corrected AG (based on NO-K AG) ----------
+// Albumin-corrected AG (base on no-K AG)
 register({
   id: "anion_gap_corrected",
   label: "Anion gap (albumin-corrected)",
@@ -29,7 +29,7 @@ register({
     { key: "Na", required: true },
     { key: "Cl", required: true },
     { key: "HCO3", required: true },
-    { key: "albumin", required: true }, // g/dL
+    { key: "albumin", required: true },
   ],
   run: ({ Na, Cl, HCO3, albumin }) => {
     if (Na == null || Cl == null || HCO3 == null || albumin == null) return null;
@@ -41,7 +41,7 @@ register({
   },
 });
 
-// ---------- Winter’s Expected PaCO2 ----------
+// Winter’s expected PaCO₂
 register({
   id: "winters_expected_paco2",
   label: "Expected PaCO₂ (Winter’s)",
@@ -57,7 +57,7 @@ register({
   },
 });
 
-// ---------- Serum Osmolality (calc), Effective Osm, and Osmolal Gap ----------
+// Serum osmolality, effective osmolality, and osmolal gap
 register({
   id: "serum_osmolality",
   label: "Serum osmolality (calculated)",
@@ -66,7 +66,7 @@ register({
     { key: "Na", required: true },
     { key: "glucose_mgdl", required: true },
     { key: "BUN", required: true },
-    { key: "ethanol_mgdl" }, // optional
+    { key: "ethanol_mgdl" },
   ],
   run: ({ Na, glucose_mgdl, BUN, ethanol_mgdl }) => {
     if (Na == null || glucose_mgdl == null || BUN == null) return null;
@@ -79,10 +79,7 @@ register({
   id: "effective_osmolality",
   label: "Effective osmolality (tonicity)",
   tags: ["electrolytes", "osmolar"],
-  inputs: [
-    { key: "Na", required: true },
-    { key: "glucose_mgdl", required: true },
-  ],
+  inputs: [{ key: "Na", required: true }, { key: "glucose_mgdl", required: true }],
   run: ({ Na, glucose_mgdl }) => {
     if (Na == null || glucose_mgdl == null) return null;
     const eff = 2 * Na + glucose_mgdl / 18;
@@ -99,7 +96,7 @@ register({
     { key: "glucose_mgdl", required: true },
     { key: "BUN", required: true },
     { key: "Osm_measured", required: true },
-    { key: "ethanol_mgdl" }, // optional
+    { key: "ethanol_mgdl" },
   ],
   run: ({ Na, glucose_mgdl, BUN, Osm_measured, ethanol_mgdl }) => {
     if (Na == null || glucose_mgdl == null || BUN == null || Osm_measured == null) return null;
@@ -111,7 +108,7 @@ register({
   },
 });
 
-// ---------- DKA/HHS gates (supportive flags; rely on canonical inputs) ----------
+// DKA/HHS supportive flags
 register({
   id: "dka_flag",
   label: "DKA supportive",
@@ -126,7 +123,7 @@ register({
   run: ({ glucose_mgdl, HCO3, pH, Na, Cl }) => {
     if (glucose_mgdl == null || HCO3 == null || pH == null || Na == null || Cl == null) return null;
     const ag = Na - (Cl + HCO3);
-    const ok = (glucose_mgdl >= 250) && (HCO3 < 18) && (pH < 7.30) && (ag > 12);
+    const ok = glucose_mgdl >= 250 && HCO3 < 18 && pH < 7.3 && ag > 12;
     return { id: "dka_flag", label: "DKA supportive", value: ok ? 1 : 0, precision: 0, notes: ok ? ["meets lab bands (ketones not provided)"] : [] };
   },
 });
@@ -144,8 +141,7 @@ register({
   run: ({ glucose_mgdl, Na, HCO3, pH }) => {
     if (glucose_mgdl == null || Na == null || HCO3 == null || pH == null) return null;
     const effective = 2 * Na + glucose_mgdl / 18;
-    const ok = (glucose_mgdl >= 600) && (effective >= 320) && (pH >= 7.30) && (HCO3 >= 18);
+    const ok = glucose_mgdl >= 600 && effective >= 320 && pH >= 7.3 && HCO3 >= 18;
     return { id: "hhs_flag", label: "HHS supportive", value: ok ? 1 : 0, precision: 0, notes: ok ? [`effective osm ≥320`] : [] };
   },
 });
-
