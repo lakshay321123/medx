@@ -278,13 +278,13 @@ const CASES: Array<{id:string, inputs: Record<string,any>}> = [
   {
     "id": "news2",
     "inputs": {
-      "RRr": 1,
-      "SaO2": 1,
+      "RR": 1,
+      "spo2_percent": 1,
       "on_o2": 1,
       "temp_c": 1,
       "SBP": 80,
       "HR": 24,
-      "conscious_level": 1
+      "consciousness": "A"
     }
   },
   {

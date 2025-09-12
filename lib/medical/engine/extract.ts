@@ -14,9 +14,17 @@ const ALIAS: Record<string, string> = {
 
   measured_osm: "Osm_measured", osm_meas: "Osm_measured",
 
+  // Supplemental oxygen (for NEWS2)
+  on_o2: "on_o2",
+  supplemental_o2: "on_o2",
+  o2_lpm: "on_o2",
+  oxygen: "on_o2",
+  O2: "on_o2",
+
   lactate_mmol_l: "Lactate",
 
   sbp: "SBP", dbp: "DBP", hr: "HR", rr: "RR",
+  // SpO₂ canonicalization
   spo2: "spo2_percent", spO2: "spo2_percent", SpO2: "spo2_percent", spo2_percent: "spo2_percent",
   temp_c: "temp_c", temp_f: "temp_f",
   gcs: "GCS", consciousness: "consciousness",
@@ -45,6 +53,21 @@ function convertUnits(incoming: Record<string, any>) {
   if (out.pCO2_kpa != null && out.pCO2 == null) {
     out.pCO2 = out.pCO2_kpa * 7.50062;
   }
+
+  // Normalize supplemental oxygen flag expected by NEWS2.
+  // Accept booleans, truthy numerics (e.g., L/min), "yes"/"true" strings.
+  if (out.on_o2 != null) {
+    const v = out.on_o2;
+    out.on_o2 =
+      v === true ||
+      v === 1 ||
+      (typeof v === "number" && v > 0) ||
+      (typeof v === "string" && /^(yes|true|y|on)$/i.test(v));
+  } else if (out.FiO2 != null && typeof out.FiO2 === "number") {
+    // If FiO2 is provided, treat >21% as supplemental oxygen.
+    out.on_o2 = out.FiO2 > 1 ? out.FiO2 / 100 > 0.21 : out.FiO2 > 0.21;
+  }
+
   return out;
 }
 
@@ -54,6 +77,7 @@ function mirrorLegacyKeys(out: Record<string, any>) {
     if (out.SpO2 == null) out.SpO2 = out.spo2_percent;
     if (out.spo2 == null) out.spo2 = out.spo2_percent;
   }
+  // (add more mirrors here if needed)
   return out;
 }
 
