@@ -107,7 +107,8 @@ export function extractAll(s: string): Record<string, any> {
     // Vitals added for P5
     temp_c: pickNum(/\btemp(?:erature)?\s*(?:c|cel(?:sius)?)?[^0-9:=]*[:=]?\s*([0-9.]+)/i, t) ?? pickNum(/\btemp[^0-9:=]*[:=]?\s*([0-9.]+)/i, t),
     spo2_percent: pickNum(/\b(?:spo2|sats?|oxygen\s*saturation)[^0-9:=]*[:=]?\s*([0-9.]+)/i, t),
-    FiO2: pickNum(/\bfi?o2[^0-9:=]*[:=]?\s*([0-9.]+)/i, t),
+    // avoid duplicate object keys: capture to FiO2_raw and canonicalize below
+    FiO2_raw: pickNum(/\bfi?o2[^0-9:=]*[:=]?\s*([0-9.]+)/i, t),
     o2_lpm: pickNum(/\b(?:o2|oxygen)\s*(?:flow|lpm)[^0-9:=]*[:=]?\s*([0-9.]+)/i, t),
     on_o2: /\b(on\s*o2|supplemental\s*o2|on\s*oxygen|oxygen\s*therapy)\b/i.test(t) ? 1 : undefined,
     QTms: pickNum(/\bqt[^0-9]*[:=]?\s*([0-9]{3,4})\s*ms/, t),
@@ -196,15 +197,18 @@ export function extractAll(s: string): Record<string, any> {
     const n = typeof out.o2_lpm === "string" ? parseFloat(out.o2_lpm) : Number(out.o2_lpm);
     if (isFinite(n) && n > 0) onO2 = true;
   }
-  if (!onO2 && out.FiO2 != null) {
-    let f:any = out.FiO2;
+  if (!onO2 && (out.FiO2 != null || (out as any).FiO2_raw != null)) {
+    // accept either canonical FiO2 or the raw captured value
+    let f:any = out.FiO2 ?? (out as any).FiO2_raw;
     if (typeof f === "string") {
       const s2 = f.trim();
       if (/%$/.test(s2)) { const pct = parseFloat(s2.replace("%","")); if (isFinite(pct)) f = pct/100; }
       else { const n2 = parseFloat(s2); if (isFinite(n2)) f = n2>1 ? n2/100 : n2; }
     } else if (typeof f === "number") { f = f>1 ? f/100 : f; }
     if (typeof f === "number" && isFinite(f) && f > 0.21) onO2 = true;
-    out.FiO2 = typeof f === "number" ? f : out.FiO2; // canonicalize to fraction if possible
+    // canonicalize to fraction if possible; clean up raw key if present
+    if (typeof f === "number" && isFinite(f)) out.FiO2 = f;
+    if ((out as any).FiO2_raw !== undefined) delete (out as any).FiO2_raw;
   }
   if (onO2) out.on_o2 = true;
 
