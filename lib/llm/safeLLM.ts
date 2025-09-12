@@ -1,4 +1,4 @@
-import { openaiText, groqChat } from "../llm";
+import { openaiText, groqChat } from "@/lib/llm";
 
 const SYSTEM = [
   "You are a medical calculator.",
@@ -41,7 +41,7 @@ export async function askOpenAIJson(userPrompt: string, timeoutMs = 7000) {
   if (!hasOpenAI()) return null;
   try {
     const content = await withTimeout(
-      (openaiText as any)({
+      openaiText({
         system: SYSTEM,
         messages: [{ role: "user", content: userPrompt }],
         response_format: { type: "json_object" },
@@ -62,7 +62,7 @@ export async function askGroqJson(userPrompt: string, timeoutMs = 7000) {
   if (!hasGroq()) return null;
   try {
     const content = await withTimeout(
-      (groqChat as any)({
+      groqChat({
         system: SYSTEM,
         messages: [{ role: "user", content: userPrompt }],
         temperature: 0,
