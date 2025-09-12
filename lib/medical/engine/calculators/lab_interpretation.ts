@@ -5,23 +5,6 @@ import { register } from "../registry";
  * so the hidden prelude is self-interpreting. They never overwrite other calcs.
  */
 
-// ---- Sodium status ----
-register({
-  id: "sodium_status",
-  label: "Sodium",
-  inputs: [{ key: "Na", required: true }],
-  run: ({ Na }) => {
-    if (Na == null) return null;
-    const notes: string[] = [];
-    if (Na < 120) notes.push("severe hyponatremia");
-    else if (Na < 130) notes.push("moderate hyponatremia");
-    else if (Na < 135) notes.push("mild hyponatremia");
-    else if (Na > 145) notes.push("hypernatremia");
-    else notes.push("normal");
-    return { id: "sodium_status", label: "Sodium", value: Na, unit: "mmol/L", precision: 0, notes };
-  },
-});
-
 // ---- Potassium status ----
 register({
   id: "potassium_status",
