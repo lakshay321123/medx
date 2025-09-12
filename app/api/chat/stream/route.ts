@@ -143,7 +143,7 @@ async function streamViaGroq(messages: any[]) {
 }
 
 // ---- Main handler ----
-export async function handle(req: NextRequest, payload: any) {
+async function handle(req: NextRequest, payload: any) {
   const method = req.method || 'GET';
   const messages = Array.isArray(payload?.messages) ? payload.messages : [];
   const clientRequestId = payload?.clientRequestId;

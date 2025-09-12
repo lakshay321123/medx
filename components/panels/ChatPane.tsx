@@ -277,11 +277,11 @@ function ChatCard({ m, therapyMode, onFollowUpClick, simple, seconds }: { m: Ext
   );
 }
 
-function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onFollowUpClick, simple }: { m: ChatMessage; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean; therapyMode: boolean; onFollowUpClick: (text: string) => void; simple: boolean }) {
+function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onFollowUpClick, simple, seconds }: { m: ChatMessage; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean; therapyMode: boolean; onFollowUpClick: (text: string) => void; simple: boolean; seconds: number }) {
   return m.kind === "analysis" ? (
-    <AnalysisCard m={m} researchOn={researchOn} onQuickAction={onQuickAction} busy={busy} seconds={thinkingSec} />
+    <AnalysisCard m={m} researchOn={researchOn} onQuickAction={onQuickAction} busy={busy} seconds={seconds} />
   ) : (
-    <ChatCard m={m} therapyMode={therapyMode} onFollowUpClick={onFollowUpClick} simple={simple} seconds={thinkingSec} />
+    <ChatCard m={m} therapyMode={therapyMode} onFollowUpClick={onFollowUpClick} simple={simple} seconds={seconds} />
   );
 }
 
@@ -1575,15 +1575,16 @@ ${systemCommon}` + baseSys;
               </div>
             ) : (
               <Fragment key={m.id}>
-                <AssistantMessage
-                  m={m}
-                  researchOn={researchMode}
-                  onQuickAction={onQuickAction}
-                  busy={loadingAction !== null}
-                  therapyMode={therapyMode}
-                  onFollowUpClick={handleFollowUpClick}
-                  simple={currentMode === 'patient'}
-                />
+                  <AssistantMessage
+                    m={m}
+                    researchOn={researchMode}
+                    onQuickAction={onQuickAction}
+                    busy={loadingAction !== null}
+                    therapyMode={therapyMode}
+                    onFollowUpClick={handleFollowUpClick}
+                    simple={currentMode === 'patient'}
+                    seconds={thinkingSec}
+                  />
                 <FeedbackBar
                   conversationId={conversationId}
                   messageId={m.id}
