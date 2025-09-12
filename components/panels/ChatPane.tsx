@@ -1588,6 +1588,7 @@ ${systemCommon}` + baseSys;
       {AIDOC_UI && aidoc && (
         <div className="mx-auto w-full max-w-3xl">
           <div className="mt-3 rounded-lg border p-3 space-y-2">
+            {aidoc.reply && <ChatMarkdown content={aidoc.reply} />}
             <div className="text-sm font-medium">Observations</div>
             <div className="text-sm opacity-90">{aidoc?.observations?.short}</div>
 
