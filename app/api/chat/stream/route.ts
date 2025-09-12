@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { profileChatSystem } from '@/lib/profileChatSystem';
-import { extractAll } from '@/lib/medical/engine/extract';
+import { extractAll, normalizeCtx } from '@/lib/medical/engine/extract';
 import { computeAll } from '@/lib/medical/engine/computeAll';
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
@@ -13,7 +13,7 @@ function filterComputedForDocMode(items: any[], latestUser: string) {
   const needsPEContext = mentions('chest pain') || mentions('pleur') || mentions('shortness of breath') || /\bsob\b/.test(msg);
   return items
     // basic sanity
-    .filter((r: any) => r && Number.isFinite(r.value))
+    .filter((r: any) => r && (typeof r.value === 'string' || Number.isFinite(r.value)))
     // avoid placeholders/surrogates/partials
     .filter((r: any) => {
       const noteStr = (r.notes || []).join(' ').toLowerCase();
@@ -60,14 +60,41 @@ export async function POST(req: NextRequest) {
   let finalMessages = messages.filter((m: any) => m.role !== 'system');
 
   const latestUserMessage = messages.filter((m: any) => m.role === 'user').slice(-1)[0]?.content || "";
-  const userText = (messages || []).map((m: any) => m?.content || '').join('\n');
-  const ctx = extractAll(userText);
+  const ctx = normalizeCtx(extractAll(latestUserMessage ?? ''));
   const computed = computeAll(ctx);
+
+  // Promote critical calculators into the prelude when crisis criteria met
+  function byId(id: string) { return computed.find(r => r?.id === id); }
+  const glucose = Number(ctx.glucose ?? ctx.glucose_mgdl);
+  const hco3   = Number(ctx.HCO3 ?? ctx.bicarb ?? ctx.bicarbonate);
+  const ph     = Number(ctx.pH);
+  const k      = Number(ctx.K ?? ctx.potassium);
+
+  // Crisis heuristics
+  const hyperglycemicCrisis = (Number.isFinite(glucose) && glucose >= 250) && (Number.isFinite(hco3) && hco3 <= 18 || Number.isFinite(ph) && ph < 7.30);
+  const hyperkalemiaDanger  = Number.isFinite(k) && k >= 6.0;
+
+  const mustShow = new Set<string>([
+    "measured_osm_status",
+    "osmolar_gap",
+    "serum_osm_calc",
+    "anion_gap_albumin_corrected",
+    "hyponatremia_tonicity",
+    "hyperkalemia_severity",
+    "potassium_status",
+    "dka_severity",
+    "hhs_flags"
+  ]);
+
+  // If crisis, inject those calculators into finalMessages prelude regardless of filter
+  const promoted = computed.filter(r => r && mustShow.has(r.id));
+  const crisisPromoted = (hyperglycemicCrisis || hyperkalemiaDanger) ? promoted : [];
 
   if (showClinicalPrelude) {
     const filtered = filterComputedForDocMode(computed, latestUserMessage ?? '');
-    if (filtered.length) {
-      const lines = filtered.map(r => {
+    const blended  = [...new Map([...crisisPromoted, ...filtered].map(r => [r.id, r])).values()];
+    if (blended.length) {
+      const lines = blended.map(r => {
         const val = r.unit ? `${r.value} ${r.unit}` : String(r.value);
         const notes = r.notes?.length ? ` — ${r.notes.join('; ')}` : '';
         return `${r.label}: ${val}${notes}`;

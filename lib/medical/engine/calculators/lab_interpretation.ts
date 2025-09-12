@@ -32,8 +32,8 @@ register({
     const notes: string[] = [];
     if (K < 3.0) notes.push("severe hypokalemia");
     else if (K < 3.5) notes.push("mild hypokalemia");
-    else if (K > 6.0) notes.push("severe hyperkalemia (urgent)");
-    else if (K > 5.5) notes.push("hyperkalemia");
+    else if (K >= 6.0) notes.push("severe hyperkalemia (urgent)");
+    else if (K >= 5.5) notes.push("hyperkalemia");
     else notes.push("normal");
     return { id: "potassium_status", label: "Potassium", value: K, unit: "mmol/L", precision: 1, notes };
   },
@@ -2915,25 +2915,26 @@ register({
   },
 });
 
-/** DKA severity (ADA-style bands; informational, not therapy) */
+/** DKA severity (ADA-ish bands) — uses HCO3 and pH */
 register({
   id: "dka_severity",
   label: "DKA severity",
-  tags: ["endocrine", "critical_care"],
+  tags: ["endocrine","critical"],
   inputs: [
-    { key: "pH", required: true },
-    { key: "HCO3", required: true },
-    { key: "mental_status", required: true }, // "alert" | "drowsy" | "stupor/coma"
-    { key: "glucose", required: true },       // mg/dL
+    { key: "HCO3", required: true },   // mmol/L
+    { key: "pH", required: true }
   ],
-  run: ({ pH, HCO3, mental_status, glucose }) => {
-    if ([pH, HCO3, mental_status, glucose].some(v => v == null)) return null;
-    const notes: string[] = [];
-    let tier = "mild";
-    if (pH < 7.0 || HCO3 < 10 || mental_status === "stupor/coma") tier = "severe";
-    else if (pH < 7.24 || HCO3 < 15 || mental_status === "drowsy") tier = "moderate";
-    notes.push(`glucose ${glucose} mg/dL`);
-    return { id: "dka_severity", label: "DKA severity", value: tier === "severe" ? 3 : tier === "moderate" ? 2 : 1, unit: "tier", precision: 0, notes: [tier] };
+  run: ({ HCO3, pH }) => {
+    if (HCO3 == null || pH == null) return null;
+    const notes:string[] = [];
+    let band = "not DKA by labs";
+    if (pH < 7.30 && HCO3 < 18) {
+      if (pH < 7.00 || HCO3 < 10)        band = "severe";
+      else if (pH < 7.25 || HCO3 < 15)   band = "moderate";
+      else                               band = "mild";
+      notes.push("meets DKA biochemical criteria");
+    }
+    return { id: "dka_severity", label: "DKA severity", value: band, unit: "band", notes, precision: 0 };
   },
 });
 
@@ -3976,22 +3977,23 @@ register({
    MED-EXT23 — K+ severity & renal K+ handling (TTKG)
    ========================================================= */
 
-/** Hyperkalemia severity bands with optional ECG danger flag */
+/** Hyperkalemia severity bands with ECG danger override */
 register({
   id: "hyperkalemia_severity",
   label: "Hyperkalemia severity",
-  tags: ["electrolytes", "cardiology"],
+  tags: ["electrolytes","cardiology","critical"],
   inputs: [
-    { key: "potassium", required: true },       // mmol/L
-    { key: "ekg_danger_signs" },                // boolean (peaked T, wide QRS, sine)
+    { key: "potassium", aliases:["K"], required: true }, // mmol/L
+    { key: "ekg_danger_signs" } // peaked T, wide QRS, sine
   ],
   run: ({ potassium, ekg_danger_signs }) => {
+    if (potassium == null) return null;
     const notes:string[] = [];
-    if (potassium >= 6.5 || ekg_danger_signs) notes.push("severe hyperkalemia / ECG danger");
-    else if (potassium >= 6.0) notes.push("moderate (≥6.0)");
-    else if (potassium >= 5.5) notes.push("mild (5.5–5.9)");
-    else notes.push("within reference");
-    return { id: "hyperkalemia_severity", label: "Hyperkalemia severity", value: potassium, unit: "mmol/L", precision: 1, notes };
+    let band = "within reference";
+    if (ekg_danger_signs || potassium >= 6.5) { band = "severe"; notes.push("ECG danger / urgent"); }
+    else if (potassium >= 6.0) band = "moderate";
+    else if (potassium >= 5.5) band = "mild";
+    return { id: "hyperkalemia_severity", label: "Hyperkalemia severity", value: band, unit: "band", notes, precision: 0 };
   },
 });
 

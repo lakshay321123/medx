@@ -41,6 +41,14 @@ export function renderResultsBlock(results: { id: string; label: string; value: 
   if (!results || !results.length) return "";
 
   const derivedOrder = [
+    "hyperkalemia_severity",
+    "potassium_status",
+    "measured_osm_status",
+    "osmolar_gap",
+    "serum_osm_calc",
+    "anion_gap_albumin_corrected",
+    "dka_severity",
+    "hhs_flags",
     "anion_gap", "anion_gap_corrected", "acid_base_summary",
     "pf_ratio", "map", "shock_index", "osmolal_gap",
     "meld_na", "child_pugh_helper", "qtc_bazett",

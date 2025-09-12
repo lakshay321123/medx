@@ -2,6 +2,23 @@ import { FORMULAE } from "./registry";
 import "./calculators";
 import { safeNumber, toMgDlFromMmolGlucose } from "./units";
 
+// Normalize common synonyms/units into canonical ctx keys
+export function normalizeCtx(ctx: any) {
+  // glucose: prefer mg/dL
+  if (ctx.glucose_mmol != null && ctx.glucose == null) {
+    const mgdl = Number(ctx.glucose_mmol) * 18;
+    if (Number.isFinite(mgdl)) ctx.glucose = mgdl;
+  }
+  // measured osmolality synonyms
+  if (ctx.measured_osm_mOsm_kg != null && ctx.measured_osm == null) {
+    ctx.measured_osm = ctx.measured_osm_mOsm_kg;
+  }
+  // potassium synonyms
+  if (ctx.K == null && ctx.potassium != null) ctx.K = ctx.potassium;
+
+  return ctx;
+}
+
 const num = /([0-9]+(?:\.[0-9]+)?)/;
 
 // === [MEDX_CALC_HELPERS_START] ===
