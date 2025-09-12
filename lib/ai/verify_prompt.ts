@@ -25,7 +25,7 @@ export function buildVerifyUserContent(payload: {
   mode: string;
   ctx: Record<string, any>;
   computed: Array<any>;
-  conversation?: Array<{role: string; content: string}>;
+  conversation?: Array<{ role: string; content: string }>;
 }) {
   return JSON.stringify({
     instruction:
