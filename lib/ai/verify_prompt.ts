@@ -1,3 +1,5 @@
+// lib/ai/verify_prompt.ts
+
 export const VERIFY_SYSTEM = `
 You are OpenAI GPT-5 verifying and, if needed, correcting all medically-relevant calculations and interpretations.
 Return STRICT JSON ONLY (no prose), exactly matching the provided schema.
@@ -6,20 +8,8 @@ If inputs are insufficient, omit fields rather than guessing.
 You have final authority on corrected values; these will override calculators system-wide.
 `;
 
-export const VERIFY_SCHEMA = `
-{
-  "ok": boolean,
-  "version": "v1",
-  "corrected_values": {
-    // key: calculator id or canonical field
-    // value: corrected scalar/string OR { "value": any, "unit": string | null, "notes": string[] }
-  },
-  "corrections": [ "short what/why lines" ],
-  "final_assertions": {
-    // decisive labels e.g. "primary_dx", "acid_base", "dka_severity", "hyperosmolar", etc.
-  }
-}
-`;
+// Valid JSON (string) — safe for JSON.parse
+export const VERIFY_SCHEMA = "{\"type\":\"object\",\"required\":[\"ok\",\"version\"],\"additionalProperties\":false,\"properties\":{\"ok\":{\"type\":\"boolean\"},\"version\":{\"type\":\"string\",\"enum\":[\"v1\"]},\"corrected_values\":{\"type\":\"object\",\"additionalProperties\":{\"oneOf\":[{\"type\":[\"string\",\"number\",\"boolean\",\"null\"]},{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"value\"],\"properties\":{\"value\":{},\"unit\":{\"type\":[\"string\",\"null\"]},\"notes\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}}}]}},\"corrections\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"final_assertions\":{\"type\":\"object\",\"additionalProperties\":{\"type\":[\"string\",\"number\",\"boolean\",\"null\"]}}}}";
 
 export function buildVerifyUserContent(payload: {
   mode: string;
@@ -29,9 +19,9 @@ export function buildVerifyUserContent(payload: {
 }) {
   return JSON.stringify({
     instruction:
-      "Validate & correct. Apply physiology cross-checks: Winter’s expected pCO2 (1.5*HCO3 + 8 ±2), serum osmolality (2*Na + Glucose/18 + BUN/2.8; normal 275–295), osmol gap (measured - calculated; >=10 elevated), albumin-corrected anion gap (AG + 2.5*(4 - Alb[g/dL])), potassium bands, renal flags. Reject ad-hoc metrics (e.g., 'lactate:pH ratio'). qSOFA/SIRS only if required vitals/mentation present. No prose.",
+      "Validate and correct. Apply physiology cross-checks: Winters expected pCO2 (1.5*HCO3 + 8, tolerance plus or minus 2), serum osmolality (2*Na + Glucose/18 + BUN/2.8; normal 275 to 295), osmolar gap (measured minus calculated; at least 10 is elevated), albumin-corrected anion gap (AG + 2.5*(4 minus Alb in g/dL)), potassium severity bands, renal flags. Reject ad-hoc metrics such as lactate to pH ratio. Only produce the JSON response.",
     mode: payload.mode,
-    schema: JSON.parse(VERIFY_SCHEMA),
+    schema: JSON.parse(VERIFY_SCHEMA),  // now valid
     inputs: payload.ctx,
     calculators: payload.computed,
     conversation: payload.conversation ?? []
