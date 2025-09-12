@@ -20,6 +20,8 @@ describe("canonicalizes aliases and units", () => {
     expect(ctx.Osm_measured).toBe(310);
     expect(ctx.temp_c).toBeCloseTo(38.0, 1);
     expect(ctx.spo2_percent).toBe(92);
+    expect(ctx.SpO2).toBe(92);
+    expect(ctx.spo2).toBe(92);
 
     const r = byId(computeAll(ctx));
     expect(r["serum_osmolality"].value).toBeGreaterThan(280);

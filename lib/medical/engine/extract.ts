@@ -17,7 +17,7 @@ const ALIAS: Record<string, string> = {
   lactate_mmol_l: "Lactate",
 
   sbp: "SBP", dbp: "DBP", hr: "HR", rr: "RR",
-  spo2: "spo2_percent", spo2_percent: "spo2_percent", SpO2: "spo2_percent",
+  spo2: "spo2_percent", spO2: "spo2_percent", SpO2: "spo2_percent", spo2_percent: "spo2_percent",
   temp_c: "temp_c", temp_f: "temp_f",
   gcs: "GCS", consciousness: "consciousness",
   pco2_mmHg: "pCO2", paCO2: "pCO2"
@@ -48,9 +48,20 @@ function convertUnits(incoming: Record<string, any>) {
   return out;
 }
 
+function mirrorLegacyKeys(out: Record<string, any>) {
+  // Keep SpO2 / spo2 for calculators that still require them
+  if (out.spo2_percent != null) {
+    if (out.SpO2 == null) out.SpO2 = out.spo2_percent;
+    if (out.spo2 == null) out.spo2 = out.spo2_percent;
+  }
+  return out;
+}
+
 // Call this once in your API/controller before computeAll()
 export function canonicalizeInputs(raw: Record<string, any>) {
-  return convertUnits(mapAliases(raw));
+  const mapped = mapAliases(raw);
+  const unitFixed = convertUnits(mapped);
+  return mirrorLegacyKeys(unitFixed);
 }
 
 const num = /([0-9]+(?:\.[0-9]+)?)/;
