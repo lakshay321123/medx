@@ -207,7 +207,9 @@ async function handle(req: NextRequest, payload: any) {
     blended = Array.from(byId.values());
   }
 
-  // ----- LOCKED VALUES for the composer (force reuse of verified numbers, block bad scores) -----
+  // ----- LOCKED VALUES for the composer (always present, invisible to user) -----
+  // Build a compact table from 'blended' so the composer must reuse verified values.
+  // Also gate risk scores if required inputs are missing.
   function hasNum(x: any) { return typeof x === 'number' && isFinite(x); }
 
   const allowQSOFA = (hasNum((ctx as any).respiratory_rate) || hasNum((ctx as any).rr)) &&
@@ -220,6 +222,7 @@ async function handle(req: NextRequest, payload: any) {
                      hasNum((ctx as any).wbc);
 
   const lockPairs: Array<{ k: string; v: string }> = [];
+  // Whitelist of key calculator ids to surface strongly
   const whitelist = new Set<string>([
     'anion_gap', 'anion_gap_albumin_corrected', 'serum_osm_calc', 'osmolar_gap',
     'effective_osm', 'hyponatremia_tonicity', 'dka_flags', 'dka_severity',
@@ -235,6 +238,7 @@ async function handle(req: NextRequest, payload: any) {
     lockPairs.push({ k: String(r.label || r.id), v: val });
   }
 
+  // Construct a strict, directive system message
   let lockText = 'LOCKED VALUES (authoritative; do not contradict; do not recalculate):\n';
   for (let i = 0; i < lockPairs.length; i++) {
     const p = lockPairs[i];
@@ -245,10 +249,12 @@ async function handle(req: NextRequest, payload: any) {
   lockText += ' - Use anion gap = Na - (Cl + HCO3). Albumin-corrected AG = AG + 2.5*(4 - albumin).\n';
   lockText += ' - Use Winters expected pCO2 = 1.5*HCO3 + 8 (±2) to classify respiratory compensation.\n';
   lockText += ' - DKA needs glucose ≥ 250 with acidosis; HHS uses effective osmolality ≥ 320.\n';
-  lockText += ' - Do not create non-standard metrics such as lactate to pH ratio.\n';
+  lockText += ' - Do not create non-standard metrics (e.g., lactate:pH ratio).\n';
   if (!allowQSOFA || !allowSIRS) {
-    lockText += ' - Do not compute or mention qSOFA, SIRS, NEWS2, or CURB-65 unless all required inputs are present.\n';
+    lockText += ' - Do not compute or mention qSOFA/SIRS/NEWS2/CURB-65 unless all required inputs are available.\n';
   }
+
+  // Prepend so the composer is constrained before generating any text
   finalMessages.unshift({ role: 'system', content: lockText });
 
   // crisis promotion cues (from inputs)
