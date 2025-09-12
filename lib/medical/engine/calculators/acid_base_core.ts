@@ -87,31 +87,25 @@ register({
   },
 });
 
-// ---------- Osmolal gap (tolerates legacy measured_osm keys) ----------
 register({
   id: "osmolal_gap",
   label: "Osmolal gap",
-  tags: ["electrolytes", "osmolar"],
+  tags: ["electrolytes","osmolar"],
   inputs: [
     { key: "Na", required: true },
     { key: "glucose_mgdl", required: true },
     { key: "BUN", required: true },
-    // accept any of these; we will pick the first present in run()
-    { key: "Osm_measured" },
-    { key: "measured_osm" },
-    { key: "osm_meas" },
+    { key: "Osm_measured" }, { key: "measured_osm" }, { key: "osm_meas" },
     { key: "ethanol_mgdl" },
   ],
   run: ({ Na, glucose_mgdl, BUN, Osm_measured, measured_osm, osm_meas, ethanol_mgdl }) => {
     const Osm = Osm_measured ?? measured_osm ?? osm_meas;
     if (Na == null || glucose_mgdl == null || BUN == null || Osm == null) return null;
-
-    const calc = 2 * Na + glucose_mgdl / 18 + BUN / 2.8 + (ethanol_mgdl ? ethanol_mgdl / 3.7 : 0);
+    const calc = 2*Na + glucose_mgdl/18 + BUN/2.8 + (ethanol_mgdl ? ethanol_mgdl/3.7 : 0);
     const gap = Osm - calc;
-
     const notes: string[] = [];
     if (gap > 10) notes.push("elevated osmolal gap");
-    return { id: "osmolal_gap", label: "Osmolal gap", value: +gap.toFixed(0), unit: "mOsm/kg", precision: 0, notes };
+    return { id: "osmolal_gap", label: "Osmolal gap", value: Math.round(gap), unit: "mOsm/kg", precision: 0, notes };
   },
 });
 
