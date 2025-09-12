@@ -6,10 +6,10 @@ function run(input: Record<string, any>) {
   return computeAll(ctx).find(r => r.id === "news2")!;
 }
 
-test("NEWS2 low risk example", () => {
+test("NEWS2 zero risk example", () => {
   const r = run({ RR: 16, spo2_percent: 98, on_o2: false, temp_c: 37.0, SBP: 120, HR: 80, consciousness: "A" });
   expect(r.value).toBe(0);
-  expect(r.notes[0]).toContain("low");
+  expect(r.notes[0]).toContain("zero");
 });
 
 test("NEWS2 medium via any 3", () => {

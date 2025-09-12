@@ -72,11 +72,16 @@ register({
       add(rrScore) + add(spo2Score) + add(o2Score) + add(tempScore) +
       add(sbpScore) + add(hrScore) + add(cnsScore);
 
-    // Risk band (+ single-3 flag)
-    const singleThrees = [rrScore, spo2Score, tempScore, sbpScore, hrScore, cnsScore].filter(v => v === 3).length;
+    // Risk band per NEWS2 Scale 1:
+    //   High   : total ≥7
+    //   Medium : total 5–6 OR any single parameter scores 3
+    //   Low    : total 1–4 with no single 3
+    //   Zero   : total 0
+    const singleThrees = [rrScore, spo2Score, tempScore, sbpScore, hrScore, cnsScore]
+      .filter(v => v === 3).length;
     const band =
-      value >= 7 || singleThrees >= 2 ? "high" :
-      value >= 5 ? "medium" :
+      value >= 7 ? "high" :
+      (value >= 5 || singleThrees >= 1) ? "medium" :
       value >= 1 ? "low" : "zero";
     notes.push(`risk: ${band}${on_o2 ? " (on O₂)" : ""}`);
     if (singleThrees >= 1) notes.push(`single-parameter 3s: ${singleThrees}`);
