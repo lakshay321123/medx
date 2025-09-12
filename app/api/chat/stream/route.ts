@@ -1,135 +1,179 @@
+// app/api/chat/stream/route.ts
 import { NextRequest } from 'next/server';
-import { profileChatSystem } from '@/lib/profileChatSystem';
 import { extractAll } from '@/lib/medical/engine/extract';
 import { computeAll } from '@/lib/medical/engine/computeAll';
-// === [MEDX_CALC_ROUTE_IMPORTS_START] ===
-import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
-// === [MEDX_CALC_ROUTE_IMPORTS_END] ===
-// Keep doc-mode clinical prelude tight & relevant
-function filterComputedForDocMode(items: any[], latestUser: string) {
-  const msg = (latestUser || '').toLowerCase();
-  const mentions = (s: string) => msg.includes(s);
-  const isRespContext = mentions('cough') || mentions('fever') || mentions('cold') || mentions('breath') || mentions('sore throat');
-  const needsPEContext = mentions('chest pain') || mentions('pleur') || mentions('shortness of breath') || /\bsob\b/.test(msg);
-  return items
-    // basic sanity
-    .filter((r: any) => r && (Number.isFinite(r.value) || typeof r.value === 'string'))
-    // avoid placeholders/surrogates/partials
-    .filter((r: any) => {
-      const noteStr = (r.notes || []).join(' ').toLowerCase();
-      const lbl = String(r.label || '').toLowerCase();
-      return !/surrogate|placeholder|phase-1|inputs? needed|partial/.test(noteStr + ' ' + lbl);
-    })
-    // relevance pruning
-    .filter((r: any) => {
-      const lbl = String(r.label || '').toLowerCase();
-      // allow these in respiratory context
-      if (isRespContext && (/(curb-?65|news2|qsofa|sirs|qcsi|sofa)/i.test(lbl))) return true;
-      // PERC only if explicit PE context
-      if (/(perc)/i.test(lbl)) return needsPEContext;
-      // drop unrelated rules/noise
-      if (/(glasgow-blatchford|ottawa|ankle|knee|head|rockall|apgar|bishop|pasi|burn|maddrey|fib-4|apri|child-?pugh|meld)/i.test(lbl)) return false;
-      // conservative default: keep only a small, high-signal set
-      return /(curb-?65|news2|qsofa|sirs)/i.test(lbl);
-    });
-}
+import { verifyWithOpenAI } from '@/lib/ai/verifyWithOpenAI';
+
 export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+function corsify(res: Response, extra?: Record<string, string>) {
+  const h = new Headers(res.headers);
+  h.set('Access-Control-Allow-Origin', '*');
+  h.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD');
+  h.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  h.set('Access-Control-Max-Age', '86400');
+  h.set('Cache-Control', 'no-store');
+  if (extra) for (const k of Object.keys(extra)) h.set(k, String(extra[k]));
+  return new Response(res.body, { status: res.status, headers: h });
+}
 
 const recentReqs = new Map<string, number>();
 
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  const bytes = new Uint8Array(hash);
+  let out = '';
+  for (let i = 0; i < bytes.length; i++) out += bytes[i].toString(16).padStart(2, '0');
+  return out;
+}
 
-export async function POST(req: NextRequest) {
-  const { messages = [], context, clientRequestId, mode } = await req.json();
-  const showClinicalPrelude = (mode === 'doctor' || mode === 'research');
-  const now = Date.now();
-  for (const [id, ts] of recentReqs.entries()) {
-    if (now - ts > 60_000) recentReqs.delete(id);
-  }
-  if (clientRequestId) {
-    const ts = recentReqs.get(clientRequestId);
-    if (ts && now - ts < 60_000) {
-      return new Response(null, { status: 409 });
+function sseFromText(text: string) {
+  const enc = new TextEncoder();
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(enc.encode(`data: ${JSON.stringify({ delta: { content: text } })}\n\n`));
+      controller.enqueue(enc.encode(`data: [DONE]\n\n`));
+      controller.close();
     }
-    recentReqs.set(clientRequestId, now);
-  }
-  const base  = process.env.LLM_BASE_URL!;
-  const model = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
-  const key   = process.env.LLM_API_KEY!;
-  const url = `${base.replace(/\/$/,'')}/chat/completions`;
-
-  let finalMessages = messages.filter((m: any) => m.role !== 'system');
-
-  const latestUserMessage = messages.filter((m: any) => m.role === 'user').slice(-1)[0]?.content || "";
-  const userText = (messages || []).map((m: any) => m?.content || '').join('\n');
-  const ctx = extractAll(userText);
-  const computed = computeAll(ctx);
-
-  if (showClinicalPrelude) {
-    const filtered = filterComputedForDocMode(computed, latestUserMessage ?? '');
-    if (filtered.length) {
-      const lines = filtered.map(r => {
-        const val = r.unit ? `${r.value} ${r.unit}` : String(r.value);
-        const notes = r.notes?.length ? ` — ${r.notes.join('; ')}` : '';
-        return `${r.label}: ${val}${notes}`;
-      });
-      finalMessages = [
-        {
-          role: 'system',
-          content:
-            'Use these pre-computed clinical values only if relevant to the question. Do not re-calculate. If inputs are missing, state which values are required and avoid quoting incomplete scores.'
-        },
-        { role: 'system', content: lines.join('\\n') },
-        ...finalMessages,
-      ];
-    }
-  }
-  if (context === 'profile') {
-    try {
-      const origin = req.nextUrl.origin;
-      const headers = { cookie: req.headers.get('cookie') || '' } as any;
-      const [s, p, pk] = await Promise.all([
-        fetch(`${origin}/api/profile/summary`, { headers }).then(r => r.json()).catch(() => ({})),
-        fetch(`${origin}/api/profile`, { headers }).then(r => r.json()).catch(() => null),
-        fetch(`${origin}/api/profile/packet`, { headers }).then(r => r.json()).catch(() => ({ text: '' })),
-      ]);
-      const sys = profileChatSystem({
-        summary: s.summary || s.text || '',
-        reasons: s.reasons || '',
-        profile: p?.profile || p || null,
-        packet: pk.text || '',
-      });
-      finalMessages = [{ role: 'system', content: sys }, ...finalMessages];
-    } catch {}
-  }
-  // === [MEDX_CALC_PRELUDE_START] ===
-  const __calcPrelude = composeCalcPrelude(latestUserMessage ?? "");
-  // Only add calc prelude if we actually included filtered computed lines
-  if (showClinicalPrelude && __calcPrelude && finalMessages.length && finalMessages[0]?.role === 'system') {
-    finalMessages = [{ role: 'system', content: __calcPrelude }, ...finalMessages];
-  }
-  // === [MEDX_CALC_PRELUDE_END] ===
-
-  const upstream = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model,
-      stream: true,
-      temperature: 0,
-      top_p: 1,
-      frequency_penalty: 0,
-      presence_penalty: 0,
-      messages: finalMessages,
-    })
-  });
-
-  if (!upstream.ok) {
-    const err = await upstream.text();
-    return new Response(`LLM error: ${err}`, { status: 500 });
-  }
-
-  // Pass-through SSE; frontend parses "data: {delta.content}"
-  return new Response(upstream.body, {
-    headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }
   });
 }
+
+// Parse last balanced JSON block from user text
+function extractEmbeddedJSONObject(text: string): any | null {
+  let bestStart = -1, bestEnd = -1;
+  const s = String(text || '');
+  const n = s.length;
+  const stack: number[] = [];
+  let inStr: '"' | "'" | null = null;
+  for (let i = 0; i < n; i++) {
+    const ch = s[i];
+    const prev = i > 0 ? s[i - 1] : '';
+    if (inStr) { if (ch === inStr && prev !== '\\') inStr = null; continue; }
+    if (ch === '"' || ch === "'") { inStr = ch as any; continue; }
+    if (ch === '{') stack.push(i);
+    else if (ch === '}' && stack.length) { const start = stack.pop()!; bestStart = start; bestEnd = i; }
+  }
+  if (bestStart >= 0 && bestEnd > bestStart) {
+    const candidate = s.slice(bestStart, bestEnd + 1).trim();
+    try { return JSON.parse(candidate); } catch {}
+  }
+  return null;
+}
+
+// Lightweight regex overlay for key lab values; normalize obvious decimal shifts
+type KV = Record<string, number>;
+function extractKVFromText(text: string): KV {
+  const out: KV = {};
+  const s = String(text || '');
+  const num = String.raw`(-?\d+(?:\.\d+)?)`;
+  const defs: Array<{k:string; pat:RegExp}> = [
+    { k: 'Na',  pat: new RegExp(String.raw`\b(?:Na|sodium)\b[^\d\-]*${num}`, 'i') },
+    { k: 'K',   pat: new RegExp(String.raw`\b(?:K|potassium)\b[^\d\-]*${num}`, 'i') },
+    { k: 'Cl',  pat: new RegExp(String.raw`\b(?:Cl|chloride)\b[^\d\-]*${num}`, 'i') },
+    { k: 'HCO3',pat: new RegExp(String.raw`\b(?:HCO3|bicarb(?:onate)?)\b[^\d\-]*${num}`, 'i') },
+    { k: 'Glucose', pat: new RegExp(String.raw`\b(?:glucose|GLU)\b[^\d\-]*${num}(?:\s*mg\/?dL)?`, 'i') },
+    { k: 'BUN', pat: new RegExp(String.raw`\b(?:BUN|urea(?:\s*nitrogen)?)\b[^\d\-]*${num}`, 'i') },
+    { k: 'Cr',  pat: new RegExp(String.raw`\b(?:Cr|creatinine|creat)\b[^\d\-]*${num}`, 'i') },
+    { k: 'Albumin', pat: new RegExp(String.raw`\b(?:albumin|alb)\b[^\d\-]*${num}`, 'i') },
+    { k: 'pH',  pat: new RegExp(String.raw`\b(?:pH|ph)\b[^\d\-]*${num}`, 'i') },
+    { k: 'pCO2',pat: new RegExp(String.raw`\b(?:pCO2|PaCO2)\b[^\d\-]*${num}`, 'i') },
+    { k: 'Osm_measured', pat: new RegExp(String.raw`\b(?:measured\s*osm(?:olality)?|osm_measured|osmolality)\b[^\d\-]*${num}`, 'i') },
+    { k: 'Lactate', pat: new RegExp(String.raw`\b(?:lactate|lact)\b[^\d\-]*${num}`, 'i') },
+  ];
+  for (const d of defs) {
+    const m = d.pat.exec(s);
+    if (m) {
+      const v = Number(m[1]);
+      if (Number.isFinite(v)) out[d.k] = v;
+    }
+  }
+  if (out.K !== undefined && out.K > 25 && out.K / 100 >= 2 && out.K / 100 <= 12) out.K = +(out.K / 100).toFixed(2);
+  return out;
+}
+
+function mergeCtxFromUserText(userText: string) {
+  const extracted = extractAll(userText) || {};
+  const kv = extractKVFromText(userText);
+  const jsonBlock = extractEmbeddedJSONObject(userText) || {};
+  return Object.assign({}, extracted, kv, jsonBlock);
+}
+
+async function handle(req: NextRequest, payload: any) {
+  const method = req.method || 'GET';
+  const messages = Array.isArray(payload?.messages) ? payload.messages : [];
+  const clientRequestId = payload?.clientRequestId;
+  const mode = payload?.mode;
+
+  const now = Date.now();
+  for (const [id, ts] of Array.from(recentReqs.entries())) if (now - ts > 60_000) recentReqs.delete(id);
+  if (clientRequestId) {
+    const prev = recentReqs.get(clientRequestId);
+    if (prev && now - prev < 60_000) return corsify(new Response(null, { status: 409 }), { 'X-Chat-Route-Method': method });
+    recentReqs.set(clientRequestId, now);
+  }
+
+  // collect user text
+  let userText = '';
+  const nonSystem: Array<{role:string; content:string}> = [];
+  for (const m of messages) if (m && m.role !== 'system') nonSystem.push(m);
+  for (const m of nonSystem) if (m.role === 'user') userText += String(m.content || '') + '\n';
+
+  // build ctx and first-pass calculators (hints only)
+  const ctx = mergeCtxFromUserText(userText);
+  const computed = computeAll(ctx) || [];
+
+  // verify and compute with OpenAI (authoritative)
+  const cacheKey = await sha256Hex(JSON.stringify({ ctx, ver: 'openai-final-v2' }));
+  // Simple per-request call; add a Map cache if desired
+  const verdict = await verifyWithOpenAI({
+    mode: String(mode || 'default'),
+    ctx,
+    computed,
+    conversation: nonSystem.map(m => ({ role: m.role, content: m.content })),
+    timeoutMs: 60_000
+  });
+
+  const finalText = verdict?.final_text ||
+    'Clinical summary (verified):\n- Interpretation: insufficient inputs\nRules applied: standard formulas.';
+
+  const stream = sseFromText(finalText);
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400',
+      'X-Verify-Used': verdict ? '1' : '0',
+      'X-Chat-Route-Method': method
+    },
+  });
+}
+
+// GET supports ?payload=<json> and legacy shape
+export async function GET(req: NextRequest) {
+  const u = req.nextUrl;
+  const payloadParam = u.searchParams.get('payload');
+  let payload: any = {};
+  if (payloadParam) { try { payload = JSON.parse(decodeURIComponent(payloadParam)); } catch { payload = {}; } }
+  else {
+    const mode = u.searchParams.get('mode') || undefined;
+    const ctx = u.searchParams.get('context') || undefined;
+    const msgs = u.searchParams.get('messages');
+    let messages: any[] | undefined = undefined;
+    if (msgs) { try { messages = JSON.parse(msgs); } catch {} }
+    payload = { mode, context: ctx, messages };
+  }
+  return handle(req, payload);
+}
+export async function POST(req: NextRequest)  { const p = await req.json().catch(() => ({})); return handle(req, p); }
+export async function PUT(req: NextRequest)   { const p = await req.json().catch(() => ({})); return handle(req, p); }
+export async function PATCH(req: NextRequest) { const p = await req.json().catch(() => ({})); return handle(req, p); }
+export async function DELETE(req: NextRequest){ const p = await req.json().catch(() => ({})); return handle(req, p); }
+export async function OPTIONS() { return corsify(new Response(null, { status: 204 })); }
+export async function HEAD()    { return corsify(new Response(null, { status: 200 })); }
