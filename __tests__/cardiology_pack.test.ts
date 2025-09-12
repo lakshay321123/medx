@@ -1,10 +1,12 @@
 /**
  * Cardiology Risk Pack: CHA2DS2-VASc, TIMI (UA/NSTEMI & STEMI), GRACE (scaffold)
  */
-import { FORMULAE } from "../lib/medical/engine/registry";
+import { describe, test, expect } from "vitest";
+import { all } from "../lib/medical/engine/registry";
+import "../lib/medical/engine/calculators";
 
 function get(id: string) {
-  const f = FORMULAE.find(f => f.id === id);
+  const f = all().find(f => f.id === id);
   if (!f) throw new Error("Formula not found: " + id);
   return f;
 }

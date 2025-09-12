@@ -3,19 +3,21 @@
  * If a calculator truly requires a very specific data type, it should handle coercion or null return
  * rather than throwing.
  */
-import { FORMULAE } from "../lib/medical/engine/registry";
+import { describe, it, expect } from "vitest";
+import { all } from "../lib/medical/engine/registry";
+import "../lib/medical/engine/calculators";
 import { makeContext } from "./helpers";
 
 describe("Calculator smoke tests", () => {
   it("each calculator.run does not throw", () => {
-    for (const f of FORMULAE) {
+    for (const f of all()) {
       const ctx = makeContext(f.inputs || []);
       expect(() => f.run(ctx)).not.toThrow();
     }
   });
 
   it("returned results have basic shape when not null", () => {
-    for (const f of FORMULAE) {
+    for (const f of all()) {
       const ctx = makeContext(f.inputs || []);
       const r = f.run(ctx);
       if (r != null) {
