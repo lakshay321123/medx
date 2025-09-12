@@ -49,13 +49,12 @@ export function buildVerifyUserContent(payload: {
   computed?: Array<any>;
   conversation?: Array<{role: string; content: string}>;
 }) {
-  // Minimal, unambiguous JSON instruction. No external schema parsing on server.
   return JSON.stringify({
     instruction: "Compute and verify per VERIFY_SYSTEM. Return strict JSON matching keys in the example_template; omit unknowns.",
     example_template: {
       ok: true,
       version: "v2",
-      corrected_values: { /* id_or_field: new_value or {value, unit, notes[]} */ },
+      corrected_values: {},
       derived: {
         anion_gap: 0,
         ag_corrected: 0,
