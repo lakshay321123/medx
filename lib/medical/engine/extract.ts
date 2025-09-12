@@ -1,4 +1,3 @@
-import { FORMULAE } from "./registry";
 import "./calculators";
 import { safeNumber, toMgDlFromMmolGlucose } from "./units";
 
