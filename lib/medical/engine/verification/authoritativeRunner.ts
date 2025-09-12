@@ -1,26 +1,25 @@
-import { finalizeCalc } from "./triageFinalizer";
-import { FormulaSpecs } from "./formulaSpecs";
-import { normalizeInputs } from "./normalize";
-import { policyFor } from "./policy";
+import { finalizeCalc } from "@/lib/medical/engine/verification/triageFinalizer";
+import { FormulaSpecs } from "@/lib/medical/engine/verification/formulaSpecs";
+import { normalizeInputs } from "@/lib/medical/engine/verification/normalize";
+import { policyFor } from "@/lib/medical/engine/verification/policy";
+import * as Calculators from "@/lib/medical/engine/calculators"; // your index that re-exports calculators
 
-// IMPORTANT: use your existing calculators loader/registry here.
-// Option A (preferred): import your central registry that already imports all calculators:
-import * as Calculators from "../calculators"; // if this exports named calculators
+type Inputs = Record<string, any>;
+type CalcFn = (inputs: Inputs) => number;
 
-export async function runCalcAuthoritative(name: string, rawInputs: Record<string, any>) {
-  // 1) Normalize inputs (units, NaNs, strings)
-  const inputs = normalizeInputs(name, rawInputs);
-
-  // 2) Compute local deterministic result
+function resolveCalculator(name: string): CalcFn {
   const fn = (Calculators as any)[name];
-  if (typeof fn !== "function") throw new Error(`Calculator not found in registry: ${name}`);
-  const localResult = fn(inputs);
+  if (!fn) throw new Error(`Calculator not found in registry: ${name}`);
+  return fn as CalcFn;
+}
 
-  // 3) Get policy + formula spec
+export async function runCalcAuthoritative(name: string, rawInputs: Inputs) {
+  const inputs = normalizeInputs(name, rawInputs);
+  const fn = resolveCalculator(name);
+  const localResult = fn(inputs);
   const policy = policyFor(name);
   const formulaSpec = FormulaSpecs[name] ?? name;
 
-  // 4) Triage
   return finalizeCalc({
     name,
     formulaSpec,
