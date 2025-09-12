@@ -20,8 +20,8 @@ register({
 });
 
 register({
-  id: "osmolal_gap",
-  label: "Osmolal gap",
+  id: "osmolal_gap_legacy",
+  label: "Osmolal gap (legacy)",
   inputs: [
     { key: "Na", required: true },
     { key: "glucose_mgdl" },
@@ -34,6 +34,6 @@ register({
     const gap = inp.osm_meas! - calc;
     const notes: string[] = [];
     if (gap > 10) notes.push("elevated gap");
-    return { id: "osmolal_gap", label: "Osmolal gap", value: gap, unit: "mOsm/kg", precision: 0, notes };
+    return { id: "osmolal_gap_legacy", label: "Osmolal gap (legacy)", value: gap, unit: "mOsm/kg", precision: 0, notes };
   },
 });

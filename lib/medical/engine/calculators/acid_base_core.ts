@@ -1,54 +1,148 @@
-
+// lib/medical/engine/calculators/acid_base_core.ts
 import { register } from "../registry";
 
-export type AGInputs = { Na: number, Cl: number, HCO3: number };
-export function runAnionGap({ Na, Cl, HCO3 }: AGInputs) {
-  if ([Na,Cl,HCO3].some(v=>v==null || !isFinite(v as number))) return null;
-  const ag = Na - (Cl + HCO3);
-  return { ag: Number(ag.toFixed(1)) };
-}
+// Canonical AG (no K)
+register({
+  id: "anion_gap",
+  label: "Anion gap",
+  tags: ["electrolytes", "acid-base"],
+  inputs: [
+    { key: "Na", required: true },
+    { key: "Cl", required: true },
+    { key: "HCO3", required: true },
+  ],
+  run: ({ Na, Cl, HCO3 }) => {
+    if (Na == null || Cl == null || HCO3 == null) return null;
+    const ag = Na - (Cl + HCO3);
+    const notes: string[] = [];
+    if (ag > 12) notes.push("elevated anion gap");
+    return { id: "anion_gap", label: "Anion gap", value: +ag.toFixed(1), unit: "mmol/L", precision: 1, notes };
+  },
+});
 
-export type AGAlbInputs = { AG: number, albumin_g_dL: number };
-export function runAnionGapAlbuminCorrected({ AG, albumin_g_dL }: AGAlbInputs) {
-  if ([AG,albumin_g_dL].some(v=>v==null || !isFinite(v as number))) return null;
-  const corr = AG + 2.5 * (4.0 - albumin_g_dL);
-  return { ag_corrected: Number(corr.toFixed(1)) };
-}
+// Albumin-corrected AG (base on no-K AG)
+register({
+  id: "anion_gap_corrected",
+  label: "Anion gap (albumin-corrected)",
+  tags: ["electrolytes", "acid-base"],
+  inputs: [
+    { key: "Na", required: true },
+    { key: "Cl", required: true },
+    { key: "HCO3", required: true },
+    { key: "albumin", required: true },
+  ],
+  run: ({ Na, Cl, HCO3, albumin }) => {
+    if (Na == null || Cl == null || HCO3 == null || albumin == null) return null;
+    const ag = Na - (Cl + HCO3);
+    const corrected = ag + 2.5 * (4 - albumin);
+    const notes = [`uncorr AG=${ag.toFixed(1)}`];
+    if (corrected > 12) notes.push("elevated anion gap (corrected)");
+    return { id: "anion_gap_corrected", label: "Anion gap (albumin-corrected)", value: +corrected.toFixed(1), unit: "mmol/L", precision: 1, notes };
+  },
+});
 
-export type WintersInputs = { HCO3: number };
-export function runWintersExpectedPaCO2({ HCO3 }: WintersInputs) {
-  if (HCO3==null || !isFinite(HCO3)) return null;
-  const exp = 1.5*HCO3 + 8;
-  return { expected_PaCO2_mmHg: Number(exp.toFixed(0)), range_mmHg: [Number((exp-2).toFixed(0)), Number((exp+2).toFixed(0))] };
-}
+// Winter’s expected PaCO₂
+register({
+  id: "winters_expected_paco2",
+  label: "Expected PaCO₂ (Winter’s)",
+  tags: ["acid-base"],
+  inputs: [{ key: "HCO3", required: true }],
+  run: ({ HCO3 }) => {
+    if (HCO3 == null) return null;
+    const expected = 1.5 * HCO3 + 8;
+    const low = expected - 2;
+    const high = expected + 2;
+    const notes = [`expected ${low.toFixed(1)}–${high.toFixed(1)} mmHg (±2)`];
+    return { id: "winters_expected_paco2", label: "Expected PaCO₂ (Winter’s)", value: +expected.toFixed(1), unit: "mmHg", precision: 1, notes };
+  },
+});
 
-export type DeltaGapInputs = { AG: number, HCO3: number };
-export function runDeltaGap({ AG, HCO3 }: DeltaGapInputs) {
-  if ([AG,HCO3].some(v=>v==null || !isFinite(v as number))) return null;
-  const delta = (AG - 12) - (24 - HCO3);
-  return { delta_gap: Number(delta.toFixed(1)) };
-}
+// Serum osmolality, effective osmolality, and osmolal gap
+register({
+  id: "serum_osmolality",
+  label: "Serum osmolality (calculated)",
+  tags: ["electrolytes", "osmolar"],
+  inputs: [
+    { key: "Na", required: true },
+    { key: "glucose_mgdl", required: true },
+    { key: "BUN", required: true },
+    { key: "ethanol_mgdl" },
+  ],
+  run: ({ Na, glucose_mgdl, BUN, ethanol_mgdl }) => {
+    if (Na == null || glucose_mgdl == null || BUN == null) return null;
+    const osm = 2 * Na + glucose_mgdl / 18 + BUN / 2.8 + (ethanol_mgdl ? ethanol_mgdl / 3.7 : 0);
+    return { id: "serum_osmolality", label: "Serum osmolality (calculated)", value: +osm.toFixed(0), unit: "mOsm/kg", precision: 0 };
+  },
+});
 
-export function runDeltaRatio({ AG, HCO3 }: DeltaGapInputs) {
-  if ([AG,HCO3].some(v=>v==null || !isFinite(v as number))) return null;
-  const num = (AG - 12);
-  const den = (24 - HCO3);
-  if (den===0) return { delta_ratio: null, note: "ΔHCO3 is 0" };
-  const ratio = num/den;
-  return { delta_ratio: Number(ratio.toFixed(2)) };
-}
+register({
+  id: "effective_osmolality",
+  label: "Effective osmolality (tonicity)",
+  tags: ["electrolytes", "osmolar"],
+  inputs: [{ key: "Na", required: true }, { key: "glucose_mgdl", required: true }],
+  run: ({ Na, glucose_mgdl }) => {
+    if (Na == null || glucose_mgdl == null) return null;
+    const eff = 2 * Na + glucose_mgdl / 18;
+    return { id: "effective_osmolality", label: "Effective osmolality (tonicity)", value: +eff.toFixed(0), unit: "mOsm/kg", precision: 0 };
+  },
+});
 
-export type BicarbDefInputs = { weight_kg: number, HCO3: number, target_HCO3?: number };
-export function runBicarbonateDeficit({ weight_kg, HCO3, target_HCO3=24 }: BicarbDefInputs) {
-  if ([weight_kg,HCO3,target_HCO3].some(v=>v==null || !isFinite(v as number))) return null;
-  const TBW = 0.6 * weight_kg; // adult default
-  const deficit = (target_HCO3 - HCO3) * TBW;
-  return { bicarbonate_deficit_mEq: Number(deficit.toFixed(0)) };
-}
+register({
+  id: "osmolal_gap",
+  label: "Osmolal gap",
+  tags: ["electrolytes","osmolar"],
+  inputs: [
+    { key: "Na", required: true },
+    { key: "glucose_mgdl", required: true },
+    { key: "BUN", required: true },
+    { key: "Osm_measured" }, { key: "measured_osm" }, { key: "osm_meas" },
+    { key: "ethanol_mgdl" },
+  ],
+  run: ({ Na, glucose_mgdl, BUN, Osm_measured, measured_osm, osm_meas, ethanol_mgdl }) => {
+    const Osm = Osm_measured ?? measured_osm ?? osm_meas;
+    if (Na == null || glucose_mgdl == null || BUN == null || Osm == null) return null;
+    const calc = 2*Na + glucose_mgdl/18 + BUN/2.8 + (ethanol_mgdl ? ethanol_mgdl/3.7 : 0);
+    const gap = Osm - calc;
+    const notes: string[] = [];
+    if (gap > 10) notes.push("elevated osmolal gap");
+    return { id: "osmolal_gap", label: "Osmolal gap", value: Math.round(gap), unit: "mOsm/kg", precision: 0, notes };
+  },
+});
 
-register({ id:"anion_gap", label:"Anion gap", inputs:[{key:"Na",required:true},{key:"Cl",required:true},{key:"HCO3",required:true}], run: runAnionGap as any });
-register({ id:"anion_gap_albumin_corrected", label:"Anion gap (albumin-corrected)", inputs:[{key:"AG",required:true},{key:"albumin_g_dL",required:true}], run: runAnionGapAlbuminCorrected as any });
-register({ id:"winters_expected_paco2", label:"Winter's expected PaCO₂", inputs:[{key:"HCO3",required:true}], run: runWintersExpectedPaCO2 as any });
-register({ id:"delta_gap", label:"Delta gap (AG−12) − (24−HCO3)", inputs:[{key:"AG",required:true},{key:"HCO3",required:true}], run: runDeltaGap as any });
-register({ id:"delta_ratio", label:"Delta ratio (ΔAG/ΔHCO₃)", inputs:[{key:"AG",required:true},{key:"HCO3",required:true}], run: runDeltaRatio as any });
-register({ id:"bicarbonate_deficit", label:"Bicarbonate deficit (approx)", inputs:[{key:"weight_kg",required:true},{key:"HCO3",required:true},{key:"target_HCO3"}], run: runBicarbonateDeficit as any });
+// DKA/HHS supportive flags
+register({
+  id: "dka_flag",
+  label: "DKA supportive",
+  tags: ["endocrine", "acid-base"],
+  inputs: [
+    { key: "glucose_mgdl", required: true },
+    { key: "HCO3", required: true },
+    { key: "pH", required: true },
+    { key: "Na", required: true },
+    { key: "Cl", required: true },
+  ],
+  run: ({ glucose_mgdl, HCO3, pH, Na, Cl }) => {
+    if (glucose_mgdl == null || HCO3 == null || pH == null || Na == null || Cl == null) return null;
+    const ag = Na - (Cl + HCO3);
+    const ok = glucose_mgdl >= 250 && HCO3 < 18 && pH < 7.3 && ag > 12;
+    return { id: "dka_flag", label: "DKA supportive", value: ok ? 1 : 0, precision: 0, notes: ok ? ["meets lab bands (ketones not provided)"] : [] };
+  },
+});
+
+register({
+  id: "hhs_flag",
+  label: "HHS supportive",
+  tags: ["endocrine", "acid-base"],
+  inputs: [
+    { key: "glucose_mgdl", required: true },
+    { key: "Na", required: true },
+    { key: "HCO3", required: true },
+    { key: "pH", required: true },
+  ],
+  run: ({ glucose_mgdl, Na, HCO3, pH }) => {
+    if (glucose_mgdl == null || Na == null || HCO3 == null || pH == null) return null;
+    const effective = 2 * Na + glucose_mgdl / 18;
+    const ok = glucose_mgdl >= 600 && effective >= 320 && pH >= 7.3 && HCO3 >= 18;
+    return { id: "hhs_flag", label: "HHS supportive", value: ok ? 1 : 0, precision: 0, notes: ok ? [`effective osm ≥320`] : [] };
+  },
+});

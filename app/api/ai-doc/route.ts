@@ -15,7 +15,6 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { extractAll } from "@/lib/medical/engine/extract";
 import { computeAll } from "@/lib/medical/engine/computeAll";
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
-import { composeCalcPrelude } from "@/lib/medical/engine/prelude";
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
 
 async function getFeedbackSummary(conversationId: string) {
@@ -95,47 +94,47 @@ export async function POST(req: NextRequest) {
   const userText = String(message || "");
   const ctx = extractAll(userText);
   const computed = computeAll(ctx);
-  // Keep the computed results, but show only critical, on-topic lines up-front.
-  // We gate by ids/tags + abnormality and cap the length to reduce noise.
-
+  // Curate what we surface to the model: top, relevant items only.
   const CRIT_IDS = new Set<string>([
-    "anion_gap", "anion_gap_corrected",
-    "serum_osmolality", "osmolal_gap", "osmolar_gap",
-    "corrected_na_hyperglycemia",
-    "winters_expected_paco2", "acid_base_summary",
-    "dka_gate", "hhs_gate", "potassium_insulin_gate",
+    "anion_gap",
+    "anion_gap_corrected",
+    "winters_expected_paco2",
+    "serum_osmolality",
+    "effective_osmolality",
+    "osmolal_gap",
+    "dka_flag",
+    "hhs_flag",
+    // include your existing potassium guard if present:
+    "ada_k_guard",
   ]);
 
   function isAbnormal(r: any) {
-    // Minimal heuristic: if there are any notes or unit-bearing numbers with out-of-range labels we flagged upstream.
-    // (Your calculators already attach notes when abnormal; rely on that.)
-    return Array.isArray(r.notes) && r.notes.length > 0;
+    return Array.isArray(r?.notes) && r.notes.length > 0;
   }
 
-  const critical = computed
-    .filter(r => CRIT_IDS.has(r.id) || isAbnormal(r))
+  const curated = computed
+    .filter((r) => CRIT_IDS.has(r.id) || isAbnormal(r))
     .slice(0, 8);
 
-  if (critical.length) {
-    const lines = critical.map(r => {
-      const val = r.unit ? `${r.value} ${r.unit}` : String(r.value);
-      const notes = r.notes?.length ? ` — ${r.notes.join("; ")}` : "";
-      return `${r.label}: ${val}${notes}`;
-    });
-
-    system =
-      [
-        "Use only the pre-computed clinical values below when directly relevant. Do not list other scores unless asked. If inputs are missing, state which values are required.",
-        ...lines,
-        "",
-        Array.isArray(system) ? system.join("\n") : String(system),
-      ].join("\n");
+  let curatedLines = "";
+  if (curated.length) {
+    curatedLines = curated
+      .map((r) => {
+        const val = r.unit ? `${r.value} ${r.unit}` : String(r.value);
+        const notes = r.notes?.length ? ` — ${r.notes.join("; ")}` : "";
+        return `${r.label}: ${val}${notes}`;
+      })
+      .join("\n");
   }
 
-  // === [MEDX_CALC_PRELUDE_START] ===
-  const __calcPrelude = composeCalcPrelude(message ?? "");
-  if (typeof system === "string") system = [__calcPrelude, system].filter(Boolean).join("\n");
-  // === [MEDX_CALC_PRELUDE_END] ===
+  // Build final system: curated block + your base prompt (no raw full dump)
+  system = [
+    "Use only the pre-computed clinical values below when directly relevant. Do not list other scores unless asked.",
+    curatedLines,
+    String(system || ""),
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   // Call LLM (JSON-only)
   const feedback_summary = await getFeedbackSummary(threadId || "");

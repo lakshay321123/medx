@@ -4,6 +4,11 @@ import { safeNumber, toMgDlFromMmolGlucose } from "./units";
 
 const num = /([0-9]+(?:\.[0-9]+)?)/;
 
+const ALIAS: Record<string, string> = {
+  measured_osm: "Osm_measured",
+  osm_meas: "Osm_measured",
+};
+
 // === [MEDX_CALC_HELPERS_START] ===
 function pickNum(rx: RegExp, s: string): number | undefined {
   const m = s.match(rx);
@@ -104,8 +109,10 @@ export function extractAll(s: string): Record<string, any> {
 
   if (out.ethanol_mgdl == null) out.ethanol_mgdl = pickNum(/\b(etoh|ethanol)[^0-9]*[:=]?\s*([0-9.]+)/, t);
 
-  // Repo compatibility: if you have measured_osm, mirror it to osm_meas expected by calcs
-  if (out.osm_meas == null && (out.measured_osm != null)) out.osm_meas = out.measured_osm;
+  for (const [src, dest] of Object.entries(ALIAS)) {
+    if (out[src] != null && out[dest] == null) out[dest] = out[src];
+  }
+  if (out.osm_meas == null && out.Osm_measured != null) out.osm_meas = out.Osm_measured;
   // === [MEDX_CALC_INPUTS_END] ===
 
   // === [MEDX_CALC_URINE_START] ===

@@ -33,7 +33,7 @@ export function buildAiDocPrompt({ profile, labs, meds, conditions }: BuildInput
     "  • Start with a 2–4 line clinical summary (problem + cause + immediate risk).",
     "  • Then list 3–6 prioritized actions with rationale.",
     "  • Only mention risk scores that materially change management.",
-    "  • Never dump large lists of unrelated scores unless the user explicitly asks.",
-    "  • If a required input is missing, state the missing item instead of guessing.",
+    "  • Never dump large lists of unrelated scores unless explicitly requested.",
+    "  • If a required input is missing, say which one instead of guessing.",
   ].join("\n");
 }
