@@ -21,27 +21,16 @@ export default function Page({ searchParams }: { searchParams: Search }) {
 
   return (
     <main className="flex-1 overflow-y-auto content-layer">
-      <section className={panel === "chat" ? "block h-full" : "hidden"}>
+      {panel === "chat" && (
         <ResearchFiltersProvider>
           <ChatPane inputRef={chatInputRef} />
         </ResearchFiltersProvider>
-      </section>
+      )}
 
-      <section className={panel === "profile" ? "block" : "hidden"}>
-        <MedicalProfile />
-      </section>
-
-      <section className={panel === "timeline" ? "block" : "hidden"}>
-        <Timeline />
-      </section>
-
-      <section className={panel === "alerts" ? "block" : "hidden"}>
-        <AlertsPane />
-      </section>
-
-      <section className={panel === "settings" ? "block" : "hidden"}>
-        <SettingsPane />
-      </section>
+      {panel === "profile" && <MedicalProfile />}
+      {panel === "timeline" && <Timeline />}
+      {panel === "alerts" && <AlertsPane />}
+      {panel === "settings" && <SettingsPane />}
     </main>
   );
 }

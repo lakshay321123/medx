@@ -613,36 +613,42 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     // --- social intent fast path: greet/thanks/yes/no/maybe/repeat/simpler/shorter/longer/next ---
     const social = therapyMode ? null : detectSocialIntent(userText);
     if (social) {
-      // Use the unified mode that accounts for therapy/research
-      const msgBase = replyForSocialIntent(social, currentMode);
+      // Prevent greeting spam mid-conversation
+      const hasHistory = messages.some(m => m.role === "assistant" || m.role === "user");
+      if (social === "greeting" && hasHistory) {
+        // Ignore greetings once conversation started
+      } else {
+        // Use the unified mode that accounts for therapy/research
+        const msgBase = replyForSocialIntent(social, currentMode);
 
-      // Optionally use last assistant message for repeat/shorter (lightweight, no LLM)
-      const lastAssistant = [...messages].reverse().find(m =>
-        m.role === "assistant" && m.kind === "chat" && !m.pending && !m.error
-      ) as any | undefined;
+        // Optionally use last assistant message for repeat/shorter (lightweight, no LLM)
+        const lastAssistant = [...messages].reverse().find(m =>
+          m.role === "assistant" && m.kind === "chat" && !m.pending && !m.error
+        ) as any | undefined;
 
-      let content = msgBase;
-      if (lastAssistant && (social === "repeat" || social === "shorter")) {
-        const t = String(lastAssistant.content || "");
-        if (social === "repeat") content += "\n\n" + t;
-        if (social === "shorter") content += "\n\n" + (t.length > 400 ? t.slice(0, 400) + " …" : t);
-      }
+        let content = msgBase;
+        if (lastAssistant && (social === "repeat" || social === "shorter")) {
+          const t = String(lastAssistant.content || "");
+          if (social === "repeat") content += "\n\n" + t;
+          if (social === "shorter") content += "\n\n" + (t.length > 400 ? t.slice(0, 400) + " …" : t);
+        }
 
-      setMessages(prev => [
-        ...prev,
-        { id: uid(), role: "user", kind: "chat", content: userText } as any,
-        { id: uid(), role: "assistant", kind: "chat", content } as any,
-      ]);
-      if (threadId && content && content.trim()) {
-        pushFullMem(threadId, "assistant", content);
-        maybeIndexStructured(threadId, content);
+        setMessages(prev => [
+          ...prev,
+          { id: uid(), role: "user", kind: "chat", content: userText } as any,
+          { id: uid(), role: "assistant", kind: "chat", content } as any,
+        ]);
+        if (threadId && content && content.trim()) {
+          pushFullMem(threadId, "assistant", content);
+          maybeIndexStructured(threadId, content);
+        }
+        if (stableThreadId) {
+          try { pushFullMem(stableThreadId, "assistant", content); } catch {}
+        }
+        setNote("");
+        setBusy(false);
+        return; // IMPORTANT: do not set topic, do not trigger research/planner
       }
-      if (stableThreadId) {
-        try { pushFullMem(stableThreadId, "assistant", content); } catch {}
-      }
-      setNote("");
-      setBusy(false);
-      return; // IMPORTANT: do not set topic, do not trigger research/planner
     }
 
     // --- EDIT FAST-PATH (disabled) ---
