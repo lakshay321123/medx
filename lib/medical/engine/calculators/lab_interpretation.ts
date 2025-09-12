@@ -1224,6 +1224,7 @@ register({
     { key: "age", required: true },            // years
   ],
   run: ({ confusion, BUN, RRr, SBP, DBP, age }) => {
+    if ([confusion, BUN, RRr, SBP, DBP, age].some(v => v == null)) return null;
     const pts =
       (confusion ? 1 : 0) +
       ((BUN ?? 0) >= 20 ? 1 : 0) +
@@ -1873,6 +1874,7 @@ register({
     { key: "conscious_level", required: true }, // "A" | "V" | "P" | "U"
   ],
   run: ({ RRr, SaO2, on_o2, temp_c, SBP, HR, conscious_level }) => {
+    if ([RRr, SaO2, on_o2, temp_c, SBP, HR, conscious_level].some(v => v == null)) return null;
     const pRR = RRr <= 8 ? 3 : RRr <= 11 ? 1 : RRr <= 20 ? 0 : RRr <= 24 ? 2 : 3;
     const pO2 = SaO2 < 86 ? 3 : SaO2 <= 90 ? 2 : SaO2 <= 92 ? 1 : SaO2 <= 94 ? 1 : SaO2 <= 96 ? 0 : 0;
     const pT  = temp_c < 35 ? 3 : temp_c <= 36 ? 1 : temp_c <= 38 ? 0 : temp_c <= 39 ? 1 : 2;
@@ -4445,6 +4447,7 @@ register({
     { key: "gcs_le_14", required: true },
   ],
   run: (x) => {
+    if (x.sbp_le_100 == null || x.rr_ge_22 == null || x.gcs_le_14 == null) return null;
     const score = [x.sbp_le_100, x.rr_ge_22, x.gcs_le_14].filter(Boolean).length;
     return { id: "qsofa", label: "qSOFA", value: score, unit: "points", precision: 0, notes: [score>=2?"high risk":"lower risk"] };
   },

@@ -95,17 +95,41 @@ export async function POST(req: NextRequest) {
   const userText = String(message || "");
   const ctx = extractAll(userText);
   const computed = computeAll(ctx);
-  if (computed.length) {
-    const lines = computed.map(r => {
+  // Keep the computed results, but show only critical, on-topic lines up-front.
+  // We gate by ids/tags + abnormality and cap the length to reduce noise.
+
+  const CRIT_IDS = new Set<string>([
+    "anion_gap", "anion_gap_corrected",
+    "serum_osmolality", "osmolal_gap", "osmolar_gap",
+    "corrected_na_hyperglycemia",
+    "winters_expected_paco2", "acid_base_summary",
+    "dka_gate", "hhs_gate", "potassium_insulin_gate",
+  ]);
+
+  function isAbnormal(r: any) {
+    // Minimal heuristic: if there are any notes or unit-bearing numbers with out-of-range labels we flagged upstream.
+    // (Your calculators already attach notes when abnormal; rely on that.)
+    return Array.isArray(r.notes) && r.notes.length > 0;
+  }
+
+  const critical = computed
+    .filter(r => CRIT_IDS.has(r.id) || isAbnormal(r))
+    .slice(0, 8);
+
+  if (critical.length) {
+    const lines = critical.map(r => {
       const val = r.unit ? `${r.value} ${r.unit}` : String(r.value);
-      const notes = r.notes?.length ? ` — ${r.notes.join('; ')}` : '';
+      const notes = r.notes?.length ? ` — ${r.notes.join("; ")}` : "";
       return `${r.label}: ${val}${notes}`;
     });
+
     system =
-      "Use the pre-computed clinical values below exactly. Do not re-calculate. If inputs are missing, state which values are required.\n" +
-      lines.join("\n") +
-      "\n\n" +
-      system;
+      [
+        "Use only the pre-computed clinical values below when directly relevant. Do not list other scores unless asked. If inputs are missing, state which values are required.",
+        ...lines,
+        "",
+        Array.isArray(system) ? system.join("\n") : String(system),
+      ].join("\n");
   }
 
   // === [MEDX_CALC_PRELUDE_START] ===
