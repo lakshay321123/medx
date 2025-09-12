@@ -5,15 +5,21 @@ import { computeAll } from '@/lib/medical/engine/computeAll';
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
+
 // Keep doc-mode clinical prelude tight & relevant
 function filterComputedForDocMode(items: any[], latestUser: string) {
   const msg = (latestUser || '').toLowerCase();
   const mentions = (s: string) => msg.includes(s);
-  const isRespContext = mentions('cough') || mentions('fever') || mentions('cold') || mentions('breath') || mentions('sore throat');
-  const needsPEContext = mentions('chest pain') || mentions('pleur') || mentions('shortness of breath') || /\bsob\b/.test(msg);
+  const isRespContext =
+    mentions('cough') || mentions('fever') || mentions('cold') ||
+    mentions('breath') || mentions('sore throat');
+  const needsPEContext =
+    mentions('chest pain') || mentions('pleur') ||
+    mentions('shortness of breath') || /\bsob\b/.test(msg);
+
   return items
     // basic sanity
-    .filter((r: any) => r && (typeof r.value === 'string' || Number.isFinite(r.value)))
+    .filter((r: any) => r && (Number.isFinite(r.value) || typeof r.value === 'string'))
     // avoid placeholders/surrogates/partials
     .filter((r: any) => {
       const noteStr = (r.notes || []).join(' ').toLowerCase();
@@ -33,14 +39,16 @@ function filterComputedForDocMode(items: any[], latestUser: string) {
       return /(curb-?65|news2|qsofa|sirs)/i.test(lbl);
     });
 }
+
 export const runtime = 'edge';
 
 const recentReqs = new Map<string, number>();
 
-
 export async function POST(req: NextRequest) {
   const { messages = [], context, clientRequestId, mode } = await req.json();
   const showClinicalPrelude = (mode === 'doctor' || mode === 'research');
+
+  // dedupe frequent client requests
   const now = Date.now();
   for (const [id, ts] of recentReqs.entries()) {
     if (now - ts > 60_000) recentReqs.delete(id);
@@ -52,11 +60,13 @@ export async function POST(req: NextRequest) {
     }
     recentReqs.set(clientRequestId, now);
   }
+
   const base  = process.env.LLM_BASE_URL!;
   const model = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
   const key   = process.env.LLM_API_KEY!;
   const url = `${base.replace(/\/$/,'')}/chat/completions`;
 
+  // strip any incoming system messages; we control system prompts here
   let finalMessages = messages.filter((m: any) => m.role !== 'system');
 
   const latestUserMessage = messages.filter((m: any) => m.role === 'user').slice(-1)[0]?.content || "";
@@ -64,32 +74,47 @@ export async function POST(req: NextRequest) {
   const computed = computeAll(ctx);
 
   // Promote critical calculators into the prelude when crisis criteria met
-  function byId(id: string) { return computed.find(r => r?.id === id); }
-  const glucose = Number(ctx.glucose ?? ctx.glucose_mgdl);
+  const glucose = Number(ctx.glucose ?? ctx.glucose_mg_dl);
   const hco3   = Number(ctx.HCO3 ?? ctx.bicarb ?? ctx.bicarbonate);
   const ph     = Number(ctx.pH);
   const k      = Number(ctx.K ?? ctx.potassium);
 
   // Crisis heuristics
-  const hyperglycemicCrisis = (Number.isFinite(glucose) && glucose >= 250) && (Number.isFinite(hco3) && hco3 <= 18 || Number.isFinite(ph) && ph < 7.30);
+  const hyperglycemicCrisis =
+    (Number.isFinite(glucose) && glucose >= 250) &&
+    ((Number.isFinite(hco3) && hco3 <= 18) || (Number.isFinite(ph) && ph < 7.30));
   const hyperkalemiaDanger  = Number.isFinite(k) && k >= 6.0;
 
   const mustShow = new Set<string>([
-    "measured_osm_status",
-    "osmolar_gap",
-    "serum_osm_calc",
-    "anion_gap_albumin_corrected",
-    "hyponatremia_tonicity",
-    "hyperkalemia_severity",
-    "potassium_status",
-    "dka_severity",
-    "hhs_flags"
+    'measured_osm_status',
+    'osmolar_gap',
+    'serum_osm_calc',
+    'anion_gap_albumin_corrected',
+    'hyponatremia_tonicity',
+    'hyperkalemia_severity',
+    'potassium_status',
+    'dka_severity',
+    'hhs_flags',
   ]);
 
-  // If crisis, inject those calculators into finalMessages prelude regardless of filter
   const promoted = computed.filter(r => r && mustShow.has(r.id));
   const crisisPromoted = (hyperglycemicCrisis || hyperkalemiaDanger) ? promoted : [];
 
+  // --- JOINT DECISION PROTOCOL (OpenAI + Calculators, together) ---
+  const JOINT_DECISION_RULES = [
+    'JOINT DECISION PROTOCOL:',
+    '- You (OpenAI) and the Calculators work TOGETHER.',
+    '- Treat calculator outputs as a first pass; they can be wrong at edges or with missing/aliased inputs.',
+    "- You MUST cross-check physiology: Winter’s formula, osmolality banding (275–295 normal), albumin-corrected anion gap, potassium bands, renal flags.",
+    '- If any calculator output conflicts with physiology or internal consistency, CORRECT it.',
+    "- When you correct, add ONE line: 'Correction: <what/why>'. Then give the final consolidated answer.",
+    '- Your final answer supersedes calculator text if there’s a conflict.',
+  ].join('\n');
+
+  // Always include JOINT rules (all modes)
+  finalMessages = [{ role: 'system', content: JOINT_DECISION_RULES }, ...finalMessages];
+
+  // Clinical prelude (doctor/research modes)
   if (showClinicalPrelude) {
     const filtered = filterComputedForDocMode(computed, latestUserMessage ?? '');
     const blended  = [...new Map([...crisisPromoted, ...filtered].map(r => [r.id, r])).values()];
@@ -100,16 +125,14 @@ export async function POST(req: NextRequest) {
         return `${r.label}: ${val}${notes}`;
       });
       finalMessages = [
-        {
-          role: 'system',
-          content:
-            'Use these pre-computed clinical values only if relevant to the question. Do not re-calculate. If inputs are missing, state which values are required and avoid quoting incomplete scores.'
-        },
-        { role: 'system', content: lines.join('\\n') },
+        // Calculated prelude for the model to review & rectify if needed
+        { role: 'system', content: lines.join('\n') },
         ...finalMessages,
       ];
     }
   }
+
+  // Profile context (unchanged)
   if (context === 'profile') {
     try {
       const origin = req.nextUrl.origin;
@@ -128,8 +151,9 @@ export async function POST(req: NextRequest) {
       finalMessages = [{ role: 'system', content: sys }, ...finalMessages];
     } catch {}
   }
+
   // === [MEDX_CALC_PRELUDE_START] ===
-  const __calcPrelude = composeCalcPrelude(latestUserMessage ?? "");
+  const __calcPrelude = composeCalcPrelude(latestUserMessage ?? '');
   // Only add calc prelude if we actually included filtered computed lines
   if (showClinicalPrelude && __calcPrelude && finalMessages.length && finalMessages[0]?.role === 'system') {
     finalMessages = [{ role: 'system', content: __calcPrelude }, ...finalMessages];
@@ -147,7 +171,7 @@ export async function POST(req: NextRequest) {
       frequency_penalty: 0,
       presence_penalty: 0,
       messages: finalMessages,
-    })
+    }),
   });
 
   if (!upstream.ok) {
@@ -157,6 +181,6 @@ export async function POST(req: NextRequest) {
 
   // Pass-through SSE; frontend parses "data: {delta.content}"
   return new Response(upstream.body, {
-    headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }
+    headers: { 'Content-Type': 'text/event-stream; charset=utf-8' },
   });
 }

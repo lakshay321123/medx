@@ -2762,14 +2762,30 @@ register({
   },
 });
 
+/** Measured serum osmolality status */
+register({
+  id: "measured_osm_status",
+  label: "Measured osmolality",
+  tags: ["electrolytes", "toxicology"],
+  inputs: [{ key: "measured_osm", required: true }], // mOsm/kg
+  run: ({ measured_osm }) => {
+    if (measured_osm == null || measured_osm <= 0) return null;
+    const notes: string[] = [];
+    if (measured_osm < 275) notes.push("hypo-osmolar");
+    else if (measured_osm > 295) notes.push("hyperosmolar");
+    else notes.push("within reference (275–295)");
+    return { id: "measured_osm_status", label: "Measured osmolality", value: measured_osm, unit: "mOsm/kg", precision: 0, notes };
+  },
+});
+
 /** Osmolar gap = measured − calculated; flags for toxic alcohol concern (no therapy advice) */
 register({
   id: "osmolar_gap",
   label: "Osmolar gap",
   tags: ["toxicology", "acid-base"],
   inputs: [
-    { key: "measured_osm", required: true },      // mOsm/kg
-    { key: "serum_osm_calc", required: true },    // from above
+    { key: "measured_osm", aliases: ["measured_osm_mOsm_kg"], required: true },      // mOsm/kg
+    { key: "serum_osm_calc", aliases: ["serum_osmolality","serum_osm_calculated"], required: true },    // from above
     { key: "anion_gap" },                         // optional
     { key: "HCO3" },                              // optional
     { key: "pH" },                                // optional
@@ -3209,7 +3225,7 @@ register({
   tags: ["renal"],
   inputs: [
     { key: "urine_osm_measured", required: true },
-    { key: "measured_osm", required: true },
+    { key: "measured_osm", aliases: ["measured_osm_mOsm_kg"], required: true },
   ],
   run: ({ urine_osm_measured, measured_osm }) => {
     if (measured_osm == null || measured_osm <= 0) return null;
@@ -3962,7 +3978,7 @@ register({
   tags: ["electrolytes", "endocrine"],
   inputs: [
     { key: "Na", required: true },             // mmol/L
-    { key: "measured_osm", required: true },   // mOsm/kg
+    { key: "measured_osm", aliases: ["measured_osm_mOsm_kg"], required: true },   // mOsm/kg
   ],
   run: ({ Na, measured_osm }) => {
     let cls = "normotonic";
@@ -6393,7 +6409,7 @@ register({
   tags: ["electrolytes"],
   inputs: [
     { key:"Na", required:true },
-    { key:"glucose", required:true } // mg/dL
+    { key:"glucose", aliases:["glucose_mg_dl"], required:true } // mg/dL
   ],
   run: ({Na,glucose})=>{
     const eff=2*Na+glucose/18;
