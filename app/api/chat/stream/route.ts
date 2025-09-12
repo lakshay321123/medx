@@ -16,10 +16,7 @@ function corsify(res: Response, extra?: Record<string, string>) {
   h.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   h.set('Access-Control-Max-Age', '86400');
   h.set('Cache-Control', 'no-store');
-  if (extra) {
-    const ks = Object.keys(extra);
-    for (let i = 0; i < ks.length; i++) h.set(ks[i], String(extra[ks[i]]));
-  }
+  if (extra) for (const k of Object.keys(extra)) h.set(k, String(extra[k]));
   return new Response(res.body, { status: res.status, headers: h });
 }
 
@@ -44,45 +41,35 @@ function cacheSet(key: string, v: Verdict, ttlMs: number) {
   verdictCache.set(key, { v, exp: Date.now() + ttlMs });
 }
 
-// Keep doc-mode clinical prelude tight & relevant
-function filterComputedForDocMode(items: any[], latestUser: string) {
-  const msg = (latestUser || '').toLowerCase();
-  const mentions = (s: string) => msg.indexOf(s) >= 0;
-  const isResp = mentions('cough') || mentions('fever') || mentions('cold') || mentions('breath') || mentions('sore throat');
-  const needsPE = mentions('chest pain') || mentions('pleur') || mentions('shortness of breath') || /\bsob\b/.test(msg);
-
-  const out: any[] = [];
-  for (let i = 0; i < (items ? items.length : 0); i++) {
-    const r = items[i];
-    if (!r) continue;
-    if (!(Number.isFinite(r.value) || typeof r.value === 'string')) continue;
-    const noteStr = Array.isArray(r.notes) ? r.notes.join(' ').toLowerCase() : '';
-    const lbl = String(r.label || '').toLowerCase();
-    if (/surrogate|placeholder|phase-1|inputs? needed|partial/.test(noteStr + ' ' + lbl)) continue;
-
-    let keep = false;
-    if (isResp && /(curb-?65|news2|qsofa|sirs|qcsi|sofa)/i.test(lbl)) keep = true;
-    else if (/(perc)/i.test(lbl)) keep = needsPE;
-    else if (/(glasgow-blatchford|ottawa|ankle|knee|head|rockall|apgar|bishop|pasi|burn|maddrey|fib-4|apri|child-?pugh|meld)/i.test(lbl)) keep = false;
-    else keep = /(curb-?65|news2|qsofa|sirs)/i.test(lbl);
-
-    if (keep) out.push(r);
-  }
-  return out;
+/* -------------------- helpers: parse + robust value pickers -------------------- */
+function tryParseJSON(s: string): any | null {
+  try {
+    const trimmed = s.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) return JSON.parse(trimmed);
+    return null;
+  } catch { return null; }
 }
-
-/* ----------------------- Deterministic server math ----------------------- */
-function num(...vals: any[]): number | undefined {
-  for (let i = 0; i < vals.length; i++) {
-    const v = vals[i];
-    const n = typeof v === 'number' ? v : Number(v);
-    if (Number.isFinite(n)) return n;
+function pickNum(ctx: Record<string, any>, keys: string[]): number | undefined {
+  for (const k of keys) {
+    if (ctx == null) continue;
+    if (Object.prototype.hasOwnProperty.call(ctx, k)) {
+      const v = (ctx as any)[k];
+      const n = typeof v === 'number' ? v : Number(v);
+      if (Number.isFinite(n)) return n;
+    }
   }
   return undefined;
 }
-function round(x: number, d = 2) {
-  const f = Math.pow(10, d);
-  return Math.round(x * f) / f;
+function pickStr(ctx: Record<string, any>, keys: string[]): string | undefined {
+  for (const k of keys) {
+    if (ctx == null) continue;
+    if (Object.prototype.hasOwnProperty.call(ctx, k)) {
+      const v = (ctx as any)[k];
+      if (v == null) continue;
+      return String(v);
+    }
+  }
+  return undefined;
 }
 function fmt(x: any, d = 2): string {
   const n = Number(x);
@@ -90,6 +77,12 @@ function fmt(x: any, d = 2): string {
   if (Math.abs(n) >= 100) return n.toFixed(1);
   return n.toFixed(d);
 }
+function round(x: number, d = 2) {
+  const f = Math.pow(10, d);
+  return Math.round(x * f) / f;
+}
+
+/* ----------------------- Deterministic server math ----------------------- */
 type Derived = {
   AG?: number;
   AGcorr?: number;
@@ -105,20 +98,19 @@ type Derived = {
   kNote?: string;
 };
 function computeDerived(ctx: Record<string, any>): Derived {
-  const Na = num(ctx.Na, ctx.na, ctx.sodium);
-  const K = num(ctx.K, ctx.k, ctx.potassium);
-  const Cl = num(ctx.Cl, ctx.cl, ctx.chloride);
-  const HCO3 = num(ctx.HCO3, ctx.bicarb, ctx.bicarbonate);
-  const Glu = num(ctx.Glucose, ctx.glucose, ctx.glucose_mg_dl, ctx.glucose_mgdl);
-  const BUN = num(ctx.BUN, ctx.bun);
-  const Alb = num(ctx.Albumin, ctx.albumin);
-  const OsmMeasured = num(ctx.Osm_measured, ctx.osm_measured, ctx.measured_osm, ctx.osm_meas);
-  const pH = num(ctx.pH);
-  const pCO2 = num(ctx.pCO2, ctx.pco2, ctx.PaCO2);
+  const Na  = pickNum(ctx, ['Na','na','sodium','serum_na','s_na']);
+  const K   = pickNum(ctx, ['K','k','potassium']);
+  const Cl  = pickNum(ctx, ['Cl','cl','chloride']);
+  const HCO3= pickNum(ctx, ['HCO3','hco3','bicarb','bicarbonate','HCO\u2083']);
+  const Glu = pickNum(ctx, ['Glucose','glucose','glu','blood_glucose','glucose_mgdl','glucose_mg_dl']);
+  const BUN = pickNum(ctx, ['BUN','bun','urea_nitrogen']);
+  const Alb = pickNum(ctx, ['Albumin','albumin','alb']);
+  const OsmMeasured = pickNum(ctx, ['Osm_measured','osm_measured','measured_osm','measured_osmolality','osmolality_measured','Osm_meas','osm_meas']);
+  const pH  = pickNum(ctx, ['pH','ph']);
+  const pCO2= pickNum(ctx, ['pCO2','PaCO2','pco2','pa_co2']);
 
   const out: Derived = {};
 
-  // Core formulas (no creatinine; no K in AG)
   if (Na !== undefined && Cl !== undefined && HCO3 !== undefined) {
     out.AG = round(Na - (Cl + HCO3), 2);
     if (Alb !== undefined) out.AGcorr = round(out.AG + 2.5 * (4 - Alb), 2);
@@ -127,21 +119,18 @@ function computeDerived(ctx: Record<string, any>): Derived {
     if (Glu !== undefined && BUN !== undefined) out.OsmCalc = round(2 * Na + Glu / 18 + BUN / 2.8, 2);
     if (Glu !== undefined) out.EffOsm = round(2 * Na + Glu / 18, 2);
   }
-  if (OsmMeasured !== undefined && out.OsmCalc !== undefined)
-    out.OsmGap = round(OsmMeasured - out.OsmCalc, 2);
+  if (OsmMeasured !== undefined && out.OsmCalc !== undefined) out.OsmGap = round(OsmMeasured - out.OsmCalc, 2);
 
   if (HCO3 !== undefined) {
     out.Winters = round(1.5 * HCO3 + 8, 2);
     if (pCO2 !== undefined) {
-      const lo = out.Winters - 2;
-      const hi = out.Winters + 2;
+      const lo = out.Winters - 2, hi = out.Winters + 2;
       if (pCO2 > hi) out.respNote = 'concurrent respiratory acidosis';
       else if (pCO2 < lo) out.respNote = 'concurrent respiratory alkalosis';
       else out.respNote = 'appropriate respiratory compensation';
     }
   }
 
-  // Acid–base headline (do not assume "high AG" unless AG/AGcorr elevated)
   if (pH !== undefined && HCO3 !== undefined) {
     if (pH < 7.35 && HCO3 <= 22) {
       if ((out.AGcorr ?? out.AG ?? 0) > 12) out.acidBase = 'high anion gap metabolic acidosis';
@@ -150,7 +139,6 @@ function computeDerived(ctx: Record<string, any>): Derived {
     else if (pH > 7.45) out.acidBase = 'alkalemia';
   }
 
-  // DKA / HHS gates
   if (Glu !== undefined && HCO3 !== undefined && pH !== undefined) {
     if (Glu >= 250 && (HCO3 <= 18 || pH < 7.30)) out.dkaFlag = 'meets biochemical criteria for DKA';
   }
@@ -158,7 +146,6 @@ function computeDerived(ctx: Record<string, any>): Derived {
     out.hhsFlag = 'meets hyperosmolar threshold (HHS criteria)';
   }
 
-  // Sodium and potassium notes
   if (Na !== undefined) {
     if (Na < 125) out.naNote = 'severe hyponatremia';
     else if (Na < 130) out.naNote = 'moderate hyponatremia';
@@ -174,24 +161,24 @@ function computeDerived(ctx: Record<string, any>): Derived {
   return out;
 }
 function composeFinalNarrative(ctx: Record<string, any>): string {
-  const Na = num(ctx.Na, ctx.na, ctx.sodium);
-  const K  = num(ctx.K, ctx.k, ctx.potassium);
-  const Cl = num(ctx.Cl, ctx.cl, ctx.chloride);
-  const H  = num(ctx.HCO3, ctx.bicarb, ctx.bicarbonate);
-  const Glu = num(ctx.Glucose, ctx.glucose, ctx.glucose_mg_dl, ctx.glucose_mgdl);
-  const BUN = num(ctx.BUN, ctx.bun);
-  const Cr  = num(ctx.Cr, ctx.creatinine);
-  const Alb = num(ctx.Albumin, ctx.albumin);
-  const pH  = num(ctx.pH);
-  const pCO2 = num(ctx.pCO2, ctx.pco2, ctx.PaCO2);
-  const OsmMeasured = num(ctx.Osm_measured, ctx.osm_measured, ctx.measured_osm, ctx.osm_meas);
+  const Na   = pickNum(ctx, ['Na','na','sodium','serum_na','s_na']);
+  const K    = pickNum(ctx, ['K','k','potassium']);
+  const Cl   = pickNum(ctx, ['Cl','cl','chloride']);
+  const H    = pickNum(ctx, ['HCO3','hco3','bicarb','bicarbonate','HCO\u2083']);
+  const Glu  = pickNum(ctx, ['Glucose','glucose','glu','blood_glucose','glucose_mgdl','glucose_mg_dl']);
+  const BUN  = pickNum(ctx, ['BUN','bun','urea_nitrogen']);
+  const Cr   = pickNum(ctx, ['Cr','cr','creatinine','creat']);
+  const Alb  = pickNum(ctx, ['Albumin','albumin','alb']);
+  const pH   = pickNum(ctx, ['pH','ph']);
+  const pCO2 = pickNum(ctx, ['pCO2','PaCO2','pco2','pa_co2']);
+  const OsmMeasured = pickNum(ctx, ['Osm_measured','osm_measured','measured_osm','measured_osmolality','osmolality_measured','Osm_meas','osm_meas']);
+  const Lactate = pickNum(ctx, ['Lactate','lactate','lact']);
 
   const d = computeDerived(ctx);
 
   const lines: string[] = [];
   lines.push('Clinical summary (verified):');
 
-  // Labs
   const el: string[] = [];
   if (Na !== undefined) el.push('Na ' + fmt(Na));
   if (K !== undefined)  el.push('K ' + fmt(K));
@@ -204,9 +191,9 @@ function composeFinalNarrative(ctx: Record<string, any>): string {
   if (pH !== undefined)  el.push('pH ' + fmt(pH, 2));
   if (pCO2 !== undefined) el.push('pCO2 ' + fmt(pCO2));
   if (OsmMeasured !== undefined) el.push('Osm (measured) ' + fmt(OsmMeasured));
+  if (Lactate !== undefined) el.push('Lactate ' + fmt(Lactate));
   lines.push('- Labs: ' + (el.length ? el.join(', ') : 'not provided'));
 
-  // Derived
   const dv: string[] = [];
   if (d.AG !== undefined) dv.push('Anion gap ' + fmt(d.AG));
   if (d.AGcorr !== undefined) dv.push('AG (albumin-corrected) ' + fmt(d.AGcorr));
@@ -216,7 +203,6 @@ function composeFinalNarrative(ctx: Record<string, any>): string {
   if (d.Winters !== undefined) dv.push('Winter’s expected pCO2 ' + fmt(d.Winters));
   lines.push('- Derived: ' + (dv.length ? dv.join(', ') : 'not computable with given inputs'));
 
-  // Interpretation (conservative)
   const it: string[] = [];
   if (d.acidBase) it.push(d.acidBase);
   if (d.respNote) it.push(d.respNote);
@@ -226,52 +212,55 @@ function composeFinalNarrative(ctx: Record<string, any>): string {
   if (d.hhsFlag) it.push(d.hhsFlag);
   lines.push('- Interpretation: ' + (it.length ? it.join('; ') : 'insufficient inputs for risk scores; do not compute qSOFA/SIRS/NEWS2/CURB-65 without full vitals.'));
 
-  // Rules
   lines.push('Rules applied: AG = Na − (Cl + HCO3); AG-corr = AG + 2.5×(4 − albumin); Serum Osm = 2×Na + Glucose/18 + BUN/2.8; Effective Osm = 2×Na + Glucose/18; Winter’s expected pCO2 = 1.5×HCO3 + 8 (±2); no non-standard metrics.');
-
   return lines.join('\n');
 }
+
 /* ------------------------------------------------------------------------ */
 
 async function handle(req: NextRequest, payload: any) {
   const method = req.method || 'GET';
-  const messages = Array.isArray(payload && payload.messages) ? payload.messages : [];
-  const context = payload && payload.context;
-  const clientRequestId = payload && payload.clientRequestId;
-  const mode = payload && payload.mode;
+  const messages = Array.isArray(payload?.messages) ? payload.messages : [];
+  const context = payload?.context;
+  const clientRequestId = payload?.clientRequestId;
+  const mode = payload?.mode;
 
-  // dedupe by clientRequestId for 60s
   const now = Date.now();
   for (const [id, ts] of Array.from(recentReqs.entries())) if (now - ts > 60_000) recentReqs.delete(id);
   if (clientRequestId) {
-    const tsPrev = recentReqs.get(clientRequestId);
-    if (tsPrev && now - tsPrev < 60_000) return corsify(new Response(null, { status: 409 }), { 'X-Chat-Route-Method': method });
+    const prev = recentReqs.get(clientRequestId);
+    if (prev && now - prev < 60_000) return corsify(new Response(null, { status: 409 }), { 'X-Chat-Route-Method': method });
     recentReqs.set(clientRequestId, now);
   }
 
-  // Groq endpoint (composer)
   const base  = process.env.LLM_BASE_URL || 'https://api.groq.com/openai/v1';
   const model = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
   const key   = process.env.LLM_API_KEY || '';
   const url   = base.replace(/\/$/, '') + '/chat/completions';
 
-  // strip user-supplied system
   const finalMessages: any[] = [];
-  for (let i = 0; i < messages.length; i++) if (messages[i] && messages[i].role !== 'system') finalMessages.push(messages[i]);
+  for (const m of messages) if (m && m.role !== 'system') finalMessages.push(m);
 
-  // extract inputs
   let userText = '';
   const onlyUsers: any[] = [];
-  for (let i = 0; i < finalMessages.length; i++) if (finalMessages[i].role === 'user') onlyUsers.push(finalMessages[i]);
-  for (let i = 0; i < onlyUsers.length; i++) userText += String(onlyUsers[i]?.content ?? '') + '\n';
+  for (const m of finalMessages) if (m.role === 'user') onlyUsers.push(m);
+  for (const u of onlyUsers) userText += String(u?.content ?? '') + '\n';
   const latestUserMessage = onlyUsers.length ? String(onlyUsers[onlyUsers.length - 1].content || '') : '';
 
-  const ctx = extractAll(userText);
+  // 1) extract from free text
+  const ctxExtracted = extractAll(userText) || {};
+  // 2) overlay with direct JSON if present (preserves original keys/case)
+  const jsonOverlay = tryParseJSON(latestUserMessage) || {};
+  // 3) merge (JSON can include keys like "Na", "HCO3", etc.)
+  const ctx: Record<string, any> = Object.assign({}, ctxExtracted, jsonOverlay);
+
+  // calculators for UI (still optional)
   const computed = computeAll(ctx);
   const taskMode = computed && computed.length ? 'analyzing' : 'thinking';
 
-  // baseline joint rules (for doc mode or logs; not sent to composer)
-  const JOINT_RULES = 'JOINT DECISION PROTOCOL:\n' +
+  // (keep joint rules for doc/research modes)
+  const JOINT_RULES =
+    'JOINT DECISION PROTOCOL:\n' +
     'You and the Calculators work together.\n' +
     'Treat calculator outputs as a first pass and correct edge or missing-input errors.\n' +
     'Cross-check physiology: Winters expected pCO2, osmolality 275-295 normal, albumin-corrected anion gap, potassium bands, renal flags.\n' +
@@ -280,86 +269,32 @@ async function handle(req: NextRequest, payload: any) {
     'Do not output any verification badge or correction line to the user.';
   finalMessages.unshift({ role: 'system', content: JOINT_RULES });
 
-  // OpenAI verify (GPT-5) with cache
-  const cacheKey = await sha256Hex(JSON.stringify({ ctx, ver: 'v1' }));
+  // OpenAI verify (GPT-5) with ctx (merged)
+  const cacheKey = await sha256Hex(JSON.stringify({ ctx, ver: 'v2-synonyms' }));
   let verdict = cacheGet(cacheKey);
   if (!verdict) {
     const convo: Array<{ role: string; content: string }> = [];
-    for (let i = 0; i < finalMessages.length; i++) convo.push({ role: finalMessages[i].role, content: finalMessages[i].content });
+    for (const m of finalMessages) convo.push({ role: m.role, content: m.content });
     verdict = await verifyWithOpenAI({ mode: String(mode || 'default'), ctx, computed, conversation: convo, timeoutMs: 60_000 }) || undefined;
     if (verdict) cacheSet(cacheKey, verdict, 10 * 60 * 1000);
   }
 
-  // (We still overlay in case you surface verified calculator rows elsewhere)
-  let blended = computed.slice();
-  if (verdict && verdict.corrected_values && typeof verdict.corrected_values === 'object') {
-    const byId = new Map<string, any>();
-    for (let i = 0; i < blended.length; i++) if (blended[i] && blended[i].id) byId.set(String(blended[i].id), blended[i]);
-    const keys = Object.keys(verdict.corrected_values);
-    for (let i = 0; i < keys.length; i++) {
-      const k = keys[i];
-      const v: any = (verdict.corrected_values as any)[k];
-      const t = byId.get(k);
-      if (t) {
-        if (v && typeof v === 'object' && Object.prototype.hasOwnProperty.call(v, 'value')) {
-          const vkeys = Object.keys(v);
-          for (let j = 0; j < vkeys.length; j++) (t as any)[vkeys[j]] = (v as any)[vkeys[j]];
-        } else (t as any).value = v;
-        const existingNotes = Array.isArray((t as any).notes) ? (t as any).notes : [];
-        const newNotes = v && Array.isArray(v.notes) ? v.notes : [];
-        const memo = new Map<string, boolean>();
-        for (let j = 0; j < existingNotes.length; j++) memo.set(String(existingNotes[j]), true);
-        for (let j = 0; j < newNotes.length; j++) memo.set(String(newNotes[j]), true);
-        const mergedNotes = Array.from(memo.keys());
-        if (mergedNotes.length) (t as any).notes = mergedNotes;
-      } else {
-        const entry: any = { id: k, label: k, value: undefined, unit: undefined, notes: undefined };
-        if (v && typeof v === 'object' && Object.prototype.hasOwnProperty.call(v, 'value')) {
-          entry.value = v.value;
-          if (v.unit) entry.unit = v.unit;
-          if (Array.isArray(v.notes)) entry.notes = v.notes.slice();
-        } else entry.value = v;
-        byId.set(k, entry);
-      }
-    }
-    blended = Array.from(byId.values());
-  }
-
-  // optional doc/research prelude
+  // optional doc/research prelude (not required for correctness)
   const showPrelude = (mode === 'doctor') || (mode === 'research') || /trial|research/i.test(String(mode || ''));
   if (showPrelude) {
-    const g = Number(ctx.glucose ?? ctx.glucose_mg_dl ?? ctx.glucose_mgdl);
-    const bicarb = Number(ctx.HCO3 ?? ctx.bicarb ?? ctx.bicarbonate);
-    const ph = Number(ctx.pH);
-    const kVal = Number(ctx.K ?? ctx.potassium);
-    const hyperglycemicCrisis = (Number.isFinite(g) && g >= 250) && ((Number.isFinite(bicarb) && bicarb <= 18) || (Number.isFinite(ph) && ph < 7.30));
-    const hyperkalemiaDanger = Number.isFinite(kVal) && kVal >= 6.0;
-
-    const mustShow = new Set<string>([
-      'measured_osm_status', 'osmolar_gap', 'serum_osm_calc', 'anion_gap_albumin_corrected',
-      'hyponatremia_tonicity', 'hyperkalemia_severity', 'potassium_status', 'dka_severity', 'hhs_flags'
-    ]);
-    const promoted: any[] = [];
-    for (let i = 0; i < blended.length; i++) if (blended[i] && mustShow.has(blended[i].id)) promoted.push(blended[i]);
-    const crisisPromoted = (hyperglycemicCrisis || hyperkalemiaDanger) ? promoted : [];
-
-    const filtered = filterComputedForDocMode(blended, latestUserMessage || '');
-    const merged: any[] = [];
-    for (let i = 0; i < crisisPromoted.length; i++) merged.push(crisisPromoted[i]);
-    for (let i = 0; i < filtered.length; i++) merged.push(filtered[i]);
-
-    const mapById = new Map<string, any>();
-    for (let i = 0; i < merged.length; i++) if (merged[i] && merged[i].id && !mapById.has(merged[i].id)) mapById.set(String(merged[i].id), merged[i]);
-
-    const linesArr: string[] = [];
-    const valuesArr = Array.from(mapById.values());
-    for (let i = 0; i < valuesArr.length; i++) {
-      const r = valuesArr[i];
-      const val = r.unit ? String(r.value) + ' ' + String(r.unit) : String(r.value);
-      const notesLine = Array.isArray(r.notes) && r.notes.length ? ' — ' + r.notes.join('; ') : '';
-      linesArr.push(String(r.label || r.id) + ': ' + val + notesLine);
+    const lines: string[] = [];
+    for (const r of computed || []) {
+      if (!r || !r.id) continue;
+      if (!(Number.isFinite(r.value) || typeof r.value === 'string')) continue;
+      const noteStr = Array.isArray(r.notes) ? r.notes.join(' ').toLowerCase() : '';
+      const lbl = String(r.label || '').toLowerCase();
+      if (/surrogate|placeholder|phase-1|inputs? needed|partial/.test(noteStr + ' ' + lbl)) continue;
+      if (!/(curb-?65|news2|qsofa|sirs|qcsi|sofa|perc|osm|anion|potassium|hyperkalemia|dka|hhs)/i.test(lbl)) continue;
+      const val = r.unit ? `${r.value} ${r.unit}` : String(r.value);
+      const notes = r.notes?.length ? ` — ${r.notes.join('; ')}` : '';
+      lines.push(`${r.label || r.id}: ${val}${notes}`);
     }
-    if (linesArr.length) finalMessages.unshift({ role: 'system', content: linesArr.join('\n') });
+    if (lines.length) finalMessages.unshift({ role: 'system', content: lines.join('\n') });
 
     const calcPrelude = composeCalcPrelude(latestUserMessage || '');
     if (calcPrelude && finalMessages.length && finalMessages[0]?.role === 'system') {
@@ -367,15 +302,16 @@ async function handle(req: NextRequest, payload: any) {
     }
   }
 
-  // Optional profile context
+  // Profile context (optional)
   if (context === 'profile') {
     try {
       const origin = req.nextUrl.origin;
       const headers = { cookie: req.headers.get('cookie') || '' };
-      const sP = fetch(origin + '/api/profile/summary', { headers }).then(r => r.json()).catch(() => ({}));
-      const pP = fetch(origin + '/api/profile', { headers }).then(r => r.json()).catch(() => null);
-      const pkP = fetch(origin + '/api/profile/packet', { headers }).then(r => r.json()).catch(() => ({ text: '' }));
-      const [s, p, pk] = await Promise.all([sP, pP, pkP]);
+      const [s, p, pk] = await Promise.all([
+        fetch(origin + '/api/profile/summary', { headers }).then(r => r.json()).catch(() => ({})),
+        fetch(origin + '/api/profile', { headers }).then(r => r.json()).catch(() => null),
+        fetch(origin + '/api/profile/packet', { headers }).then(r => r.json()).catch(() => ({ text: '' })),
+      ]);
       const sys = profileChatSystem({
         summary: (s as any).summary || (s as any).text || '',
         reasons: (s as any).reasons || '',
@@ -386,11 +322,11 @@ async function handle(req: NextRequest, payload: any) {
     } catch {}
   }
 
-  // Build final server-verified narrative and force verbatim echo
+  // Build final server-verified narrative (using merged ctx with synonym pickers)
   const finalText = composeFinalNarrative(ctx);
-  const echoSystem = 'You are a transmitter. Output the following content verbatim, with no additions, omissions, reformatting, or explanations.';
-  const echoUser = finalText;
 
+  // Groq echoes verbatim
+  const echoSystem = 'You are a transmitter. Output the following content verbatim, with no additions, omissions, reformatting, or explanations.';
   const upstream = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
@@ -403,7 +339,7 @@ async function handle(req: NextRequest, payload: any) {
       presence_penalty: 0,
       messages: [
         { role: 'system', content: echoSystem },
-        { role: 'user', content: echoUser }
+        { role: 'user', content: finalText }
       ]
     }),
   });
