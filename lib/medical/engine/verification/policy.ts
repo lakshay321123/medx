@@ -9,7 +9,6 @@ const OVERRIDES: Record<string, Policy> = {
   effective_osmolality:        { precision: 2, tolerancePct: 0, strict: true },
   winter_expected_pco2:        { precision: 1, tolerancePct: 0, strict: true },
   delta_gap:                   { precision: 1, tolerancePct: 0, strict: true },
-  // add more per your calculators
 };
 
 export function policyFor(name: string): Policy {
