@@ -1,8 +1,15 @@
-import { calc_sirs } from "../lib/medical/engine/calculators/sirs";
+import { FORMULAE } from "../lib/medical/engine/registry";
+import "../lib/medical/engine/calculators/sirs";
 
-describe("calc_sirs", () => {
-  it("meets SIRS when >=2", () => {
-    const v = calc_sirs({ temp_c: 39, HR: 120, RR: 18, WBC: 7 });
-    expect(v).toBe(2);
+describe("sirs", () => {
+  it("evaluates available criteria and handles partial inputs", () => {
+    const f = FORMULAE.find(f => f.id === "sirs")!;
+    const r = f.run({ temp_c: 39, HR: 100 });
+    expect(r).not.toBeNull();
+    expect(r?.value).toBe(2);
+    expect(r?.notes).toContain("criteria met: 2");
+    expect(r?.notes).toContain("criteria evaluated: 2/4");
+    expect(r?.notes).toContain("incomplete inputs");
+    expect(r?.notes).toContain("SIRS positive");
   });
 });
