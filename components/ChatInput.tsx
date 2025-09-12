@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
+import { useOpenPass } from "@/hooks/useOpenPass";
 
-export function ChatInput({ onSend }: { onSend: (text: string)=>Promise<void> }) {
+export function ChatInput({ onSend }: { onSend: (text: string, locationToken?: string)=>Promise<void> }) {
   const [text, setText] = useState("");
   const startNewThread = useChatStore(s => s.startNewThread);
   const currentId = useChatStore(s => s.currentId);
   const addMessage = useChatStore(s => s.addMessage);
+  const openPass = useOpenPass();
 
   // auto-create a new thread when the user starts typing in a fresh session
   useEffect(() => {
@@ -22,7 +24,13 @@ export function ChatInput({ onSend }: { onSend: (text: string)=>Promise<void> })
     // add user message locally (this also sets the title from first words)
     addMessage({ role: "user", content });
     setText("");
-    await onSend(content); // your existing streaming/send logic
+
+    let locationToken: string | undefined;
+    if (/near me/i.test(content)) {
+      locationToken = await openPass.getLocationToken() || undefined;
+    }
+
+    await onSend(content, locationToken); // your existing streaming/send logic
   };
 
   return (

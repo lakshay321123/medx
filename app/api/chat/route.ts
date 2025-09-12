@@ -35,6 +35,7 @@ import { fetchTrialByNct } from "@/lib/trials/byId";
 import { singleTrialPatientPrompt, singleTrialClinicianPrompt } from "@/lib/prompts/trials";
 import { searchTrials, dedupeTrials, rankValue } from "@/lib/trials/search";
 import { byName } from "@/data/countries";
+import { searchNearby } from "@/lib/openpass";
 
 async function getFeedbackSummary(conversationId: string) {
   try {
@@ -60,6 +61,11 @@ function contextStringFrom(messages: ChatCompletionMessageParam[]): string {
 
 export async function POST(req: Request) {
   const body = await req.json();
+  const { query, locationToken } = body;
+  if (query && /near me/i.test(query) && locationToken) {
+    const results = await searchNearby(locationToken, query);
+    return NextResponse.json({ results });
+  }
   const { messages: incomingMessages, mode: rawMode, thread_id } = body;
   const mode = normalizeMode(rawMode);
   const userMessage = incomingMessages?.[incomingMessages.length - 1]?.content || "";
