@@ -1,3 +1,5 @@
+import { register } from "../registry";
+
 // NEWS2 calculator (Scale 1). Returns total score and risk band.
 export type NEWS2Inputs = {
   rr: number;               // breaths/min
@@ -35,5 +37,26 @@ export function calc_news2(i: NEWS2Inputs): { score: number; risk: "low"|"medium
 
   return { score: total, risk };
 }
+
+register({
+  id: "news2",
+  label: "NEWS2",
+  inputs: [
+    { key: "rr", required: true },
+    { key: "spo2_percent", required: true },
+    { key: "temp_c", required: true },
+    { key: "sbp", required: true },
+    { key: "hr", required: true },
+    { key: "consciousness", required: true },
+    { key: "on_supplemental_o2" },
+  ],
+  run: (args: NEWS2Inputs) => {
+    for (const k of ["rr","spo2_percent","temp_c","sbp","hr","consciousness"]) {
+      if ((args as any)[k] == null) return null;
+    }
+    const r = calc_news2(args);
+    return { id: "news2", label: "NEWS2", value: r.score, unit: "points", precision: 0, notes: [r.risk] };
+  },
+});
 
 export default calc_news2;

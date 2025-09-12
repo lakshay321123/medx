@@ -32,7 +32,7 @@ const SKIP = new Set<string>([
   "toxicology.ts",
   "icu.ts",
   "icu_helpers.ts",
-  "lab_interpretation.ts",
+  "lab_interpretation.ts", // ensure full name here
   // Helper cores that might contain shared logic
   "acid_base_core.ts",
 ]);

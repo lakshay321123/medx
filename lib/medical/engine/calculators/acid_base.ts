@@ -1,46 +1,24 @@
 import { register } from "../registry";
+import "./acid_base_summary";
 
 register({
-  id: "anion_gap_albumin_corrected",
-  label: "Anion gap (albumin-corrected)",
-  inputs: [
-    { key: "Na", required: true },
-    { key: "Cl", required: true },
-    { key: "HCO3", required: true },
-    { key: "albumin", required: true },
-    { key: "K" },
-  ],
-  run: ({ Na, Cl, HCO3, albumin, K }) => {
-    if (Na == null || Cl == null || HCO3 == null || albumin == null) return null;
-    const ag = Na + (K ?? 0) - (Cl + HCO3);
-    const val = ag + 2.5 * (4 - albumin);
-    return {
-      id: "anion_gap_albumin_corrected",
-      label: "Anion gap (albumin-corrected)",
-      value: val,
-      unit: "mmol/L",
-      precision: 1,
-    };
-  },
-});
-
-register({
-  id: "winters_pco2",
-  label: "Expected pCO₂ (Winter's)",
+  id: "winters_expected_paco2",
+  label: "Expected PaCO₂ (Winter’s)",
+  tags: ["acid-base"],
   inputs: [{ key: "HCO3", required: true }],
   run: ({ HCO3 }) => {
     if (HCO3 == null) return null;
-    const val = 1.5 * HCO3 + 8;
-    return { id: "winters_pco2", label: "Expected pCO₂", value: val, unit: "mmHg", precision: 1 };
-  },
-});
-
-register({
-  id: "winters",
-  label: "Expected pCO₂ (Winter’s)",
-  inputs: [{ key: "HCO3", required: true }],
-  run: ({ HCO3 }) => {
-    const exp = 1.5 * (HCO3!) + 8;
-    return { id: "winters", label: "Expected pCO₂ (Winter’s)", value: exp, unit: "mmHg", precision: 0, notes: ["±2 mmHg"] };
+    const expected = 1.5 * HCO3 + 8;
+    const low = expected - 2;
+    const high = expected + 2;
+    const notes = [`Expected ${low.toFixed(1)}–${high.toFixed(1)} mmHg`];
+    return {
+      id: "winters_expected_paco2",
+      label: "Expected PaCO₂ (Winter’s)",
+      value: Number(expected.toFixed(1)),
+      unit: "mmHg",
+      precision: 1,
+      notes,
+    };
   },
 });
