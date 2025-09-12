@@ -23,12 +23,43 @@ export async function groqChat(messages: ChatMsg[], model = GROQ_MODEL, temperat
 }
 
 // --- OpenAI (text)
-export async function openaiText(messages: ChatMsg[], model = OAI_TEXT, temperature = 0.2) {
+export type OpenAITextOpts = {
+  system?: string;
+  messages: ChatMsg[];
+  model?: string;
+  temperature?: number;
+  response_format?: any;
+  max_tokens?: number;
+};
+
+export async function openaiText(
+  messagesOrOpts: ChatMsg[] | OpenAITextOpts,
+  model = OAI_TEXT,
+  temperature = 0.2
+) {
   if (!OAI_KEY) throw new Error('OPENAI_API_KEY missing');
+
+  let body: any;
+  if (Array.isArray(messagesOrOpts)) {
+    body = { model, messages: messagesOrOpts, temperature };
+  } else {
+    const opts = messagesOrOpts;
+    const msgs = opts.system
+      ? [{ role: 'system', content: opts.system }, ...opts.messages]
+      : opts.messages;
+    body = {
+      model: opts.model || model,
+      messages: msgs,
+      temperature: opts.temperature ?? temperature,
+    };
+    if (opts.response_format) body.response_format = opts.response_format;
+    if (opts.max_tokens != null) body.max_tokens = opts.max_tokens;
+  }
+
   const r = await fetch(`${OAI_URL}/chat/completions`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${OAI_KEY}`, 'Content-Type':'application/json' },
-    body: JSON.stringify({ model, messages, temperature })
+    headers: { Authorization: `Bearer ${OAI_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
   });
   const j = await r.json();
   if (!r.ok) throw new Error(`OpenAI: ${j?.error?.message || r.statusText}`);
