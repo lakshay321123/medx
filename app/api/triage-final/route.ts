@@ -62,7 +62,6 @@ export async function POST(req: NextRequest) {
 
     const work = client.chat.completions.create({
       model,
-      temperature: 0.1,
       messages: prompt as any,
       tools: [
         {
