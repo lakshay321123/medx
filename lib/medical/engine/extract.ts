@@ -1,12 +1,59 @@
 import "./calculators";
-import { safeNumber, toMgDlFromMmolGlucose } from "./units";
+
+// Canonical keys we use everywhere
+const ALIAS: Record<string, string> = {
+  sodium: "Na", na_mmol_l: "Na", measured_na_mmol_l: "Na",
+  potassium: "K", k_mmol_l: "K",
+  chloride: "Cl", cl_mmol_l: "Cl",
+  bicarbonate: "HCO3", hco3_mmol_l: "HCO3", tco2: "HCO3",
+  albumin_g_dl: "albumin",
+
+  glucose: "glucose_mgdl", glucose_mg_dl: "glucose_mgdl", glucose_mmol_l: "glucose_mmol",
+  bun_mg_dl: "BUN", urea: "BUN",
+  creatinine: "Cr", creatinine_mg_dl: "Cr",
+
+  measured_osm: "Osm_measured", osm_meas: "Osm_measured",
+
+  lactate_mmol_l: "Lactate",
+
+  sbp: "SBP", dbp: "DBP", hr: "HR", rr: "RR",
+  spo2: "spo2_percent", spo2_percent: "spo2_percent", SpO2: "spo2_percent",
+  temp_c: "temp_c", temp_f: "temp_f",
+  gcs: "GCS", consciousness: "consciousness",
+  pco2_mmHg: "pCO2", paCO2: "pCO2"
+};
+
+function mapAliases(input: Record<string, any>) {
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(input)) {
+    out[ALIAS[k] ?? k] = v;
+  }
+  return out;
+}
+
+function convertUnits(incoming: Record<string, any>) {
+  const out = { ...incoming };
+  // Glucose mmol/L -> mg/dL
+  if (out.glucose_mmol != null && out.glucose_mgdl == null) {
+    out.glucose_mgdl = out.glucose_mmol * 18;
+  }
+  // Temperature F -> C
+  if (out.temp_f != null && out.temp_c == null) {
+    out.temp_c = (out.temp_f - 32) * (5 / 9);
+  }
+  // pCO2 kPa -> mmHg (if someone passes it)
+  if (out.pCO2_kpa != null && out.pCO2 == null) {
+    out.pCO2 = out.pCO2_kpa * 7.50062;
+  }
+  return out;
+}
+
+// Call this once in your API/controller before computeAll()
+export function canonicalizeInputs(raw: Record<string, any>) {
+  return convertUnits(mapAliases(raw));
+}
 
 const num = /([0-9]+(?:\.[0-9]+)?)/;
-
-const ALIAS: Record<string, string> = {
-  measured_osm: "Osm_measured",
-  osm_meas: "Osm_measured",
-};
 
 // === [MEDX_CALC_HELPERS_START] ===
 function pickNum(rx: RegExp, s: string): number | undefined {
@@ -73,11 +120,6 @@ export function extractAll(s: string): Record<string, any> {
     out.encephalopathy = /grade\s*2|moderate/.test(t) ? "moderate" : /grade\s*1|mild/.test(t) ? "mild" : "present";
   }
 
-  // normalize glucose mmol -> mg/dL
-  if (out.glucose_mgdl == null && out.glucose_mmol != null) {
-    out.glucose_mgdl = toMgDlFromMmolGlucose(out.glucose_mmol);
-  }
-
   // === [MEDX_CALC_INPUTS_START] ===
   if (out.Na == null)       out.Na       = pickNum(/\b(?:na|sodium)\b[^0-9:=]*[:=]?\s*([0-9.]+)/i, t);
   if (out.K == null)        out.K        = pickNum(/\b(?:k|potassium)\b[^0-9:=]*[:=]?\s*([0-9.]+)/i, t);
@@ -107,11 +149,6 @@ export function extractAll(s: string): Record<string, any> {
   if (out.RRr == null) out.RRr = pickNum(/\bresp[^0-9]*[:=]?\s*([0-9.]+)/, t);
 
   if (out.ethanol_mgdl == null) out.ethanol_mgdl = pickNum(/\b(etoh|ethanol)[^0-9]*[:=]?\s*([0-9.]+)/, t);
-
-  for (const [src, dest] of Object.entries(ALIAS)) {
-    if (out[src] != null && out[dest] == null) out[dest] = out[src];
-  }
-  if (out.osm_meas == null && out.Osm_measured != null) out.osm_meas = out.Osm_measured;
   // === [MEDX_CALC_INPUTS_END] ===
 
   // === [MEDX_CALC_URINE_START] ===

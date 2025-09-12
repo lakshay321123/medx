@@ -12,7 +12,7 @@ import { buildPersonalPlan } from "@/lib/aidoc/planner";
 import { extractPrefsFromUser } from "@/lib/aidoc/extractors/prefs";
 import { buildAiDocPrompt } from "@/lib/ai/prompts/aidoc";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { extractAll } from "@/lib/medical/engine/extract";
+import { extractAll, canonicalizeInputs } from "@/lib/medical/engine/extract";
 import { computeAll } from "@/lib/medical/engine/computeAll";
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
@@ -92,20 +92,16 @@ export async function POST(req: NextRequest) {
   let system = buildAiDocPrompt({ profile, labs, meds, conditions });
 
   const userText = String(message || "");
-  const ctx = extractAll(userText);
+  const ctx = canonicalizeInputs(extractAll(userText));
   const computed = computeAll(ctx);
   // Curate what we surface to the model: top, relevant items only.
-  const CRIT_IDS = new Set<string>([
-    "anion_gap",
-    "anion_gap_corrected",
+  const CRIT_IDS = new Set([
+    "anion_gap", "anion_gap_corrected", "delta_ratio_ag",
     "winters_expected_paco2",
-    "serum_osmolality",
-    "effective_osmolality",
-    "osmolal_gap",
-    "dka_flag",
-    "hhs_flag",
-    // include your existing potassium guard if present:
-    "ada_k_guard",
+    "sodium_status",
+    "serum_osmolality", "effective_osmolality", "osmolal_gap",
+    "ada_k_guard", "dka_flag", "hhs_flag",
+    "lactate_status",
   ]);
 
   function isAbnormal(r: any) {
