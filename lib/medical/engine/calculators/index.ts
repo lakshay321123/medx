@@ -28,4 +28,29 @@ function loadWithVite() {
   } catch { return false; }
 }
 if (!loadWithWebpack()) loadWithVite();
-export {};
+
+// --- Deterministic calculator functions for authoritative runner ---
+export function anion_gap({ Na, Cl, HCO3 }: { Na: number; Cl: number; HCO3: number }) {
+  return Na - (Cl + HCO3);
+}
+
+export function anion_gap_albumin_corrected({ Na, Cl, HCO3, albumin_gdl }: { Na: number; Cl: number; HCO3: number; albumin_gdl: number }) {
+  return (Na - (Cl + HCO3)) + 2.5 * (4.0 - albumin_gdl);
+}
+
+export function serum_osmolality({ Na, glucose_mgdl, BUN_mgdl }: { Na: number; glucose_mgdl: number; BUN_mgdl: number }) {
+  return 2 * Na + (glucose_mgdl / 18) + (BUN_mgdl / 2.8);
+}
+
+export function effective_osmolality({ Na, glucose_mgdl }: { Na: number; glucose_mgdl: number }) {
+  return 2 * Na + (glucose_mgdl / 18);
+}
+
+export function winter_expected_pco2({ HCO3 }: { HCO3: number }) {
+  return 1.5 * HCO3 + 8;
+}
+
+export function delta_gap({ Na, Cl, HCO3 }: { Na: number; Cl: number; HCO3: number }) {
+  return ((Na - (Cl + HCO3)) - 12) - (24 - HCO3);
+}
+
