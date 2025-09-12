@@ -5,6 +5,16 @@ import { computeAll } from '@/lib/medical/engine/computeAll';
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
+const JOINT_DECISION_RULES = [
+  "JOINT DECISION PROTOCOL:",
+  "- You (OpenAI) and the Calculators work TOGETHER.",
+  "- Treat calculator outputs as a first pass. They are fast but can be wrong at edges or due to missing/aliased inputs.",
+  "- You MUST cross-check key physiology (Winter’s formula, osmolality banding 275–295 normal, anion-gap logic, potassium bands, renal flags).",
+  "- If any calculator output conflicts with physiology, guidelines, or internal consistency, YOU must CORRECT it.",
+  "- When you correct something, state briefly: what you corrected and why (1 line), then proceed with the final consolidated answer.",
+  "- Your final answer supersedes calculator text if there’s a conflict.",
+  "- Be decisive: give the clinical interpretation, risks, and next steps. Avoid quoting raw calculators unless useful.",
+].join("\n");
 // Keep doc-mode clinical prelude tight & relevant
 function filterComputedForDocMode(items: any[], latestUser: string) {
   const msg = (latestUser || '').toLowerCase();
@@ -41,6 +51,7 @@ const recentReqs = new Map<string, number>();
 export async function POST(req: NextRequest) {
   const { messages = [], context, clientRequestId, mode } = await req.json();
   const showClinicalPrelude = (mode === 'doctor' || mode === 'research');
+  const shouldAlwaysShowPrelude = true; // <- force for now; or gate on presence of any lab keys
   const now = Date.now();
   for (const [id, ts] of recentReqs.entries()) {
     if (now - ts > 60_000) recentReqs.delete(id);
@@ -64,7 +75,7 @@ export async function POST(req: NextRequest) {
   const ctx = extractAll(userText);
   const computed = computeAll(ctx);
 
-  if (showClinicalPrelude) {
+  if (showClinicalPrelude || shouldAlwaysShowPrelude) {
     const filtered = filterComputedForDocMode(computed, latestUserMessage ?? '');
     if (filtered.length) {
       const lines = filtered.map(r => {
@@ -73,15 +84,21 @@ export async function POST(req: NextRequest) {
         return `${r.label}: ${val}${notes}`;
       });
       finalMessages = [
-        {
-          role: 'system',
-          content:
-            'Use these pre-computed clinical values only if relevant to the question. Do not re-calculate. If inputs are missing, state which values are required and avoid quoting incomplete scores.'
-        },
+        { role: 'system', content: JOINT_DECISION_RULES },
         { role: 'system', content: lines.join('\\n') },
         ...finalMessages,
       ];
+    } else {
+      finalMessages = [
+        { role: 'system', content: JOINT_DECISION_RULES },
+        ...finalMessages,
+      ];
     }
+  } else {
+    finalMessages = [
+      { role: 'system', content: JOINT_DECISION_RULES },
+      ...finalMessages,
+    ];
   }
   if (context === 'profile') {
     try {
@@ -103,9 +120,19 @@ export async function POST(req: NextRequest) {
   }
   // === [MEDX_CALC_PRELUDE_START] ===
   const __calcPrelude = composeCalcPrelude(latestUserMessage ?? "");
-  // Only add calc prelude if we actually included filtered computed lines
-  if (showClinicalPrelude && __calcPrelude && finalMessages.length && finalMessages[0]?.role === 'system') {
-    finalMessages = [{ role: 'system', content: __calcPrelude }, ...finalMessages];
+  if (__calcPrelude) {
+    const idx = finalMessages.findIndex(
+      (m: any) => m.role === 'system' && m.content === JOINT_DECISION_RULES
+    );
+    if (idx >= 0) {
+      finalMessages = [
+        ...finalMessages.slice(0, idx + 1),
+        { role: 'system', content: __calcPrelude },
+        ...finalMessages.slice(idx + 1),
+      ];
+    } else {
+      finalMessages = [{ role: 'system', content: __calcPrelude }, ...finalMessages];
+    }
   }
   // === [MEDX_CALC_PRELUDE_END] ===
 
