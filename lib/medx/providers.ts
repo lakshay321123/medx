@@ -25,15 +25,15 @@ export async function callGroqChat(messages: any[], options?: { temperature?: nu
 // Overloads: tell TS exactly what comes back
 export function callOpenAIChat(
   messages: any[],
-  options?: { stream?: false; temperature?: number }
+  options?: { stream?: false; temperature?: number; max_tokens?: number }
 ): Promise<string>;
 export function callOpenAIChat(
   messages: any[],
-  options: { stream: true; temperature?: number }
+  options: { stream: true; temperature?: number; max_tokens?: number }
 ): Promise<Response>;
 export async function callOpenAIChat(
   messages: any[],
-  { stream = false, temperature = 0.1 }: { stream?: boolean; temperature?: number } = {},
+  { stream = false, temperature = 0.1, max_tokens }: { stream?: boolean; temperature?: number; max_tokens?: number } = {},
 ): Promise<string | Response> {
   const primary = process.env.OPENAI_TEXT_MODEL || "gpt-5";
   const fallbacks = (process.env.OPENAI_FALLBACK_MODELS || "gpt-4o,gpt-4o-mini")
@@ -50,12 +50,12 @@ export async function callOpenAIChat(
   const tryNonStream = async (model: string) => {
     const client = new OpenAI({ apiKey: key });
     try {
-      const r = await client.chat.completions.create({ model, temperature: tempToUse, messages });
+      const r = await client.chat.completions.create({ model, temperature: tempToUse, messages, max_tokens });
       return r?.choices?.[0]?.message?.content ?? "";
     } catch (e: any) {
       const msg = String(e?.message || e);
       if (/temperature/i.test(msg) && /unsupported/i.test(msg)) {
-        const r2 = await client.chat.completions.create({ model, messages });
+        const r2 = await client.chat.completions.create({ model, messages, max_tokens });
         return r2?.choices?.[0]?.message?.content ?? "";
       }
       throw e;
@@ -63,7 +63,7 @@ export async function callOpenAIChat(
   };
 
   const tryStream = async (model: string) => {
-    const base = { model, messages, stream: true as const };
+    const base = { model, messages, stream: true as const, max_tokens };
     const withTemp = { ...base, temperature: tempToUse };
     const post = async (payload: any) =>
       fetch("https://api.openai.com/v1/chat/completions", {

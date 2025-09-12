@@ -29,6 +29,7 @@ export function detectAudience(mode?: string, hint?: string): Audience {
 /** Clinician style — terse, operational, SBAR-ish */
 export const clinicianStyle = `
 Format for a clinician. Be terse and operational. No lay disclaimers, no 911/ambulance language.
+HARD LIMITS: at most ${process.env.CLINICIAN_MAX_LINES ?? 6} lines; each line ≤ ${process.env.CLINICIAN_MAX_WORDS_PER_LINE ?? 14} words. No extra lines.
 Use these exact single-line sections (in order):
 Acuity: <Critical/High/Moderate> | NEWS2 <n> | qSOFA <n>
 Key abnormalities: <comma-separated vitals/abnormal values>
@@ -41,7 +42,8 @@ Keep each line concise. Avoid narrative paragraphs.
 
 /** Patient/Doc-AI style — simple explainer + “Further tests” */
 export const patientStyle = `
-Format for a general reader. Keep it simple and under ~6 short bullets.
+Format for a general reader. Keep it simple.
+HARD LIMITS: at most ${process.env.PATIENT_MAX_BULLETS ?? 5} bullets; each bullet ≤ ${process.env.PATIENT_MAX_WORDS_PER_BULLET ?? 16} words. No extra bullets.
 Include these sections (exact labels):
 Summary: <what the numbers mean in plain language>
 Why this matters: <one brief line; flag if serious>
@@ -50,4 +52,10 @@ Further tests: <only if helpful; list 2–5 likely next tests>
 Safety net: <when to seek urgent/emergency care, if applicable>
 Avoid medical jargon; explain terms briefly when needed.
 `;
+
+export function maxTokensFor(audience: Audience): number {
+  const p = parseInt(process.env.PATIENT_MAX_TOKENS || "", 10) || 280;
+  const c = parseInt(process.env.CLINICIAN_MAX_TOKENS || "", 10) || 220;
+  return audience === "clinician" ? c : p;
+}
 

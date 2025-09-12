@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ensureMinDelay } from "@/lib/utils/ensureMinDelay";
 import { callGroqChat, callOpenAIChat } from "@/lib/medx/providers";
+import { detectAudience, clinicianStyle, patientStyle, maxTokensFor } from "@/lib/medx/audience";
 
 // Optional calculator prelude (safe if absent)
 let composeCalcPrelude: any, extractAll: any, canonicalizeInputs: any, computeAll: any;
@@ -26,7 +27,7 @@ export async function POST(req: Request) {
   }
 
   // OpenAI final-say path with calculator prelude (if available)
-  let system = "Validate all calculations and medical logic before answering. Correct any inconsistencies.";
+  let system = "Validate all calculations and medical logic before answering. Correct any inconsistencies.\nCRISP: Obey hard limits; no extra lines; no preamble; no conclusions beyond requested sections.";
   if ((process.env.CALC_AI_DISABLE || "0") !== "1") {
     try {
       const lastUser = messages.slice().reverse().find((m: any) => m.role === "user")?.content || "";
@@ -38,7 +39,15 @@ export async function POST(req: Request) {
     } catch { /* ignore */ }
   }
 
-  const reply = await ensureMinDelay(callOpenAIChat([{ role: "system", content: system }, ...messages]));
+  const audience = detectAudience(mode);
+  const style = audience === "clinician" ? clinicianStyle : patientStyle;
+  const reply = await ensureMinDelay(
+    callOpenAIChat([
+      { role: "system", content: system },
+      { role: "system", content: style },
+      ...messages
+    ], { max_tokens: maxTokensFor(audience) })
+  );
   return new Response(JSON.stringify({ ok: true, provider: "openai", reply }), {
     headers: {
       "content-type": "application/json",
