@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 import "./acid_base_core";
-import "./news2";
-import "./curb_65";
-import "./psi_lite";
+export * from "./news2";
+export * from "./curb_65";
+export * from "./psi_lite";
 
 const SKIP = new Set<string>(["index.ts","acid_base_core.ts","lab_interpretation.ts"]);
 
