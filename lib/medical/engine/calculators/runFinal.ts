@@ -3,14 +3,14 @@ import { FormulaSpecs } from "@/lib/medical/engine/verification/formulaSpecs";
 
 // Import your existing calculator functions:
 import { calc_anion_gap } from "./anion_gap";
-// ...import others or build a registry programmatically
+// import additional calculators or build a registry programmatically
 
 type Inputs = Record<string, any>;
 type CalcFn = (inputs: Inputs) => number;
 
 const REGISTRY: Record<string, CalcFn> = {
   anion_gap: calc_anion_gap,
-  // ...populate the rest or autoload
+  // populate the rest or autoload
 };
 
 export async function runCalculatorFinal(
@@ -35,5 +35,5 @@ export async function runCalculatorFinal(
   if (verdict.tier !== "openai") {
     console.warn(`[calc-finalizer] ${name}: tier=${verdict.tier} local=${localResult} final=${verdict.final}`);
   }
-  return verdict; // { final, tier, explanation, ... }
+  return verdict; // { final, tier, explanation }
 }
