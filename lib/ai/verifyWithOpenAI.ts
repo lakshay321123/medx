@@ -19,7 +19,7 @@ export async function verifyWithOpenAI(args: {
   mode: string;
   ctx: Record<string, any>;
   computed: Array<any>;
-  conversation?: Array<{role: string; content: string}>;
+  conversation?: Array<{ role: string; content: string }>;
   signal?: AbortSignal;
   timeoutMs?: number;   // default 60_000
 }): Promise<Verdict | null> {
