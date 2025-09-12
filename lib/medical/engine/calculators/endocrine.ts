@@ -30,16 +30,3 @@ register({
   },
 });
 
-register({
-  id: "ada_k_guard",
-  label: "ADA potassium guard",
-  inputs: [{ key: "K", required: true }],
-  run: ({ K }) => {
-    if (K == null) return null;
-    let note = "";
-    if (K < 3.3) note = "hold insulin; replete K";
-    else if (K <= 5.2) note = "start insulin; give K";
-    else note = "start insulin; hold K";
-    return { id: "ada_k_guard", label: "Potassium guidance", value: K, unit: "mmol/L", precision: 1, notes: [note] };
-  },
-});

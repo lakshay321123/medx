@@ -94,38 +94,80 @@ export async function POST(req: NextRequest) {
   const userText = String(message || "");
   const ctx = extractAll(userText);
   const computed = computeAll(ctx);
-  // Curate what we surface to the model: top, relevant items only.
-  const CRIT_IDS = new Set<string>([
-    "anion_gap",
-    "anion_gap_corrected",
+  const CRIT_IDS = new Set([
+    "anion_gap", "anion_gap_corrected", "delta_ratio_ag",
     "winters_expected_paco2",
-    "serum_osmolality",
-    "effective_osmolality",
-    "osmolal_gap",
-    "dka_flag",
-    "hhs_flag",
-    // include your existing potassium guard if present:
-    "ada_k_guard",
+    "sodium_status",
+    "serum_osmolality", "effective_osmolality", "osmolal_gap",
+    "ada_k_guard", "dka_flag", "hhs_flag",
+    "lactate_status",
   ]);
 
-  function isAbnormal(r: any) {
-    return Array.isArray(r?.notes) && r.notes.length > 0;
+  const byId: Record<string, any> = {};
+  for (const r of computed) if (CRIT_IDS.has(r.id)) byId[r.id] = r;
+
+  const lines: string[] = [];
+
+  const ag = byId["anion_gap"];
+  const agc = byId["anion_gap_corrected"];
+  const dr = byId["delta_ratio_ag"];
+  if (ag) {
+    let line = `HAGMA: AG ${ag.value}`;
+    if (agc) line += ` (corr ${agc.value})`;
+    if (dr?.notes?.length) line += `; ${dr.notes.join("; ")}`;
+    lines.push(line);
   }
 
-  const curated = computed
-    .filter((r) => CRIT_IDS.has(r.id) || isAbnormal(r))
-    .slice(0, 8);
-
-  let curatedLines = "";
-  if (curated.length) {
-    curatedLines = curated
-      .map((r) => {
-        const val = r.unit ? `${r.value} ${r.unit}` : String(r.value);
-        const notes = r.notes?.length ? ` — ${r.notes.join("; ")}` : "";
-        return `${r.label}: ${val}${notes}`;
-      })
-      .join("\n");
+  const HCO3 = (ctx as any).HCO3;
+  const winter = byId["winters_expected_paco2"];
+  const pco2 = (ctx as any).PaCO2;
+  if (HCO3 != null && winter) {
+    let line = `Acidemia driver: HCO₃ ${HCO3}`;
+    line += `; Winter’s exp pCO₂ ${winter.value} (±2)`;
+    if (pco2 != null) line += ` vs actual ${pco2}`;
+    lines.push(line);
   }
+
+  const glucose = (ctx as any).glucose_mgdl;
+  const sodium = byId["sodium_status"];
+  if (glucose != null && sodium) {
+    const trans = sodium.notes?.find((n: string) => n.includes("translocational"));
+    let line = `Glucose ${glucose}; Corrected Na ${sodium.value}`;
+    if (trans) line += ` — ${trans}`;
+    lines.push(line);
+  }
+
+  const kGuard = byId["ada_k_guard"];
+  if (kGuard) {
+    const note = kGuard.notes?.[0] ?? "";
+    lines.push(`K ${kGuard.value} — ${note}`);
+  }
+
+  const lactate = byId["lactate_status"];
+  if (lactate) {
+    const note = lactate.notes?.[0] ?? "";
+    lines.push(`Lactate ${lactate.value} — ${note}`);
+  }
+
+  const osmCalc = byId["serum_osmolality"];
+  const measuredOsm = (ctx as any).measured_osm;
+  const osmGap = byId["osmolal_gap"];
+  if (osmCalc || measuredOsm != null || osmGap) {
+    let line = "Osm:";
+    if (osmCalc) line += ` calc ${osmCalc.value}`;
+    if (measuredOsm != null) line += ` / measured ${measuredOsm}`;
+    if (osmGap) line += `; gap ${osmGap.value}`;
+    lines.push(line);
+  }
+
+  const dka = byId["dka_flag"];
+  const hhs = byId["hhs_flag"];
+  if (dka || hhs) {
+    const toNum = (r: any) => (r?.value === "yes" ? 1 : 0);
+    lines.push(`Gate(s): DKA ${toNum(dka)}; HHS ${toNum(hhs)}`);
+  }
+
+  const curatedLines = lines.join("\n");
 
   // Build final system: curated block + your base prompt (no raw full dump)
   system = [
