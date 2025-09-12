@@ -36,6 +36,16 @@ export const runtime = 'edge';
 const recentReqs = new Map<string, number>();       // dedupe clientRequestId
 const verdictCache = new Map<string, { v: any, exp: number }>(); // 10-min cache
 
+// Utility: set CORS headers on responses
+function withCORS(res: Response) {
+  const h = new Headers(res.headers);
+  h.set('Access-Control-Allow-Origin', '*');
+  h.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS,HEAD');
+  h.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  h.set('Access-Control-Max-Age', '86400');
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
+}
+
 async function sha256Hex(input: string): Promise<string> {
   const data = new TextEncoder().encode(input);
   const hash = await crypto.subtle.digest('SHA-256', data);
@@ -61,7 +71,7 @@ async function handleChat(req: NextRequest, payload: any) {
   for (const [id, ts] of recentReqs.entries()) if (now - ts > 60_000) recentReqs.delete(id);
   if (clientRequestId) {
     const ts = recentReqs.get(clientRequestId);
-    if (ts && now - ts < 60_000) return new Response(null, { status: 409 });
+    if (ts && now - ts < 60_000) return withCORS(new Response(null, { status: 409 }));
     recentReqs.set(clientRequestId, now);
   }
 
@@ -197,12 +207,17 @@ async function handleChat(req: NextRequest, payload: any) {
 
   if (!upstream.ok) {
     const err = await upstream.text();
-    return new Response(`LLM error: ${err}`, { status: 500 });
+    return withCORS(new Response(`LLM error: ${err}`, { status: 500 }));
   }
 
-  return new Response(upstream.body, {
-    headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }
+  const streamRes = new Response(upstream.body, {
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+    }
   });
+  return withCORS(streamRes);
 }
 
 // ===== Exported HTTP methods =====
@@ -236,9 +251,14 @@ export async function OPTIONS() {
   return NextResponse.json({}, {
     headers: {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS,HEAD',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Access-Control-Max-Age': '86400',
     },
   });
+}
+
+// HEAD: some clients/proxies probe with HEAD; return 200
+export async function HEAD() {
+  return withCORS(new Response(null, { status: 200 }));
 }
