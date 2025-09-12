@@ -7,7 +7,7 @@ type CalcFn = (inputs: Inputs) => number;
 
 const REGISTRY: Record<string, CalcFn> = {
   anion_gap,
-  // …register more calculators
+  // register more calculators as needed
 };
 
 export async function runCalculatorFinal(

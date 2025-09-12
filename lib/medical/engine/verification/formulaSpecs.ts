@@ -5,5 +5,5 @@ export const FormulaSpecs: Record<string, string> = {
   serum_osmolality: "Serum_Osm = 2 * Na + (glucose_mgdl / 18) + (BUN_mgdl / 2.8)",
   effective_osmolality: "Effective_Osm = 2 * Na + (glucose_mgdl / 18)",
   delta_gap: "Delta_Gap = ((Na - (Cl + HCO3)) - 12) - (24 - HCO3)",
-  // add more…
+  // add additional formula specs here as needed
 };
