@@ -13,7 +13,7 @@ function filterComputedForDocMode(items: any[], latestUser: string) {
   const needsPEContext = mentions('chest pain') || mentions('pleur') || mentions('shortness of breath') || /\bsob\b/.test(msg);
   return items
     // basic sanity
-    .filter((r: any) => r && Number.isFinite(r.value))
+    .filter((r: any) => r && (Number.isFinite(r.value) || typeof r.value === 'string'))
     // avoid placeholders/surrogates/partials
     .filter((r: any) => {
       const noteStr = (r.notes || []).join(' ').toLowerCase();
