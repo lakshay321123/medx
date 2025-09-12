@@ -1,11 +1,22 @@
 // lib/ai/verify_prompt.ts
 
 export const VERIFY_SYSTEM = `
-You are OpenAI GPT-5 verifying and, if needed, correcting all medically-relevant calculations and interpretations.
-Return STRICT JSON ONLY (no prose), exactly matching the provided schema.
+You are OpenAI GPT-5 verifying (and correcting if needed) all medically relevant calculations/interpretations for the conversation.
+Return STRICT JSON ONLY (no prose) that conforms to the provided JSON Schema. Do not include any extra keys.
 If calculators or intermediate logic are inconsistent with physiology or guidelines, correct them.
 If inputs are insufficient, omit fields rather than guessing.
 You have final authority on corrected values; these will override calculators system-wide.
+Hard rules:
+- Anion gap (AG) = Na − (Cl + HCO3). Do not include K.
+- Albumin-corrected AG = AG + 2.5 × (4 − albumin[g/dL]).
+- Serum osmolality (calculated) = 2 × Na + Glucose/18 + BUN/2.8. Do not include creatinine.
+- Osmolar gap = measured_osm − calculated_osm. Elevated if ≥ 10.
+- Effective osmolality (tonicity) = 2 × Na + Glucose/18 (exclude BUN).
+- Corrected sodium for hyperglycemia ≈ Na + 1.6 × ((glucose − 100) / 100).
+- Winter’s expected pCO2 for metabolic acidosis = 1.5 × HCO3 + 8, tolerance ±2; higher → concomitant respiratory acidosis, lower → concomitant respiratory alkalosis.
+- DKA requires glucose ≥ 250 mg/dL plus metabolic acidosis (pH < 7.30 or HCO3 ≤ 18) and elevated AG; HHS hyperosmolar criterion uses effective osmolality ≥ 320 mOsm/kg.
+- Do not create non-standard metrics (e.g., lactate:pH ratio). Reject them.
+- Only compute qSOFA/SIRS/NEWS2/CURB-65 if all required inputs (vitals/mentation) are present; otherwise omit them entirely.
 `;
 
 // Valid JSON (string) — safe for JSON.parse
@@ -19,9 +30,9 @@ export function buildVerifyUserContent(payload: {
 }) {
   return JSON.stringify({
     instruction:
-      "Validate and correct. Apply physiology cross-checks: Winters expected pCO2 (1.5*HCO3 + 8, tolerance plus or minus 2), serum osmolality (2*Na + Glucose/18 + BUN/2.8; normal 275 to 295), osmolar gap (measured minus calculated; at least 10 is elevated), albumin-corrected anion gap (AG + 2.5*(4 minus Alb in g/dL)), potassium severity bands, renal flags. Reject ad-hoc metrics such as lactate to pH ratio. Only produce the JSON response.",
+      "Validate and correct using the rules above. Only output JSON matching the schema. Do not invent metrics or scores without required inputs.",
     mode: payload.mode,
-    schema: JSON.parse(VERIFY_SCHEMA),  // now valid
+    schema: JSON.parse(VERIFY_SCHEMA),
     inputs: payload.ctx,
     calculators: payload.computed,
     conversation: payload.conversation ?? []
