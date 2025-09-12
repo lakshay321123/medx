@@ -23,76 +23,47 @@ export async function callGroqChat(messages: any[], options?: { temperature?: nu
 }
 
 // Overloads: tell TS exactly what comes back
-export function callOpenAIChat(
-  messages: any[],
-  options?: { stream?: false; temperature?: number }
-): Promise<string>;
-export function callOpenAIChat(
-  messages: any[],
-  options: { stream: true; temperature?: number }
-): Promise<Response>;
-export async function callOpenAIChat(
-  messages: any[],
-  { stream = false, temperature = 0.1 }: { stream?: boolean; temperature?: number } = {},
-): Promise<string | Response> {
-  const primary = process.env.OPENAI_TEXT_MODEL || "gpt-5";
-  const fallbacks = (process.env.OPENAI_FALLBACK_MODELS || "gpt-4o,gpt-4o-mini")
-    .split(",")
-    .map(s => s.trim())
-    .filter(Boolean);
-  const models = [primary, ...fallbacks];
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error("OPENAI_API_KEY missing");
-
-  const forbidCustomTemp = /^gpt-5/i.test(primary);
-  const tempToUse = forbidCustomTemp ? undefined : temperature;
+export function callOpenAIChat(messages: any[], opt?: { stream?: false; temperature?: number; max_tokens?: number }): Promise<string>;
+export function callOpenAIChat(messages: any[], opt: { stream: true;  temperature?: number; max_tokens?: number }): Promise<Response>;
+export async function callOpenAIChat(messages: any[], { stream=false, temperature=0.1, max_tokens }: any = {}) {
+  const key = process.env.OPENAI_API_KEY; if (!key) throw new Error("OPENAI_API_KEY missing");
+  const models = [process.env.OPENAI_TEXT_MODEL || "gpt-5", ...(process.env.OPENAI_FALLBACK_MODELS || "gpt-4o,gpt-4o-mini").split(",").map(s=>s.trim()).filter(Boolean)];
 
   const tryNonStream = async (model: string) => {
     const client = new OpenAI({ apiKey: key });
     try {
-      const r = await client.chat.completions.create({ model, temperature: tempToUse, messages });
+      const r = await client.chat.completions.create({ model, temperature, messages, max_tokens });
       return r?.choices?.[0]?.message?.content ?? "";
     } catch (e: any) {
-      const msg = String(e?.message || e);
-      if (/temperature/i.test(msg) && /unsupported/i.test(msg)) {
-        const r2 = await client.chat.completions.create({ model, messages });
-        return r2?.choices?.[0]?.message?.content ?? "";
+      if (/temperature/i.test(String(e)) && /unsupported/i.test(String(e))) {
+        const r = await client.chat.completions.create({ model, messages, max_tokens });
+        return r?.choices?.[0]?.message?.content ?? "";
       }
       throw e;
     }
   };
 
   const tryStream = async (model: string) => {
-    const base = { model, messages, stream: true as const };
-    const withTemp = { ...base, temperature: tempToUse };
-    const post = async (payload: any) =>
-      fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-    let res = await post(withTemp);
+    const post = (payload: any) => fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    let res = await post({ model, messages, stream: true, temperature, max_tokens });
     if (!res.ok) {
-      const txt = await res.text().catch(() => "");
+      const txt = await res.text().catch(()=> "");
       if (res.status === 400 && /temperature/i.test(txt) && /unsupported/i.test(txt)) {
-        res = await post(base);
+        res = await post({ model, messages, stream: true, max_tokens });
       }
-      if (!res.ok) {
-        throw new Error(`OpenAI ${model} stream error ${res.status}: ${txt.slice(0,200)}`);
-      }
+      if (!res.ok) throw new Error(`OpenAI ${model} stream error ${res.status}: ${txt.slice(0,200)}`);
     }
-    return res; // SSE Response
+    return res;
   };
 
-  let lastErr: any;
+  let last: any;
   for (const m of models) {
-    try {
-      return stream ? await tryStream(m) : await tryNonStream(m);
-    } catch (e: any) {
-      lastErr = e;
-    }
+    try { return stream ? await tryStream(m) : await tryNonStream(m); } catch (e) { last = e; }
   }
-  throw lastErr || new Error("OpenAI error with all models");
+  throw last || new Error("OpenAI error with all models");
 }
 

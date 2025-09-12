@@ -33,6 +33,8 @@ import { detectAdvancedDomain } from "@/lib/intents/advanced";
 // === ADD-ONLY for domain routing ===
 import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
+import ThinkingInline from "@/components/ThinkingInline";
+import { thinking } from "@/lib/ux/thinking";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -1016,7 +1018,8 @@ ${systemCommon}` + baseSys;
         ];
       }
 
-      const res = await fetch('/api/chat/stream', {
+      thinking.start('Analyzing…');
+      const res = await fetch('/api/chat/stream-final', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1025,7 +1028,8 @@ ${systemCommon}` + baseSys;
         },
         body: JSON.stringify({ mode: mode === 'doctor' ? 'doctor' : 'patient', messages: chatMessages, threadId, context })
       });
-      if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
+      thinking.headers(res);
+      if (!res.ok || !res.body) { thinking.stop(); throw new Error(`Chat API error ${res.status}`); }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -1034,23 +1038,13 @@ ${systemCommon}` + baseSys;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
-        for (const line of lines) {
-          if (line.trim() === 'data: [DONE]') continue;
-          try {
-            const payload = JSON.parse(line.replace(/^data:\s*/, ''));
-            const delta = payload?.choices?.[0]?.delta?.content;
-            if (delta) {
-              acc += delta;
-              setMessages(prev =>
-                prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m))
-              );
-            }
-          } catch {}
-        }
+        acc += chunk;
+        setMessages(prev =>
+          prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m))
+        );
       }
+      thinking.stop();
       const { main, followUps } = splitFollowUps(acc);
       setMessages(prev =>
         prev.map(m =>
@@ -1771,6 +1765,7 @@ ${systemCommon}` + baseSys;
               <Send size={16} />
             </button>
           </form>
+          <ThinkingInline className="mx-2 my-2" />
         </div>
       </div>
       {/* Preflight chooser (flagged) */}

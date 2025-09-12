@@ -1,49 +1,78 @@
-import { NextResponse } from "next/server";
+import OpenAI from "openai";
+import { detectAudience, clinicianStyle, patientStyle, maxTokensFor } from "@/lib/medx/audience";
 import { ensureMinDelay } from "@/lib/utils/ensureMinDelay";
-import { callGroqChat, callOpenAIChat } from "@/lib/medx/providers";
-
-// Optional calculator prelude (safe if absent)
-let composeCalcPrelude: any, extractAll: any, canonicalizeInputs: any, computeAll: any;
-try {
-  // Adjust paths if your engine differs
-  ({ composeCalcPrelude } = require("@/lib/medical/engine/prelude"));
-  ({ extractAll, canonicalizeInputs } = require("@/lib/medical/engine/extract"));
-  ({ computeAll } = require("@/lib/medical/engine/computeAll"));
-} catch {}
-
-function pickProvider(mode?: string) {
-  const m = (mode || "").toLowerCase();
-  return (m === "basic" || m === "casual") ? "groq" : "openai";
-}
+import { callOpenAIChat } from "@/lib/medx/providers";
+import { formatDoctorSBAR, DoctorSBAR } from "@/lib/medx/doctorFormat";
 
 export async function POST(req: Request) {
-  const { messages = [], mode } = await req.json();
-  const provider = pickProvider(mode);
+  const { messages = [], mode, audience: audIn } = await req.json();
+  const audience = detectAudience(mode, audIn);
 
-  if (provider === "groq") {
-    const reply = await ensureMinDelay(callGroqChat(messages, { temperature: 0.2, max_tokens: 1200 }));
-    return NextResponse.json({ ok: true, provider, reply });
+  let system = "Validate calculations & medical logic; correct inconsistencies.\nCRISP: obey hard limits; no preamble; no derivations.";
+  system += audience === "clinician" ? ("\n" + clinicianStyle) : ("\n" + patientStyle);
+
+  const minMs = (parseInt(process.env.MIN_OUTPUT_DELAY_SECONDS || "", 10) || 10) * 1000;
+
+  if (audience === "clinician") {
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+    const model = process.env.OPENAI_TEXT_MODEL || "gpt-5";
+    const resp = await ensureMinDelay(
+      client.chat.completions.create({
+        model,
+        messages: [{ role: "system", content: system }, ...messages],
+        tools: [{
+          type: "function",
+          function: {
+            name: "doctor_sbar",
+            description: "Return concise clinician SBAR fields (no formulas).",
+            parameters: {
+              type: "object", additionalProperties: false,
+              properties: {
+                acuity: { type: "string" },
+                abnormalities: { type: "array", items: { type: "string" } },
+                impression: { type: "string" },
+                immediate_steps: { type: "array", items: { type: "string" } },
+                summary: { type: "string" },   // MDM (concise)
+                recommended_tests: { type: "array", items: { type: "string" } },
+                disposition: { type: "string" }
+              },
+              required: ["acuity","abnormalities","impression","immediate_steps","summary","recommended_tests","disposition"]
+            }
+          }
+        }],
+        tool_choice: { type: "function", function: { name: "doctor_sbar" } },
+        max_tokens: maxTokensFor("clinician"),
+      }),
+      minMs
+    );
+    const tool = resp.choices?.[0]?.message?.tool_calls?.[0];
+    const args = tool?.function?.arguments;
+    let obj: DoctorSBAR | null = null;
+    try { obj = args ? JSON.parse(args) : null; } catch {}
+    const reply = obj ? formatDoctorSBAR(obj) : (resp.choices?.[0]?.message?.content || "");
+    return new Response(JSON.stringify({ ok: true, provider: "openai", model, audience, reply }), {
+      headers: {
+        "content-type": "application/json",
+        "x-medx-provider": "openai",
+        "x-medx-model": model,
+        "x-medx-audience": "clinician",
+        "x-medx-min-delay": String(minMs),
+      }
+    });
   }
 
-  // OpenAI final-say path with calculator prelude (if available)
-  let system = "Validate all calculations and medical logic before answering. Correct any inconsistencies.";
-  if ((process.env.CALC_AI_DISABLE || "0") !== "1") {
-    try {
-      const lastUser = messages.slice().reverse().find((m: any) => m.role === "user")?.content || "";
-      const extracted = extractAll?.(lastUser);
-      const canonical = canonicalizeInputs?.(extracted);
-      const computed = computeAll?.(canonical);
-      const prelude = composeCalcPrelude?.(computed);
-      if (prelude) system = `Use and verify these pre-computed values first:\n${prelude}`;
-    } catch { /* ignore */ }
-  }
-
-  const reply = await ensureMinDelay(callOpenAIChat([{ role: "system", content: system }, ...messages]));
-  return new Response(JSON.stringify({ ok: true, provider: "openai", reply }), {
+  // Patient / Doc AI
+  const reply = await ensureMinDelay(
+    callOpenAIChat([{ role: "system", content: system }, ...messages], { max_tokens: maxTokensFor(audience) }),
+    minMs
+  );
+  return new Response(JSON.stringify({ ok: true, provider: "openai", model: process.env.OPENAI_TEXT_MODEL || "gpt-5", audience, reply }), {
     headers: {
       "content-type": "application/json",
       "x-medx-provider": "openai",
       "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-5",
-    },
+      "x-medx-audience": audience,
+      "x-medx-min-delay": String(minMs),
+    }
   });
 }
