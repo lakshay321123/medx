@@ -33,6 +33,8 @@ import { detectAdvancedDomain } from "@/lib/intents/advanced";
 // === ADD-ONLY for domain routing ===
 import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
+import ThinkingInline from "@/components/ThinkingInline";
+import { thinking } from "@/lib/ux/thinking";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -173,25 +175,25 @@ No fabricated IDs. Provide themes, not specific trial numbers unless confident.`
   ];
 }
 
-function PendingAnalysisCard({ label }: { label: string }) {
+function PendingAnalysisCard() {
   return (
     <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
-      <div className="text-sm text-slate-600 dark:text-slate-300">{label}</div>
+      <ThinkingInline />
     </div>
   );
 }
 
-function PendingChatCard({ label }: { label: string }) {
+function PendingChatCard() {
   return (
     <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
-      <div className="text-sm text-slate-600 dark:text-slate-300">{label}</div>
+      <ThinkingInline />
     </div>
   );
 }
 
 function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatMessage, { kind: "analysis" }>; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean }) {
   const header = titleForCategory(m.category);
-  if (m.pending) return <PendingAnalysisCard label="Analyzing file…" />;
+  if (m.pending) return <PendingAnalysisCard />;
   return (
     <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl space-y-2">
       <header className="flex items-center gap-2">
@@ -243,7 +245,7 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
   );
 }
 function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onFollowUpClick: (text: string) => void; simple: boolean }) {
-  if (m.pending) return <PendingChatCard label="Thinking…" />;
+  if (m.pending) return <PendingChatCard />;
   return (
     <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
       <ChatMarkdown content={m.content} />
@@ -689,6 +691,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       upsertThreadIndex(threadId, nt);
     }
 
+    thinking.start('Analyzing…');
     try {
       const fullContext = buildFullContext(stableThreadId);
       const contextBlock = fullContext ? `\n\nCONTEXT (recent conversation):\n${fullContext}` : "";
@@ -713,6 +716,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             clientRequestId: rid
           })
         });
+        thinking.headers(res);
         if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -1025,6 +1029,7 @@ ${systemCommon}` + baseSys;
         },
         body: JSON.stringify({ mode: mode === 'doctor' ? 'doctor' : 'patient', messages: chatMessages, threadId, context })
       });
+      thinking.headers(res);
       if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
 
       const reader = res.body.getReader();
@@ -1107,6 +1112,7 @@ ${systemCommon}` + baseSys;
         try { pushFullMem(stableThreadId, "assistant", content); } catch {}
       }
     } finally {
+      thinking.stop();
       setBusy(false);
     }
   }
@@ -1135,9 +1141,14 @@ ${systemCommon}` + baseSys;
       if (threadId) fd.append('threadId', threadId);
       const sourceHash = `${file?.name ?? 'doc'}:${file?.size ?? ''}:${(file as any)?.lastModified ?? ''}`;
       fd.append('sourceHash', sourceHash);
-      const data = await safeJson(
-        fetch('/api/analyze', { method: 'POST', body: fd })
-      );
+      thinking.start('Analyzing file…');
+      const res = await fetch('/api/analyze', { method: 'POST', body: fd });
+      thinking.headers(res);
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`Request failed ${res.status}: ${text || res.statusText}`);
+      }
+      const data = await res.json();
       setMessages(prev =>
         prev.map(m =>
           m.id === pendingId
@@ -1176,6 +1187,7 @@ ${systemCommon}` + baseSys;
         )
       );
     } finally {
+      thinking.stop();
       setBusy(false);
       setPendingFile(null);
       setNote('');
