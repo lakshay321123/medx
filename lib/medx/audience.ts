@@ -70,19 +70,20 @@ Keep each line concise. Avoid narrative paragraphs.
 
 /** Patient/Doc-AI style — simple explainer + “Further tests” */
 export const patientStyle = `
-Format for a general reader. Keep it simple.
-HARD LIMITS: at most ${process.env.PATIENT_MAX_BULLETS ?? 5} bullets; each bullet ≤ ${process.env.PATIENT_MAX_WORDS_PER_BULLET ?? 16} words. No extra bullets.
-Include these sections (exact labels):
-Summary: <what the numbers mean in plain language>
-Why this matters: <one brief line; flag if serious>
-What to do now: <clear next action; self-care vs see doctor vs ER>
-Further tests: <only if helpful; list 2–5 likely next tests>
-Safety net: <when to seek urgent/emergency care, if applicable>
-Avoid medical jargon; explain terms briefly when needed.
+Format for a general reader. Use plain language.
+HARD LIMITS: at most ${process.env.PATIENT_MAX_BULLETS ?? 6} bullets; each bullet ≤ ${process.env.PATIENT_MAX_WORDS_PER_BULLET ?? 18} words. No extra bullets.
+Include these sections (exact labels, in this order):
+Summary: <what the numbers/symptoms mean in simple words>
+Why this matters: <one line on risk/seriousness>
+What to do now: <clear next step: home care / clinic today / ER now>
+Further tests: <2–5 tests the clinician will likely order>
+What to expect: <brief care steps or monitoring, optional>
+Safety net: <when to seek urgent/emergency care>
+Use plain language; briefly explain terms. No step-by-step math. One short sentence per bullet; prefer "Now/Next/If" phrasing.
 `;
 
 export function maxTokensFor(audience: Audience): number {
-  const p = parseInt(process.env.PATIENT_MAX_TOKENS || "", 10) || 280;
+  const p = parseInt(process.env.PATIENT_MAX_TOKENS || "", 10) || 220;
   const c = parseInt(process.env.CLINICIAN_MAX_TOKENS || "", 10) || 220;
   return audience === "clinician" ? c : p;
 }
