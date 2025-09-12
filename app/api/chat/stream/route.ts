@@ -5,6 +5,34 @@ import { computeAll } from '@/lib/medical/engine/computeAll';
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
+// Keep doc-mode clinical prelude tight & relevant
+function filterComputedForDocMode(items: any[], latestUser: string) {
+  const msg = (latestUser || '').toLowerCase();
+  const mentions = (s: string) => msg.includes(s);
+  const isRespContext = mentions('cough') || mentions('fever') || mentions('cold') || mentions('breath') || mentions('sore throat');
+  const needsPEContext = mentions('chest pain') || mentions('pleur') || mentions('shortness of breath') || /\bsob\b/.test(msg);
+  return items
+    // basic sanity
+    .filter((r: any) => r && Number.isFinite(r.value))
+    // avoid placeholders/surrogates/partials
+    .filter((r: any) => {
+      const noteStr = (r.notes || []).join(' ').toLowerCase();
+      const lbl = String(r.label || '').toLowerCase();
+      return !/surrogate|placeholder|phase-1|inputs? needed|partial/.test(noteStr + ' ' + lbl);
+    })
+    // relevance pruning
+    .filter((r: any) => {
+      const lbl = String(r.label || '').toLowerCase();
+      // allow these in respiratory context
+      if (isRespContext && (/(curb-?65|news2|qsofa|sirs|qcsi|sofa)/i.test(lbl))) return true;
+      // PERC only if explicit PE context
+      if (/(perc)/i.test(lbl)) return needsPEContext;
+      // drop unrelated rules/noise
+      if (/(glasgow-blatchford|ottawa|ankle|knee|head|rockall|apgar|bishop|pasi|burn|maddrey|fib-4|apri|child-?pugh|meld)/i.test(lbl)) return false;
+      // conservative default: keep only a small, high-signal set
+      return /(curb-?65|news2|qsofa|sirs)/i.test(lbl);
+    });
+}
 export const runtime = 'edge';
 
 const recentReqs = new Map<string, number>();
@@ -31,25 +59,29 @@ export async function POST(req: NextRequest) {
 
   let finalMessages = messages.filter((m: any) => m.role !== 'system');
 
+  const latestUserMessage = messages.filter((m: any) => m.role === 'user').slice(-1)[0]?.content || "";
   const userText = (messages || []).map((m: any) => m?.content || '').join('\n');
   const ctx = extractAll(userText);
   const computed = computeAll(ctx);
 
-  if (showClinicalPrelude && computed.length) {
-    const lines = computed.map(r => {
-      const val = r.unit ? `${r.value} ${r.unit}` : String(r.value);
-      const notes = r.notes?.length ? ` — ${r.notes.join('; ')}` : '';
-      return `${r.label}: ${val}${notes}`;
-    });
-    finalMessages = [
-      {
-        role: 'system',
-        content:
-          'Use the pre-computed clinical values below exactly. Do not re-calculate. If inputs are missing, state which values are required.'
-      },
-      { role: 'system', content: lines.join('\n') },
-      ...finalMessages,
-    ];
+  if (showClinicalPrelude) {
+    const filtered = filterComputedForDocMode(computed, latestUserMessage ?? '');
+    if (filtered.length) {
+      const lines = filtered.map(r => {
+        const val = r.unit ? `${r.value} ${r.unit}` : String(r.value);
+        const notes = r.notes?.length ? ` — ${r.notes.join('; ')}` : '';
+        return `${r.label}: ${val}${notes}`;
+      });
+      finalMessages = [
+        {
+          role: 'system',
+          content:
+            'Use these pre-computed clinical values only if relevant to the question. Do not re-calculate. If inputs are missing, state which values are required and avoid quoting incomplete scores.'
+        },
+        { role: 'system', content: lines.join('\\n') },
+        ...finalMessages,
+      ];
+    }
   }
   if (context === 'profile') {
     try {
@@ -70,9 +102,9 @@ export async function POST(req: NextRequest) {
     } catch {}
   }
   // === [MEDX_CALC_PRELUDE_START] ===
-  const latestUserMessage = messages.filter((m: any) => m.role === 'user').slice(-1)[0]?.content || "";
   const __calcPrelude = composeCalcPrelude(latestUserMessage ?? "");
-  if (showClinicalPrelude && __calcPrelude) {
+  // Only add calc prelude if we actually included filtered computed lines
+  if (showClinicalPrelude && __calcPrelude && finalMessages.length && finalMessages[0]?.role === 'system') {
     finalMessages = [{ role: 'system', content: __calcPrelude }, ...finalMessages];
   }
   // === [MEDX_CALC_PRELUDE_END] ===
