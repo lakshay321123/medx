@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { extractTextFromPDF, rasterizeFirstPage } from "@/lib/pdftext";
 import { COUNTRIES } from "@/data/countries";
 import { analyzeLabText } from "@/lib/labReport";
-import { extractAll } from "@/lib/medical/engine/extract";
+import { extractAll, canonicalizeInputs } from "@/lib/medical/engine/extract";
 import { computeAll } from "@/lib/medical/engine/computeAll";
 import { dualEngineSummarize } from "@/lib/reports/dualEngine";
 
@@ -160,7 +160,7 @@ export async function POST(req: Request) {
         }
 
         if (FLAGS.DUAL && FLAGS.LLM && FLAGS.USE_CALC && category !== "lab_report") {
-          const ctx = extractAll(text);
+          const ctx = canonicalizeInputs(extractAll(text));
           const derived = computeAll(ctx);
           const result = await dualEngineSummarize({
             kind: "generic",

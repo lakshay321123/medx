@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { profileChatSystem } from '@/lib/profileChatSystem';
-import { extractAll } from '@/lib/medical/engine/extract';
+import { extractAll, canonicalizeInputs } from '@/lib/medical/engine/extract';
 import { computeAll } from '@/lib/medical/engine/computeAll';
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
 
   const latestUserMessage = messages.filter((m: any) => m.role === 'user').slice(-1)[0]?.content || "";
   const userText = (messages || []).map((m: any) => m?.content || '').join('\n');
-  const ctx = extractAll(userText);
+  const ctx = canonicalizeInputs(extractAll(userText));
   const computed = computeAll(ctx);
 
   if (showClinicalPrelude) {
