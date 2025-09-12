@@ -20,6 +20,13 @@ const ALIAS: Record<string, string> = {
   o2_lpm: "on_o2",
   oxygen: "on_o2",
   O2: "on_o2",
+  onOxygen: "on_o2",
+  // Legacy/alternate vital keys
+  RRr: "RR",
+  SaO2: "spo2_percent",
+  conscious_level: "consciousness",
+  ACVPU: "consciousness",
+  Temp_C: "temp_c",
 
   lactate_mmol_l: "Lactate",
 

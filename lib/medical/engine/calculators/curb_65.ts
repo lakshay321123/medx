@@ -17,7 +17,9 @@ register({
   ],
   run: ({ confusion, BUN, RR, SBP, DBP, age }) => {
     const toBool = (v: any) =>
-      v === true || v === 1 || (typeof v === "string" && /^(yes|true|y)$/i.test(v));
+      v === true ||
+      (typeof v === "number" && v > 0) ||
+      (typeof v === "string" && /^(yes|true|y)$/i.test(v));
 
     const c = toBool(confusion) ? 1 : 0;
     const u = Number(BUN) >= 20 ? 1 : 0;              // ~7 mmol/L urea
