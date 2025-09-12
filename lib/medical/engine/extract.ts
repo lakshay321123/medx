@@ -20,7 +20,8 @@ const ALIAS: Record<string, string> = {
   spo2: "spo2_percent", spO2: "spo2_percent", SpO2: "spo2_percent", spo2_percent: "spo2_percent",
   temp_c: "temp_c", temp_f: "temp_f",
   gcs: "GCS", consciousness: "consciousness",
-  pco2_mmHg: "pCO2", paCO2: "pCO2"
+  pco2_mmHg: "pCO2", paCO2: "pCO2",
+  on_o2: "on_o2", on_supplemental_o2: "on_o2", supplemental_o2: "on_o2",
 };
 
 function mapAliases(input: Record<string, any>) {
@@ -99,10 +100,16 @@ export function extractAll(s: string): Record<string, any> {
     PaO2: pickNum(/\bpa?o2[^0-9]*[:=]?\s*([0-9.]+)/, t),
     FiO2: pickNum(/\bfio2[^0-9]*[:=]?\s*([0-9.]+)/, t),
     PaCO2: pickNum(/\bpaco2[^0-9]*[:=]?\s*([0-9.]+)/, t),
-    SBP: pickNum(/\bsbp[^0-9]*[:=]?\s*([0-9.]+)/, t),
-    DBP: pickNum(/\bdbp[^0-9]*[:=]?\s*([0-9.]+)/, t),
-    RR: pickNum(/\brr[^0-9]*[:=]?\s*([0-9.]+)/, t),
-    HR: pickNum(/\b(heart\s*rate|hr)[^0-9]*[:=]?\s*([0-9.]+)/, t),
+    SBP: pickNum(/\bsbp[^0-9]*[:=]?\s*([0-9.]+)/i, t),
+    DBP: pickNum(/\bdbp[^0-9]*[:=]?\s*([0-9.]+)/i, t),
+    RR: pickNum(/\brr[^0-9]*[:=]?\s*([0-9.]+)/i, t),
+    HR: pickNum(/\b(heart\s*rate|hr)\b[^0-9:=]*[:=]?\s*([0-9.]+)/i, t),
+    // Vitals added for P5
+    temp_c: pickNum(/\btemp(?:erature)?\s*(?:c|cel(?:sius)?)?[^0-9:=]*[:=]?\s*([0-9.]+)/i, t) ?? pickNum(/\btemp[^0-9:=]*[:=]?\s*([0-9.]+)/i, t),
+    spo2_percent: pickNum(/\b(?:spo2|sats?|oxygen\s*saturation)[^0-9:=]*[:=]?\s*([0-9.]+)/i, t),
+    FiO2: pickNum(/\bfi?o2[^0-9:=]*[:=]?\s*([0-9.]+)/i, t),
+    o2_lpm: pickNum(/\b(?:o2|oxygen)\s*(?:flow|lpm)[^0-9:=]*[:=]?\s*([0-9.]+)/i, t),
+    on_o2: /\b(on\s*o2|supplemental\s*o2|on\s*oxygen|oxygen\s*therapy)\b/i.test(t) ? 1 : undefined,
     QTms: pickNum(/\bqt[^0-9]*[:=]?\s*([0-9]{3,4})\s*ms/, t),
     GCS: pickNum(/\bgcs[^0-9]*[:=]?\s*([0-9]{1,2})/, t),
     age: pickNum(/\bage[^0-9]*[:=]?\s*([0-9]{1,3})/, t),
@@ -176,6 +183,33 @@ export function extractAll(s: string): Record<string, any> {
   if (out.Hb == null) out.Hb = pickNum(/\b(hb|hemoglobin)[^0-9]*[:=]?\s*([0-9.]+)/i, s);
   if (out.platelets == null) out.platelets = pickNum(/\b(plt|platelets?)\b[^0-9]*[:=]?\s*([0-9.]+)/i, s);
   // === [MEDX_CALC_EXTRA_INPUTS_END] ===
+
+  // -------- Robust supplemental oxygen normalization (on_o2) --------
+  const toBool = (v:any) =>
+    v === true || v === 1 ||
+    (typeof v === "number" && v > 0) ||
+    (typeof v === "string" && /^(yes|true|y|on)$/i.test(v));
+
+  let onO2 = false;
+  if (out.on_o2 != null) onO2 = toBool(out.on_o2);
+  if (!onO2 && out.o2_lpm != null) {
+    const n = typeof out.o2_lpm === "string" ? parseFloat(out.o2_lpm) : Number(out.o2_lpm);
+    if (isFinite(n) && n > 0) onO2 = true;
+  }
+  if (!onO2 && out.FiO2 != null) {
+    let f:any = out.FiO2;
+    if (typeof f === "string") {
+      const s2 = f.trim();
+      if (/%$/.test(s2)) { const pct = parseFloat(s2.replace("%","")); if (isFinite(pct)) f = pct/100; }
+      else { const n2 = parseFloat(s2); if (isFinite(n2)) f = n2>1 ? n2/100 : n2; }
+    } else if (typeof f === "number") { f = f>1 ? f/100 : f; }
+    if (typeof f === "number" && isFinite(f) && f > 0.21) onO2 = true;
+    out.FiO2 = typeof f === "number" ? f : out.FiO2; // canonicalize to fraction if possible
+  }
+  if (onO2) out.on_o2 = true;
+
+  // SpO2 canonical key
+  if (out.spo2_percent == null && (out as any).SpO2 != null) out.spo2_percent = (out as any).SpO2;
 
   return out;
 }
