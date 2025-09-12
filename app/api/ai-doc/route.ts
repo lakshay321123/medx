@@ -98,8 +98,9 @@ export async function POST(req: NextRequest) {
     "anion_gap", "anion_gap_corrected", "delta_ratio_ag",
     "winters_expected_paco2",
     "sodium_status",
-    "serum_osmolality", "osmolal_gap", "effective_osmolality",
+    "serum_osmolality", "effective_osmolality", "osmolal_gap",
     "ada_k_guard", "dka_flag", "hhs_flag",
+    "lactate_status",
   ]);
 
   const byId: Record<string, any> = {};
@@ -140,6 +141,12 @@ export async function POST(req: NextRequest) {
   if (kGuard) {
     const note = kGuard.notes?.[0] ?? "";
     lines.push(`K ${kGuard.value} — ${note}`);
+  }
+
+  const lactate = byId["lactate_status"];
+  if (lactate) {
+    const note = lactate.notes?.[0] ?? "";
+    lines.push(`Lactate ${lactate.value} — ${note}`);
   }
 
   const osmCalc = byId["serum_osmolality"];
