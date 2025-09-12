@@ -6,7 +6,7 @@ describe("canonical acid–base + osm", () => {
     const ctx = {
       Na: 128, K: 5.5, Cl: 90, HCO3: 10,
       glucose_mgdl: 560, BUN: 28, albumin: 3.8,
-      pH: 7.28, pCO2: 20, Osm_measured: 320,
+      pH: 7.28, pCO2: 20, measured_osm: 320,
     };
     const results = computeAll(ctx);
     const byId = Object.fromEntries(results.map(r => [r.id, r]));
