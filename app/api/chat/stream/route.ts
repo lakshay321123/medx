@@ -130,6 +130,11 @@ export async function POST(req: NextRequest) {
 
   // Pass-through SSE; frontend parses "data: {delta.content}"
   return new Response(upstream.body, {
-    headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'x-medx-provider': 'openai',
+      'x-medx-model': process.env.OPENAI_TEXT_MODEL || 'gpt-5',
+      'x-medx-min-delay': String((parseInt(process.env.MIN_OUTPUT_DELAY_SECONDS || '', 10) || 10) * 1000)
+    }
   });
 }

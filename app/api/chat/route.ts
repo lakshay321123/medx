@@ -85,6 +85,12 @@ export async function POST(req: Request) {
   const respond = (data: any, init?: ResponseInit) => {
     const res = NextResponse.json(data, init);
     res.headers.set("x-conversation-id", conversationId!);
+    res.headers.set("x-medx-provider", "openai");
+    res.headers.set("x-medx-model", process.env.OPENAI_TEXT_MODEL || "gpt-5");
+    res.headers.set(
+      "x-medx-min-delay",
+      String((parseInt(process.env.MIN_OUTPUT_DELAY_SECONDS || "", 10) || 10) * 1000)
+    );
     return res;
   };
   if (isNewChat) {

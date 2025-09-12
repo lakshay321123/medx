@@ -7,6 +7,7 @@ import { TopicProvider } from "@/lib/topic";
 import { Suspense } from "react";
 import MemorySnackbar from "@/components/memory/Snackbar";
 import UndoToast from "@/components/memory/UndoToast";
+import ThinkingIndicator from "@/components/ThinkingIndicator";
 
 export const metadata = { title: "MedX", description: "Global medical AI" };
 
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     {children}
                     <MemorySnackbar />
                     <UndoToast />
+                    <ThinkingIndicator />
                   </main>
                 </div>
               </ThemeProvider>

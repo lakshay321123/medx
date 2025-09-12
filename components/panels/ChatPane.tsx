@@ -33,6 +33,7 @@ import { detectAdvancedDomain } from "@/lib/intents/advanced";
 // === ADD-ONLY for domain routing ===
 import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
+import { thinking } from "@/lib/ux/thinking";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -1016,6 +1017,7 @@ ${systemCommon}` + baseSys;
         ];
       }
 
+      thinking.start("Analyzing…");
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: {
@@ -1025,6 +1027,7 @@ ${systemCommon}` + baseSys;
         },
         body: JSON.stringify({ mode: mode === 'doctor' ? 'doctor' : 'patient', messages: chatMessages, threadId, context })
       });
+      thinking.headers(res);
       if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
 
       const reader = res.body.getReader();
@@ -1107,6 +1110,7 @@ ${systemCommon}` + baseSys;
         try { pushFullMem(stableThreadId, "assistant", content); } catch {}
       }
     } finally {
+      thinking.stop();
       setBusy(false);
     }
   }

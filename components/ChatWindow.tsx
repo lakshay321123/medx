@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
 import { ChatInput } from "@/components/ChatInput";
 import { persistIfTemp } from "@/lib/chat/persist";
+import { thinking } from "@/lib/ux/thinking";
 
 export function ChatWindow() {
   const messages = useChatStore(s => s.currentId ? s.threads[s.currentId]?.messages ?? [] : []);
@@ -13,14 +14,20 @@ export function ChatWindow() {
     // after sending user message, persist thread if needed
     await persistIfTemp();
     if (locationToken) {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: content, locationToken }),
-      });
-      const data = await res.json();
-      setResults(data.results || []);
-      addMessage({ role: "assistant", content: data.results ? "Here are some places nearby:" : "" });
+      thinking.start("Analyzing…");
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: content, locationToken }),
+        });
+        thinking.headers(res);
+        const data = await res.json();
+        setResults(data.results || []);
+        addMessage({ role: "assistant", content: data.results ? "Here are some places nearby:" : "" });
+      } finally {
+        thinking.stop();
+      }
     } else {
       // For now, echo the user's message as the assistant reply
       // In a real implementation, replace this with a call to your backend/AI service
