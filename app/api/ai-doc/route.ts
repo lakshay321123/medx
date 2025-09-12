@@ -15,6 +15,8 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { extractAll, canonicalizeInputs } from "@/lib/medical/engine/extract";
 import { computeAll } from "@/lib/medical/engine/computeAll";
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
+// Force-load all calculators so their register() side-effects are applied
+import "@/lib/medical/engine/calculators";
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
 
 async function getFeedbackSummary(conversationId: string) {

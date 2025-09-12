@@ -72,13 +72,12 @@ register({
       add(rrScore) + add(spo2Score) + add(o2Score) + add(tempScore) +
       add(sbpScore) + add(hrScore) + add(cnsScore);
 
-    // Risk band per NEWS2 Scale 1:
-    //   High   : total ≥7
-    //   Medium : total 5–6 OR any single parameter scores 3
-    //   Low    : total 1–4 with no single 3
-    //   Zero   : total 0
-    const singleThrees = [rrScore, spo2Score, tempScore, sbpScore, hrScore, cnsScore]
-      .filter(v => v === 3).length;
+    // Risk band per NEWS2 (Scale 1):
+    // High: total ≥7
+    // Medium: total 5–6 OR any single parameter = 3
+    // Low: total 1–4 with no single 3
+    // Zero: 0
+    const singleThrees = [rrScore, spo2Score, tempScore, sbpScore, hrScore, cnsScore].filter(v => v === 3).length;
     const band =
       value >= 7 ? "high" :
       (value >= 5 || singleThrees >= 1) ? "medium" :

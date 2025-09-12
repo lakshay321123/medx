@@ -14,13 +14,13 @@ const ALIAS: Record<string, string> = {
 
   measured_osm: "Osm_measured", osm_meas: "Osm_measured",
 
-  // Supplemental oxygen (for NEWS2)
+  // Supplemental oxygen (for NEWS2) — various inputs collapse to on_o2
   on_o2: "on_o2",
   supplemental_o2: "on_o2",
-  o2_lpm: "on_o2",
   oxygen: "on_o2",
   O2: "on_o2",
-  onOxygen: "on_o2",
+  // keep o2_lpm as its own key so we can infer truthiness (>0) below
+  o2_lpm: "o2_lpm",
   // Legacy/alternate vital keys
   RRr: "RR",
   SaO2: "spo2_percent",
@@ -61,18 +61,38 @@ function convertUnits(incoming: Record<string, any>) {
     out.pCO2 = out.pCO2_kpa * 7.50062;
   }
 
-  // Normalize supplemental oxygen flag expected by NEWS2.
-  // Accept booleans, truthy numerics (e.g., L/min), "yes"/"true" strings.
+  // ---- Supplemental oxygen normalization (robust) ----
+  const toBool = (v: any) =>
+    v === true ||
+    v === 1 ||
+    (typeof v === "number" && v > 0) ||
+    (typeof v === "string" && /^(yes|true|y|on)$/i.test(v));
+
+  // 1) direct boolean-ish flags
   if (out.on_o2 != null) {
-    const v = out.on_o2;
-    out.on_o2 =
-      v === true ||
-      v === 1 ||
-      (typeof v === "number" && v > 0) ||
-      (typeof v === "string" && /^(yes|true|y|on)$/i.test(v));
-  } else if (out.FiO2 != null && typeof out.FiO2 === "number") {
-    // If FiO2 is provided, treat >21% as supplemental oxygen.
-    out.on_o2 = out.FiO2 > 1 ? out.FiO2 / 100 > 0.21 : out.FiO2 > 0.21;
+    out.on_o2 = toBool(out.on_o2);
+  }
+  // 2) flow rate implies O2 if >0 (supports "2", 2, "2 lpm")
+  if (out.on_o2 !== true && out.o2_lpm != null) {
+    const n = typeof out.o2_lpm === "string" ? parseFloat(out.o2_lpm) : Number(out.o2_lpm);
+    if (isFinite(n) && n > 0) out.on_o2 = true;
+  }
+  // 3) FiO2 implies O2 if >0.21; accept 0–1, %, or strings like "40%"
+  if (out.on_o2 !== true && out.FiO2 != null) {
+    let f = out.FiO2;
+    if (typeof f === "string") {
+      const s = f.trim();
+      if (/%$/.test(s)) {
+        const pct = parseFloat(s.replace("%",""));
+        if (isFinite(pct)) f = pct / 100;
+      } else {
+        const n = parseFloat(s);
+        if (isFinite(n)) f = n > 1 ? n / 100 : n;
+      }
+    } else if (typeof f === "number") {
+      f = f > 1 ? f / 100 : f;
+    }
+    if (typeof f === "number" && isFinite(f) && f > 0.21) out.on_o2 = true;
   }
 
   return out;
