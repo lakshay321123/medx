@@ -1,3 +1,5 @@
+import OpenAI from "openai";
+import { ensureMinDelay } from "./utils/ensureMinDelay";
 const ENABLED = (process.env.SYMPTOM_TRIAGE_ENABLED || 'false').toLowerCase() === 'true';
 
 export interface SymptomTriageInput {
@@ -62,5 +64,61 @@ export function symptomTriage(input: SymptomTriageInput): { triage: SymptomTriag
 
 function capitalize(t: string): string {
   return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+// ===== OpenAI Finalizer for Triage (GPT-5) =====
+export async function symptomTriageFinal(input: SymptomTriageInput) {
+  if (!ENABLED) return null;
+  const base = symptomTriage(input); // local rule-based suggestion (existing)
+  if (!base?.triage) return base;
+
+  // If final say is disabled, return local result
+  const mustAdjudicate = (process.env.OPENAI_FINAL_SAY || "true").toLowerCase() === "true";
+  if (!mustAdjudicate) return base;
+
+  const oaiKey = process.env.OPENAI_API_KEY;
+  if (!oaiKey) return base; // fail-safe: don't break if key missing
+
+  const client = new OpenAI({ apiKey: oaiKey });
+  const model = process.env.OPENAI_TEXT_MODEL || "gpt-5";
+  const schema = {
+    name: "SymptomTriageOut",
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        symptom: { type: "string" },
+        possible_causes: { type: "array", items: { type: "string" } },
+        self_care: { type: "array", items: { type: "string" } },
+        doctor_visit: { type: "array", items: { type: "string" } },
+        er_now: { type: "array", items: { type: "string" } },
+        assumptions: { type: "array", items: { type: "string" } }
+      },
+      required: ["symptom","possible_causes","self_care","doctor_visit","er_now"]
+    }
+  };
+
+  const prompt = [
+    { role: "system", content: "You are a cautious medical triage validator. Verify the logic and flags. Never under-triage red flags." },
+    { role: "user", content: `Input:\n${JSON.stringify(input)}\n\nLocalTriage:\n${JSON.stringify(base.triage)}` }
+  ];
+
+  const work = client.responses.create({
+    model,
+    temperature: 0.1,
+    input: prompt as any,
+    response_format: { type: "json_schema", json_schema: schema as any }
+  }).then((r) => {
+    const text = (r as any)?.output_text || "";
+    try {
+      const out = JSON.parse(text || "{}");
+      return { triage: out };
+    } catch {
+      return base;
+    }
+  }).catch(() => base);
+
+  // Enforce global min delay
+  return ensureMinDelay(work);
 }
 

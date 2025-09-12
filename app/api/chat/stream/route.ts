@@ -2,9 +2,9 @@ import { NextRequest } from 'next/server';
 import { profileChatSystem } from '@/lib/profileChatSystem';
 import { extractAll, canonicalizeInputs } from '@/lib/medical/engine/extract';
 import { computeAll } from '@/lib/medical/engine/computeAll';
-// === [MEDX_CALC_ROUTE_IMPORTS_START] ===
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
-// === [MEDX_CALC_ROUTE_IMPORTS_END] ===
+import { ensureMinDelay, minDelayMs } from '@/lib/utils/ensureMinDelay';
+
 // Keep doc-mode clinical prelude tight & relevant
 function filterComputedForDocMode(items: any[], latestUser: string) {
   const msg = (latestUser || '').toLowerCase();
@@ -14,34 +14,27 @@ function filterComputedForDocMode(items: any[], latestUser: string) {
   return items
     // basic sanity
     .filter((r: any) => r && (Number.isFinite(r.value) || typeof r.value === 'string'))
-    // avoid placeholders/surrogates/partials
+    // a few clinically relevant filters
     .filter((r: any) => {
-      const noteStr = (r.notes || []).join(' ').toLowerCase();
-      const lbl = String(r.label || '').toLowerCase();
-      return !/surrogate|placeholder|phase-1|inputs? needed|partial/.test(noteStr + ' ' + lbl);
-    })
-    // relevance pruning
-    .filter((r: any) => {
-      const lbl = String(r.label || '').toLowerCase();
-      // allow these in respiratory context
-      if (isRespContext && (/(curb-?65|news2|qsofa|sirs|qcsi|sofa)/i.test(lbl))) return true;
-      // PERC only if explicit PE context
-      if (/(perc)/i.test(lbl)) return needsPEContext;
-      // drop unrelated rules/noise
-      if (/(glasgow-blatchford|ottawa|ankle|knee|head|rockall|apgar|bishop|pasi|burn|maddrey|fib-4|apri|child-?pugh|meld)/i.test(lbl)) return false;
-      // conservative default: keep only a small, high-signal set
-      return /(curb-?65|news2|qsofa|sirs)/i.test(lbl);
+      if (isRespContext && r.id?.includes('pao2')) return true;
+      if (needsPEContext && /well?s|geneva|d[- ]dimer/i.test(r.id||'')) return true;
+      return true;
     });
 }
-export const runtime = 'edge';
 
-const recentReqs = new Map<string, number>();
-
+function pickProvider(mode?: string) {
+  const basic = (mode || '').toLowerCase() === 'basic' || (mode || '').toLowerCase() === 'casual';
+  return basic ? 'groq' : 'openai';
+}
 
 export async function POST(req: NextRequest) {
   const { messages = [], context, clientRequestId, mode } = await req.json();
   const showClinicalPrelude = (mode === 'doctor' || mode === 'research');
+  const provider = pickProvider(mode);
+  const minMs = minDelayMs();
+
   const now = Date.now();
+  const recentReqs = new Map<string, number>();
   for (const [id, ts] of recentReqs.entries()) {
     if (now - ts > 60_000) recentReqs.delete(id);
   }
@@ -52,37 +45,23 @@ export async function POST(req: NextRequest) {
     }
     recentReqs.set(clientRequestId, now);
   }
-  const base  = process.env.LLM_BASE_URL!;
-  const model = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
-  const key   = process.env.LLM_API_KEY!;
-  const url = `${base.replace(/\/$/,'')}/chat/completions`;
-
-  let finalMessages = messages.filter((m: any) => m.role !== 'system');
-
-  const latestUserMessage = messages.filter((m: any) => m.role === 'user').slice(-1)[0]?.content || "";
-  const userText = (messages || []).map((m: any) => m?.content || '').join('\n');
-  const ctx = canonicalizeInputs(extractAll(userText));
-  const computed = computeAll(ctx);
-
-  if (showClinicalPrelude) {
-    const filtered = filterComputedForDocMode(computed, latestUserMessage ?? '');
-    if (filtered.length) {
-      const lines = filtered.map(r => {
-        const val = r.unit ? `${r.value} ${r.unit}` : String(r.value);
-        const notes = r.notes?.length ? ` — ${r.notes.join('; ')}` : '';
-        return `${r.label}: ${val}${notes}`;
-      });
-      finalMessages = [
-        {
-          role: 'system',
-          content:
-            'Use these pre-computed clinical values only if relevant to the question. Do not re-calculate. If inputs are missing, state which values are required and avoid quoting incomplete scores.'
-        },
-        { role: 'system', content: lines.join('\\n') },
-        ...finalMessages,
-      ];
-    }
+  // Resolve model + URL per provider
+  const isGroq = provider === 'groq';
+  const url = isGroq
+    ? `${(process.env.LLM_BASE_URL || 'https://api.groq.com/openai/v1').replace(/\/$/, '')}/chat/completions`
+    : `https://api.openai.com/v1/chat/completions`;
+  const model = isGroq
+    ? (process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant')
+    : (process.env.OPENAI_TEXT_MODEL || 'gpt-5');
+  const key = isGroq
+    ? (process.env.GROQ_API_KEY || process.env.LLM_API_KEY)
+    : process.env.OPENAI_API_KEY;
+  if (!key) {
+    return new Response(`Missing API key for ${provider}`, { status: 500 });
   }
+
+  let finalMessages = messages.filter((m: any) => !!m?.content);
+
   if (context === 'profile') {
     try {
       const origin = req.nextUrl.origin;
@@ -101,27 +80,46 @@ export async function POST(req: NextRequest) {
       finalMessages = [{ role: 'system', content: sys }, ...finalMessages];
     } catch {}
   }
-  // === [MEDX_CALC_PRELUDE_START] ===
-  const __calcPrelude = composeCalcPrelude(latestUserMessage ?? "");
-  // Only add calc prelude if we actually included filtered computed lines
-  if (showClinicalPrelude && __calcPrelude && finalMessages.length && finalMessages[0]?.role === 'system') {
+  // ===== Calculators prelude: only if not disabled and in clinical modes
+  let __calcPrelude = '';
+  const calcDisabled = (process.env.CALC_AI_DISABLE || '0') === '1';
+  const latestUser = finalMessages.slice().reverse().find(m=>m.role==='user')?.content || '';
+  if (!calcDisabled && (showClinicalPrelude || provider === 'openai')) {
+    try {
+      const extracted = extractAll(latestUser);
+      const canonical = canonicalizeInputs(extracted);
+      const computed = computeAll(canonical);
+      const filtered = filterComputedForDocMode(computed, latestUser);
+      __calcPrelude = composeCalcPrelude(filtered);
+    } catch { /* non-fatal */ }
+  }
+  if (__calcPrelude && finalMessages.length && finalMessages[0]?.role === 'system') {
+    finalMessages = [{ role: 'system', content: __calcPrelude }, ...finalMessages];
+  } else if (__calcPrelude) {
     finalMessages = [{ role: 'system', content: __calcPrelude }, ...finalMessages];
   }
-  // === [MEDX_CALC_PRELUDE_END] ===
 
-  const upstream = await fetch(url, {
+  const payload = {
+    model,
+    stream: true,
+    temperature: isGroq ? 0 : 0.1,
+    top_p: 1,
+    frequency_penalty: 0,
+    presence_penalty: 0,
+    messages: finalMessages,
+  };
+
+  const doFetch = () => fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model,
-      stream: true,
-      temperature: 0,
-      top_p: 1,
-      frequency_penalty: 0,
-      presence_penalty: 0,
-      messages: finalMessages,
-    })
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${key}`
+    },
+    body: JSON.stringify(payload)
   });
+
+  // Enforce a *minimum* latency before returning any bytes
+  const upstream = await ensureMinDelay(doFetch(), minMs);
 
   if (!upstream.ok) {
     const err = await upstream.text();
