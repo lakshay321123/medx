@@ -71,6 +71,145 @@ function filterComputedForDocMode(items: any[], latestUser: string) {
   return out;
 }
 
+// ---------- deterministic composer (server-built, no model math) ----------
+function getNum(...vals: any[]): number | undefined {
+  for (let i = 0; i < vals.length; i++) {
+    const v = vals[i];
+    const n = typeof v === 'number' ? v : Number(v);
+    if (Number.isFinite(n)) return n;
+  }
+  return undefined;
+}
+function findVal(blended: any[], id: string): { value?: number | string, unit?: string } {
+  for (let i = 0; i < blended.length; i++) {
+    const r = blended[i];
+    if (r && r.id === id) return { value: r.value, unit: r.unit };
+  }
+  return {};
+}
+function fmt(x: any, d: number = 2): string {
+  if (!Number.isFinite(Number(x))) return String(x);
+  const n = Number(x);
+  if (Math.abs(n) >= 100) return n.toFixed(1);
+  return n.toFixed(d);
+}
+function composeFinalNarrative(ctx: Record<string, any>, blended: any[]): string {
+  const Na = getNum(ctx.Na, ctx.na, ctx.sodium);
+  const K  = getNum(ctx.K, ctx.k, ctx.potassium);
+  const Cl = getNum(ctx.Cl, ctx.cl, ctx.chloride);
+  const H  = getNum(ctx.HCO3, ctx.bicarb, ctx.bicarbonate);
+  const Glu = getNum(ctx.Glucose, ctx.glucose, ctx.glucose_mg_dl, ctx.glucose_mgdl);
+  const BUN = getNum(ctx.BUN, ctx.bun);
+  const Cr  = getNum(ctx.Cr, ctx.creatinine);
+  const Alb = getNum(ctx.Albumin, ctx.albumin);
+  const pH  = getNum(ctx.pH);
+  const pCO2 = getNum(ctx.pCO2, ctx.pco2, ctx.PaCO2);
+
+  const ag         = findVal(blended, 'anion_gap').value;
+  const ag_corr    = findVal(blended, 'anion_gap_albumin_corrected').value;
+  const osm_calc   = findVal(blended, 'serum_osm_calc').value;
+  const osm_gap    = findVal(blended, 'osmolar_gap').value;
+  const eff_osm    = findVal(blended, 'effective_osm').value;
+  const dka_sev    = findVal(blended, 'dka_severity').value;
+  const hhs_flags  = findVal(blended, 'hhs_flags').value;
+  const tonic      = findVal(blended, 'hyponatremia_tonicity').value;
+  const k_sev      = findVal(blended, 'hyperkalemia_severity').value;
+  const k_stat     = findVal(blended, 'potassium_status').value;
+
+  let wintersExp: number | undefined = undefined;
+  if (H !== undefined) { wintersExp = 1.5 * H + 8; } // Winters expected pCO2
+
+  let respNote = '';
+  if (wintersExp !== undefined && pCO2 !== undefined) {
+    const lo = wintersExp - 2;
+    const hi = wintersExp + 2;
+    if (pCO2 > hi) respNote = 'concurrent respiratory acidosis';
+    else if (pCO2 < lo) respNote = 'concurrent respiratory alkalosis';
+    else respNote = 'appropriate respiratory compensation';
+  }
+
+  // Acid–base headline
+  let acidBase = '';
+  if (pH !== undefined && H !== undefined) {
+    if (pH < 7.35 && H <= 22) acidBase = 'high anion gap metabolic acidosis';
+    else if (pH < 7.35) acidBase = 'acidemia';
+    else if (pH > 7.45) acidBase = 'alkalemia';
+  }
+
+  // DKA/HHS logic (conservative)
+  let dkaFlag = '';
+  if (Glu !== undefined && H !== undefined && pH !== undefined) {
+    if (Glu >= 250 && (H <= 18 || pH < 7.30)) dkaFlag = 'meets biochemical criteria for DKA (hyperglycemia with acidosis)';
+  }
+  let hhsFlag = '';
+  if (Number.isFinite(Number(eff_osm)) && Number(eff_osm) >= 320) hhsFlag = 'meets hyperosmolar threshold (HHS criteria)';
+
+  // Sodium classification
+  let naLine = '';
+  if (Na !== undefined) {
+    if (Na < 125) naLine = 'severe hyponatremia';
+    else if (Na < 130) naLine = 'moderate hyponatremia';
+    else if (Na < 135) naLine = 'mild hyponatremia';
+    else if (Na > 145) naLine = 'hypernatremia';
+  }
+
+  // Potassium classification
+  let kLine = '';
+  if (K !== undefined) {
+    if (K >= 6.0) kLine = 'dangerous hyperkalemia';
+    else if (K >= 5.1) kLine = 'hyperkalemia';
+    else if (K < 3.5) kLine = 'hypokalemia';
+  }
+
+  // Build narrative (verbatim source of truth)
+  const lines: string[] = [];
+
+  lines.push('Clinical summary (verified):');
+
+  // Electrolytes
+  const el: string[] = [];
+  if (Na !== undefined) el.push('Na ' + fmt(Na));
+  if (K !== undefined)  el.push('K ' + fmt(K));
+  if (Cl !== undefined) el.push('Cl ' + fmt(Cl));
+  if (H !== undefined)  el.push('HCO3 ' + fmt(H));
+  if (Glu !== undefined) el.push('Glucose ' + fmt(Glu));
+  if (BUN !== undefined) el.push('BUN ' + fmt(BUN));
+  if (Cr !== undefined)  el.push('Cr ' + fmt(Cr));
+  if (Alb !== undefined) el.push('Albumin ' + fmt(Alb));
+  if (pH !== undefined)  el.push('pH ' + fmt(pH, 2));
+  if (pCO2 !== undefined) el.push('pCO2 ' + fmt(pCO2));
+  lines.push('- Labs: ' + el.join(', '));
+
+  // Derived values
+  const dv: string[] = [];
+  if (ag !== undefined) dv.push('Anion gap ' + String(ag));
+  if (ag_corr !== undefined) dv.push('AG (albumin-corrected) ' + String(ag_corr));
+  if (osm_calc !== undefined) dv.push('Serum osmolality (calc) ' + String(osm_calc));
+  if (eff_osm !== undefined) dv.push('Effective osmolality ' + String(eff_osm));
+  if (osm_gap !== undefined) dv.push('Osmolar gap ' + String(osm_gap));
+  if (wintersExp !== undefined) dv.push('Winter’s expected pCO2 ' + fmt(wintersExp));
+  lines.push('- Derived: ' + dv.join(', '));
+
+  // Interpretations
+  const it: string[] = [];
+  if (acidBase) it.push(acidBase);
+  if (respNote) it.push(respNote);
+  if (naLine) it.push(naLine);
+  if (kLine) it.push(kLine);
+  if (k_sev) it.push(String(k_sev));
+  if (k_stat) it.push(String(k_stat));
+  if (dkaFlag) it.push(dkaFlag);
+  if (hhsFlag) it.push(hhsFlag);
+  if (tonic) it.push(String(tonic));
+  lines.push('- Interpretation: ' + (it.length ? it.join('; ') : 'insufficient data for risk scores; skip qSOFA/SIRS/NEWS2/CURB-65 without full vitals.'));
+
+  // Safety rules line (concise, for transparency to composer)
+  lines.push('Rules applied: AG = Na − (Cl + HCO3); AG-corr = AG + 2.5×(4 − albumin); Serum Osm = 2×Na + Glucose/18 + BUN/2.8; Effective Osm = 2×Na + Glucose/18; Winter’s expected pCO2 = 1.5×HCO3 + 8 (±2); no non-standard metrics.');
+
+  return lines.join('\n');
+}
+// ---------------------------------------------------------------------------
+
 async function handle(req: NextRequest, payload: any) {
   const method = req.method || 'GET';
   const messages = Array.isArray(payload && payload.messages) ? payload.messages : [];
@@ -164,36 +303,32 @@ async function handle(req: NextRequest, payload: any) {
     blended = Array.from(byId.values());
   }
 
-  // crisis promotion cues (from inputs)
-  const toNum = (x: any) => typeof x === 'number' ? x : Number(x);
-  const g = toNum((ctx as any).glucose ?? (ctx as any).glucose_mg_dl ?? (ctx as any).glucose_mgdl);
-  const bicarb = toNum((ctx as any).HCO3 ?? (ctx as any).bicarb ?? (ctx as any).bicarbonate);
-  const ph = toNum((ctx as any).pH);
-  const kVal = toNum((ctx as any).K ?? (ctx as any).potassium);
-  const hyperglycemicCrisis = (Number.isFinite(g) && g >= 250) && ((Number.isFinite(bicarb) && bicarb <= 18) || (Number.isFinite(ph) && ph < 7.30));
-  const hyperkalemiaDanger = Number.isFinite(kVal) && kVal >= 6.0;
-
-  const mustShow = new Set<string>([
-    'measured_osm_status', 'osmolar_gap', 'serum_osm_calc', 'anion_gap_albumin_corrected',
-    'hyponatremia_tonicity', 'hyperkalemia_severity', 'potassium_status', 'dka_severity', 'hhs_flags'
-  ]);
-  const promoted: any[] = [];
-  for (let i = 0; i < blended.length; i++) if (blended[i] && mustShow.has(blended[i].id)) promoted.push(blended[i]);
-  const crisisPromoted = (hyperglycemicCrisis || hyperkalemiaDanger) ? promoted : [];
-
-  // doctor/research prelude (add first)
+  // doctor/research prelude (optional, for doc mode UI only)
   const showPrelude = (mode === 'doctor') || (mode === 'research') || /trial|research/i.test(String(mode || ''));
   if (showPrelude) {
+    const crisisToNum = (x: any) => typeof x === 'number' ? x : Number(x);
+    const g = crisisToNum((ctx as any).glucose ?? (ctx as any).glucose_mg_dl ?? (ctx as any).glucose_mgdl);
+    const bicarb = crisisToNum((ctx as any).HCO3 ?? (ctx as any).bicarb ?? (ctx as any).bicarbonate);
+    const ph = crisisToNum((ctx as any).pH);
+    const kVal = crisisToNum((ctx as any).K ?? (ctx as any).potassium);
+    const hyperglycemicCrisis = (Number.isFinite(g) && g >= 250) && ((Number.isFinite(bicarb) && bicarb <= 18) || (Number.isFinite(ph) && ph < 7.30));
+    const hyperkalemiaDanger = Number.isFinite(kVal) && kVal >= 6.0;
+
+    const mustShow = new Set<string>([
+      'measured_osm_status', 'osmolar_gap', 'serum_osm_calc', 'anion_gap_albumin_corrected',
+      'hyponatremia_tonicity', 'hyperkalemia_severity', 'potassium_status', 'dka_severity', 'hhs_flags'
+    ]);
+    const promoted: any[] = [];
+    for (let i = 0; i < blended.length; i++) if (blended[i] && mustShow.has(blended[i].id)) promoted.push(blended[i]);
+    const crisisPromoted = (hyperglycemicCrisis || hyperkalemiaDanger) ? promoted : [];
+
     const filtered = filterComputedForDocMode(blended, latestUserMessage || '');
     const merged: any[] = [];
     for (let i = 0; i < crisisPromoted.length; i++) merged.push(crisisPromoted[i]);
     for (let i = 0; i < filtered.length; i++) merged.push(filtered[i]);
 
     const mapById = new Map<string, any>();
-    for (let i = 0; i < merged.length; i++) {
-      const r = merged[i];
-      if (r && r.id && !mapById.has(r.id)) mapById.set(String(r.id), r);
-    }
+    for (let i = 0; i < merged.length; i++) if (merged[i] && merged[i].id && !mapById.has(merged[i].id)) mapById.set(String(merged[i].id), merged[i]);
 
     const linesArr: string[] = [];
     const valuesArr = Array.from(mapById.values());
@@ -204,15 +339,14 @@ async function handle(req: NextRequest, payload: any) {
       linesArr.push(String(r.label || r.id) + ': ' + val + notesLine);
     }
     if (linesArr.length) finalMessages.unshift({ role: 'system', content: linesArr.join('\n') });
+
+    const calcPrelude = composeCalcPrelude(latestUserMessage || '');
+    if (calcPrelude && finalMessages.length && finalMessages[0]?.role === 'system') {
+      finalMessages.unshift({ role: 'system', content: calcPrelude });
+    }
   }
 
-  // optional calc prelude (still before LOCKED VALUES)
-  const calcPrelude = composeCalcPrelude(latestUserMessage || '');
-  if (showPrelude && calcPrelude && finalMessages.length && finalMessages[0]?.role === 'system') {
-    finalMessages.unshift({ role: 'system', content: calcPrelude });
-  }
-
-  // profile context (still before LOCKED VALUES)
+  // profile context (optional)
   if (context === 'profile') {
     try {
       const origin = req.nextUrl.origin;
@@ -231,43 +365,12 @@ async function handle(req: NextRequest, payload: any) {
     } catch {}
   }
 
-  // ----- LOCKED VALUES: add LAST so it has highest priority -----
-  function hasNum(x: any) { return typeof x === 'number' && isFinite(x); }
-  const allowQSOFA = (hasNum((ctx as any).respiratory_rate) || hasNum((ctx as any).rr)) &&
-                     (hasNum((ctx as any).sbp) || hasNum((ctx as any).systolic_bp)) &&
-                     (hasNum((ctx as any).gcs) || typeof (ctx as any).altered_mentation === 'boolean');
-  const allowSIRS  = (hasNum((ctx as any).temp_c) || hasNum((ctx as any).temp_f)) &&
-                     hasNum((ctx as any).hr) &&
-                     (hasNum((ctx as any).respiratory_rate) || hasNum((ctx as any).rr)) &&
-                     hasNum((ctx as any).wbc);
+  // -------- Build final server-verified narrative and force verbatim echo --------
+  const finalText = composeFinalNarrative(ctx, blended);
 
-  const lockPairs: Array<{ k: string; v: string }> = [];
-  const whitelist = new Set<string>([
-    'anion_gap', 'anion_gap_albumin_corrected', 'serum_osm_calc', 'osmolar_gap',
-    'effective_osm', 'hyponatremia_tonicity', 'dka_flags', 'dka_severity',
-    'hhs_flags', 'hyperkalemia_severity', 'potassium_status', 'winters_expected_pco2',
-    'mixed_acid_base_flag', 'corrected_sodium'
-  ]);
-  for (let i = 0; i < blended.length; i++) {
-    const r = blended[i];
-    if (!r || !r.id) continue;
-    if (!whitelist.has(String(r.id))) continue;
-    const val = r.unit ? String(r.value) + ' ' + String(r.unit) : String(r.value);
-    lockPairs.push({ k: String(r.label || r.id), v: val });
-  }
+  const echoSystem = 'You are a transmitter. Output the following content verbatim, with no additions, omissions, or reformatting.';
+  const echoUser = finalText;
 
-  let lockText = 'LOCKED VALUES (authoritative; do not contradict; do not recalculate):\n';
-  for (let i = 0; i < lockPairs.length; i++) lockText += lockPairs[i].k + ': ' + lockPairs[i].v + '\n';
-  lockText += 'Hard requirements:\n';
-  lockText += ' - Use serum osmolality = 2*Na + Glucose/18 + BUN/2.8. Do not include creatinine.\n';
-  lockText += ' - Use anion gap = Na - (Cl + HCO3). Albumin-corrected AG = AG + 2.5*(4 - albumin).\n';
-  lockText += ' - Use Winters expected pCO2 = 1.5*HCO3 + 8 (±2) to classify respiratory compensation.\n';
-  lockText += ' - DKA needs glucose ≥ 250 with acidosis; HHS uses effective osmolality ≥ 320.\n';
-  lockText += ' - Do not create non-standard metrics (e.g., lactate:pH ratio).\n';
-  if (!allowQSOFA || !allowSIRS) lockText += ' - Do not compute or mention qSOFA/SIRS/NEWS2/CURB-65 unless all required inputs are available.\n';
-  finalMessages.unshift({ role: 'system', content: lockText });
-
-  // call Groq and stream
   const upstream = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
@@ -278,14 +381,17 @@ async function handle(req: NextRequest, payload: any) {
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,
-      messages: finalMessages
+      messages: [
+        { role: 'system', content: echoSystem },
+        { role: 'user', content: echoUser }
+      ]
     }),
   });
 
   if (!upstream.ok) {
     const errTxt = await upstream.text();
     return corsify(new Response('LLM error (' + method + '): ' + errTxt, { status: 500 }), {
-      'X-Task-Mode': taskMode,
+      'X-Task-Mode': (computed && computed.length) ? 'analyzing' : 'thinking',
       'X-Verify-Timeout': '60000',
       'X-Verify-Used': verdict ? '1' : '0',
       'X-Chat-Route-Method': method
@@ -301,7 +407,7 @@ async function handle(req: NextRequest, payload: any) {
       'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Access-Control-Max-Age': '86400',
-      'X-Task-Mode': taskMode,
+      'X-Task-Mode': (computed && computed.length) ? 'analyzing' : 'thinking',
       'X-Verify-Timeout': '60000',
       'X-Verify-Used': verdict ? '1' : '0',
       'X-Chat-Route-Method': method
