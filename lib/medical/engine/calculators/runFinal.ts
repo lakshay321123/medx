@@ -1,4 +1,4 @@
-import { finalizeCalc } from "@/lib/medical/engine/verification/triageFinalizer";
+import { safeFinalizeCalc } from "@/lib/medical/engine/verification/safeFinalizeCalc";
 import { FormulaSpecs } from "@/lib/medical/engine/verification/formulaSpecs";
 import { calc_anion_gap as anion_gap } from "./anion_gap"; // import others or autoload
 
@@ -29,5 +29,5 @@ export async function runCalculatorFinal(
     strict: !!opts?.strict,
   };
 
-  return finalizeCalc(spec); // returns CalcVerdict
+  return safeFinalizeCalc(spec); // returns CalcVerdict
 }
