@@ -18,10 +18,7 @@ function corsify(res: Response, extra?: Record<string, string>) {
   h.set('Cache-Control', 'no-store');
   if (extra) {
     const ks = Object.keys(extra);
-    for (let i = 0; i < ks.length; i++) {
-      const k = ks[i];
-      h.set(k, String(extra[k]));
-    }
+    for (let i = 0; i < ks.length; i++) h.set(ks[i], String(extra[ks[i]]));
   }
   return new Response(res.body, { status: res.status, headers: h });
 }
@@ -40,20 +37,17 @@ async function sha256Hex(input: string): Promise<string> {
 function cacheGet(key: string) {
   const hit = verdictCache.get(key);
   if (!hit) return undefined;
-  if (Date.now() > hit.exp) {
-    verdictCache.delete(key);
-    return undefined;
-  }
+  if (Date.now() > hit.exp) { verdictCache.delete(key); return undefined; }
   return hit.v;
 }
 function cacheSet(key: string, v: Verdict, ttlMs: number) {
-  verdictCache.set(key, { v: v, exp: Date.now() + ttlMs });
+  verdictCache.set(key, { v, exp: Date.now() + ttlMs });
 }
 
 // Keep doc-mode clinical prelude tight and relevant
 function filterComputedForDocMode(items: any[], latestUser: string) {
   const msg = (latestUser || '').toLowerCase();
-  const mentions = function (s: string) { return msg.indexOf(s) >= 0; };
+  const mentions = (s: string) => msg.indexOf(s) >= 0;
   const isResp = mentions('cough') || mentions('fever') || mentions('cold') || mentions('breath') || mentions('sore throat');
   const needsPE = mentions('chest pain') || mentions('pleur') || mentions('shortness of breath') || /\bsob\b/.test(msg);
 
@@ -86,17 +80,10 @@ async function handle(req: NextRequest, payload: any) {
 
   // dedupe by clientRequestId for 60s
   const now = Date.now();
-  const entries = Array.from(recentReqs.entries());
-  for (let i = 0; i < entries.length; i++) {
-    const id = entries[i][0];
-    const ts = entries[i][1];
-    if (now - ts > 60_000) recentReqs.delete(id);
-  }
+  for (const [id, ts] of Array.from(recentReqs.entries())) if (now - ts > 60_000) recentReqs.delete(id);
   if (clientRequestId) {
     const tsPrev = recentReqs.get(clientRequestId);
-    if (tsPrev && now - tsPrev < 60_000) {
-      return corsify(new Response(null, { status: 409 }), { 'X-Chat-Route-Method': method });
-    }
+    if (tsPrev && now - tsPrev < 60_000) return corsify(new Response(null, { status: 409 }), { 'X-Chat-Route-Method': method });
     recentReqs.set(clientRequestId, now);
   }
 
@@ -104,26 +91,17 @@ async function handle(req: NextRequest, payload: any) {
   const base  = process.env.LLM_BASE_URL || 'https://api.groq.com/openai/v1';
   const model = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
   const key   = process.env.LLM_API_KEY || '';
-  const url   = (base.replace(/\/$/, '')) + '/chat/completions';
+  const url   = base.replace(/\/$/, '') + '/chat/completions';
 
   // remove incoming system prompts
   const finalMessages: any[] = [];
-  for (let i = 0; i < messages.length; i++) {
-    const m = messages[i];
-    if (m && m.role !== 'system') finalMessages.push(m);
-  }
+  for (let i = 0; i < messages.length; i++) if (messages[i] && messages[i].role !== 'system') finalMessages.push(messages[i]);
 
   // gather user text for extraction
   let userText = '';
   const onlyUsers: any[] = [];
-  for (let i = 0; i < finalMessages.length; i++) {
-    const m = finalMessages[i];
-    if (m.role === 'user') onlyUsers.push(m);
-  }
-  for (let i = 0; i < onlyUsers.length; i++) {
-    const u = onlyUsers[i];
-    userText += String(u && u.content ? u.content : '') + '\n';
-  }
+  for (let i = 0; i < finalMessages.length; i++) if (finalMessages[i].role === 'user') onlyUsers.push(finalMessages[i]);
+  for (let i = 0; i < onlyUsers.length; i++) userText += String(onlyUsers[i]?.content ?? '') + '\n';
   const latestUserMessage = onlyUsers.length ? String(onlyUsers[onlyUsers.length - 1].content || '') : '';
 
   // calculators
@@ -131,7 +109,7 @@ async function handle(req: NextRequest, payload: any) {
   const computed = computeAll(ctx);
   const taskMode = computed && computed.length ? 'analyzing' : 'thinking';
 
-  // joint decision rules
+  // joint decision rules (base system)
   const JOINT_RULES = 'JOINT DECISION PROTOCOL:\n' +
     'You and the Calculators work together.\n' +
     'Treat calculator outputs as a first pass and correct edge or missing-input errors.\n' +
@@ -139,25 +117,15 @@ async function handle(req: NextRequest, payload: any) {
     'If conflict exists, use your corrected values.\n' +
     'Be decisive; calculators are data, not directives.\n' +
     'Do not output any verification badge or correction line to the user.';
-
   finalMessages.unshift({ role: 'system', content: JOINT_RULES });
 
   // OpenAI verify first (1 minute), cached 10 minutes by ctx signature
-  const cacheKey = await sha256Hex(JSON.stringify({ ctx: ctx, ver: 'v1' }));
+  const cacheKey = await sha256Hex(JSON.stringify({ ctx, ver: 'v1' }));
   let verdict = cacheGet(cacheKey);
   if (!verdict) {
     const convo: Array<{ role: string; content: string }> = [];
-    for (let i = 0; i < finalMessages.length; i++) {
-      const m = finalMessages[i];
-      convo.push({ role: m.role, content: m.content });
-    }
-    verdict = await verifyWithOpenAI({
-      mode: String(mode || 'default'),
-      ctx: ctx,
-      computed: computed,
-      conversation: convo,
-      timeoutMs: 60_000
-    }) || undefined;
+    for (let i = 0; i < finalMessages.length; i++) convo.push({ role: finalMessages[i].role, content: finalMessages[i].content });
+    verdict = await verifyWithOpenAI({ mode: String(mode || 'default'), ctx, computed, conversation: convo, timeoutMs: 60_000 }) || undefined;
     if (verdict) cacheSet(cacheKey, verdict, 10 * 60 * 1000);
   }
 
@@ -165,11 +133,7 @@ async function handle(req: NextRequest, payload: any) {
   let blended = computed.slice();
   if (verdict && verdict.corrected_values && typeof verdict.corrected_values === 'object') {
     const byId = new Map<string, any>();
-    for (let i = 0; i < blended.length; i++) {
-      const r = blended[i];
-      if (r && r.id) byId.set(String(r.id), r);
-    }
-
+    for (let i = 0; i < blended.length; i++) if (blended[i] && blended[i].id) byId.set(String(blended[i].id), blended[i]);
     const keys = Object.keys(verdict.corrected_values);
     for (let i = 0; i < keys.length; i++) {
       const k = keys[i];
@@ -178,19 +142,14 @@ async function handle(req: NextRequest, payload: any) {
       if (t) {
         if (v && typeof v === 'object' && Object.prototype.hasOwnProperty.call(v, 'value')) {
           const vkeys = Object.keys(v);
-          for (let j = 0; j < vkeys.length; j++) {
-            const prop = vkeys[j];
-            (t as any)[prop] = (v as any)[prop];
-          }
-        } else {
-          (t as any).value = v;
-        }
+          for (let j = 0; j < vkeys.length; j++) (t as any)[vkeys[j]] = (v as any)[vkeys[j]];
+        } else (t as any).value = v;
         const existingNotes = Array.isArray((t as any).notes) ? (t as any).notes : [];
         const newNotes = v && Array.isArray(v.notes) ? v.notes : [];
-        const mergedNotesMap = new Map<string, boolean>();
-        for (let j = 0; j < existingNotes.length; j++) mergedNotesMap.set(String(existingNotes[j]), true);
-        for (let j = 0; j < newNotes.length; j++) mergedNotesMap.set(String(newNotes[j]), true);
-        const mergedNotes = Array.from(mergedNotesMap.keys());
+        const memo = new Map<string, boolean>();
+        for (let j = 0; j < existingNotes.length; j++) memo.set(String(existingNotes[j]), true);
+        for (let j = 0; j < newNotes.length; j++) memo.set(String(newNotes[j]), true);
+        const mergedNotes = Array.from(memo.keys());
         if (mergedNotes.length) (t as any).notes = mergedNotes;
       } else {
         const entry: any = { id: k, label: k, value: undefined, unit: undefined, notes: undefined };
@@ -198,71 +157,19 @@ async function handle(req: NextRequest, payload: any) {
           entry.value = v.value;
           if (v.unit) entry.unit = v.unit;
           if (Array.isArray(v.notes)) entry.notes = v.notes.slice();
-        } else {
-          entry.value = v;
-        }
+        } else entry.value = v;
         byId.set(k, entry);
       }
     }
     blended = Array.from(byId.values());
   }
 
-  // ----- LOCKED VALUES for the composer (always present, invisible to user) -----
-  // Build a compact table from 'blended' so the composer must reuse verified values.
-  // Also gate risk scores if required inputs are missing.
-  function hasNum(x: any) { return typeof x === 'number' && isFinite(x); }
-
-  const allowQSOFA = (hasNum((ctx as any).respiratory_rate) || hasNum((ctx as any).rr)) &&
-                     (hasNum((ctx as any).sbp) || hasNum((ctx as any).systolic_bp)) &&
-                     (hasNum((ctx as any).gcs) || typeof (ctx as any).altered_mentation === 'boolean');
-
-  const allowSIRS  = (hasNum((ctx as any).temp_c) || hasNum((ctx as any).temp_f)) &&
-                     hasNum((ctx as any).hr) &&
-                     (hasNum((ctx as any).respiratory_rate) || hasNum((ctx as any).rr)) &&
-                     hasNum((ctx as any).wbc);
-
-  const lockPairs: Array<{ k: string; v: string }> = [];
-  // Whitelist of key calculator ids to surface strongly
-  const whitelist = new Set<string>([
-    'anion_gap', 'anion_gap_albumin_corrected', 'serum_osm_calc', 'osmolar_gap',
-    'effective_osm', 'hyponatremia_tonicity', 'dka_flags', 'dka_severity',
-    'hhs_flags', 'hyperkalemia_severity', 'potassium_status', 'winters_expected_pco2',
-    'mixed_acid_base_flag', 'corrected_sodium'
-  ]);
-
-  for (let i = 0; i < blended.length; i++) {
-    const r = blended[i];
-    if (!r || !r.id) continue;
-    if (!whitelist.has(String(r.id))) continue;
-    const val = r.unit ? String(r.value) + ' ' + String(r.unit) : String(r.value);
-    lockPairs.push({ k: String(r.label || r.id), v: val });
-  }
-
-  // Construct a strict, directive system message
-  let lockText = 'LOCKED VALUES (authoritative; do not contradict; do not recalculate):\n';
-  for (let i = 0; i < lockPairs.length; i++) {
-    const p = lockPairs[i];
-    lockText += p.k + ': ' + p.v + '\n';
-  }
-  lockText += 'Hard requirements:\n';
-  lockText += ' - Use serum osmolality = 2*Na + Glucose/18 + BUN/2.8. Do not include creatinine.\n';
-  lockText += ' - Use anion gap = Na - (Cl + HCO3). Albumin-corrected AG = AG + 2.5*(4 - albumin).\n';
-  lockText += ' - Use Winters expected pCO2 = 1.5*HCO3 + 8 (±2) to classify respiratory compensation.\n';
-  lockText += ' - DKA needs glucose ≥ 250 with acidosis; HHS uses effective osmolality ≥ 320.\n';
-  lockText += ' - Do not create non-standard metrics (e.g., lactate:pH ratio).\n';
-  if (!allowQSOFA || !allowSIRS) {
-    lockText += ' - Do not compute or mention qSOFA/SIRS/NEWS2/CURB-65 unless all required inputs are available.\n';
-  }
-
-  // Prepend so the composer is constrained before generating any text
-  finalMessages.unshift({ role: 'system', content: lockText });
-
   // crisis promotion cues (from inputs)
-  const toNum = function (x: any) { return typeof x === 'number' ? x : Number(x); };
-  const g = toNum(ctx && ctx.glucose !== undefined ? ctx.glucose : ctx && ctx.glucose_mg_dl);
-  const bicarb = toNum(ctx && ctx.HCO3 !== undefined ? ctx.HCO3 : (ctx && ctx.bicarb !== undefined ? ctx.bicarb : ctx && ctx.bicarbonate));
-  const ph = toNum(ctx && ctx.pH);
-  const kVal = toNum(ctx && ctx.K !== undefined ? ctx.K : ctx && ctx.potassium);
+  const toNum = (x: any) => typeof x === 'number' ? x : Number(x);
+  const g = toNum((ctx as any).glucose ?? (ctx as any).glucose_mg_dl ?? (ctx as any).glucose_mgdl);
+  const bicarb = toNum((ctx as any).HCO3 ?? (ctx as any).bicarb ?? (ctx as any).bicarbonate);
+  const ph = toNum((ctx as any).pH);
+  const kVal = toNum((ctx as any).K ?? (ctx as any).potassium);
   const hyperglycemicCrisis = (Number.isFinite(g) && g >= 250) && ((Number.isFinite(bicarb) && bicarb <= 18) || (Number.isFinite(ph) && ph < 7.30));
   const hyperkalemiaDanger = Number.isFinite(kVal) && kVal >= 6.0;
 
@@ -271,13 +178,10 @@ async function handle(req: NextRequest, payload: any) {
     'hyponatremia_tonicity', 'hyperkalemia_severity', 'potassium_status', 'dka_severity', 'hhs_flags'
   ]);
   const promoted: any[] = [];
-  for (let i = 0; i < blended.length; i++) {
-    const r = blended[i];
-    if (r && mustShow.has(r.id)) promoted.push(r);
-  }
+  for (let i = 0; i < blended.length; i++) if (blended[i] && mustShow.has(blended[i].id)) promoted.push(blended[i]);
   const crisisPromoted = (hyperglycemicCrisis || hyperkalemiaDanger) ? promoted : [];
 
-  // doctor/research prelude
+  // doctor/research prelude (add first)
   const showPrelude = (mode === 'doctor') || (mode === 'research') || /trial|research/i.test(String(mode || ''));
   if (showPrelude) {
     const filtered = filterComputedForDocMode(blended, latestUserMessage || '');
@@ -299,45 +203,76 @@ async function handle(req: NextRequest, payload: any) {
       const notesLine = Array.isArray(r.notes) && r.notes.length ? ' — ' + r.notes.join('; ') : '';
       linesArr.push(String(r.label || r.id) + ': ' + val + notesLine);
     }
-    if (linesArr.length) {
-      finalMessages.unshift({ role: 'system', content: linesArr.join('\n') });
-    }
+    if (linesArr.length) finalMessages.unshift({ role: 'system', content: linesArr.join('\n') });
   }
 
-  // optional calc prelude if we actually added computed lines just above
+  // optional calc prelude (still before LOCKED VALUES)
   const calcPrelude = composeCalcPrelude(latestUserMessage || '');
-  if (showPrelude && calcPrelude && finalMessages.length && finalMessages[0] && (finalMessages[0] as any).role === 'system') {
+  if (showPrelude && calcPrelude && finalMessages.length && finalMessages[0]?.role === 'system') {
     finalMessages.unshift({ role: 'system', content: calcPrelude });
   }
 
-  // profile context
+  // profile context (still before LOCKED VALUES)
   if (context === 'profile') {
     try {
       const origin = req.nextUrl.origin;
       const headers = { cookie: req.headers.get('cookie') || '' };
-      const sP = fetch(origin + '/api/profile/summary', { headers: headers }).then(function (r) { return r.json(); }).catch(function () { return {}; });
-      const pP = fetch(origin + '/api/profile', { headers: headers }).then(function (r) { return r.json(); }).catch(function () { return null; });
-      const pkP = fetch(origin + '/api/profile/packet', { headers: headers }).then(function (r) { return r.json(); }).catch(function () { return { text: '' }; });
-      const arr = await Promise.all([sP, pP, pkP]);
-      const s = arr[0] as any;
-      const p = arr[1] as any;
-      const pk = arr[2] as any;
+      const sP = fetch(origin + '/api/profile/summary', { headers }).then(r => r.json()).catch(() => ({}));
+      const pP = fetch(origin + '/api/profile', { headers }).then(r => r.json()).catch(() => null);
+      const pkP = fetch(origin + '/api/profile/packet', { headers }).then(r => r.json()).catch(() => ({ text: '' }));
+      const [s, p, pk] = await Promise.all([sP, pP, pkP]);
       const sys = profileChatSystem({
-        summary: s && (s.summary || s.text) ? (s.summary || s.text) : '',
-        reasons: s && s.reasons ? s.reasons : '',
-        profile: p && (p.profile || p) ? (p.profile || p) : null,
-        packet: pk && pk.text ? pk.text : '',
+        summary: (s as any).summary || (s as any).text || '',
+        reasons: (s as any).reasons || '',
+        profile: (p as any)?.profile || (p as any) || null,
+        packet: (pk as any).text || '',
       });
       finalMessages.unshift({ role: 'system', content: sys });
     } catch {}
   }
+
+  // ----- LOCKED VALUES: add LAST so it has highest priority -----
+  function hasNum(x: any) { return typeof x === 'number' && isFinite(x); }
+  const allowQSOFA = (hasNum((ctx as any).respiratory_rate) || hasNum((ctx as any).rr)) &&
+                     (hasNum((ctx as any).sbp) || hasNum((ctx as any).systolic_bp)) &&
+                     (hasNum((ctx as any).gcs) || typeof (ctx as any).altered_mentation === 'boolean');
+  const allowSIRS  = (hasNum((ctx as any).temp_c) || hasNum((ctx as any).temp_f)) &&
+                     hasNum((ctx as any).hr) &&
+                     (hasNum((ctx as any).respiratory_rate) || hasNum((ctx as any).rr)) &&
+                     hasNum((ctx as any).wbc);
+
+  const lockPairs: Array<{ k: string; v: string }> = [];
+  const whitelist = new Set<string>([
+    'anion_gap', 'anion_gap_albumin_corrected', 'serum_osm_calc', 'osmolar_gap',
+    'effective_osm', 'hyponatremia_tonicity', 'dka_flags', 'dka_severity',
+    'hhs_flags', 'hyperkalemia_severity', 'potassium_status', 'winters_expected_pco2',
+    'mixed_acid_base_flag', 'corrected_sodium'
+  ]);
+  for (let i = 0; i < blended.length; i++) {
+    const r = blended[i];
+    if (!r || !r.id) continue;
+    if (!whitelist.has(String(r.id))) continue;
+    const val = r.unit ? String(r.value) + ' ' + String(r.unit) : String(r.value);
+    lockPairs.push({ k: String(r.label || r.id), v: val });
+  }
+
+  let lockText = 'LOCKED VALUES (authoritative; do not contradict; do not recalculate):\n';
+  for (let i = 0; i < lockPairs.length; i++) lockText += lockPairs[i].k + ': ' + lockPairs[i].v + '\n';
+  lockText += 'Hard requirements:\n';
+  lockText += ' - Use serum osmolality = 2*Na + Glucose/18 + BUN/2.8. Do not include creatinine.\n';
+  lockText += ' - Use anion gap = Na - (Cl + HCO3). Albumin-corrected AG = AG + 2.5*(4 - albumin).\n';
+  lockText += ' - Use Winters expected pCO2 = 1.5*HCO3 + 8 (±2) to classify respiratory compensation.\n';
+  lockText += ' - DKA needs glucose ≥ 250 with acidosis; HHS uses effective osmolality ≥ 320.\n';
+  lockText += ' - Do not create non-standard metrics (e.g., lactate:pH ratio).\n';
+  if (!allowQSOFA || !allowSIRS) lockText += ' - Do not compute or mention qSOFA/SIRS/NEWS2/CURB-65 unless all required inputs are available.\n';
+  finalMessages.unshift({ role: 'system', content: lockText });
 
   // call Groq and stream
   const upstream = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
     body: JSON.stringify({
-      model: model,
+      model,
       stream: true,
       temperature: 0,
       top_p: 1,
@@ -379,15 +314,14 @@ export async function GET(req: NextRequest) {
   const u = req.nextUrl;
   const payloadParam = u.searchParams.get('payload');
   let payload: any = {};
-  if (payloadParam) {
-    try { payload = JSON.parse(decodeURIComponent(payloadParam)); } catch { payload = {}; }
-  } else {
+  if (payloadParam) { try { payload = JSON.parse(decodeURIComponent(payloadParam)); } catch { payload = {}; } }
+  else {
     const mode = u.searchParams.get('mode') || undefined;
     const ctx = u.searchParams.get('context') || undefined;
     const msgs = u.searchParams.get('messages');
     let messages: any[] | undefined = undefined;
     if (msgs) { try { messages = JSON.parse(msgs); } catch {} }
-    payload = { mode: mode, context: ctx, messages: messages };
+    payload = { mode, context: ctx, messages };
   }
   return handle(req, payload);
 }
