@@ -1,20 +1,12 @@
-export type CorrCaInputs = { measured_ca_mg_dl:number; albumin_g_dl:number };
-
-export function calc_corrected_calcium(i: CorrCaInputs): number {
-  return i.measured_ca_mg_dl + 0.8 * (4 - i.albumin_g_dl);
-}
-
-const def = {
+import { register } from "../registry";
+register({
   id: "corrected_calcium",
-  label: "Corrected Calcium (albumin)",
-  inputs: [
-    { id: "measured_ca_mg_dl", label: "Measured Ca (mg/dL)", type: "number", min: 0 },
-    { id: "albumin_g_dl", label: "Albumin (g/dL)", type: "number", min: 0 }
-  ],
-  run: (args: CorrCaInputs) => {
-    const v = calc_corrected_calcium(args);
-    return { id: "corrected_calcium", label: "Corrected Ca", value: v, unit: "mg/dL", precision: 1, notes: [] };
+  label: "Corrected Ca²⁺",
+  tags: ["electrolytes"],
+  inputs: [{ key:"calcium_mgdl", required:true }, { key:"albumin", required:true }],
+  run: ({ calcium_mgdl, albumin }) => {
+    if (calcium_mgdl == null || albumin == null) return null;
+    const corr = calcium_mgdl + 0.8 * (4 - albumin);
+    return { id:"corrected_calcium", label:"Corrected Ca²⁺", value:+corr.toFixed(2), unit:"mg/dL", precision:2 };
   },
-};
-
-export default def;
+});

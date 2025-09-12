@@ -1,5 +1,11 @@
-import { FORMULAE } from "./registry";
+import { all } from "./registry";
 import "./calculators";
+import "./calculators/acid_base_core";
+import "./calculators/corrected_na_hyperglycemia";
+import "./calculators/corrected_calcium";
+import "./calculators/egfr_ckdepi_2021";
+import "./calculators/fena_feurea";
+import "./calculators/delta_ratio_ag";
 
 function isAcceptableValue(v: any): boolean {
   if (v == null) return false;
@@ -16,7 +22,7 @@ export function computeAll(ctx: Record<string, any>) {
     precision?: number;
     notes: string[];
   }[] = [];
-  for (const f of FORMULAE.sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100))) {
+  for (const f of all().sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100))) {
     try {
       const res = f.run(ctx);
       if (res && isAcceptableValue(res.value)) {

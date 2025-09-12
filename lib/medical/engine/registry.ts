@@ -22,15 +22,10 @@ export type Formula = {
   priority?: number;
   tags?: string[];
 };
-
-export const FORMULAE: Formula[] = [];
-export function register(formula: Formula) {
-  if (FORMULAE.some(f => f.id === formula.id)) {
-    if (process.env.NODE_ENV !== "production") {
-      // eslint-disable-next-line no-console
-      console.warn(`[registry] Duplicate id skipped: ${formula.id}`);
-    }
-    return;
-  }
-  FORMULAE.push(formula);
+const REG = new Map<string, Formula>();
+export function register(def: Formula) {
+  if (!def?.id) throw new Error("Calculator missing id");
+  if (REG.has(def.id)) throw new Error(`Duplicate calculator id: ${def.id}`);
+  REG.set(def.id, def);
 }
+export function all(): Formula[] { return [...REG.values()]; }
