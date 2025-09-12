@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { ensureMinDelay } from "@/lib/utils/ensureMinDelay";
 import { callGroqChat, callOpenAIChat } from "@/lib/medx/providers";
-import { detectAudience, clinicianStyle, patientStyle, maxTokensFor } from "@/lib/medx/audience";
+import {
+  detectAudience,
+  clinicianStyle,
+  patientStyle,
+  maxTokensFor,
+  clinicianInterpretationStyle,
+  needsClinicalInterpretation,
+} from "@/lib/medx/audience";
 
 // Optional calculator prelude (safe if absent)
 let composeCalcPrelude: any, extractAll: any, canonicalizeInputs: any, computeAll: any;
@@ -40,7 +47,12 @@ export async function POST(req: Request) {
   }
 
   const audience = detectAudience(mode);
-  const style = audience === "clinician" ? clinicianStyle : patientStyle;
+  const style =
+    audience === "clinician"
+      ? needsClinicalInterpretation(messages)
+        ? clinicianInterpretationStyle
+        : clinicianStyle
+      : patientStyle;
   const reply = await ensureMinDelay(
     callOpenAIChat([
       { role: "system", content: system },

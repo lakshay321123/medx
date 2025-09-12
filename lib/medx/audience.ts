@@ -26,6 +26,34 @@ export function detectAudience(mode?: string, hint?: string): Audience {
   return "patient";
 }
 
+// Heuristics: does the last user message look like a labs/vitals calc request?
+export function needsClinicalInterpretation(messages: any[]): boolean {
+  const last = messages.slice().reverse().find((m: any) => m.role === "user")?.content || "";
+  const text = last.toLowerCase();
+  if (/anion gap|delta gap|osmol|corrected (na|sodium)|winter\b/.test(text)) return true;
+  if (/(na|k|cl|hco3|pco2|ph|lactate|bun|creatinine|glucose)[^\d]*\d/.test(text)) return true;
+  return false;
+}
+
+/** Clinician interpretation style — detailed acid-base & management scaffold */
+export const clinicianInterpretationStyle = `
+MedX — Doctor Mode: Clinical Interpretation (Strict)
+Audience: Clinician. Tone: terse, operational. No disclaimers or patient language.
+HARD LIMITS: total ≤ ${process.env.CLINICIAN_MAX_TOKENS ?? 220} tokens; bullets/lines ≤ ${process.env.DOCTOR_MAX_WORDS_PER_LINE ?? 18} words; MDM ≤ ${process.env.DOCTOR_MDM_MAX_LINES ?? 3} lines.
+Sections in order (labels must match exactly):
+Calculations (checked)
+Single-line bullets: formula → numbers → value. Include AG, ΔAG, ΔHCO₃, Δ/Δ, corrected HCO₃, corrected Na (Katz & Hillier), calculated/effective osmolality & gap, Winter’s pCO₂ vs actual (note compensation). No derivations outside this section.
+Acid–base interpretation (concise)
+2–3 bullets. Name all primary and concurrent disorders.
+Unifying causes (precise)
+3–5 bullets linking abnormalities to etiologies.
+Initial management — exact order
+Numbered list, 6–10 items: start with ABCs/monitor/IV; ECG/hyperK steps; fluids; K⁺ strategy; insulin plan; labs cadence; source control/abx; toxin workup if osmol gap; bicarbonate criteria; level of care.
+MDM (concise)
+Up to ${process.env.DOCTOR_MDM_MAX_LINES ?? 3} lines. One sentence each. Synthesize risk and next steps. No formulas.
+No narrative paragraphs. No patient instructions.
+`;
+
 /** Clinician style — terse, operational, SBAR-ish */
 export const clinicianStyle = `
 Format for a clinician. Be terse and operational. No lay disclaimers, no 911/ambulance language.
