@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   }
 
   const minMs = minDelayMs();
-  const upstream: Response = await ensureMinDelay(
+  const upstream = await ensureMinDelay<Response>(
     callOpenAIChat([{ role: "system", content: system }, ...messages], { stream: true }),
     minMs
   );

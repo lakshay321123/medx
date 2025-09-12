@@ -22,7 +22,19 @@ export async function callGroqChat(messages: any[], options?: { temperature?: nu
   return data?.choices?.[0]?.message?.content ?? "";
 }
 
-export async function callOpenAIChat(messages: any[], { stream = false, temperature = 0.1 }: { stream?: boolean; temperature?: number } = {}) {
+// Overloads: tell TS exactly what comes back
+export function callOpenAIChat(
+  messages: any[],
+  options?: { stream?: false; temperature?: number }
+): Promise<string>;
+export function callOpenAIChat(
+  messages: any[],
+  options: { stream: true; temperature?: number }
+): Promise<Response>;
+export async function callOpenAIChat(
+  messages: any[],
+  { stream = false, temperature = 0.1 }: { stream?: boolean; temperature?: number } = {}
+): Promise<string | Response> {
   const model = process.env.OPENAI_TEXT_MODEL || "gpt-5";
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("OPENAI_API_KEY missing");
@@ -33,12 +45,12 @@ export async function callOpenAIChat(messages: any[], { stream = false, temperat
     return r?.choices?.[0]?.message?.content ?? "";
   }
 
-  // streaming (SSE) fallback via REST
+  // streaming (SSE) via REST
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ model, temperature, messages, stream: true })
   });
   if (!res.ok) throw new Error(await res.text());
-  return res; // caller should pass-through the body
+  return res; // Response (SSE)
 }
