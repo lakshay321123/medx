@@ -33,6 +33,7 @@ import { detectAdvancedDomain } from "@/lib/intents/advanced";
 // === ADD-ONLY for domain routing ===
 import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
+import { useThinkingTimer } from '@/hooks/useThinkingTimer';
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -173,25 +174,27 @@ No fabricated IDs. Provide themes, not specific trial numbers unless confident.`
   ];
 }
 
-function PendingAnalysisCard({ label }: { label: string }) {
+function PendingAnalysisCard({ label, seconds }: { label: string; seconds?: number }) {
+  const t = typeof seconds === 'number' && seconds > 0 ? ` 0:${seconds.toString().padStart(2, '0')}` : '';
   return (
     <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
-      <div className="text-sm text-slate-600 dark:text-slate-300">{label}</div>
+      <div className="text-sm text-slate-600 dark:text-slate-300">{label}{t}</div>
     </div>
   );
 }
 
-function PendingChatCard({ label }: { label: string }) {
+function PendingChatCard({ label, seconds }: { label: string; seconds?: number }) {
+  const t = typeof seconds === 'number' && seconds > 0 ? ` 0:${seconds.toString().padStart(2, '0')}` : '';
   return (
     <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
-      <div className="text-sm text-slate-600 dark:text-slate-300">{label}</div>
+      <div className="text-sm text-slate-600 dark:text-slate-300">{label}{t}</div>
     </div>
   );
 }
 
-function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatMessage, { kind: "analysis" }>; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean }) {
+function AnalysisCard({ m, researchOn, onQuickAction, busy, seconds }: { m: Extract<ChatMessage, { kind: "analysis" }>; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean; seconds?: number }) {
   const header = titleForCategory(m.category);
-  if (m.pending) return <PendingAnalysisCard label="Analyzing file…" />;
+  if (m.pending) return <PendingAnalysisCard label="Analyzing file…" seconds={seconds} />;
   return (
     <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl space-y-2">
       <header className="flex items-center gap-2">
@@ -242,8 +245,8 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
     </div>
   );
 }
-function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onFollowUpClick: (text: string) => void; simple: boolean }) {
-  if (m.pending) return <PendingChatCard label="Thinking…" />;
+function ChatCard({ m, therapyMode, onFollowUpClick, simple, seconds }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onFollowUpClick: (text: string) => void; simple: boolean; seconds?: number }) {
+  if (m.pending) return <PendingChatCard label="Analyzing…" seconds={seconds} />;
   return (
     <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
       <ChatMarkdown content={m.content} />
@@ -276,9 +279,9 @@ function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<Chat
 
 function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onFollowUpClick, simple }: { m: ChatMessage; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean; therapyMode: boolean; onFollowUpClick: (text: string) => void; simple: boolean }) {
   return m.kind === "analysis" ? (
-    <AnalysisCard m={m} researchOn={researchOn} onQuickAction={onQuickAction} busy={busy} />
+    <AnalysisCard m={m} researchOn={researchOn} onQuickAction={onQuickAction} busy={busy} seconds={thinkingSec} />
   ) : (
-    <ChatCard m={m} therapyMode={therapyMode} onFollowUpClick={onFollowUpClick} simple={simple} />
+    <ChatCard m={m} therapyMode={therapyMode} onFollowUpClick={onFollowUpClick} simple={simple} seconds={thinkingSec} />
   );
 }
 
@@ -350,6 +353,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       router.replace(`/?panel=chat&threadId=${id}`);
     }
   }, [threadId, isProfileThread, router]);
+  const [verifyMs, setVerifyMs] = useState(0);
+  const thinkingSec = useThinkingTimer(verifyMs);
   const currentMode: 'patient'|'doctor'|'research'|'therapy' = therapyMode ? 'therapy' : (researchMode ? 'research' : mode);
   const [pendingCommitIds, setPendingCommitIds] = useState<string[]>([]);
   const [commitBusy, setCommitBusy] = useState<null | 'save' | 'discard'>(null);
@@ -713,6 +718,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             clientRequestId: rid
           })
         });
+      const verifyTimeoutMs = Number(res.headers.get('X-Verify-Timeout') || 0);
+      if (verifyTimeoutMs > 0) setVerifyMs(verifyTimeoutMs);
         if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -1025,6 +1032,8 @@ ${systemCommon}` + baseSys;
         },
         body: JSON.stringify({ mode: mode === 'doctor' ? 'doctor' : 'patient', messages: chatMessages, threadId, context })
       });
+      const verifyTimeoutMs = Number(res.headers.get('X-Verify-Timeout') || 0);
+      if (verifyTimeoutMs > 0) setVerifyMs(verifyTimeoutMs);
       if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
 
       const reader = res.body.getReader();
@@ -1108,6 +1117,7 @@ ${systemCommon}` + baseSys;
       }
     } finally {
       setBusy(false);
+      setVerifyMs(0);
     }
   }
 
