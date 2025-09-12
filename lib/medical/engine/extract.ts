@@ -125,3 +125,13 @@ export function extractAll(s: string): Record<string, any> {
 
   return out;
 }
+
+export function normalizeCtx(raw: Record<string, any>): Record<string, any> {
+  const ctx = { ...raw };
+  if (ctx.glucose_mgdl != null && ctx.glucose_mg_dl == null) ctx.glucose_mg_dl = ctx.glucose_mgdl;
+  if (ctx.BUN != null && ctx.bun_mg_dl == null) ctx.bun_mg_dl = ctx.BUN;
+  if (ctx.glucose_mg_dl != null && ctx.glucose == null) ctx.glucose = ctx.glucose_mg_dl;
+  if (ctx.measured_osm != null && ctx.measured_osm_mOsm_kg == null) ctx.measured_osm_mOsm_kg = ctx.measured_osm;
+  if (ctx.osm_meas != null && ctx.measured_osm_mOsm_kg == null) ctx.measured_osm_mOsm_kg = ctx.osm_meas;
+  return ctx;
+}
