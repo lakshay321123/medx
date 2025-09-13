@@ -1,45 +1,28 @@
-import "./globals.css";
-import { ThemeProvider } from "next-themes";
-import Sidebar from "../components/Sidebar";
-import { CountryProvider } from "@/lib/country";
-import { ContextProvider } from "@/lib/context";
-import { TopicProvider } from "@/lib/topic";
-import { Suspense } from "react";
-import MemorySnackbar from "@/components/memory/Snackbar";
-import UndoToast from "@/components/memory/UndoToast";
-import { Roboto } from "next/font/google";
+import "@/styles/globals.css";
+import Sidebar from "@/components/Sidebar";
+import Header from "@/components/Header";
 
 export const metadata = { title: "MedX", description: "Global medical AI" };
 
-const roboto = Roboto({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "700", "900"],
-  variable: "--font-roboto",
-  display: "swap",
-});
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const themeScript = `
+    try {
+      const t = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.classList.toggle('dark', t ? t === 'dark' : prefersDark);
+    } catch {}
+  `;
   return (
-    <html lang="en" className={roboto.variable} suppressHydrationWarning>
-      <body className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-gray-100 font-sans antialiased">
-        <CountryProvider>
-          <ContextProvider>
-            <TopicProvider>
-              <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-                <div className="flex medx-gradient">
-                  <Suspense fallback={null}>
-                    <Sidebar />
-                  </Suspense>
-                  <main className="flex-1 md:ml-64 min-h-dvh flex flex-col relative z-0">
-                    {children}
-                    <MemorySnackbar />
-                    <UndoToast />
-                  </main>
-                </div>
-              </ThemeProvider>
-            </TopicProvider>
-          </ContextProvider>
-        </CountryProvider>
+    <html lang="en" suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
+      <body className="bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
+        <div className="flex">
+          <Sidebar />
+          <div className="flex flex-1 flex-col">
+            <Header />
+            {children}
+          </div>
+        </div>
       </body>
     </html>
   );

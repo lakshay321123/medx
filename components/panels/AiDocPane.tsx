@@ -1,25 +1,29 @@
-'use client';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo } from 'react';
-import { useAidocStore } from '@/stores/useAidocStore';
+"use client";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-export default function AiDocPane() {
+export default function AiDocPane({ threadId }: { threadId?: string }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const resetForThread = useAidocStore(s => s.resetForThread);
 
-  function newAidocThread() {
-    const id = `aidoc_${Date.now().toString(36)}`;
-    router.push(`?panel=ai-doc&threadId=${id}&context=profile`);
-    return id;
-  }
-
-  const threadId = useMemo(() => searchParams.get('threadId') ?? newAidocThread(), [searchParams]);
-
+  // Auto-create or reuse a session case if user arrived via top button without a threadId
   useEffect(() => {
-    resetForThread(threadId);
-    fetch('/api/aidoc/message', { method: 'POST', body: JSON.stringify({ threadId, op: 'boot' }) });
-  }, [threadId, resetForThread]);
+    if (threadId) return;
+    const sess = typeof window !== "undefined" ? sessionStorage.getItem("aidoc_thread") : null;
+    const tid = sess && sess.trim() ? sess : `aidoc_${Date.now().toString(36)}`;
+    try { sessionStorage.setItem("aidoc_thread", tid); } catch {}
+    const url = new URL(window.location.href);
+    url.searchParams.set("threadId", tid);
+    url.searchParams.set("context", url.searchParams.get("context") ?? "profile");
+    router.replace(url.toString());
+  }, [threadId, router]);
 
-  return <div className="p-4">AI Doc</div>;
+  if (!threadId) return null; // brief until replace
+
+  // TODO: fetch and render thread messages by threadId
+  return (
+    <div className="p-6">
+      <h2 className="mb-2 text-lg font-semibold">AI Doc</h2>
+      {/* Messages UI here */}
+    </div>
+  );
 }
