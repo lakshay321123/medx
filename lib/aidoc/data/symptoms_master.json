@@ -1,0 +1,17 @@
+{
+  "fever": {
+    "questions": [
+      "How many days have you had a fever?",
+      "What was the highest temperature recorded?",
+      "Is it constant or does it come and go?"
+    ],
+    "self_care": [
+      "Stay hydrated and rest.",
+      "Light clothing and a cool room."
+    ],
+    "red_flags": [
+      "Fever above 103°F",
+      "Severe headache or neck stiffness"
+    ]
+  }
+}
