@@ -29,6 +29,9 @@ export function nextModes(prev: ModeState, action: { type: string; value?: any }
       s.aidoc = !!action.value;
       if (s.aidoc) { s.therapy = false; s.research = false; }
       break;
+    case "dark:set":
+      s.dark = !!action.value;
+      break;
     case "dark:toggle":
       s.dark = !s.dark; break;
   }

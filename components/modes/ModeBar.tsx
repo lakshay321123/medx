@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { nextModes } from "@/lib/modes/controller";
 import type { ModeState } from "@/lib/modes/types";
@@ -9,7 +9,7 @@ const initial: ModeState = { ui: "patient", therapy: false, research: false, aid
 const baseBtn = "px-3.5 py-1.5 rounded-xl text-sm transition active:scale-[.98]";
 const ghost =
   "border border-neutral-300 bg-white text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100";
-const solid = "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900";
+const active = "bg-blue-600 text-white";
 
 export default function ModeBar({ onChange }: { onChange?: (s: ModeState)=>void }) {
   const router = useRouter();
@@ -28,12 +28,25 @@ export default function ModeBar({ onChange }: { onChange?: (s: ModeState)=>void 
     }
   }
 
+  useEffect(() => {
+    const aidocActive = params.get("panel") === "ai-doc";
+    setS((prev) =>
+      prev.aidoc === aidocActive
+        ? prev
+        : { ...prev, aidoc: aidocActive, ...(aidocActive ? { therapy: false, research: false } : {}) }
+    );
+  }, [params]);
+
+  useEffect(() => {
+    setS((prev) => ({ ...prev, dark: document.documentElement.classList.contains("dark") }));
+  }, []);
+
   function toggleTheme() {
     const root = document.documentElement;
     const next = root.classList.contains("dark") ? "light" : "dark";
     root.classList.toggle("dark", next === "dark");
     localStorage.setItem("theme", next);
-    act("dark:toggle");
+    act("dark:set", next === "dark");
   }
 
   return (
@@ -41,17 +54,17 @@ export default function ModeBar({ onChange }: { onChange?: (s: ModeState)=>void 
       {/* UI mode */}
       <div className="inline-flex rounded-xl border p-1 dark:border-neutral-800">
         <button onClick={() => act("ui:set", "patient")}
-          className={`${baseBtn} ${s.ui === "patient" ? solid : ghost}`}>Patient</button>
+          className={`${baseBtn} ${s.ui === "patient" ? active : ghost}`}>Patient</button>
         <button onClick={() => act("ui:set", "doctor")}
-          className={`${baseBtn} ${s.ui === "doctor" ? solid : ghost}`}>Doctor</button>
+          className={`${baseBtn} ${s.ui === "doctor" ? active : ghost}`}>Doctor</button>
       </div>
 
       {/* Feature modes */}
       <button onClick={() => act("therapy:toggle")}
-        className={`${baseBtn} ${s.therapy ? "bg-emerald-600 text-white" : ghost}`}>Therapy</button>
+        className={`${baseBtn} ${s.therapy ? active : ghost}`}>Therapy</button>
 
       <button onClick={() => act("research:toggle")}
-        className={`${baseBtn} ${s.research ? "bg-blue-600 text-white" : ghost}`}>Research</button>
+        className={`${baseBtn} ${s.research ? active : ghost}`}>Research</button>
 
       <button
         onClick={() => {
@@ -59,13 +72,13 @@ export default function ModeBar({ onChange }: { onChange?: (s: ModeState)=>void 
           const tid = params.get("threadId") ?? `aidoc_${Date.now().toString(36)}`;
           router.push(`/?panel=ai-doc&threadId=${tid}`);
         }}
-        className={`${baseBtn} ${s.aidoc ? "bg-violet-600 text-white" : ghost}`}
+        className={`${baseBtn} ${s.aidoc ? active : ghost}`}
       >
         AI&nbsp;Doc
       </button>
 
       <button onClick={toggleTheme}
-        className={`${baseBtn} ${s.dark ? solid : ghost}`}>Dark</button>
+        className={`${baseBtn} ${s.dark ? active : ghost}`}>{s.dark ? "Light" : "Dark"}</button>
     </div>
   );
 }
