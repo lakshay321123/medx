@@ -1,20 +1,22 @@
-'use client';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo } from 'react';
-import { useAidocStore } from '@/stores/useAidocStore';
+"use client";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo } from "react";
+import { useAidocStore } from "@/stores/useAidocStore";
 
-export default function AiDocPane() {
+interface Props {
+  threadId?: string;
+}
+
+export default function AiDocPane({ threadId: initialThreadId }: Props) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const resetForThread = useAidocStore(s => s.resetForThread);
+  const resetForThread = useAidocStore((s) => s.resetForThread);
 
-  function newAidocThread() {
+  const threadId = useMemo(() => {
+    if (initialThreadId) return initialThreadId;
     const id = `aidoc_${Date.now().toString(36)}`;
     router.push(`?panel=ai-doc&threadId=${id}&context=profile`);
     return id;
-  }
-
-  const threadId = useMemo(() => searchParams.get('threadId') ?? newAidocThread(), [searchParams]);
+  }, [initialThreadId, router]);
 
   useEffect(() => {
     resetForThread(threadId);
