@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import SearchDock from "@/components/search/SearchDock";
 import ChatPane from "@/components/panels/ChatPane";
 import MedicalProfile from "@/components/panels/MedicalProfile";
 import Timeline from "@/components/panels/Timeline";
@@ -7,9 +9,10 @@ import AlertsPane from "@/components/panels/AlertsPane";
 import SettingsPane from "@/components/panels/SettingsPane";
 import { ResearchFiltersProvider } from '@/store/researchFilters';
 
-type Search = { panel?: string; threadId?: string };
+type Search = { panel?: string; threadId?: string; q?: string };
 
 export default function Page({ searchParams }: { searchParams: Search }) {
+  const router = useRouter();
   const panel = (searchParams.panel ?? "chat").toLowerCase();
   const chatInputRef = useRef<HTMLInputElement>(null);
 
@@ -20,7 +23,11 @@ export default function Page({ searchParams }: { searchParams: Search }) {
   }, []);
 
   return (
-    <main className="flex-1 overflow-y-auto content-layer">
+    <>
+      <div className="min-h-[80vh]">
+        <SearchDock onSubmit={q => router.push(`/?panel=chat&q=${encodeURIComponent(q)}`)} />
+      </div>
+      <main className="flex-1 overflow-y-auto content-layer">
       <section className={panel === "chat" ? "block h-full" : "hidden"}>
         <ResearchFiltersProvider>
           <ChatPane inputRef={chatInputRef} />
@@ -42,6 +49,7 @@ export default function Page({ searchParams }: { searchParams: Search }) {
       <section className={panel === "settings" ? "block" : "hidden"}>
         <SettingsPane />
       </section>
-    </main>
+      </main>
+    </>
   );
 }

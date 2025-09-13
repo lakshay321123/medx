@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 
 export default function SearchDock({ onSubmit }: { onSubmit: (q: string)=>void }) {
   const [q, setQ] = useState("");
-  const [docked, setDocked] = useState<boolean>(()=> typeof window !== "undefined" && !!sessionStorage.getItem("search_docked"));
+  const [docked, setDocked] = useState<boolean>(() => !!sessionStorage.getItem("search_docked"));
 
   useEffect(()=> {
     if (docked) sessionStorage.setItem("search_docked","1");

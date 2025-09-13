@@ -18,8 +18,18 @@ export default function AiDocPane() {
 
   useEffect(() => {
     resetForThread(threadId);
-    fetch('/api/aidoc/message', { method: 'POST', body: JSON.stringify({ threadId, op: 'boot' }) });
   }, [threadId, resetForThread]);
+
+  useEffect(() => {
+    const BOOT_KEY = 'aidoc_booted';
+    if (sessionStorage.getItem(BOOT_KEY)) return;
+    sessionStorage.setItem(BOOT_KEY, '1');
+    fetch('/api/aidoc/message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ op: 'boot' }),
+    });
+  }, []);
 
   return <div className="p-4">AI Doc</div>;
 }

@@ -1,6 +1,5 @@
 "use client";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type Tab = {
   key: string;
@@ -37,6 +36,7 @@ function NavLink({
   context?: string;
 }) {
   const params = useSearchParams();
+  const router = useRouter();
 
   const threadId = threadIdProp;
   const href = `/?panel=${panel}${threadId ? `&threadId=${encodeURIComponent(threadId)}` : ""}${
@@ -48,17 +48,19 @@ function NavLink({
     (threadIdProp ? params.get("threadId") === threadIdProp : !params.get("threadId"));
 
   return (
-    <Link
-      href={href}
-      prefetch={false}
-      scroll={false}
-      onClick={(e) => e.stopPropagation()}
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        router.push(href);
+      }}
       className={`block w-full text-left rounded-md px-3 py-2 hover:bg-muted text-sm ${active ? "bg-muted font-medium" : ""}`}
       data-testid={`nav-${panel}`}
       aria-current={active ? "page" : undefined}
     >
       {children}
-    </Link>
+    </button>
   );
 }
 
