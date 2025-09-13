@@ -25,20 +25,10 @@ export function middleware(req: NextRequest) {
     }
   }
 
-  // Triage paths: if you already post to /api/triage, you can similarly force:
-  if (path === "/api/triage") {
-    const mode = (req.headers.get("x-medx-mode") || "").toLowerCase();
-    const isBasic = mode === "basic" || mode === "casual";
-    if (!isBasic) {
-      url.pathname = "/api/triage-final";
-      return NextResponse.rewrite(url);
-    }
-  }
-
   return NextResponse.next();
 }
 
 // Limit to API routes for safety
 export const config = {
-  matcher: ["/api/chat", "/api/chat/stream", "/api/triage"],
+  matcher: ["/api/chat", "/api/chat/stream"], // APIs only
 };
