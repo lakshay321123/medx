@@ -50,6 +50,12 @@ export default function Sidebar() {
           <input className="w-full h-10 rounded-lg pl-3 pr-8 text-sm medx-surface text-medx placeholder:text-slate-500 dark:placeholder:text-slate-400" placeholder="Search chats" onChange={e => handleSearch(e.target.value)} />
           <Search size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
         </div>
+        <button
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push("/?panel=timeline"); }}
+          className="mt-3 mb-1 block w-full text-left rounded-md px-3 py-2 hover:bg-muted text-sm"
+        >
+          Timeline
+        </button>
         <Tabs />
       </div>
 
