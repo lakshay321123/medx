@@ -20,6 +20,7 @@ interface Search {
 export default function Page({ searchParams }: { searchParams: Search }) {
   const router = useRouter();
   const panel = (searchParams.panel ?? "").toLowerCase();
+  const threadId = searchParams.threadId as string | undefined;
   const chatInputRef = useRef<HTMLInputElement>(null);
 
   function sendQuery(q: string) {
@@ -50,7 +51,7 @@ export default function Page({ searchParams }: { searchParams: Search }) {
       {panel === "timeline" && <Timeline />}
       {panel === "alerts" && <AlertsPane />}
       {panel === "settings" && <SettingsPane />}
-      {panel === "ai-doc" && <AiDocPane />}
+      {panel === "ai-doc" && <AiDocPane threadId={threadId} />}
       </main>
     </>
   );

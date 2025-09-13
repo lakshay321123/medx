@@ -1,32 +1,24 @@
 "use client";
 import { useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { useAidocStore } from "@/stores/useAidocStore";
 
-export default function AiDocPane() {
-  const params = useSearchParams();
-  const router = useRouter();
+export default function AiDocPane({ threadId }: { threadId?: string }) {
   const resetForThread = useAidocStore((s) => s.resetForThread);
-  const threadId = params.get("threadId") ?? undefined;
 
   useEffect(() => {
-    if (!threadId) {
-      const newTid = `aidoc_${Date.now().toString(36)}`;
-      const search = new URLSearchParams(Array.from(params.entries()));
-      search.set("threadId", newTid);
-      router.replace(`/?panel=ai-doc&${search.toString()}`);
-      return;
-    }
+    if (!threadId) return;
     resetForThread(threadId);
     fetch("/api/aidoc/message", {
       method: "POST",
       body: JSON.stringify({ threadId, op: "boot" }),
     });
-  }, [threadId, params, router, resetForThread]);
+  }, [threadId, resetForThread]);
 
   if (!threadId) {
     return (
-      <div className="p-6 text-sm text-neutral-500">Preparing AI Doc case…</div>
+      <div className="p-6 text-sm text-neutral-500">
+        No AI Doc case selected yet. Click <strong>AI Doc</strong> in the sidebar to start.
+      </div>
     );
   }
 
