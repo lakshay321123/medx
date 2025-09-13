@@ -152,3 +152,12 @@
 /* tiny hover polish without shifting layout */
 .medx-surface:hover { filter: brightness(1.03); }
 
+
+@keyframes caret {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.animate-caret {
+  animation: caret 1s steps(1, end) infinite;
+}
+

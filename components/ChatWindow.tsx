@@ -1,17 +1,25 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
 import { ChatInput } from "@/components/ChatInput";
 import { persistIfTemp } from "@/lib/chat/persist";
+import ThinkingTimer from "@/components/ui/ThinkingTimer";
+import ScrollToBottom from "@/components/ui/ScrollToBottom";
+import Typewriter from "@/components/ui/Typewriter";
 
 export function ChatWindow() {
   const messages = useChatStore(s => s.currentId ? s.threads[s.currentId]?.messages ?? [] : []);
   const addMessage = useChatStore(s => s.addMessage);
   const [results, setResults] = useState<any[]>([]);
+  const chatRef = useRef<HTMLDivElement>(null);
+  const [isThinking, setIsThinking] = useState(false);
+  const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
 
   const handleSend = async (content: string, locationToken?: string) => {
     // after sending user message, persist thread if needed
     await persistIfTemp();
+    setIsThinking(true);
+    setThinkingStartedAt(Date.now());
     if (locationToken) {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -26,14 +34,17 @@ export function ChatWindow() {
       // In a real implementation, replace this with a call to your backend/AI service
       addMessage({ role: "assistant", content: `You said: ${content}` });
     }
+    setIsThinking(false);
+    setThinkingStartedAt(null);
   };
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-auto">
+      <div ref={chatRef} className="flex-1 overflow-auto">
         {messages.map(m => (
           <div key={m.id} className="p-2">
-            <strong>{m.role}:</strong> {m.content}
+            <strong>{m.role}:</strong>{" "}
+            {m.role === "assistant" ? <Typewriter text={m.content} /> : m.content}
           </div>
         ))}
         {results.length > 0 && (
@@ -52,7 +63,13 @@ export function ChatWindow() {
           </div>
         )}
       </div>
+      {isThinking && thinkingStartedAt && (
+        <div className="p-2">
+          <ThinkingTimer label="Analyzing" startedAt={thinkingStartedAt} />
+        </div>
+      )}
       <ChatInput onSend={handleSend} />
+      <ScrollToBottom target={chatRef.current} />
     </div>
   );
 }
