@@ -1423,11 +1423,11 @@ ${systemCommon}` + baseSys;
   return (
     <div className="relative flex h-full flex-col">
       <Header
-        mode={mode}
-        onModeChange={setMode}
-        researchOn={researchMode}
-        onResearchChange={setResearchMode}
-        onTherapyChange={setTherapyMode}
+        onChange={(s) => {
+          if (s.ui) setMode(s.ui);
+          setResearchMode(s.research);
+          setTherapyMode(s.therapy);
+        }}
       />
       {busy && thinkingStartedAt && (
         <div className="px-4 sm:px-6 lg:px-8 pt-2">

@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+:root { --brand: 26 26 26; }
+:root.dark { --brand: 245 245 245; }
+
 /* smooth theme transitions */
 * { transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
 
