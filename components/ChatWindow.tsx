@@ -5,7 +5,24 @@ import { ChatInput } from "@/components/ChatInput";
 import { persistIfTemp } from "@/lib/chat/persist";
 import ThinkingTimer from "@/components/ui/ThinkingTimer";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
-import Typewriter from "@/components/ui/Typewriter";
+import Typewriter from "@/components/chat/Typewriter";
+import { useTypewriterStore } from "@/lib/state/typewriterStore";
+
+function MessageRow({ m }: { m: { id: string; role: string; content: string } }) {
+  const [fast, setFast] = useState(false);
+  const isDone = useTypewriterStore(s => s.isDone(m.id));
+  const markDone = useTypewriterStore(s => s.markDone);
+  return (
+    <div className="p-2" onClick={() => setFast(true)}>
+      <strong>{m.role}:</strong>{" "}
+      {m.role === "assistant" ? (
+        <Typewriter text={m.content} fast={fast || isDone} onDone={() => markDone(m.id)} />
+      ) : (
+        m.content
+      )}
+    </div>
+  );
+}
 
 export function ChatWindow() {
   const messages = useChatStore(s => s.currentId ? s.threads[s.currentId]?.messages ?? [] : []);
@@ -42,10 +59,7 @@ export function ChatWindow() {
     <div className="flex flex-col h-full">
       <div ref={chatRef} className="flex-1 overflow-auto">
         {messages.map(m => (
-          <div key={m.id} className="p-2">
-            <strong>{m.role}:</strong>{" "}
-            {m.role === "assistant" ? <Typewriter text={m.content} /> : m.content}
-          </div>
+          <MessageRow key={m.id} m={m} />
         ))}
         {results.length > 0 && (
           <div className="p-2 space-y-2">

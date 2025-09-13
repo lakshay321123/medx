@@ -35,7 +35,7 @@ import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
 import ThinkingTimer from "@/components/ui/ThinkingTimer";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
-import Typewriter from "@/components/ui/Typewriter";
+import { useTypewriterStore } from "@/lib/state/typewriterStore";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -246,16 +246,22 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
   );
 }
 function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onFollowUpClick: (text: string) => void; simple: boolean }) {
-  const [typed, setTyped] = useState(false);
+  const [fast, setFast] = useState(false);
+  const isDone = useTypewriterStore(s => s.isDone(m.id));
+  const markDone = useTypewriterStore(s => s.markDone);
   if (m.pending) return <PendingChatCard label="Thinking…" />;
   return (
-    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
+    <div
+      className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl"
+      onClick={() => setFast(true)}
+    >
       {m.role === "assistant" ? (
-        typed ? (
-          <ChatMarkdown content={m.content} />
-        ) : (
-          <Typewriter text={m.content} onDone={() => setTyped(true)} caret />
-        )
+        <ChatMarkdown
+          content={m.content}
+          typing={!isDone}
+          fast={fast}
+          onDone={() => markDone(m.id)}
+        />
       ) : (
         <ChatMarkdown content={m.content} />
       )}
