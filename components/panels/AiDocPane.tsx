@@ -14,7 +14,7 @@ export default function AiDocPane({ threadId }: { threadId?: string }) {
   if (!threadId) {
     return (
       <div className="p-6 text-sm text-neutral-500">
-        No AI Doc case selected yet. Click <strong>AI Doc</strong> to start a case.
+        No AI Doc case selected yet. Click <strong>AI Doc</strong> in the sidebar to start.
       </div>
     );
   }

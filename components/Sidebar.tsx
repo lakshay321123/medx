@@ -2,7 +2,7 @@
 import { Search, Settings } from 'lucide-react';
 import Tabs from './sidebar/Tabs';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { createNewThreadId, listThreads, Thread } from '@/lib/chatThreads';
 import ThreadKebab from '@/components/chat/ThreadKebab';
 
@@ -39,6 +39,22 @@ export default function Sidebar() {
     setQ(q);
     window.dispatchEvent(new CustomEvent('search-chats', { detail: q }));
   };
+  const openAiDocFromSidebar = useCallback(() => {
+    const urlTid = params.get('threadId');
+    if (urlTid && urlTid.trim()) {
+      router.push(`/?panel=ai-doc&threadId=${urlTid}`);
+      return;
+    }
+    const sessTid = typeof window !== 'undefined' ? sessionStorage.getItem('aidoc_thread') : null;
+    if (sessTid && sessTid.trim()) {
+      router.push(`/?panel=ai-doc&threadId=${sessTid}`);
+      return;
+    }
+    const newTid = `aidoc_${Date.now().toString(36)}`;
+    if (typeof window !== 'undefined') sessionStorage.setItem('aidoc_thread', newTid);
+    router.push(`/?panel=ai-doc&threadId=${newTid}`);
+  }, [params, router]);
+
   const filtered = threads.filter(t => t.title.toLowerCase().includes(q.toLowerCase()));
   return (
     <aside className="sidebar-click-guard hidden md:flex md:flex-col justify-between !fixed inset-y-0 left-0 w-64 h-full medx-glass text-medx">
@@ -53,11 +69,11 @@ export default function Sidebar() {
         </div>
         <Tabs />
         <button
+          data-nav="aidoc"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            const tid = params.get('threadId') ?? `aidoc_${Date.now().toString(36)}`;
-            router.push(`/?panel=ai-doc&threadId=${tid}`);
+            openAiDocFromSidebar();
           }}
           className="w-full rounded-lg px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
