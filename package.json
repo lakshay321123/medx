@@ -35,6 +35,7 @@
     "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
+    "swr": "^2.3.6",
     "tesseract.js": "^5.0.5",
     "undici": "^5.29.0",
     "xml2js": "^0.6.2",

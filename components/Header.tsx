@@ -4,6 +4,7 @@ import ThemeToggle from './ThemeToggle';
 import { ResearchToggle } from './ResearchToggle';
 import TherapyToggle from './TherapyToggle';
 import CountryGlobe from '@/components/CountryGlobe';
+import Brand from '@/components/nav/Brand';
 
 export default function Header({
   mode,
@@ -22,7 +23,7 @@ export default function Header({
     <header className="sticky top-0 z-40 h-14 md:h-16 medx-glass">
       <div className="max-w-6xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between">
         <div className="flex items-center gap-2 text-base md:text-lg font-semibold">
-          <div>MedX</div>
+          <Brand />
           <CountryGlobe />
         </div>
         <div className="flex items-center gap-2">
