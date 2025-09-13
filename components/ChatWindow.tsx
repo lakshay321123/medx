@@ -27,6 +27,7 @@ function MessageRow({ m }: { m: { id: string; role: string; content: string } })
 export function ChatWindow() {
   const messages = useChatStore(s => s.currentId ? s.threads[s.currentId]?.messages ?? [] : []);
   const addMessage = useChatStore(s => s.addMessage);
+  const currentId = useChatStore(s => s.currentId);
   const [results, setResults] = useState<any[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
   const [isThinking, setIsThinking] = useState(false);
@@ -83,7 +84,7 @@ export function ChatWindow() {
         </div>
       )}
       <ChatInput onSend={handleSend} />
-      <ScrollToBottom target={chatRef.current} />
+      <ScrollToBottom targetRef={chatRef} rebindKey={currentId} />
     </div>
   );
 }

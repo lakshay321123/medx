@@ -1,18 +1,38 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type RefObject } from "react";
 
 type Props = {
-  /** The scrollable container; if not provided, uses window */
-  target?: HTMLElement | null;
+  /** Ref to the scrollable chat container (div) */
+  targetRef: RefObject<HTMLElement>;
   /** Show threshold (px from bottom) before button appears */
   threshold?: number;
+  /** optional key to force rebind on thread change */
+  rebindKey?: string | number;
 };
 
-export default function ScrollToBottom({ target, threshold = 120 }: Props) {
+export default function ScrollToBottom({ targetRef, threshold = 120, rebindKey }: Props) {
   const [show, setShow] = useState(false);
+  const [boundEl, setBoundEl] = useState<HTMLElement | null>(null);
 
+  // Bind to the ref element when it becomes available or when rebindKey changes
   useEffect(() => {
-    const el = target ?? document.documentElement;
+    if (targetRef?.current && targetRef.current !== boundEl) {
+      setBoundEl(targetRef.current);
+    }
+    let raf: number | null = null;
+    if (!targetRef?.current) {
+      const tick = () => {
+        if (targetRef?.current) setBoundEl(targetRef.current);
+        else raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+    }
+    return () => { if (raf) cancelAnimationFrame(raf); };
+  }, [targetRef, rebindKey, boundEl]);
+
+  // Listen for scroll to determine when to show the button
+  useEffect(() => {
+    const el = boundEl ?? document.documentElement;
     const listener = () => {
       const scrollTop = el.scrollTop || document.documentElement.scrollTop || document.body.scrollTop;
       const height = el.scrollHeight || document.documentElement.scrollHeight;
@@ -21,10 +41,10 @@ export default function ScrollToBottom({ target, threshold = 120 }: Props) {
       setShow(distanceFromBottom > threshold);
     };
     listener();
-    const on = target ?? window;
+    const on: any = boundEl ?? window;
     on.addEventListener("scroll", listener, { passive: true });
     return () => on.removeEventListener("scroll", listener as any);
-  }, [target, threshold]);
+  }, [boundEl, threshold]);
 
   if (!show) return null;
 
@@ -32,7 +52,7 @@ export default function ScrollToBottom({ target, threshold = 120 }: Props) {
     <button
       type="button"
       onClick={() => {
-        (target ?? window).scrollTo({ top: (target?.scrollHeight ?? document.documentElement.scrollHeight), behavior: "smooth" });
+        (boundEl ?? window).scrollTo({ top: (boundEl?.scrollHeight ?? document.documentElement.scrollHeight), behavior: "smooth" });
       }}
       className="fixed bottom-5 right-5 z-50 rounded-full bg-neutral-900 px-4 py-2 text-sm text-white shadow-lg transition active:scale-95 dark:bg-neutral-100 dark:text-neutral-900"
       aria-label="Scroll to bottom"

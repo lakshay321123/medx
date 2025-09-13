@@ -1869,7 +1869,7 @@ ${systemCommon}` + baseSys;
         </div>
       )}
 
-      <ScrollToBottom target={chatRef.current} />
+      <ScrollToBottom targetRef={chatRef} rebindKey={threadId} />
     </div>
   );
 }
