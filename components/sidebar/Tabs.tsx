@@ -12,13 +12,7 @@ type Tab = {
 
 const tabs: Tab[] = [
   { key: "chat", label: "Chat", panel: "chat" },
-  {
-    key: "ai-doc",
-    label: "AI Doc",
-    panel: "chat",
-    threadId: "med-profile",
-    context: "profile",
-  },
+  { key: "ai-doc", label: "AI Doc", panel: "ai-doc" },
   { key: "profile", label: "Medical Profile", panel: "profile" },
   { key: "timeline", label: "Timeline", panel: "timeline" },
   { key: "alerts", label: "Alerts", panel: "alerts" },
@@ -72,7 +66,11 @@ export default function Tabs() {
         <li key={t.key}>
           <NavLink
             panel={t.panel}
-            threadId={t.key === "chat" ? (t.threadId ?? currentThreadId) : t.threadId}
+            threadId={
+              t.key === "chat" || t.key === "ai-doc"
+                ? (t.threadId ?? currentThreadId)
+                : t.threadId
+            }
             context={t.context}
           >
             {t.label}

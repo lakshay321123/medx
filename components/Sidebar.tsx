@@ -81,11 +81,14 @@ export default function Sidebar() {
           </div>
         ))}
 
-        {aidocThreads.length > 0 && (
+        {Array.isArray(aidocThreads) && aidocThreads.length > 0 && (
           <div className="mt-4">
             <div className="px-4 text-xs font-semibold opacity-60 mb-1">AI Doc</div>
-            {aidocThreads.map(t => (
-              <div key={t.id} className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm mb-1.5 medx-surface text-medx">
+            {aidocThreads.map((t: any) => (
+              <div
+                key={t.id}
+                className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm mb-1.5 medx-surface text-medx"
+              >
                 <button
                   onClick={() => router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`)}
                   className="flex-1 text-left truncate text-sm"
@@ -95,6 +98,23 @@ export default function Sidebar() {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Optional: when there are no threads, show one safe starter so section doesn’t vanish */}
+        {(!aidocThreads || aidocThreads.length === 0) && (
+          <div className="mt-4">
+            <div className="px-4 text-xs font-semibold opacity-60 mb-1">AI Doc</div>
+            <button
+              onClick={() => {
+                const tid = `aidoc_${Date.now().toString(36)}`;
+                try { sessionStorage.setItem('aidoc_thread', tid); } catch {}
+                router.push(`/?panel=ai-doc&threadId=${tid}&context=profile`);
+              }}
+              className="mx-4 mt-1 w-[calc(100%-2rem)] rounded-lg border px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            >
+              + New AI Doc case
+            </button>
           </div>
         )}
       </div>
