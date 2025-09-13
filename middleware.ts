@@ -40,5 +40,5 @@ export function middleware(req: NextRequest) {
 
 // Limit to API routes for safety
 export const config = {
-  matcher: ["/api/:path*"],
+  matcher: ["/api/chat", "/api/chat/stream", "/api/triage"],
 };

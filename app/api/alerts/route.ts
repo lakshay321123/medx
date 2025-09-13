@@ -1,29 +1,23 @@
-export const runtime = "nodejs";
-import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
-import { getUserId } from "@/lib/getUserId";
+import { NextResponse } from "next/server";
+import { nanoid } from "nanoid";
 
-export async function GET(req: NextRequest) {
-  const userId = await getUserId();
-  if (!userId) return new NextResponse("Unauthorized", { status: 401 });
+let mem: Record<string, any[]> = {}; // replace with Prisma later
 
+export async function GET(req: Request) {
   const url = new URL(req.url);
-  const status = (url.searchParams.get("status") || "open").toLowerCase();
+  const user = url.searchParams.get("u") || "anon";
+  return NextResponse.json((mem[user] ?? []).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));
+}
 
-  const { data, error } = await supabaseAdmin()
-    .from("alerts")
-    .select("id, severity, title, created_at, status")
-    .eq("user_id", userId)
-    .eq("status", status)
-    .order("created_at", { ascending: false });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+export async function POST(req: Request) {
+  const { user = "anon", ...alert } = await req.json();
+  const item = { id: nanoid(), createdAt: new Date().toISOString(), ...alert };
+  mem[user] = [item, ...(mem[user] ?? [])];
+  return NextResponse.json(item);
+}
 
-  const out = (data ?? []).map(r => ({
-    id: r.id,
-    severity: r.severity,
-    title: r.title,
-    createdAt: r.created_at,
-    status: r.status,
-  }));
-  return NextResponse.json(out);
+export async function PATCH(req: Request) {
+  const { user = "anon", id, read = true } = await req.json();
+  mem[user] = (mem[user] ?? []).map(a => a.id === id ? { ...a, read } : a);
+  return NextResponse.json({ ok: true });
 }
