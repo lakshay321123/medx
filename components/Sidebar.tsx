@@ -1,13 +1,14 @@
 'use client';
 import { Search, Settings } from 'lucide-react';
 import Tabs from './sidebar/Tabs';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createNewThreadId, listThreads, Thread } from '@/lib/chatThreads';
 import ThreadKebab from '@/components/chat/ThreadKebab';
 
 export default function Sidebar() {
   const router = useRouter();
+  const params = useSearchParams();
   const [threads, setThreads] = useState<Thread[]>([]);
   const [aidocThreads, setAidocThreads] = useState<{ id: string; title: string | null }[]>([]);
   const [q, setQ] = useState('');
@@ -51,6 +52,17 @@ export default function Sidebar() {
           <Search size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
         </div>
         <Tabs />
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const tid = params.get('threadId') ?? `aidoc_${Date.now().toString(36)}`;
+            router.push(`/?panel=ai-doc&threadId=${tid}`);
+          }}
+          className="w-full rounded-lg px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
+        >
+          AI Doc
+        </button>
       </div>
 
       <div className="mt-3 space-y-1 px-2 flex-1 overflow-y-auto">

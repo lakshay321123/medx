@@ -68,8 +68,8 @@ export default function ModeBar({ onChange }: { onChange?: (s: ModeState)=>void 
 
       <button
         onClick={() => {
-          // Just trigger the same route as sidebar AI Doc button
-          router.push("/?panel=ai-doc");
+          const tid = params.get("threadId") ?? `aidoc_${Date.now().toString(36)}`;
+          router.push(`/?panel=ai-doc&threadId=${tid}`);
         }}
         className={`${baseBtn} ${s.aidoc ? active : ghost}`}
       >

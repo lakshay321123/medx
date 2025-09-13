@@ -12,7 +12,6 @@ type Tab = {
 
 const tabs: Tab[] = [
   { key: "chat", label: "Chat", panel: "chat" },
-  { key: "ai-doc", label: "AI Doc", panel: "ai-doc" },
   { key: "profile", label: "Medical Profile", panel: "profile" },
   { key: "timeline", label: "Timeline", panel: "timeline" },
   { key: "alerts", label: "Alerts", panel: "alerts" },
