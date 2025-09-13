@@ -1,10 +1,19 @@
-// Symptom DB import: provides symptom-specific intake questions, self-care, and red flags.
-// JSON file lives at: lib/aidoc/data/symptoms_master.json
-// Example structure:
+// Symptom DB import: provides symptom-specific intake questions, self-care, and red-flag guidance.
+// JSON file location: lib/aidoc/data/symptoms_master.json
+// Example structure (showing three sample items per section):
 // {
-//   "fever": { "questions": [...], "self_care": [...], "red_flags": [...] },
-//   "cough": { "questions": [...], "self_care": [...], "red_flags": [...] }
+//   "fever": {
+//     "questions": ["How many days?", "Highest temperature?", "Constant or intermittent?"],
+//     "self_care": ["Hydrate", "Light clothing", "Monitor temperature"],
+//     "red_flags": ["Stiff neck", "Confusion", "Shortness of breath"]
+//   },
+//   "cough": {
+//     "questions": ["Duration?", "Dry or with sputum?", "Any blood in sputum?"],
+//     "self_care": ["Warm fluids", "Avoid smoke and dust", "Rest voice if hoarse"],
+//     "red_flags": ["Coughing blood", "Severe breathlessness", "High fever > 3 weeks"]
+//   }
 // }
+
 import symptomsDB from "./data/symptoms_master.json";
 
 export type Profile = {
