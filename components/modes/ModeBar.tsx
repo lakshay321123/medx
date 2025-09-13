@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
-import { nextModes, type ModeState } from "@/lib/modes/controller";
+import { nextModes } from "@/lib/modes/controller";
+import type { ModeState } from "@/lib/modes/types";
 
 const initial: ModeState = { ui: undefined, therapy: false, research: false, aidoc: false, dark: false };
 

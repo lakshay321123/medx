@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { nanoid } from "nanoid";
+import type { AlertItem } from "@/lib/alerts/types";
 
-let mem: Record<string, any[]> = {}; // replace with Prisma later
+let mem: Record<string, AlertItem[]> = {}; // replace with Prisma later
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -10,8 +11,12 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const { user = "anon", ...alert } = await req.json();
-  const item = { id: nanoid(), createdAt: new Date().toISOString(), ...alert };
+  const { user = "anon", ...rest } = await req.json();
+  const item: AlertItem = {
+    id: nanoid(),
+    createdAt: new Date().toISOString(),
+    ...(rest as Omit<AlertItem, "id" | "createdAt">),
+  };
   mem[user] = [item, ...(mem[user] ?? [])];
   return NextResponse.json(item);
 }
