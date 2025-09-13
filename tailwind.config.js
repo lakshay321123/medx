@@ -12,6 +12,10 @@ module.exports = {
         'chat-sm': ['13px', { lineHeight: '20px' }],
         'chat-lg': ['17px', { lineHeight: '24px' }],
       },
+      fontFamily: {
+        // Use with className="font-sans"
+        sans: ["var(--font-roboto)", "system-ui", "sans-serif"],
+      },
     },
   },
   plugins: [require("@tailwindcss/typography")],

@@ -33,6 +33,9 @@ import { detectAdvancedDomain } from "@/lib/intents/advanced";
 // === ADD-ONLY for domain routing ===
 import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
+import ThinkingTimer from "@/components/ui/ThinkingTimer";
+import ScrollToBottom from "@/components/ui/ScrollToBottom";
+import { useTypewriterStore } from "@/lib/state/typewriterStore";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -243,10 +246,25 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
   );
 }
 function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onFollowUpClick: (text: string) => void; simple: boolean }) {
+  const [fast, setFast] = useState(false);
+  const isDone = useTypewriterStore(s => s.isDone(m.id));
+  const markDone = useTypewriterStore(s => s.markDone);
   if (m.pending) return <PendingChatCard label="Thinking…" />;
   return (
-    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
-      <ChatMarkdown content={m.content} />
+    <div
+      className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl"
+      onClick={() => setFast(true)}
+    >
+      {m.role === "assistant" ? (
+        <ChatMarkdown
+          content={m.content}
+          typing={!isDone}
+          fast={fast}
+          onDone={() => markDone(m.id)}
+        />
+      ) : (
+        <ChatMarkdown content={m.content} />
+      )}
       {m.role === "assistant" && (m.citations?.length || 0) > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {(m.citations || []).slice(0, simple ? 3 : 6).map((c, i) => (
@@ -292,6 +310,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [mode, setMode] = useState<'patient'|'doctor'>('patient');
   const [busy, setBusy] = useState(false);
+  const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
   const [researchMode, setResearchMode] = useState(false);
   const [therapyMode, setTherapyMode] = useState(false);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
@@ -598,6 +617,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   async function send(text: string, researchMode: boolean) {
     if (!text.trim() || busy) return;
     setBusy(true);
+    setThinkingStartedAt(Date.now());
 
     const normalize = (s: string) =>
       s
@@ -642,6 +662,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       }
       setNote("");
       setBusy(false);
+      setThinkingStartedAt(null);
       return; // IMPORTANT: do not set topic, do not trigger research/planner
     }
 
@@ -675,6 +696,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         try { pushFullMem(stableThreadId, "assistant", maybe.ask); } catch {}
       }
       setBusy(false);
+      setThinkingStartedAt(null);
       return; // wait for user Yes/No
     }
     setNote('');
@@ -869,6 +891,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             try { pushFullMem(stableThreadId, "assistant", warn); } catch {}
           }
           setBusy(false);
+          setThinkingStartedAt(null);
           return;
         }
         // else: proceed to normal LLM call with contextBlock (added above)
@@ -1108,6 +1131,7 @@ ${systemCommon}` + baseSys;
       }
     } finally {
       setBusy(false);
+      setThinkingStartedAt(null);
     }
   }
 
@@ -1119,6 +1143,7 @@ ${systemCommon}` + baseSys;
   async function analyzeFile(file: File, note: string) {
     if (!file || busy) return;
     setBusy(true);
+    setThinkingStartedAt(Date.now());
     const pendingId = uid();
     setMessages(prev => [
       ...prev,
@@ -1177,6 +1202,7 @@ ${systemCommon}` + baseSys;
       );
     } finally {
       setBusy(false);
+      setThinkingStartedAt(null);
       setPendingFile(null);
       setNote('');
     }
@@ -1403,6 +1429,11 @@ ${systemCommon}` + baseSys;
         onResearchChange={setResearchMode}
         onTherapyChange={setTherapyMode}
       />
+      {busy && thinkingStartedAt && (
+        <div className="px-4 sm:px-6 lg:px-8 pt-2">
+          <ThinkingTimer label="Analyzing" startedAt={thinkingStartedAt} />
+        </div>
+      )}
       {mode === "doctor" && researchMode && (
         <>
           <ResearchFilters mode="research" onResults={handleTrials} />
@@ -1837,6 +1868,8 @@ ${systemCommon}` + baseSys;
           </div>
         </div>
       )}
+
+      <ScrollToBottom targetRef={chatRef} rebindKey={threadId} />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { LinkBadge } from "./SafeLink";
+import Typewriter from "@/components/chat/Typewriter";
 
 // --- Normalizer ---
 // normalize: unwrap full-message fences, convert ==== to <hr>, bold-lines → headings, list bullets
@@ -22,7 +23,28 @@ function normalize(raw: string){
 }
 
 // --- Renderer ---
-export default function ChatMarkdown({ content }: { content: string }) {
+function flattenText(children: React.ReactNode): string {
+  if (typeof children === "string") return children;
+  if (Array.isArray(children)) return children.map(flattenText).join("");
+  if (React.isValidElement(children)) return flattenText(children.props.children);
+  return "";
+}
+
+function TypedSpan({ nodeChildren, onDone, fast }: { nodeChildren: React.ReactNode; onDone?: () => void; fast?: boolean }) {
+  const text = flattenText(nodeChildren);
+  return (
+    <span>
+      <Typewriter text={text} onDone={onDone} fast={fast} />
+    </span>
+  );
+}
+
+function TypedText({ childrenNode, fast }: { childrenNode: React.ReactNode; fast?: boolean }) {
+  const text = flattenText(childrenNode);
+  return <Typewriter text={text} fast={fast} />;
+}
+
+export default function ChatMarkdown({ content, typing = false, onDone, fast }: { content: string; typing?: boolean; onDone?: () => void; fast?: boolean }) {
   const prepared = normalize(content);
 
   return (
@@ -40,12 +62,67 @@ export default function ChatMarkdown({ content }: { content: string }) {
         rehypePlugins={[rehypeKatex]}
         components={{
           a: ({ href, children }) => (
-            <LinkBadge href={href as string}>{children as any}</LinkBadge>
+            <LinkBadge href={href as string}>
+              {typing ? <TypedText childrenNode={children} fast={fast} /> : children}
+            </LinkBadge>
           ),
           ul: ({ children }) => <ul className="list-disc pl-5">{children}</ul>,
           ol: ({ children }) => <ol className="list-decimal pl-5">{children}</ol>,
           hr: () => <hr className="my-3 border-dashed opacity-40" />,
-          p: ({ children }) => <p className="text-left">{children}</p>,
+          p: ({ children }) => (
+            typing ? (
+              <p className="text-left">
+                <TypedSpan nodeChildren={children} onDone={onDone} fast={fast} />
+              </p>
+            ) : (
+              <p className="text-left">{children}</p>
+            )
+          ),
+          li: ({ children }) => (
+            typing ? (
+              <li>
+                <TypedSpan nodeChildren={children} fast={fast} />
+              </li>
+            ) : (
+              <li>{children}</li>
+            )
+          ),
+          h1: ({ children }) => (
+            typing ? (
+              <h1>
+                <TypedSpan nodeChildren={children} fast={fast} />
+              </h1>
+            ) : (
+              <h1>{children}</h1>
+            )
+          ),
+          h2: ({ children }) => (
+            typing ? (
+              <h2>
+                <TypedSpan nodeChildren={children} fast={fast} />
+              </h2>
+            ) : (
+              <h2>{children}</h2>
+            )
+          ),
+          h3: ({ children }) => (
+            typing ? (
+              <h3>
+                <TypedSpan nodeChildren={children} fast={fast} />
+              </h3>
+            ) : (
+              <h3>{children}</h3>
+            )
+          ),
+          h4: ({ children }) => (
+            typing ? (
+              <h4>
+                <TypedSpan nodeChildren={children} fast={fast} />
+              </h4>
+            ) : (
+              <h4>{children}</h4>
+            )
+          ),
         }}
       >
         {prepared}
