@@ -9,6 +9,7 @@ import ThreadKebab from '@/components/chat/ThreadKebab';
 export default function Sidebar() {
   const router = useRouter();
   const [threads, setThreads] = useState<Thread[]>([]);
+  const [aidocThreads, setAidocThreads] = useState<{ id: string; title: string | null }[]>([]);
   const [q, setQ] = useState('');
 
   useEffect(() => {
@@ -20,6 +21,13 @@ export default function Sidebar() {
       window.removeEventListener('storage', load);
       window.removeEventListener('chat-threads-updated', load);
     };
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/aidoc/threads')
+      .then(r => r.json())
+      .then(setAidocThreads)
+      .catch(() => {});
   }, []);
 
   const handleNew = () => {
@@ -72,6 +80,23 @@ export default function Sidebar() {
             />
           </div>
         ))}
+
+        {aidocThreads.length > 0 && (
+          <div className="mt-4">
+            <div className="px-4 text-xs font-semibold opacity-60 mb-1">AI Doc</div>
+            {aidocThreads.map(t => (
+              <div key={t.id} className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm mb-1.5 medx-surface text-medx">
+                <button
+                  onClick={() => router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`)}
+                  className="flex-1 text-left truncate text-sm"
+                  title={t.title ?? ''}
+                >
+                  {t.title ?? 'AI Doc — New Case'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <button type="button" className="mx-3 mt-auto mb-3 h-10 rounded-lg px-3 text-left flex items-center gap-2 medx-surface text-medx">

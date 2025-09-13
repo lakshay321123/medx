@@ -6,6 +6,18 @@ export type MemScope =
   | "aidoc.redflag"   // safety notes (e.g., chest pain at rest -> ER)
   | "aidoc.goal";     // longitudinal goals (e.g., LDL < 100 by 12 weeks)
 
+export async function wasAskedOnce(userId: string, threadId: string, key: string) {
+  return !!(await prisma.sessionFlag.findFirst({ where: { userId, threadId, key } }));
+}
+
+export async function markAsked(userId: string, threadId: string, key: string) {
+  await prisma.sessionFlag.upsert({
+    where: { userId_threadId_key: { userId, threadId, key } },
+    create: { userId, threadId, key, value: "1" },
+    update: { value: "1" },
+  });
+}
+
 export async function getMemByThread(threadId: string) {
   if (!threadId) return { prefs:[], facts:[], redflags:[], goals:[] };
   const rows = await prisma.memory.findMany({ where: { threadId } });
