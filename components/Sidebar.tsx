@@ -1,107 +1,61 @@
-'use client';
-import { Search, Settings } from 'lucide-react';
-import Tabs from './sidebar/Tabs';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { createNewThreadId, listThreads, Thread } from '@/lib/chatThreads';
-import ThreadKebab from '@/components/chat/ThreadKebab';
+"use client";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export default function Sidebar() {
   const router = useRouter();
-  const [threads, setThreads] = useState<Thread[]>([]);
-  const [aidocThreads, setAidocThreads] = useState<{ id: string; title: string | null }[]>([]);
-  const [q, setQ] = useState('');
+  const [aidocThreads, setAidocThreads] = useState<Array<{ id: string; title?: string }>>([]);
 
   useEffect(() => {
-    const load = () => setThreads(listThreads());
-    load();
-    window.addEventListener('storage', load);
-    window.addEventListener('chat-threads-updated', load);
-    return () => {
-      window.removeEventListener('storage', load);
-      window.removeEventListener('chat-threads-updated', load);
-    };
-  }, []);
-
-  useEffect(() => {
-    fetch('/api/aidoc/threads')
+    fetch("/api/aidoc/threads")
       .then(r => r.json())
       .then(setAidocThreads)
       .catch(() => {});
   }, []);
 
-  const handleNew = () => {
-    const id = createNewThreadId();
-    router.push(`/?panel=chat&threadId=${id}`);
-  };
-  const handleSearch = (q: string) => {
-    setQ(q);
-    window.dispatchEvent(new CustomEvent('search-chats', { detail: q }));
-  };
-  const filtered = threads.filter(t => t.title.toLowerCase().includes(q.toLowerCase()));
   return (
-    <aside className="sidebar-click-guard hidden md:flex md:flex-col justify-between !fixed inset-y-0 left-0 w-64 h-full medx-glass text-medx">
-      <button type="button" onClick={handleNew} className="w-full text-left px-4 py-3 rounded-xl mb-4 font-medium medx-btn-accent">
-        + New Chat
-      </button>
+    <aside className="w-64 p-3">
+      {/* Core nav */}
+      <button onClick={()=>router.push("/?panel=chat")}
+        className="mb-1 w-full rounded-lg border px-3 py-2 text-left hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800">Chat</button>
+      <button onClick={()=>router.push("/?panel=profile")}
+        className="mb-1 w-full rounded-lg border px-3 py-2 text-left hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800">Medical Profile</button>
+      <button onClick={()=>router.push("/?panel=timeline")}
+        className="mb-1 w-full rounded-lg border px-3 py-2 text-left hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800">Timeline</button>
+      <button onClick={()=>router.push("/?panel=alerts")}
+        className="mb-1 w-full rounded-lg border px-3 py-2 text-left hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800">Alerts</button>
+      <button onClick={()=>router.push("/?panel=settings")}
+        className="mb-1 w-full rounded-lg border px-3 py-2 text-left hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800">Settings</button>
 
-      <div className="px-3">
-        <div className="relative">
-          <input className="w-full h-10 rounded-lg pl-3 pr-8 text-sm medx-surface text-medx placeholder:text-slate-500 dark:placeholder:text-slate-400" placeholder="Search chats" onChange={e => handleSearch(e.target.value)} />
-          <Search size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
-        </div>
-        <Tabs />
-      </div>
+      {/* AI Doc — source of truth */}
+      <div className="mt-4">
+        <div className="px-3 text-xs font-semibold opacity-60 mb-1">AI Doc</div>
 
-      <div className="mt-3 space-y-1 px-2 flex-1 overflow-y-auto">
-        {filtered.map(t => (
-          <div
+        {aidocThreads.map((t) => (
+          <button
             key={t.id}
-            className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm mb-1.5 medx-surface text-medx"
+            onClick={() => router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`)}
+            className="mx-3 mb-1 w-[calc(100%-1.5rem)] truncate rounded-lg px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            title={t.title ?? ""}
           >
-            <button
-              onClick={() => router.push(`/?panel=chat&threadId=${t.id}`)}
-              className="flex-1 text-left truncate text-sm"
-              title={t.title}
-            >
-              {t.title}
-            </button>
-            <ThreadKebab
-              id={t.id}
-              title={t.title}
-              onRenamed={nt => {
-                setThreads(prev =>
-                  prev.map(x => (x.id === t.id ? { ...x, title: nt, updatedAt: Date.now() } : x))
-                );
-              }}
-              onDeleted={() => {
-                setThreads(prev => prev.filter(x => x.id !== t.id));
-              }}
-            />
-          </div>
+            {t.title ?? "AI Doc — New Case"}
+          </button>
         ))}
 
-        {aidocThreads.length > 0 && (
-          <div className="mt-4">
-            <div className="px-4 text-xs font-semibold opacity-60 mb-1">AI Doc</div>
-            {aidocThreads.map(t => (
-              <div key={t.id} className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm mb-1.5 medx-surface text-medx">
-                <button
-                  onClick={() => router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`)}
-                  className="flex-1 text-left truncate text-sm"
-                  title={t.title ?? ''}
-                >
-                  {t.title ?? 'AI Doc — New Case'}
-                </button>
-              </div>
-            ))}
-          </div>
+        {/* Always show a way to start if list is empty */}
+        {aidocThreads.length === 0 && (
+          <button
+            onClick={() => {
+              const tid = `aidoc_${Date.now().toString(36)}`;
+              try { sessionStorage.setItem("aidoc_thread", tid); } catch {}
+              router.push(`/?panel=ai-doc&threadId=${tid}&context=profile`);
+            }}
+            className="mx-3 mt-1 w-[calc(100%-1.5rem)] rounded-lg border px-3 py-2 text-left hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+          >
+            + New AI Doc case
+          </button>
         )}
       </div>
-
-      <button type="button" className="mx-3 mt-auto mb-3 h-10 rounded-lg px-3 text-left flex items-center gap-2 medx-surface text-medx">
-        <Settings size={16} /> Preferences
-      </button>
     </aside>
   );
 }
