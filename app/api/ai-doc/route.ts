@@ -14,6 +14,7 @@ import { buildAiDocPrompt } from "@/lib/ai/prompts/aidoc";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { extractAll, canonicalizeInputs } from "@/lib/medical/engine/extract";
 import { computeAll } from "@/lib/medical/engine/computeAll";
+import { handleDocAITriage, detectExperientialIntent } from "@/lib/aidoc/triage";
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
 
@@ -92,6 +93,51 @@ export async function POST(req: NextRequest) {
     });
     profile = p;
   }
+
+  // --- TRIAGE V2 (guarded, early return) ---
+  if (process.env.FEATURE_TRIAGE_V2 === "1" && message) {
+    try {
+      if (detectExperientialIntent(String(message))) {
+        const triage = await handleDocAITriage({
+          text: String(message),
+          profile: {
+            name: profile?.name,
+            age: profile?.age,
+            sex: profile?.sex,
+            pregnant: profile?.pregnant,
+          },
+        });
+
+        if (triage.stage === "demographics") {
+          return NextResponse.json({
+            role: "assistant",
+            stage: "demographics",
+            prompt: "Hey—let’s get a couple basics first:",
+            questions: triage.questions,
+          });
+        }
+
+        if (triage.stage === "intake") {
+          return NextResponse.json({
+            role: "assistant",
+            stage: "intake",
+            prompt: "Hey, hang in there—I need a few quick details:",
+            questions: triage.questions,
+          });
+        }
+
+        return NextResponse.json({
+          role: "assistant",
+          stage: "advice",
+          message: triage.message,
+          soap: triage.soap,
+        });
+      }
+    } catch {
+      // fall through to legacy AI Doc behavior
+    }
+  }
+  // --- END TRIAGE V2 ---
 
   const [labs, meds, conditions, mem] = await Promise.all([
     prisma.labResult.findMany({ where: { profileId: profile.id } }),
