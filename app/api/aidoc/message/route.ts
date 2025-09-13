@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
 // [AIDOC_TRIAGE_IMPORT] add triage imports
 import { handleDocAITriage, detectExperientialIntent } from "@/lib/aidoc/triage";
+import { getUserId } from "@/lib/getUserId";
+import { prisma } from "@/lib/prisma";
+import { wasAskedOnce, markAsked } from "@/lib/aidoc/memory";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({} as any));
   const message = (body?.message ?? body?.text ?? "").toString();
-  const boot = body?.boot === true;
+  const op = body?.op;
+  const boot = body?.boot === true || op === "boot";
+  const userId = (await getUserId()) ?? "";
+  const threadId = body.threadId || "aidoc:" + userId;
   // Structured payloads from UI
   const answers = (body?.answers && typeof body.answers === "object") ? body.answers : null;
   const incomingProfile = (body?.profile && typeof body.profile === "object") ? body.profile : null;
@@ -69,6 +75,31 @@ export async function POST(req: Request) {
       ]
     });
   }
-  // Otherwise: do nothing (caller should use normal chat route)
+  if (!boot) {
+    const title = body.title ?? inferTitleFromText(message);
+    await prisma.chatThread.upsert({
+      where: { id: threadId },
+      create: { id: threadId, userId, type: "aidoc", title },
+      update: { updatedAt: new Date(), title: title || undefined },
+    });
+  }
+
+  const canAskMeds = userId ? !(await wasAskedOnce(userId, threadId, "asked_meds")) : false;
+  const inTriageIntake = false;
+  if (process.env.AIDOC_ENABLE_MED_PROMPT !== "0" && canAskMeds && !inTriageIntake) {
+    await markAsked(userId, threadId, "asked_meds");
+    return NextResponse.json({
+      messages: [
+        { role: "assistant", content: "Quick check: do you take any regular meds? Please share name + dose (e.g., Metformin 500 mg)." }
+      ],
+    });
+  }
+
   return NextResponse.json({ messages: [] });
+}
+
+function inferTitleFromText(t: string) {
+  const key = (t || "").toLowerCase();
+  const hit = ["fever","cough","chest pain","headache","rash","sore throat","back pain"].find(k => key.includes(k));
+  return hit ? `AI Doc — ${hit[0].toUpperCase()}${hit.slice(1)}` : "AI Doc — New Case";
 }
