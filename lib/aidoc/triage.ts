@@ -1,10 +1,11 @@
-// lib/aidoc/triage.ts
-// Optional data import: if you later add a DB, point this to it.
-// For now this import is safe to remove or keep if you add the file.
-// import symptomsDB from "./data/symptoms_master.json";
-
-type SymptomDB = Record<string, { questions: string[]; self_care: string[]; red_flags: string[] }>;
-const symptomsDB: SymptomDB = Object.create(null); // safe default (no DB needed to run)
+// Symptom DB import: provides symptom-specific intake questions, self-care, and red flags.
+// JSON file lives at: lib/aidoc/data/symptoms_master.json
+// Example structure:
+// {
+//   "fever": { "questions": [...], "self_care": [...], "red_flags": [...] },
+//   "cough": { "questions": [...], "self_care": [...], "red_flags": [...] }
+// }
+import symptomsDB from "./data/symptoms_master.json";
 
 export type Profile = {
   name?: string;
@@ -66,9 +67,9 @@ export async function handleDocAITriage({
   profile,
 }: {
   text: string;
-  symptom?: string;                 // optional, if frontend parses it
-  answers?: Record<string, any> | null; // optional, when user has answered intake
-  profile?: Profile;                // { name, age, sex, pregnant? }
+  symptom?: string;
+  answers?: Record<string, any> | null;
+  profile?: Profile;
 }): Promise<TriageStage> {
   const p = profile || {};
 
@@ -76,9 +77,9 @@ export async function handleDocAITriage({
   const missing = missingDemographics(p);
   if (missing.length) return { stage: "demographics", questions: missing };
 
-  // 2) Intake questions
+  // 2) Intake questions from DB if available, else fallback
   const key = (symptom || text || "").toLowerCase().trim();
-  const entry = (symptomsDB && symptomsDB[key]) || null;
+  const entry = (symptomsDB && (symptomsDB as any)[key]) || null;
 
   const intakeQs: string[] = entry?.questions ?? [
     "How long has this been going on?",
@@ -125,4 +126,3 @@ export async function handleDocAITriage({
 
   return { stage: "advice", message: msg, soap };
 }
-
