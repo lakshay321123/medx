@@ -18,7 +18,12 @@ export default function AiDocPane() {
 
   useEffect(() => {
     resetForThread(threadId);
-    fetch('/api/aidoc/message', { method: 'POST', body: JSON.stringify({ threadId, op: 'boot' }) });
+    const KEY = "aidoc_booted";
+    const booted = typeof window !== 'undefined' && sessionStorage.getItem(KEY) === '1';
+    if (!booted) {
+      try { sessionStorage.setItem(KEY, '1'); } catch {}
+      fetch('/api/aidoc/message', { method: 'POST', body: JSON.stringify({ threadId, op: 'boot' }) });
+    }
   }, [threadId, resetForThread]);
 
   return <div className="p-4">AI Doc</div>;

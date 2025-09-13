@@ -320,6 +320,20 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
   const { filters } = useResearchFilters();
 
+  useEffect(() => {
+    const handleResearch = () => setResearchMode(false);
+    const handleTherapy = () => {
+      setTherapyMode(false);
+      try { localStorage.setItem('therapyMode', 'off'); } catch {}
+    };
+    document.addEventListener('research-mode', handleResearch);
+    document.addEventListener('therapy-mode', handleTherapy);
+    return () => {
+      document.removeEventListener('research-mode', handleResearch);
+      document.removeEventListener('therapy-mode', handleTherapy);
+    };
+  }, []);
+
   // Auto-resize the textarea up to a max height
   useEffect(() => {
     const el = (inputRef?.current as unknown as HTMLTextAreaElement | null);
