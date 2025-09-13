@@ -43,6 +43,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ... your existing streaming setup continues here
-  return streamPOST(cloned);
+  // existing streaming setup continues here
+  return streamPOST(cloned as any);
 }
