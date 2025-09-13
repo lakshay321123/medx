@@ -2,9 +2,9 @@
 import useSWR from "swr";
 import type { AlertItem } from "@/lib/alerts/types";
 
-export default function AlertsList({ user = "anon" }: { user?: string }) {
+export default function AlertsList() {
   const { data, mutate } = useSWR<AlertItem[]>(
-    `/api/alerts?u=${user}`,
+    "/api/alerts",
     (u) => fetch(u).then((r) => r.json()),
     { refreshInterval: 15000 }
   );
@@ -32,7 +32,7 @@ export default function AlertsList({ user = "anon" }: { user?: string }) {
                   await fetch("/api/alerts", {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ user, id: a.id, read: true }),
+                    body: JSON.stringify({ id: a.id, read: true }),
                   });
                   mutate();
                 }}
