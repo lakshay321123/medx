@@ -81,25 +81,36 @@ export default function Sidebar() {
           </div>
         ))}
 
-        {aidocThreads.length > 0 && (
-          <div className="mt-4">
-            <div className="px-4 text-xs font-semibold opacity-60 mb-1">AI Doc</div>
-            {aidocThreads.map(t => (
-              <div
-                key={t.id}
-                className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm mb-1.5 medx-surface text-medx"
+        <div className="mt-4">
+          <div className="px-4 text-xs font-semibold opacity-60 mb-1">AI Doc</div>
+          {(aidocThreads ?? []).map((t: any) => (
+            <div
+              key={t.id}
+              className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm mb-1.5 medx-surface text-medx"
+            >
+              <button
+                onClick={() => router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`)}
+                className="flex-1 text-left truncate text-sm"
+                title={t.title ?? ''}
               >
-                <button
-                  onClick={() => router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`)}
-                  className="flex-1 text-left truncate text-sm"
-                  title={t.title ?? ''}
-                >
-                  {t.title ?? 'AI Doc — New Case'}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+                {t.title ?? 'AI Doc — New Case'}
+              </button>
+            </div>
+          ))}
+          {/* Empty state: show a New Case starter so the section never disappears */}
+          {!(aidocThreads && aidocThreads.length) && (
+            <button
+              onClick={() => {
+                const tid = `aidoc_${Date.now().toString(36)}`;
+                try { sessionStorage.setItem("aidoc_thread", tid); } catch {}
+                router.push(`/?panel=ai-doc&threadId=${tid}&context=profile`);
+              }}
+              className="mx-4 mt-1 w-[calc(100%-2rem)] rounded-lg border px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            >
+              + New AI Doc case
+            </button>
+          )}
+        </div>
       </div>
 
       <button type="button" className="mx-3 mt-auto mb-3 h-10 rounded-lg px-3 text-left flex items-center gap-2 medx-surface text-medx">
