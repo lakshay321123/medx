@@ -1,18 +1,9 @@
-// Runtime-safe symptom DB load from lib/aidoc/data/symptoms_master.json
-import fs from "node:fs";
-import path from "node:path";
+// Edge-safe static import (bundled at build time)
+// Ensure tsconfig has: "resolveJsonModule": true, "esModuleInterop": true
+import symptomsDB from "@/lib/aidoc/data/symptoms_master.json";
 
 type SymptomRecord = { questions: string[]; self_care: string[]; red_flags: string[] };
 type SymptomDB = Record<string, SymptomRecord>;
-
-let symptomsDB: SymptomDB = {};
-try {
-  const filePath = path.join(process.cwd(), "lib", "aidoc", "data", "symptoms_master.json");
-  if (fs.existsSync(filePath)) {
-    const raw = fs.readFileSync(filePath, "utf-8");
-    symptomsDB = JSON.parse(raw) as SymptomDB;
-  }
-} catch { /* fall back to generic intake */ }
 
 export type Profile = {
   name?: string;
