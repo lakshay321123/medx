@@ -1,14 +1,13 @@
 'use client';
 import { Search, Settings } from 'lucide-react';
 import Tabs from './sidebar/Tabs';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { createNewThreadId, listThreads, Thread } from '@/lib/chatThreads';
 import ThreadKebab from '@/components/chat/ThreadKebab';
 
 export default function Sidebar() {
   const router = useRouter();
-  const params = useSearchParams();
   const [threads, setThreads] = useState<Thread[]>([]);
   const [aidocThreads, setAidocThreads] = useState<{ id: string; title: string | null }[]>([]);
   const [q, setQ] = useState('');
@@ -39,22 +38,6 @@ export default function Sidebar() {
     setQ(q);
     window.dispatchEvent(new CustomEvent('search-chats', { detail: q }));
   };
-  const openAiDocFromSidebar = useCallback(() => {
-    const urlTid = params.get('threadId');
-    if (urlTid && urlTid.trim()) {
-      router.push(`/?panel=ai-doc&threadId=${urlTid}`);
-      return;
-    }
-    const sessTid = typeof window !== 'undefined' ? sessionStorage.getItem('aidoc_thread') : null;
-    if (sessTid && sessTid.trim()) {
-      router.push(`/?panel=ai-doc&threadId=${sessTid}`);
-      return;
-    }
-    const newTid = `aidoc_${Date.now().toString(36)}`;
-    if (typeof window !== 'undefined') sessionStorage.setItem('aidoc_thread', newTid);
-    router.push(`/?panel=ai-doc&threadId=${newTid}`);
-  }, [params, router]);
-
   const filtered = threads.filter(t => t.title.toLowerCase().includes(q.toLowerCase()));
   return (
     <aside className="sidebar-click-guard hidden md:flex md:flex-col justify-between !fixed inset-y-0 left-0 w-64 h-full medx-glass text-medx">
@@ -68,17 +51,6 @@ export default function Sidebar() {
           <Search size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
         </div>
         <Tabs />
-        <button
-          data-nav="aidoc"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            openAiDocFromSidebar();
-          }}
-          className="w-full rounded-lg px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
-        >
-          AI Doc
-        </button>
       </div>
 
       <div className="mt-3 space-y-1 px-2 flex-1 overflow-y-auto">
@@ -109,17 +81,25 @@ export default function Sidebar() {
           </div>
         ))}
 
-        {aidocThreads.map(t => (
-          <div key={t.id} className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm mb-1.5 medx-surface text-medx">
-            <button
-              onClick={() => router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`)}
-              className="flex-1 text-left truncate text-sm"
-              title={t.title ?? ''}
-            >
-              {t.title ?? 'AI Doc — New Case'}
-            </button>
+        {aidocThreads.length > 0 && (
+          <div className="mt-4">
+            <div className="px-4 text-xs font-semibold opacity-60 mb-1">AI Doc</div>
+            {aidocThreads.map(t => (
+              <div
+                key={t.id}
+                className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm mb-1.5 medx-surface text-medx"
+              >
+                <button
+                  onClick={() => router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`)}
+                  className="flex-1 text-left truncate text-sm"
+                  title={t.title ?? ''}
+                >
+                  {t.title ?? 'AI Doc — New Case'}
+                </button>
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
 
       <button type="button" className="mx-3 mt-auto mb-3 h-10 rounded-lg px-3 text-left flex items-center gap-2 medx-surface text-medx">
