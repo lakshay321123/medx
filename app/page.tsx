@@ -7,6 +7,7 @@ import Timeline from "@/components/panels/Timeline";
 import AlertsPane from "@/components/panels/AlertsPane";
 import SettingsPane from "@/components/panels/SettingsPane";
 import AiDocPane from "@/components/panels/AiDocPane";
+import Header from "@/components/Header";
 import { ResearchFiltersProvider } from "@/store/researchFilters";
 import { useRef } from "react";
 
@@ -28,14 +29,19 @@ export default function Page({ searchParams }: { searchParams: Search }) {
 
   if (!panel) {
     return (
-      <div className="min-h-[80vh] flex items-center justify-center">
-        <SearchDock onSubmit={sendQuery} />
-      </div>
+      <>
+        <Header onChange={() => {}} />
+        <div className="min-h-[80vh] flex items-center justify-center">
+          <SearchDock onSubmit={sendQuery} />
+        </div>
+      </>
     );
   }
 
   return (
-    <main className="flex-1 overflow-y-auto content-layer">
+    <>
+      {panel !== "chat" && <Header onChange={() => {}} />}
+      <main className="flex-1 overflow-y-auto content-layer">
       {panel === "chat" && (
         <ResearchFiltersProvider>
           <ChatPane inputRef={chatInputRef} />
@@ -46,7 +52,8 @@ export default function Page({ searchParams }: { searchParams: Search }) {
       {panel === "alerts" && <AlertsPane />}
       {panel === "settings" && <SettingsPane />}
       {panel === "ai-doc" && <AiDocPane threadId={threadId} />}
-    </main>
+      </main>
+    </>
   );
 }
 
