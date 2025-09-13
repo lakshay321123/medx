@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { nextModes } from "@/lib/modes/controller";
 import type { ModeState } from "@/lib/modes/types";
 
@@ -13,6 +13,7 @@ const active = "bg-blue-600 text-white";
 
 export default function ModeBar({ onChange }: { onChange?: (s: ModeState)=>void }) {
   const params = useSearchParams();
+  const router = useRouter();
   const [s, setS] = useState<ModeState>(initial);
   const promptedRef = useRef<Record<string, number>>({}); // one-time prompts per session
 
@@ -48,11 +49,6 @@ export default function ModeBar({ onChange }: { onChange?: (s: ModeState)=>void 
     act("dark:set", next === "dark");
   }
 
-  function clickSidebarAiDoc() {
-    const btn = document.querySelector<HTMLButtonElement>('[data-nav="aidoc"]');
-    if (btn) btn.click();
-  }
-
   return (
     <div className="flex flex-wrap items-center gap-2">
       {/* UI mode */}
@@ -71,9 +67,8 @@ export default function ModeBar({ onChange }: { onChange?: (s: ModeState)=>void 
         className={`${baseBtn} ${s.research ? active : ghost}`}>Research</button>
 
       <button
-        onClick={clickSidebarAiDoc}
+        onClick={() => { router.push("/?panel=ai-doc"); }}
         className={`${baseBtn} ${s.aidoc ? active : ghost}`}
-        aria-label="Open AI Doc"
       >
         AI&nbsp;Doc
       </button>
