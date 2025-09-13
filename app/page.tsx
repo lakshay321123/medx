@@ -1,47 +1,33 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import SearchDock from "@/components/search/SearchDock";
 import ChatPane from "@/components/panels/ChatPane";
 import MedicalProfile from "@/components/panels/MedicalProfile";
-import Timeline from "@/components/panels/Timeline";
+import TimelinePane from "@/components/panels/TimelinePane";
 import AlertsPane from "@/components/panels/AlertsPane";
 import SettingsPane from "@/components/panels/SettingsPane";
-import { ResearchFiltersProvider } from '@/store/researchFilters';
+import AiDocPane from "@/components/panels/AiDocPane";
 
-type Search = { panel?: string; threadId?: string };
+type Search = { panel?: string; threadId?: string; q?: string };
 
 export default function Page({ searchParams }: { searchParams: Search }) {
+  const router = useRouter();
   const panel = (searchParams.panel ?? "chat").toLowerCase();
-  const chatInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const handler = () => chatInputRef.current?.focus();
-    window.addEventListener("focus-chat-input", handler);
-    return () => window.removeEventListener("focus-chat-input", handler);
-  }, []);
+  const threadId = searchParams.threadId as string | undefined;
 
   return (
-    <main className="flex-1 overflow-y-auto content-layer">
-      <section className={panel === "chat" ? "block h-full" : "hidden"}>
-        <ResearchFiltersProvider>
-          <ChatPane inputRef={chatInputRef} />
-        </ResearchFiltersProvider>
-      </section>
+    <>
+      {/* Centered on first load; docks after first submit */}
+      <SearchDock onSubmit={(q) => router.push(`/?panel=chat&q=${encodeURIComponent(q)}`)} />
 
-      <section className={panel === "profile" ? "block" : "hidden"}>
-        <MedicalProfile />
-      </section>
-
-      <section className={panel === "timeline" ? "block" : "hidden"}>
-        <Timeline />
-      </section>
-
-      <section className={panel === "alerts" ? "block" : "hidden"}>
-        <AlertsPane />
-      </section>
-
-      <section className={panel === "settings" ? "block" : "hidden"}>
-        <SettingsPane />
-      </section>
-    </main>
+      {/* Panel switch: ALWAYS render these branches */}
+      {panel === "chat" && <ChatPane />}
+      {panel === "profile" && <MedicalProfile />}
+      {panel === "timeline" && <TimelinePane />}
+      {panel === "alerts" && <AlertsPane />}
+      {panel === "settings" && <SettingsPane />}
+      {panel === "ai-doc" && <AiDocPane threadId={threadId} />}
+    </>
   );
 }
+

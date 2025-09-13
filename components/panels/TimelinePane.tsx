@@ -13,7 +13,7 @@ const catOf = (it:any):Cat => {
   return "NOTES";
 };
 
-export default function Timeline(){
+export default function TimelinePane(){
   const [items, setItems] = useState<any[]>([]);
   const [resetError, setResetError] = useState<string|null>(null);
 
