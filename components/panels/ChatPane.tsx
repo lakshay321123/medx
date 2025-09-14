@@ -369,9 +369,12 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   useEffect(() => {
     if (!threadId && !isProfileThread) {
       const id = createNewThreadId();
-      router.replace(`/?panel=chat&threadId=${id}`);
+      const params = new URLSearchParams(sp.toString());
+      params.set("panel", "chat");
+      params.set("threadId", id);
+      router.replace(`/?${params.toString()}`);
     }
-  }, [threadId, isProfileThread, router]);
+  }, [threadId, isProfileThread, router, sp]);
   const currentMode: 'patient'|'doctor'|'research'|'therapy' = therapyMode ? 'therapy' : (researchMode ? 'research' : mode);
   const [pendingCommitIds, setPendingCommitIds] = useState<string[]>([]);
   const [commitBusy, setCommitBusy] = useState<null | 'save' | 'discard'>(null);
