@@ -11,8 +11,12 @@ export default function ModeBar() {
   const { theme, setTheme } = useTheme();
 
   const state = useMemo(
-    () => fromSearchParams(sp, (theme as "light"|"dark") ?? "light"),
-    [sp, theme]
+    () =>
+      fromSearchParams(
+        typeof window !== "undefined" ? new URLSearchParams(window.location.search) : sp,
+        (theme as "light" | "dark") ?? "light",
+      ),
+    [sp, theme],
   );
 
   // remember last non-aidoc base to exit aidoc gracefully
@@ -22,7 +26,7 @@ export default function ModeBar() {
   }, [state.base]);
 
   const apply = (action: Parameters<typeof reduce>[1]) => {
-    const current = new URLSearchParams(sp.toString());
+    const current = new URLSearchParams(window.location.search);
     // custom exit for aidoc toggle
     if (action.type === "toggle/aidoc" && state.base === "aidoc") {
       // drop AiDoc-specific params so fromSearchParams doesn't detect AiDoc again

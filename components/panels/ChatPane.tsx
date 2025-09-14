@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, useMemo, RefObject, Fragment } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { fromSearchParams } from '@/lib/modes/url';
+import { fromSearchParams, toQuery } from '@/lib/modes/url';
 import Header from '../Header';
 import { useRouter } from 'next/navigation';
 import ChatMarkdown from '@/components/ChatMarkdown';
@@ -369,10 +369,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   useEffect(() => {
     if (!threadId && !isProfileThread) {
       const id = createNewThreadId();
-      const params = new URLSearchParams(sp.toString());
+      const params = new URLSearchParams(window.location.search);
       params.set("panel", "chat");
       params.set("threadId", id);
-      router.replace(`/?${params.toString()}`);
+      const state = fromSearchParams(params, 'light');
+      router.replace(toQuery(state, params));
     }
   }, [threadId, isProfileThread, router, sp]);
   const currentMode: 'patient'|'doctor'|'research'|'therapy' = therapyMode ? 'therapy' : (researchMode ? 'research' : mode);
