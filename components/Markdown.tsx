@@ -1,29 +1,35 @@
 'use client';
 import { marked } from 'marked';
 import DOMPurify from 'isomorphic-dompurify';
-import { sourceLabelFromUrl } from "@/lib/url";
 import { normalizeExternalHref } from './SafeLink';
 import { linkify } from './AutoLink';
+import React from 'react';
+
+marked.setOptions({ gfm: true, breaks: true });
 
 export default function Markdown({ text }: { text: string }) {
-  marked.setOptions({ gfm: true, breaks: true });
   const raw = linkify(text);
-  const sanitized = DOMPurify.sanitize(marked.parse(raw) as string, {
-    ADD_ATTR: ['target', 'rel'],
-  });
-  const withSafeLinks = sanitized.replace(/<a\s+[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gi, (_m, href, inner) => {
-    const safe = normalizeExternalHref(href);
-    if (!safe) {
-      return `<span class="inline-flex items-center rounded-full border border-slate-200 dark:border-gray-700 px-2 py-1 text-xs text-slate-400" title="Link unavailable">${inner}</span>`;
+  const html = marked.parse(raw) as string;
+  const sanitized = DOMPurify.sanitize(html, { ADD_ATTR: ['target', 'rel'] });
+  const withSafeLinks = sanitized.replace(
+    /<a\s+[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gi,
+    (_m, href, inner) => {
+      const safe = normalizeExternalHref(href);
+      return `<a href="${safe}" target="_blank" rel="noopener noreferrer"
+        class="underline underline-offset-2 hover:opacity-80">${inner}</a>`;
     }
-    // If inner text is empty or a raw URL, swap to source label
-    const cleanInner = String(inner || "").trim();
-    const useLabel = (!cleanInner || /^https?:\/\//i.test(cleanInner)) ? sourceLabelFromUrl(safe) : cleanInner;
-
-    return `<a href="${safe}" target="_blank" rel="noopener noreferrer"
-    class="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-gray-800 transition">
-      <span>${useLabel}</span><span aria-hidden="true" class="opacity-70">↗</span>
-  </a>`;
-  });
-  return <div className="markdown" dangerouslySetInnerHTML={{ __html: withSafeLinks }} />;
+  );
+  return (
+    <article
+      className="prose prose-zinc max-w-none
+                 prose-headings:font-semibold
+                 prose-strong:font-semibold
+                 prose-em:italic
+                 prose-ul:list-disc prose-ol:list-decimal
+                 prose-li:my-0.5
+                 prose-table:table-auto prose-th:font-semibold prose-th:px-2 prose-td:px-2
+                 dark:prose-invert"
+      dangerouslySetInnerHTML={{ __html: withSafeLinks }}
+    />
+  );
 }
