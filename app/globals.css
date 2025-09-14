@@ -61,15 +61,17 @@
 .dark .border { border-color: rgb(71 85 105); }   /* slate-600 */
 .dark .prose-medx :where(li)::marker { color: rgb(148 163 184); }
 
-:root.therapy-mode, .therapy-mode body {
-  /* keep it gentle and readable */
+/* Only affect light mode. In dark, use normal (blue) dark palette */
+html.therapy-mode:not(.dark) body {
   background: #f0f6ff;
 }
-.therapy-mode .card, .therapy-mode .panel, .therapy-mode .container {
+html.therapy-mode:not(.dark) .card,
+html.therapy-mode:not(.dark) .panel,
+html.therapy-mode:not(.dark) .container {
   background: #ffffff;
   border-color: #cfe0ff;
 }
-.therapy-mode .btn-primary {
+html.therapy-mode:not(.dark) .btn-primary {
   background: #dbe9ff;
   color: #0b3d91;
 }
@@ -89,6 +91,26 @@
 
 /* === MedX Theme Tokens (Light & Dark) === */
 :root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 47.4% 11.2%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 47.4% 11.2%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 47.4% 11.2%;
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 215 20.2% 65.1%;
+
   --medx-bg-a: #e9efff;   /* light indigo */
   --medx-bg-b: #d0f3ff;   /* light cyan */
   --medx-text: #0F172A;
@@ -107,6 +129,26 @@
   --medx-outline: rgba(15, 23, 42, 0.10);
 }
 .dark {
+  --background: 222.2 47.4% 11.2%;
+  --foreground: 210 40% 98%;
+  --card: 222.2 47.4% 11.2%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222.2 47.4% 11.2%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 210 40% 98%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 215 20.2% 65.1%;
+
   --medx-bg-a: #342eec;   /* deep indigo */
   --medx-bg-b: #27b6da;   /* cyan/teal */
   --medx-text: #E6E9F1;

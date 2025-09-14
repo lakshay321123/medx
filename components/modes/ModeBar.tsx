@@ -18,6 +18,9 @@ export default function ModeBar({ onChange }: { onChange?: (s: ModeState) => voi
   const isDark = (mounted ? resolvedTheme : theme) === "dark";
   const toggleTheme = () => setTheme(isDark ? "light" : "dark");
 
+  const chipOn = "bg-blue-600 text-white dark:bg-blue-600";
+  const chipOff = "border-neutral-300 dark:border-neutral-700";
+
   function act(type: string, value?: any) {
     const { state, prompt } = nextModes(s, { type, value });
     setS(state);
@@ -50,7 +53,7 @@ export default function ModeBar({ onChange }: { onChange?: (s: ModeState) => voi
       {/* Feature modes */}
       <button
         onClick={() => act("therapy:toggle")}
-        className={`rounded-lg border px-3 py-1.5 ${s.therapy ? "bg-emerald-600 text-white" : "border-neutral-300 dark:border-neutral-700"}`}
+        className={`rounded-lg border px-3 py-1.5 ${s.therapy ? chipOn : chipOff}`}
       >
         Therapy
       </button>
@@ -71,7 +74,7 @@ export default function ModeBar({ onChange }: { onChange?: (s: ModeState) => voi
 
       <button
         onClick={toggleTheme}
-        className={`px-3.5 py-1.5 rounded-xl text-sm ${isDark ? "bg-blue-600 text-white" : "border border-neutral-300 bg-white text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"}`}
+        className="px-3.5 py-1.5 rounded-xl text-sm border border-neutral-300 bg-white text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
       >
         {isDark ? "Light" : "Dark"}
       </button>
