@@ -947,7 +947,7 @@ ${linkNudge}`;
       // Per-mode drafting style (structure only; no provider changes)
       const PATIENT_DRAFT_STYLE = [
         "FORMAT: Use 2–3 short sections with bold headers and bullets.",
-        "For 'what is ...' questions, default to these sections:",
+        "For 'what is' questions, default to these sections:",
         "## **What it is**",
         "## **Types**",
         "Finish with one short follow-up question (≤10 words).",
