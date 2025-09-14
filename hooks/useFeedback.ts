@@ -6,21 +6,15 @@ export function useFeedback() {
   const [error, setError] = useState<string | null>(null);
 
   async function submit({
-    conversationId,
+    threadId,
     messageId,
-    mode,
-    model,
-    rating,
-    note,
+    reaction,
   }: {
-    conversationId: string;
+    threadId: string;
     messageId: string;
-    mode?: "patient" | "doctor" | "research" | "therapy";
-    model?: string;
-    rating: 1 | -1;
-    note?: string;
+    reaction: "up" | "down";
   }) {
-    const key = `${conversationId}:${messageId}`;
+    const key = `${threadId}:${messageId}`;
     if (submittedFor[key]) return;
 
     setLoading(key);
@@ -29,17 +23,10 @@ export function useFeedback() {
       const r = await fetch("/api/feedback", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          conversationId,
-          messageId,
-          mode,
-          model,
-          rating: rating === 1 ? "up" : "down",
-          note,
-        }),
+        body: JSON.stringify({ threadId, messageId, reaction }),
       });
       if (!r.ok) throw new Error("save_failed");
-      setSubmittedFor((s) => ({ ...s, [key]: rating }));
+      setSubmittedFor((s) => ({ ...s, [key]: reaction === "up" ? 1 : -1 }));
     } catch (e) {
       setError("Could not save feedback");
     } finally {

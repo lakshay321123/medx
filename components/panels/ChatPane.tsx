@@ -1609,10 +1609,9 @@ ${systemCommon}` + baseSys;
                   simple={currentMode === 'patient'}
                 />
                 <FeedbackBar
-                  conversationId={conversationId}
+                  threadId={conversationId}
                   messageId={m.id}
                   mode={currentMode}
-                  model={undefined}
                   hiddenInTherapy={true}
                 />
               </Fragment>
