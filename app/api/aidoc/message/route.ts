@@ -1,24 +1,36 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 // [AIDOC_TRIAGE_IMPORT] add triage imports
 import { handleDocAITriage, detectExperientialIntent } from "@/lib/aidoc/triage";
 import { getUserId } from "@/lib/getUserId";
 import { prisma } from "@/lib/prisma";
 import { wasAskedOnce, markAsked } from "@/lib/aidoc/memory";
+import { detectSocialIntent } from "@/lib/social";
 
 export async function POST(req: Request) {
   const payload = await req.json().catch(() => ({} as any));
-  const hasBooted = cookies().get("aidoc_booted")?.value === "1";
-  if (payload.op === "boot" && !hasBooted) {
-    cookies().set("aidoc_booted", "1", { httpOnly: true, sameSite: "lax" });
-    return NextResponse.json({ type: "greeting", text: "Hi, how can I help today?" });
-  }
-
   const message = (payload?.message ?? payload?.text ?? "").toString();
   const op = payload?.op;
-  const boot = payload?.boot === true || op === "boot";
   const userId = (await getUserId()) ?? "";
   const threadId = payload.threadId || "aidoc:" + userId;
+  if (op === "boot") {
+    if (await wasAskedOnce(userId, threadId, "booted")) {
+      return NextResponse.json({ ok: true, bootSkipped: true });
+    }
+    await markAsked(userId, threadId, "booted");
+    if (detectSocialIntent(message) !== "greeting") {
+      return NextResponse.json({
+        messages: [
+          {
+            role: "assistant",
+            content: "Hi! 👋 How can I help today? You can describe symptoms or upload a report.",
+          },
+        ],
+        booted: true,
+      });
+    }
+    return NextResponse.json({ ok: true, booted: true });
+  }
+  const boot = payload?.boot === true;
   // Structured payloads from UI
   const answers = (payload?.answers && typeof payload.answers === "object") ? payload.answers : null;
   const incomingProfile = (payload?.profile && typeof payload.profile === "object") ? payload.profile : null;
@@ -74,15 +86,6 @@ export async function POST(req: Request) {
     }
   }
 
-  // Only emit canned welcome on explicit boot; never on user greetings
-  if (boot === true && !hasBooted) {
-    cookies().set("aidoc_booted", "1", { httpOnly: true, sameSite: "lax" });
-    return NextResponse.json({
-      messages: [
-        { role: "assistant", content: "Hi! 👋 How can I help today? You can describe symptoms or upload a report." }
-      ]
-    });
-  }
   if (!boot) {
     const title = payload.title ?? inferTitleFromText(message);
     await prisma.chatThread.upsert({

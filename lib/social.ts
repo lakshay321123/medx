@@ -128,3 +128,7 @@ export function replyForSocialIntent(kind: SocialIntent, mode: "patient"|"doctor
   }
 }
 
+export function classifyQuickAction(text: string): "greet" | null {
+  return detectSocialIntent(text) === "greeting" ? "greet" : null;
+}
+

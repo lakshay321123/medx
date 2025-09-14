@@ -36,6 +36,8 @@ import { singleTrialPatientPrompt, singleTrialClinicianPrompt } from "@/lib/prom
 import { searchTrials, dedupeTrials, rankValue } from "@/lib/trials/search";
 import { byName } from "@/data/countries";
 import { searchNearby } from "@/lib/openpass";
+import { classifyQuickAction, replyForSocialIntent } from "@/lib/social";
+import { getPanelFromQueryOrHeaders } from "@/lib/panel";
 
 async function getFeedbackSummary(conversationId: string) {
   try {
@@ -89,6 +91,11 @@ export async function POST(req: Request) {
   };
   if (isNewChat) {
     console.log("new_chat_started", { conversationId });
+  }
+  const panel = getPanelFromQueryOrHeaders(req);
+  const action = classifyQuickAction(userMessage);
+  if (panel !== "ai-doc" && action === "greet") {
+    return respond({ ok: true, text: replyForSocialIntent("greeting") });
   }
   const ISOLATE = process.env.NEW_CHAT_ISOLATION !== "false";
   const ALLOW_ROLL = process.env.ALLOW_CONTEXT_ROLLFORWARD === "true";
