@@ -178,7 +178,7 @@ No fabricated IDs. Provide themes, not specific trial numbers unless confident.`
 
 function PendingAnalysisCard({ label }: { label: string }) {
   return (
-    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
+    <div className="rounded-2xl bg-white/90 dark:bg-[var(--medx-panel)] p-4 text-left whitespace-normal max-w-3xl">
       <div className="text-sm text-slate-600 dark:text-slate-300">{label}</div>
     </div>
   );
@@ -186,7 +186,7 @@ function PendingAnalysisCard({ label }: { label: string }) {
 
 function PendingChatCard({ label }: { label: string }) {
   return (
-    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
+    <div className="rounded-2xl bg-white/90 dark:bg-[var(--medx-panel)] p-4 text-left whitespace-normal max-w-3xl">
       <div className="text-sm text-slate-600 dark:text-slate-300">{label}</div>
     </div>
   );
@@ -196,7 +196,7 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
   const header = titleForCategory(m.category);
   if (m.pending) return <PendingAnalysisCard label="Analyzing file…" />;
   return (
-    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl space-y-2">
+    <div className="rounded-2xl bg-white/90 dark:bg-[var(--medx-panel)] p-4 text-left whitespace-normal max-w-3xl space-y-2">
       <header className="flex items-center gap-2">
         <h2 className="text-lg md:text-xl font-semibold">{header}</h2>
         {researchOn && (
@@ -252,7 +252,7 @@ function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<Chat
   if (m.pending) return <PendingChatCard label="Thinking…" />;
   return (
     <div
-      className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl"
+      className="rounded-2xl bg-white/90 dark:bg-[var(--medx-panel)] p-4 text-left whitespace-normal max-w-3xl"
       onClick={() => setFast(true)}
     >
       {m.role === "assistant" ? (
@@ -281,7 +281,7 @@ function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<Chat
             <button
               key={i}
               onClick={() => onFollowUpClick(f)}
-              className="rounded-full border px-3 py-1 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+              className="rounded-full border px-3 py-1 text-sm hover:bg-gray-100 dark:hover:bg-[var(--medx-surface)]"
             >
               {f}
             </button>
@@ -1441,7 +1441,7 @@ ${systemCommon}` + baseSys;
             </div>
           )}
           {summary && (
-            <div className="my-2 mx-4 text-sm p-3 rounded border bg-slate-50 dark:bg-slate-800 dark:border-slate-700">
+            <div className="my-2 mx-4 text-sm p-3 rounded border bg-slate-50 dark:bg-[var(--medx-panel)] dark:border-[color:var(--medx-outline)]">
               <div className="flex items-start gap-2">
                 <div className="mt-0.5 shrink-0">
                   {mode === "doctor" ? <Stethoscope size={16}/> : <Users size={16}/>}
@@ -1459,7 +1459,7 @@ ${systemCommon}` + baseSys;
                   <button
                     type="button"
                     onClick={() => navigator.clipboard.writeText(summary!)}
-                    className="px-2 py-1 text-xs border rounded hover:bg-slate-100 dark:hover:bg-slate-700"
+                    className="px-2 py-1 text-xs border rounded hover:bg-slate-100 dark:hover:bg-[var(--medx-surface)]"
                     title="Copy summary"
                   >
                     <span className="inline-flex items-center gap-1">
@@ -1470,7 +1470,7 @@ ${systemCommon}` + baseSys;
                   <button
                     type="button"
                     onClick={() => setShowDetails(s => !s)}
-                    className="px-2 py-1 text-xs border rounded hover:bg-slate-100 dark:hover:bg-slate-700"
+                    className="px-2 py-1 text-xs border rounded hover:bg-slate-100 dark:hover:bg-[var(--medx-surface)]"
                     title="View details"
                   >
                     <span className="inline-flex items-center gap-1">
@@ -1484,7 +1484,7 @@ ${systemCommon}` + baseSys;
               {showDetails && stats && (
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {/* Phases */}
-                  <div className="rounded border bg-white dark:bg-slate-900 dark:border-slate-700">
+                  <div className="rounded border bg-white dark:bg-[var(--medx-panel)] dark:border-[color:var(--medx-outline)]">
                     <div className="px-3 py-2 font-medium border-b dark:border-slate-700">Phases</div>
                     <ul className="px-3 py-2 space-y-1">
                       {Object.entries(stats.byPhase).sort((a,b)=>b[1]-a[1]).map(([k,v])=>(
@@ -1495,7 +1495,7 @@ ${systemCommon}` + baseSys;
                   </div>
 
                   {/* Statuses */}
-                  <div className="rounded border bg-white dark:bg-slate-900 dark:border-slate-700">
+                  <div className="rounded border bg-white dark:bg-[var(--medx-panel)] dark:border-[color:var(--medx-outline)]">
                     <div className="px-3 py-2 font-medium border-b dark:border-slate-700">Statuses</div>
                     <ul className="px-3 py-2 space-y-1">
                       {Object.entries(stats.byStatus).sort((a,b)=>b[1]-a[1]).map(([k,v])=>(
@@ -1506,7 +1506,7 @@ ${systemCommon}` + baseSys;
                   </div>
 
                   {/* Countries */}
-                  <div className="rounded border bg-white dark:bg-slate-900 dark:border-slate-700">
+                  <div className="rounded border bg-white dark:bg-[var(--medx-panel)] dark:border-[color:var(--medx-outline)]">
                     <div className="px-3 py-2 font-medium border-b dark:border-slate-700">Top countries</div>
                     <ul className="px-3 py-2 space-y-1">
                       {Object.entries(stats.byCountry).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>(
@@ -1517,7 +1517,7 @@ ${systemCommon}` + baseSys;
                   </div>
 
                   {/* Genes */}
-                  <div className="rounded border bg-white dark:bg-slate-900 dark:border-slate-700">
+                  <div className="rounded border bg-white dark:bg-[var(--medx-panel)] dark:border-[color:var(--medx-outline)]">
                     <div className="px-3 py-2 font-medium border-b dark:border-slate-700">Top genes</div>
                     <ul className="px-3 py-2 space-y-1">
                       {stats.genesTop.length ? stats.genesTop.map(([g,c])=>(
@@ -1527,7 +1527,7 @@ ${systemCommon}` + baseSys;
                   </div>
 
                   {/* Conditions */}
-                  <div className="rounded border bg-white dark:bg-slate-900 dark:border-slate-700">
+                  <div className="rounded border bg-white dark:bg-[var(--medx-panel)] dark:border-[color:var(--medx-outline)]">
                     <div className="px-3 py-2 font-medium border-b dark:border-slate-700">Top conditions</div>
                     <ul className="px-3 py-2 space-y-1">
                       {stats.conditionsTop.length ? stats.conditionsTop.map(([k,c])=>(
@@ -1567,7 +1567,7 @@ ${systemCommon}` + baseSys;
       >
         {ui.topic && (
           <div className="mx-auto mb-2 max-w-3xl px-4 sm:px-6">
-            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs bg-white dark:bg-gray-900 border-slate-200 dark:border-gray-800">
+            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs bg-white dark:bg-[var(--medx-panel)] border-slate-200 dark:border-[color:var(--medx-outline)]">
               <span className="opacity-70">Topic:</span>
               <strong className="truncate max-w-[16rem]">{ui.topic}</strong>
               <button onClick={() => setUi(prev => ({ ...prev, topic: null }))} className="opacity-60 hover:opacity-100">Clear</button>
@@ -1576,7 +1576,7 @@ ${systemCommon}` + baseSys;
         )}
         {ui.contextFrom && (
           <div className="mx-auto mb-2 max-w-3xl px-4 sm:px-6">
-            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs bg-white dark:bg-gray-900 border-slate-200 dark:border-gray-800">
+            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs bg-white dark:bg-[var(--medx-panel)] border-slate-200 dark:border-[color:var(--medx-outline)]">
               <span className="opacity-70">Using context from:</span>
               <strong>{ui.contextFrom}</strong>
               <button onClick={() => { clearContext(); setUi(prev => ({ ...prev, contextFrom: null })); }} className="opacity-60 hover:opacity-100">Clear</button>
@@ -1588,7 +1588,7 @@ ${systemCommon}` + baseSys;
             m.role === 'user' ? (
               <div
                 key={m.id}
-                className="ml-auto max-w-3xl rounded-2xl px-4 py-3 shadow-sm bg-slate-200 text-slate-900 dark:bg-gray-700 dark:text-gray-100 text-left whitespace-normal"
+                className="ml-auto max-w-3xl rounded-2xl px-4 py-3 shadow-sm bg-slate-200 text-slate-900 dark:bg-[var(--medx-panel)] dark:text-gray-100 text-left whitespace-normal"
               >
                 <ChatMarkdown content={m.content} />
               </div>
@@ -1658,7 +1658,7 @@ ${systemCommon}` + baseSys;
       )}
       {pendingCommitIds.length > 0 && (
         <div className="mx-auto my-4 max-w-3xl px-4 sm:px-6">
-          <div className="rounded-lg border p-3 text-sm flex items-center gap-2 bg-white dark:bg-gray-800">
+          <div className="rounded-lg border p-3 text-sm flex items-center gap-2 bg-white dark:bg-[var(--medx-panel)]">
             <span>Add this to your Medical Profile?</span>
             {commitError && <span className="text-xs text-rose-600">{commitError}</span>}
             <button
@@ -1756,7 +1756,7 @@ ${systemCommon}` + baseSys;
               />
             </label>
             {pendingFile && (
-              <div className="flex items-center gap-2 rounded-full bg-white/70 dark:bg-gray-800/70 px-3 py-1 text-xs">
+              <div className="flex items-center gap-2 rounded-full bg-white/70 dark:bg-[var(--medx-panel)] px-3 py-1 text-xs">
                 <span className="truncate max-w-[8rem]">{pendingFile.name}</span>
                 <button
                   type="button"

@@ -7,8 +7,15 @@
 
 .btn-secondary{
   @apply inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm transition
-         bg-white text-slate-700 border-slate-200 hover:bg-slate-50
-         dark:bg-gray-800 dark:text-slate-100 dark:border-gray-600 dark:hover:bg-gray-700;
+         bg-white text-slate-700 border-slate-200 hover:bg-slate-50;
+}
+.dark .btn-secondary{
+  @apply text-slate-100;
+  background: var(--medx-panel);
+  border-color: var(--medx-outline);
+}
+.dark .btn-secondary:hover{
+  background: var(--medx-surface);
 }
 
 /* Ensures sidebar sits above content and accepts clicks */
@@ -57,8 +64,11 @@
 
 /* Ensure body/content contrast in dark */
 .dark body { color: rgb(229 231 235); }           /* text-gray-200 */
-.dark .card,.dark .panel { background: #0f172a; } /* slate-900 */
-.dark .border { border-color: rgb(71 85 105); }   /* slate-600 */
+.dark .card,
+.dark .panel {
+  background: var(--medx-panel);
+}
+.dark .border { border-color: var(--medx-outline); }
 .dark .prose-medx :where(li)::marker { color: rgb(148 163 184); }
 
 :root.therapy-mode, .therapy-mode body {
@@ -118,8 +128,8 @@
   --medx-teal:    #2DD4BF;
   --medx-purple:  #A78BFA;
 
-  --medx-surface: rgba(0,0,0,0.35);
-  --medx-panel:   rgba(3,7,18,0.55);
+  --medx-surface: color-mix(in srgb, var(--medx-bg-b) 25%, transparent);
+  --medx-panel:   color-mix(in srgb, var(--medx-bg-a) 40%, transparent);
   --medx-outline: rgba(255,255,255,0.12);
 }
 

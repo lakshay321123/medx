@@ -90,9 +90,9 @@ export function LinkBadge(props: React.AnchorHTMLAttributes<HTMLAnchorElement>) 
       target="_blank"
       rel="noopener noreferrer"
       className={
-        "inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-gray-700 " +
-        "bg-white dark:bg-gray-900 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 " +
-        "shadow-sm hover:bg-slate-50 dark:hover:bg-gray-800 transition " + className
+        "inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-[color:var(--medx-outline)] " +
+        "bg-white dark:bg-[var(--medx-panel)] px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 " +
+        "shadow-sm hover:bg-slate-50 dark:hover:bg-[var(--medx-surface)] transition " + className
       }
       {...rest}
     >

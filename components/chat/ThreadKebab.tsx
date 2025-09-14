@@ -27,7 +27,7 @@ export default function ThreadKebab({ id, title, onRenamed, onDeleted }: {
     <div className="relative" ref={ref}>
       <button
         type="button"
-        className="px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+        className="px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-[var(--medx-surface)]"
         onClick={() => setOpen(s => !s)}
         aria-label="Thread options"
         title="Options"
@@ -36,9 +36,9 @@ export default function ThreadKebab({ id, title, onRenamed, onDeleted }: {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-1 w-44 rounded-md border bg-white dark:bg-slate-900 dark:border-slate-700 shadow-lg z-20">
+        <div className="absolute right-0 mt-1 w-44 rounded-md border bg-white dark:bg-[var(--medx-panel)] dark:border-[color:var(--medx-outline)] shadow-lg z-20">
           <button
-            className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-[var(--medx-surface)]"
             onClick={() => { setAskRename(true); setOpen(false); }}
           >
             Rename
@@ -70,13 +70,13 @@ export default function ThreadKebab({ id, title, onRenamed, onDeleted }: {
       {askRename && (
         <div className="fixed inset-0 z-30 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={()=>setAskRename(false)} />
-          <div className="relative w-full max-w-sm rounded-lg border bg-white dark:bg-slate-900 dark:border-slate-700 p-4">
+          <div className="relative w-full max-w-sm rounded-lg border bg-white dark:bg-[var(--medx-panel)] dark:border-[color:var(--medx-outline)] p-4">
             <div className="text-sm font-medium mb-2">Rename chat</div>
             <input
               autoFocus
               value={name}
               onChange={e=>setName(e.target.value)}
-              className="w-full rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
+              className="w-full rounded border px-2 py-1 text-sm dark:bg-[var(--medx-surface)] dark:border-[color:var(--medx-outline)]"
             />
             <div className="mt-3 flex justify-end gap-2">
               <button className="px-3 py-1.5 text-sm rounded border"

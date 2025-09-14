@@ -133,8 +133,8 @@ export default function Timeline(){
       {open && active && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setOpen(false)} />
-          <aside className="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-[640px] bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-2xl ring-1 ring-black/5 overflow-y-auto">
-            <header className="sticky top-0 bg-white/90 dark:bg-zinc-900/90 backdrop-blur border-b border-zinc-200/70 dark:border-zinc-800/70 px-4 py-3 flex items-center gap-2">
+          <aside className="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-[640px] bg-white dark:bg-[var(--medx-panel)] text-zinc-900 dark:text-zinc-100 shadow-2xl ring-1 ring-black/5 overflow-y-auto">
+            <header className="sticky top-0 bg-white/90 dark:bg-[var(--medx-panel)] backdrop-blur border-b border-zinc-200/70 dark:border-[color:var(--medx-outline)] px-4 py-3 flex items-center gap-2">
               <h3 className="font-semibold truncate">{active.name || active.meta?.file_name || "Observation"}</h3>
               <div className="ml-auto flex gap-2">
                 {(active.file?.path || active.file?.upload_id) && signedUrl && (

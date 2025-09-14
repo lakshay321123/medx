@@ -35,13 +35,13 @@ export default function ModeBar({ onChange }: { onChange?: (s: ModeState) => voi
       <div className="inline-flex rounded-xl border p-1 dark:border-neutral-800">
         <button
           onClick={() => act("ui:set", "patient")}
-          className={`px-3 py-1.5 rounded-lg ${s.ui === "patient" ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900" : ""}`}
+          className={`px-3 py-1.5 rounded-lg ${s.ui === "patient" ? "bg-neutral-900 text-white dark:bg-blue-200 dark:text-blue-900" : ""}`}
         >
           Patient
         </button>
         <button
           onClick={() => act("ui:set", "doctor")}
-          className={`px-3 py-1.5 rounded-lg ${s.ui === "doctor" ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900" : ""}`}
+          className={`px-3 py-1.5 rounded-lg ${s.ui === "doctor" ? "bg-neutral-900 text-white dark:bg-blue-200 dark:text-blue-900" : ""}`}
         >
           Doctor
         </button>
@@ -50,28 +50,28 @@ export default function ModeBar({ onChange }: { onChange?: (s: ModeState) => voi
       {/* Feature modes */}
       <button
         onClick={() => act("therapy:toggle")}
-        className={`rounded-lg border px-3 py-1.5 ${s.therapy ? "bg-emerald-600 text-white" : "border-neutral-300 dark:border-neutral-700"}`}
+        className={`rounded-lg border px-3 py-1.5 ${s.therapy ? "bg-emerald-600 text-white" : "border-neutral-300 dark:border-[color:var(--medx-outline)]"}`}
       >
         Therapy
       </button>
 
       <button
         onClick={() => act("research:toggle")}
-        className={`rounded-lg border px-3 py-1.5 ${s.research ? "bg-blue-600 text-white" : "border-neutral-300 dark:border-neutral-700"}`}
+        className={`rounded-lg border px-3 py-1.5 ${s.research ? "bg-blue-600 text-white" : "border-neutral-300 dark:border-[color:var(--medx-outline)]"}`}
       >
         Research
       </button>
 
       <button
         onClick={() => router.push('/?panel=chat&threadId=med-profile&context=profile')}
-        className="rounded-lg border px-3 py-1.5 border-neutral-300 dark:border-neutral-700"
+        className="rounded-lg border px-3 py-1.5 border-neutral-300 dark:border-[color:var(--medx-outline)]"
       >
         AI&nbsp;Doc
       </button>
 
       <button
         onClick={toggleTheme}
-        className={`px-3.5 py-1.5 rounded-xl text-sm ${isDark ? "bg-blue-600 text-white" : "border border-neutral-300 bg-white text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"}`}
+        className={`px-3.5 py-1.5 rounded-xl text-sm ${isDark ? "bg-blue-600 text-white" : "border border-neutral-300 bg-white text-neutral-900 dark:border-[color:var(--medx-outline)] dark:bg-[var(--medx-panel)] dark:text-gray-100"}`}
       >
         {isDark ? "Light" : "Dark"}
       </button>

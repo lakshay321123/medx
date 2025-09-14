@@ -14,7 +14,7 @@ export default function UndoToast() {
   if (!lastSaved) return null;
 
   return (
-    <div className="fixed bottom-20 right-4 z-50 max-w-sm rounded-xl border bg-white dark:bg-slate-800 shadow-lg p-3 pointer-events-auto">
+    <div className="fixed bottom-20 right-4 z-50 max-w-sm rounded-xl border bg-white dark:bg-[var(--medx-panel)] dark:border-[color:var(--medx-outline)] shadow-lg p-3 pointer-events-auto">
       <div className="text-sm">Saved: {lastSaved.label}</div>
       <div className="mt-2 text-right">
         <button

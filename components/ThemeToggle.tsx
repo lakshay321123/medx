@@ -16,7 +16,7 @@ export default function ThemeToggle() {
       className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm
                  bg-slate-100 text-slate-800 border-slate-200
                  hover:bg-slate-200
-                 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 dark:hover:bg-gray-700"
+                 dark:bg-[var(--medx-panel)] dark:text-gray-100 dark:border-[color:var(--medx-outline)] dark:hover:bg-[var(--medx-surface)]"
     >
       {theme === "dark" ? "Light" : "Dark"}
     </button>

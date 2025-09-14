@@ -31,7 +31,7 @@ export default function ThinkingTimer({ label = "Thinking", startedAt, autoStart
   const ss = String(secs % 60).padStart(2, "0");
 
   return (
-    <div className="inline-flex items-center gap-2 rounded-full bg-neutral-100 px-3 py-1 text-sm text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+    <div className="inline-flex items-center gap-2 rounded-full bg-neutral-100 px-3 py-1 text-sm text-neutral-700 dark:bg-[var(--medx-panel)] dark:text-neutral-200">
       <span className="relative flex h-2 w-2">
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
         <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-600" />

@@ -38,7 +38,7 @@ export default function MemorySnackbar() {
   })();
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-xl border bg-white dark:bg-slate-800 shadow-lg p-3 pointer-events-auto">
+    <div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-xl border bg-white dark:bg-[var(--medx-panel)] dark:border-[color:var(--medx-outline)] shadow-lg p-3 pointer-events-auto">
       <div className="text-sm mb-2">{label}</div>
       <div className="flex gap-2 justify-end">
         <button type="button" onClick={onDismiss} className="px-3 py-1 rounded border text-sm">No</button>

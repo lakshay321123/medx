@@ -54,7 +54,7 @@ export default function ScrollToBottom({ targetRef, threshold = 120, rebindKey }
       onClick={() => {
         (boundEl ?? window).scrollTo({ top: (boundEl?.scrollHeight ?? document.documentElement.scrollHeight), behavior: "smooth" });
       }}
-      className="fixed bottom-5 right-5 z-50 rounded-full bg-neutral-900 px-4 py-2 text-sm text-white shadow-lg transition active:scale-95 dark:bg-neutral-100 dark:text-neutral-900"
+      className="fixed bottom-5 right-5 z-50 rounded-full bg-neutral-900 px-4 py-2 text-sm text-white shadow-lg transition active:scale-95 dark:bg-blue-100 dark:text-blue-900"
       aria-label="Scroll to bottom"
     >
       ↓ New messages

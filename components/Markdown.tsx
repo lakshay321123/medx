@@ -21,7 +21,7 @@ export default function Markdown({ text }: { text: string }) {
     const useLabel = (!cleanInner || /^https?:\/\//i.test(cleanInner)) ? sourceLabelFromUrl(safe) : cleanInner;
 
     return `<a href="${safe}" target="_blank" rel="noopener noreferrer"
-    class="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-gray-800 transition">
+    class="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-[color:var(--medx-outline)] bg-white dark:bg-[var(--medx-panel)] px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-[var(--medx-surface)] transition">
       <span>${useLabel}</span><span aria-hidden="true" class="opacity-70">↗</span>
   </a>`;
   });
