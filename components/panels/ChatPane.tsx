@@ -16,6 +16,10 @@ import { getRandomWelcome } from '@/lib/welcomeMessages';
 import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
 import { detectFollowupIntent } from '@/lib/intents';
+import SuggestionChips from "@/components/chat/SuggestionChips";
+import ComposerFocus from "@/components/chat/ComposerFocus";
+import { normalizeSuggestions } from "@/lib/chat/normalize";
+import type { Suggestion } from "@/lib/chat/suggestions";
 import { safeJson } from '@/lib/safeJson';
 import { splitFollowUps } from '@/lib/splitFollowUps';
 import { getTrials } from "@/lib/hooks/useTrials";
@@ -246,10 +250,11 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
     </div>
   );
 }
-function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onFollowUpClick: (text: string) => void; simple: boolean }) {
+function ChatCard({ m, therapyMode, onAction, simple }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onAction: (s: Suggestion) => void; simple: boolean }) {
   const [fast, setFast] = useState(false);
   const isDone = useTypewriterStore(s => s.isDone(m.id));
   const markDone = useTypewriterStore(s => s.markDone);
+  const suggestions = normalizeSuggestions(m.followUps);
   if (m.pending) return <PendingChatCard label="Thinking…" />;
   return (
     <div
@@ -276,28 +281,18 @@ function ChatCard({ m, therapyMode, onFollowUpClick, simple }: { m: Extract<Chat
           ))}
         </div>
       )}
-      {!therapyMode && (m.followUps?.length || 0) > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {(m.followUps || []).map((f, i) => (
-            <button
-              key={i}
-              onClick={() => onFollowUpClick(f)}
-              className="rounded-full border px-3 py-1 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              {f}
-            </button>
-          ))}
-        </div>
+      {!therapyMode && suggestions.length > 0 && (
+        <SuggestionChips suggestions={suggestions} onAction={onAction} />
       )}
     </div>
   );
 }
 
-function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onFollowUpClick, simple }: { m: ChatMessage; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean; therapyMode: boolean; onFollowUpClick: (text: string) => void; simple: boolean }) {
+function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onAction, simple }: { m: ChatMessage; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean; therapyMode: boolean; onAction: (s: Suggestion) => void; simple: boolean }) {
   return m.kind === "analysis" ? (
     <AnalysisCard m={m} researchOn={researchOn} onQuickAction={onQuickAction} busy={busy} />
   ) : (
-    <ChatCard m={m} therapyMode={therapyMode} onFollowUpClick={onFollowUpClick} simple={simple} />
+    <ChatCard m={m} therapyMode={therapyMode} onAction={onAction} simple={simple} />
   );
 }
 
@@ -323,6 +318,16 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const mode: 'patient' | 'doctor' = modeState.base === 'doctor' ? 'doctor' : 'patient';
   const researchMode = modeState.research;
   const therapyMode = modeState.therapy;
+
+  const lastSuggestions = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.role === 'assistant') {
+        return normalizeSuggestions(m.followUps);
+      }
+    }
+    return [];
+  }, [messages]);
 
   // Auto-resize the textarea up to a max height
   useEffect(() => {
@@ -1396,8 +1401,9 @@ ${systemCommon}` + baseSys;
     }
   }
 
-  function handleFollowUpClick(text: string) {
-    send(text, researchMode);
+  function handleSuggestionAction(s: Suggestion) {
+    if (!s.actionId) return;
+    send(s.label, researchMode);
   }
 
   async function runAiDocWith(profileIntent: 'current' | 'new', newProfile?: any) {
@@ -1599,7 +1605,7 @@ ${systemCommon}` + baseSys;
                   onQuickAction={onQuickAction}
                   busy={loadingAction !== null}
                   therapyMode={therapyMode}
-                  onFollowUpClick={handleFollowUpClick}
+                  onAction={handleSuggestionAction}
                   simple={currentMode === 'patient'}
                 />
                 <FeedbackBar
@@ -1866,6 +1872,7 @@ ${systemCommon}` + baseSys;
         </div>
       )}
 
+      <ComposerFocus suggestions={lastSuggestions} composerRef={inputRef} />
       <ScrollToBottom targetRef={chatRef} rebindKey={threadId} />
     </div>
   );

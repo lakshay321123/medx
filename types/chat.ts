@@ -4,6 +4,7 @@ export type ChatMessage = {
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
-  followUps?: string[];
+  // followUps may be legacy string arrays or Suggestion objects; normalize before use
+  followUps?: unknown;
   citations?: Citation[];
 };
