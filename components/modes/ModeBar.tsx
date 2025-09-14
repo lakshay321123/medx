@@ -40,7 +40,7 @@ export default function ModeBar({ onChange }: { onChange?: (s: ModeState)=>void 
         className={`rounded-lg border px-3 py-1.5 ${s.research?"bg-blue-600 text-white":"border-neutral-300 dark:border-neutral-700"}`}>Research</button>
 
       <button
-        onClick={() => router.push('/?panel=ai-doc&threadId=med-profile&context=profile')}
+        onClick={() => router.push('/?panel=chat&threadId=med-profile&context=profile')}
         className="rounded-lg border px-3 py-1.5 border-neutral-300 dark:border-neutral-700"
       >
         AI&nbsp;Doc
