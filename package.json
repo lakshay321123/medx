@@ -5,14 +5,13 @@
   "scripts": {
     "prebuild": "node tools/check-placeholders.cjs",
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint || true",
     "test": "vitest run test/extract.noFalsePositives.test.ts test/aidoc.vendor.test.ts test/aidoc.redflags.test.ts test/engine.nanFilter.test.ts && tsx --test test/medx.test.ts test/selfLearning.test.ts test/pediatricFlow.test.ts test/clarifyMinimal.test.ts test/vaccineIntent.test.ts test/seniorSafety.test.ts test/firstAidCards.test.ts test/symptomTriage.test.ts test/drugInteractions.test.ts test/mentalHealthResources.test.ts test/womensHealthBasics.test.ts test/pediatricGrowthInfo.test.ts test/conditionCarePack.test.ts test/labExplainers.test.ts test/vaccineReminders.test.ts test/allergyChecker.test.ts test/newFeatures.test.ts test/emergencyNumbers.test.ts test/symptomTracker.test.ts"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.78",
-    "@prisma/client": "^5.22.0",
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.57.0",
@@ -28,7 +27,6 @@
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
     "pdfjs-dist": "^4.6.82",
-    "prisma": "^5.22.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-markdown": "^10.1.0",

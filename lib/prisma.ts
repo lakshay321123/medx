@@ -1,7 +1,3 @@
-import { PrismaClient } from '@prisma/client';
-
-export const prisma = globalThis.prisma || new PrismaClient();
-
-if (process.env.NODE_ENV !== 'production') {
-  (globalThis as any).prisma = prisma;
-}
+// Prisma removed; stub implementation for compatibility
+// TODO: replace prisma usage with Supabase or other data sources
+export const prisma: any = {};
