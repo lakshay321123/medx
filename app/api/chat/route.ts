@@ -36,6 +36,9 @@ import { singleTrialPatientPrompt, singleTrialClinicianPrompt } from "@/lib/prom
 import { searchTrials, dedupeTrials, rankValue } from "@/lib/trials/search";
 import { byName } from "@/data/countries";
 import { searchNearby } from "@/lib/openpass";
+import { getPendingAction, clearPendingAction, isExpired } from "@/lib/chat/pending";
+import { detectYesNo } from "@/lib/nlp/yesno";
+import { runAction } from "@/lib/actions/runAction";
 
 async function getFeedbackSummary(conversationId: string) {
   try {
@@ -96,6 +99,20 @@ export async function POST(req: Request) {
     activeThreadId = conversationId;
     if (isNewChat) {
       await prisma.chatThread.delete({ where: { id: activeThreadId } }).catch(() => {});
+    }
+  }
+
+  const pa = getPendingAction();
+  const yn = detectYesNo(text || "");
+
+  if (pa && !isExpired(pa) && yn) {
+    clearPendingAction();
+    if (yn === "yes") {
+      const result = await runAction(pa.actionId, pa.payload);
+      if (result instanceof Response) return result;
+      return respond(result || { ok: true });
+    } else {
+      return respond({ ok: true, text: "No problem. Tell me what you’d like instead." });
     }
   }
 
