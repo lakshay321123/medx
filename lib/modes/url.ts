@@ -1,4 +1,5 @@
 import type { ModeState } from "./types";
+import type { ReadonlyURLSearchParams } from "next/navigation";
 
 export function toQuery(
   state: ModeState,
