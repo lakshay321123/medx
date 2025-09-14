@@ -15,11 +15,9 @@ function MessageRow({ m }: { m: { id: string; role: string; content: string } })
   return (
     <div className="p-2" onClick={() => setFast(true)}>
       <strong>{m.role}:</strong>{" "}
-      {m.role === "assistant" ? (
-        <Typewriter text={m.content} fast={fast || isDone} onDone={() => markDone(m.id)} />
-      ) : (
-        m.content
-      )}
+      {m.role === "assistant"
+        ? (isDone ? m.content : <Typewriter text={m.content} fast={fast} onDone={() => markDone(m.id)} />)
+        : m.content}
     </div>
   );
 }
