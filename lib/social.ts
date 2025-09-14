@@ -71,11 +71,10 @@ export function detectSocialIntent(text: string): SocialIntent {
   const short = words.length <= 6;
 
   const has = (set: Set<string>) => {
-    if (set.has(s)) return true;
-    if (short) {
-      for (const k of set) {
-        if (s === k || s.startsWith(k)) return true;
-      }
+    if (set.has(s)) return true;              // whole-message exact
+    for (const k of set) {
+      // word-level exact (no prefix matching)
+      if (words.includes(k)) return true;
     }
     return false;
   };
