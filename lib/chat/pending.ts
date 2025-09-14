@@ -1,14 +1,23 @@
 import type { ProposedAction } from "./types";
 
-export type PendingAction = ProposedAction & { sourceMsgId: string };
+type Pending = ProposedAction & { sourceMsgId: string };
+const cache = new Map<string, Pending>(); // key = threadId
 
-let pending: PendingAction | null = null;
-
-export function setPendingAction(sourceMsgId: string, pa?: ProposedAction) {
-  pending = pa ? { ...pa, sourceMsgId } : null;
+export function setPendingAction(threadId: string, sourceMsgId: string, pa?: ProposedAction) {
+  if (!pa) return cache.delete(threadId);
+  cache.set(threadId, { ...pa, sourceMsgId });
 }
-export function getPendingAction() { return pending; }
-export function clearPendingAction() { pending = null; }
-export function isExpired(pa: PendingAction) {
-  return pa.expiresAt && pa.expiresAt < Date.now();
+
+export function getPendingAction(threadId: string): Pending | null {
+  const pa = cache.get(threadId);
+  if (!pa) return null;
+  if (pa.expiresAt && pa.expiresAt < Date.now()) {
+    cache.delete(threadId);
+    return null;
+  }
+  return pa;
+}
+
+export function clearPendingAction(threadId: string) {
+  cache.delete(threadId);
 }

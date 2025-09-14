@@ -14,6 +14,6 @@ export async function runAction(actionId: ActionId, payload?: any) {
     case "make_timeline":  return makeTimeline(payload);
     case "pdf":            return exportPdf(payload);
     case "share":          return shareThread(payload);
-    default:                return null;
+    default:                return { ok: false, error: "Unknown action" };
   }
 }

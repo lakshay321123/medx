@@ -1,10 +1,8 @@
 export type YN = "yes" | "no" | null;
 
 const YES = [
-  "y", "yes", "yup", "yep", "yeah", "ya", "sure",
-  "ok", "okay", "k", "kk", "k.", "affirmative",
-  "go ahead", "proceed", "do it", "let's do it",
-  "start", "begin", "please do", "yo", "👍", "✅", "✔️"
+  "y","yes","yup","yep","yeah","ya","sure","ok","okay","k","kk",
+  "affirmative","go ahead","proceed","do it","lets do it","start","begin","please do","yo","👍","✅","✔️"
 ];
 
 const NO = [
@@ -12,9 +10,7 @@ const NO = [
   "stop", "cancel", "not now", "later", "hold on", "wait", "skip", "pass", "👎"
 ];
 
-function norm(s: string) {
-  return s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").trim();
-}
+const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").trim();
 
 export function detectYesNo(input: string): YN {
   const t = norm(input);

@@ -36,7 +36,7 @@ import { singleTrialPatientPrompt, singleTrialClinicianPrompt } from "@/lib/prom
 import { searchTrials, dedupeTrials, rankValue } from "@/lib/trials/search";
 import { byName } from "@/data/countries";
 import { searchNearby } from "@/lib/openpass";
-import { getPendingAction, clearPendingAction, isExpired } from "@/lib/chat/pending";
+import { getPendingAction, clearPendingAction } from "@/lib/chat/pending";
 import { detectYesNo } from "@/lib/nlp/yesno";
 import { runAction } from "@/lib/actions/runAction";
 
@@ -102,18 +102,27 @@ export async function POST(req: Request) {
     }
   }
 
-  const pa = getPendingAction();
-  const yn = detectYesNo(text || "");
+  let pa = getPendingAction(activeThreadId);
+  if (!pa) {
+    try {
+      // const last = await MessageStore.findLastAssistantWithProposedAction(activeThreadId);
+      // if (last?.proposedAction && (!last.proposedAction.expiresAt || last.proposedAction.expiresAt > Date.now())) {
+      //   pa = { ...last.proposedAction, sourceMsgId: last.id };
+      // }
+    } catch (e) {
+      console.error("[chat] pending fallback failed", e);
+    }
+  }
 
-  if (pa && !isExpired(pa) && yn) {
-    clearPendingAction();
+  const yn = detectYesNo(text || "");
+  if (pa && yn) {
+    clearPendingAction(activeThreadId);
     if (yn === "yes") {
-      const result = await runAction(pa.actionId, pa.payload);
+      const result = await runAction(pa.actionId, { ...pa.payload, threadId: activeThreadId, userInput: text });
       if (result instanceof Response) return result;
       return respond(result || { ok: true });
-    } else {
-      return respond({ ok: true, text: "No problem. Tell me what you’d like instead." });
     }
+    return respond({ ok: true, text: "No problem. Tell me what you'd like instead." });
   }
 
   const nctMatch = userMessage.match(/\bNCT\d{8}\b/i);
