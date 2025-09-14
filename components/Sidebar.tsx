@@ -30,7 +30,9 @@ export default function Sidebar() {
       .catch(() => {});
   }, []);
 
-  const handleNew = () => {
+  const handleNew = (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     const id = createNewThreadId();
     router.push(`/?panel=chat&threadId=${id}`);
   };
@@ -41,7 +43,11 @@ export default function Sidebar() {
   const filtered = threads.filter(t => t.title.toLowerCase().includes(q.toLowerCase()));
   return (
     <aside className="sidebar-click-guard hidden md:flex md:flex-col justify-between !fixed inset-y-0 left-0 w-64 h-full medx-glass text-medx">
-      <button type="button" onClick={handleNew} className="w-full text-left px-4 py-3 rounded-xl mb-4 font-medium medx-btn-accent">
+      <button
+        type="button"
+        onClick={handleNew}
+        className="w-full text-left px-4 py-3 rounded-xl mb-4 font-medium medx-btn-accent"
+      >
         + New Chat
       </button>
 
@@ -60,7 +66,11 @@ export default function Sidebar() {
             className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm mb-1.5 medx-surface text-medx"
           >
             <button
-              onClick={() => router.push(`/?panel=chat&threadId=${t.id}`)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                router.push(`/?panel=chat&threadId=${t.id}`);
+              }}
               className="flex-1 text-left truncate text-sm"
               title={t.title}
             >
@@ -87,7 +97,11 @@ export default function Sidebar() {
             {aidocThreads.map(t => (
               <div key={t.id} className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm mb-1.5 medx-surface text-medx">
                 <button
-                  onClick={() => router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`);
+                  }}
                   className="flex-1 text-left truncate text-sm"
                   title={t.title ?? ''}
                 >
