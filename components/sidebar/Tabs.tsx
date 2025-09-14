@@ -20,6 +20,7 @@ const tabs: Tab[] = [
     context: "profile",
   },
   { key: "profile", label: "Medical Profile", panel: "profile" },
+  { key: "timeline", label: "Timeline", panel: "timeline" },
   { key: "alerts", label: "Alerts", panel: "alerts" },
   { key: "settings", label: "Settings", panel: "settings" },
 ];

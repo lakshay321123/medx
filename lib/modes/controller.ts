@@ -22,12 +22,8 @@ export function nextModes(prev: ModeState, action: { type: string; value?: any }
       s.research = !s.research; // c) allowed with patient/doctor
       break;
     case "aidoc:toggle":
-      s.aidoc = !s.aidoc;
+      s.aidoc = !s.aidoc; 
       if (s.aidoc) { s.therapy = false; s.research = false; /* standalone */ }
-      break;
-    case "aidoc:set":
-      s.aidoc = !!action.value;
-      if (s.aidoc) { s.therapy = false; s.research = false; }
       break;
     case "dark:toggle":
       s.dark = !s.dark; break;

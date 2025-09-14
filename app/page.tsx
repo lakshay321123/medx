@@ -1,64 +1,53 @@
 "use client";
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import SearchDock from "@/components/search/SearchDock";
+import { useEffect, useRef } from "react";
 import ChatPane from "@/components/panels/ChatPane";
 import MedicalProfile from "@/components/panels/MedicalProfile";
 import Timeline from "@/components/panels/Timeline";
 import AlertsPane from "@/components/panels/AlertsPane";
 import SettingsPane from "@/components/panels/SettingsPane";
 import AiDocPane from "@/components/panels/AiDocPane";
-import { ResearchFiltersProvider } from "@/store/researchFilters";
-import Header from "@/components/Header";
-import type { ModeState } from "@/lib/modes/types";
+import { ResearchFiltersProvider } from '@/store/researchFilters';
 
 type Search = { panel?: string; threadId?: string };
 
 export default function Page({ searchParams }: { searchParams: Search }) {
-  const panel = searchParams.panel?.toLowerCase();
-  const threadId = searchParams.threadId;
-  const router = useRouter();
+  const panel = (searchParams.panel ?? "chat").toLowerCase();
+  const threadId = searchParams.threadId as string | undefined;
   const chatInputRef = useRef<HTMLInputElement>(null);
-  const [mode, setMode] = useState<'patient' | 'doctor'>('patient');
-  const [researchMode, setResearchMode] = useState(false);
-  const [therapyMode, setTherapyMode] = useState(false);
 
-  const handleModesChange = (s: ModeState) => {
-    if (s.ui === 'patient' || s.ui === 'doctor') setMode(s.ui);
-    setResearchMode(s.research);
-    setTherapyMode(s.therapy);
-  };
-
-  const sendQuery = (q: string) => {
-    router.push(`/?panel=chat&q=${encodeURIComponent(q)}`);
-  };
-
-  if (!panel) {
-    return (
-      <>
-        <Header onModesChange={handleModesChange} />
-        <div className="min-h-[80vh] flex items-center justify-center">
-          <SearchDock onSubmit={sendQuery} />
-        </div>
-      </>
-    );
-  }
+  useEffect(() => {
+    const handler = () => chatInputRef.current?.focus();
+    window.addEventListener("focus-chat-input", handler);
+    return () => window.removeEventListener("focus-chat-input", handler);
+  }, []);
 
   return (
-    <>
-      <Header onModesChange={handleModesChange} />
-      <main className="flex-1 overflow-y-auto content-layer">
-        {panel === "chat" && (
-          <ResearchFiltersProvider>
-            <ChatPane inputRef={chatInputRef} mode={mode} researchMode={researchMode} therapyMode={therapyMode} />
-          </ResearchFiltersProvider>
-        )}
-        {panel === "profile" && <MedicalProfile />}
-        {panel === "timeline" && <Timeline />}
-        {panel === "alerts" && <AlertsPane />}
-        {panel === "settings" && <SettingsPane />}
-        {panel === "ai-doc" && <AiDocPane threadId={threadId} />}
-      </main>
-    </>
+    <main className="flex-1 overflow-y-auto content-layer">
+      <section className={panel === "chat" ? "block h-full" : "hidden"}>
+        <ResearchFiltersProvider>
+          <ChatPane inputRef={chatInputRef} />
+        </ResearchFiltersProvider>
+      </section>
+
+      <section className={panel === "profile" ? "block" : "hidden"}>
+        <MedicalProfile />
+      </section>
+
+      <section className={panel === "timeline" ? "block" : "hidden"}>
+        <Timeline />
+      </section>
+
+      <section className={panel === "alerts" ? "block" : "hidden"}>
+        <AlertsPane />
+      </section>
+
+      <section className={panel === "settings" ? "block" : "hidden"}>
+        <SettingsPane />
+      </section>
+
+      <section className={panel === "ai-doc" ? "block" : "hidden"}>
+        <AiDocPane threadId={threadId} />
+      </section>
+    </main>
   );
 }

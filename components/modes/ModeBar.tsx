@@ -6,10 +6,6 @@ import type { ModeState } from "@/lib/modes/types";
 
 const initial: ModeState = { ui: undefined, therapy: false, research: false, aidoc: false, dark: false };
 
-const baseBtn = "px-3.5 py-1.5 rounded-xl text-sm transition active:scale-[.98]";
-const ghost = "border border-neutral-300 bg-white text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100";
-const solid = "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900";
-
 export default function ModeBar({ onChange }: { onChange?: (s: ModeState)=>void }) {
   const [s, setS] = useState<ModeState>(initial);
   const promptedRef = useRef<Record<string, number>>({}); // one-time prompts per session
@@ -27,20 +23,11 @@ export default function ModeBar({ onChange }: { onChange?: (s: ModeState)=>void 
     }
   }
 
-  function toggleTheme() {
-    const root = document.documentElement;
-    const next = root.classList.contains("dark") ? "light" : "dark";
-    root.classList.toggle("dark", next === "dark");
-    localStorage.setItem("theme", next);
-    act("dark:toggle");
-  }
-
   function openAiDocFromTop() {
-    act("aidoc:set", true);
+    act("aidoc:toggle");
     const firstCase = document.querySelector<HTMLButtonElement>('[data-aidoc="case"]');
     if (firstCase) { firstCase.click(); return; }
-    const newBtn = document.querySelector<HTMLButtonElement>('[data-aidoc="new"]');
-    if (newBtn) { newBtn.click(); return; }
+
     const sess = typeof window !== "undefined" ? sessionStorage.getItem("aidoc_thread") : null;
     const tid = sess && sess.trim() ? sess : `aidoc_${Date.now().toString(36)}`;
     try { sessionStorage.setItem("aidoc_thread", tid); } catch {}
@@ -53,27 +40,23 @@ export default function ModeBar({ onChange }: { onChange?: (s: ModeState)=>void 
       {/* UI mode */}
       <div className="inline-flex rounded-xl border p-1 dark:border-neutral-800">
         <button onClick={()=>act("ui:set","patient")}
-          className={`${baseBtn} ${s.ui==="patient"?solid:ghost}`}>Patient</button>
+          className={`px-3 py-1.5 rounded-lg ${s.ui==="patient"?"bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900":""}`}>Patient</button>
         <button onClick={()=>act("ui:set","doctor")}
-          className={`${baseBtn} ${s.ui==="doctor"?solid:ghost}`}>Doctor</button>
+          className={`px-3 py-1.5 rounded-lg ${s.ui==="doctor"?"bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900":""}`}>Doctor</button>
       </div>
 
       {/* Feature modes */}
       <button onClick={()=>act("therapy:toggle")}
-        className={`${baseBtn} ${s.therapy?"bg-emerald-600 text-white":ghost}`}>Therapy</button>
+        className={`rounded-lg border px-3 py-1.5 ${s.therapy?"bg-emerald-600 text-white":"border-neutral-300 dark:border-neutral-700"}`}>Therapy</button>
 
       <button onClick={()=>act("research:toggle")}
-        className={`${baseBtn} ${s.research?"bg-blue-600 text-white":ghost}`}>Research</button>
+        className={`rounded-lg border px-3 py-1.5 ${s.research?"bg-blue-600 text-white":"border-neutral-300 dark:border-neutral-700"}`}>Research</button>
 
-      <button
-        onClick={openAiDocFromTop}
-        className={`${baseBtn} ${s.aidoc ? "bg-violet-600 text-white" : ghost}`}
-      >
-        AI&nbsp;Doc
-      </button>
+      <button onClick={openAiDocFromTop}
+        className={`rounded-lg border px-3 py-1.5 ${s.aidoc?"bg-violet-600 text-white":"border-neutral-300 dark:border-neutral-700"}`}>AI&nbsp;Doc</button>
 
-      <button onClick={toggleTheme}
-        className={`${baseBtn} ${s.dark?solid:ghost}`}>Dark</button>
+      <button onClick={()=>act("dark:toggle")}
+        className={`rounded-lg border px-3 py-1.5 ${s.dark?"bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900":"border-neutral-300 dark:border-neutral-700"}`}>Dark</button>
     </div>
   );
 }

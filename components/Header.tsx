@@ -1,13 +1,51 @@
 'use client';
+import { User, Stethoscope } from 'lucide-react';
+import ThemeToggle from './ThemeToggle';
+import { ResearchToggle } from './ResearchToggle';
+import TherapyToggle from './TherapyToggle';
+import CountryGlobe from '@/components/CountryGlobe';
 import Brand from '@/components/nav/Brand';
-import ModeBar from '@/components/modes/ModeBar';
-import type { ModeState } from '@/lib/modes/types';
 
-export default function Header({ onModesChange }: { onModesChange?: (s: ModeState) => void }) {
+export default function Header({
+  mode,
+  onModeChange,
+  researchOn,
+  onResearchChange,
+  onTherapyChange,
+}: {
+  mode: 'patient' | 'doctor';
+  onModeChange: (m: 'patient' | 'doctor') => void;
+  researchOn: boolean;
+  onResearchChange: (v: boolean) => void;
+  onTherapyChange: (v: boolean) => void;
+}) {
   return (
-    <header className="flex items-center justify-between px-4 py-3">
-      <Brand />
-      <ModeBar onChange={onModesChange} />
+    <header className="sticky top-0 z-40 h-14 md:h-16 medx-glass">
+      <div className="max-w-6xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-base md:text-lg font-semibold">
+          <Brand />
+          <CountryGlobe />
+        </div>
+        <div className="flex items-center gap-2">
+          <TherapyToggle onChange={onTherapyChange} />
+          <button
+            onClick={() => onModeChange(mode === 'patient' ? 'doctor' : 'patient')}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm medx-surface text-medx"
+          >
+            {mode === 'patient' ? (
+              <>
+                <User size={16} /> Patient
+              </>
+            ) : (
+              <>
+                <Stethoscope size={16} /> Doctor
+              </>
+            )}
+          </button>
+          <ResearchToggle defaultOn={researchOn} onChange={onResearchChange} />
+          <ThemeToggle />
+        </div>
+      </div>
     </header>
   );
 }

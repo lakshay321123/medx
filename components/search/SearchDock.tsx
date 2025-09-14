@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
-export default function SearchDock({ onSubmit }: { onSubmit: (q: string)=>void }) {
+export default function SearchDock({ onSubmit }: { onSubmit?: (q: string)=>void }) {
+  const router = useRouter();
   const [q, setQ] = useState("");
   const [docked, setDocked] = useState<boolean>(()=> typeof window !== "undefined" && !!sessionStorage.getItem("search_docked"));
 
@@ -14,7 +16,7 @@ export default function SearchDock({ onSubmit }: { onSubmit: (q: string)=>void }
         docked ? "bottom-4 w-[min(720px,92vw)]" : "top-1/3 w-[min(760px,92vw)]"
       }`}>
       <form
-        onSubmit={(e)=>{ e.preventDefault(); if (!q.trim()) return; onSubmit(q.trim()); setDocked(true); }}
+        onSubmit={(e)=>{ e.preventDefault(); const query = q.trim(); if (!query) return; onSubmit ? onSubmit(query) : router.push(`/?panel=chat&q=${encodeURIComponent(query)}`); setDocked(true); }}
         className="rounded-2xl border border-neutral-200 bg-white/90 p-2 shadow-lg backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/80"
       >
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Ask MedX…"
