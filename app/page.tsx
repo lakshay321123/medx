@@ -12,7 +12,6 @@ type Search = { panel?: string; threadId?: string };
 
 export default function Page({ searchParams }: { searchParams: Search }) {
   const panel = (searchParams.panel ?? "chat").toLowerCase();
-  const threadId = searchParams.threadId as string | undefined;
   const chatInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -46,7 +45,7 @@ export default function Page({ searchParams }: { searchParams: Search }) {
       </section>
 
       <section className={panel === "ai-doc" ? "block" : "hidden"}>
-        <AiDocPane threadId={threadId} />
+        <AiDocPane />
       </section>
     </main>
   );
