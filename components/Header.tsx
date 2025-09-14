@@ -3,15 +3,7 @@ import CountryGlobe from '@/components/CountryGlobe';
 import Brand from '@/components/nav/Brand';
 import ModeBar from '@/components/modes/ModeBar';
 
-export default function Header({
-  onModeChange,
-  onResearchChange,
-  onTherapyChange,
-}: {
-  onModeChange: (m: 'patient' | 'doctor') => void;
-  onResearchChange: (v: boolean) => void;
-  onTherapyChange: (v: boolean) => void;
-}) {
+export default function Header() {
   return (
     <header className="sticky top-0 z-40 h-14 md:h-16 medx-glass">
       <div className="max-w-6xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between">
@@ -19,13 +11,7 @@ export default function Header({
           <Brand />
           <CountryGlobe />
         </div>
-        <ModeBar
-          onChange={(s) => {
-            if (s.ui === 'patient' || s.ui === 'doctor') onModeChange(s.ui);
-            onResearchChange(s.research);
-            onTherapyChange(s.therapy);
-          }}
-        />
+        <ModeBar />
       </div>
     </header>
   );

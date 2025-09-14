@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, useMemo, RefObject, Fragment } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { fromSearchParams } from '@/lib/modes/url';
 import Header from '../Header';
 import { useRouter } from 'next/navigation';
 import ChatMarkdown from '@/components/ChatMarkdown';
@@ -308,17 +309,20 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [note, setNote] = useState('');
   const [proactive, setProactive] = useState<null | { kind: 'predispositions'|'medications'|'weight' }>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [mode, setMode] = useState<'patient'|'doctor'>('patient');
   const [busy, setBusy] = useState(false);
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
-  const [researchMode, setResearchMode] = useState(false);
-  const [therapyMode, setTherapyMode] = useState(false);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef =
     (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ??
     (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
   const { filters } = useResearchFilters();
+
+  const sp = useSearchParams();
+  const modeState = useMemo(() => fromSearchParams(sp, 'light'), [sp]);
+  const mode: 'patient' | 'doctor' = modeState.base === 'doctor' ? 'doctor' : 'patient';
+  const researchMode = modeState.research;
+  const therapyMode = modeState.therapy;
 
   // Auto-resize the textarea up to a max height
   useEffect(() => {
@@ -347,10 +351,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     setShowDetails(false); // collapse on new search
   }
 
-  const params = useSearchParams();
   const router = useRouter(); // auto-new-thread
-  const threadId = params.get('threadId');
-  const context = params.get('context');
+  const threadId = sp.get('threadId');
+  const context = sp.get('context');
   // ADD: stable fallback thread key for default chat
   const stableThreadId = threadId || 'default-thread';
   const isProfileThread = threadId === 'med-profile' || context === 'profile';
@@ -1422,11 +1425,7 @@ ${systemCommon}` + baseSys;
 
   return (
     <div className="relative flex h-full flex-col">
-      <Header
-        onModeChange={setMode}
-        onResearchChange={setResearchMode}
-        onTherapyChange={setTherapyMode}
-      />
+      <Header />
       {busy && thinkingStartedAt && (
         <div className="px-4 sm:px-6 lg:px-8 pt-2">
           <ThinkingTimer label="Analyzing" startedAt={thinkingStartedAt} />
