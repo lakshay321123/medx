@@ -69,7 +69,7 @@ export default function ThreadKebab({ id, title, onRenamed, onDeleted }: {
       {/* Rename dialog (lightweight inline) */}
       {askRename && (
         <div className="fixed inset-0 z-30 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={()=>setAskRename(false)} />
+          <div className="absolute inset-0 bg-overlay/40" onClick={()=>setAskRename(false)} />
           <div className="relative w-full max-w-sm rounded-lg border bg-white dark:bg-slate-900 dark:border-slate-700 p-4">
             <div className="text-sm font-medium mb-2">Rename chat</div>
             <input

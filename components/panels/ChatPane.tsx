@@ -1804,7 +1804,7 @@ ${systemCommon}` + baseSys;
       </div>
       {/* Preflight chooser (flagged) */}
       {AIDOC_UI && AIDOC_PREFLIGHT && showPatientChooser && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/20">
+        <div className="fixed inset-0 z-50 grid place-items-center bg-overlay/20">
           <div className="w-full max-w-md rounded-xl bg-white p-4 shadow-xl">
             <div className="text-sm font-medium mb-3">Who is this about?</div>
             {activeProfileId ? (
@@ -1828,7 +1828,7 @@ ${systemCommon}` + baseSys;
 
       {/* Mini intake for NEW patient (flagged) */}
       {AIDOC_UI && AIDOC_PREFLIGHT && showNewIntake && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/20">
+        <div className="fixed inset-0 z-50 grid place-items-center bg-overlay/20">
           <div className="w-full max-w-md rounded-xl bg-white p-4 shadow-xl space-y-2">
             <div className="text-sm font-medium">New patient – quick intake</div>
             <input className="w-full rounded border px-2 py-1 text-sm" placeholder="Name"
