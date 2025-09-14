@@ -35,7 +35,7 @@ export default function ModeBar() {
 
   const btn = (active: boolean, disabled?: boolean) =>
     `h-9 px-3 rounded-lg border text-sm transition
-     ${active ? "bg-primary text-primary-foreground border-primary"
+     ${active ? "medx-btn-accent border-[var(--medx-accent)]"
               : "bg-card text-foreground border-border hover:bg-muted"}
      ${disabled ? "opacity-50 cursor-not-allowed" : ""}`;
 
