@@ -15,6 +15,13 @@ export function toQuery(
   if (state.research && (state.base === "patient" || state.base === "doctor"))
     p.set("research", "1");
   else p.delete("research");
+  if (
+    p.get("threadId") === "med-profile" &&
+    p.get("context") === "profile"
+  ) {
+    p.delete("threadId");
+    p.delete("context");
+  }
   return `/?${p.toString()}`;
 }
 
