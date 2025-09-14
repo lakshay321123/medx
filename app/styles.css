@@ -99,3 +99,6 @@ body{
 .markdown p{ margin:8px 0 }
 .markdown ul, .markdown ol{ padding-left:22px; margin:8px 0 }
 .markdown code{ background:rgba(255,255,255,.06); padding:2px 6px; border-radius:6px; }
+/* Ensure emphasis renders even if prose classes aren't present */
+.markdown strong{ font-weight:700; }
+.markdown em{ font-style:italic; }
