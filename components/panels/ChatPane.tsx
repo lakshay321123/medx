@@ -300,7 +300,9 @@ function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onF
   );
 }
 
-export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: RefObject<HTMLInputElement> } = {}) {
+export default function ChatPane(
+  { initialQuery = "", inputRef: externalInputRef }: { initialQuery?: string; inputRef?: RefObject<HTMLInputElement> } = {}
+) {
 
   const { country } = useCountry();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
@@ -319,6 +321,13 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ??
     (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
   const { filters } = useResearchFilters();
+
+  useEffect(() => {
+    if (initialQuery) {
+      setNote(initialQuery);
+      setTimeout(() => onSubmit(), 0);
+    }
+  }, [initialQuery]);
 
   // Auto-resize the textarea up to a max height
   useEffect(() => {
