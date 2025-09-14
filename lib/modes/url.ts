@@ -1,11 +1,27 @@
 import type { ModeState } from "./types";
+import type { ReadonlyURLSearchParams } from "next/navigation";
 
-export function toQuery(state: ModeState): string {
+export function toQuery(
+  state: ModeState,
+  current?: URLSearchParams | ReadonlyURLSearchParams,
+): string {
   if (state.base === "aidoc")
     return "/?panel=chat&threadId=med-profile&context=profile";
-  const p = new URLSearchParams({ panel: "chat", mode: state.base });
-  if (state.therapy) p.set("therapy", "1");
-  if (state.research) p.set("research", "1");
+  const p = new URLSearchParams(current ? current.toString() : undefined);
+  p.set("panel", "chat");
+  p.set("mode", state.base);
+  if (state.therapy && state.base === "patient") p.set("therapy", "1");
+  else p.delete("therapy");
+  if (state.research && (state.base === "patient" || state.base === "doctor"))
+    p.set("research", "1");
+  else p.delete("research");
+  if (
+    p.get("threadId") === "med-profile" &&
+    p.get("context") === "profile"
+  ) {
+    p.delete("threadId");
+    p.delete("context");
+  }
   return `/?${p.toString()}`;
 }
 

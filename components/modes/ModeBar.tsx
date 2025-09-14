@@ -24,12 +24,15 @@ export default function ModeBar() {
   const apply = (action: Parameters<typeof reduce>[1]) => {
     // custom exit for aidoc toggle
     if (action.type === "toggle/aidoc" && state.base === "aidoc") {
-      const q = toQuery({ ...state, base: lastNonAidoc.current, therapy: false, research: false });
+      const q = toQuery(
+        { ...state, base: lastNonAidoc.current, therapy: false, research: false },
+        sp,
+      );
       router.push(q);
       return;
     }
     const next = reduce(state, action);
-    router.push(toQuery(next));
+    router.push(toQuery(next, sp));
   };
 
   const btn = (active: boolean, disabled?: boolean) =>
