@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 // [AIDOC_TRIAGE_IMPORT] add triage imports
 import { handleDocAITriage, detectExperientialIntent } from "@/lib/aidoc/triage";
 import { getUserId } from "@/lib/getUserId";
@@ -6,15 +7,21 @@ import { prisma } from "@/lib/prisma";
 import { wasAskedOnce, markAsked } from "@/lib/aidoc/memory";
 
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => ({} as any));
-  const message = (body?.message ?? body?.text ?? "").toString();
-  const op = body?.op;
-  const boot = body?.boot === true || op === "boot";
+  const payload = await req.json().catch(() => ({} as any));
+  const hasBooted = cookies().get("aidoc_booted")?.value === "1";
+  if (payload.op === "boot" && !hasBooted) {
+    cookies().set("aidoc_booted", "1", { httpOnly: true, sameSite: "lax" });
+    return NextResponse.json({ type: "greeting", text: "Hi, how can I help today?" });
+  }
+
+  const message = (payload?.message ?? payload?.text ?? "").toString();
+  const op = payload?.op;
+  const boot = payload?.boot === true || op === "boot";
   const userId = (await getUserId()) ?? "";
-  const threadId = body.threadId || "aidoc:" + userId;
+  const threadId = payload.threadId || "aidoc:" + userId;
   // Structured payloads from UI
-  const answers = (body?.answers && typeof body.answers === "object") ? body.answers : null;
-  const incomingProfile = (body?.profile && typeof body.profile === "object") ? body.profile : null;
+  const answers = (payload?.answers && typeof payload.answers === "object") ? payload.answers : null;
+  const incomingProfile = (payload?.profile && typeof payload.profile === "object") ? payload.profile : null;
 
   // ensure you have resolved the `profile` object here
   // profile = { name, age, sex, pregnant }
@@ -68,7 +75,8 @@ export async function POST(req: Request) {
   }
 
   // Only emit canned welcome on explicit boot; never on user greetings
-  if (boot === true) {
+  if (boot === true && !hasBooted) {
+    cookies().set("aidoc_booted", "1", { httpOnly: true, sameSite: "lax" });
     return NextResponse.json({
       messages: [
         { role: "assistant", content: "Hi! 👋 How can I help today? You can describe symptoms or upload a report." }
@@ -76,7 +84,7 @@ export async function POST(req: Request) {
     });
   }
   if (!boot) {
-    const title = body.title ?? inferTitleFromText(message);
+    const title = payload.title ?? inferTitleFromText(message);
     await prisma.chatThread.upsert({
       where: { id: threadId },
       create: { id: threadId, userId, type: "aidoc", title },
