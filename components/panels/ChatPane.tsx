@@ -1423,9 +1423,7 @@ ${systemCommon}` + baseSys;
   return (
     <div className="relative flex h-full flex-col">
       <Header
-        mode={mode}
         onModeChange={setMode}
-        researchOn={researchMode}
         onResearchChange={setResearchMode}
         onTherapyChange={setTherapyMode}
       />
