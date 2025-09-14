@@ -933,6 +933,28 @@ ${linkNudge}`;
       const systemCommon = `\nUser country: ${country.code3} (${country.name}). Use generics and note availability varies by region.\nEnd with one short follow-up question (<=10 words) that stays on the current topic.\n`;
       const topicHint = ui.topic ? `ACTIVE TOPIC: ${ui.topic}\nKeep answers scoped to this topic unless the user changes it.\n` : "";
 
+      // Per-mode drafting style (structure only; no provider changes)
+      const PATIENT_DRAFT_STYLE = [
+        "FORMAT: Use 2–3 short sections with bold headers and bullets.",
+        "For 'what is ...' questions, default to these sections:",
+        "## **What it is**",
+        "## **Types**",
+        "Finish with one short follow-up question (≤10 words).",
+      ].join("\n");
+      const DOCTOR_DRAFT_STYLE = [
+        "FORMAT (clinical, concise): Use bold headers + bullets.",
+        "For definition-type asks, prefer this outline:",
+        "## **Definition (clinical)**",
+        "## **Phenotypes**",
+        "## **Red flags** (include only if relevant)",
+        "## **Initial work-up (typical)** (include only if appropriate)",
+        "Finish with one short follow-up question (≤10 words).",
+      ].join("\n");
+
+      // Intent-aware structure (lightweight)
+      const { getIntentStyle } = await import("@/lib/intents");
+      const INTENT_STYLE = getIntentStyle(userText || "", mode);
+
       const sys = topicHint + systemCommon + baseSys;
       const sysWithDomain = DOMAIN_STYLE ? `${sys}\n\n${DOMAIN_STYLE}` : sys;
       let ADV_STYLE = "";
@@ -947,7 +969,8 @@ ${linkNudge}`;
           adv === "preventive"     ? D.PREVENTIVE_STYLE :
           adv === "systems-policy" ? D.SYSTEMS_POLICY_STYLE : "";
       }
-      const systemAll = `${sysWithDomain}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
+      // Append mode structure and any intent-specific structure
+      const systemAll = `${sysWithDomain}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}\n\n${mode === "doctor" ? DOCTOR_DRAFT_STYLE : PATIENT_DRAFT_STYLE}${INTENT_STYLE ? "\n\n" + INTENT_STYLE : ""}`;
       let chatMessages: { role: string; content: string }[];
 
       const looksLikeMath = /[0-9\.\s+\-*\/^()]{6,}/.test(userText) || /sin|cos|log|sqrt|derivative|integral|limit/i.test(userText);
