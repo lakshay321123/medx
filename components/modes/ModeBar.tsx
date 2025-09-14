@@ -1,12 +1,14 @@
 "use client";
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { nextModes } from "@/lib/modes/controller";
 import type { ModeState } from "@/lib/modes/types";
 
-const initial: ModeState = { ui: "patient", therapy: false, research: false, aidoc: false, dark: false };
+const initial: ModeState = { ui: "patient", therapy: false, research: false, dark: false };
 
 export default function ModeBar({ onChange }: { onChange?: (s: ModeState)=>void }) {
   const [s, setS] = useState<ModeState>(initial);
+  const router = useRouter();
   const promptedRef = useRef<Record<string, number>>({}); // one-time prompts per session
 
   function act(type: string, value?: any) {
@@ -37,8 +39,12 @@ export default function ModeBar({ onChange }: { onChange?: (s: ModeState)=>void 
       <button onClick={()=>act("research:toggle")}
         className={`rounded-lg border px-3 py-1.5 ${s.research?"bg-blue-600 text-white":"border-neutral-300 dark:border-neutral-700"}`}>Research</button>
 
-      <button onClick={()=>act("aidoc:toggle")}
-        className={`rounded-lg border px-3 py-1.5 ${s.aidoc?"bg-violet-600 text-white":"border-neutral-300 dark:border-neutral-700"}`}>AI&nbsp;Doc</button>
+      <button
+        onClick={() => router.push('/?panel=ai-doc&threadId=med-profile&context=profile')}
+        className="rounded-lg border px-3 py-1.5 border-neutral-300 dark:border-neutral-700"
+      >
+        AI&nbsp;Doc
+      </button>
 
       <button onClick={()=>act("dark:toggle")}
         className={`rounded-lg border px-3 py-1.5 ${s.dark?"bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900":"border-neutral-300 dark:border-neutral-700"}`}>Dark</button>

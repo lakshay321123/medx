@@ -14,7 +14,7 @@ const tabs: Tab[] = [
   {
     key: "ai-doc",
     label: "AI Doc",
-    panel: "chat",
+    panel: "ai-doc",
     threadId: "med-profile",
     context: "profile",
   },
