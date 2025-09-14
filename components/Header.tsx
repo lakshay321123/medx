@@ -1,21 +1,14 @@
 'use client';
-import { User, Stethoscope } from 'lucide-react';
-import ThemeToggle from './ThemeToggle';
-import { ResearchToggle } from './ResearchToggle';
-import TherapyToggle from './TherapyToggle';
 import CountryGlobe from '@/components/CountryGlobe';
 import Brand from '@/components/nav/Brand';
+import ModeBar from '@/components/modes/ModeBar';
 
 export default function Header({
-  mode,
   onModeChange,
-  researchOn,
   onResearchChange,
   onTherapyChange,
 }: {
-  mode: 'patient' | 'doctor';
   onModeChange: (m: 'patient' | 'doctor') => void;
-  researchOn: boolean;
   onResearchChange: (v: boolean) => void;
   onTherapyChange: (v: boolean) => void;
 }) {
@@ -26,25 +19,13 @@ export default function Header({
           <Brand />
           <CountryGlobe />
         </div>
-        <div className="flex items-center gap-2">
-          <TherapyToggle onChange={onTherapyChange} />
-          <button
-            onClick={() => onModeChange(mode === 'patient' ? 'doctor' : 'patient')}
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm medx-surface text-medx"
-          >
-            {mode === 'patient' ? (
-              <>
-                <User size={16} /> Patient
-              </>
-            ) : (
-              <>
-                <Stethoscope size={16} /> Doctor
-              </>
-            )}
-          </button>
-          <ResearchToggle defaultOn={researchOn} onChange={onResearchChange} />
-          <ThemeToggle />
-        </div>
+        <ModeBar
+          onChange={(s) => {
+            if (s.ui === 'patient' || s.ui === 'doctor') onModeChange(s.ui);
+            onResearchChange(s.research);
+            onTherapyChange(s.therapy);
+          }}
+        />
       </div>
     </header>
   );

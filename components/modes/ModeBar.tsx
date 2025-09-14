@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { nextModes } from "@/lib/modes/controller";
 import type { ModeState } from "@/lib/modes/types";
 
-const initial: ModeState = { ui: undefined, therapy: false, research: false, aidoc: false, dark: false };
+const initial: ModeState = { ui: "patient", therapy: false, research: false, aidoc: false, dark: false };
 
 export default function ModeBar({ onChange }: { onChange?: (s: ModeState)=>void }) {
   const [s, setS] = useState<ModeState>(initial);
