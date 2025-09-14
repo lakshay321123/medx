@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 type State = {
   done: Record<string, true>;
@@ -6,8 +7,13 @@ type State = {
   isDone: (k: string) => boolean;
 };
 
-export const useTypewriterStore = create<State>((set, get) => ({
-  done: {},
-  markDone: (k) => set((s) => ({ done: { ...s.done, [k]: true } })),
-  isDone: (k) => !!get().done[k],
-}));
+export const useTypewriterStore = create<State>()(
+  persist(
+    (set, get) => ({
+      done: {},
+      markDone: (k) => set((s) => ({ done: { ...s.done, [k]: true } })),
+      isDone: (k) => !!get().done[k],
+    }),
+    { name: "typewriterDone" }
+  )
+);
