@@ -4,6 +4,7 @@ import DOMPurify from 'isomorphic-dompurify';
 import { sourceLabelFromUrl } from "@/lib/url";
 import { normalizeExternalHref } from './SafeLink';
 import { linkify } from './AutoLink';
+import { PROSE_CLASS } from "./markdownStyles";
 
 export default function Markdown({ text }: { text: string }) {
   marked.setOptions({ gfm: true, breaks: true });
@@ -25,5 +26,5 @@ export default function Markdown({ text }: { text: string }) {
       <span>${useLabel}</span><span aria-hidden="true" class="opacity-70">↗</span>
   </a>`;
   });
-  return <div className="markdown" dangerouslySetInnerHTML={{ __html: withSafeLinks }} />;
+  return <div className={PROSE_CLASS} dangerouslySetInnerHTML={{ __html: withSafeLinks }} />;
 }

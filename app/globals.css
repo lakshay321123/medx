@@ -5,6 +5,13 @@
 /* smooth theme transitions */
 * { transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
 
+/* Make links readable inside prose */
+.prose a { text-decoration: none; }
+.prose a:hover { text-decoration: underline; }
+
+/* Let code wrap nicely in prose */
+.prose pre { overflow-x: auto; }
+
 .btn-secondary{
   @apply inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm transition
          bg-white text-slate-700 border-slate-200 hover:bg-slate-50
@@ -18,48 +25,11 @@
   pointer-events: auto;
 }
 
-/* Compact typography for AI content */
-.prose-medx {
-  /* narrower line-height than Tailwind Typography defaults */
-  line-height: 1.55; /* roughly Tailwind leading-[1.55] */
-}
-
-/* Tighten paragraph margins */
-.prose-medx :where(p):not(:where([class~="not-prose"] *)) {
-  margin-top: 0.35rem;
-  margin-bottom: 0.35rem;
-}
-
-/* Tighten lists */
-.prose-medx :where(ul):not(:where([class~="not-prose"] *)) {
-  margin-top: 0.4rem;
-  margin-bottom: 0.4rem;
-  padding-left: 1.25rem;
-}
-
-.prose-medx :where(ol):not(:where([class~="not-prose"] *)) {
-  margin-top: 0.4rem;
-  margin-bottom: 0.4rem;
-  padding-left: 1.25rem;
-}
-
-/* Reduce gap between list items */
-.prose-medx :where(li):not(:where([class~="not-prose"] *)) {
-  margin-top: 0.2rem;
-  margin-bottom: 0.2rem;
-}
-
-/* Headings inside cards: smaller margins */
-.prose-medx :where(h2,h3,h4):not(:where([class~="not-prose"] *)) {
-  margin-top: 0.75rem;
-  margin-bottom: 0.4rem;
-}
 
 /* Ensure body/content contrast in dark */
 .dark body { color: rgb(229 231 235); }           /* text-gray-200 */
 .dark .card,.dark .panel { background: #0f172a; } /* slate-900 */
 .dark .border { border-color: rgb(71 85 105); }   /* slate-600 */
-.dark .prose-medx :where(li)::marker { color: rgb(148 163 184); }
 
 :root.therapy-mode, .therapy-mode body {
   /* keep it gentle and readable */

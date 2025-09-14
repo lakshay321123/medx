@@ -94,8 +94,3 @@ body{
 }
 .iconBtn:disabled{ opacity:.5; cursor:not-allowed }
 
-/* Markdown */
-.markdown h1,.markdown h2,.markdown h3{ margin:12px 0 6px }
-.markdown p{ margin:8px 0 }
-.markdown ul, .markdown ol{ padding-left:22px; margin:8px 0 }
-.markdown code{ background:rgba(255,255,255,.06); padding:2px 6px; border-radius:6px; }

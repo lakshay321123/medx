@@ -8,6 +8,7 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { LinkBadge } from "./SafeLink";
 import Typewriter from "@/components/chat/Typewriter";
+import { PROSE_CLASS } from "./markdownStyles";
 
 // --- Normalizer ---
 // normalize: unwrap full-message fences, convert ==== to <hr>, bold-lines → headings, list bullets
@@ -48,15 +49,7 @@ export default function ChatMarkdown({ content, typing = false, onDone, fast }: 
   const prepared = normalize(content);
 
   return (
-    <div
-      className="
-        prose prose-slate dark:prose-invert max-w-none
-        prose-headings:font-semibold prose-headings:mb-2 prose-headings:mt-3
-        prose-h3:text-lg prose-h4:text-base
-        prose-p:my-2 prose-li:my-1 prose-strong:font-medium
-        leading-relaxed text-[15px]
-      "
-    >
+    <div className={PROSE_CLASS}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
