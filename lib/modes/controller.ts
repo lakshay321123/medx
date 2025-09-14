@@ -19,9 +19,6 @@ export function nextModes(prev: ModeState, action: { type: string; value?: any }
       if (!s.ui) { prompt = "Pick Patient or Doctor mode first."; break; }
       s.research = !s.research;
       break;
-
-    case "dark:toggle":
-      s.dark = !s.dark; break;
   }
 
   return { state: s, prompt };

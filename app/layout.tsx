@@ -22,10 +22,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={roboto.variable} suppressHydrationWarning>
       <body className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-gray-100 font-sans antialiased">
-        <CountryProvider>
-          <ContextProvider>
-            <TopicProvider>
-              <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <CountryProvider>
+            <ContextProvider>
+              <TopicProvider>
                 <div className="flex medx-gradient">
                   <Suspense fallback={null}>
                     <Sidebar />
@@ -36,10 +36,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <UndoToast />
                   </main>
                 </div>
-              </ThemeProvider>
-            </TopicProvider>
-          </ContextProvider>
-        </CountryProvider>
+              </TopicProvider>
+            </ContextProvider>
+          </CountryProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
