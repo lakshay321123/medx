@@ -36,19 +36,19 @@ export default function Page({ searchParams }: { searchParams: Search }) {
   }
 
   return (
-    <main className="flex-1 overflow-y-auto content-layer">
+    <div className="flex-1 overflow-y-auto content-layer">
       {panel === "chat" && (
-        <section className="block h-full">
+        <main className="therapy-surface min-h-screen bg-background text-foreground">
           <ResearchFiltersProvider>
             <ChatPane inputRef={chatInputRef} />
           </ResearchFiltersProvider>
-        </section>
+        </main>
       )}
       {panel === "profile" && <MedicalProfile />}
       {panel === "timeline" && <Timeline />}
       {panel === "alerts" && <AlertsPane />}
       {panel === "settings" && <SettingsPane />}
       {panel === "ai-doc" && <AiDocPane />}
-    </main>
+    </div>
   );
 }

@@ -74,6 +74,11 @@
   color: #0b3d91;
 }
 
+html.dark .therapy-surface {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
 .prose table {
   @apply w-full border-collapse border border-gray-300 text-chat-sm;
 }
@@ -89,6 +94,8 @@
 
 /* === MedX Theme Tokens (Light & Dark) === */
 :root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 47.4% 11.2%;
   --medx-bg-a: #e9efff;   /* light indigo */
   --medx-bg-b: #d0f3ff;   /* light cyan */
   --medx-text: #0F172A;
@@ -107,6 +114,8 @@
   --medx-outline: rgba(15, 23, 42, 0.10);
 }
 .dark {
+  --background: 222.2 47.4% 11.2%;
+  --foreground: 210 40% 98%;
   --medx-bg-a: #342eec;   /* deep indigo */
   --medx-bg-b: #27b6da;   /* cyan/teal */
   --medx-text: #E6E9F1;

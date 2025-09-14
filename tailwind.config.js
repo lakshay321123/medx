@@ -16,6 +16,10 @@ module.exports = {
         // Use with className="font-sans"
         sans: ["var(--font-roboto)", "system-ui", "sans-serif"],
       },
+      colors: {
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+      },
     },
   },
   plugins: [require("@tailwindcss/typography")],
