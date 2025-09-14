@@ -31,7 +31,7 @@ import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTi
 import { useMemoryStore } from "@/lib/memory/useMemoryStore";
 import { summarizeTrials } from "@/lib/research/summarizeTrials";
 import { computeTrialStats, type TrialStats } from "@/lib/research/trialStats";
-import { detectSocialIntent, replyForSocialIntent } from "@/lib/social";
+import { detectSocialIntent } from "@/lib/social";
 import { pushFullMem, buildFullContext } from "@/lib/memory/shortTerm";
 import { maybeIndexStructured } from "@/lib/memory/structured";
 import { detectAdvancedDomain } from "@/lib/intents/advanced";
@@ -44,6 +44,15 @@ import { useTypewriterStore } from "@/lib/state/typewriterStore";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
+
+// Control how social intent behaves:
+//  - 'off'    : completely disabled
+//  - 'silent' : acts on yes/no but DOES NOT print canned lines (default)
+//  - 'chatty' : old behavior (prints canned lines)
+const SOCIAL_MODE: 'off' | 'silent' | 'chatty' = 'silent';
+
+type SendOpts = { visualEcho?: boolean; clientRequestId?: string };
+let inFlight = false;
 
 async function computeEval(expr: string) {
   const r = await fetch("/api/compute/math", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ op:"eval", expr }) });
@@ -625,7 +634,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, [therapyMode]);
 
 
-  async function send(text: string, researchMode: boolean) {
+  async function send(text: string, researchMode: boolean, opts: SendOpts = {}) {
     if (!text.trim() || busy) return;
     setBusy(true);
     setThinkingStartedAt(Date.now());
@@ -636,45 +645,34 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         .replace(/\bsgpt\b/gi, "ALT (SGPT)")
         .replace(/\bsgot\b/gi, "AST (SGOT)");
     const userText = isProfileThread ? normalize(text) : text;
+    const visualEcho = opts.visualEcho !== false;
+    const clientRequestId = opts.clientRequestId || crypto.randomUUID();
     if (threadId) pushFullMem(threadId, "user", userText);
     if (stableThreadId) {
       try { pushFullMem(stableThreadId, "user", userText); } catch {}
     }
 
-    // --- social intent fast path: greet/thanks/yes/no/maybe/repeat/simpler/shorter/longer/next ---
-    const social = therapyMode ? null : detectSocialIntent(userText);
+    // Social intent handling (strict + low-noise)
+    const social = (SOCIAL_MODE === 'off' || therapyMode) ? null : detectSocialIntent(userText);
     if (social) {
-      // Use the unified mode that accounts for therapy/research
-      const msgBase = replyForSocialIntent(social, currentMode);
-
-      // Optionally use last assistant message for repeat/shorter (lightweight, no LLM)
-      const lastAssistant = [...messages].reverse().find(m =>
-        m.role === "assistant" && m.kind === "chat" && !m.pending && !m.error
-      ) as any | undefined;
-
-      let content = msgBase;
-      if (lastAssistant && (social === "repeat" || social === "shorter")) {
-        const t = String(lastAssistant.content || "");
-        if (social === "repeat") content += "\n\n" + t;
-        if (social === "shorter") content += "\n\n" + (t.length > 400 ? t.slice(0, 400) + " …" : t);
+      if (social === 'yes') {
+        const lastUser = [...messages].reverse().find(m => m.role === 'user');
+        const replay = (lastUser?.content || '').trim();
+        setBusy(false);
+        setThinkingStartedAt(null);
+        setNote('');
+        if (replay) await send(replay, researchMode, { visualEcho: false });
+      } else {
+        setBusy(false);
+        setThinkingStartedAt(null);
+        setNote('');
       }
-
-      setMessages(prev => [
-        ...prev,
-        { id: uid(), role: "user", kind: "chat", content: userText } as any,
-        { id: uid(), role: "assistant", kind: "chat", content } as any,
-      ]);
-      if (threadId && content && content.trim()) {
-        pushFullMem(threadId, "assistant", content);
-        maybeIndexStructured(threadId, content);
-      }
-      if (stableThreadId) {
-        try { pushFullMem(stableThreadId, "assistant", content); } catch {}
-      }
-      setNote("");
-      setBusy(false);
-      setThinkingStartedAt(null);
-      return; // IMPORTANT: do not set topic, do not trigger research/planner
+      // 'chatty' (optional): uncomment to show lines
+      // if (SOCIAL_MODE === 'chatty') {
+      //   const msgBase = replyForSocialIntent(social, currentMode);
+      //   setMessages(prev => [...prev, { id: uid(), role: 'assistant', kind: 'chat', content: msgBase } as any]);
+      // }
+      return;
     }
 
     // --- EDIT FAST-PATH (disabled) ---
@@ -689,11 +687,19 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
     const userId = uid();
     const pendingId = uid();
-    const nextMsgs: ChatMessage[] = [
-      ...messages,
-      { id: userId, role: 'user', kind: 'chat', content: userText } as ChatMessage,
-      { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true } as ChatMessage,
-    ];
+    // Dedupe: avoid back-to-back identical user bubbles
+    const lastUser = [...messages].reverse().find(m => m.role === 'user');
+    const isDupUser = !!lastUser && lastUser.content.trim() === userText.trim();
+    const nextMsgs: ChatMessage[] = (visualEcho && !isDupUser)
+      ? [
+          ...messages,
+          { id: userId, role: 'user', kind: 'chat', content: userText } as ChatMessage,
+          { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true } as ChatMessage,
+        ]
+      : [
+          ...messages,
+          { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true } as ChatMessage,
+        ];
     setMessages(nextMsgs);
     const maybe = maybeFixMedicalTypo(userText);
     if (maybe && messages.filter(m => m.role === "assistant").slice(-1)[0]?.content !== maybe.ask) {
@@ -734,7 +740,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         ];
 
         const endpoint = '/api/aidoc/chat';
-        const rid = crypto.randomUUID();
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -743,9 +748,15 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             messages: thread,
             threadId,
             context,
-            clientRequestId: rid
+            clientRequestId
           })
         });
+        if (res.status === 409) {
+          setMessages(prev => prev.filter(m => m.id !== pendingId));
+          setBusy(false);
+          setThinkingStartedAt(null);
+          return;
+        }
         if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -1057,8 +1068,14 @@ ${systemCommon}` + baseSys;
           'x-conversation-id': conversationId,
           'x-new-chat': messages.length === 0 ? 'true' : 'false'
         },
-        body: JSON.stringify({ mode: mode === 'doctor' ? 'doctor' : 'patient', messages: chatMessages, threadId, context })
+        body: JSON.stringify({ mode: mode === 'doctor' ? 'doctor' : 'patient', messages: chatMessages, threadId, context, clientRequestId })
       });
+      if (res.status === 409) {
+        setMessages(prev => prev.filter(m => m.id !== pendingId));
+        setBusy(false);
+        setThinkingStartedAt(null);
+        return;
+      }
       if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
 
       const reader = res.body.getReader();
@@ -1220,7 +1237,9 @@ ${systemCommon}` + baseSys;
   }
 
   async function onSubmit() {
-    if (busy) return;
+    if (busy || inFlight) return;
+    inFlight = true;
+    try {
 
     // --- Proactive single Q&A commit path (profile thread) ---
     if (isProfileThread && proactive && !pendingFile && note.trim()) {
@@ -1346,6 +1365,9 @@ ${systemCommon}` + baseSys;
           console.error('Memory suggest failed', err);
         }
       }
+    }
+    } finally {
+      inFlight = false;
     }
   }
 
