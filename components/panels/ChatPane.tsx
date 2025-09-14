@@ -36,6 +36,7 @@ import * as DomainStyles from "@/lib/prompts/domains";
 import ThinkingTimer from "@/components/ui/ThinkingTimer";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { useTypewriterStore } from "@/lib/state/typewriterStore";
+import { fromSearchParams } from "@/lib/modes/url";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -308,17 +309,20 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [note, setNote] = useState('');
   const [proactive, setProactive] = useState<null | { kind: 'predispositions'|'medications'|'weight' }>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [mode, setMode] = useState<'patient'|'doctor'>('patient');
   const [busy, setBusy] = useState(false);
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
-  const [researchMode, setResearchMode] = useState(false);
-  const [therapyMode, setTherapyMode] = useState(false);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef =
     (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ??
     (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
   const { filters } = useResearchFilters();
+
+  const params = useSearchParams();
+  const modeState = useMemo(() => fromSearchParams(params, "light"), [params]);
+  const therapyMode = modeState.therapy;
+  const researchMode = modeState.research;
+  const mode: 'patient'|'doctor' = modeState.base === 'doctor' ? 'doctor' : 'patient';
 
   // Auto-resize the textarea up to a max height
   useEffect(() => {
@@ -347,7 +351,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     setShowDetails(false); // collapse on new search
   }
 
-  const params = useSearchParams();
   const router = useRouter(); // auto-new-thread
   const threadId = params.get('threadId');
   const context = params.get('context');
@@ -1422,11 +1425,7 @@ ${systemCommon}` + baseSys;
 
   return (
     <div className="relative flex h-full flex-col">
-      <Header
-        onModeChange={setMode}
-        onResearchChange={setResearchMode}
-        onTherapyChange={setTherapyMode}
-      />
+      <Header />
       {busy && thinkingStartedAt && (
         <div className="px-4 sm:px-6 lg:px-8 pt-2">
           <ThinkingTimer label="Analyzing" startedAt={thinkingStartedAt} />
