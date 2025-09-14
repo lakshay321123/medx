@@ -1,6 +1,9 @@
 export const runtime = "nodejs";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { defaultPlan, nextPlanFromChip } from "@/lib/answerPlanner";
+import { buildHealthPrompt } from "@/lib/prompts";
+import { callLLM } from "@/lib/llm";
 
 export async function GET() {
   try {
@@ -19,4 +22,22 @@ export async function GET() {
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 });
   }
+}
+
+export async function POST(req: NextRequest) {
+  const { message, chip, topic = "back pain", previousPlan } = await req.json();
+
+  const plan = chip
+    ? nextPlanFromChip(topic, chip, previousPlan ?? undefined)
+    : defaultPlan(topic);
+
+  const prompt = buildHealthPrompt(plan, message);
+
+  const answer = await callLLM({
+    prompt,
+    temperature: 0.4,
+    max_tokens: 450,
+  });
+
+  return NextResponse.json({ answer, plan });
 }

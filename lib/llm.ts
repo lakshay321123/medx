@@ -82,3 +82,31 @@ export async function askLLM({ prompt, mode }:{ prompt: string; mode?: string })
   }
 }
 
+// --- Simple text-call wrapper with provider fallback
+export async function callLLM({
+  prompt,
+  temperature = 0.2,
+  max_tokens = 800,
+}: { prompt: string; temperature?: number; max_tokens?: number }) {
+  const messages: ChatMsg[] = [{ role: 'user', content: prompt }];
+  const providers = [
+    { url: OAI_URL, key: OAI_KEY, model: OAI_TEXT },
+    { url: GROQ_URL, key: GROQ_KEY, model: GROQ_MODEL },
+  ];
+  for (const p of providers) {
+    if (!p.key) continue;
+    try {
+      const r = await fetch(`${p.url}/chat/completions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${p.key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: p.model, messages, temperature, max_tokens }),
+      });
+      const j = await r.json();
+      if (r.ok) return j.choices?.[0]?.message?.content || '';
+    } catch {
+      // try next provider
+    }
+  }
+  return '';
+}
+
