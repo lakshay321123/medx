@@ -103,6 +103,7 @@ export default function Sidebar() {
             {aidocThreads.map(t => (
               <div key={t.id} className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm mb-1.5 medx-surface text-medx">
                 <button
+                  data-aidoc="case"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();

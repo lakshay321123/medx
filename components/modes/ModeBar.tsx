@@ -35,6 +35,22 @@ export default function ModeBar({ onChange }: { onChange?: (s: ModeState)=>void 
     act("dark:toggle");
   }
 
+  function openAiDocFromTop() {
+    act("aidoc:set", true);
+    const firstCase = document.querySelector<HTMLButtonElement>('[data-aidoc="case"]');
+    if (firstCase) {
+      firstCase.click();
+      return;
+    }
+    const sess = typeof window !== "undefined" ? sessionStorage.getItem("aidoc_thread") : null;
+    const tid = sess && sess.trim() ? sess : `aidoc_${Date.now().toString(36)}`;
+    try {
+      sessionStorage.setItem("aidoc_thread", tid);
+    } catch {}
+    const ctx = params.get("context") ?? "profile";
+    router.push(`/?panel=ai-doc&threadId=${tid}&context=${ctx}`);
+  }
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       {/* UI mode */}
@@ -53,12 +69,8 @@ export default function ModeBar({ onChange }: { onChange?: (s: ModeState)=>void 
         className={`${baseBtn} ${s.research?"bg-blue-600 text-white":ghost}`}>Research</button>
 
       <button
-        onClick={() => {
-          act("aidoc:set", true);
-          const tid = params.get("threadId") ?? `aidoc_${Date.now().toString(36)}`;
-          router.push(`/?panel=ai-doc&threadId=${tid}`);
-        }}
-        className={`${baseBtn} ${s.aidoc?"bg-violet-600 text-white":ghost}`}
+        onClick={openAiDocFromTop}
+        className={`${baseBtn} ${s.aidoc ? "bg-violet-600 text-white" : ghost}`}
       >
         AI&nbsp;Doc
       </button>
