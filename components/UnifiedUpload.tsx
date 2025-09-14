@@ -52,7 +52,7 @@ export default function UnifiedUpload() {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
-        <label className="px-4 py-2 rounded bg-black text-white cursor-pointer">
+        <label className="px-4 py-2 rounded bg-background text-foreground cursor-pointer">
           <span>Upload</span>
           <input type="file" accept="application/pdf,image/*" onChange={onChange} className="hidden" />
         </label>

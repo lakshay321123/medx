@@ -2,6 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+  }
+
+  .dark {
+    /* Pick ONE style. Comment the other out. */
+
+    /* Option A: blue-tinted dark (current “blue” look) */
+    --background: 222.2 47.4% 11.2%;
+    --foreground: 210 40% 98%;
+
+    /* Option B: OLED black */
+    /* --background: 0 0% 0%;
+       --foreground: 0 0% 98%; */
+  }
+}
+
 /* smooth theme transitions */
 * { transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
 

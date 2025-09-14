@@ -86,7 +86,7 @@ export default function TrialsPane() {
       </div>
 
       <div className="flex gap-2">
-        <button className="px-3 py-2 rounded bg-black text-white" onClick={onSearch} disabled={loading}>Search trials</button>
+        <button className="px-3 py-2 rounded bg-background text-foreground" onClick={onSearch} disabled={loading}>Search trials</button>
         <button className="px-3 py-2 rounded border" onClick={()=>summarize("patient")} disabled={!rows.length}>Summarize (Patient)</button>
         <button className="px-3 py-2 rounded border" onClick={()=>summarize("doctor")} disabled={!rows.length}>Summarize (Doctor)</button>
       </div>
