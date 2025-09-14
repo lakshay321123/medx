@@ -43,7 +43,7 @@ export default function ModeBar() {
   return (
     <div className="sticky top-0 z-40 border-b border-border bg-background/70 backdrop-blur">
       <div className="mx-auto flex max-w-screen-xl items-center gap-2 px-4 py-2">
-        <button className={btn(state.base === "patient", aidocOn)} disabled={aidocOn}
+        <button className={btn(state.base === "patient")}
                 onClick={() => apply({ type: "toggle/patient" })}>
           Patient
         </button>
@@ -56,7 +56,7 @@ export default function ModeBar() {
                 onClick={() => apply({ type: "toggle/research" })}>
           Research
         </button>
-        <button className={btn(state.base === "doctor", aidocOn)} disabled={aidocOn}
+        <button className={btn(state.base === "doctor")}
                 onClick={() => apply({ type: "toggle/doctor" })}>
           Doctor
         </button>
