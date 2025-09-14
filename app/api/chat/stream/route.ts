@@ -52,6 +52,11 @@ export async function POST(req: NextRequest) {
     }
     recentReqs.set(clientRequestId, now);
   }
+  const base  = process.env.LLM_BASE_URL!;
+  const model = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
+  const key   = process.env.LLM_API_KEY!;
+  const url = `${base.replace(/\/$/,'')}/chat/completions`;
+
   // === Concision controls (SOFT cap, no cutoffs) ===
   const latestUserMessage =
     (messages || []).filter((m: any) => m.role === "user").slice(-1)[0]?.content || "";
@@ -71,15 +76,8 @@ export async function POST(req: NextRequest) {
     "Focus strictly on the user question—omit generic boilerplate.",
     "End with one short follow-up question (≤10 words) that stays on-topic.",
   ].join("\n");
-  const base  = process.env.LLM_BASE_URL!;
-  const model = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
-  const key   = process.env.LLM_API_KEY!;
-  const url = `${base.replace(/\/$/,'')}/chat/completions`;
 
   let finalMessages = messages.filter((m: any) => m.role !== 'system');
-  // Track whether we actually injected filtered computed lines for doc/research modes.
-  // The calc prelude should only be added when this is true.
-  let hasFilteredComputed = false;
   // Ensure brevity guidance is present even if client didn't send a system prompt
   if (!finalMessages.length || finalMessages[0]?.role !== 'system') {
     finalMessages = [{ role: 'system', content: brevitySystem }, ...finalMessages];
@@ -88,6 +86,9 @@ export async function POST(req: NextRequest) {
   const userText = (messages || []).map((m: any) => m?.content || '').join('\n');
   const ctx = canonicalizeInputs(extractAll(userText));
   const computed = computeAll(ctx);
+  // Track whether we actually injected filtered computed lines for doc/research modes.
+  // The calc prelude should only be added when this is true.
+  let hasFilteredComputed = false;
 
   if (showClinicalPrelude) {
     const filtered = filterComputedForDocMode(computed, latestUserMessage ?? '');
@@ -142,14 +143,14 @@ export async function POST(req: NextRequest) {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
     body: JSON.stringify({
       model,
-      messages: finalMessages,
-      // Token cap with buffer to avoid API truncation while honoring SOFT word cap
-      max_tokens: Math.min(768, Math.max(200, Math.round((targetWordCap + 40) * 1.7))),
       stream: true,
       temperature: 0.4,
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,
+      messages: finalMessages,
+      // Token cap with buffer to avoid API truncation while honoring SOFT word cap
+      max_tokens: Math.min(768, Math.max(200, Math.round((targetWordCap + 40) * 1.7))),
     })
   });
 
