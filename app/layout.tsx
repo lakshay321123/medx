@@ -14,6 +14,7 @@ export const metadata = { title: "MedX", description: "Global medical AI" };
 const roboto = Roboto({
   subsets: ["latin"],
   weight: ["300", "400", "500", "700", "900"],
+  style: ["normal", "italic"],
   variable: "--font-roboto",
   display: "swap",
 });

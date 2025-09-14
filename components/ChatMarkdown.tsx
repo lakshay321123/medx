@@ -11,8 +11,8 @@ import Typewriter from "@/components/chat/Typewriter";
 
 // --- Normalizer ---
 // normalize: unwrap full-message fences, convert ==== to <hr>, bold-lines → headings, list bullets
-function normalize(raw: string){
-  let s = (raw||"").trim();
+function normalize(raw: string) {
+  let s = (raw || "").trim();
   const f = /^```([a-z0-9_-]*)\s*\n([\s\S]*?)\n```$/i.exec(s);
   if (f && (!f[1] || /^(txt|text)$/.test(f[1]))) s = f[2];
   s = s.replace(/^[=\-_]{4,}$/gm, "\n---\n");
@@ -23,28 +23,43 @@ function normalize(raw: string){
 }
 
 // --- Renderer ---
-function flattenText(children: React.ReactNode): string {
-  if (typeof children === "string") return children;
-  if (Array.isArray(children)) return children.map(flattenText).join("");
-  if (React.isValidElement(children)) return flattenText(children.props.children);
-  return "";
+function TypewriterNodes({
+  nodes,
+  onDone,
+  fast,
+}: {
+  nodes: React.ReactNode;
+  onDone?: () => void;
+  fast?: boolean;
+}) {
+  const wrap = (node: React.ReactNode, done?: () => void): React.ReactNode => {
+    if (typeof node === "string") {
+      return <Typewriter text={node} onDone={done} fast={fast} />;
+    }
+    if (Array.isArray(node)) {
+      const last = node.length - 1;
+      return node.map((n, i) => wrap(n, i === last ? done : undefined));
+    }
+    if (React.isValidElement(node)) {
+      const child = wrap(node.props.children, done);
+      return React.cloneElement(node, { ...node.props, children: child });
+    }
+    return node;
+  };
+  return <>{wrap(nodes, onDone)}</>;
 }
 
-function TypedSpan({ nodeChildren, onDone, fast }: { nodeChildren: React.ReactNode; onDone?: () => void; fast?: boolean }) {
-  const text = flattenText(nodeChildren);
-  return (
-    <span>
-      <Typewriter text={text} onDone={onDone} fast={fast} />
-    </span>
-  );
-}
-
-function TypedText({ childrenNode, fast }: { childrenNode: React.ReactNode; fast?: boolean }) {
-  const text = flattenText(childrenNode);
-  return <Typewriter text={text} fast={fast} />;
-}
-
-export default function ChatMarkdown({ content, typing = false, onDone, fast }: { content: string; typing?: boolean; onDone?: () => void; fast?: boolean }) {
+export default function ChatMarkdown({
+  content,
+  typing = false,
+  onDone,
+  fast,
+}: {
+  content: string;
+  typing?: boolean;
+  onDone?: () => void;
+  fast?: boolean;
+}) {
   const prepared = normalize(content);
 
   return (
@@ -53,7 +68,7 @@ export default function ChatMarkdown({ content, typing = false, onDone, fast }: 
         prose prose-slate dark:prose-invert max-w-none
         prose-headings:font-semibold prose-headings:mb-2 prose-headings:mt-3
         prose-h3:text-lg prose-h4:text-base
-        prose-p:my-2 prose-li:my-1 prose-strong:font-medium
+        prose-p:my-2 prose-li:my-1 prose-strong:font-bold
         leading-relaxed text-[15px]
       "
     >
@@ -63,7 +78,7 @@ export default function ChatMarkdown({ content, typing = false, onDone, fast }: 
         components={{
           a: ({ href, children }) => (
             <LinkBadge href={href as string}>
-              {typing ? <TypedText childrenNode={children} fast={fast} /> : children}
+              {typing ? <TypewriterNodes nodes={children} fast={fast} /> : children}
             </LinkBadge>
           ),
           ul: ({ children }) => <ul className="list-disc pl-5">{children}</ul>,
@@ -72,7 +87,7 @@ export default function ChatMarkdown({ content, typing = false, onDone, fast }: 
           p: ({ children }) => (
             typing ? (
               <p className="text-left">
-                <TypedSpan nodeChildren={children} onDone={onDone} fast={fast} />
+                <TypewriterNodes nodes={children} onDone={onDone} fast={fast} />
               </p>
             ) : (
               <p className="text-left">{children}</p>
@@ -81,7 +96,7 @@ export default function ChatMarkdown({ content, typing = false, onDone, fast }: 
           li: ({ children }) => (
             typing ? (
               <li>
-                <TypedSpan nodeChildren={children} fast={fast} />
+                <TypewriterNodes nodes={children} fast={fast} />
               </li>
             ) : (
               <li>{children}</li>
@@ -90,7 +105,7 @@ export default function ChatMarkdown({ content, typing = false, onDone, fast }: 
           h1: ({ children }) => (
             typing ? (
               <h1>
-                <TypedSpan nodeChildren={children} fast={fast} />
+                <TypewriterNodes nodes={children} fast={fast} />
               </h1>
             ) : (
               <h1>{children}</h1>
@@ -99,7 +114,7 @@ export default function ChatMarkdown({ content, typing = false, onDone, fast }: 
           h2: ({ children }) => (
             typing ? (
               <h2>
-                <TypedSpan nodeChildren={children} fast={fast} />
+                <TypewriterNodes nodes={children} fast={fast} />
               </h2>
             ) : (
               <h2>{children}</h2>
@@ -108,7 +123,7 @@ export default function ChatMarkdown({ content, typing = false, onDone, fast }: 
           h3: ({ children }) => (
             typing ? (
               <h3>
-                <TypedSpan nodeChildren={children} fast={fast} />
+                <TypewriterNodes nodes={children} fast={fast} />
               </h3>
             ) : (
               <h3>{children}</h3>
@@ -117,7 +132,7 @@ export default function ChatMarkdown({ content, typing = false, onDone, fast }: 
           h4: ({ children }) => (
             typing ? (
               <h4>
-                <TypedSpan nodeChildren={children} fast={fast} />
+                <TypewriterNodes nodes={children} fast={fast} />
               </h4>
             ) : (
               <h4>{children}</h4>
