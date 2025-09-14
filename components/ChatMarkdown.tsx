@@ -50,10 +50,7 @@ export default function ChatMarkdown({ content, typing = false, onDone, fast }: 
   return (
     <div
       className="
-        prose prose-slate dark:prose-invert max-w-none
-        prose-headings:font-semibold prose-headings:mb-2 prose-headings:mt-3
-        prose-h3:text-lg prose-h4:text-base
-        prose-p:my-2 prose-li:my-1 prose-strong:font-medium
+        prose prose-slate dark:prose-invert prose-medx max-w-none
         leading-relaxed text-[15px]
       "
     >
@@ -66,9 +63,6 @@ export default function ChatMarkdown({ content, typing = false, onDone, fast }: 
               {typing ? <TypedText childrenNode={children} fast={fast} /> : children}
             </LinkBadge>
           ),
-          ul: ({ children }) => <ul className="list-disc pl-5">{children}</ul>,
-          ol: ({ children }) => <ol className="list-decimal pl-5">{children}</ol>,
-          hr: () => <hr className="my-3 border-dashed opacity-40" />,
           p: ({ children }) => (
             typing ? (
               <p className="text-left">

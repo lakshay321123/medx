@@ -50,9 +50,28 @@
 }
 
 /* Headings inside cards: smaller margins */
-.prose-medx :where(h2,h3,h4):not(:where([class~="not-prose"] *)) {
+.prose-medx :where(h1,h2,h3,h4):not(:where([class~="not-prose"] *)) {
   margin-top: 0.75rem;
   margin-bottom: 0.4rem;
+  @apply font-semibold;
+}
+
+/* Inline code matches body font */
+.prose-medx :where(code):not(:where([class~="not-prose"] *)) {
+  @apply font-sans font-normal px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800;
+}
+
+/* Gentle rules and separators */
+.prose-medx :where(hr):not(:where([class~="not-prose"] *)) {
+  @apply my-3 border-t border-dashed opacity-40;
+}
+
+/* Emphasis defaults */
+.prose-medx :where(strong):not(:where([class~="not-prose"] *)) {
+  @apply font-semibold;
+}
+.prose-medx :where(em):not(:where([class~="not-prose"] *)) {
+  @apply italic;
 }
 
 /* Ensure body/content contrast in dark */
