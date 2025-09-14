@@ -7,14 +7,13 @@ import MedicalProfile from "@/components/panels/MedicalProfile";
 import Timeline from "@/components/panels/Timeline";
 import AlertsPane from "@/components/panels/AlertsPane";
 import SettingsPane from "@/components/panels/SettingsPane";
-import AiDocPane from "@/components/panels/AiDocPane";
 import { ResearchFiltersProvider } from "@/store/researchFilters";
 
-type Search = { panel?: string; threadId?: string };
+import AiDocPane from "@/components/panels/AiDocPane";
+type Search = { panel?: string };
 
 export default function Page({ searchParams }: { searchParams: Search }) {
   const panel = searchParams.panel?.toLowerCase();
-  const threadId = searchParams.threadId;
   const chatInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -49,7 +48,7 @@ export default function Page({ searchParams }: { searchParams: Search }) {
       {panel === "timeline" && <Timeline />}
       {panel === "alerts" && <AlertsPane />}
       {panel === "settings" && <SettingsPane />}
-      {panel === "ai-doc" && <AiDocPane threadId={threadId} />}
+      {panel === "ai-doc" && <AiDocPane />}
     </main>
   );
 }
