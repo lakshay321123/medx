@@ -1455,7 +1455,9 @@ ${systemCommon}` + baseSys;
                   {mode === "doctor" ? <Stethoscope size={16}/> : <Users size={16}/>}
                 </div>
 
-                <div className="flex-1 whitespace-pre-wrap">{summary}</div>
+                <div className="flex-1">
+                  <ChatMarkdown content={summary} />
+                </div>
 
                 <div className="flex items-center gap-2">
                   {stats?.recruitingCount ? (

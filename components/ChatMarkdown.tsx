@@ -61,6 +61,10 @@ export default function ChatMarkdown({ content, typing = false, onDone, fast }: 
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
         components={{
+          // Explicit emphasis/strong to ensure styling even in minimal containers
+          em: ({ children }) => <em>{children}</em>,
+          strong: ({ children }) => <strong>{children}</strong>,
+
           a: ({ href, children }) => (
             <LinkBadge href={href as string}>
               {typing ? <TypedText childrenNode={children} fast={fast} /> : children}
@@ -69,6 +73,15 @@ export default function ChatMarkdown({ content, typing = false, onDone, fast }: 
           ul: ({ children }) => <ul className="list-disc pl-5">{children}</ul>,
           ol: ({ children }) => <ol className="list-decimal pl-5">{children}</ol>,
           hr: () => <hr className="my-3 border-dashed opacity-40" />,
+          table: ({ children }) => (
+            <table className="border-collapse my-3 text-sm">{children}</table>
+          ),
+          thead: ({ children }) => <thead className="bg-slate-50 dark:bg-slate-800/50">{children}</thead>,
+          tbody: ({ children }) => <tbody>{children}</tbody>,
+          tr: ({ children }) => <tr className="align-top">{children}</tr>,
+          th: ({ children }) => <th className="border px-2 py-1 font-semibold text-left">{children}</th>,
+          td: ({ children }) => <td className="border px-2 py-1">{children}</td>,
+
           p: ({ children }) => (
             typing ? (
               <p className="text-left">

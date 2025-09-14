@@ -5,7 +5,7 @@ import { ChatInput } from "@/components/ChatInput";
 import { persistIfTemp } from "@/lib/chat/persist";
 import ThinkingTimer from "@/components/ui/ThinkingTimer";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
-import Typewriter from "@/components/chat/Typewriter";
+import ChatMarkdown from "@/components/ChatMarkdown";
 import { useTypewriterStore } from "@/lib/state/typewriterStore";
 
 function MessageRow({ m }: { m: { id: string; role: string; content: string } }) {
@@ -16,9 +16,13 @@ function MessageRow({ m }: { m: { id: string; role: string; content: string } })
     <div className="p-2" onClick={() => setFast(true)}>
       <strong>{m.role}:</strong>{" "}
       {m.role === "assistant" ? (
-        <Typewriter text={m.content} fast={fast || isDone} onDone={() => markDone(m.id)} />
+        <ChatMarkdown
+          content={m.content}
+          typing={!fast && !isDone}
+          onDone={() => markDone(m.id)}
+        />
       ) : (
-        m.content
+        <ChatMarkdown content={m.content} />
       )}
     </div>
   );
