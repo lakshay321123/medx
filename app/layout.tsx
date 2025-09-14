@@ -1,5 +1,4 @@
 import "./globals.css";
-import { ThemeProvider } from "next-themes";
 import Sidebar from "../components/Sidebar";
 import { CountryProvider } from "@/lib/country";
 import { ContextProvider } from "@/lib/context";
@@ -19,24 +18,30 @@ const roboto = Roboto({
 });
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const themeScript = `
+    try {
+      const t = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.classList.toggle('dark', t ? t === 'dark' : prefersDark);
+    } catch {}
+  `;
   return (
     <html lang="en" className={roboto.variable} suppressHydrationWarning>
-      <body className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-gray-100 font-sans antialiased">
+      <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
+      <body className="min-h-screen bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-sans antialiased">
         <CountryProvider>
           <ContextProvider>
             <TopicProvider>
-              <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-                <div className="flex medx-gradient">
-                  <Suspense fallback={null}>
-                    <Sidebar />
-                  </Suspense>
-                  <main className="flex-1 md:ml-64 min-h-dvh flex flex-col relative z-0">
-                    {children}
-                    <MemorySnackbar />
-                    <UndoToast />
-                  </main>
-                </div>
-              </ThemeProvider>
+              <div className="flex medx-gradient">
+                <Suspense fallback={null}>
+                  <Sidebar />
+                </Suspense>
+                <main className="flex-1 md:ml-64 min-h-dvh flex flex-col relative z-0">
+                  {children}
+                  <MemorySnackbar />
+                  <UndoToast />
+                </main>
+              </div>
             </TopicProvider>
           </ContextProvider>
         </CountryProvider>

@@ -1,7 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, useMemo, RefObject, Fragment } from 'react';
 import { useSearchParams } from 'next/navigation';
-import Header from '../Header';
 import { useRouter } from 'next/navigation';
 import ChatMarkdown from '@/components/ChatMarkdown';
 import ResearchFilters from '@/components/ResearchFilters';
@@ -300,7 +299,9 @@ function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onF
   );
 }
 
-export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: RefObject<HTMLInputElement> } = {}) {
+export default function ChatPane(
+  { inputRef: externalInputRef, mode, researchMode, therapyMode }: { inputRef?: RefObject<HTMLInputElement>; mode: 'patient' | 'doctor'; researchMode: boolean; therapyMode: boolean; }
+) {
 
   const { country } = useCountry();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
@@ -308,11 +309,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [note, setNote] = useState('');
   const [proactive, setProactive] = useState<null | { kind: 'predispositions'|'medications'|'weight' }>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [mode, setMode] = useState<'patient'|'doctor'>('patient');
   const [busy, setBusy] = useState(false);
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
-  const [researchMode, setResearchMode] = useState(false);
-  const [therapyMode, setTherapyMode] = useState(false);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef =
@@ -1422,13 +1420,6 @@ ${systemCommon}` + baseSys;
 
   return (
     <div className="relative flex h-full flex-col">
-      <Header
-        mode={mode}
-        onModeChange={setMode}
-        researchOn={researchMode}
-        onResearchChange={setResearchMode}
-        onTherapyChange={setTherapyMode}
-      />
       {busy && thinkingStartedAt && (
         <div className="px-4 sm:px-6 lg:px-8 pt-2">
           <ThinkingTimer label="Analyzing" startedAt={thinkingStartedAt} />

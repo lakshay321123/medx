@@ -57,6 +57,12 @@ export default function Sidebar() {
           <Search size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
         </div>
         <Tabs />
+        <button
+          onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); router.push("/?panel=timeline"); }}
+          className="w-full rounded-lg px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
+        >
+          Timeline
+        </button>
       </div>
 
       <div className="mt-3 space-y-1 px-2 flex-1 overflow-y-auto">
