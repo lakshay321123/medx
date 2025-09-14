@@ -7,6 +7,9 @@ import ThinkingTimer from "@/components/ui/ThinkingTimer";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import Typewriter from "@/components/chat/Typewriter";
 import { useTypewriterStore } from "@/lib/state/typewriterStore";
+import SuggestionChips from "@/components/chat/SuggestionChips";
+import { Suggestion } from "@/lib/chat/suggestions";
+import { generateAdaptiveAnswer } from "@/lib/adaptiveAnswers";
 
 function MessageRow({ m }: { m: { id: string; role: string; content: string } }) {
   const [fast, setFast] = useState(false);
@@ -29,6 +32,7 @@ export function ChatWindow() {
   const addMessage = useChatStore(s => s.addMessage);
   const currentId = useChatStore(s => s.currentId);
   const [results, setResults] = useState<any[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
   const [isThinking, setIsThinking] = useState(false);
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
@@ -47,13 +51,21 @@ export function ChatWindow() {
       const data = await res.json();
       setResults(data.results || []);
       addMessage({ role: "assistant", content: data.results ? "Here are some places nearby:" : "" });
+      setSuggestions([]);
     } else {
-      // For now, echo the user's message as the assistant reply
-      // In a real implementation, replace this with a call to your backend/AI service
-      addMessage({ role: "assistant", content: `You said: ${content}` });
+      const { text, suggestions: suggs } = generateAdaptiveAnswer(content);
+      addMessage({ role: "assistant", content: text });
+      setSuggestions(suggs.map((label, i) => ({ id: String(i), label, actionId: "followup" as const })));
+      setResults([]);
     }
     setIsThinking(false);
     setThinkingStartedAt(null);
+  };
+
+  const handleSuggestion = async (s: Suggestion) => {
+    const label = s.label;
+    addMessage({ role: "user", content: label });
+    await handleSend(label);
   };
 
   return (
@@ -82,6 +94,9 @@ export function ChatWindow() {
         <div className="p-2">
           <ThinkingTimer label="Analyzing" startedAt={thinkingStartedAt} />
         </div>
+      )}
+      {suggestions.length > 0 && (
+        <div className="p-2"><SuggestionChips suggestions={suggestions} onAction={handleSuggestion} /></div>
       )}
       <ChatInput onSend={handleSend} />
       <ScrollToBottom targetRef={chatRef} rebindKey={currentId} />
