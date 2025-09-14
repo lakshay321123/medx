@@ -1,5 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import SearchDock from "@/components/search/SearchDock";
 import ChatPane from "@/components/panels/ChatPane";
 import MedicalProfile from "@/components/panels/MedicalProfile";
@@ -16,6 +17,7 @@ type Search = { panel?: string; threadId?: string };
 export default function Page({ searchParams }: { searchParams: Search }) {
   const panel = searchParams.panel?.toLowerCase();
   const threadId = searchParams.threadId;
+  const router = useRouter();
   const chatInputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<'patient' | 'doctor'>('patient');
   const [researchMode, setResearchMode] = useState(false);
@@ -28,7 +30,7 @@ export default function Page({ searchParams }: { searchParams: Search }) {
   };
 
   const sendQuery = (q: string) => {
-    window.location.href = `/chat?q=${encodeURIComponent(q)}`;
+    router.push(`/?panel=chat&q=${encodeURIComponent(q)}`);
   };
 
   if (!panel) {
