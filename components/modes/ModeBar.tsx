@@ -25,6 +25,9 @@ export default function ModeBar() {
     const current = new URLSearchParams(sp.toString());
     // custom exit for aidoc toggle
     if (action.type === "toggle/aidoc" && state.base === "aidoc") {
+      // drop AiDoc-specific params so fromSearchParams doesn't detect AiDoc again
+      current.delete("threadId");
+      current.delete("context");
       const q = toQuery(
         { ...state, base: lastNonAidoc.current, therapy: false, research: false },
         current,
