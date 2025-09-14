@@ -1,54 +1,38 @@
-"use client";
-import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import Sidebar from "@/components/Sidebar";
+import ModeBar from "@/components/modes/ModeBar";
 import SearchDock from "@/components/search/SearchDock";
-import ChatPane from "@/components/panels/ChatPane";
-import MedicalProfile from "@/components/panels/MedicalProfile";
-import Timeline from "@/components/panels/Timeline";
-import AlertsPane from "@/components/panels/AlertsPane";
-import SettingsPane from "@/components/panels/SettingsPane";
-import { ResearchFiltersProvider } from "@/store/researchFilters";
+import PanelRouter from "@/components/panels/PanelRouter";
+import { type FC } from "react";
 
-import AiDocPane from "@/components/panels/AiDocPane";
-type Search = { panel?: string };
+interface HomeProps {
+  searchParams?: { panel?: string; query?: string };
+}
 
-export default function Page({ searchParams }: { searchParams: Search }) {
-  const panel = searchParams.panel?.toLowerCase();
-  const chatInputRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
+const TopBar: FC = () => (
+  <div className="sticky top-0 z-40 bg-background/70 backdrop-blur border-b border-border">
+    <ModeBar />
+  </div>
+);
 
-  useEffect(() => {
-    const handler = () => chatInputRef.current?.focus();
-    window.addEventListener("focus-chat-input", handler);
-    return () => window.removeEventListener("focus-chat-input", handler);
-  }, []);
-
-  const sendQuery = (q: string) => {
-    router.push(`/?panel=chat&query=${encodeURIComponent(q)}`);
-  };
-
-  if (!panel) {
-    return (
-      <div className="min-h-[80vh] flex items-center justify-center">
-        <SearchDock onSubmit={sendQuery} />
-      </div>
-    );
-  }
+export default function Home({ searchParams }: HomeProps) {
+  const hasPanel = !!searchParams?.panel;
 
   return (
-    <main className="flex-1 overflow-y-auto content-layer">
-      {panel === "chat" && (
-        <section className="block h-full">
-          <ResearchFiltersProvider>
-            <ChatPane inputRef={chatInputRef} />
-          </ResearchFiltersProvider>
-        </section>
-      )}
-      {panel === "profile" && <MedicalProfile />}
-      {panel === "timeline" && <Timeline />}
-      {panel === "alerts" && <AlertsPane />}
-      {panel === "settings" && <SettingsPane />}
-      {panel === "ai-doc" && <AiDocPane />}
-    </main>
+    <div className="grid min-h-screen grid-cols-[280px_1fr]">
+      <Sidebar />
+      <main className="relative">
+        <TopBar />
+        {hasPanel ? (
+          <PanelRouter searchParams={searchParams} />
+        ) : (
+          <section
+            className="landing-bg grid min-h-[calc(100svh-56px)] place-items-center px-4"
+          >
+            <SearchDock />
+          </section>
+        )}
+      </main>
+    </div>
   );
 }
+

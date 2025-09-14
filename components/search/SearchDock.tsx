@@ -1,26 +1,28 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 
-export default function SearchDock({ onSubmit }: { onSubmit: (q: string)=>void }) {
+export default function SearchDock() {
   const [q, setQ] = useState("");
-  const [docked, setDocked] = useState<boolean>(()=> typeof window !== "undefined" && !!sessionStorage.getItem("search_docked"));
-
-  useEffect(()=> {
-    if (docked) sessionStorage.setItem("search_docked","1");
-  }, [docked]);
+  const router = useRouter();
 
   return (
-    <div
-      className={`fixed left-1/2 -translate-x-1/2 transition-all duration-500 
-    ${docked ? "bottom-4 w-[min(720px,92vw)]" : "top-1/3 w-[min(760px,92vw)]"}`}
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const v = q.trim();
+        if (!v) return;
+        router.push(`/?panel=chat&query=${encodeURIComponent(v)}`);
+      }}
+      className="w-full max-w-2xl rounded-2xl border border-border bg-card shadow-lg"
     >
-      <form
-        onSubmit={(e)=>{ e.preventDefault(); if (!q.trim()) return; onSubmit(q.trim()); setDocked(true); }}
-        className="rounded-2xl border border-neutral-200 bg-white/90 p-2 shadow-lg backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/80"
-      >
-        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Ask MedX…"
-          className="w-full rounded-xl bg-transparent px-4 py-3 outline-none" />
-      </form>
-    </div>
+      <input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="Ask MedX…"
+        className="w-full rounded-2xl bg-transparent px-5 py-4 text-base outline-none"
+      />
+    </form>
   );
 }
+
