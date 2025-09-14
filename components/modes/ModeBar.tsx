@@ -38,15 +38,12 @@ export default function ModeBar({ onChange }: { onChange?: (s: ModeState)=>void 
   function openAiDocFromTop() {
     act("aidoc:set", true);
     const firstCase = document.querySelector<HTMLButtonElement>('[data-aidoc="case"]');
-    if (firstCase) {
-      firstCase.click();
-      return;
-    }
+    if (firstCase) { firstCase.click(); return; }
+    const newBtn = document.querySelector<HTMLButtonElement>('[data-aidoc="new"]');
+    if (newBtn) { newBtn.click(); return; }
     const sess = typeof window !== "undefined" ? sessionStorage.getItem("aidoc_thread") : null;
     const tid = sess && sess.trim() ? sess : `aidoc_${Date.now().toString(36)}`;
-    try {
-      sessionStorage.setItem("aidoc_thread", tid);
-    } catch {}
+    try { sessionStorage.setItem("aidoc_thread", tid); } catch {}
     const ctx = params.get("context") ?? "profile";
     router.push(`/?panel=ai-doc&threadId=${tid}&context=${ctx}`);
   }

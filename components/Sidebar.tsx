@@ -97,27 +97,39 @@ export default function Sidebar() {
           </div>
         ))}
 
-        {aidocThreads.length > 0 && (
-          <div className="mt-4">
-            <div className="px-4 text-xs font-semibold opacity-60 mb-1">AI Doc</div>
-            {aidocThreads.map(t => (
-              <div key={t.id} className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm mb-1.5 medx-surface text-medx">
-                <button
-                  data-aidoc="case"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`);
-                  }}
-                  className="flex-1 text-left truncate text-sm"
-                  title={t.title ?? ''}
-                >
-                  {t.title ?? 'AI Doc — New Case'}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="mt-4">
+          <div className="px-4 text-xs font-semibold opacity-60 mb-1">AI Doc</div>
+          {aidocThreads.map(t => (
+            <div key={t.id} className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm mb-1.5 medx-surface text-medx">
+              <button
+                data-aidoc="case"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`);
+                }}
+                className="flex-1 text-left truncate text-sm"
+                title={t.title ?? ''}
+              >
+                {t.title ?? 'AI Doc — New Case'}
+              </button>
+            </div>
+          ))}
+          <button
+            data-aidoc="new"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const sess = typeof window !== 'undefined' ? sessionStorage.getItem('aidoc_thread') : null;
+              const tid = sess && sess.trim() ? sess : `aidoc_${Date.now().toString(36)}`;
+              try { sessionStorage.setItem('aidoc_thread', tid); } catch {}
+              router.push(`/?panel=ai-doc&threadId=${tid}&context=profile`);
+            }}
+            className="w-full mt-1 rounded-lg px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          >
+            + New AI Doc case
+          </button>
+        </div>
       </div>
 
       <button type="button" className="mx-3 mt-auto mb-3 h-10 rounded-lg px-3 text-left flex items-center gap-2 medx-surface text-medx">
