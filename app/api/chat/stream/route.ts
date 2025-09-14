@@ -77,6 +77,9 @@ export async function POST(req: NextRequest) {
   const url = `${base.replace(/\/$/,'')}/chat/completions`;
 
   let finalMessages = messages.filter((m: any) => m.role !== 'system');
+  // Track whether we actually injected filtered computed lines for doc/research modes.
+  // The calc prelude should only be added when this is true.
+  let hasFilteredComputed = false;
   // Ensure brevity guidance is present even if client didn't send a system prompt
   if (!finalMessages.length || finalMessages[0]?.role !== 'system') {
     finalMessages = [{ role: 'system', content: brevitySystem }, ...finalMessages];
@@ -89,6 +92,7 @@ export async function POST(req: NextRequest) {
   if (showClinicalPrelude) {
     const filtered = filterComputedForDocMode(computed, latestUserMessage ?? '');
     if (filtered.length) {
+      hasFilteredComputed = true;
       const lines = filtered.map(r => {
         const val = r.unit ? `${r.value} ${r.unit}` : String(r.value);
         const notes = r.notes?.length ? ` — ${r.notes.join('; ')}` : '';
@@ -98,7 +102,7 @@ export async function POST(req: NextRequest) {
         {
           role: 'system',
           content:
-            'Use these pre-computed clinical values only if relevant to the question. Do not re-calculate. If inputs are missing, state which values are required and avoid quoting incomplete scores.'
+            'Use these pre-computed clinical values only if relevant to the question. If inputs are missing, state which values are required and avoid quoting incomplete scores.'
         },
         { role: 'system', content: lines.join('\\n') },
         ...finalMessages,
@@ -126,8 +130,9 @@ export async function POST(req: NextRequest) {
   }
   // === [MEDX_CALC_PRELUDE_START] ===
   const __calcPrelude = composeCalcPrelude(latestUserMessage ?? "");
-  // Only add calc prelude if we actually included filtered computed lines
-  if (showClinicalPrelude && __calcPrelude && finalMessages.length && finalMessages[0]?.role === 'system') {
+  // Only add calc prelude if we actually included filtered computed lines (not merely because
+  // a different system message — e.g., brevity/profile — was prepended earlier).
+  if (showClinicalPrelude && __calcPrelude && hasFilteredComputed) {
     finalMessages = [{ role: 'system', content: __calcPrelude }, ...finalMessages];
   }
   // === [MEDX_CALC_PRELUDE_END] ===
