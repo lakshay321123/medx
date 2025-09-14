@@ -1,5 +1,5 @@
 "use client";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef } from "react";
 import { useTheme } from "next-themes";
 import { reduce } from "@/lib/modes/modeMachine";
@@ -7,7 +7,6 @@ import { fromSearchParams, toQuery } from "@/lib/modes/url";
 
 export default function ModeBar() {
   const router = useRouter();
-  const pathname = usePathname();
   const sp = useSearchParams();
   const { theme, setTheme } = useTheme();
 
