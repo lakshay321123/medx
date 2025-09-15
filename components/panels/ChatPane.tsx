@@ -1862,7 +1862,7 @@ ${systemCommon}` + baseSys;
               <textarea
                 ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
                 rows={1}
-                className="flex-1 resize-none bg-transparent outline-none text-sm md:text-base leading-6 placeholder:text-slate-500 dark:placeholder:text-slate-400 px-2 pr-12 text-medx"
+                className="flex-1 resize-none bg-transparent outline-none text-sm md:text-base leading-6 placeholder:text-slate-500 dark:placeholder:text-slate-400 px-2 pr-[44px] text-medx"
                 placeholder={
                   pendingFile
                     ? 'Add a note or question for this document (optional)'
@@ -1881,20 +1881,29 @@ ${systemCommon}` + baseSys;
                   }
                 }}
               />
+
               {busy && (
-                <StopButton onClick={onStop} className="absolute bottom-2 right-2" />
+                <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+                  <StopButton
+                    onClick={onStop}
+                    className="pointer-events-auto"
+                    title="Stop (Esc)"
+                  />
+                </div>
               )}
             </div>
-            {!busy && (
-              <button
-                className="w-10 h-10 rounded-full flex items-center justify-center text-lg medx-btn-accent disabled:opacity-50"
-                type="submit"
-                disabled={!pendingFile && !note.trim()}
-                aria-label="Send"
-              >
-                <Send size={16} />
-              </button>
-            )}
+
+              {!busy && (
+                <button
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-lg medx-btn-accent disabled:opacity-50"
+                  type="submit"
+                  disabled={!pendingFile && !note.trim()}
+                  aria-label="Send"
+                  title="Send"
+                >
+                  <Send size={16} />
+                </button>
+              )}
           </form>
         </div>
       </div>
