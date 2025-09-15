@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { RESEARCH_TRIAL_BRIEF_STYLE } from "@/lib/styles";
 import { createLLM } from "@/lib/llm";
+import type { ChatMsg } from "@/lib/llm";
 
 type Brief = {
   tldr?: string;
@@ -212,7 +213,7 @@ export async function GET(req: NextRequest, ctx: { params: { nctId: string } }) 
 async function maybeLLM(base: Brief, info: any, pageUrl: string): Promise<Brief> {
   try {
     const llm = createLLM();
-    const messages = [
+    const messages: ChatMsg[] = [
       { role: "system", content: `${RESEARCH_TRIAL_BRIEF_STYLE}\n\nSOURCES:\n[1] ${pageUrl}` },
       { role: "user", content: JSON.stringify(info) },
     ];
