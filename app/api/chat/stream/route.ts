@@ -52,14 +52,39 @@ export async function POST(req: NextRequest) {
     }
     recentReqs.set(clientRequestId, now);
   }
+  // === Concision controls (SOFT cap, no cutoffs) ===
+  const latestUserMessage =
+    (messages || []).filter((m: any) => m.role === 'user').slice(-1)[0]?.content || '';
+  const wordCount = (latestUserMessage || '').trim().split(/\s+/).filter(Boolean).length;
+  const isShortQuery = wordCount <= 6;
+  const briefTopic = /\b(what is|types?|symptoms?|causes?|treatment|home care|prevention|red flags?)\b/i
+    .test(latestUserMessage || '');
+  const targetWordCap = (mode === 'doctor')
+    ? (isShortQuery || briefTopic ? 220 : 360)
+    : (isShortQuery || briefTopic ? 180 : 280);
+  const brevitySystem = [
+    'You are MedX chat. Be concise and structured.',
+    `Aim to keep the entire answer under ${targetWordCap} words (SOFT cap).`,
+    'If you are finishing a sentence, you may exceed the cap slightly to complete it (≤ +40 words).',
+    'Never cut a sentence or bullet mid-way; always end with a complete sentence.',
+    'Use bold mini-headers and short bullet points (3–5 bullets).',
+    'Focus strictly on the user question—omit generic boilerplate.',
+    'End with one short follow-up question (≤10 words) that stays on-topic.',
+  ].join('\n');
   const base  = process.env.LLM_BASE_URL!;
   const model = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
   const key   = process.env.LLM_API_KEY!;
   const url = `${base.replace(/\/$/,'')}/chat/completions`;
 
   let finalMessages = messages.filter((m: any) => m.role !== 'system');
+  // Track whether we actually injected filtered computed lines for doc/research modes.
+  // The calc prelude should only be added when this is true.
+  let hasFilteredComputed = false;
+  // Ensure brevity guidance is present even if client didn't send a system prompt
+  if (!finalMessages.length || finalMessages[0]?.role !== 'system') {
+    finalMessages = [{ role: 'system', content: brevitySystem }, ...finalMessages];
+  }
 
-  const latestUserMessage = messages.filter((m: any) => m.role === 'user').slice(-1)[0]?.content || "";
   const userText = (messages || []).map((m: any) => m?.content || '').join('\n');
   const ctx = canonicalizeInputs(extractAll(userText));
   const computed = computeAll(ctx);
@@ -67,6 +92,7 @@ export async function POST(req: NextRequest) {
   if (showClinicalPrelude) {
     const filtered = filterComputedForDocMode(computed, latestUserMessage ?? '');
     if (filtered.length) {
+      hasFilteredComputed = true;
       const lines = filtered.map(r => {
         const val = r.unit ? `${r.value} ${r.unit}` : String(r.value);
         const notes = r.notes?.length ? ` — ${r.notes.join('; ')}` : '';
@@ -76,7 +102,7 @@ export async function POST(req: NextRequest) {
         {
           role: 'system',
           content:
-            'Use these pre-computed clinical values only if relevant to the question. Do not re-calculate. If inputs are missing, state which values are required and avoid quoting incomplete scores.'
+            'Use these pre-computed clinical values only if relevant to the question. If inputs are missing, state which values are required and avoid quoting incomplete scores.'
         },
         { role: 'system', content: lines.join('\\n') },
         ...finalMessages,
@@ -98,13 +124,15 @@ export async function POST(req: NextRequest) {
         profile: p?.profile || p || null,
         packet: pk.text || '',
       });
-      finalMessages = [{ role: 'system', content: sys }, ...finalMessages];
+      // Combine clinical profile with brevity rules (keeps context + concision)
+      finalMessages = [{ role: 'system', content: [sys, brevitySystem].join('\n\n') }, ...finalMessages];
     } catch {}
   }
   // === [MEDX_CALC_PRELUDE_START] ===
   const __calcPrelude = composeCalcPrelude(latestUserMessage ?? "");
-  // Only add calc prelude if we actually included filtered computed lines
-  if (showClinicalPrelude && __calcPrelude && finalMessages.length && finalMessages[0]?.role === 'system') {
+  // Only add calc prelude if we actually included filtered computed lines (not merely because
+  // a different system message — e.g., brevity/profile — was prepended earlier).
+  if (showClinicalPrelude && __calcPrelude && hasFilteredComputed) {
     finalMessages = [{ role: 'system', content: __calcPrelude }, ...finalMessages];
   }
   // === [MEDX_CALC_PRELUDE_END] ===
@@ -114,12 +142,14 @@ export async function POST(req: NextRequest) {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
     body: JSON.stringify({
       model,
+      messages: finalMessages,
+      // Token cap with buffer to avoid API truncation while honoring SOFT word cap
+      max_tokens: Math.min(768, Math.max(200, Math.round((targetWordCap + 40) * 1.7))),
       stream: true,
-      temperature: 0,
+      temperature: 0.4,
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,
-      messages: finalMessages,
     })
   });
 
