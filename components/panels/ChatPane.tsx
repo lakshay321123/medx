@@ -41,6 +41,7 @@ import * as DomainStyles from "@/lib/prompts/domains";
 import ThinkingTimer from "@/components/ui/ThinkingTimer";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { useTypewriterStore } from "@/lib/state/typewriterStore";
+import { triage } from "@/lib/triage";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -683,6 +684,21 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       }
     } catch {
       // never block the normal flow
+    }
+
+    // Doctor/Doc mode triage for calculator pages or prompt shaping
+    if (mode === 'doctor' || (mode as any) === 'doc') {
+      try {
+        const t = triage(mode as any, userText);
+        if (t.kind === 'doc') {
+          // Placeholder: render markdown elsewhere
+          console.log('Doc page markdown generated', t.markdown);
+          setBusy(false);
+          setThinkingStartedAt(null);
+          setNote('');
+          return;
+        }
+      } catch {}
     }
 
     const userId = uid();
