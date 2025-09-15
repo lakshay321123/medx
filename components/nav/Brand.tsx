@@ -1,3 +1,4 @@
+// components/nav/Brand.tsx
 import Logo from "@/components/brand/Logo";
 
 export default function Brand() {
