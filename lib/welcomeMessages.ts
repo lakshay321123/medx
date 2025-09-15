@@ -1,3 +1,4 @@
+// lib/welcomeMessages.ts
 export const WELCOME_MESSAGES = [
   `Get a Second Opinion—first.
 You can upload tests, prescriptions, or scans for AI-driven explanations.
