@@ -16,6 +16,7 @@ import { getRandomWelcome } from '@/lib/welcomeMessages';
 import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
 import { detectFollowupIntent } from '@/lib/intents';
+import { BRAND_NAME } from "@/lib/brand";
 import SuggestionChips from "@/components/chat/SuggestionChips";
 import ComposerFocus from "@/components/chat/ComposerFocus";
 import { normalizeSuggestions } from "@/lib/chat/normalize";
@@ -182,7 +183,7 @@ function maybeFixMedicalTypo(s: string) {
 }
 
 function buildMedicinesPrompt(topic: string, country: { code3: string; name: string }) {
-  const system = `You are MedX. Provide medicine options for the topic below.
+  const system = `You are ${BRAND_NAME}. Provide medicine options for the topic below.
 TOPIC: ${topic}
 User country: ${country.code3} (${country.name}). Prefer local OTC examples; if unsure, use generic names and say availability varies.
 Safety: do not prescribe; advise to confirm with a clinician; contraindications only if well-established.`.trim();
@@ -194,7 +195,7 @@ Safety: do not prescribe; advise to confirm with a clinician; contraindications 
 }
 
 function buildHospitalsPrompt(topic: string, country: { code2: string; code3: string; name: string }) {
-  const system = `You are MedX. List top hospitals/centres in ${country.name} that treat: ${topic}.
+  const system = `You are ${BRAND_NAME}. List top hospitals/centres in ${country.name} that treat: ${topic}.
 Prefer nationally recognized or government/teaching institutions.
 Provide city + short note. Output 5–10 items max.`.trim();
   const user = "Top hospitals for this condition.";
@@ -205,7 +206,7 @@ Provide city + short note. Output 5–10 items max.`.trim();
 }
 
 function buildTrialsPrompt(topic: string, country: { code3: string; name: string }) {
-  const system = `You are MedX. Summarize the latest clinical trial directions for: ${topic}.
+  const system = `You are ${BRAND_NAME}. Summarize the latest clinical trial directions for: ${topic}.
 If exact current trials are needed, direct users to authoritative registries (e.g., ClinicalTrials.gov, WHO ICTRP; for India: CTRI).
 No fabricated IDs. Provide themes, not specific trial numbers unless confident.`.trim();
   const user = `Latest clinical trials for ${topic} (brief overview).`;
@@ -1075,7 +1076,7 @@ ${linkNudge}`;
                   {
                     role: "system",
                     content:
-`You are MedX. Turn the provided "Data" JSON into a concise, accurate list of active clinical trials.
+`You are ${BRAND_NAME}. Turn the provided "Data" JSON into a concise, accurate list of active clinical trials.
 For each item: {Title — NCT ID — Phase — Status — Where (City, Country) — What/Primary outcome — Link}.
 Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End with one short follow-up question.`
                   },
@@ -1086,7 +1087,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
         chatMessages[1].content += contextBlock;
       } else if (!chatMessages && follow && ctx) {
         const fullMem = fullContext;
-        const system = `You are MedX. This is a FOLLOW-UP.
+        const system = `You are ${BRAND_NAME}. This is a FOLLOW-UP.
 Here is the ENTIRE conversation so far:
 ${fullMem || "(none)"}
 

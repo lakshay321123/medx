@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { profileChatSystem } from '@/lib/profileChatSystem';
 import { extractAll, canonicalizeInputs } from '@/lib/medical/engine/extract';
+import { BRAND_NAME } from "@/lib/brand";
 import { computeAll } from '@/lib/medical/engine/computeAll';
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
@@ -145,7 +146,7 @@ export async function POST(req: NextRequest) {
     ? (isShortQuery || briefTopic ? 220 : 360)
     : (isShortQuery || briefTopic ? 180 : 280);
   const brevitySystem = [
-    'You are MedX chat. Be concise and structured.',
+    `You are ${BRAND_NAME} chat. Be concise and structured.`,
     `Aim to keep the entire answer under ${targetWordCap} words (SOFT cap).`,
     'If you are finishing a sentence, you may exceed the cap slightly to complete it (≤ +40 words).',
     'Never cut a sentence or bullet mid-way; always end with a complete sentence.',

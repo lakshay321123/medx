@@ -1,6 +1,7 @@
 import { normalizePhase } from "./utils";
 import type { TrialRecord } from "@/types/research";
 import { fetchCTRI } from "@/lib/trials/fetchCTRI";
+import { BRAND_NAME } from "@/lib/brand";
 
 export type Citation = {
   id: string;
@@ -20,6 +21,8 @@ export type Citation = {
 
 const ORIGIN = "https://ctri.nic.in";
 const SEARCH = ORIGIN + "/Clinicaltrials/advsearch.php";
+const BRAND_TOKEN = BRAND_NAME.replace(/\s+/g, "");
+const BRAND_CONTACT = `support@${BRAND_TOKEN.toLowerCase()}.example`;
 
 // lightweight fetch with timeout + UA; keep separate from fetchJson(JSON-only)
 async function fetchHtml(url: string, timeoutMs = 12000): Promise<string> {
@@ -28,7 +31,7 @@ async function fetchHtml(url: string, timeoutMs = 12000): Promise<string> {
   try {
     const r = await fetch(url, {
       signal: ctrl.signal,
-      headers: { "user-agent": "MedX/1.0 (+research; contact: support@medx.example)" },
+      headers: { "user-agent": `${BRAND_TOKEN}/1.0 (+research; contact: ${BRAND_CONTACT})` },
     });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return await r.text();

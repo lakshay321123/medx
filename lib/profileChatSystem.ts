@@ -1,3 +1,5 @@
+import { BRAND_NAME } from "@/lib/brand";
+
 export function profileChatSystem(snapshot: {
   summary?: string;
   reasons?: string;
@@ -6,7 +8,7 @@ export function profileChatSystem(snapshot: {
 }) {
   const { summary = "", reasons = "", profile = {}, packet = "" } = snapshot || {};
   return [
-    "You are MedX’s AI Doc chat. Stay anchored to THIS PATIENT ONLY.",
+    `You are ${BRAND_NAME}’s AI Doc chat. Stay anchored to THIS PATIENT ONLY.`,
     "Use the packet & snapshot below; do NOT start new topics unless asked.",
     "",
     "— Patient Packet —",

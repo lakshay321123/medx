@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import { openaiText, groqChat, ChatMsg } from "@/lib/llm";
+import { BRAND_NAME } from "@/lib/brand";
 
 const WHITELIST_PATH = process.env.ALT_MED_WHITELIST_PATH || "./data/altmed_whitelist_domains.json";
 
@@ -19,9 +20,10 @@ async function fetchFromDomain(name: string, domain: string) {
     `https://${domain}/health/${slug}`,
     `https://${domain}/search?query=${encodeURIComponent(name)}`,
   ];
+  const userAgent = `${BRAND_NAME.replace(/\s+/g, "")}/1.0 (+altmed)`;
   for (const url of tryUrls) {
     try {
-      const res = await fetch(url, { headers: { "user-agent": "MedX/1.0 (+altmed)" } });
+      const res = await fetch(url, { headers: { "user-agent": userAgent } });
       if (res.ok) {
         const text = await res.text();
         return { text, ref: url };

@@ -1,4 +1,4 @@
-# MedX — One-shot Launch Starter
+# Second Opinion — One-shot Launch Starter
 
 This project includes:
 - **Banner aggregator** (WHO, ClinicalTrials, openFDA, PubMed)
