@@ -1,77 +1,97 @@
-import * as React from 'react';
-import type { TrialRow } from '@/types/trials';
-import { registryIdLabel } from '@/lib/registry';
-import { pushAssistantToChat } from '@/lib/chat/pushAssistantToChat';
-import { formatTrialBriefMarkdown } from '@/lib/trials/brief';
+"use client";
+
+import * as React from "react";
 
 function useIsDoctor() {
-  if (typeof window === 'undefined') return false;
-  const mode = new URLSearchParams(window.location.search).get('mode');
-  return mode === 'doctor';
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("mode") === "doctor";
 }
 
-export function TrialsRow({ row }: { row: TrialRow }) {
+function pushAssistantToChat(content: string) {
+  window.dispatchEvent(new CustomEvent("medx:push-assistant", { detail: { content } }));
+}
+
+function extractNctId(s: string) {
+  return (s || "").toUpperCase().match(/NCT\d{8}/)?.[0] || "";
+}
+
+export function TrialsRow({
+  row,
+}: {
+  row: { nctId: string; title: string; phase?: string; status?: string; country?: string };
+}) {
   const isDoctor = useIsDoctor();
 
-  const onSummarize = React.useCallback(async (e: React.MouseEvent<HTMLAnchorElement>) => {
-    if (e.metaKey || e.ctrlKey || e.button === 1) return;
-    if (!isDoctor) return;
+  const onSummarize = async (e: React.MouseEvent) => {
+    if (e.metaKey || e.ctrlKey || e.button === 1) return; // allow new tab
+    if (!isDoctor) return; // non-doctors keep default navigation
     e.preventDefault();
 
-    try {
-      pushAssistantToChat({ content: '_Summarizing trial…_' });
-
-      const response = await fetch(`/api/trials/${row.id}/summary`, { cache: 'no-store' });
-      const raw = await response.text();
-      let payload: unknown = null;
-      if (raw) {
-        try {
-          payload = JSON.parse(raw);
-        } catch {
-          payload = raw;
-        }
-      }
-
-      if (!response.ok) {
-        const message =
-          typeof payload === 'object' && payload !== null && 'error' in (payload as Record<string, unknown>) &&
-          typeof (payload as any).error === 'string'
-            ? (payload as any).error
-            : typeof payload === 'string' && payload
-              ? payload
-              : `Request failed (${response.status})`;
-        throw new Error(message);
-      }
-
-      const markdown = formatTrialBriefMarkdown(row.id, payload ?? {});
-      pushAssistantToChat({ content: markdown });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err ?? '');
-      const detail = message.trim() || 'unknown error';
-      pushAssistantToChat({ content: `⚠️ Could not summarize **${row.id}**: ${detail}` });
+    const nct = extractNctId(row.nctId);
+    if (!nct) {
+      pushAssistantToChat(`⚠️ Could not summarize: invalid Registry ID`);
+      return;
     }
-  }, [isDoctor, row.id]);
+
+    pushAssistantToChat("_Summarizing trial…_");
+    try {
+      const r = await fetch(`/api/trials/${nct}/summary`, { cache: "no-store" });
+      const text = await r.text();
+      let j: any = null;
+      try { j = JSON.parse(text); } catch {}
+      if (!r.ok || !j || j.error) throw new Error(j?.error || `HTTP ${r.status}`);
+
+      const md = formatTrialBriefMarkdown(nct, j);
+      pushAssistantToChat(md);
+    } catch (err: any) {
+      pushAssistantToChat(`⚠️ Could not summarize **${nct}**: ${err?.message || "error"}`);
+    }
+  };
 
   return (
-    <tr className="hover:bg-muted/50">
-      <td className="border px-2 py-1 whitespace-nowrap align-top">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-slate-500">{registryIdLabel(row.source)}</span>
-          <a
-            href={row.url || `https://clinicaltrials.gov/study/${row.id}`}
-            onClick={onSummarize}
-            className={isDoctor ? 'underline decoration-dotted hover:decoration-solid' : 'underline'}
-          >
-            {row.id}
-          </a>
-        </div>
+    <tr>
+      <td className="whitespace-nowrap">
+        <a
+          href={`https://clinicaltrials.gov/study/${row.nctId}`}
+          onClick={onSummarize}
+          className={isDoctor ? "underline decoration-dotted hover:decoration-solid" : "underline"}
+        >
+          {row.nctId}
+        </a>
       </td>
-      <td className="border px-2 py-1 align-top min-w-[24rem]">{row.title}</td>
-      <td className="border px-2 py-1 whitespace-nowrap align-top">{row.phase || '—'}</td>
-      <td className="border px-2 py-1 whitespace-nowrap align-top">{row.status || '—'}</td>
-      <td className="border px-2 py-1 whitespace-nowrap align-top">{row.country || '—'}</td>
+      <td>{row.title}</td>
+      <td>{row.phase || "—"}</td>
+      <td>{row.status || "—"}</td>
+      <td>{row.country || "—"}</td>
     </tr>
   );
 }
 
-export default TrialsRow;
+function formatTrialBriefMarkdown(nctId: string, brief: any) {
+  const bullets = (brief.bullets ?? []).slice(0, 3).map((b: string) => `- ${b}`).join("\n");
+  const cite = (brief.citations ?? [])
+    .slice(0, 5)
+    .map((c: any, i: number) => `[${i + 1}] ${c.title || new URL(c.url).hostname} — ${c.url}`)
+    .join("\n");
+
+  const d = brief.details || {};
+  const lines = [
+    d.design && `**Design:** ${d.design}`,
+    d.population && `**Population:** ${d.population}`,
+    d.interventions && `**Interventions:** ${d.interventions}`,
+    d.primary_outcomes && `**Primary outcomes:** ${d.primary_outcomes}`,
+    d.key_eligibility && `**Key eligibility:** ${d.key_eligibility}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return [
+    `### ${nctId} — Doctor Brief`,
+    brief.tldr ? `**TL;DR:** ${brief.tldr}` : "",
+    bullets,
+    lines,
+    cite ? `\n**Sources**\n${cite}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
