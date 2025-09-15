@@ -1084,14 +1084,24 @@ ${systemCommon}` + baseSys;
         ];
       }
 
-      const res = await fetch('/api/chat/stream', {
+      const researchOn =
+        new URLSearchParams(window.location.search).get('research')?.match(/^(1|true)$/i);
+      const url = `/api/chat/stream${researchOn ? '?research=1' : ''}`;
+      const res = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-conversation-id': conversationId,
           'x-new-chat': messages.length === 0 ? 'true' : 'false'
         },
-        body: JSON.stringify({ mode: mode === 'doctor' ? 'doctor' : 'patient', messages: chatMessages, threadId, context, clientRequestId })
+        body: JSON.stringify({
+          mode: mode === 'doctor' ? 'doctor' : 'patient',
+          messages: chatMessages,
+          threadId,
+          context,
+          clientRequestId,
+          research: !!researchOn
+        })
       });
       if (res.status === 409) {
         setMessages(prev => prev.filter(m => m.id !== pendingId));

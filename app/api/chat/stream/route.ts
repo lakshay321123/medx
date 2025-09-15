@@ -37,10 +37,53 @@ export const runtime = 'edge';
 
 const recentReqs = new Map<string, number>();
 
+type WebHit = { title: string; snippet: string; url: string; source: string };
+async function fetchSources(req: NextRequest, q: string): Promise<WebHit[]> {
+  try {
+    const origin = new URL(req.url).origin;
+    const r = await fetch(`${origin}/api/search`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ query: q }),
+      cache: 'no-store'
+    });
+    if (!r.ok) return [];
+    const j = await r.json();
+    return (j.results ?? []) as WebHit[];
+  } catch {
+    return [];
+  }
+}
+
 
 export async function POST(req: NextRequest) {
-  const { messages = [], context, clientRequestId, mode } = await req.json();
-  const showClinicalPrelude = (mode === 'doctor' || mode === 'research');
+  const reqUrl = new URL(req.url);
+  const qp = reqUrl.searchParams.get('research');
+  let body: any = {};
+  try { body = await req.json(); } catch {}
+  const { context, clientRequestId, mode } = body;
+  const research =
+    qp === '1' || qp === 'true' || body?.research === true || body?.research === 'true';
+  const origMessages = body?.messages ?? [];
+  const question = String(body?.question ?? origMessages.at?.(-1)?.content ?? '').trim();
+
+  // Pull live sources when research is on
+  let sources: WebHit[] = [];
+  if (research && question) sources = await fetchSources(req, question);
+
+  // Inject sources into the system context
+  const srcBlock = sources.length
+    ? 'Use these current sources. Prefer them and cite links:\n' +
+      sources
+        .slice(0, 5)
+        .map((s, i) => `[${i + 1}] ${s.title}\n${s.url}\n${s.snippet}`)
+        .join('\n\n')
+    : research
+      ? 'Research mode ON but no live sources available.'
+      : '';
+
+  const messages = origMessages;
+  const showClinicalPrelude = mode === 'doctor' || mode === 'research';
   const now = Date.now();
   for (const [id, ts] of recentReqs.entries()) {
     if (now - ts > 60_000) recentReqs.delete(id);
@@ -80,9 +123,10 @@ export async function POST(req: NextRequest) {
   // Track whether we actually injected filtered computed lines for doc/research modes.
   // The calc prelude should only be added when this is true.
   let hasFilteredComputed = false;
-  // Ensure brevity guidance is present even if client didn't send a system prompt
-  if (!finalMessages.length || finalMessages[0]?.role !== 'system') {
-    finalMessages = [{ role: 'system', content: brevitySystem }, ...finalMessages];
+  // Ensure brevity guidance and optional source block
+  finalMessages = [{ role: 'system', content: brevitySystem }, ...finalMessages];
+  if (srcBlock) {
+    finalMessages = [{ role: 'system', content: srcBlock }, ...finalMessages];
   }
 
   const userText = (messages || []).map((m: any) => m?.content || '').join('\n');
