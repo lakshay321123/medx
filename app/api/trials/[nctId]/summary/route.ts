@@ -1,7 +1,7 @@
 export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { RESEARCH_TRIAL_BRIEF_STYLE } from '@/lib/styles';
-import { createLLM } from '@/lib/llm';
+import { createLLM, type ChatMsg } from '@/lib/llm';
 
 async function fetchCtgov(nctId: string) {
   const url = `https://clinicaltrials.gov/api/query/full_studies?expr=${encodeURIComponent(nctId)}&min_rnk=1&max_rnk=1&fmt=JSON`;
@@ -40,8 +40,7 @@ Conditions: ${conditions}
 Interventions: ${interventions}
 Primary outcomes: ${primaryOutcomes}`;
 
-  const sources = [{ title: 'ClinicalTrials.gov record', url: pageUrl }];
-  const messages = [
+  const messages: ChatMsg[] = [
     { role: 'system', content: RESEARCH_TRIAL_BRIEF_STYLE + `\n\nSOURCES:\n[1] ClinicalTrials.gov\n${pageUrl}` },
     { role: 'user', content: ctx }
   ];
