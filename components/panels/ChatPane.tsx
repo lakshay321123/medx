@@ -42,6 +42,8 @@ import ThinkingTimer from "@/components/ui/ThinkingTimer";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { StopButton } from "@/components/ui/StopButton";
 import { useTypewriterStore } from "@/lib/state/typewriterStore";
+import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
+import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -440,6 +442,31 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     posted.current.add(id);
     addAssistant(content, { id });
   }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onPush = (event: Event) => {
+      const detail = (event as CustomEvent<{ content?: string; html?: string }>).detail;
+      const content = typeof detail?.content === 'string' ? detail.content : '';
+      if (!content.trim()) return;
+      const id = uid();
+      const message: ChatMessage = {
+        id,
+        role: 'assistant',
+        kind: 'chat',
+        content,
+        pending: false,
+      };
+      setMessages(prev => [...prev, message]);
+      try {
+        useTypewriterStore.getState().markDone(id);
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener('medx:push-assistant', onPush as EventListener);
+    return () => window.removeEventListener('medx:push-assistant', onPush as EventListener);
+  }, []);
 
   useEffect(() => {
     const fetchProfile = () => {
@@ -1290,6 +1317,53 @@ ${systemCommon}` + baseSys;
     if (busy || inFlight) return;
     inFlight = true;
     try {
+      const trimmed = note.trim();
+      if (!pendingFile && trimmed) {
+        const summarizeMatch = /^summarize\s+(NCT\d{8})$/i.exec(trimmed);
+        if (summarizeMatch) {
+          const nct = summarizeMatch[1].toUpperCase();
+          setMessages(prev => [...prev, { id: uid(), role: 'user', kind: 'chat', content: trimmed, pending: false } as any]);
+          setNote('');
+          if (threadId) pushFullMem(threadId, 'user', trimmed);
+          if (stableThreadId) {
+            try { pushFullMem(stableThreadId, 'user', trimmed); } catch {}
+          }
+          setBusy(true);
+          setThinkingStartedAt(Date.now());
+          try {
+            pushAssistantToChat({ content: '_Summarizing trial…_' });
+            const response = await fetch(`/api/trials/${nct}/summary`, { cache: 'no-store' });
+            const raw = await response.text();
+            let payload: unknown = null;
+            if (raw) {
+              try {
+                payload = JSON.parse(raw);
+              } catch {
+                payload = raw;
+              }
+            }
+            if (!response.ok) {
+              const message =
+                typeof payload === 'object' && payload !== null && 'error' in (payload as Record<string, unknown>) &&
+                typeof (payload as any).error === 'string'
+                  ? (payload as any).error
+                  : typeof payload === 'string' && payload
+                    ? payload
+                    : `Request failed (${response.status})`;
+              throw new Error(message);
+            }
+            pushAssistantToChat({ content: formatTrialBriefMarkdown(nct, payload ?? {}) });
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err ?? '');
+            const detail = message.trim() || 'unknown error';
+            pushAssistantToChat({ content: `⚠️ Could not summarize **${nct}**: ${detail}` });
+          } finally {
+            setBusy(false);
+            setThinkingStartedAt(null);
+          }
+          return;
+        }
+      }
 
     // --- Proactive single Q&A commit path (profile thread) ---
     if (isProfileThread && proactive && !pendingFile && note.trim()) {
