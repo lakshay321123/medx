@@ -5,6 +5,7 @@ import { computeAll } from '@/lib/medical/engine/computeAll';
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
+import { RESEARCH_BRIEF_STYLE } from '@/lib/styles';
 // Keep doc-mode clinical prelude tight & relevant
 function filterComputedForDocMode(items: any[], latestUser: string) {
   const msg = (latestUser || '').toLowerCase();
@@ -59,6 +60,7 @@ async function fetchSources(req: NextRequest, q: string): Promise<WebHit[]> {
 export async function POST(req: NextRequest) {
   const reqUrl = new URL(req.url);
   const qp = reqUrl.searchParams.get('research');
+  const long = reqUrl.searchParams.get('long') === '1';
   let body: any = {};
   try { body = await req.json(); } catch {}
   const { context, clientRequestId, mode } = body;
@@ -71,13 +73,12 @@ export async function POST(req: NextRequest) {
   let sources: WebHit[] = [];
   if (research && question) sources = await fetchSources(req, question);
 
-  // Inject sources into the system context
-  const srcBlock = sources.length
-    ? 'Use these current sources. Prefer them and cite links:\n' +
-      sources
-        .slice(0, 5)
-        .map((s, i) => `[${i + 1}] ${s.title}\n${s.url}\n${s.snippet}`)
-        .join('\n\n')
+  const srcList = sources
+    .slice(0, 5)
+    .map((s, i) => `[${i + 1}] ${s.title}\n${s.url}\n${s.snippet ?? ''}`)
+    .join('\n\n');
+  const srcBlock = srcList
+    ? 'Use these current sources. Prefer them and cite links:\n' + srcList
     : research
       ? 'Research mode ON but no live sources available.'
       : '';
@@ -95,6 +96,41 @@ export async function POST(req: NextRequest) {
     }
     recentReqs.set(clientRequestId, now);
   }
+  const base  = process.env.LLM_BASE_URL!;
+  const model = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
+  const key   = process.env.LLM_API_KEY!;
+  const url = `${base.replace(/\/$/,'')}/chat/completions`;
+
+  if (research && !long) {
+    const briefMessages = [
+      {
+        role: 'system',
+        content: RESEARCH_BRIEF_STYLE + (srcList ? `\n\nSOURCES:\n${srcList}` : '')
+      },
+      { role: 'user', content: question }
+    ];
+    const upstream = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model,
+        messages: briefMessages,
+        temperature: 0.2,
+        top_p: 0.9,
+        max_tokens: 250,
+        response_format: { type: 'json_object' },
+        stream: true
+      })
+    });
+    if (!upstream.ok) {
+      const err = await upstream.text();
+      return new Response(`LLM error: ${err}`, { status: 500 });
+    }
+    return new Response(upstream.body, {
+      headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }
+    });
+  }
+
   // === Concision controls (SOFT cap, no cutoffs) ===
   const latestUserMessage =
     (messages || []).filter((m: any) => m.role === 'user').slice(-1)[0]?.content || '';
@@ -114,10 +150,6 @@ export async function POST(req: NextRequest) {
     'Focus strictly on the user question—omit generic boilerplate.',
     'End with one short follow-up question (≤10 words) that stays on-topic.',
   ].join('\n');
-  const base  = process.env.LLM_BASE_URL!;
-  const model = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
-  const key   = process.env.LLM_API_KEY!;
-  const url = `${base.replace(/\/$/,'')}/chat/completions`;
 
   let finalMessages = messages.filter((m: any) => m.role !== 'system');
   // Track whether we actually injected filtered computed lines for doc/research modes.

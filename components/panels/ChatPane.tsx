@@ -134,6 +134,30 @@ function isNewTopic(text: string) {
     q.split(/\s+/).length <= 3
   );
 }
+type Brief = { tldr: string; bullets: string[]; citations: { title: string; url: string }[] };
+
+function renderBrief(raw: string) {
+  try {
+    const b = JSON.parse(raw) as Brief;
+    return (
+      <div>
+        <p className="font-medium">TL;DR: {b.tldr}</p>
+        <ul className="list-disc pl-5">
+          {b.bullets.slice(0,3).map((x,i)=><li key={i}>{x}</li>)}
+        </ul>
+        <div className="flex flex-wrap gap-2 pt-2">
+          {b.citations.slice(0,5).map((c,i)=>
+            <a key={i} href={c.url} target="_blank" rel="noreferrer" className="underline">
+              [{i+1}] {c.title || new URL(c.url).hostname}
+            </a>
+          )}
+        </div>
+      </div>
+    );
+  } catch {
+    return <p>{raw}</p>;
+  }
+}
 
 function inferTopicFromDoc(report: string) {
   const h1 = (report.match(/^#\s*(.+)$/m) || [, ""])[1];
@@ -259,7 +283,7 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
     </div>
   );
 }
-function ChatCard({ m, therapyMode, onAction, simple }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onAction: (s: Suggestion) => void; simple: boolean }) {
+function ChatCard({ m, therapyMode, onAction, simple, researchOn }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onAction: (s: Suggestion) => void; simple: boolean; researchOn: boolean }) {
   const [fast, setFast] = useState(false);
   const isDone = useTypewriterStore(s => s.isDone(m.id));
   const markDone = useTypewriterStore(s => s.markDone);
@@ -271,16 +295,20 @@ function ChatCard({ m, therapyMode, onAction, simple }: { m: Extract<ChatMessage
       onClick={() => setFast(true)}
     >
       {m.role === "assistant" ? (
-        <ChatMarkdown
-          content={m.content}
-          typing={!isDone}
-          fast={fast}
-          onDone={() => markDone(m.id)}
-        />
+        researchOn
+          ? renderBrief(m.content)
+          : (
+            <ChatMarkdown
+              content={m.content}
+              typing={!isDone}
+              fast={fast}
+              onDone={() => markDone(m.id)}
+            />
+          )
       ) : (
         <ChatMarkdown content={m.content} />
       )}
-      {m.role === "assistant" && (m.citations?.length || 0) > 0 && (
+      {m.role === "assistant" && !researchOn && (m.citations?.length || 0) > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {(m.citations || []).slice(0, simple ? 3 : 6).map((c, i) => (
             <LinkBadge key={i} href={c.url}>
@@ -301,7 +329,7 @@ function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onA
   return m.kind === "analysis" ? (
     <AnalysisCard m={m} researchOn={researchOn} onQuickAction={onQuickAction} busy={busy} />
   ) : (
-    <ChatCard m={m} therapyMode={therapyMode} onAction={onAction} simple={simple} />
+    <ChatCard m={m} therapyMode={therapyMode} onAction={onAction} simple={simple} researchOn={researchOn} />
   );
 }
 
