@@ -1,0 +1,8 @@
+export const RESEARCH_BRIEF_STYLE = `
+Be crisp.
+- One-line TL;DR (<=20 words).
+- Up to 3 bullets (<=18 words each).
+- Use concrete numbers/dates when known.
+- Cite provided sources as [1], [2], etc.
+Return JSON exactly: {"tldr":"","bullets":[""],"citations":[{"title":"","url":""}]}
+`;
