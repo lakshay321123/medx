@@ -6,6 +6,16 @@ import { computeAll } from '@/lib/medical/engine/computeAll';
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
 import { RESEARCH_BRIEF_STYLE } from '@/lib/styles';
+
+// --- tiny helper: keep only the last N non-system turns (cheap token control)
+function takeRecentTurns(
+  msgs: Array<{role:'system'|'user'|'assistant'; content:string}>,
+  n = 8
+) {
+  const nonSystem = msgs.filter(m => m.role !== 'system');
+  return nonSystem.slice(-n);
+}
+
 // Keep doc-mode clinical prelude tight & relevant
 function filterComputedForDocMode(items: any[], latestUser: string) {
   const msg = (latestUser || '').toLowerCase();
@@ -37,53 +47,56 @@ function filterComputedForDocMode(items: any[], latestUser: string) {
 export const runtime = 'edge';
 
 const recentReqs = new Map<string, number>();
-
-type WebHit = { title: string; snippet: string; url: string; source: string };
-async function fetchSources(req: NextRequest, q: string): Promise<WebHit[]> {
-  try {
-    const origin = new URL(req.url).origin;
-    const r = await fetch(`${origin}/api/search`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ query: q }),
-      cache: 'no-store'
-    });
-    if (!r.ok) return [];
-    const j = await r.json();
-    return (j.results ?? []) as WebHit[];
-  } catch {
-    return [];
-  }
-}
-
+ 
+type WebHit = { title:string; snippet?:string; url:string; source?:string };
 
 export async function POST(req: NextRequest) {
-  const reqUrl = new URL(req.url);
-  const qp = reqUrl.searchParams.get('research');
-  const long = reqUrl.searchParams.get('long') === '1';
+  const url = new URL(req.url);
+  const qp = url.searchParams.get('research');
+  const long = url.searchParams.get('long') === '1';
   let body: any = {};
   try { body = await req.json(); } catch {}
   const { context, clientRequestId, mode } = body;
+
   const research =
     qp === '1' || qp === 'true' || body?.research === true || body?.research === 'true';
-  const origMessages = body?.messages ?? [];
-  const question = String(body?.question ?? origMessages.at?.(-1)?.content ?? '').trim();
 
-  // Pull live sources when research is on
-  let sources: WebHit[] = [];
-  if (research && question) sources = await fetchSources(req, question);
+  // 1) Gather existing conversation
+  const history: Array<{role:'system'|'user'|'assistant'; content:string}> =
+    Array.isArray(body?.messages) ? body.messages : [];
 
-  const srcList = sources
-    .slice(0, 5)
-    .map((s, i) => `[${i + 1}] ${s.title}\n${s.url}\n${s.snippet ?? ''}`)
-    .join('\n\n');
-  const srcBlock = srcList
-    ? 'Use these current sources. Prefer them and cite links:\n' + srcList
-    : research
-      ? 'Research mode ON but no live sources available.'
-      : '';
+  // 2) Build source block if research is on
+  const sources: WebHit[] = body.__sources ?? [];
+  const srcBlock = research && sources.length
+    ? sources.slice(0, 5)
+        .map((s, i) => `[${i + 1}] ${s.title || s.url}\n${s.url}\n${s.snippet ?? ''}`)
+        .join('\n\n')
+    : '';
 
-  const messages = origMessages;
+  // 3) Brief message plan: style + (recent history) + latest user
+  const recent = takeRecentTurns(history, 8);                 // keep continuity
+  const latestUser =
+    recent.length && recent[recent.length - 1].role === 'user'
+      ? recent.pop()!
+      : { role: 'user' as const, content: String(body?.question ?? '').trim() };
+
+  const briefMessages: Array<{role:'system'|'user'|'assistant'; content:string}> =
+    research && !long
+      ? [
+          { role: 'system', content: RESEARCH_BRIEF_STYLE + (srcBlock ? `\n\nSOURCES:\n${srcBlock}` : '') },
+          ...recent,             // preserve chat context
+          latestUser             // ask the new question
+        ]
+      : history.length
+      ? history
+      : [latestUser];
+
+  // 4) Tighter generation when research brief is active
+  const modelOptions = (research && !long)
+    ? { temperature: 0.2, top_p: 0.9, max_tokens: 250, response_format: { type: 'json_object' } }
+    : { temperature: 0.7, max_tokens: 900 };
+
+  const messages = history.length ? history : [latestUser];
   const showClinicalPrelude = mode === 'doctor' || mode === 'research';
   const now = Date.now();
   for (const [id, ts] of recentReqs.entries()) {
@@ -102,24 +115,14 @@ export async function POST(req: NextRequest) {
   const url = `${base.replace(/\/$/,'')}/chat/completions`;
 
   if (research && !long) {
-    const briefMessages = [
-      {
-        role: 'system',
-        content: RESEARCH_BRIEF_STYLE + (srcList ? `\n\nSOURCES:\n${srcList}` : '')
-      },
-      { role: 'user', content: question }
-    ];
     const upstream = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify({
         model,
         messages: briefMessages,
-        temperature: 0.2,
-        top_p: 0.9,
-        max_tokens: 250,
-        response_format: { type: 'json_object' },
-        stream: true
+        stream: true,
+        ...modelOptions
       })
     });
     if (!upstream.ok) {
