@@ -51,9 +51,9 @@ const recentReqs = new Map<string, number>();
 type WebHit = { title:string; snippet?:string; url:string; source?:string };
 
 export async function POST(req: NextRequest) {
-  const url = new URL(req.url);
-  const qp = url.searchParams.get('research');
-  const long = url.searchParams.get('long') === '1';
+  const reqUrl = new URL(req.url);
+  const qp = reqUrl.searchParams.get('research');
+  const long = reqUrl.searchParams.get('long') === '1';
   let body: any = {};
   try { body = await req.json(); } catch {}
   const { context, clientRequestId, mode } = body;
