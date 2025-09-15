@@ -1,5 +1,7 @@
+import { BRAND_NAME } from "@/lib/brand";
+
 export function buildSystemPrompt({
-  persona = "You are MedX, a medical assistant and health copilot.",
+  persona = `You are ${BRAND_NAME}, a medical assistant and health copilot.`,
   locale = "en-IN",
 }: { persona?: string; locale?: string } = {}) {
   return [

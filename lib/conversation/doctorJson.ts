@@ -1,5 +1,7 @@
+import { BRAND_NAME } from "@/lib/brand";
+
 export const DOCTOR_JSON_SYSTEM = `
-You are MedX Doctor Mode.
+You are ${BRAND_NAME} Doctor Mode.
 Return ONLY valid JSON matching this TypeScript type:
 {
   "clinical_implications": string[],
