@@ -1,3 +1,20 @@
+// lib/brand.ts
+/**
+ * Centralized brand settings.
+ * LOGO_SRC is the canonical path we expect to exist in /public.
+ * The Logo component will fall back to a few common variants if this 404s.
+ */
 export const BRAND_NAME = "Second Opinion";
-// Uses the already-uploaded asset under /public (case-sensitive)
+
+// Canonical path you want to converge on (case-sensitive, recommended):
 export const LOGO_SRC = "/brand/second-opinion.png";
+
+// Optional: alternate places/names you might currently have in /public.
+// The Logo component will try these on onError in order.
+export const LOGO_FALLBACKS: string[] = [
+  "/Second-Opinion.png",
+  "/brand/Second-Opinion.png",
+  "/second-opinion.png",
+  "/logo.png",
+  "/logo.svg",
+];
