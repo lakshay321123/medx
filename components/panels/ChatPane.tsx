@@ -40,6 +40,7 @@ import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
 import ThinkingTimer from "@/components/ui/ThinkingTimer";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
+import { StopButton } from "@/components/ui/StopButton";
 import { useTypewriterStore } from "@/lib/state/typewriterStore";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
@@ -1857,49 +1858,52 @@ ${systemCommon}` + baseSys;
                 </button>
               </div>
             )}
-            {/* REPLACE the single-line <input> with this <textarea> */}
-            <textarea
-              ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
-              rows={1}
-              className="flex-1 resize-none bg-transparent outline-none text-sm md:text-base leading-6 placeholder:text-slate-500 dark:placeholder:text-slate-400 px-2 text-medx"
-              placeholder={
-                pendingFile
-                  ? 'Add a note or question for this document (optional)'
-                  : 'Send a message'
-              }
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              onKeyDown={(e) => {
-                // Send on Enter (no Shift), allow newline on Shift+Enter.
-                // Respect IME composition (don’t send while composing).
-                // NOTE: keep behavior identical to ChatGPT.
-                const isComposing = (e.nativeEvent as any).isComposing;
-                if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
-                  e.preventDefault();
-                  onSubmit();
+            <div className="relative flex-1">
+              <textarea
+                ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
+                rows={1}
+                className="flex-1 resize-none bg-transparent outline-none text-sm md:text-base leading-6 placeholder:text-slate-500 dark:placeholder:text-slate-400 px-2 pr-[44px] text-medx"
+                placeholder={
+                  pendingFile
+                    ? 'Add a note or question for this document (optional)'
+                    : 'Send a message'
                 }
-              }}
-              disabled={busy}
-            />
-            {!busy ? (
-              <button
-                className="w-10 h-10 rounded-full flex items-center justify-center text-lg medx-btn-accent disabled:opacity-50"
-                type="submit"
-                disabled={!pendingFile && !note.trim()}
-                aria-label="Send"
-              >
-                <Send size={16} />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={onStop}
-                className="w-10 h-10 rounded-full flex items-center justify-center text-lg bg-red-600 text-white"
-                aria-label="Stop"
-              >
-                Stop
-              </button>
-            )}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                onKeyDown={(e) => {
+                  // Send on Enter (no Shift), allow newline on Shift+Enter.
+                  // Respect IME composition (don't send while composing).
+                  // NOTE: keep behavior identical to ChatGPT.
+                  const isComposing = (e.nativeEvent as any).isComposing;
+                  if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
+                    e.preventDefault();
+                    onSubmit();
+                  }
+                }}
+              />
+
+              {busy && (
+                <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+                  <StopButton
+                    onClick={onStop}
+                    className="pointer-events-auto"
+                    title="Stop (Esc)"
+                  />
+                </div>
+              )}
+            </div>
+
+              {!busy && (
+                <button
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-lg medx-btn-accent disabled:opacity-50"
+                  type="submit"
+                  disabled={!pendingFile && !note.trim()}
+                  aria-label="Send"
+                  title="Send"
+                >
+                  <Send size={16} />
+                </button>
+              )}
           </form>
         </div>
       </div>
