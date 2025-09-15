@@ -41,7 +41,6 @@ import * as DomainStyles from "@/lib/prompts/domains";
 import ThinkingTimer from "@/components/ui/ThinkingTimer";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { useTypewriterStore } from "@/lib/state/typewriterStore";
-import { getResearchFlagFromUrl } from "@/utils/researchFlag";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -1085,15 +1084,24 @@ ${systemCommon}` + baseSys;
         ];
       }
 
-      const research = getResearchFlagFromUrl();
-      const res = await fetch('/api/chat/stream', {
+      const researchOn =
+        new URLSearchParams(window.location.search).get('research')?.match(/^(1|true)$/i);
+      const url = `/api/chat/stream${researchOn ? '?research=1' : ''}`;
+      const res = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-conversation-id': conversationId,
           'x-new-chat': messages.length === 0 ? 'true' : 'false'
         },
-        body: JSON.stringify({ mode: mode === 'doctor' ? 'doctor' : 'patient', messages: chatMessages, threadId, context, clientRequestId, research })
+        body: JSON.stringify({
+          mode: mode === 'doctor' ? 'doctor' : 'patient',
+          messages: chatMessages,
+          threadId,
+          context,
+          clientRequestId,
+          research: !!researchOn
+        })
       });
       if (res.status === 409) {
         setMessages(prev => prev.filter(m => m.id !== pendingId));
