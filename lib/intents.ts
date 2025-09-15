@@ -10,7 +10,7 @@
 // - Utilities: classifyIntent, listIntents, defaultDraftStyle
 //
 // Design notes
-// - Strings never contain ASCII three-dots `...`
+// - Strings never contain ASCII three consecutive dots
 // - Spread operators in code are fine; UI copy uses full words
 // - All outlines finish with one short follow-up question instruction
 //
