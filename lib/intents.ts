@@ -162,7 +162,7 @@ const PATIENT_SPECS: IntentSpec[] = [
   { slug: "medications", title: "Medications basics", triggers: ["medications", "medicine", "pill", "tablet", "drug"], outline: ["## **What to take (OTC or Rx)**", "## **What to avoid and cautions**"] },
   { slug: "how_to_take", title: "How to take / dosing", triggers: ["how to take", "with food", "without food", "missed dose", "timing", "schedule"], outline: ["## **How to take it**", "## **If you miss a dose**"] },
   { slug: "side_effects", title: "Side effects", triggers: ["side effects", "adverse effects", "what to watch for", "warning signs"], outline: ["## **Common side effects**", "## **When to call a doctor**"] },
-  { slug: "interactions", title: "Drug interactions", triggers: ["interactions", "with my other meds", "supplements", "compatibility", "can i take this with *"], outline: ["## **Major interactions**", "## **How to take it safely**"] },
+  { slug: "interactions", title: "Drug interactions", triggers: ["interactions", "with my other meds", "supplements", "compatibility", /can i take this with \w+/i], outline: ["## **Major interactions**", "## **How to take it safely**"] },
   { slug: "allergy", title: "Allergy", triggers: ["allergy", "allergic", "cross react", "cross reaction", "rash with"], outline: ["## **Allergy and cross reaction**", "## **Safer alternatives**"] },
 
   // Home, lifestyle, practical
@@ -180,8 +180,8 @@ const PATIENT_SPECS: IntentSpec[] = [
   { slug: "monitoring_home", title: "Monitoring at home", triggers: ["monitor at home", "diary", "log", "tracker", "symptom diary", "home monitoring"], outline: ["## **What to track**", "## **When to seek care**"] },
   { slug: "cost", title: "Cost", triggers: ["cost", "insurance", "covered", "generic", "brand", "cheaper option", "affordable"], outline: ["## **Lower cost options**", "## **What to ask insurance**"] },
   { slug: "second_opinion", title: "Second opinion", triggers: ["second opinion", "what to ask my doctor", "questions to ask"], outline: ["## **Key questions to ask**", "## **How to prepare**"] },
-  { slug: "compare_dx", title: "Compare diagnoses", triggers: ["compare diagnoses", "difference between * and *", "how to tell if it is * or *", "* vs * diagnosis"], outline: ["## **How they differ**", "## **When to see a doctor**"] },
-  { slug: "compare_tx", title: "Compare treatments", triggers: ["compare treatments", "ibuprofen vs acetaminophen", "which is better * or *", "* vs * treatment"], outline: ["## **Pros and cons**", "## **Which to prefer when**"] },
+  { slug: "compare_dx", title: "Compare diagnoses", triggers: ["compare diagnoses", /difference between [\w\s]+ and [\w\s]+/i, /how to tell if it is [\w\s]+ or [\w\s]+/i, /[\w\s]+ vs [\w\s]+ diagnosis/i], outline: ["## **How they differ**", "## **When to see a doctor**"] },
+  { slug: "compare_tx", title: "Compare treatments", triggers: ["compare treatments", "ibuprofen vs acetaminophen", /which is better [\w\s]+ or [\w\s]+/i, /[\w\s]+ vs [\w\s]+ treatment/i], outline: ["## **Pros and cons**", "## **Which to prefer when**"] },
   { slug: "contagious", title: "Is it contagious", triggers: ["is it contagious", "protect family", "spread to others"], outline: ["## **Is it contagious**", "## **How to protect others**"] },
   { slug: "caregiver", title: "Caregiver guidance", triggers: ["caregiver", "how to help someone", "family support"], outline: ["## **How to help**", "## **What to watch for**"] },
   { slug: "vaccines", title: "Vaccines", triggers: ["vaccine", "vaccination", "immunization"], outline: ["## **Relevant vaccines**", "## **Timing and eligibility**"] },
