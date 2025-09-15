@@ -7,6 +7,7 @@ import ThinkingTimer from "@/components/ui/ThinkingTimer";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import Typewriter from "@/components/chat/Typewriter";
 import { useTypewriterStore } from "@/lib/state/typewriterStore";
+import { getResearchFlagFromUrl } from "@/utils/researchFlag";
 
 function MessageRow({ m }: { m: { id: string; role: string; content: string } }) {
   const [fast, setFast] = useState(false);
@@ -37,10 +38,11 @@ export function ChatWindow() {
     setIsThinking(true);
     setThinkingStartedAt(Date.now());
     if (locationToken) {
+      const research = getResearchFlagFromUrl();
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: content, locationToken }),
+        body: JSON.stringify({ query: content, locationToken, research }),
       });
       const data = await res.json();
       setResults(data.results || []);

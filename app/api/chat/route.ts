@@ -37,6 +37,25 @@ import { searchTrials, dedupeTrials, rankValue } from "@/lib/trials/search";
 import { byName } from "@/data/countries";
 import { searchNearby } from "@/lib/openpass";
 
+type WebHit = { title: string; snippet: string; url: string; source: string };
+
+async function runAggregator(req: Request, query: string): Promise<WebHit[]> {
+  try {
+    const origin = new URL(req.url).origin;
+    const r = await fetch(`${origin}/api/search`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ query }),
+      cache: 'no-store'
+    });
+    if (!r.ok) return [];
+    const j = await r.json();
+    return (j.results ?? []) as WebHit[];
+  } catch {
+    return [];
+  }
+}
+
 async function getFeedbackSummary(conversationId: string) {
   try {
     const db = supabaseAdmin();
@@ -69,7 +88,8 @@ export async function POST(req: Request) {
   const { messages: incomingMessages, mode: rawMode, thread_id } = body;
   const mode = normalizeMode(rawMode);
   const userMessage = incomingMessages?.[incomingMessages.length - 1]?.content || "";
-  let { userId, activeThreadId, text, researchOn, clarifySelectId } = body;
+  let { userId, activeThreadId, text, researchOn, clarifySelectId, research } = body;
+  if (researchOn === undefined) researchOn = research;
   if (researchOn === undefined && (mode === "doctor" || mode === "research")) {
     researchOn = true;
   }
@@ -292,6 +312,21 @@ export async function POST(req: Request) {
     await saveState(threadId, state);
   }
 
+  // 4.5) Optional web research
+  let researchSources: WebHit[] = [];
+  let sourceBlock = '';
+  if (researchOn) {
+    researchSources = await runAggregator(req, text);
+    if (researchSources.length) {
+      const top = researchSources.slice(0, 5);
+      sourceBlock =
+        'Use these up-to-date sources. Prefer them over prior knowledge and include links:\n' +
+        top.map((s, i) => `[${i + 1}] ${s.title}\n${s.url}\n${s.snippet}`).join('\n\n');
+    } else {
+      sourceBlock = 'Research mode was ON but no web results were available.';
+    }
+  }
+
   // 5) Build system + recent messages
   const { system, recent } = await buildPromptContext({ threadId, options: { mode, researchOn } });
   const baseSystem = [system, ...systemExtra].join("\n");
@@ -302,6 +337,7 @@ export async function POST(req: Request) {
   // 6) Groq call
   const messages: ChatCompletionMessageParam[] = [
     { role: "system", content: fullSystem },
+    ...(sourceBlock ? [{ role: "system", content: sourceBlock }] : []),
     ...recent.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
     { role: "user", content: text },
   ];
@@ -349,5 +385,5 @@ export async function POST(req: Request) {
   // 8) Optional natural pacing (2–4s)
   await new Promise(r => setTimeout(r, 1800 + Math.random() * 1200));
 
-  return respond({ ok: true, threadId, text: assistant });
+  return respond({ ok: true, threadId, text: assistant, sources: researchSources });
 }
