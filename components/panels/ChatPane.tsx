@@ -777,11 +777,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               const delta = payload?.choices?.[0]?.delta?.content;
               if (delta) {
                 acc += delta;
-                setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m)));
               }
             } catch {}
           }
         }
+        acc += decoder.decode();
         const { main, followUps } = splitFollowUps(acc);
         setMessages(prev =>
           prev.map(m =>
@@ -1133,13 +1133,11 @@ ${systemCommon}` + baseSys;
             const delta = payload?.choices?.[0]?.delta?.content;
             if (delta) {
               acc += delta;
-              setMessages(prev =>
-                prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m))
-              );
             }
           } catch {}
         }
       }
+      acc += decoder.decode();
       const { main, followUps } = splitFollowUps(acc);
       setMessages(prev =>
         prev.map(m =>
