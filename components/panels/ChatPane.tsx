@@ -316,6 +316,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [busy, setBusy] = useState(false);
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef =
     (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ??
@@ -727,7 +728,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       updateThreadTitle(threadId, nt);
       upsertThreadIndex(threadId, nt);
     }
-
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    let acc = '';
     try {
       const fullContext = buildFullContext(stableThreadId);
       const contextBlock = fullContext ? `\n\nCONTEXT (recent conversation):\n${fullContext}` : "";
@@ -749,7 +752,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             threadId,
             context,
             clientRequestId
-          })
+          }),
+          signal: ctrl.signal
         });
         if (res.status === 409) {
           setMessages(prev => prev.filter(m => m.id !== pendingId));
@@ -760,7 +764,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
-        let acc = '';
+        acc = '';
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -1101,7 +1105,8 @@ ${systemCommon}` + baseSys;
           context,
           clientRequestId,
           research: !!researchOn
-        })
+        }),
+        signal: ctrl.signal
       });
       if (res.status === 409) {
         setMessages(prev => prev.filter(m => m.id !== pendingId));
@@ -1113,7 +1118,7 @@ ${systemCommon}` + baseSys;
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let acc = '';
+      acc = '';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -1169,31 +1174,42 @@ ${systemCommon}` + baseSys;
         setUi(prev => ({ ...prev, contextFrom: 'Conversation summary' }));
       }
     } catch (e: any) {
+      if (e?.name === 'AbortError') {
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === pendingId
+              ? Object.assign({}, m, { content: acc, pending: false })
+              : m
+          )
+        );
+        return;
+      }
       console.error(e);
       const content = `⚠️ ${String(e?.message || e)}`;
       setMessages(prev =>
         prev.map(m =>
           m.id === pendingId
-            ? {
-                ...m,
-                content,
-                pending: false,
-                error: String(e?.message || e)
-              }
+            ? Object.assign({}, m, { content, pending: false, error: String(e?.message || e) })
             : m
         )
       );
       if (threadId && content.trim()) {
-        pushFullMem(threadId, "assistant", content);
+        pushFullMem(threadId, 'assistant', content);
         maybeIndexStructured(threadId, content);
       }
       if (stableThreadId) {
-        try { pushFullMem(stableThreadId, "assistant", content); } catch {}
+        try { pushFullMem(stableThreadId, 'assistant', content); } catch {}
       }
     } finally {
       setBusy(false);
       setThinkingStartedAt(null);
+      abortRef.current = null;
     }
+  }
+
+  function onStop() {
+    const c = abortRef.current;
+    if (c) c.abort();
   }
 
   function onFileSelected(file: File) {
@@ -1486,6 +1502,16 @@ ${systemCommon}` + baseSys;
       setShowNewIntake(false);
     }
   }
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape' && busy) {
+        e.preventDefault();
+        onStop();
+      }
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [busy]);
 
   return (
     <div className="relative flex h-full flex-col">
@@ -1853,15 +1879,27 @@ ${systemCommon}` + baseSys;
                   onSubmit();
                 }
               }}
+              disabled={busy}
             />
-            <button
-              className="w-10 h-10 rounded-full flex items-center justify-center text-lg medx-btn-accent disabled:opacity-50"
-              type="submit"
-              disabled={busy || (!pendingFile && !note.trim())}
-              aria-label="Send"
-            >
-              <Send size={16} />
-            </button>
+            {!busy ? (
+              <button
+                className="w-10 h-10 rounded-full flex items-center justify-center text-lg medx-btn-accent disabled:opacity-50"
+                type="submit"
+                disabled={!pendingFile && !note.trim()}
+                aria-label="Send"
+              >
+                <Send size={16} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onStop}
+                className="w-10 h-10 rounded-full flex items-center justify-center text-lg bg-red-600 text-white"
+                aria-label="Stop"
+              >
+                Stop
+              </button>
+            )}
           </form>
         </div>
       </div>
