@@ -424,11 +424,13 @@ export default function MedicalProfile() {
                 await loadSummary();
                 // fire-and-forget background prediction (keeps existing logic untouched)
                 try {
-                  const userId = sessionStorage.getItem("user_id") || "default_user";
                   const threadId = sessionStorage.getItem("aidoc_thread") || "default_thread";
                   fetch("/api/aidoc/predict", {
                     method: "POST",
-                    body: JSON.stringify({ userId, threadId }),
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    keepalive: true,
+                    body: JSON.stringify({ threadId }),
                   });
                 } catch {}
               }}

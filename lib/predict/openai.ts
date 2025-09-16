@@ -1,5 +1,17 @@
 import OpenAI from "openai";
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+
+let cachedClient: OpenAI | null = null;
+
+function getClient() {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is required for predictions");
+  }
+  if (!cachedClient) {
+    cachedClient = new OpenAI({ apiKey });
+  }
+  return cachedClient;
+}
 
 type Bundle = Awaited<ReturnType<typeof import("./assemble").assembleBundle>>;
 export type PredictionReport = {
@@ -32,8 +44,8 @@ export async function runOpenAI(bundle: Bundle): Promise<PredictionReport> {
     })),
   });
 
-  const model = process.env.OPENAI_TEXT_MODEL || "gpt-5";
-  const r = await client.chat.completions.create({
+  const model = process.env.OPENAI_TEXT_MODEL || "gpt-3.5-turbo";
+  const r = await getClient().chat.completions.create({
     model,
     temperature: 0.2,
     response_format: { type: "json_object" },

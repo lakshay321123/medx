@@ -23,13 +23,15 @@ async function maybeRun() {
   const now = Date.now();
   if (now - last < MIN_GAP_MS) return;
 
-  const userId = sessionStorage.getItem("user_id") || "default_user";
   const threadId = sessionStorage.getItem("aidoc_thread") || "default_thread";
 
   try {
     await fetch("/api/aidoc/predict", {
       method: "POST",
-      body: JSON.stringify({ userId, threadId }),
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      keepalive: true,
+      body: JSON.stringify({ threadId }),
     });
     localStorage.setItem(LAST_KEY, String(now));
   } catch {}

@@ -1,13 +1,9 @@
-import { createClient } from "@supabase/supabase-js";
-
-const sb = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { createClient as createServerClient } from "@/lib/supabase/server";
 
 type Opts = { userId: string };
 
 export async function assembleBundle({ userId }: Opts) {
+  const sb = createServerClient();
   const [profile, observations, labs, meds, chunks] = await Promise.all([
     sb.from("profile").select("*").eq("user_id", userId).maybeSingle(),
     sb.from("observations").select("*").eq("user_id", userId).order("observed_at", { ascending: true }),
@@ -18,8 +14,14 @@ export async function assembleBundle({ userId }: Opts) {
       .select("file_id,page,chunk_index,content,created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
-      .limit(800),
+      .limit(600),
   ]);
+
+  for (const r of [profile, observations, labs, meds, chunks]) {
+    if (r.error) {
+      throw new Error(`Supabase fetch error: ${r.error.message}`);
+    }
+  }
 
   return {
     profile: profile.data || null,

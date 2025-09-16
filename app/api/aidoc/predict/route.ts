@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { assembleBundle } from "@/lib/predict/assemble";
 import { runOpenAI } from "@/lib/predict/openai";
 import { formatWithLLM } from "@/lib/predict/llm";
+import { createClient as createServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -10,10 +11,26 @@ export async function POST(req: Request) {
     if (process.env.SECOND_OPINION_PREDICT !== "on") {
       return NextResponse.json({ ok: false, error: "disabled" }, { status: 503 });
     }
-    const { userId, threadId, dryRun } = await req.json();
-    if (!userId || !threadId) {
+    const payload = await req
+      .json()
+      .catch(() => ({} as Record<string, unknown>));
+    const { threadId, dryRun } = (payload ?? {}) as {
+      threadId?: string;
+      dryRun?: unknown;
+    };
+    if (!threadId || typeof threadId !== "string") {
       return NextResponse.json({ ok: false, error: "bad_request" }, { status: 400 });
     }
+
+    const supabase = createServerClient();
+    const {
+      data: { user },
+      error: authErr,
+    } = await supabase.auth.getUser();
+    if (authErr || !user) {
+      return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+    const userId = user.id;
 
     const DRY = String(dryRun ?? process.env.SECOND_OPINION_DRYRUN) === "1";
 
