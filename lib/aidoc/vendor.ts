@@ -125,9 +125,25 @@ function tryParseJson(s: string) {
   return null;
 }
 
+function stableStringify(value: any, seen = new WeakSet<any>()): string {
+  if (value && typeof value === "object") {
+    if (seen.has(value)) return '"[Circular]"';
+    seen.add(value);
+    if (Array.isArray(value)) {
+      return "[" + value.map(v => stableStringify(v, seen)).join(",") + "]";
+    }
+    const keys = Object.keys(value).sort();
+    return "{" + keys
+      .filter(k => typeof value[k] !== "function" && value[k] !== undefined)
+      .map(k => JSON.stringify(k) + ":" + stableStringify(value[k], seen))
+      .join(",") + "}";
+  }
+  return JSON.stringify(value);
+}
+
 function hashObject(value: unknown) {
   try {
-    return createHash("sha256").update(JSON.stringify(value) || "").digest("hex");
+    return createHash("sha256").update(stableStringify(value)).digest("hex");
   } catch {
     return null;
   }
