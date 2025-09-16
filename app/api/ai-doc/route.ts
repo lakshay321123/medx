@@ -232,7 +232,7 @@ export async function POST(req: NextRequest) {
       lastMessageId: null,
       feedback_summary,
       app: "medx",
-      mode: "ai-doc",
+      mode: "aidoc",
     },
   });
 

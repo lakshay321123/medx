@@ -6,7 +6,7 @@ export function toQuery(
   current?: URLSearchParams | ReadonlyURLSearchParams,
 ): string {
   if (state.base === "aidoc")
-    return "/?panel=chat&threadId=med-profile&context=profile";
+    return "/?panel=aidoc";
   const p = new URLSearchParams(current ? current.toString() : undefined);
   p.set("panel", "chat");
   p.set("mode", state.base);
@@ -33,6 +33,7 @@ export function fromSearchParams(
   const threadId = sp.get("threadId");
   const context = sp.get("context");
   if (
+    panel === "aidoc" ||
     panel === "ai-doc" ||
     (panel === "chat" && threadId === "med-profile" && context === "profile")
   ) {

@@ -87,7 +87,7 @@ export default function Sidebar() {
             {aidocThreads.map(t => (
               <div key={t.id} className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm mb-1.5 medx-surface text-medx">
                 <button
-                  onClick={() => router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`)}
+                  onClick={() => router.push(`/?panel=aidoc&threadId=${t.id}&context=profile`)}
                   className="flex-1 text-left truncate text-sm"
                   title={t.title ?? ''}
                 >

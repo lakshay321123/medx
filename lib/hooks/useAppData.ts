@@ -27,3 +27,17 @@ export function useProfile() {
     refreshInterval: 120000,
   });
 }
+
+export function usePredictions(threadId?: string | null) {
+  return useSWR<any[]>(
+    threadId ? `/api/predictions?threadId=${encodeURIComponent(threadId)}` : null,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      shouldRetryOnError: true,
+      errorRetryCount: 3,
+      errorRetryInterval: 1200,
+      refreshInterval: 120000,
+    },
+  );
+}

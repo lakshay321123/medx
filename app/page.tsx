@@ -11,7 +11,8 @@ import AiDocPane from "@/components/panels/AiDocPane";
 type Search = { panel?: string };
 
 export default function Page({ searchParams }: { searchParams: Search }) {
-  const panel = searchParams.panel?.toLowerCase() || "chat";
+  const rawPanel = searchParams.panel?.toLowerCase();
+  const panel = rawPanel === "ai-doc" ? "aidoc" : rawPanel || "chat";
   const chatInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -33,7 +34,7 @@ export default function Page({ searchParams }: { searchParams: Search }) {
       {panel === "timeline" && <Timeline />}
       {panel === "alerts" && <AlertsPane />}
       {panel === "settings" && <SettingsPane />}
-      {panel === "ai-doc" && <AiDocPane />}
+      {panel === "aidoc" && <AiDocPane />}
     </main>
   );
 }

@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { safeJson } from "@/lib/safeJson";
-import { useProfile } from "@/lib/hooks/useAppData";
+import { usePredictions, useProfile } from "@/lib/hooks/useAppData";
 
 const SEXES = ["male", "female", "other"] as const;
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -45,6 +45,7 @@ type Groups = Record<
   "vitals" | "labs" | "imaging" | "medications" | "diagnoses" | "procedures" | "immunizations" | "notes" | "other",
   Item[]
 >;
+const PROFILE_THREAD_ID = "med-profile";
 export default function MedicalProfile() {
   const { data, error, isLoading, mutate } = useProfile();
   const [obs, setObs] = useState<Observation[]>([]);
@@ -53,10 +54,8 @@ export default function MedicalProfile() {
 
   const router = useRouter();
   const params = useSearchParams();
-  const _threadId = params.get("threadId") || "default";
 
   const [summary, setSummary] = useState<string>("");
-  const [reasons, setReasons] = useState<string>("");
 
   const loadSummary = async () => {
     try {
@@ -64,12 +63,54 @@ export default function MedicalProfile() {
       const j = await r.json();
       if (j?.text) setSummary(j.text);
       else if (j?.summary) setSummary(j.summary);
-      if (j?.reasons) setReasons(j.reasons);
     } catch {}
   };
   useEffect(() => { loadSummary(); }, []);
 
   const prof = data?.profile ?? null;
+  const patientIdFromProfile =
+    prof && prof.id != null ? String(prof.id) : null;
+  const patientIdFromParams = params.get("patientId");
+  const activePatientId = patientIdFromProfile || patientIdFromParams || null;
+  const {
+    data: predictionsData,
+    error: predictionsError,
+    isLoading: predictionsLoading,
+  } = usePredictions(PROFILE_THREAD_ID);
+  const latestPrediction =
+    Array.isArray(predictionsData) && predictionsData.length > 0
+      ? predictionsData[0]
+      : null;
+  const riskScore =
+    latestPrediction && typeof latestPrediction.riskScore === "number"
+      ? latestPrediction.riskScore
+      : null;
+  const riskBand =
+    latestPrediction && typeof latestPrediction.band === "string"
+      ? latestPrediction.band
+      : null;
+  const predictionFactors = Array.isArray(latestPrediction?.factors)
+    ? latestPrediction.factors
+    : [];
+  const predictionRecommendations = Array.isArray(
+    latestPrediction?.recommendations
+  )
+    ? latestPrediction.recommendations
+    : [];
+  const predictionUpdatedAt = latestPrediction?.createdAt
+    ? new Date(latestPrediction.createdAt)
+    : null;
+  const predictionUpdatedLabel =
+    predictionUpdatedAt && !Number.isNaN(predictionUpdatedAt.getTime())
+      ? predictionUpdatedAt.toLocaleString()
+      : null;
+  const goToAidoc = (intent: "recompute" | "seedProfile") => {
+    const search = new URLSearchParams();
+    search.set("panel", "aidoc");
+    search.set("intent", intent);
+    if (activePatientId) search.set("patientId", activePatientId);
+    router.push(`/?${search.toString()}`);
+  };
   const [bootstrapped, setBootstrapped] = useState(false);
   const [fullName, setFullName] = useState("");
   const [dob, setDob] = useState("");
@@ -381,48 +422,77 @@ export default function MedicalProfile() {
         </section>
       )}
 
+      {/* --- Persisted predictions --- */}
+      <section className="mt-6 rounded-xl border p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h3 className="font-semibold">Risk &amp; Recommendations</h3>
+            {predictionUpdatedLabel && (
+              <div className="text-xs text-muted-foreground">
+                Updated {predictionUpdatedLabel}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="mt-3 text-sm space-y-3">
+          {predictionsLoading ? (
+            <div className="text-muted-foreground">Loading predictions…</div>
+          ) : predictionsError ? (
+            <div className="text-red-500">Couldn’t load predictions.</div>
+          ) : latestPrediction ? (
+            <div className="space-y-3">
+              <div>
+                <span className="font-medium">Risk score:</span>{" "}
+                {riskScore != null ? riskScore : "—"}
+                {riskBand ? ` (${riskBand})` : ""}
+              </div>
+              {predictionFactors.length > 0 && (
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Key factors
+                  </div>
+                  <ul className="mt-1 list-disc space-y-1 pl-4">
+                    {predictionFactors.map((f: any, idx: number) => (
+                      <li key={idx}>
+                        {typeof f?.name === "string" ? f.name : "Factor"}
+                        {typeof f?.contribution === "number"
+                          ? ` (+${f.contribution})`
+                          : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {predictionRecommendations.length > 0 && (
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Recommendations
+                  </div>
+                  <ul className="mt-1 list-disc space-y-1 pl-4">
+                    {predictionRecommendations.map((rec: string, idx: number) => (
+                      <li key={idx}>{rec}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-muted-foreground">No predictions yet.</div>
+          )}
+        </div>
+      </section>
+
       {/* --- AI Summary & Reasons --- */}
       <div className="mt-6 rounded-xl border p-4">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold">AI Summary</h3>
           <div className="flex gap-2">
             <button
-              onClick={async () => {
-                try {
-                  const prof = await fetch("/api/profile", { cache: "no-store" })
-                    .then(r => r.json())
-                    .catch(() => null);
-                  const packet = await fetch("/api/profile/packet", { cache: "no-store" })
-                    .then(r => r.json())
-                    .catch(() => ({ text: "" }));
-                  const prefill = encodeURIComponent(
-                    JSON.stringify({
-                      kind: "profileSummary",
-                      summary,
-                      reasons,
-                      profile: prof?.profile || prof || null,
-                      packet: packet?.text || "",
-                    })
-                  );
-                  router.push(
-                    `/?panel=chat&threadId=med-profile&context=profile&prefill=${prefill}`
-                  );
-                } catch {
-                  const prefill = encodeURIComponent(
-                    JSON.stringify({ kind: "profileSummary", summary, reasons })
-                  );
-                  router.push(
-                    `/?panel=chat&threadId=med-profile&context=profile&prefill=${prefill}`
-                  );
-                }
-              }}
+              onClick={() => goToAidoc("seedProfile")}
               className="text-xs px-2 py-1 rounded-md border"
             >Discuss & Correct in Chat</button>
             <button
-              onClick={async () => {
-                await fetch("/api/alerts/recompute", { method: "POST" });
-                await loadSummary();
-              }}
+              onClick={() => goToAidoc("recompute")}
               className="text-xs px-2 py-1 rounded-md border"
             >Recompute Risk</button>
           </div>
