@@ -10,6 +10,16 @@ type TabsProps = {
   children: React.ReactNode;
 };
 
+/**
+ * Provides tab selection state to descendants and resets it when configured inputs change.
+ *
+ * Creates internal state initialized from `defaultValue` and exposes `{ value, setValue }`
+ * via TabsContext.Provider so TabsTrigger and TabsContent can read and update the active tab.
+ *
+ * @param defaultValue - The initial active tab value; state is re-synchronized to this when it changes.
+ * @param resetKey - Optional value that, when changed, forces the internal state to reset to `defaultValue`.
+ * @returns A provider wrapping `children` that supplies the current tab value and a setter.
+ */
 export function Tabs({ defaultValue, resetKey, children }: TabsProps) {
   const [value, setValue] = React.useState(defaultValue);
 

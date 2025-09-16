@@ -14,6 +14,23 @@ const catOf = (it:any):Cat => {
   return "NOTES";
 };
 
+/**
+ * Client-side Timeline component that displays and filters timeline events (observations and predictions)
+ * and provides a detail panel with file preview or summarized content.
+ *
+ * The component fetches timeline data via useTimeline and renders:
+ * - Category and date-range filters (including a custom start date) and a text search.
+ * - A list of timeline items showing dates, type (AI/Obs), names, values, and short summaries.
+ * - A right-hand detail panel for observations that shows either a file preview (PDF or images) when a signed URL is available
+ *   or a tabbed view with summary/full text when no file is attached.
+ * - A "Reset" action that POSTs to /api/observations/reset to clear observations/predictions and then refreshes data.
+ *
+ * Side effects:
+ * - Requests a signed URL from /api/uploads/signed-url when opening an observation that has an associated file.
+ * - Calls /api/observations/reset when the user confirms the reset action.
+ *
+ * @returns The Timeline React element.
+ */
 export default function Timeline(){
   const [resetError, setResetError] = useState<string|null>(null);
   const { data, error, isLoading, mutate } = useTimeline();
