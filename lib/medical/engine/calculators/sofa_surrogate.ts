@@ -105,7 +105,7 @@ register({
   inputs: [
     {key:"PaO2"},{key:"FiO2"},{key:"ventilatory_support"},
     {key:"Platelets_k"},{key:"Bilirubin_mg_dL"},
-    {key:"MAP"},{key:"dopamine_ug_kg_min"},{key:"dobutamine"},{key:"norepi_ug_kg_min"},{key:"epi_ug_kg_min"},
+    {key:"MAP",unit:"mmHg"},{key:"dopamine_ug_kg_min"},{key:"dobutamine"},{key:"norepi_ug_kg_min"},{key:"epi_ug_kg_min"},
     {key:"GCS"},
     {key:"Creatinine_mg_dL"},{key:"Urine_mL_day"}
   ],

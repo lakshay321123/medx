@@ -4,7 +4,7 @@ import { register } from "../registry";
 register({
   id: "map",
   label: "Mean arterial pressure",
-  inputs: [{ key: "SBP", required: true }, { key: "DBP", required: true }],
+  inputs: [{ key: "SBP", unit: "mmHg", required: true }, { key: "DBP", unit: "mmHg", required: true }],
   run: ({ SBP, DBP }) => {
     if (SBP == null || DBP == null) return null;
     const val = (SBP + 2 * DBP) / 3;
@@ -18,7 +18,7 @@ register({
 register({
   id: "shock_index",
   label: "Shock index",
-  inputs: [{ key: "HR", required: true }, { key: "SBP", required: true }],
+  inputs: [{ key: "HR", unit: "bpm", required: true }, { key: "SBP", unit: "mmHg", required: true }],
   run: ({ HR, SBP }) => {
     if (HR == null || SBP == null || SBP === 0) return null;
     const val = HR / SBP;

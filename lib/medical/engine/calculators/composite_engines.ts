@@ -48,6 +48,6 @@ export function runShockIndexBands({ HR, SBP }: ShockInputs) {
 }
 
 register({ id:"dka_severity", label:"DKA severity", inputs:[{key:"pH",required:true},{key:"HCO3",required:true},{key:"mental_status"}], run: runDKASeverity as any });
-register({ id:"sepsis_bundle_flag", label:"Sepsis bundle flag", inputs:[{key:"SBP"},{key:"MAP"},{key:"Lactate"}], run: runSepsisBundleFlag as any });
+register({ id:"sepsis_bundle_flag", label:"Sepsis bundle flag", inputs:[{key:"SBP",unit:"mmHg"},{key:"MAP",unit:"mmHg"},{key:"Lactate",unit:"mmol/L"}], run: runSepsisBundleFlag as any });
 register({ id:"ards_severity", label:"ARDS severity (Berlin)", inputs:[{key:"PaO2",required:true},{key:"FiO2",required:true},{key:"ventilatory_support"},{key:"PEEP_cmH2O"}], run: runARDSSeverity as any });
-register({ id:"shock_index_bands", label:"Shock index bands", inputs:[{key:"HR",required:true},{key:"SBP",required:true}], run: runShockIndexBands as any });
+register({ id:"shock_index_bands", label:"Shock index bands", inputs:[{key:"HR",unit:"bpm",required:true},{key:"SBP",unit:"mmHg",required:true}], run: runShockIndexBands as any });
