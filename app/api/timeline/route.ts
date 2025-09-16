@@ -3,32 +3,43 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getActivePatientId } from "@/lib/server/patientContext";
 
-type RawObs = {
+type ObservationRow = {
   id: string;
-  user_id: string | null;
-  patient_id?: string | null;
-  thread_id?: string | null;
   kind: string | null;
   value_num?: number | null;
   value_text?: string | null;
   units?: string | null;
+  thread_id?: string | null;
   observed_at?: string | null;
   created_at?: string | null;
+  meta?: Record<string, any> | null;
 };
 
-type Event = {
+type PredictionRow = {
+  id?: string | null;
+  condition?: string | null;
+  risk_score?: number | string | null;
+  risk_label?: string | null;
+  generated_at?: string | null;
+  created_at?: string | null;
+  model?: string | null;
+};
+
+type TimelineEvent = {
   id: string;
-  at: string; // ISO date
-  kind: string;
-  value?: string | number;
-  units?: string;
-  source?: string | null; // thread_id
+  type: "prediction" | "observation";
+  label: string;
+  timestamp: string;
+  value?: string | number | null;
+  unit?: string | null;
+  detail?: string | null;
+  source?: string | null;
 };
 
-const pretty: Record<string, string> = {
-  hbA1c: "HbA1c",
+const KIND_LABELS: Record<string, string> = {
   hba1c: "HbA1c",
   tsh: "TSH",
   fsh: "FSH",
@@ -42,65 +53,121 @@ const pretty: Record<string, string> = {
   bp: "Blood pressure",
 };
 
-function labelKind(k?: string | null) {
-  if (!k) return "Observation";
-  const key = String(k).toLowerCase().replace(/\s+/g, "_");
-  return pretty[key] || k.toUpperCase();
+function canonicalLabel(kind?: string | null) {
+  if (!kind) return "Observation";
+  const key = kind.toLowerCase().replace(/\s+/g, "_");
+  return KIND_LABELS[key] || kind;
 }
 
-function coalesceTime(r: RawObs) {
-  return r.observed_at || r.created_at || new Date().toISOString();
+function normalizeValue(value: number | string | null | undefined) {
+  if (value == null) return null;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    if (Math.abs(value) % 1 === 0) return value;
+    return Number(value.toFixed(2));
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : null;
+  }
+  return null;
 }
 
-function coalesceValue(r: RawObs) {
-  return r.value_num ?? r.value_text ?? null;
+function coalesceTimestamp(row: { observed_at?: string | null; created_at?: string | null }) {
+  return row.observed_at || row.created_at || new Date().toISOString();
+}
+
+function riskScoreToPercent(score: number | string | null | undefined) {
+  if (score == null) return null;
+  let parsed: number | null = null;
+  if (typeof score === "number" && Number.isFinite(score)) parsed = score;
+  if (typeof score === "string") {
+    const val = Number.parseFloat(score);
+    if (Number.isFinite(val)) parsed = val;
+  }
+  if (parsed == null) return null;
+  if (parsed > 1 && parsed <= 100) parsed = parsed / 100;
+  if (parsed < 0) parsed = 0;
+  if (parsed > 1) parsed = 1;
+  return Math.round(parsed * 100);
+}
+
+function mapObservation(row: ObservationRow): TimelineEvent {
+  const timestamp = coalesceTimestamp(row);
+  const value = normalizeValue(row.value_num ?? row.value_text ?? null);
+  const metaSource = typeof row.meta?.source === "string" ? row.meta?.source : null;
+  const note = typeof row.meta?.note === "string" ? row.meta.note : null;
+  return {
+    id: `obs:${row.id}`,
+    type: "observation",
+    label: canonicalLabel(row.kind),
+    timestamp,
+    value,
+    unit: row.units ?? null,
+    detail: note,
+    source: row.thread_id ?? metaSource ?? null,
+  };
+}
+
+function mapPrediction(row: PredictionRow): TimelineEvent {
+  const timestamp = row.generated_at || row.created_at || new Date().toISOString();
+  const pct = riskScoreToPercent(row.risk_score);
+  const label = row.condition ? `${row.condition} prediction` : "Prediction";
+  return {
+    id: row.id ? `pred:${row.id}` : `pred:${timestamp}`,
+    type: "prediction",
+    label,
+    timestamp,
+    value: pct != null ? pct : null,
+    unit: pct != null ? "%" : null,
+    detail: row.risk_label ? `Risk: ${row.risk_label}` : null,
+    source: row.model ?? null,
+  };
 }
 
 export async function GET(req: NextRequest) {
-  const supabase = createClient();
+  try {
+    const patientId = await getActivePatientId(req);
+    const supabase = supabaseAdmin();
 
-  // who is calling?
-  const { data: userRes } = await supabase.auth.getUser();
-  const user = userRes?.user ?? null;
+    const [obsRes, predRes] = await Promise.all([
+      supabase
+        .from("observations")
+        .select("id, kind, value_num, value_text, units, thread_id, observed_at, created_at, meta")
+        .eq("patient_id", patientId)
+        .filter("meta->>committed", "eq", "true")
+        .order("observed_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .limit(200),
+      supabase
+        .from("predictions")
+        .select("id, condition, risk_score, risk_label, generated_at, created_at, model")
+        .eq("patient_id", patientId)
+        .order("generated_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .limit(60),
+    ]);
 
-  const url = new URL(req.url);
-  const patientId = url.searchParams.get("patientId") || url.searchParams.get("pid");
-  const days = Math.max(1, Math.min(3650, Number(url.searchParams.get("days") || 365)));
+    if (obsRes.error) {
+      throw new Error(obsRes.error.message);
+    }
+    if (predRes.error) {
+      throw new Error(predRes.error.message);
+    }
 
-  // Build base query
-  let q = supabase
-    .from("observations")
-    .select(
-      "id,user_id,patient_id,thread_id,kind,value_num,value_text,units,observed_at,created_at",
-    )
-    .order("observed_at", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false, nullsFirst: false })
-    .limit(500); // enough for the panel
+    const observationEvents = (obsRes.data ?? []).map(mapObservation);
+    const predictionEvents = (predRes.data ?? []).map(mapPrediction);
 
-  if (patientId) {
-    q = q.eq("patient_id", patientId);
-  } else if (user?.id) {
-    q = q.eq("user_id", user.id);
+    const events = [...observationEvents, ...predictionEvents].sort((a, b) => {
+      const aTs = new Date(a.timestamp).getTime();
+      const bTs = new Date(b.timestamp).getTime();
+      const safeA = Number.isFinite(aTs) ? aTs : 0;
+      const safeB = Number.isFinite(bTs) ? bTs : 0;
+      return safeB - safeA;
+    });
+
+    return NextResponse.json({ events });
+  } catch (err: any) {
+    console.error("/api/timeline failed", err);
+    return NextResponse.json({ error: err?.message || "Failed to load timeline" }, { status: 500 });
   }
-
-  // Optional server-side time window filter
-  const since = new Date();
-  since.setDate(since.getDate() - days);
-  q = q.gte("created_at", since.toISOString());
-
-  const { data, error } = await q;
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  const events: Event[] = (data as RawObs[]).map((r) => ({
-    id: r.id,
-    at: coalesceTime(r),
-    kind: labelKind(r.kind),
-    value: coalesceValue(r) ?? undefined,
-    units: r.units ?? undefined,
-    source: r.thread_id ?? null,
-  }));
-
-  return NextResponse.json({ events });
 }
