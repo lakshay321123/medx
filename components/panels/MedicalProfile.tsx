@@ -69,6 +69,25 @@ export default function MedicalProfile() {
   };
   useEffect(() => { loadSummary(); }, []);
 
+  async function onRecomputeRisk() {
+    const btn = document.getElementById("recompute-risk-btn") as HTMLButtonElement | null;
+    if (btn) btn.disabled = true;
+    try {
+      const res = await fetch("/api/ai-doc/recompute", { method: "POST" });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body?.ok === false) {
+        throw new Error(body?.error || `HTTP ${res.status}`);
+      }
+      await loadSummary();
+      // optional: toast.success("Risk recomputed");
+    } catch (err: any) {
+      console.error("Recompute failed:", err?.message || err);
+      alert(`Recompute failed: ${err?.message || String(err)}`);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
   const prof = data?.profile ?? null;
   const [bootstrapped, setBootstrapped] = useState(false);
   const [fullName, setFullName] = useState("");
@@ -419,11 +438,9 @@ export default function MedicalProfile() {
               className="text-xs px-2 py-1 rounded-md border"
             >Discuss & Correct in Chat</button>
             <button
-              onClick={async () => {
-                await fetch("/api/alerts/recompute", { method: "POST" });
-                await loadSummary();
-              }}
-              className="text-xs px-2 py-1 rounded-md border"
+              id="recompute-risk-btn"
+              onClick={onRecomputeRisk}
+              className="text-xs px-2 py-1 rounded-md border disabled:opacity-50"
             >Recompute Risk</button>
           </div>
         </div>
