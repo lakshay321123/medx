@@ -171,10 +171,10 @@ function handlePredict({ patientPacket, source }: PredictCall) {
 }
 
 export async function callOpenAIJson(input: CallIn): Promise<any> {
-  if ("op" in input && input.op === "predict") {
-    return handlePredict(input);
+  if ((input as any)?.op === "predict") {
+    return handlePredict(input as any);
   }
-  const { system, user, instruction, metadata } = input;
+  const { system, user, instruction, metadata } = input as any;
   const oai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const model = process.env.AIDOC_MODEL || "gpt-5";
   const backoff = [250, 750, 1500];
