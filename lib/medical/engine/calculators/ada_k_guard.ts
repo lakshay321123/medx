@@ -11,6 +11,6 @@ register({
     if (K < 3.3) notes.push("HOLD insulin; replace K⁺ until ≥3.3");
     else if (K <= 5.2) notes.push("replace K⁺ while giving insulin");
     else notes.push("no K⁺ replacement initially; insulin will lower K⁺");
-    return { id: "ada_k_guard", label: "Potassium guard", value: +K.toFixed(1), unit: "mmol/L", precision: 1, notes };
+    return { id: "ada_k_guard", label: "Potassium guard", value: Number(K.toFixed(1)), unit: "mmol/L", precision: 1, notes };
   },
 });

@@ -13,6 +13,6 @@ register({
     const beta  = Math.max(Cr/k, 1)**(-1.200);
     const sexFactor = sex==="female" ? 1.012 : 1.000;
     const egfr = 142 * alpha * beta * (0.9938 ** age) * sexFactor;
-    return { id:"egfr_ckdepi_2021", label:"eGFR (CKD-EPI 2021)", value:+egfr.toFixed(0), unit:"mL/min/1.73m²", precision:0 };
+    return { id:"egfr_ckdepi_2021", label:"eGFR (CKD-EPI 2021)", value:Number(egfr.toFixed(0)), unit:"mL/min/1.73m²", precision:0 };
   },
 });

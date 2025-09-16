@@ -15,8 +15,8 @@ const def = {
   id: "bmi",
   label: "Body Mass Index",
   inputs: [
-    { id: "height_cm", label: "Height (cm)", type: "number", min: 50, max: 250 },
-    { id: "weight_kg", label: "Weight (kg)", type: "number", min: 1, max: 400 }
+    { id: "height_cm", label: "Height", unit: "cm", type: "number", min: 50, max: 250 },
+    { id: "weight_kg", label: "Weight", unit: "kg", type: "number", min: 1, max: 400 }
   ],
   run: (args: BMIInputs) => {
     const r = calc_bmi(args);

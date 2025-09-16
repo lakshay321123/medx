@@ -7,7 +7,7 @@ register({
   label: "QTc (Fridericia)",
   inputs: [
     { key: "QTms", required: true, unit: "ms" },
-    { key: "HR", required: true },
+    { key: "HR", unit: "bpm", required: true },
   ],
   run: ({ QTms, HR }) => {
     if (QTms == null || HR == null) return null;
@@ -21,7 +21,7 @@ register({
   label: "QTc (Bazett)",
   inputs: [
     { key: "QTms", required: true, unit: "ms" },
-    { key: "HR", required: true },
+    { key: "HR", unit: "bpm", required: true },
   ],
   run: ({ QTms, HR }) => {
     if (QTms == null || HR == null) return null;

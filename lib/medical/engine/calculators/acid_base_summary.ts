@@ -33,6 +33,6 @@ register({
     notes.push(`Winter’s exp ~${exp.toFixed(1)} mmHg (${comp})`);
     if (gap != null) notes.push(`Osm gap ${gap.toFixed(0)} mOsm/kg`);
 
-    return { id: "acid_base_summary", label: "Acid–base summary", value: agc.toFixed(1), unit: "AG (corr) mmol/L", precision: 1, notes };
+    return { id: "acid_base_summary", label: "Acid–base summary", value: Number(agc.toFixed(1)), unit: "AG (corr) mmol/L", precision: 1, notes };
   },
 });

@@ -30,8 +30,7 @@ export function runPulsePressureBand({ SBP, DBP }:{ SBP:number, DBP:number }){
 export function runSVFromLVOT({ lvot_d_cm, lvot_vti_cm }:{ lvot_d_cm:number, lvot_vti_cm:number }){
   if ([lvot_d_cm,lvot_vti_cm].some(v=>v==null || !isFinite(v as number))) return null;
   const area = Math.PI * Math.pow(lvot_d_cm/2,2);
-  const SV = area * lvot_vti_cm * 10; // cm^2*cm -> cm^3 = mL; factor 10? Wait: 1 cm^3 = 1 mL, but area in cm^2, VTI in cm; so mL already.
-  // Correction: area(cm^2) * VTI(cm) = cm^3 = mL. No extra factor.
+  // area(cm^2) * VTI(cm) = cm^3 = mL. No extra factor.
   const sv_ml = area * lvot_vti_cm;
   return { stroke_volume_mL: Number(sv_ml.toFixed(1)) };
 }
@@ -60,12 +59,12 @@ export function runPVRDyn({ mPAP_mmHg, PCWP_mmHg, CO_L_min }:{ mPAP_mmHg:number,
   return { PVR_dyn_s_cm5: Number(pvr.toFixed(0)) };
 }
 
-register({ id:"map_calc", label:"Mean arterial pressure (MAP)", inputs:[{key:"SBP",required:true},{key:"DBP",required:true}], run: runMAPCalc as any });
-register({ id:"modified_shock_index", label:"Modified shock index (HR/MAP)", inputs:[{key:"HR",required:true},{key:"MAP",required:true}], run: runModifiedShockIndex as any });
-register({ id:"rate_pressure_product", label:"Rate–pressure product", inputs:[{key:"HR",required:true},{key:"SBP",required:true}], run: runRatePressureProduct as any });
-register({ id:"pulse_pressure_band", label:"Pulse pressure band", inputs:[{key:"SBP",required:true},{key:"DBP",required:true}], run: runPulsePressureBand as any });
-register({ id:"sv_from_lvot", label:"Stroke volume from LVOT", inputs:[{key:"lvot_d_cm",required:true},{key:"lvot_vti_cm",required:true}], run: runSVFromLVOT as any });
-register({ id:"co_from_sv_hr", label:"Cardiac output from SV & HR", inputs:[{key:"stroke_volume_mL",required:true},{key:"HR",required:true}], run: runCOFromSVHR as any });
-register({ id:"ci_from_co_bsa", label:"Cardiac index from CO & BSA", inputs:[{key:"cardiac_output_L_min",required:true},{key:"BSA_m2",required:true}], run: runCIFromCOBSA as any });
-register({ id:"svr_dyn", label:"Systemic vascular resistance (SVR)", inputs:[{key:"MAP",required:true},{key:"RAP_mmHg",required:true},{key:"CO_L_min",required:true}], run: runSVRDyn as any });
-register({ id:"pvr_dyn", label:"Pulmonary vascular resistance (PVR)", inputs:[{key:"mPAP_mmHg",required:true},{key:"PCWP_mmHg",required:true},{key:"CO_L_min",required:true}], run: runPVRDyn as any });
+register({ id:"map_calc", label:"Mean arterial pressure (MAP)", inputs:[{key:"SBP",unit:"mmHg",required:true},{key:"DBP",unit:"mmHg",required:true}], run: runMAPCalc as any });
+register({ id:"modified_shock_index", label:"Modified shock index (HR/MAP)", inputs:[{key:"HR",unit:"bpm",required:true},{key:"MAP",unit:"mmHg",required:true}], run: runModifiedShockIndex as any });
+register({ id:"rate_pressure_product", label:"Rate–pressure product", inputs:[{key:"HR",unit:"bpm",required:true},{key:"SBP",unit:"mmHg",required:true}], run: runRatePressureProduct as any });
+register({ id:"pulse_pressure_band", label:"Pulse pressure band", inputs:[{key:"SBP",unit:"mmHg",required:true},{key:"DBP",unit:"mmHg",required:true}], run: runPulsePressureBand as any });
+register({ id:"sv_from_lvot", label:"Stroke volume from LVOT", inputs:[{key:"lvot_d_cm",unit:"cm",required:true},{key:"lvot_vti_cm",unit:"cm",required:true}], run: runSVFromLVOT as any });
+register({ id:"co_from_sv_hr", label:"Cardiac output from SV & HR", inputs:[{key:"stroke_volume_mL",required:true},{key:"HR",unit:"bpm",required:true}], run: runCOFromSVHR as any });
+register({ id:"ci_from_co_bsa", label:"Cardiac index from CO & BSA", inputs:[{key:"cardiac_output_L_min",unit:"L/min",required:true},{key:"BSA_m2",unit:"m²",required:true}], run: runCIFromCOBSA as any });
+register({ id:"svr_dyn", label:"Systemic vascular resistance (SVR)", inputs:[{key:"MAP",unit:"mmHg",required:true},{key:"RAP_mmHg",unit:"mmHg",required:true},{key:"CO_L_min",unit:"L/min",required:true}], run: runSVRDyn as any });
+register({ id:"pvr_dyn", label:"Pulmonary vascular resistance (PVR)", inputs:[{key:"mPAP_mmHg",unit:"mmHg",required:true},{key:"PCWP_mmHg",unit:"mmHg",required:true},{key:"CO_L_min",unit:"L/min",required:true}], run: runPVRDyn as any });
