@@ -25,8 +25,8 @@ register({
   label: "eGFR (CKD-EPI 2021)",
   tags: ["nephrology"],
   inputs: [
-    { key: "creatinine_mg_dl", required: true },
-    { key: "age_years", required: true },
+    { key: "creatinine_mg_dl", unit: "mg/dL", required: true },
+    { key: "age_years", unit: "years", required: true },
     { key: "sex", required: true }
   ],
   run: ({

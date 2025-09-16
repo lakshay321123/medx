@@ -30,7 +30,7 @@ register({
     return {
       id: "delta_ratio_ag",
       label: "Delta ratio (AG)",
-      value: +dr.toFixed(2),
+      value: Number(dr.toFixed(2)),
       precision: 2,
       notes,
     };

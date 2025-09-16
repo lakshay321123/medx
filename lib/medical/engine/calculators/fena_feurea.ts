@@ -11,7 +11,7 @@ register({
   run: ({ urine_na, urine_creatinine, Na, Cr }) => {
     if ([urine_na, urine_creatinine, Na, Cr].some(v => v==null)) return null;
     const val = (urine_na * Cr) / (Na * urine_creatinine) * 100;
-    return { id:"fena", label:"FE Na⁺", value:+val.toFixed(1), unit:"%", precision:1 };
+    return { id:"fena", label:"FE Na⁺", value:Number(val.toFixed(1)), unit:"%", precision:1 };
   },
 });
 // FEUrea = (UrineUrea * PlasmaCr) / (PlasmaUrea * UrineCr) * 100
@@ -26,6 +26,6 @@ register({
   run: ({ urine_urea, urine_creatinine, BUN, Cr }) => {
     if ([urine_urea, urine_creatinine, BUN, Cr].some(v => v==null)) return null;
     const val = (urine_urea * Cr) / (BUN * urine_creatinine) * 100;
-    return { id:"feurea", label:"FE Urea", value:+val.toFixed(1), unit:"%", precision:1 };
+    return { id:"feurea", label:"FE Urea", value:Number(val.toFixed(1)), unit:"%", precision:1 };
   },
 });

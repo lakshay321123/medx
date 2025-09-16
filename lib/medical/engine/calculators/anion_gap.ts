@@ -8,9 +8,9 @@ const def = {
   id: "anion_gap",
   label: "Anion Gap (no K⁺)",
   inputs: [
-    { id: "na_mmol_l", label: "Sodium (mmol/L)", type: "number", min: 80, max: 200 },
-    { id: "cl_mmol_l", label: "Chloride (mmol/L)", type: "number", min: 50, max: 150 },
-    { id: "hco3_mmol_l", label: "HCO₃⁻ (mmol/L)", type: "number", min: 0, max: 50 }
+    { id: "na_mmol_l", label: "Sodium", unit: "mmol/L", type: "number", min: 80, max: 200 },
+    { id: "cl_mmol_l", label: "Chloride", unit: "mmol/L", type: "number", min: 50, max: 150 },
+    { id: "hco3_mmol_l", label: "HCO₃⁻", unit: "mmol/L", type: "number", min: 0, max: 50 }
   ],
   run: (args: AGInputs) => {
     const v = calc_anion_gap(args);

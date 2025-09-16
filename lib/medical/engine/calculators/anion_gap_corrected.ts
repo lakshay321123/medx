@@ -22,10 +22,10 @@ register({
   label: "Corrected Anion Gap",
   tags: ["electrolytes", "acid-base"],
   inputs: [
-    { key: "Na", required: true },
-    { key: "Cl", required: true },
-    { key: "HCO3", required: true },
-    { key: "albumin_g_dl", required: true }
+    { key: "Na", unit: "mmol/L", required: true },
+    { key: "Cl", unit: "mmol/L", required: true },
+    { key: "HCO3", unit: "mmol/L", required: true },
+    { key: "albumin_g_dl", unit: "g/dL", required: true }
   ],
   run: ({ Na, Cl, HCO3, albumin_g_dl }: { Na: number; Cl: number; HCO3: number; albumin_g_dl: number; }) => {
     const r = calc_anion_gap_corrected({ Na, Cl, HCO3, albumin_g_dl });

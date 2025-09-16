@@ -16,7 +16,7 @@ register({
     const ag = Na - (Cl + HCO3);
     const notes: string[] = [];
     if (ag > 12) notes.push("elevated anion gap");
-    return { id: "anion_gap", label: "Anion gap", value: +ag.toFixed(1), unit: "mmol/L", precision: 1, notes };
+    return { id: "anion_gap", label: "Anion gap", value: Number(ag.toFixed(1)), unit: "mmol/L", precision: 1, notes };
   },
 });
 
@@ -37,7 +37,7 @@ register({
     const corrected = ag + 2.5 * (4 - albumin);
     const notes = [`uncorr AG=${ag.toFixed(1)}`];
     if (corrected > 12) notes.push("elevated anion gap (corrected)");
-    return { id: "anion_gap_corrected", label: "Anion gap (albumin-corrected)", value: +corrected.toFixed(1), unit: "mmol/L", precision: 1, notes };
+    return { id: "anion_gap_corrected", label: "Anion gap (albumin-corrected)", value: Number(corrected.toFixed(1)), unit: "mmol/L", precision: 1, notes };
   },
 });
 
@@ -53,7 +53,7 @@ register({
     const low = expected - 2;
     const high = expected + 2;
     const notes = [`expected ${low.toFixed(1)}–${high.toFixed(1)} mmHg (±2)`];
-    return { id: "winters_expected_paco2", label: "Expected PaCO₂ (Winter’s)", value: +expected.toFixed(1), unit: "mmHg", precision: 1, notes };
+    return { id: "winters_expected_paco2", label: "Expected PaCO₂ (Winter’s)", value: Number(expected.toFixed(1)), unit: "mmHg", precision: 1, notes };
   },
 });
 
@@ -71,7 +71,7 @@ register({
   run: ({ Na, glucose_mgdl, BUN, ethanol_mgdl }) => {
     if (Na == null || glucose_mgdl == null || BUN == null) return null;
     const osm = 2 * Na + glucose_mgdl / 18 + BUN / 2.8 + (ethanol_mgdl ? ethanol_mgdl / 3.7 : 0);
-    return { id: "serum_osmolality", label: "Serum osmolality (calculated)", value: +osm.toFixed(0), unit: "mOsm/kg", precision: 0 };
+    return { id: "serum_osmolality", label: "Serum osmolality (calculated)", value: Number(osm.toFixed(0)), unit: "mOsm/kg", precision: 0 };
   },
 });
 
@@ -83,7 +83,7 @@ register({
   run: ({ Na, glucose_mgdl }) => {
     if (Na == null || glucose_mgdl == null) return null;
     const eff = 2 * Na + glucose_mgdl / 18;
-    return { id: "effective_osmolality", label: "Effective osmolality (tonicity)", value: +eff.toFixed(0), unit: "mOsm/kg", precision: 0 };
+    return { id: "effective_osmolality", label: "Effective osmolality (tonicity)", value: Number(eff.toFixed(0)), unit: "mOsm/kg", precision: 0 };
   },
 });
 

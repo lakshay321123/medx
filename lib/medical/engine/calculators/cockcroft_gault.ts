@@ -9,10 +9,10 @@ const def = {
   id: "cockcroft_gault",
   label: "Creatinine Clearance (Cockcroft–Gault)",
   inputs: [
-    { id: "age_years", label: "Age (years)", type: "number", min: 0, max: 120 },
-    { id: "weight_kg", label: "Weight (kg)", type: "number", min: 1, max: 400 },
+    { id: "age_years", label: "Age", unit: "years", type: "number", min: 0, max: 120 },
+    { id: "weight_kg", label: "Weight", unit: "kg", type: "number", min: 1, max: 400 },
     { id: "sex", label: "Sex", type: "select", options:[{label:"Male",value:"male"},{label:"Female",value:"female"}] },
-    { id: "scr_mg_dl", label: "Serum creatinine (mg/dL)", type: "number", min: 0.1, max: 20 }
+    { id: "scr_mg_dl", label: "Serum creatinine", unit: "mg/dL", type: "number", min: 0.1, max: 20 }
   ],
   run: (args: CGInputs) => {
     const v = calc_cockcroft_gault(args);
