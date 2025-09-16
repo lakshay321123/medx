@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import ReactMarkdown from "react-markdown";
 import { safeJson } from "@/lib/safeJson";
 
 const SEXES = ["male", "female", "other"] as const;
@@ -53,23 +54,25 @@ export default function MedicalProfile() {
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState<null | "obs" | "all" | "zero">(null);
 
-  const router = useRouter();
-  const params = useSearchParams();
-  const _threadId = params.get("threadId") || "default";
-
-  const [summary, setSummary] = useState<string>("");
-  const [reasons, setReasons] = useState<string>("");
-
-  const loadSummary = async () => {
-    try {
-      const r = await fetch("/api/profile/summary", { cache: "no-store" });
-      const j = await r.json();
-      if (j?.text) setSummary(j.text);
-      else if (j?.summary) setSummary(j.summary);
-      if (j?.reasons) setReasons(j.reasons);
-    } catch {}
-  };
-  useEffect(() => { loadSummary(); }, []);
+  const queryClient = useQueryClient();
+  const profileKey = ["profile", "active-patient"] as const;
+  const {
+    data: summaryData,
+    isLoading: summaryLoading,
+    isFetching: summaryFetching,
+    error: summaryError,
+  } = useQuery({
+    queryKey: profileKey,
+    queryFn: async () => {
+      const res = await fetch("/api/profile/summary");
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+      return res.json();
+    },
+  });
+  const [recomputing, setRecomputing] = useState(false);
+  const [recomputeError, setRecomputeError] = useState<string | null>(null);
 
   const prof = data?.profile ?? null;
   const [bootstrapped, setBootstrapped] = useState(false);
@@ -126,6 +129,52 @@ export default function MedicalProfile() {
     immunizations: "Immunizations",
     notes: "Notes",
     other: "Other Findings",
+  };
+
+  const patientSummary = summaryData?.patient ?? null;
+  const metrics = summaryData?.metrics ?? {};
+  const predictions: Array<any> = Array.isArray(summaryData?.predictions)
+    ? (summaryData?.predictions as any[])
+    : [];
+  const summaryErrorMessage = summaryError instanceof Error ? summaryError.message : summaryError ? String(summaryError) : null;
+  const summaryRefreshing = summaryFetching && !!summaryData;
+  const metricConfig: Array<{ key: keyof typeof metrics; label: string }> = [
+    { key: "ldl" as const, label: "LDL-C" },
+    { key: "hba1c" as const, label: "HbA1c" },
+    { key: "sbp" as const, label: "Systolic BP" },
+    { key: "bmi" as const, label: "BMI" },
+    { key: "egfr" as const, label: "eGFR" },
+  ];
+
+  const handleRecompute = async () => {
+    try {
+      setRecomputeError(null);
+      setRecomputing(true);
+      const payload = {
+        patientId: patientSummary?.id ?? null,
+        source: "ai-doc",
+      };
+      const res = await fetch("/api/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok && res.status !== 422) {
+        throw new Error(json?.error || "Failed to recompute risk");
+      }
+      await queryClient.invalidateQueries({ queryKey: profileKey });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("timeline-updated"));
+      }
+      if (res.status === 422) {
+        setRecomputeError(json?.error || "Data insufficient for some predictions.");
+      }
+    } catch (error: any) {
+      setRecomputeError(error?.message || "Failed to recompute risk");
+    } finally {
+      setRecomputing(false);
+    }
   };
 
   return (
@@ -193,7 +242,7 @@ export default function MedicalProfile() {
                   });
                   if (!r.ok) throw new Error(await r.text());
                   await loadProfile();
-                  await loadSummary(); // ensure visible summary reflects just-saved arrays
+                  await queryClient.invalidateQueries({ queryKey: profileKey });
                   if (typeof window !== "undefined") {
                     window.dispatchEvent(new Event("profile-updated"));
                   }
@@ -325,6 +374,52 @@ export default function MedicalProfile() {
         </div>
       </section>
 
+      <section className="rounded-xl border p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold">Key Risk Metrics</h2>
+          <div className="text-xs text-muted-foreground">
+            {summaryRefreshing ? "Refreshing…" : summaryLoading ? "Loading…" : ""}
+          </div>
+        </div>
+        {summaryErrorMessage && (
+          <div className="mb-3 text-xs text-red-600">{summaryErrorMessage}</div>
+        )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {metricConfig.map(item => {
+            const metric = (metrics as Record<string, any>)[item.key] ?? null;
+            const value = metric?.value ?? null;
+            const unit = metric?.unit ?? null;
+            const observedAt = metric?.observedAt ? new Date(metric.observedAt).toLocaleDateString() : "—";
+            const freshness = typeof metric?.freshnessDays === "number"
+              ? `${Math.round(metric.freshnessDays)}d ago`
+              : "—";
+            const stale = typeof metric?.freshnessDays === "number" && metric.freshnessDays > 365;
+            const displayValue =
+              typeof value === "number"
+                ? value.toFixed(item.key === "hba1c" ? 1 : item.key === "bmi" ? 1 : 0)
+                : "—";
+            return (
+              <div
+                key={item.key}
+                className="rounded-lg border px-3 py-3 bg-muted/40 flex flex-col gap-1"
+              >
+                <div className="text-xs text-muted-foreground">{item.label}</div>
+                <div className="text-lg font-semibold">
+                  {displayValue}
+                  {unit ? <span className="ml-1 text-sm font-normal text-muted-foreground">{unit}</span> : null}
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  Last: {observedAt}
+                </div>
+                <div className={`text-[11px] ${stale ? "text-amber-600" : "text-muted-foreground"}`}>
+                  Freshness: {freshness}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
       {/* Existing fixed sections (unchanged) */}
       <section className="rounded-xl border p-4">
         <h2 className="font-semibold mb-2">Vitals</h2>
@@ -392,57 +487,99 @@ export default function MedicalProfile() {
         </section>
       )}
 
-      {/* --- AI Summary & Reasons --- */}
-      <div className="mt-6 rounded-xl border p-4">
+      <section className="rounded-xl border p-4 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold">AI Summary</h3>
-          <div className="flex gap-2">
+          <h2 className="font-semibold">AI Risk Predictions</h2>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">
+              {summaryRefreshing ? "Refreshing…" : summaryLoading ? "Loading…" : ""}
+            </span>
             <button
-              onClick={async () => {
-                try {
-                  const prof = await fetch("/api/profile", { cache: "no-store" })
-                    .then(r => r.json())
-                    .catch(() => null);
-                  const packet = await fetch("/api/profile/packet", { cache: "no-store" })
-                    .then(r => r.json())
-                    .catch(() => ({ text: "" }));
-                  const prefill = encodeURIComponent(
-                    JSON.stringify({
-                      kind: "profileSummary",
-                      summary,
-                      reasons,
-                      profile: prof?.profile || prof || null,
-                      packet: packet?.text || "",
-                    })
-                  );
-                  router.push(
-                    `/?panel=chat&threadId=med-profile&context=profile&prefill=${prefill}`
-                  );
-                } catch {
-                  const prefill = encodeURIComponent(
-                    JSON.stringify({ kind: "profileSummary", summary, reasons })
-                  );
-                  router.push(
-                    `/?panel=chat&threadId=med-profile&context=profile&prefill=${prefill}`
-                  );
-                }
-              }}
-              className="text-xs px-2 py-1 rounded-md border"
-            >Discuss & Correct in Chat</button>
-            <button
-              onClick={async () => {
-                await fetch("/api/alerts/recompute", { method: "POST" });
-                await loadSummary();
-              }}
-              className="text-xs px-2 py-1 rounded-md border"
-            >Recompute Risk</button>
+              onClick={handleRecompute}
+              disabled={recomputing}
+              className="text-xs px-3 py-1.5 rounded-md border hover:bg-muted disabled:opacity-60"
+            >
+              {recomputing ? "Recomputing…" : "Recompute Risk"}
+            </button>
           </div>
         </div>
-        <p className="mt-2 text-sm whitespace-pre-wrap">{summary || "No summary yet."}</p>
-        <div className="mt-3 text-[11px] text-muted-foreground">
-          ⚠️ This is AI-generated support, not a medical diagnosis. Always consult a qualified clinician.
+        {recomputeError && (
+          <div className="text-xs text-amber-600">{recomputeError}</div>
+        )}
+        {summaryLoading && predictions.length === 0 ? (
+          <div className="text-sm text-muted-foreground">Loading predictions…</div>
+        ) : predictions.length === 0 ? (
+          <div className="text-sm text-muted-foreground">No predictions yet.</div>
+        ) : (
+          <div className="space-y-4">
+            {predictions.map(pred => {
+              const pct = typeof pred.riskScore === "number" ? Math.round(pred.riskScore * 100) : null;
+              const badgeClass =
+                pred.riskLabel === "High"
+                  ? "bg-red-500/10 text-red-600 border-red-500/30"
+                  : pred.riskLabel === "Moderate"
+                  ? "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                  : pred.riskLabel === "Low"
+                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                  : "bg-muted text-muted-foreground border-muted-foreground/20";
+              return (
+                <div key={pred.condition} className="rounded-lg border p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-xs text-muted-foreground">Condition</div>
+                      <div className="text-base font-semibold">{pred.condition}</div>
+                    </div>
+                    <div className={`px-3 py-1 text-xs font-medium rounded-full border ${badgeClass}`}>
+                      {pred.riskLabel || "Unknown"}
+                    </div>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Risk score: {pct != null ? `${pct}%` : "—"}
+                  </div>
+                  {Array.isArray(pred.topFactors) && pred.topFactors.length > 0 && (
+                    <div>
+                      <div className="text-sm font-medium">Top factors</div>
+                      <ul className="mt-1 space-y-1 text-sm text-muted-foreground">
+                        {pred.topFactors.map((factor: any, idx: number) => (
+                          <li key={`${pred.condition}-factor-${idx}`}>
+                            <span className="font-medium text-foreground">{factor.name}</span>
+                            {factor.detail ? ` — ${factor.detail}` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {pred.summaries?.patient_summary_md && (
+                    <div>
+                      <div className="text-sm font-medium">Patient summary</div>
+                      <div className="prose prose-sm dark:prose-invert max-w-none mt-1 text-muted-foreground">
+                        <ReactMarkdown>{pred.summaries.patient_summary_md}</ReactMarkdown>
+                      </div>
+                    </div>
+                  )}
+                  {pred.summaries?.clinician_summary_md && (
+                    <div>
+                      <div className="text-sm font-medium">Clinician summary</div>
+                      <div className="prose prose-sm dark:prose-invert max-w-none mt-1 text-muted-foreground">
+                        <ReactMarkdown>{pred.summaries.clinician_summary_md}</ReactMarkdown>
+                      </div>
+                    </div>
+                  )}
+                  <div className="text-[11px] text-muted-foreground flex flex-wrap gap-3">
+                    <span>Model: {pred.model || "—"}</span>
+                    <span>
+                      Generated {pred.generatedAt ? new Date(pred.generatedAt).toLocaleString() : "—"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div className="text-[11px] text-muted-foreground">
+          ⚠️ Predictions are decision support, not a medical diagnosis. Confirm with a clinician.
         </div>
-      </div>
+      </section>
 
       {err && <div className="text-sm text-red-600">{err}</div>}
     </div>

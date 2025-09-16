@@ -25,7 +25,12 @@ export default function Timeline(){
     } catch {}
   };
 
-  useEffect(()=>{ refresh(); },[]);
+  useEffect(() => {
+    refresh();
+    const handler = () => refresh();
+    window.addEventListener("timeline-updated", handler);
+    return () => window.removeEventListener("timeline-updated", handler);
+  }, []);
 
   const [cat,setCat] = useState<Cat>("ALL");
   const [range,setRange] = useState<"ALL"|"7"|"30"|"90"|"CUSTOM">("ALL");
