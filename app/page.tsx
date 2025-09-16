@@ -12,7 +12,6 @@ type Search = { panel?: string };
 
 export default function Page({ searchParams }: { searchParams: Search }) {
   const panel = searchParams.panel?.toLowerCase() || "chat";
-  const normalizedPanel = panel === "aidoc" ? "ai-doc" : panel;
   const chatInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -23,18 +22,18 @@ export default function Page({ searchParams }: { searchParams: Search }) {
 
   return (
     <main className="flex-1 overflow-y-auto content-layer">
-      {normalizedPanel === "chat" && (
+      {panel === "chat" && (
         <section className="block h-full">
           <ResearchFiltersProvider>
             <ChatPane inputRef={chatInputRef} />
           </ResearchFiltersProvider>
         </section>
       )}
-      {normalizedPanel === "profile" && <MedicalProfile />}
-      {normalizedPanel === "timeline" && <Timeline />}
-      {normalizedPanel === "alerts" && <AlertsPane />}
-      {normalizedPanel === "settings" && <SettingsPane />}
-      {normalizedPanel === "ai-doc" && <AiDocPane />}
+      {panel === "profile" && <MedicalProfile />}
+      {panel === "timeline" && <Timeline />}
+      {panel === "alerts" && <AlertsPane />}
+      {panel === "settings" && <SettingsPane />}
+      {panel === "ai-doc" && <AiDocPane />}
     </main>
   );
 }

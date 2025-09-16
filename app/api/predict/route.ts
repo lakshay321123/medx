@@ -13,8 +13,12 @@ export async function POST(req: Request) {
     const userId = await getUserId();
     const { patientId, source = "recompute" } = await req.json();
 
-    if (!userId || !patientId) {
-      return NextResponse.json({ error: "missing userId or patientId" }, { status: 400 });
+    if (!userId) {
+      return NextResponse.json({ error: "missing userId" }, { status: 401 });
+    }
+
+    if (!patientId) {
+      return NextResponse.json({ status: "skipped" }, { status: 202 });
     }
 
     const packet = await buildPatientPacket({ patientId, userId });

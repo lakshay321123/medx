@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { safeJson } from "@/lib/safeJson";
 import { useProfile } from "@/lib/hooks/useAppData";
 
@@ -71,6 +70,7 @@ export default function MedicalProfile() {
   useEffect(() => { loadSummary(); }, []);
 
   const prof = data?.profile ?? null;
+  const patientId = prof?.id as string | undefined;
   const [bootstrapped, setBootstrapped] = useState(false);
   const [fullName, setFullName] = useState("");
   const [dob, setDob] = useState("");
@@ -116,6 +116,23 @@ export default function MedicalProfile() {
     immunizations: "Immunizations",
     notes: "Notes",
     other: "Other Findings",
+  };
+
+  const handleRecomputeRisk = () => {
+    router.push("/?panel=ai-doc&intent=predict");
+
+    const payload: { patientId?: string; source: string } = { source: "recompute" };
+    if (patientId) payload.patientId = patientId;
+
+    try {
+      fetch("/api/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        cache: "no-store",
+        credentials: "include",
+      }).catch(() => {});
+    } catch {}
   };
 
   return (
@@ -419,28 +436,12 @@ export default function MedicalProfile() {
               }}
               className="text-xs px-2 py-1 rounded-md border"
             >Discuss & Correct in Chat</button>
-            <Button
-              onClick={() => {
-                // 1) Open the EXISTING AI Doc chat (no threadId in URL → app uses the last/active AI Doc thread)
-                router.push("/?panel=ai-doc&intent=predict");
-
-                // 2) Fire-and-forget GPT-5 prediction job (don’t await, don’t touch chat UI)
-                try {
-                  fetch("/api/predict", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    // If you have a patientId in scope, include it; otherwise omit.
-                    // body: JSON.stringify({ patientId: activePatientId, source: "recompute" }),
-                    body: JSON.stringify({ source: "recompute" }),
-                    cache: "no-store",
-                    credentials: "include",
-                  }).catch(() => {});
-                } catch {}
-              }}
+            <button
+              onClick={handleRecomputeRisk}
               className="text-xs px-2 py-1 rounded-md border"
             >
               Recompute Risk
-            </Button>
+            </button>
           </div>
         </div>
         <p className="mt-2 text-sm whitespace-pre-wrap">{summary || "No summary yet."}</p>
