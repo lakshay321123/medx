@@ -9,52 +9,57 @@ import { getUserId } from "@/lib/getUserId";
 export async function GET(req: Request) {
   const userId = await getUserId();
   if (!userId) return new NextResponse("Unauthorized", { status: 401 });
+  const supa = supabaseAdmin();
   const url = new URL(req.url);
   const uploadId = url.searchParams.get("uploadId");
-  const bucket = url.searchParams.get("bucket");
-  const path = url.searchParams.get("path");
+  const bucketQ = url.searchParams.get("bucket");
+  const pathQ = url.searchParams.get("path");
 
-  const supa = supabaseAdmin();
+  // start with what we were given
+  let b: string | null = bucketQ || null;
+  let p: string | null = pathQ ? pathQ.replace(/^\/+/, "") : null; // strip leading "/"
+  let name: string | null = null;
+  let mime: string | null = null;
 
-  let b = bucket, p = path, name: string | null = null, mime: string | null = null;
-
-  try {
-    if (uploadId) {
-      // Try to look up from 'uploads' table if your schema has it
-      const up = await supa
-        .from("uploads")
-        .select("*")
-        .eq("id", uploadId)
-        .maybeSingle();
-      if (!up.error && up.data) {
-        b = b || up.data.bucket || "uploads";
-        p = p || up.data.path;
-        name = up.data.name || null;
-        mime = up.data.mime || null;
-      }
+  if (uploadId) {
+    const up = await supa
+      .from("uploads")
+      .select("bucket,path,name,mime")
+      .eq("id", uploadId)
+      .maybeSingle();
+    if (!up.error && up.data) {
+      b = b || up.data.bucket || "uploads";
+      p = p || (up.data.path ? String(up.data.path).replace(/^\/+/, "") : null);
+      name = up.data.name || null;
+      mime = up.data.mime || null;
     }
-    // Derive bucket/path if storage_path like "bucket/path/to/file.pdf"
-    if (!p && path) {
-      const m = path.match(/^([^/]+)\/(.+)$/);
-      if (m) {
-        b = m[1];
-        p = m[2];
-      }
-    }
-    if (!b || !p) {
-      return NextResponse.json(
-        { error: "Missing bucket/path for signed URL" },
-        { status: 400 }
-      );
-    }
-    const storage = supa.storage.from(b);
-    const signed = await storage.createSignedUrl(p, 60 * 10); // 10 minutes
-    if (signed.error) throw signed.error;
-    return NextResponse.json(
-      { url: signed.data.signedUrl, name, mime, bucket: b, path: p },
-      { headers: { "Cache-Control": "no-store" } }
-    );
-  } catch (e: any) {
-    return NextResponse.json({ error: String(e?.message || e) }, { status: 500 });
   }
+
+  // If we still don't have a bucket but p looks like "bucket/inner/path", split it.
+  if (!b && p && /^([^/]+)\/.+/.test(p)) {
+    const idx = p.indexOf("/");
+    b = p.slice(0, idx);
+    p = p.slice(idx + 1);
+  }
+
+  if (!b || !p) {
+    return NextResponse.json(
+      { url: null },
+      { status: 200, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
+  const signed = await supa.storage.from(b).createSignedUrl(p, 600);
+  if (signed.error || !signed.data?.signedUrl) {
+    console.warn("[signed-url]", signed.error?.message || signed.error);
+    return NextResponse.json(
+      { url: null },
+      { status: 200, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
+  return NextResponse.json(
+    { url: signed.data.signedUrl, name, mime, bucket: b, path: p },
+    { headers: { "Cache-Control": "no-store" } }
+  );
 }

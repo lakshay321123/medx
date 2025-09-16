@@ -58,13 +58,19 @@ export default function Timeline(){
   useEffect(()=>{
     if (!open || !active?.file) { setSignedUrl(null); return; }
     const f = active.file;
-    const qs = f.upload_id
-      ? `?uploadId=${encodeURIComponent(f.upload_id)}`
-      : f.bucket && f.path
-      ? `?bucket=${encodeURIComponent(f.bucket)}&path=${encodeURIComponent(f.path)}`
-      : "";
+    let qs = "";
+    if (f.upload_id) {
+      qs = `?uploadId=${encodeURIComponent(f.upload_id)}`;
+    } else if (f.bucket && f.path) {
+      qs = `?bucket=${encodeURIComponent(f.bucket)}&path=${encodeURIComponent(f.path)}`;
+    } else if (f.path) {
+      // allow "bucket/path" or plain path; server will derive bucket
+      qs = `?path=${encodeURIComponent(f.path)}`;
+    }
     if (!qs) return;
-    fetch(`/api/uploads/signed-url${qs}`).then(r=>r.json()).then(d=>{ if (d?.url) setSignedUrl(d.url); });
+    fetch(`/api/uploads/signed-url${qs}`)
+      .then((r) => (r.ok ? r.json() : Promise.resolve({ url: null })))
+      .then((d) => { if (d?.url) setSignedUrl(d.url); });
   }, [open, active]);
 
   if (isLoading) return <div className="p-6 text-sm text-muted-foreground">Loading timeline…</div>;
@@ -147,6 +153,12 @@ export default function Timeline(){
               </div>
             </header>
             <div className="px-5 py-4">
+              {/* Always show textual details */}
+              {(active?.meta?.summary || active?.meta?.summary_long || active?.meta?.text) && (
+                <div className="mb-4 text-sm text-muted-foreground whitespace-pre-wrap">
+                  {active.meta.summary_long || active.meta.summary || active.meta.text}
+                </div>
+              )}
               {active.file?.path || active.file?.upload_id ? (
                 !signedUrl ? (
                   <div className="text-xs text-muted-foreground">Fetching file…</div>
