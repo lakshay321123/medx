@@ -24,10 +24,17 @@ export async function POST(req: Request) {
     /risk|red\s*flags|prediction|prognosis|heart|diabet|cancer/.test(text);
 
   if (wantsPrediction && payload?.patientId) {
-    fetch(`${process.env.NEXTAUTH_URL || ""}/api/predict`, {
+    const base = process.env.NEXTAUTH_URL;
+    const url = base ? new URL("/api/predict", base).toString() : "/api/predict";
+    const cookieHeader = cookies().toString();
+    fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(cookieHeader ? { cookie: cookieHeader } : {}),
+      },
       body: JSON.stringify({ patientId: payload.patientId, source: "chat" }),
+      cache: "no-store",
     }).catch(() => {});
   }
   // Structured payloads from UI
