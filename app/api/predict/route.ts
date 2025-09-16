@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
     if (patientError) throw new Error(patientError.message);
     if (!patientRow) return NextResponse.json({ error: "patient_not_found" }, { status: 404, headers: noStore() });
-    if (patientRow.user_id !== userId)
+    if (patientRow.user_id && patientRow.user_id !== userId)
       return NextResponse.json({ error: "forbidden" }, { status: 403, headers: noStore() });
 
     const { dataset, features, domains, model } = await recomputeRisk(patientId);
