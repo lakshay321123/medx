@@ -1,153 +1,106 @@
+// app/api/timeline/route.ts
 export const runtime = "nodejs";
-export const revalidate = 0;
+export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
-import { getActivePatientId } from "@/lib/server/patientContext";
-import { buildShortSummaryFromText } from "@/lib/shortSummary";
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
-const noStore = { "Cache-Control": "no-store, max-age=0" };
-
-const iso = (ts: any) => {
-  const d = new Date(ts || Date.now());
-  return Number.isNaN(+d) ? new Date().toISOString() : d.toISOString();
+type RawObs = {
+  id: string;
+  user_id: string | null;
+  patient_id?: string | null;
+  thread_id?: string | null;
+  kind: string | null;
+  value_num?: number | null;
+  value_text?: string | null;
+  units?: string | null;
+  observed_at?: string | null;
+  created_at?: string | null;
 };
 
-const pickObserved = (row: any) =>
-  iso(
-    row.observed_at ??
-      row.generated_at ??
-      row.meta?.report_date ??
-      row.details?.report_date ??
-      row.meta?.observed_at ??
-      row.details?.observed_at ??
-      row.created_at ??
-      row.createdAt ??
-      row.timestamp
-  );
+type Event = {
+  id: string;
+  at: string; // ISO date
+  kind: string;
+  value?: string | number;
+  units?: string;
+  source?: string | null; // thread_id
+};
 
-function normalizeFactors(value: any): Array<{ name: string; detail: string }> {
-  if (Array.isArray(value)) {
-    return value
-      .map(item => {
-        if (typeof item === "object" && item && typeof item.name === "string") {
-          return {
-            name: item.name,
-            detail: typeof item.detail === "string" ? item.detail : "",
-          };
-        }
-        if (Array.isArray(item) && item.length >= 2) {
-          return { name: String(item[0]), detail: String(item[1] ?? "") };
-        }
-        return null;
-      })
-      .filter((item): item is { name: string; detail: string } => !!item);
-  }
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      return normalizeFactors(parsed);
-    } catch {
-      return [];
-    }
-  }
-  return [];
+const pretty: Record<string, string> = {
+  hbA1c: "HbA1c",
+  hba1c: "HbA1c",
+  tsh: "TSH",
+  fsh: "FSH",
+  uibc: "UIBC",
+  ldl_cholesterol: "LDL-C",
+  urine_physical_quantity: "Urine (physical)",
+  conjugated_bilirubin: "Conjugated Bilirubin",
+  egfr: "eGFR",
+  bmi: "BMI",
+  hr: "Heart rate",
+  bp: "Blood pressure",
+};
+
+function labelKind(k?: string | null) {
+  if (!k) return "Observation";
+  const key = String(k).toLowerCase().replace(/\s+/g, "_");
+  return pretty[key] || k.toUpperCase();
 }
 
-function toRiskScore(value: any) {
-  if (typeof value !== "number" || Number.isNaN(value)) return null;
-  if (value > 1 && value <= 100) return Math.round((value / 100) * 1000) / 1000;
-  return Math.round(value * 1000) / 1000;
+function coalesceTime(r: RawObs) {
+  return r.observed_at || r.created_at || new Date().toISOString();
 }
 
-export async function GET() {
-  try {
-    const patientId = await getActivePatientId();
-    if (!patientId) return NextResponse.json({ items: [] }, { headers: noStore });
+function coalesceValue(r: RawObs) {
+  return r.value_num ?? r.value_text ?? null;
+}
 
-    const supa = supabaseAdmin();
-    const [predRes, obsRes] = await Promise.all([
-      supa
-        .from("predictions")
-        .select("id, condition, risk_score, risk_label, generated_at, created_at, top_factors, features, model")
-        .eq("patient_id", patientId)
-        .order("generated_at", { ascending: false })
-        .limit(60),
-      supa
-        .from("observations")
-        .select("*")
-        .eq("patient_id", patientId)
-        .eq('meta->>committed', 'true')
-        .order("observed_at", { ascending: false })
-        .limit(200),
-    ]);
+export async function GET(req: NextRequest) {
+  const supabase = createClient();
 
-    if (predRes.error)
-      return NextResponse.json({ error: predRes.error.message }, { status: 500, headers: noStore });
-    if (obsRes.error)
-      return NextResponse.json({ error: obsRes.error.message }, { status: 500, headers: noStore });
+  // who is calling?
+  const { data: userRes } = await supabase.auth.getUser();
+  const user = userRes?.user ?? null;
 
-    const preds = (predRes.data ?? []).map(row => {
-      const probability = toRiskScore(row.risk_score);
-      return {
-        id: String(row.id),
-        kind: "prediction",
-        name: row.condition ?? "Prediction",
-        probability,
-        observed_at: pickObserved(row),
-        uploaded_at: iso(row.generated_at ?? row.created_at),
-        meta: {
-          riskLabel: row.risk_label ?? "Unknown",
-          topFactors: normalizeFactors(row.top_factors),
-          model: row.model ?? null,
-        },
-        file: null,
-      };
-    });
+  const url = new URL(req.url);
+  const patientId = url.searchParams.get("patientId") || url.searchParams.get("pid");
+  const days = Math.max(1, Math.min(3650, Number(url.searchParams.get("days") || 365)));
 
-    const obs = (obsRes.data ?? []).map(row => {
-      const meta = row.meta ?? row.details ?? {};
-      if (!meta.summary) {
-        meta.summary = buildShortSummaryFromText(meta.text, meta.summary_long);
-      }
-      const name =
-        row.name ??
-        row.metric ??
-        row.test ??
-        meta?.analyte ??
-        meta?.test_name ??
-        meta?.label ??
-        "Observation";
-      const value = row.value ?? row.value_num ?? meta?.value ?? meta?.value_num ?? row.value_text ?? null;
-      const unit = row.unit ?? meta?.unit ?? null;
-      const file = {
-        upload_id: row.source_upload_id ?? row.upload_id ?? meta?.upload_id ?? null,
-        bucket: meta?.bucket ?? null,
-        path: meta?.storage_path ?? meta?.path ?? null,
-        name: meta?.file_name ?? meta?.name ?? null,
-        mime: meta?.mime ?? null,
-      };
-      return {
-        id: String(row.id),
-        kind: "observation",
-        name,
-        value,
-        unit,
-        flags: Array.isArray(row.flags) ? row.flags : Array.isArray(meta?.flags) ? meta.flags : null,
-        observed_at: pickObserved(row),
-        uploaded_at: iso(row.created_at ?? row.createdAt),
-        meta,
-        file,
-      };
-    });
+  // Build base query
+  let q = supabase
+    .from("observations")
+    .select(
+      "id,user_id,patient_id,thread_id,kind,value_num,value_text,units,observed_at,created_at",
+    )
+    .order("observed_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false, nullsFirst: false })
+    .limit(500); // enough for the panel
 
-    const items = [...preds, ...obs].sort(
-      (a, b) => new Date(b.observed_at).getTime() - new Date(a.observed_at).getTime()
-    );
-
-    return NextResponse.json({ items }, { headers: noStore });
-  } catch (err: any) {
-    console.error("/api/timeline failed", err);
-    return NextResponse.json({ error: err?.message || "Failed" }, { status: 500, headers: noStore });
+  if (patientId) {
+    q = q.eq("patient_id", patientId);
+  } else if (user?.id) {
+    q = q.eq("user_id", user.id);
   }
+
+  // Optional server-side time window filter
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  q = q.gte("created_at", since.toISOString());
+
+  const { data, error } = await q;
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const events: Event[] = (data as RawObs[]).map((r) => ({
+    id: r.id,
+    at: coalesceTime(r),
+    kind: labelKind(r.kind),
+    value: coalesceValue(r) ?? undefined,
+    units: r.units ?? undefined,
+    source: r.thread_id ?? null,
+  }));
+
+  return NextResponse.json({ events });
 }
