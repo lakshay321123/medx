@@ -1,3 +1,4 @@
+// app/api/trials/[nctId]/summary/route.ts
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -6,6 +7,7 @@ import { RESEARCH_TRIAL_BRIEF_STYLE } from "@/lib/styles";
 import { createLLM } from "@/lib/llm";
 import type { ChatMsg } from "@/lib/llm";
 
+// -------------------- helpers --------------------
 type Brief = {
   tldr?: string;
   bullets?: string[];
@@ -24,23 +26,39 @@ function normNct(raw: string) {
   return m ? m[0] : "";
 }
 
-async function fetchJSON(url: string) {
-  const r = await fetch(url, { cache: "no-store", headers: { "user-agent": "medx/summary" } });
-  if (!r.ok) throw new Error(`fetch ${url} -> ${r.status}`);
-  return r.json();
+async function fetchMaybe(url: string, timeoutMs = 8000): Promise<{ json: any } | null> {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, {
+      cache: "no-store",
+      signal: ac.signal,
+      // Some CT.gov edges 404/403 on unknown UA; use a common browser UA
+      headers: {
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36",
+        accept: "application/json",
+      },
+    });
+    if (r.status === 404) return null; // treat as "no results", not a hard failure
+    if (!r.ok) throw new Error(`fetch ${url} -> ${r.status}`);
+    return { json: await r.json() };
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 async function fetchFullStudy(nctId: string) {
-  // v1 full study
-  const url = `https://clinicaltrials.gov/api/query/full_studies?expr=${encodeURIComponent(nctId)}&min_rnk=1&max_rnk=1&fmt=JSON`;
-  const j = await fetchJSON(url);
-  const study = j?.FullStudiesResponse?.FullStudies?.[0]?.Study;
-  if (study) return { kind: "full", study, pageUrl: `https://clinicaltrials.gov/study/${nctId}` };
-  return null;
+  const url = `https://clinicaltrials.gov/api/query/full_studies?expr=${encodeURIComponent(
+    nctId
+  )}&min_rnk=1&max_rnk=1&fmt=JSON`;
+  const res = await fetchMaybe(url);
+  if (!res) return null;
+  const study = res.json?.FullStudiesResponse?.FullStudies?.[0]?.Study;
+  return study ? { kind: "full", study, pageUrl: `https://clinicaltrials.gov/study/${nctId}` } : null;
 }
 
 async function fetchStudyFields(nctId: string) {
-  // v1 study_fields fallback (more forgiving)
   const fields = [
     "NCTId",
     "BriefTitle",
@@ -58,19 +76,18 @@ async function fetchStudyFields(nctId: string) {
   const url = `https://clinicaltrials.gov/api/query/study_fields?expr=${encodeURIComponent(
     nctId
   )}&fields=${fields.join(",")}&min_rnk=1&max_rnk=1&fmt=JSON`;
-  const j = await fetchJSON(url);
-  const row = j?.StudyFieldsResponse?.StudyFields?.[0];
-  if (!row) return null;
-  return { kind: "fields", row, pageUrl: `https://clinicaltrials.gov/study/${nctId}` };
+  const res = await fetchMaybe(url);
+  if (!res) return null;
+  const row = res.json?.StudyFieldsResponse?.StudyFields?.[0];
+  return row ? { kind: "fields", row, pageUrl: `https://clinicaltrials.gov/study/${nctId}` } : null;
 }
 
 async function fetchV2(nctId: string) {
-  // v2 fallback; shape is different
   const url = `https://clinicaltrials.gov/api/v2/studies?query.term=${encodeURIComponent(nctId)}&pageSize=1`;
-  const j = await fetchJSON(url);
-  const item = j?.studies?.[0];
-  if (!item) return null;
-  return { kind: "v2", item, pageUrl: `https://clinicaltrials.gov/study/${nctId}` };
+  const res = await fetchMaybe(url);
+  if (!res) return null;
+  const item = res.json?.studies?.[0];
+  return item ? { kind: "v2", item, pageUrl: `https://clinicaltrials.gov/study/${nctId}` } : null;
 }
 
 function coalesceFromFull(study: any) {
@@ -85,7 +102,9 @@ function coalesceFromFull(study: any) {
       .map((x: any) => `${x.InterventionType}: ${x.InterventionName}`)
       .join("; "),
     primaryOutcomes: (S?.OutcomesModule?.PrimaryOutcomeList?.PrimaryOutcome || [])
-      .map((o: any) => `${o.PrimaryOutcomeMeasure}${o.PrimaryOutcomeTimeFrame ? ` (${o.PrimaryOutcomeTimeFrame})` : ""}`)
+      .map(
+        (o: any) => `${o.PrimaryOutcomeMeasure}${o.PrimaryOutcomeTimeFrame ? ` (${o.PrimaryOutcomeTimeFrame})` : ""}`
+      )
       .join("; "),
     eligibility: S?.EligibilityModule?.EligibilityCriteria || "",
     design: [S?.DesignModule?.StudyType, S?.DesignModule?.Allocation, S?.DesignModule?.InterventionModel]
@@ -174,42 +193,6 @@ function minimalBrief(nctId: string, info: any, pageUrl: string): Brief {
   };
 }
 
-export async function GET(req: NextRequest, ctx: { params: { nctId: string } }) {
-  const rawId = ctx.params?.nctId || "";
-  const nctId = normNct(rawId);
-  if (!nctId) return NextResponse.json({ error: "Invalid NCT id" }, { status: 400 });
-
-  try {
-    // 1) full study
-    const full = await fetchFullStudy(nctId);
-    if (full) {
-      const info = coalesceFromFull(full.study);
-      const base = minimalBrief(nctId, info, full.pageUrl);
-      return NextResponse.json(await maybeLLM(base, info, full.pageUrl));
-    }
-
-    // 2) study_fields fallback
-    const fields = await fetchStudyFields(nctId);
-    if (fields) {
-      const info = coalesceFromFields(fields.row);
-      const base = minimalBrief(nctId, info, fields.pageUrl);
-      return NextResponse.json(await maybeLLM(base, info, fields.pageUrl));
-    }
-
-    // 3) v2 fallback
-    const v2 = await fetchV2(nctId);
-    if (v2) {
-      const info = coalesceFromV2(v2.item);
-      const base = minimalBrief(nctId, info, v2.pageUrl);
-      return NextResponse.json(await maybeLLM(base, info, v2.pageUrl));
-    }
-
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  } catch (err: any) {
-    return NextResponse.json({ error: err?.message || "Fetch error" }, { status: 502 });
-  }
-}
-
 async function maybeLLM(base: Brief, info: any, pageUrl: string): Promise<Brief> {
   try {
     const llm = createLLM();
@@ -225,7 +208,6 @@ async function maybeLLM(base: Brief, info: any, pageUrl: string): Promise<Brief>
     });
     const text = typeof resp === "string" ? resp : resp?.content ?? "";
     const j = JSON.parse(text);
-    // merge LLM output over the minimal base
     return {
       tldr: j.tldr || base.tldr,
       bullets: Array.isArray(j.bullets) && j.bullets.length ? j.bullets : base.bullets,
@@ -233,6 +215,42 @@ async function maybeLLM(base: Brief, info: any, pageUrl: string): Promise<Brief>
       citations: j.citations?.length ? j.citations : base.citations,
     };
   } catch {
-    return base;
+    return base; // still return a minimal brief
+  }
+}
+
+// -------------------- route --------------------
+export async function GET(_req: NextRequest, ctx: { params: { nctId: string } }) {
+  const nctId = normNct(ctx.params?.nctId);
+  if (!nctId) return NextResponse.json({ error: "Invalid NCT id" }, { status: 400 });
+
+  try {
+    // Try v1 full_studies
+    const full = await fetchFullStudy(nctId);
+    if (full) {
+      const info = coalesceFromFull(full.study);
+      const base = minimalBrief(nctId, info, full.pageUrl);
+      return NextResponse.json(await maybeLLM(base, info, full.pageUrl));
+    }
+
+    // Fallback: v1 study_fields
+    const fields = await fetchStudyFields(nctId);
+    if (fields) {
+      const info = coalesceFromFields(fields.row);
+      const base = minimalBrief(nctId, info, fields.pageUrl);
+      return NextResponse.json(await maybeLLM(base, info, fields.pageUrl));
+    }
+
+    // Fallback: v2 studies
+    const v2 = await fetchV2(nctId);
+    if (v2) {
+      const info = coalesceFromV2(v2.item);
+      const base = minimalBrief(nctId, info, v2.pageUrl);
+      return NextResponse.json(await maybeLLM(base, info, v2.pageUrl));
+    }
+
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message || "Fetch error" }, { status: 502 });
   }
 }
