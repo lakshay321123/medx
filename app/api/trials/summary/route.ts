@@ -5,8 +5,6 @@ import type { ChatCompletionMessageParam } from "@/lib/llm/types";
 
 export const runtime = "nodejs";
 
-type TrialInput = TrialFacts & { error?: string | null };
-
 function coerceString(value: any) {
   return typeof value === "string" && value.trim().length ? value.trim() : null;
 }
@@ -27,7 +25,7 @@ function coerceArray<T>(value: any, mapper: (item: any) => T | null): T[] {
   return out;
 }
 
-function coerceTrial(input: any): TrialInput | null {
+function coerceTrial(input: any): TrialFacts | null {
   if (!input || typeof input !== "object") return null;
   const nctId = coerceString((input as any).nctId)?.toUpperCase();
   if (!nctId || !/^NCT\d{8}$/.test(nctId)) return null;
@@ -247,7 +245,7 @@ export async function POST(req: Request) {
   const rawTrials = Array.isArray(payload?.trials) ? payload.trials : [];
   const trials = rawTrials
     .map((item: any) => coerceTrial(item))
-    .filter((item: TrialInput | null): item is TrialInput => !!item)
+    .filter((item: TrialFacts | null): item is TrialFacts => !!item)
     .slice(0, 5);
 
   if (!trials.length) {
@@ -255,13 +253,13 @@ export async function POST(req: Request) {
   }
 
   let notice: string | undefined;
-  const validTrials = trials.filter((trial) => !trial.error);
+  const validTrials = trials.filter((trial): trial is TrialFacts => !trial.error);
   const needGroq = style === "doctor-brief" && process.env.GROQ_API_KEY && validTrials.length > 0;
   let summaries: TrialSummaryMarkdown[] | null = null;
 
   if (needGroq) {
     try {
-      const chunks = chunkTrials(validTrials, 2);
+      const chunks = chunkTrials<TrialFacts>(validTrials, 2);
       const collected: TrialSummaryMarkdown[] = [];
       for (const chunk of chunks) {
         const system = "You are a medical summarizer. Only use provided JSON; do not invent facts; units and names must match source.";
