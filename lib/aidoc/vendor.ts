@@ -1,4 +1,7 @@
 import OpenAI from "openai";
+import { createHash } from "crypto";
+import { scoreRisk } from "../predict/score";
+import type { RiskInputs } from "../predict/score";
 
 export const AiDocJsonSchema = {
   name: "AiDocOut",
@@ -101,7 +104,16 @@ export const AiDocJsonSchema = {
 /**
  * Call OpenAI for AI Doc ensuring JSON-only replies.
  */
-type CallIn = { system: string; user: string; instruction: string; metadata?: any };
+type PredictCall = {
+  op: "predict";
+  patientPacket: any;
+  source?: string;
+  schema?: string;
+};
+
+type ChatCall = { system: string; user: string; instruction: string; metadata?: any };
+
+type CallIn = ChatCall | PredictCall;
 
 function tryParseJson(s: string) {
   try { return JSON.parse(s); } catch {}
@@ -113,7 +125,56 @@ function tryParseJson(s: string) {
   return null;
 }
 
-export async function callOpenAIJson({ system, user, instruction, metadata }: CallIn): Promise<any> {
+function hashObject(value: unknown) {
+  try {
+    return createHash("sha256").update(JSON.stringify(value) || "").digest("hex");
+  } catch {
+    return null;
+  }
+}
+
+function handlePredict({ patientPacket, source }: PredictCall) {
+  const riskInputs: RiskInputs | null =
+    (patientPacket?.derived?.riskInputs as RiskInputs | null | undefined) ?? null;
+
+  if (!riskInputs) {
+    return {
+      predictions: [],
+      inputs_hash: hashObject(patientPacket),
+      model: process.env.AIDOC_PREDICT_MODEL || process.env.AIDOC_MODEL || "medx-heuristic-v1",
+      version: "v1",
+      source,
+    };
+  }
+
+  const risk = scoreRisk(riskInputs);
+  const fraction = Number.isFinite(risk.riskScore) ? Math.max(0, Math.min(1, risk.riskScore / 100)) : null;
+  const confidence = risk.band === "Red" ? "high" : risk.band === "Yellow" ? "medium" : "low";
+
+  return {
+    predictions: [
+      {
+        domain: "cardiometabolic_risk",
+        label: risk.band.toLowerCase(),
+        score: fraction,
+        top_factors: risk.factors.map((f) => f.name),
+        rationale:
+          "Computed using MedX heuristic scoring based on the latest labs, vitals, and history.",
+        confidence,
+      },
+    ],
+    inputs_hash: hashObject(riskInputs),
+    model: process.env.AIDOC_PREDICT_MODEL || process.env.AIDOC_MODEL || "medx-heuristic-v1",
+    version: "v1",
+    source,
+  };
+}
+
+export async function callOpenAIJson(input: CallIn): Promise<any> {
+  if ("op" in input && input.op === "predict") {
+    return handlePredict(input);
+  }
+  const { system, user, instruction, metadata } = input;
   const oai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const model = process.env.AIDOC_MODEL || "gpt-5";
   const backoff = [250, 750, 1500];

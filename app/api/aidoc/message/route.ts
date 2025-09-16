@@ -19,6 +19,17 @@ export async function POST(req: Request) {
   const boot = payload?.boot === true || op === "boot";
   const userId = (await getUserId()) ?? "";
   const threadId = payload.threadId || "aidoc:" + userId;
+  const text = message.toLowerCase();
+  const wantsPrediction =
+    /risk|red\s*flags|prediction|prognosis|heart|diabet|cancer/.test(text);
+
+  if (wantsPrediction && payload?.patientId) {
+    fetch(`${process.env.NEXTAUTH_URL || ""}/api/predict`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ patientId: payload.patientId, source: "chat" }),
+    }).catch(() => {});
+  }
   // Structured payloads from UI
   const answers = (payload?.answers && typeof payload.answers === "object") ? payload.answers : null;
   const incomingProfile = (payload?.profile && typeof payload.profile === "object") ? payload.profile : null;

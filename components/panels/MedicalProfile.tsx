@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import { safeJson } from "@/lib/safeJson";
 import { useProfile } from "@/lib/hooks/useAppData";
 
@@ -54,6 +55,7 @@ export default function MedicalProfile() {
   const router = useRouter();
   const params = useSearchParams();
   const _threadId = params.get("threadId") || "default";
+  const activePatientId = data?.profile?.id ?? "";
 
   const [summary, setSummary] = useState<string>("");
   const [reasons, setReasons] = useState<string>("");
@@ -68,6 +70,20 @@ export default function MedicalProfile() {
     } catch {}
   };
   useEffect(() => { loadSummary(); }, []);
+
+  const handleRecomputeRisk = () => {
+    const pid = activePatientId; // <-- keep your existing source of patientId
+    router.push(`/?panel=aidoc&intent=predict&patientId=${encodeURIComponent(pid)}`);
+    try {
+      fetch("/api/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patientId: pid, source: "recompute" }),
+        cache: "no-store",
+        credentials: "include",
+      }).catch(() => {});
+    } catch {}
+  };
 
   const prof = data?.profile ?? null;
   const [bootstrapped, setBootstrapped] = useState(false);
@@ -418,13 +434,12 @@ export default function MedicalProfile() {
               }}
               className="text-xs px-2 py-1 rounded-md border"
             >Discuss & Correct in Chat</button>
-            <button
-              onClick={async () => {
-                await fetch("/api/alerts/recompute", { method: "POST" });
-                await loadSummary();
-              }}
+            <Button
+              onClick={handleRecomputeRisk}
               className="text-xs px-2 py-1 rounded-md border"
-            >Recompute Risk</button>
+            >
+              Recompute Risk
+            </Button>
           </div>
         </div>
         <p className="mt-2 text-sm whitespace-pre-wrap">{summary || "No summary yet."}</p>
