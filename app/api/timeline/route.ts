@@ -33,30 +33,37 @@ const pickObserved = (r: any) =>
 export async function GET() {
   const userId = await getUserId();
   if (!userId) return NextResponse.json({ items: [] }, { headers: noStore });
+
   const supa = supabaseAdmin();
 
+  // Query both sources; tolerate failures by falling back to empty arrays.
   const [predRes, obsRes] = await Promise.all([
     supa.from("predictions").select("*").eq("user_id", userId),
-    supa.from("observations").select("*").eq("user_id", userId).eq('meta->>committed','true'),
+    supa.from("observations").select("*").eq("user_id", userId),
   ]);
-  if (predRes.error)
-    return NextResponse.json(
-      { error: predRes.error.message },
-      { status: 500, headers: noStore }
-    );
-  if (obsRes.error)
-    return NextResponse.json(
-      { error: obsRes.error.message },
-      { status: 500, headers: noStore }
-    );
 
-  const preds = (predRes.data || []).map((r: any) => {
-    const d = r.details ?? r.meta ?? {};
+  const predErr = predRes.error || null;
+  const obsErr = obsRes.error || null;
+
+  if (predErr) {
+    // If predictions table/permissions are missing, keep going with observations only.
+    console.warn("[timeline] predictions error:", predErr.message || predErr);
+  }
+  if (obsErr) {
+    // If observations has an issue, still continue (UI will show whatever we have).
+    console.warn("[timeline] observations error:", obsErr.message || obsErr);
+  }
+
+  const predRows: any[] = Array.isArray(predRes.data) ? predRes.data : [];
+  const obsRows: any[] = Array.isArray(obsRes.data) ? obsRes.data : [];
+
+  const preds = predRows.map((r: any) => {
+    const d = r?.details ?? r?.meta ?? {};
     const name =
-      r.name ??
-      r.label ??
-      r.finding ??
-      r.type ??
+      r?.name ??
+      r?.label ??
+      r?.finding ??
+      r?.type ??
       d?.analyte ??
       d?.test_name ??
       d?.label ??
@@ -64,66 +71,83 @@ export async function GET() {
       d?.task ??
       "Prediction";
     const prob =
-      typeof r.probability === "number"
+      typeof r?.probability === "number"
         ? r.probability
         : typeof d?.fractured === "number"
         ? d.fractured
         : typeof d?.probability === "number"
         ? d.probability
         : null;
+
     return {
-      id: String(r.id),
+      id: String(r?.id ?? cryptoRandomId()),
       kind: "prediction",
       name,
       probability: prob,
       observed_at: pickObserved(r),
-      uploaded_at: iso(r.created_at ?? r.createdAt),
+      uploaded_at: iso(r?.created_at ?? r?.createdAt),
       meta: d || {},
       file: null,
     };
   });
 
-  const obs = (obsRes.data || []).map((r: any) => {
-    const m = r.meta ?? r.details ?? {};
-    if (!m.summary) {
-      m.summary = buildShortSummaryFromText(m.text, m.summary_long);
+  const obs = obsRows.map((r: any) => {
+    const m = r?.meta ?? r?.details ?? {};
+    try {
+      if (!m.summary) {
+        m.summary = buildShortSummaryFromText(m.text, m.summary_long);
+      }
+    } catch {
+      // ignore summarizer issues; keep row usable
     }
     const name =
-      r.name ??
-      r.metric ??
-      r.test ??
+      r?.name ??
+      r?.metric ??
+      r?.test ??
       m?.analyte ??
       m?.test_name ??
       m?.label ??
       "Observation";
-    const value = r.value ?? m?.value ?? null;
-    const unit = r.unit ?? m?.unit ?? null;
-    const flags = Array.isArray(r.flags)
+    const value = r?.value ?? m?.value ?? null;
+    const unit = r?.unit ?? m?.unit ?? null;
+    const flags = Array.isArray(r?.flags)
       ? r.flags
       : Array.isArray(m?.flags)
       ? m.flags
       : null;
     const file = {
-      upload_id: r.source_upload_id ?? r.upload_id ?? m?.upload_id ?? null,
+      upload_id:
+        r?.source_upload_id ?? r?.upload_id ?? m?.upload_id ?? null,
       bucket: m?.bucket ?? null,
       path: m?.storage_path ?? m?.path ?? null,
       name: m?.file_name ?? m?.name ?? null,
       mime: m?.mime ?? null,
     };
     return {
-      id: String(r.id),
+      id: String(r?.id ?? cryptoRandomId()),
       kind: "observation",
       name,
       value,
       unit,
       flags,
       observed_at: pickObserved(r),
-      uploaded_at: iso(r.created_at ?? r.createdAt),
+      uploaded_at: iso(r?.created_at ?? r?.createdAt),
       meta: m || {},
       file,
     };
   });
 
+  // Minimal diagnostics to confirm server sees rows
+  console.log(
+    "[timeline] user:",
+    userId,
+    "obs:",
+    obsRows.length,
+    "preds:",
+    predRows.length
+  );
+
+  // Deduplicate + sort
   const dedup = new Map<string, any>();
   for (const it of [...preds, ...obs]) {
     const key =
@@ -132,9 +156,18 @@ export async function GET() {
       `${it.name}|${it.observed_at}|${"value" in it ? it.value ?? "" : ""}`;
     if (!dedup.has(key)) dedup.set(key, it);
   }
+
   const items = Array.from(dedup.values()).sort(
     (a, b) =>
       new Date(b.observed_at).getTime() - new Date(a.observed_at).getTime()
   );
+
+  // Always 200 — prevents SWR error loop; you still get console warnings.
   return NextResponse.json({ items }, { headers: noStore });
+}
+
+// Tiny helper to ensure an id even if a row lacks one
+function cryptoRandomId() {
+  // Not crypto-strong in edge runtimes, but fine for a display key fallback
+  return Math.random().toString(36).slice(2);
 }
