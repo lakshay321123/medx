@@ -1,19 +1,15 @@
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
+export const runtime = "nodejs";
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
-import { getUserId } from "@/lib/getUserId";
 
 export async function POST() {
-  const userId = await getUserId();
-  if (!userId) return new NextResponse("Unauthorized", { status: 401 });
-  const supa = supabaseAdmin();
-  const [p,o] = await Promise.all([
-    supa.from("predictions").select("id",{count:"exact", head:true}).eq("user_id",userId),
-    supa.from("observations").select("id",{count:"exact", head:true}).eq("user_id",userId),
-  ]);
-  if (p.error) return NextResponse.json({ error:p.error.message }, { status:500 });
-  if (o.error) return NextResponse.json({ error:o.error.message }, { status:500 });
-  return NextResponse.json({ ok:true, inspected:{predictions:p.count||0, observations:o.count||0} }, { headers: { "Cache-Control":"no-store" }});
+  const res  = await fetch("/api/predictions/compute", {
+    method: "POST",
+    headers: { "Content-Type":"application/json" },
+    body: JSON.stringify({ threadId: "med-profile" })
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json?.ok === false) {
+    return NextResponse.json({ ok:false, error: json?.error || `HTTP ${res.status}` }, { status: res.status });
+  }
+  return NextResponse.json({ ok:true, forwarded:true });
 }

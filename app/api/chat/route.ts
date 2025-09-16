@@ -16,6 +16,7 @@ import { parseConstraintsFromText, mergeLedger } from "@/lib/context/constraints
 import { parseEntitiesFromText, mergeEntityLedger } from "@/lib/context/entityLedger";
 import { decideRoute } from "@/lib/context/router";
 import { callGroq } from "@/lib/llm/groq";
+import LLM from "@/lib/LLM";
 import type { ChatCompletionMessageParam } from "@/lib/llm/types";
 import { polishText } from "@/lib/text/polish";
 import { buildConstraintRecap } from "@/lib/text/recap";
@@ -282,6 +283,53 @@ export async function POST(req: Request) {
 
   // 2) Save user message (+embedding via appendMessage)
   await appendMessage({ threadId, role: "user", content: text });
+
+  const trimmedText = (text || "").trim();
+  const threadRecord = threadId
+    ? await prisma.chatThread.findUnique({ where: { id: threadId } }).catch(() => null)
+    : null;
+  const isAiDocThread = threadRecord?.type === "aidoc" || threadId === "med-profile";
+  const wantsCorrection =
+    /^(discuss|correct)\b/i.test(trimmedText) ||
+    /(my|the)\s+(age|weight|height|condition|medication|dose|fever|symptom)/i.test(trimmedText);
+
+  if (isAiDocThread && wantsCorrection && userId) {
+    try {
+      const sb = supabaseAdmin();
+      const fixes = await LLM.validateJson(
+        "Extract profile corrections from the user's text. Return strict JSON with optional demographics, medications, conditions, labs, and notes.",
+        "Map fields: demographics(age,sex,height_cm,weight_kg), medications(name,dose,freq), conditions(name,status), labs(code,value,unit,observed_at).",
+        JSON.stringify({ message: trimmedText }).slice(0, 10000)
+      );
+
+      if (fixes?.demographics) {
+        await sb.from("profiles").update(fixes.demographics).eq("user_id", userId);
+      }
+      if (Array.isArray(fixes?.conditions)) {
+        for (const c of fixes.conditions) {
+          await sb.from("conditions").upsert({ user_id: userId, ...c }, { onConflict: "user_id,name" });
+        }
+      }
+      if (Array.isArray(fixes?.medications)) {
+        for (const m of fixes.medications) {
+          await sb.from("medications").upsert({ user_id: userId, ...m }, { onConflict: "user_id,name" });
+        }
+      }
+      if (Array.isArray(fixes?.labs)) {
+        for (const l of fixes.labs) {
+          await sb.from("observations").insert({ user_id: userId, kind: "lab", ...l });
+        }
+      }
+
+      await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/predictions/compute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ threadId: threadId || "med-profile" })
+      });
+    } catch (err) {
+      console.error("[chat] aidoc correction failed", err);
+    }
+  }
 
   // 3) Update state (contradictions + heuristics extraction; no OpenAI required)
   let state = await loadState(threadId);
