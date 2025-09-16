@@ -1,4 +1,3 @@
-
 import { register } from "../registry";
 
 export function runMAPCalc({ SBP, DBP }:{ SBP:number, DBP:number }){
@@ -27,6 +26,15 @@ export function runPulsePressureBand({ SBP, DBP }:{ SBP:number, DBP:number }){
   return { pulse_pressure_mmHg: pp, band };
 }
 
+/**
+ * Calculate stroke volume from LVOT diameter and LVOT velocity time integral (VTI).
+ *
+ * Computes LVOT cross-sectional area = π*(lvot_d_cm/2)^2 and multiplies by `lvot_vti_cm` to produce stroke volume in mL.
+ *
+ * @param lvot_d_cm - LVOT diameter in centimeters
+ * @param lvot_vti_cm - LVOT VTI in centimeters
+ * @returns An object { stroke_volume_mL } with the stroke volume rounded to one decimal place, or `null` if any input is null or non‑finite
+ */
 export function runSVFromLVOT({ lvot_d_cm, lvot_vti_cm }:{ lvot_d_cm:number, lvot_vti_cm:number }){
   if ([lvot_d_cm,lvot_vti_cm].some(v=>v==null || !isFinite(v as number))) return null;
   const area = Math.PI * Math.pow(lvot_d_cm/2,2);
@@ -53,6 +61,20 @@ export function runSVRDyn({ MAP, RAP_mmHg, CO_L_min }:{ MAP:number, RAP_mmHg:num
   return { SVR_dyn_s_cm5: Number(svr.toFixed(0)) };
 }
 
+/**
+ * Calculate pulmonary vascular resistance (dynamic).
+ *
+ * Computes PVR using mPAP and PCWP (both in mmHg) divided by cardiac output (L/min) and scaled by 80:
+ * PVR = 80 * (mPAP_mmHg - PCWP_mmHg) / CO_L_min.
+ *
+ * Returns an object with PVR_dyn_s_cm5 (systemic units dyn·s·cm⁻5) rounded to the nearest integer,
+ * or `null` if any input is null/non-finite or if `CO_L_min` is <= 0.
+ *
+ * @param mPAP_mmHg - Mean pulmonary arterial pressure in mmHg.
+ * @param PCWP_mmHg - Pulmonary capillary wedge pressure in mmHg.
+ * @param CO_L_min - Cardiac output in L/min (must be > 0).
+ * @returns An object { PVR_dyn_s_cm5: number } or `null` on invalid input.
+ */
 export function runPVRDyn({ mPAP_mmHg, PCWP_mmHg, CO_L_min }:{ mPAP_mmHg:number, PCWP_mmHg:number, CO_L_min:number }){
   if ([mPAP_mmHg,PCWP_mmHg,CO_L_min].some(v=>v==null || !isFinite(v as number) || CO_L_min<=0)) return null;
   const pvr = 80 * (mPAP_mmHg - PCWP_mmHg) / CO_L_min;
