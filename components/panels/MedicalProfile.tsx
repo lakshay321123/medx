@@ -420,7 +420,7 @@ export default function MedicalProfile() {
             >Discuss & Correct in Chat</button>
             <button
               onClick={async () => {
-                await fetch("/api/alerts/recompute", { method: "POST" });
+                await fetch("/api/ai-doc/recompute", { method: "POST" });
                 await loadSummary();
               }}
               className="text-xs px-2 py-1 rounded-md border"

@@ -24,6 +24,7 @@
     "next": "14.2.4",
     "next-auth": "^4.24.11",
     "next-themes": "0.3.0",
+    "groq-sdk": "^0.5.0",
     "openai": "^4.56.0",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
