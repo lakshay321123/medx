@@ -75,6 +75,9 @@ export default function Timeline(){
   const long = active?.meta?.summary_long;
   const short = active?.meta?.summary;
   const text = active?.meta?.text;
+  const hasSummary = Boolean(long || short);
+  const hasText = Boolean(text);
+  const hasContent = hasSummary || hasText;
 
   return (
     <div className="p-4">
@@ -158,26 +161,30 @@ export default function Timeline(){
                   <div className="text-sm text-muted-foreground text-center">Preview unavailable. Use <b>Open</b> or <b>Download</b>.</div>
                 )
               ) : (
-                <Tabs defaultValue={long ? 'summary' : (short ? 'summary' : 'text')}>
-                  {(long || short) && (
-                    <TabsList className="mb-3">
-                      <TabsTrigger value="summary">Summary</TabsTrigger>
-                      {text && <TabsTrigger value="text">Full text</TabsTrigger>}
-                    </TabsList>
-                  )}
-                  {(long || short) && (
-                    <TabsContent value="summary">
-                      <article className="prose prose-zinc dark:prose-invert max-w-none whitespace-pre-wrap select-text">
-                        {(long || short) as string}
-                      </article>
-                    </TabsContent>
-                  )}
-                  {text && (
-                    <TabsContent value="text">
-                      <pre className="whitespace-pre-wrap break-words text-sm leading-6 select-text">{text}</pre>
-                    </TabsContent>
-                  )}
-                </Tabs>
+                hasContent ? (
+                  <Tabs key={active.id} defaultValue={hasSummary ? 'summary' : 'text'}>
+                    {hasSummary && (
+                      <TabsList className="mb-3">
+                        <TabsTrigger value="summary">Summary</TabsTrigger>
+                        {hasText && <TabsTrigger value="text">Full text</TabsTrigger>}
+                      </TabsList>
+                    )}
+                    {hasSummary && (
+                      <TabsContent value="summary">
+                        <article className="prose prose-zinc dark:prose-invert max-w-none whitespace-pre-wrap select-text">
+                          {(long || short) as string}
+                        </article>
+                      </TabsContent>
+                    )}
+                    {hasText && (
+                      <TabsContent value="text">
+                        <pre className="whitespace-pre-wrap break-words text-sm leading-6 select-text">{text}</pre>
+                      </TabsContent>
+                    )}
+                  </Tabs>
+                ) : (
+                  <div className="text-sm text-muted-foreground text-center">No summary available for this observation.</div>
+                )
               )}
             </div>
           </aside>
