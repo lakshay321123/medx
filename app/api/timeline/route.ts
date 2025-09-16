@@ -33,12 +33,15 @@ const pickObserved = (r: any) =>
 export async function GET() {
   const userId = await getUserId();
   if (!userId) return NextResponse.json({ items: [] }, { headers: noStore });
+
   const supa = supabaseAdmin();
 
+  // NOTE: no committed filter; show all rows for this user
   const [predRes, obsRes] = await Promise.all([
     supa.from("predictions").select("*").eq("user_id", userId),
-    supa.from("observations").select("*").eq("user_id", userId).eq('meta->>committed','true'),
+    supa.from("observations").select("*").eq("user_id", userId),
   ]);
+
   if (predRes.error)
     return NextResponse.json(
       { error: predRes.error.message },
@@ -49,6 +52,16 @@ export async function GET() {
       { error: obsRes.error.message },
       { status: 500, headers: noStore }
     );
+
+  // Minimal diagnostics to Vercel logs (helps confirm data is seen server-side)
+  console.log(
+    "[timeline] user:",
+    userId,
+    "obs:",
+    obsRes.data?.length ?? 0,
+    "preds:",
+    predRes.data?.length ?? 0
+  );
 
   const preds = (predRes.data || []).map((r: any) => {
     const d = r.details ?? r.meta ?? {};
@@ -132,9 +145,11 @@ export async function GET() {
       `${it.name}|${it.observed_at}|${"value" in it ? it.value ?? "" : ""}`;
     if (!dedup.has(key)) dedup.set(key, it);
   }
+
   const items = Array.from(dedup.values()).sort(
     (a, b) =>
       new Date(b.observed_at).getTime() - new Date(a.observed_at).getTime()
   );
+
   return NextResponse.json({ items }, { headers: noStore });
 }

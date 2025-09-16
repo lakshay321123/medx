@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useTimeline } from "@/lib/hooks/useAppData";
 
 type Cat = "ALL"|"LABS"|"VITALS"|"IMAGING"|"AI"|"NOTES";
 const catOf = (it:any):Cat => {
@@ -14,18 +15,9 @@ const catOf = (it:any):Cat => {
 };
 
 export default function Timeline(){
-  const [items, setItems] = useState<any[]>([]);
   const [resetError, setResetError] = useState<string|null>(null);
-
-  const refresh = async () => {
-    try {
-      const res = await fetch('/api/timeline', { cache: 'no-store' });
-      const { items = [] } = await res.json();
-      setItems(items);
-    } catch {}
-  };
-
-  useEffect(()=>{ refresh(); },[]);
+  const { data, error, isLoading, mutate } = useTimeline();
+  const items = data?.items ?? [];
 
   const [cat,setCat] = useState<Cat>("ALL");
   const [range,setRange] = useState<"ALL"|"7"|"30"|"90"|"CUSTOM">("ALL");
@@ -75,6 +67,11 @@ export default function Timeline(){
     fetch(`/api/uploads/signed-url${qs}`).then(r=>r.json()).then(d=>{ if (d?.url) setSignedUrl(d.url); });
   }, [open, active]);
 
+  if (isLoading) return <div className="p-6 text-sm text-muted-foreground">Loading timeline…</div>;
+  if (error)     return <div className="p-6 text-sm text-red-500">Couldn’t load timeline. Retrying in background…</div>;
+
+  if (!items.length) return <div className="p-6 text-sm text-muted-foreground">No events yet.</div>;
+
   const long = active?.meta?.summary_long;
   const short = active?.meta?.summary;
   const text = active?.meta?.text;
@@ -89,7 +86,7 @@ export default function Timeline(){
             setResetError(null);
             const res = await fetch('/api/observations/reset', { method: 'POST' });
             if (res.status === 401) { setResetError('Please sign in'); return; }
-            refresh();
+            await mutate();
           }}
           className="text-xs px-2 py-1 rounded-md border"
         >Reset</button>

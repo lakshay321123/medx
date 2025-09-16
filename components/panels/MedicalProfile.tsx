@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { safeJson } from "@/lib/safeJson";
+import { useProfile } from "@/lib/hooks/useAppData";
 
 const SEXES = ["male", "female", "other"] as const;
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -44,12 +45,9 @@ type Groups = Record<
   "vitals" | "labs" | "imaging" | "medications" | "diagnoses" | "procedures" | "immunizations" | "notes" | "other",
   Item[]
 >;
-type ProfilePayload = { profile: any; groups: Groups };
-
 export default function MedicalProfile() {
+  const { data, error, isLoading, mutate } = useProfile();
   const [obs, setObs] = useState<Observation[]>([]);
-  const [data, setData] = useState<ProfilePayload | null>(null);
-  const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState<null | "obs" | "all" | "zero">(null);
 
@@ -80,25 +78,12 @@ export default function MedicalProfile() {
   const [predis, setPredis] = useState<string[]>([]);
   const [chronic, setChronic] = useState<string[]>([]);
 
-  async function loadProfile() {
-    setErr(null);
-    try {
-      const res = await fetch("/api/profile", { cache: "no-store" });
-      if (!res.ok) throw new Error(await res.text());
-      const json = await res.json();
-      setData(json);
-    } catch (e: any) {
-      setErr(e.message || "Failed to load profile");
-    }
-  }
-
   useEffect(() => {
     safeJson(fetch("/api/observations")).then(setObs).catch(() => setObs([]));
-    loadProfile();
-    const h = () => loadProfile();
+    const h = () => mutate();
     window.addEventListener("observations-updated", h);
     return () => window.removeEventListener("observations-updated", h);
-  }, []);
+  }, [mutate]);
 
   useEffect(() => {
     if (!prof || bootstrapped) return;
@@ -110,6 +95,10 @@ export default function MedicalProfile() {
     setChronic(prof.chronic_conditions || []);
     setBootstrapped(true);
   }, [prof, bootstrapped]);
+
+  if (isLoading) return <div className="p-6 text-sm text-muted-foreground">Loading profile…</div>;
+  if (error)     return <div className="p-6 text-sm text-red-500">Couldn’t load profile. Retrying in background…</div>;
+  if (!data)     return <div className="p-6 text-sm text-muted-foreground">No profile yet.</div>;
 
   const latestObs = (k: string) => obs.find(o => o.kind === k);
 
@@ -160,7 +149,7 @@ export default function MedicalProfile() {
                   });
                   if (!r.ok) throw new Error(await r.text());
                   window.dispatchEvent(new Event("observations-updated"));
-                  await loadProfile();
+                  await mutate();
                 } catch (e: any) {
                   alert(e.message || "Reset failed");
                 } finally {
@@ -192,7 +181,7 @@ export default function MedicalProfile() {
                     }),
                   });
                   if (!r.ok) throw new Error(await r.text());
-                  await loadProfile();
+                  await mutate();
                   await loadSummary(); // ensure visible summary reflects just-saved arrays
                   if (typeof window !== "undefined") {
                     window.dispatchEvent(new Event("profile-updated"));
@@ -443,8 +432,6 @@ export default function MedicalProfile() {
           ⚠️ This is AI-generated support, not a medical diagnosis. Always consult a qualified clinician.
         </div>
       </div>
-
-      {err && <div className="text-sm text-red-600">{err}</div>}
     </div>
   );
 }
