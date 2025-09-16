@@ -1,16 +1,6 @@
-"use client";
-
-import Link from "next/link";
+// components/nav/Brand.tsx
+import Logo from "@/components/brand/Logo";
 
 export default function Brand() {
-  return (
-    <Link
-      href="/"
-      aria-label="MedX Home"
-      onClick={() => sessionStorage.removeItem("search_docked")}
-      className="text-xl font-bold tracking-tight"
-    >
-      MedX
-    </Link>
-  );
+  return <Logo />;
 }

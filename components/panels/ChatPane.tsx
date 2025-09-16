@@ -16,6 +16,7 @@ import { getRandomWelcome } from '@/lib/welcomeMessages';
 import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
 import { detectFollowupIntent } from '@/lib/intents';
+import { BRAND_NAME } from "@/lib/brand";
 import SuggestionChips from "@/components/chat/SuggestionChips";
 import ComposerFocus from "@/components/chat/ComposerFocus";
 import { normalizeSuggestions } from "@/lib/chat/normalize";
@@ -137,6 +138,30 @@ function isNewTopic(text: string) {
     q.split(/\s+/).length <= 3
   );
 }
+type Brief = { tldr: string; bullets: string[]; citations: { title: string; url: string }[] };
+
+function renderBrief(raw: string) {
+  try {
+    const b = JSON.parse(raw) as Brief;
+    return (
+      <div>
+        <p className="font-medium">TL;DR: {b.tldr}</p>
+        <ul className="list-disc pl-5">
+          {b.bullets.slice(0,3).map((x,i)=><li key={i}>{x}</li>)}
+        </ul>
+        <div className="flex flex-wrap gap-2 pt-2">
+          {b.citations.slice(0,5).map((c,i)=>
+            <a key={i} href={c.url} target="_blank" rel="noreferrer" className="underline">
+              [{i+1}] {c.title || new URL(c.url).hostname}
+            </a>
+          )}
+        </div>
+      </div>
+    );
+  } catch {
+    return <p>{raw}</p>;
+  }
+}
 
 function inferTopicFromDoc(report: string) {
   const h1 = (report.match(/^#\s*(.+)$/m) || [, ""])[1];
@@ -160,7 +185,7 @@ function maybeFixMedicalTypo(s: string) {
 }
 
 function buildMedicinesPrompt(topic: string, country: { code3: string; name: string }) {
-  const system = `You are MedX. Provide medicine options for the topic below.
+  const system = `You are ${BRAND_NAME}. Provide medicine options for the topic below.
 TOPIC: ${topic}
 User country: ${country.code3} (${country.name}). Prefer local OTC examples; if unsure, use generic names and say availability varies.
 Safety: do not prescribe; advise to confirm with a clinician; contraindications only if well-established.`.trim();
@@ -172,7 +197,7 @@ Safety: do not prescribe; advise to confirm with a clinician; contraindications 
 }
 
 function buildHospitalsPrompt(topic: string, country: { code2: string; code3: string; name: string }) {
-  const system = `You are MedX. List top hospitals/centres in ${country.name} that treat: ${topic}.
+  const system = `You are ${BRAND_NAME}. List top hospitals/centres in ${country.name} that treat: ${topic}.
 Prefer nationally recognized or government/teaching institutions.
 Provide city + short note. Output 5–10 items max.`.trim();
   const user = "Top hospitals for this condition.";
@@ -183,7 +208,7 @@ Provide city + short note. Output 5–10 items max.`.trim();
 }
 
 function buildTrialsPrompt(topic: string, country: { code3: string; name: string }) {
-  const system = `You are MedX. Summarize the latest clinical trial directions for: ${topic}.
+  const system = `You are ${BRAND_NAME}. Summarize the latest clinical trial directions for: ${topic}.
 If exact current trials are needed, direct users to authoritative registries (e.g., ClinicalTrials.gov, WHO ICTRP; for India: CTRI).
 No fabricated IDs. Provide themes, not specific trial numbers unless confident.`.trim();
   const user = `Latest clinical trials for ${topic} (brief overview).`;
@@ -262,7 +287,7 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
     </div>
   );
 }
-function ChatCard({ m, therapyMode, onAction, simple }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onAction: (s: Suggestion) => void; simple: boolean }) {
+function ChatCard({ m, therapyMode, onAction, simple, researchOn }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onAction: (s: Suggestion) => void; simple: boolean; researchOn: boolean }) {
   const [fast, setFast] = useState(false);
   const isDone = useTypewriterStore(s => s.isDone(m.id));
   const markDone = useTypewriterStore(s => s.markDone);
@@ -274,16 +299,20 @@ function ChatCard({ m, therapyMode, onAction, simple }: { m: Extract<ChatMessage
       onClick={() => setFast(true)}
     >
       {m.role === "assistant" ? (
-        <ChatMarkdown
-          content={m.content}
-          typing={!isDone}
-          fast={fast}
-          onDone={() => markDone(m.id)}
-        />
+        researchOn
+          ? renderBrief(m.content)
+          : (
+            <ChatMarkdown
+              content={m.content}
+              typing={!isDone}
+              fast={fast}
+              onDone={() => markDone(m.id)}
+            />
+          )
       ) : (
         <ChatMarkdown content={m.content} />
       )}
-      {m.role === "assistant" && (m.citations?.length || 0) > 0 && (
+      {m.role === "assistant" && !researchOn && (m.citations?.length || 0) > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {(m.citations || []).slice(0, simple ? 3 : 6).map((c, i) => (
             <LinkBadge key={i} href={c.url}>
@@ -304,7 +333,7 @@ function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onA
   return m.kind === "analysis" ? (
     <AnalysisCard m={m} researchOn={researchOn} onQuickAction={onQuickAction} busy={busy} />
   ) : (
-    <ChatCard m={m} therapyMode={therapyMode} onAction={onAction} simple={simple} />
+    <ChatCard m={m} therapyMode={therapyMode} onAction={onAction} simple={simple} researchOn={researchOn} />
   );
 }
 
@@ -1074,7 +1103,7 @@ ${linkNudge}`;
                   {
                     role: "system",
                     content:
-`You are MedX. Turn the provided "Data" JSON into a concise, accurate list of active clinical trials.
+`You are ${BRAND_NAME}. Turn the provided "Data" JSON into a concise, accurate list of active clinical trials.
 For each item: {Title — NCT ID — Phase — Status — Where (City, Country) — What/Primary outcome — Link}.
 Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End with one short follow-up question.`
                   },
@@ -1085,7 +1114,7 @@ Do not invent IDs. If info missing, omit that field. Keep to 5–10 items. End w
         chatMessages[1].content += contextBlock;
       } else if (!chatMessages && follow && ctx) {
         const fullMem = fullContext;
-        const system = `You are MedX. This is a FOLLOW-UP.
+        const system = `You are ${BRAND_NAME}. This is a FOLLOW-UP.
 Here is the ENTIRE conversation so far:
 ${fullMem || "(none)"}
 

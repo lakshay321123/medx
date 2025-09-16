@@ -1,3 +1,4 @@
+import { BRAND_NAME } from "@/lib/brand";
 import { buildContextBundle } from "./contextBuilder";
 
 export async function systemPrompt(thread_id?: string) {
@@ -6,7 +7,7 @@ export async function systemPrompt(thread_id?: string) {
     .map(m => `- ${m.key}: ${JSON.stringify(m.value)}`).join("\n");
 
   return `
-You are MedX. Use the user’s memory if helpful, but never invent facts.
+You are ${BRAND_NAME}. Use the user’s memory if helpful, but never invent facts.
 
 Memory context:
 ${memoryLines || "- none"}

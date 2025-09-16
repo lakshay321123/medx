@@ -4,12 +4,13 @@ import Sidebar from "../components/Sidebar";
 import { CountryProvider } from "@/lib/country";
 import { ContextProvider } from "@/lib/context";
 import { TopicProvider } from "@/lib/topic";
+import { BRAND_NAME } from "@/lib/brand";
 import { Suspense } from "react";
 import MemorySnackbar from "@/components/memory/Snackbar";
 import UndoToast from "@/components/memory/UndoToast";
 import { Roboto } from "next/font/google";
 
-export const metadata = { title: "MedX", description: "Global medical AI" };
+export const metadata = { title: BRAND_NAME, description: "Global medical AI" };
 
 const roboto = Roboto({
   subsets: ["latin"],

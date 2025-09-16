@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { BRAND_NAME } from "@/lib/brand";
 
 export default function SearchDock({ onSubmit }: { onSubmit: (q: string)=>void }) {
   const [q, setQ] = useState("");
@@ -18,7 +19,7 @@ export default function SearchDock({ onSubmit }: { onSubmit: (q: string)=>void }
         onSubmit={(e)=>{ e.preventDefault(); if (!q.trim()) return; onSubmit(q.trim()); setDocked(true); }}
         className="rounded-2xl border border-neutral-200 bg-white/90 p-2 shadow-lg backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/80"
       >
-        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Ask MedX…"
+        <input value={q} onChange={e=>setQ(e.target.value)} placeholder={`Ask ${BRAND_NAME}…`}
           className="w-full rounded-xl bg-transparent px-4 py-3 outline-none" />
       </form>
     </div>
