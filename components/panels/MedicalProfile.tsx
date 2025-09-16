@@ -422,6 +422,15 @@ export default function MedicalProfile() {
               onClick={async () => {
                 await fetch("/api/alerts/recompute", { method: "POST" });
                 await loadSummary();
+                // fire-and-forget background prediction (keeps existing logic untouched)
+                try {
+                  const userId = sessionStorage.getItem("user_id") || "default_user";
+                  const threadId = sessionStorage.getItem("aidoc_thread") || "default_thread";
+                  fetch("/api/aidoc/predict", {
+                    method: "POST",
+                    body: JSON.stringify({ userId, threadId }),
+                  });
+                } catch {}
               }}
               className="text-xs px-2 py-1 rounded-md border"
             >Recompute Risk</button>

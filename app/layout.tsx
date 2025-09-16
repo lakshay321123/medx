@@ -9,6 +9,7 @@ import { Suspense } from "react";
 import MemorySnackbar from "@/components/memory/Snackbar";
 import UndoToast from "@/components/memory/UndoToast";
 import { Roboto } from "next/font/google";
+import dynamic from "next/dynamic";
 
 export const metadata = { title: BRAND_NAME, description: "Global medical AI" };
 
@@ -18,6 +19,11 @@ const roboto = Roboto({
   variable: "--font-roboto",
   display: "swap",
 });
+
+const PredictionHeartbeat = dynamic(
+  () => import("@/components/bg/PredictionHeartbeat"),
+  { ssr: false }
+);
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -41,6 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </ContextProvider>
           </CountryProvider>
         </ThemeProvider>
+        {process.env.NEXT_PUBLIC_SECOND_OPINION_BG_PREDICT !== "off" ? <PredictionHeartbeat /> : null}
       </body>
     </html>
   );
