@@ -27,6 +27,7 @@ export default function AiDocPane() {
   useEffect(() => {
     if (!threadId) return;
     resetForThread(threadId);
+    try { sessionStorage.setItem("aidoc_thread", threadId); } catch {}
     if (sessionStorage.getItem("aidoc_booted")) return;
     sessionStorage.setItem("aidoc_booted", "1");
     fetch("/api/aidoc/message", { method: "POST", body: JSON.stringify({ threadId, op: "boot" }) });

@@ -419,12 +419,31 @@ export default function MedicalProfile() {
               className="text-xs px-2 py-1 rounded-md border"
             >Discuss & Correct in Chat</button>
             <button
-              onClick={async () => {
-                await fetch("/api/alerts/recompute", { method: "POST" });
-                await loadSummary();
+              onClick={() => {
+                // 1) Open the EXISTING AI Doc chat thread if we have it; else open AI Doc (it will boot a thread)
+                let url = "/?panel=ai-doc";
+                try {
+                  const saved = typeof window !== "undefined" ? sessionStorage.getItem("aidoc_thread") : null;
+                  if (saved) url = `/?panel=ai-doc&threadId=${encodeURIComponent(saved)}&context=profile`;
+                } catch {}
+                router.push(url);
+
+                // 2) Fire-and-forget GPT-5 prediction job (don’t await; no UI changes here)
+                try {
+                  fetch("/api/predict", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    // server derives patient from the signed-in user; if you later expose patientId here, include it
+                    body: JSON.stringify({ source: "recompute" }),
+                    cache: "no-store",
+                    credentials: "include",
+                  }).catch(() => {});
+                } catch {}
               }}
               className="text-xs px-2 py-1 rounded-md border"
-            >Recompute Risk</button>
+            >
+              Recompute Risk
+            </button>
           </div>
         </div>
         <p className="mt-2 text-sm whitespace-pre-wrap">{summary || "No summary yet."}</p>
