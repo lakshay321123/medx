@@ -53,14 +53,21 @@ export async function POST(req: Request) {
       created_at: now,
     }));
 
+    let saved = 0;
     if (rows.length) {
-      const { error } = await supa.from("predictions").insert(rows);
+      // propagate inputs_hash to a dedicated column if you add it
+      const upsertRows = rows.map(r => ({ ...r, inputs_hash: r.meta?.inputs_hash ?? null }));
+      const { error, data } = await supa
+        .from("predictions")
+        .upsert(upsertRows, { onConflict: "patient_id,label,inputs_hash" })
+        .select("id");
       if (error) {
         console.warn("[/api/predict] insert error:", error.message);
+      } else {
+        saved = data?.length ?? 0;
       }
     }
-
-    return NextResponse.json({ status: "ok", saved: rows.length }, { status: 202 });
+    return NextResponse.json({ status: "ok", saved }, { status: 202 });
   } catch (e: any) {
     console.error("[/api/predict] fatal:", e?.message || e);
     return NextResponse.json({ status: "error" }, { status: 202 });
