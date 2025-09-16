@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
   let body: any = {};
   try { body = await req.json(); } catch {}
   const { context, clientRequestId, mode } = body;
+  const skipResearchBrief = body?.skipResearchBrief === true;
 
   const research =
     qp === '1' || qp === 'true' || body?.research === true || body?.research === 'true';
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest) {
       : { role: 'user' as const, content: String(body?.question ?? '').trim() };
 
   const briefMessages: Array<{role:'system'|'user'|'assistant'; content:string}> =
-    research && !long
+    research && !long && !skipResearchBrief
       ? [
           { role: 'system', content: RESEARCH_BRIEF_STYLE + (srcBlock ? `\n\nSOURCES:\n${srcBlock}` : '') },
           ...recent,             // preserve chat context
@@ -93,7 +94,7 @@ export async function POST(req: NextRequest) {
       : [latestUser];
 
   // 4) Tighter generation when research brief is active
-  const modelOptions = (research && !long)
+  const modelOptions = (research && !long && !skipResearchBrief)
     ? { temperature: 0.2, top_p: 0.9, max_tokens: 250, response_format: { type: 'json_object' } }
     : { temperature: 0.7, max_tokens: 900 };
 
@@ -115,7 +116,7 @@ export async function POST(req: NextRequest) {
   const key   = process.env.LLM_API_KEY!;
   const url = `${base.replace(/\/$/,'')}/chat/completions`;
 
-  if (research && !long) {
+  if (research && !long && !skipResearchBrief) {
     const upstream = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },

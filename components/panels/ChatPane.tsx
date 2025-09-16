@@ -45,6 +45,8 @@ import { StopButton } from "@/components/ui/StopButton";
 import { useTypewriterStore } from "@/lib/state/typewriterStore";
 import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
+import TrialCard from "@/components/trials/TrialCard";
+import type { TrialFacts, TrialSummaryMarkdown } from "@/types/trialSummaries";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -71,6 +73,16 @@ type ChatUiState = {
 const UI_DEFAULTS: ChatUiState = { topic: null, contextFrom: null };
 const uiKey = (threadId: string) => `chat:${threadId}:ui`;
 
+type TrialSummaryDisplay = {
+  nctId: string;
+  title?: string | null;
+  status?: string | null;
+  phase?: string | null;
+  url?: string | null;
+  markdown?: string;
+  error?: string | null;
+};
+
 type ChatMessage =
   | (BaseChatMessage & {
       role: "user";
@@ -90,6 +102,16 @@ type ChatMessage =
     })
   | (BaseChatMessage & {
       role: "assistant";
+      kind: "trial-summary";
+      trials: TrialSummaryDisplay[];
+      tempId?: string;
+      parentId?: string;
+      pending?: boolean;
+      error?: string | null;
+      notice?: string | null;
+    })
+  | (BaseChatMessage & {
+      role: "assistant";
       kind: "analysis";
       category?: AnalysisCategory;
       tempId?: string;
@@ -99,6 +121,59 @@ type ChatMessage =
     });
 
 const uid = () => Math.random().toString(36).slice(2);
+
+const NCT_ID_REGEX = /\bNCT\d{8}\b/gi;
+
+function extractNctIds(text: string) {
+  const matches = text.match(NCT_ID_REGEX);
+  if (!matches) return [];
+  const ids = new Set<string>();
+  for (const raw of matches) {
+    const normalized = raw.toUpperCase();
+    if (/^NCT\d{8}$/.test(normalized)) {
+      ids.add(normalized);
+      if (ids.size >= 5) break;
+    }
+  }
+  return Array.from(ids);
+}
+
+function buildTrialCardFromFacts(trial: TrialFacts): TrialSummaryDisplay {
+  const url = Array.isArray(trial.sources) && trial.sources[0]?.url
+    ? trial.sources[0].url
+    : `https://clinicaltrials.gov/study/${trial.nctId}`;
+  return {
+    nctId: trial.nctId,
+    title: trial.title ?? null,
+    status: trial.status ?? null,
+    phase: trial.phase ?? null,
+    url,
+    markdown: undefined,
+    error: trial.error ?? null,
+  };
+}
+
+function emptyTrialCard(nctId: string): TrialSummaryDisplay {
+  return {
+    nctId,
+    title: null,
+    status: null,
+    phase: null,
+    url: `https://clinicaltrials.gov/study/${nctId}`,
+    markdown: undefined,
+    error: null,
+  };
+}
+
+function mapSummariesById(list: TrialSummaryMarkdown[] = []) {
+  const map = new Map<string, string>();
+  for (const item of list) {
+    if (item?.nctId && typeof item.markdown === 'string') {
+      map.set(item.nctId.toUpperCase(), item.markdown);
+    }
+  }
+  return map;
+}
 
 function getLastAnalysis(list: ChatMessage[]) {
   for (let i = list.length - 1; i >= 0; i--) {
@@ -329,12 +404,47 @@ function ChatCard({ m, therapyMode, onAction, simple, researchOn }: { m: Extract
   );
 }
 
-function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onAction, simple }: { m: ChatMessage; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean; therapyMode: boolean; onAction: (s: Suggestion) => void; simple: boolean }) {
-  return m.kind === "analysis" ? (
-    <AnalysisCard m={m} researchOn={researchOn} onQuickAction={onQuickAction} busy={busy} />
-  ) : (
-    <ChatCard m={m} therapyMode={therapyMode} onAction={onAction} simple={simple} researchOn={researchOn} />
+function TrialSummaryMessage({ m }: { m: Extract<ChatMessage, { kind: "trial-summary" }> }) {
+  return (
+    <div className="space-y-3">
+      {m.notice && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-100">
+          {m.notice}
+        </div>
+      )}
+      {m.error && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-200">
+          {m.error}
+        </div>
+      )}
+      {m.trials.map((trial) => {
+        const trialPending = !!(m.pending || (!trial.markdown && !trial.error));
+        return (
+          <TrialCard
+            key={trial.nctId}
+            nctId={trial.nctId}
+            title={trial.title}
+            status={trial.status}
+            phase={trial.phase}
+            url={trial.url}
+            markdown={trial.markdown}
+            error={trial.error}
+            pending={trialPending}
+          />
+        );
+      })}
+    </div>
   );
+}
+
+function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onAction, simple }: { m: ChatMessage; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean; therapyMode: boolean; onAction: (s: Suggestion) => void; simple: boolean }) {
+  if (m.kind === "analysis") {
+    return <AnalysisCard m={m} researchOn={researchOn} onQuickAction={onQuickAction} busy={busy} />;
+  }
+  if (m.kind === "trial-summary") {
+    return <TrialSummaryMessage m={m} />;
+  }
+  return <ChatCard m={m} therapyMode={therapyMode} onAction={onAction} simple={simple} researchOn={researchOn} />;
 }
 
 export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: RefObject<HTMLInputElement> } = {}) {
@@ -745,24 +855,142 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
     const userId = uid();
     const pendingId = uid();
-    // Dedupe: avoid back-to-back identical user bubbles
+    const trialIds = extractNctIds(userText);
+    const trialMessageId = trialIds.length ? uid() : null;
+    const skipResearchBrief = trialIds.length > 0;
+
+    const handleTrialSummaries = async (ids: string[], messageId: string) => {
+      if (!ids.length) return;
+      try {
+        const fetchUrl = `/api/trials/fetch?ids=${encodeURIComponent(ids.join(','))}`;
+        const res = await fetch(fetchUrl);
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch {}
+        if (!res.ok) {
+          const msg = typeof data?.error === 'string' ? data.error : 'Failed to fetch trials.';
+          setMessages(prev =>
+            prev.map(m =>
+              m.id === messageId ? { ...m, pending: false, error: msg, trials: [] } : m
+            )
+          );
+          return;
+        }
+        const trials: TrialFacts[] = Array.isArray(data?.trials) ? data.trials : [];
+        const cards = ids.map(id => {
+          const found = trials.find(t => t.nctId === id);
+          return found ? buildTrialCardFromFacts(found) : emptyTrialCard(id);
+        });
+        const fetchNotice = typeof data?.error === 'string' ? data.error : undefined;
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === messageId && m.kind === 'trial-summary'
+              ? { ...m, trials: cards, notice: fetchNotice ?? m.notice }
+              : m
+          )
+        );
+        const hasValid = cards.some(card => !card.error);
+        if (!hasValid) {
+          setMessages(prev =>
+            prev.map(m => (m.id === messageId ? { ...m, pending: false } : m))
+          );
+          return;
+        }
+
+        const summarize = async (style: 'doctor-brief' | 'plain') => {
+          const summaryRes = await fetch('/api/trials/summary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trials, style }),
+          });
+          let summaryJson: any = null;
+          try {
+            summaryJson = await summaryRes.json();
+          } catch {}
+          if (!summaryRes.ok) {
+            const message = typeof summaryJson?.error === 'string' ? summaryJson.error : 'Summary failed.';
+            throw new Error(message);
+          }
+          return {
+            summaries: Array.isArray(summaryJson?.summaries)
+              ? (summaryJson.summaries as TrialSummaryMarkdown[])
+              : [],
+            notice: typeof summaryJson?.notice === 'string' ? summaryJson.notice : undefined,
+          };
+        };
+
+        let summaryResult: { summaries: TrialSummaryMarkdown[]; notice?: string } | null = null;
+        try {
+          summaryResult = await summarize('doctor-brief');
+        } catch (err) {
+          try {
+            const fallback = await summarize('plain');
+            summaryResult = {
+              summaries: fallback.summaries,
+              notice: fallback.notice || 'Showing factual summary without TL;DR.',
+            };
+          } catch (err2) {
+            const message = err2 instanceof Error ? err2.message : 'Unable to summarize trials.';
+            setMessages(prev =>
+              prev.map(m =>
+                m.id === messageId ? { ...m, pending: false, trials: [], error: message } : m
+              )
+            );
+            return;
+          }
+        }
+        const summaryMap = mapSummariesById(summaryResult?.summaries);
+        const completedCards = cards.map(card => ({
+          ...card,
+          markdown: summaryMap.get(card.nctId) ?? card.markdown,
+        }));
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === messageId && m.kind === 'trial-summary'
+              ? {
+                  ...m,
+                  pending: false,
+                  trials: completedCards,
+                  notice: summaryResult?.notice ?? m.notice,
+                }
+              : m
+          )
+        );
+      } catch (err: any) {
+        const message = typeof err?.message === 'string' ? err.message : 'Trial summary failed.';
+        setMessages(prev =>
+          prev.map(m => (m.id === messageId ? { ...m, pending: false, error: message, trials: [] } : m))
+        );
+      }
+    };
+
     const lastUser = [...messages].reverse().find(m => m.role === 'user');
     const isDupUser = !!lastUser && lastUser.content.trim() === userText.trim();
-    const nextMsgs: ChatMessage[] = (visualEcho && !isDupUser)
-      ? [
-          ...messages,
-          { id: userId, role: 'user', kind: 'chat', content: userText } as ChatMessage,
-          { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true } as ChatMessage,
-        ]
-      : [
-          ...messages,
-          { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true } as ChatMessage,
-        ];
-    setMessages(nextMsgs);
+
+    const baseMessages: ChatMessage[] = [...messages];
+    if (visualEcho && !isDupUser) {
+      baseMessages.push({ id: userId, role: 'user', kind: 'chat', content: userText } as ChatMessage);
+    }
+    if (trialMessageId) {
+      baseMessages.push({
+        id: trialMessageId,
+        role: 'assistant',
+        kind: 'trial-summary',
+        content: '',
+        trials: trialIds.map(emptyTrialCard),
+        pending: true,
+      } as ChatMessage);
+    }
+    baseMessages.push({ id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true } as ChatMessage);
+    setMessages(baseMessages);
+
     const maybe = maybeFixMedicalTypo(userText);
     if (maybe && messages.filter(m => m.role === "assistant").slice(-1)[0]?.content !== maybe.ask) {
-      // Ask once, keep pending bubble as the question (no LLM call)
-      setMessages(prev => prev.map(m => m.id === pendingId ? { ...m, content: maybe.ask, pending: false } : m));
+      setMessages(prev => {
+        const mapped = prev.map(m => (m.id === pendingId ? { ...m, content: maybe.ask, pending: false } : m));
+        return trialMessageId ? mapped.filter(m => m.id !== trialMessageId) : mapped;
+      });
       if (threadId && maybe.ask.trim()) {
         pushFullMem(threadId, "assistant", maybe.ask);
         maybeIndexStructured(threadId, maybe.ask);
@@ -775,6 +1003,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       return; // wait for user Yes/No
     }
     setNote('');
+    if (trialMessageId) {
+      handleTrialSummaries(trialIds, trialMessageId);
+    }
     if (
       !isProfileThread &&
       threadId &&
@@ -1148,23 +1379,24 @@ ${systemCommon}` + baseSys;
       const researchOn =
         new URLSearchParams(window.location.search).get('research')?.match(/^(1|true)$/i);
       const url = `/api/chat/stream${researchOn ? '?research=1' : ''}`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-conversation-id': conversationId,
-          'x-new-chat': messages.length === 0 ? 'true' : 'false'
-        },
-        body: JSON.stringify({
-          mode: mode === 'doctor' ? 'doctor' : 'patient',
-          messages: chatMessages,
-          threadId,
-          context,
-          clientRequestId,
-          research: !!researchOn
-        }),
-        signal: ctrl.signal
-      });
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-conversation-id': conversationId,
+            'x-new-chat': messages.length === 0 ? 'true' : 'false'
+          },
+          body: JSON.stringify({
+            mode: mode === 'doctor' ? 'doctor' : 'patient',
+            messages: chatMessages,
+            threadId,
+            context,
+            clientRequestId,
+            research: !!researchOn,
+            skipResearchBrief,
+          }),
+          signal: ctrl.signal
+        });
       if (res.status === 409) {
         setMessages(prev => prev.filter(m => m.id !== pendingId));
         setBusy(false);
