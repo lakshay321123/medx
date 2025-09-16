@@ -140,7 +140,7 @@ function handlePredict({ patientPacket, source }: PredictCall) {
   if (!riskInputs) {
     return {
       predictions: [],
-      inputs_hash: hashObject(patientPacket),
+      inputs_hash: null,
       model: process.env.AIDOC_PREDICT_MODEL || process.env.AIDOC_MODEL || "medx-heuristic-v1",
       version: "v1",
       source,
