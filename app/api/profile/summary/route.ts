@@ -4,6 +4,7 @@ export const revalidate = 0;
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/getUserId";
+import { ensurePrimaryPatient } from "@/lib/patients";
 
 const noStore = { "Cache-Control": "no-store, max-age=0" };
 
@@ -65,23 +66,41 @@ export async function GET() {
     return NextResponse.json({ text: "", reasons: "" }, { headers: noStore });
 
   const db = supabaseAdmin();
-  const [pRes, oRes, prRes] = await Promise.all([
-    db
-      .from("profiles")
-      .select("full_name,dob,sex,blood_group,chronic_conditions,conditions_predisposition")
-      .eq("id", userId)
-      .maybeSingle(),
+  const pRes = await db
+    .from("profiles")
+    .select("full_name,dob,sex,blood_group,chronic_conditions,conditions_predisposition")
+    .eq("id", userId)
+    .maybeSingle();
+
+  let patientId: string | null = null;
+  if (!pRes.error) {
+    try {
+      const patient = await ensurePrimaryPatient(db, userId, pRes.data ?? undefined);
+      patientId = patient?.id ?? null;
+    } catch (err: any) {
+      return NextResponse.json(
+        { text: "", reasons: "", error: err?.message || "patient_lookup_failed" },
+        { headers: noStore, status: 500 }
+      );
+    }
+  }
+
+  const [oRes, prRes] = await Promise.all([
     db
       .from("observations")
       .select("*")
       .eq("user_id", userId)
       .eq('meta->>committed','true'),
-    db
-      .from("predictions")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(1),
+    patientId
+      ? db
+          .from("predictions")
+          .select(
+            "id, generated_at, condition, risk_score, risk_label, top_factors, patient_summary_md, clinician_summary_md, summarizer_model, summarizer_error"
+          )
+          .eq("patient_id", patientId)
+          .order("generated_at", { ascending: false })
+          .limit(1)
+      : Promise.resolve({ data: [] as any[], error: null } as any),
   ]);
 
   const asArray = (x: any) => Array.isArray(x) ? x : (typeof x === 'string' ? (()=>{ try { const p = JSON.parse(x); return Array.isArray(p) ? p : [] } catch { return [] } })() : []);
@@ -148,18 +167,16 @@ export async function GET() {
 
   let predLine = 'AI Prediction: —';
   if (pred) {
-    const d = pred.details ?? pred.meta ?? {};
-    const label = pred.name || d.label || d.name || 'Prediction';
-    const prob =
-      typeof pred.probability === 'number'
-        ? pred.probability
-        : typeof d.probability === 'number'
-        ? d.probability
-        : null;
-    const pct = prob != null ? Math.round(prob * 100) : null;
-    const bucket = pct == null ? '—' : pct < 20 ? 'Low' : pct <= 60 ? 'Moderate' : 'High';
-    predLine = `AI Prediction: ${label}: ${bucket}${pct != null ? ` (${pct}%)` : ''}`;
-    reasons.push(`Prediction signal: ${label}`);
+    const label = pred.condition || 'Prediction';
+    const score = typeof pred.risk_score === 'number' ? Number(pred.risk_score) : null;
+    const pct = score != null ? Math.round(score * 100) : null;
+    const band = pred.risk_label || (pct != null ? (pct < 33 ? 'Low' : pct < 66 ? 'Moderate' : 'High') : '—');
+    predLine = `AI Prediction: ${label}: ${band}${pct != null ? ` (${pct}%)` : ''}`;
+    reasons.push(`Prediction: ${label}${pct != null ? ` ${pct}%` : ''}`);
+    const factors = Array.isArray(pred.top_factors) ? pred.top_factors : [];
+    for (const f of factors.slice(0, 3)) {
+      if (f?.name) reasons.push(String(f.name));
+    }
   }
 
   const notes = obs
@@ -169,14 +186,7 @@ export async function GET() {
     .map((r) => (r.value_text || r.meta?.summary || r.meta?.text || '').toString().trim())
     .filter(Boolean);
 
-  const nextSteps = (() => {
-    const arr = Array.isArray(pred?.details?.next_steps)
-      ? pred.details.next_steps
-      : Array.isArray(pred?.meta?.next_steps)
-      ? pred.meta.next_steps
-      : null;
-    return arr && arr.length ? arr.slice(0, 2).join('; ') : '—';
-  })();
+  const nextSteps = '—';
 
   const uploadsCount = obs.length;
   const latestUpload = obs.map(when).sort((a, b) => b - a)[0];

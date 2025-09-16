@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/getUserId";
+import { listPatientIds } from "@/lib/patients";
 
 type Scope = "observations" | "all";
 type Mode = "clear" | "zero";
@@ -50,8 +51,12 @@ export async function POST(req: NextRequest) {
 
   // clear predictions + alerts if requested
   if (scope === "all") {
-    const p = await sb.from("predictions").delete().eq("user_id", userId);
-    if (p.error) return NextResponse.json({ error: p.error.message }, { status: 500 });
+    const patientIds = await listPatientIds(sb, userId).catch(() => [] as string[]);
+    if (patientIds.length) {
+      const p = await sb.from("predictions").delete().in("patient_id", patientIds);
+      if (p.error) return NextResponse.json({ error: p.error.message }, { status: 500 });
+      await sb.from("timeline_events").delete().in("patient_id", patientIds);
+    }
     const a = await sb.from("alerts").delete().eq("user_id", userId);
     if (a.error) return NextResponse.json({ error: a.error.message }, { status: 500 });
   }

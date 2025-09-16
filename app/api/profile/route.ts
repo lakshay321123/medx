@@ -5,9 +5,10 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/getUserId";
+import { ensurePrimaryPatient } from "@/lib/patients";
 
-function noStoreHeaders() {
-  return { "Cache-Control": "no-store, max-age=0" };
+function cacheHeaders() {
+  return { "Cache-Control": "private, max-age=30, stale-while-revalidate=60" };
 }
 
 // Group types for the UI
@@ -32,6 +33,21 @@ type Item = {
 };
 
 type Groups = Record<GroupKey, Item[]>;
+
+type DomainPrediction = {
+  id: string;
+  condition: string;
+  riskScore: number;
+  riskLabel: string;
+  topFactors: Array<{ name: string; detail?: string | null }>;
+  features: Record<string, any> | null;
+  generatedAt: string;
+  model: string;
+  patientSummaryMd: string | null;
+  clinicianSummaryMd: string | null;
+  summarizerModel: string | null;
+  summarizerError: string | null;
+};
 
 // --- labels (extendable) ---
 const LABELS: Record<string, string> = {
@@ -181,8 +197,8 @@ export async function GET(_req: NextRequest) {
   const userId = await getUserId();
   if (!userId) {
     return NextResponse.json(
-      { profile: null },
-      { status: 200, headers: noStoreHeaders() }
+      { profile: null, patient: null, predictions: [], summaries: null },
+      { status: 200, headers: cacheHeaders() }
     );
   }
 
@@ -196,7 +212,20 @@ export async function GET(_req: NextRequest) {
     .eq("id", userId)
     .maybeSingle();
   if (perr) {
-    return NextResponse.json({ error: perr.message }, { status: 500, headers: noStoreHeaders() });
+    return NextResponse.json({ error: perr.message }, { status: 500, headers: cacheHeaders() });
+  }
+
+  let patient: { id: string; name: string | null; dob: string | null; sex: string | null } | null = null;
+  try {
+    const ensured = await ensurePrimaryPatient(sb, userId, profile ?? undefined);
+    if (ensured) {
+      patient = { id: ensured.id, name: ensured.name, dob: ensured.dob, sex: ensured.sex };
+    }
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err?.message || "patient_lookup_failed" },
+      { status: 500, headers: cacheHeaders() }
+    );
   }
 
   // --- normalize arrays: accept text[] or JSON-stringified arrays ---
@@ -224,7 +253,7 @@ export async function GET(_req: NextRequest) {
     .order("observed_at", { ascending: false })
     .limit(600);
   if (oerr) {
-    return NextResponse.json({ error: oerr.message }, { status: 500, headers: noStoreHeaders() });
+    return NextResponse.json({ error: oerr.message }, { status: 500, headers: cacheHeaders() });
   }
 
   // Keep only latest per kind
@@ -286,7 +315,75 @@ export async function GET(_req: NextRequest) {
     latest[k] = { value: v.value, unit: v.unit, observedAt: v.observedAt };
   }
 
-  return NextResponse.json({ profile: profile ?? null, groups, latest }, { headers: noStoreHeaders() });
+  let predictions: DomainPrediction[] = [];
+  let summaries: {
+    patientSummaryMd: string | null;
+    clinicianSummaryMd: string | null;
+    summarizerModel: string | null;
+    summarizerError: string | null;
+  } | null = null;
+
+  if (patient) {
+    const predRes = await sb
+      .from("predictions")
+      .select(
+        "id, generated_at, condition, risk_score, risk_label, features, top_factors, model, patient_summary_md, clinician_summary_md, summarizer_model, summarizer_error"
+      )
+      .eq("patient_id", patient.id)
+      .order("condition", { ascending: true })
+      .order("generated_at", { ascending: false })
+      .limit(60);
+    if (predRes.error) {
+      return NextResponse.json({ error: predRes.error.message }, { status: 500, headers: cacheHeaders() });
+    }
+
+    const seen = new Map<string, DomainPrediction>();
+    for (const row of predRes.data ?? []) {
+      if (seen.has(row.condition)) continue;
+      const topFactors = Array.isArray(row.top_factors) ? row.top_factors : [];
+      const entry: DomainPrediction = {
+        id: row.id,
+        condition: row.condition,
+        riskScore: typeof row.risk_score === "number" ? Number(row.risk_score) : Number(row.risk_score ?? 0),
+        riskLabel: row.risk_label,
+        topFactors: topFactors.map((f: any) => ({
+          name: String(f?.name ?? ""),
+          detail: f?.detail ?? null,
+        })),
+        features: row.features ?? null,
+        generatedAt: row.generated_at,
+        model: row.model,
+        patientSummaryMd: row.patient_summary_md ?? null,
+        clinicianSummaryMd: row.clinician_summary_md ?? null,
+        summarizerModel: row.summarizer_model ?? null,
+        summarizerError: row.summarizer_error ?? null,
+      };
+      seen.set(row.condition, entry);
+    }
+    predictions = Array.from(seen.values()).sort((a, b) => a.condition.localeCompare(b.condition));
+
+    if (predictions.length) {
+      const first = predictions[0];
+      summaries = {
+        patientSummaryMd: first.patientSummaryMd,
+        clinicianSummaryMd: first.clinicianSummaryMd,
+        summarizerModel: first.summarizerModel,
+        summarizerError: first.summarizerError,
+      };
+    }
+  }
+
+  return NextResponse.json(
+    {
+      profile: profile ?? null,
+      patient,
+      groups,
+      latest,
+      predictions,
+      summaries,
+    },
+    { headers: cacheHeaders() }
+  );
 }
 
 export async function PUT(req: NextRequest) {
@@ -307,13 +404,19 @@ export async function PUT(req: NextRequest) {
   for (const k of allowed) if (k in body) patch[k] = body[k];
 
   // Create-or-update by primary key id
-  const { data, error } = await supabaseAdmin()
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
     .from("profiles")
     .upsert({ id: userId, ...patch }, { onConflict: "id" })
     .select()
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    await ensurePrimaryPatient(sb, userId, data ?? undefined);
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message || "patient_update_failed" }, { status: 500 });
+  }
   return NextResponse.json({ ok: true, profile: data });
 }
 

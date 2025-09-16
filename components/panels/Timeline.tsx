@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 type Cat = "ALL"|"LABS"|"VITALS"|"IMAGING"|"AI"|"NOTES";
@@ -17,15 +17,21 @@ export default function Timeline(){
   const [items, setItems] = useState<any[]>([]);
   const [resetError, setResetError] = useState<string|null>(null);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     try {
       const res = await fetch('/api/timeline', { cache: 'no-store' });
       const { items = [] } = await res.json();
       setItems(items);
     } catch {}
-  };
+  }, []);
 
   useEffect(()=>{ refresh(); },[]);
+
+  useEffect(() => {
+    const handler = () => { refresh(); };
+    window.addEventListener('timeline-updated', handler);
+    return () => window.removeEventListener('timeline-updated', handler);
+  }, [refresh]);
 
   const [cat,setCat] = useState<Cat>("ALL");
   const [range,setRange] = useState<"ALL"|"7"|"30"|"90"|"CUSTOM">("ALL");

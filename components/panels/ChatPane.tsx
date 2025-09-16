@@ -438,6 +438,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     : [];
   const softAlerts = Array.from(new Set([...topAlerts, ...planAlerts]));
   const posted = useRef(new Set<string>());
+  const prefillHandled = useRef<string | null>(null);
   const bootedRef = useRef<{[k:string]:boolean}>({});
   const askedKey = (thread?: string|null, kind?: string)=> `aidoc:${thread||'med-profile'}:asked:${kind||'any'}`;
   const askedRecently = (thread?: string|null, kind?: string, minutes = 60) => {
@@ -522,6 +523,74 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       setMessages([]);
     }
   }, [threadId, isProfileThread]);
+
+  useEffect(() => {
+    const raw = sp.get('prefill');
+    if (!raw || prefillHandled.current === raw || !isProfileThread) return;
+    let payload: any = null;
+    try {
+      payload = JSON.parse(decodeURIComponent(raw));
+    } catch {
+      prefillHandled.current = raw;
+      const paramsCopy = new URLSearchParams(sp.toString());
+      paramsCopy.delete('prefill');
+      router.replace(`/?${paramsCopy.toString()}`);
+      return;
+    }
+    if (!payload || payload.kind !== 'aidocSnapshot') {
+      prefillHandled.current = raw;
+      const paramsCopy = new URLSearchParams(sp.toString());
+      paramsCopy.delete('prefill');
+      router.replace(`/?${paramsCopy.toString()}`);
+      return;
+    }
+    prefillHandled.current = raw;
+
+    const predictions = Array.isArray(payload.predictions) ? payload.predictions : [];
+    const lines: string[] = [];
+    if (payload.patient?.name || payload.profile?.full_name) {
+      const name = payload.patient?.name || payload.profile?.full_name;
+      lines.push(`Latest AI Doc snapshot for ${name || 'this patient'}:`);
+    } else {
+      lines.push('Latest AI Doc snapshot:');
+    }
+    if (predictions.length) {
+      lines.push('Risk summary:');
+      predictions.slice(0, 4).forEach((p: any) => {
+        const pct = typeof p?.riskScore === 'number' ? Math.round(p.riskScore * 100) : null;
+        const factors = Array.isArray(p?.topFactors) ? p.topFactors : [];
+        const factorLine = factors
+          .slice(0, 2)
+          .map((f: any) => (typeof f?.name === 'string' ? f.name : null))
+          .filter(Boolean)
+          .join('; ');
+        lines.push(
+          `• ${p?.condition || 'Domain'} — ${p?.riskLabel || 'Unknown'}${pct != null ? ` (${pct}%)` : ''}${
+            factorLine ? ` • ${factorLine}` : ''
+          }`
+        );
+      });
+    } else {
+      lines.push('• No risk results yet.');
+    }
+    if (payload.summaries?.patientSummaryMd) {
+      lines.push(`Patient summary:\n${payload.summaries.patientSummaryMd}`);
+    }
+    if (payload.summaries?.clinicianSummaryMd) {
+      lines.push(`Clinician summary:\n${payload.summaries.clinicianSummaryMd}`);
+    }
+    lines.push(
+      'Let me know what needs correction and I will update the medical profile and commit the changes for Timeline.'
+    );
+    setMessages(prev => [
+      ...prev,
+      { id: uid(), role: 'assistant', kind: 'chat', content: lines.join('\n\n'), pending: false } as any,
+    ]);
+    if (payload.profile) setActiveProfile(payload.profile);
+    const paramsCopy = new URLSearchParams(sp.toString());
+    paramsCopy.delete('prefill');
+    router.replace(`/?${paramsCopy.toString()}`);
+  }, [sp, router, isProfileThread]);
 
   useEffect(() => {
     if (!threadId) return;
@@ -1330,6 +1399,7 @@ ${systemCommon}` + baseSys;
           await fetch('/api/profile', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ conditions_predisposition: items }) });
           ack(`Noted — added predispositions: ${items.join(', ')}`);
           await fetch('/api/profile/summary', { cache:'no-store' });
+          window.dispatchEvent(new Event('profile-updated'));
           markAskedNow(threadId, 'proactive');
         } else if (proactive.kind === 'medications') {
           const meds = text.split(/[,;]+/).map(s=>s.trim()).filter(Boolean);
@@ -1337,12 +1407,16 @@ ${systemCommon}` + baseSys;
             await fetch('/api/observations', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ kind:'medication', value_text:m, meta:{ source:'chat', committed:true }, thread_id:'med-profile', observed_at:new Date().toISOString() }) });
           }
           ack(`Noted — recorded medications: ${meds.join('; ')}`);
+          window.dispatchEvent(new Event('observations-updated'));
+          window.dispatchEvent(new Event('timeline-updated'));
           markAskedNow(threadId, 'proactive');
         } else {
           const kg = parseFloat(text.replace(/[, ]/g,'').replace(/[^\d.]/g,''));
           if (Number.isFinite(kg)) {
             await fetch('/api/observations', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ kind:'weight', value_text:`${kg} kg`, value_num:kg, unit:'kg', thread_id:'med-profile', observed_at:new Date().toISOString(), meta:{ source:'chat', committed:true } }) });
             ack(`Noted — weight set to ${kg} kg.`);
+            window.dispatchEvent(new Event('observations-updated'));
+            window.dispatchEvent(new Event('timeline-updated'));
             markAskedNow(threadId, 'proactive');
           } else {
             ack('Could not detect a number for weight. Please reply like “72 kg”.');
@@ -1383,6 +1457,8 @@ ${systemCommon}` + baseSys;
               observed_at: new Date().toISOString()
             })
           }));
+          window.dispatchEvent(new Event('observations-updated'));
+          window.dispatchEvent(new Event('timeline-updated'));
           const ackId = uid();
           setMessages(prev => [
             ...prev,
@@ -1795,6 +1871,7 @@ ${systemCommon}` + baseSys;
                   }
                   setPendingCommitIds([]);
                   window.dispatchEvent(new Event('observations-updated'));
+                  window.dispatchEvent(new Event('timeline-updated'));
                 } catch {
                   setCommitError('Could not save. Are you signed in?');
                 } finally {
@@ -1819,6 +1896,7 @@ ${systemCommon}` + baseSys;
                   }
                   setPendingCommitIds([]);
                   window.dispatchEvent(new Event('observations-updated'));
+                  window.dispatchEvent(new Event('timeline-updated'));
                 } catch {
                   setCommitError('Could not discard. Are you signed in?');
                 } finally {

@@ -4,13 +4,17 @@ export const revalidate = 0;
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/getUserId";
+import { listPatientIds } from "@/lib/patients";
 
 export async function POST() {
   const userId = await getUserId();
   if (!userId) return new NextResponse("Unauthorized", { status: 401 });
   const supa = supabaseAdmin();
+  const patientIds = await listPatientIds(supa, userId).catch(() => [] as string[]);
   const [p,o] = await Promise.all([
-    supa.from("predictions").select("id",{count:"exact", head:true}).eq("user_id",userId),
+    patientIds.length
+      ? supa.from("predictions").select("id",{count:"exact", head:true}).in("patient_id",patientIds)
+      : Promise.resolve({ count: 0, error: null } as any),
     supa.from("observations").select("id",{count:"exact", head:true}).eq("user_id",userId),
   ]);
   if (p.error) return NextResponse.json({ error:p.error.message }, { status:500 });
