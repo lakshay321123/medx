@@ -23,13 +23,16 @@ export async function POST(req: Request) {
 
     const packet = await buildPatientPacket({ patientId, userId });
 
-    const ai = await callOpenAIJson({
+    const ai = process.env.AIDOC_SYNC_PREDICT === "1" ? await callOpenAIJson({
       op: "predict",
       patientPacket: packet,
       source,
       schema: "AiPredictionsV1",
-    });
-
+    }) : null;
+    if (!ai) {
+      // enqueue({ userId, patientId, source })
+      return NextResponse.json({ status: "queued" }, { status: 202 });
+    }
     const now = new Date().toISOString();
     const rows = (ai?.predictions ?? []).map((p: any) => ({
       patient_id: patientId,
