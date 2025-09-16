@@ -338,7 +338,7 @@ register({
 register({
   id: "circulation_summary",
   label: "Circulation",
-  inputs: [{ key: "SBP" }, { key: "DBP" }, { key: "HR" }],
+  inputs: [{ key: "SBP", unit: "mmHg" }, { key: "DBP", unit: "mmHg" }, { key: "HR", unit: "bpm" }],
   run: ({ SBP, DBP, HR }) => {
     if (SBP == null || DBP == null || HR == null) return null;
     const map = (SBP + 2 * DBP) / 3;
@@ -5344,8 +5344,8 @@ register({
   tags: ["pulmonary", "icu_scores"],
   inputs: [
     { key: "FiO2", required: true },
-    { key: "MAP", required: true },
-    { key: "PaO2", required: true },
+    { key: "MAP", unit: "mmHg", required: true },
+    { key: "PaO2", unit: "mmHg", required: true },
   ],
   run: ({ FiO2, MAP, PaO2 }) => {
     const oi = (FiO2 * MAP * 100) / PaO2;
@@ -6787,7 +6787,7 @@ register({
   label: "SOFA cardiovascular subscore",
   tags: ["icu_scores","sepsis"],
   inputs: [
-    { key:"MAP", required:true },
+    { key:"MAP", unit:"mmHg", required:true },
     { key:"on_vasopressors", required:true }
   ],
   run: ({MAP,on_vasopressors})=>{
@@ -7471,8 +7471,8 @@ register({
   label: "QTc (Hodges)",
   tags: ["cardiology","ecg"],
   inputs: [
-    { key:"QT_ms", required:true },
-    { key:"HR", required:true }
+    { key:"QT_ms", unit:"ms", required:true },
+    { key:"HR", unit:"bpm", required:true }
   ],
   run: ({QT_ms,HR})=>{
     const val=QT_ms+1.75*(HR-60);
@@ -9496,8 +9496,8 @@ register({
   label: "QTc (Bazett)",
   tags: ["cardiology","ecg"],
   inputs: [
-    { key:"QT_ms", required:true },
-    { key:"HR", required:true }
+    { key:"QT_ms", unit:"ms", required:true },
+    { key:"HR", unit:"bpm", required:true }
   ],
   run: ({QT_ms,HR})=>{
     if (HR<=0) return null;
@@ -9513,8 +9513,8 @@ register({
   label: "QTc (Fridericia)",
   tags: ["cardiology","ecg"],
   inputs: [
-    { key:"QT_ms", required:true },
-    { key:"HR", required:true }
+    { key:"QT_ms", unit:"ms", required:true },
+    { key:"HR", unit:"bpm", required:true }
   ],
   run: ({QT_ms,HR})=>{
     if (HR<=0) return null;
@@ -9531,8 +9531,8 @@ register({
   label: "Rate–pressure product (RPP)",
   tags: ["cardiology","hemodynamics"],
   inputs: [
-    { key:"HR", required:true },
-    { key:"SBP", required:true }
+    { key:"HR", unit:"bpm", required:true },
+    { key:"SBP", unit:"mmHg", required:true }
   ],
   run: ({HR,SBP})=>{
     const val=HR*SBP;
@@ -9546,8 +9546,8 @@ register({
   label: "Pulse pressure band",
   tags: ["cardiology","hemodynamics"],
   inputs: [
-    { key:"SBP", required:true },
-    { key:"DBP", required:true }
+    { key:"SBP", unit:"mmHg", required:true },
+    { key:"DBP", unit:"mmHg", required:true }
   ],
   run: ({SBP,DBP})=>{
     const pp=SBP-DBP;
@@ -9561,8 +9561,8 @@ register({
   label: "Cardiac output from SV & HR",
   tags: ["cardiology","hemodynamics"],
   inputs: [
-    { key:"SV_ml", required:true },
-    { key:"HR", required:true }
+    { key:"SV_ml", unit:"mL", required:true },
+    { key:"HR", unit:"bpm", required:true }
   ],
   run: ({SV_ml,HR})=>{
     const co = (SV_ml*HR)/1000; // L/min
@@ -9575,8 +9575,8 @@ register({
   label: "Cardiac index from CO & BSA",
   tags: ["cardiology","hemodynamics"],
   inputs: [
-    { key:"CO_L_min", required:true },
-    { key:"BSA_m2", required:true }
+    { key:"CO_L_min", unit:"L/min", required:true },
+    { key:"BSA_m2", unit:"m²", required:true }
   ],
   run: ({CO_L_min,BSA_m2})=>{
     if (BSA_m2<=0) return null;
@@ -9591,8 +9591,8 @@ register({
   label: "Stroke volume from LVOT (SV = VTI×area)",
   tags: ["cardiology","echo"],
   inputs: [
-    { key:"lvot_diam_cm", required:true },
-    { key:"lvot_vti_cm", required:true }
+    { key:"lvot_diam_cm", unit:"cm", required:true },
+    { key:"lvot_vti_cm", unit:"cm", required:true }
   ],
   run: ({lvot_diam_cm,lvot_vti_cm})=>{
     const radius=lvot_diam_cm/2;
@@ -9607,8 +9607,8 @@ register({
   label: "Stroke volume index (SVI) from SV & BSA",
   tags: ["cardiology","echo"],
   inputs: [
-    { key:"SV_ml", required:true },
-    { key:"BSA_m2", required:true }
+    { key:"SV_ml", unit:"mL", required:true },
+    { key:"BSA_m2", unit:"m²", required:true }
   ],
   run: ({SV_ml,BSA_m2})=>{
     if (BSA_m2<=0) return null;
@@ -9846,8 +9846,8 @@ register({
   label: "Pregnancy-induced hypertension flag",
   tags: ["obstetrics"],
   inputs: [
-    { key:"SBP", required:true },
-    { key:"DBP", required:true }
+    { key:"SBP", unit:"mmHg", required:true },
+    { key:"DBP", unit:"mmHg", required:true }
   ],
   run: ({SBP,DBP})=>{
     const pos = SBP>=140 || DBP>=90;
@@ -10353,7 +10353,7 @@ register({
   id: "shock_index",
   label: "Shock index (HR/SBP)",
   tags: ["icu","hemodynamics"],
-  inputs: [{ key:"HR", required:true }, { key:"SBP", required:true }],
+  inputs: [{ key:"HR", unit:"bpm", required:true }, { key:"SBP", unit:"mmHg", required:true }],
   run: ({HR,SBP})=>{
     if (SBP<=0) return null;
     const val=HR/SBP;
@@ -10366,7 +10366,7 @@ register({
   id: "modified_shock_index",
   label: "Modified shock index (HR/MAP)",
   tags: ["icu","hemodynamics"],
-  inputs: [{ key:"HR", required:true }, { key:"MAP", required:true }],
+  inputs: [{ key:"HR", unit:"bpm", required:true }, { key:"MAP", unit:"mmHg", required:true }],
   run: ({HR,MAP})=>{
     if (MAP<=0) return null;
     const val=HR/MAP;
@@ -10379,7 +10379,7 @@ register({
   id: "map_calc",
   label: "Mean arterial pressure (MAP)",
   tags: ["hemodynamics"],
-  inputs: [{ key:"SBP", required:true }, { key:"DBP", required:true }],
+  inputs: [{ key:"SBP", unit:"mmHg", required:true }, { key:"DBP", unit:"mmHg", required:true }],
   run: ({SBP,DBP})=>{
     const val = (SBP + 2*DBP)/3;
     const notes=[val<65?"low MAP":"ok"];
@@ -10392,9 +10392,9 @@ register({
   label: "Systemic vascular resistance (SVR)",
   tags: ["hemodynamics","cardiology","icu"],
   inputs: [
-    { key:"MAP", required:true },
-    { key:"RAP", required:true },     // right atrial pressure
-    { key:"CO_L_min", required:true }
+    { key:"MAP", unit:"mmHg", required:true },
+    { key:"RAP", unit:"mmHg", required:true },     // right atrial pressure
+    { key:"CO_L_min", unit:"L/min", required:true }
   ],
   run: ({MAP,RAP,CO_L_min})=>{
     if (CO_L_min<=0) return null;
@@ -10409,9 +10409,9 @@ register({
   label: "Pulmonary vascular resistance (PVR)",
   tags: ["hemodynamics","pulmonary","icu"],
   inputs: [
-    { key:"mPAP", required:true },
-    { key:"PAWP", required:true },
-    { key:"CO_L_min", required:true }
+    { key:"mPAP", unit:"mmHg", required:true },
+    { key:"PAWP", unit:"mmHg", required:true },
+    { key:"CO_L_min", unit:"L/min", required:true }
   ],
   run: ({mPAP,PAWP,CO_L_min})=>{
     if (CO_L_min<=0) return null;
@@ -10440,7 +10440,7 @@ register({
   id: "oxygenation_index",
   label: "Oxygenation Index (OI)",
   tags: ["pulmonary","icu"],
-  inputs: [{ key:"FiO2", required:true }, { key:"MAP", required:true }, { key:"PaO2", required:true }],
+  inputs: [{ key:"FiO2", required:true }, { key:"MAP", unit:"mmHg", required:true }, { key:"PaO2", unit:"mmHg", required:true }],
   run: ({FiO2,MAP,PaO2})=>{
     if (PaO2<=0) return null;
     const val = (FiO2*MAP*100)/PaO2;
@@ -10453,7 +10453,7 @@ register({
   id: "oxygen_saturation_index",
   label: "Oxygen Saturation Index (OSI)",
   tags: ["pulmonary","icu"],
-  inputs: [{ key:"FiO2", required:true }, { key:"MAP", required:true }, { key:"SpO2", required:true }],
+  inputs: [{ key:"FiO2", required:true }, { key:"MAP", unit:"mmHg", required:true }, { key:"SpO2", unit:"%", required:true }],
   run: ({FiO2,MAP,SpO2})=>{
     if (SpO2<=0) return null;
     const val = (FiO2*MAP*100)/SpO2;

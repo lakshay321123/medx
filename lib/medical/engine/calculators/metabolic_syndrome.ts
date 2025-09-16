@@ -32,6 +32,9 @@ export function runMetabolicSyndrome(i: MetSynInputs) {
 register({
   id: "metabolic_syndrome_gate",
   label: "Metabolic Syndrome (ATP III gate)",
-  inputs: [{key:"Waist_cm"},{key:"Sex"},{key:"Triglycerides_mg_dL"},{key:"HDL_mg_dL"},{key:"SBP"},{key:"DBP"},{key:"On_BP_Tx"},{key:"FastingGlucose_mg_dL"},{key:"Diabetes"}],
+  inputs: [
+    {key:"Waist_cm",unit:"cm"},{key:"Sex"},{key:"Triglycerides_mg_dL",unit:"mg/dL"},{key:"HDL_mg_dL",unit:"mg/dL"},
+    {key:"SBP",unit:"mmHg"},{key:"DBP",unit:"mmHg"},{key:"On_BP_Tx"},{key:"FastingGlucose_mg_dL",unit:"mg/dL"},{key:"Diabetes"}
+  ],
   run: runMetabolicSyndrome as any,
 });

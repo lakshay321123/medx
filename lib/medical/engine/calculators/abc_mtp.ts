@@ -15,6 +15,6 @@ export function runABC({Penetrating, PositiveFAST, SBP, HR}: ABCInputs) {
 register({
   id: "abc_mtp",
   label: "ABC Score (Massive Transfusion Trigger)",
-  inputs: [{key:"Penetrating",required:true},{key:"PositiveFAST",required:true},{key:"SBP",required:true},{key:"HR",required:true}],
+  inputs: [{key:"Penetrating",required:true},{key:"PositiveFAST",required:true},{key:"SBP",unit:"mmHg",required:true},{key:"HR",unit:"bpm",required:true}],
   run: runABC as any,
 });
