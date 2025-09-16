@@ -1,140 +1,99 @@
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
-import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
-import { getUserId } from "@/lib/getUserId";
-import { buildShortSummaryFromText } from "@/lib/shortSummary";
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
-const noStore = { "Cache-Control": "no-store, max-age=0" };
-const iso = (ts: any) => {
-  const d = new Date(ts || Date.now());
-  return isNaN(+d) ? new Date().toISOString() : d.toISOString();
+type RawObs = {
+  id: string;
+  user_id: string | null;
+  patient_id?: string | null;
+  thread_id?: string | null;
+  kind: string | null;
+  value_num?: number | null;
+  value_text?: string | null;
+  units?: string | null;
+  observed_at?: string | null;
+  created_at?: string | null;
+  meta?: any;
 };
 
-const pickObserved = (r: any) =>
-  iso(
-    r.report_date ??
-      r.meta?.report_date ??
-      r.details?.report_date ??
-      r.observed_at ??
-      r.observedAt ??
-      r.recorded_at ??
-      r.measured_at ??
-      r.taken_at ??
-      r.sampled_at ??
-      r.timestamp ??
-      r.created_at ??
-      r.createdAt ??
-      r.meta?.observed_at ??
-      r.details?.observed_at
-  );
+type Event = {
+  id: string;
+  at: string;
+  kind: string;
+  value?: string | number;
+  units?: string;
+  source?: string | null;
+};
 
-export async function GET() {
-  const userId = await getUserId();
-  if (!userId) return NextResponse.json({ items: [] }, { headers: noStore });
-  const supa = supabaseAdmin();
+const PRETTY: Record<string, string> = {
+  hba1c: "HbA1c",
+  tsh: "TSH",
+  fsh: "FSH",
+  uibc: "UIBC",
+  ldl_cholesterol: "LDL-C",
+  egfr: "eGFR",
+  bmi: "BMI",
+  hr: "Heart rate",
+  bp: "Blood pressure",
+};
 
-  const [predRes, obsRes] = await Promise.all([
-    supa.from("predictions").select("*").eq("user_id", userId),
-    supa.from("observations").select("*").eq("user_id", userId).eq('meta->>committed','true'),
-  ]);
-  if (predRes.error)
-    return NextResponse.json(
-      { error: predRes.error.message },
-      { status: 500, headers: noStore }
-    );
-  if (obsRes.error)
-    return NextResponse.json(
-      { error: obsRes.error.message },
-      { status: 500, headers: noStore }
-    );
+function prettyKind(k?: string | null) {
+  if (!k) return "Observation";
+  const key = String(k).toLowerCase().replace(/\s+/g, "_");
+  return PRETTY[key] || k.toUpperCase();
+}
 
-  const preds = (predRes.data || []).map((r: any) => {
-    const d = r.details ?? r.meta ?? {};
-    const name =
-      r.name ??
-      r.label ??
-      r.finding ??
-      r.type ??
-      d?.analyte ??
-      d?.test_name ??
-      d?.label ??
-      d?.name ??
-      d?.task ??
-      "Prediction";
-    const prob =
-      typeof r.probability === "number"
-        ? r.probability
-        : typeof d?.fractured === "number"
-        ? d.fractured
-        : typeof d?.probability === "number"
-        ? d.probability
-        : null;
-    return {
-      id: String(r.id),
-      kind: "prediction",
-      name,
-      probability: prob,
-      observed_at: pickObserved(r),
-      uploaded_at: iso(r.created_at ?? r.createdAt),
-      meta: d || {},
-      file: null,
-    };
-  });
+function ts(r: RawObs) {
+  return r.observed_at || r.created_at || new Date().toISOString();
+}
 
-  const obs = (obsRes.data || []).map((r: any) => {
-    const m = r.meta ?? r.details ?? {};
-    if (!m.summary) {
-      m.summary = buildShortSummaryFromText(m.text, m.summary_long);
-    }
-    const name =
-      r.name ??
-      r.metric ??
-      r.test ??
-      m?.analyte ??
-      m?.test_name ??
-      m?.label ??
-      "Observation";
-    const value = r.value ?? m?.value ?? null;
-    const unit = r.unit ?? m?.unit ?? null;
-    const flags = Array.isArray(r.flags)
-      ? r.flags
-      : Array.isArray(m?.flags)
-      ? m.flags
-      : null;
-    const file = {
-      upload_id: r.source_upload_id ?? r.upload_id ?? m?.upload_id ?? null,
-      bucket: m?.bucket ?? null,
-      path: m?.storage_path ?? m?.path ?? null,
-      name: m?.file_name ?? m?.name ?? null,
-      mime: m?.mime ?? null,
-    };
-    return {
-      id: String(r.id),
-      kind: "observation",
-      name,
-      value,
-      unit,
-      flags,
-      observed_at: pickObserved(r),
-      uploaded_at: iso(r.created_at ?? r.createdAt),
-      meta: m || {},
-      file,
-    };
-  });
+function val(r: RawObs) {
+  return r.value_num ?? r.value_text ?? null;
+}
 
-  const dedup = new Map<string, any>();
-  for (const it of [...preds, ...obs]) {
-    const key =
-      it.file?.upload_id ||
-      it.meta?.source_hash ||
-      `${it.name}|${it.observed_at}|${"value" in it ? it.value ?? "" : ""}`;
-    if (!dedup.has(key)) dedup.set(key, it);
-  }
-  const items = Array.from(dedup.values()).sort(
-    (a, b) =>
-      new Date(b.observed_at).getTime() - new Date(a.observed_at).getTime()
-  );
-  return NextResponse.json({ items }, { headers: noStore });
+export async function GET(req: NextRequest) {
+  const supabase = createClient();
+
+  const url = new URL(req.url);
+  const patientId = url.searchParams.get("patientId") || url.searchParams.get("pid");
+  const days = Math.max(1, Math.min(3650, Number(url.searchParams.get("days") || 365)));
+
+  const { data: auth } = await supabase.auth.getUser();
+  const sessionUserId = auth?.user?.id ?? null;
+  const fallback = process.env.MEDX_TEST_USER_ID || null;
+  const userId = sessionUserId || fallback;
+
+  let q = supabase
+    .from("observations")
+    .select(
+      "id,user_id,patient_id,thread_id,kind,value_num,value_text,units,observed_at,created_at,meta",
+    )
+    .order("observed_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false, nullsFirst: false })
+    .limit(500);
+
+  if (patientId) q = q.eq("patient_id", patientId);
+  else if (userId) q = q.eq("user_id", userId);
+
+  q = q.or("meta->>committed.eq.true,meta->>committed.is.null");
+
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  q = q.gte("created_at", since.toISOString());
+
+  const { data, error } = await q;
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const events: Event[] = (data as RawObs[]).map((r) => ({
+    id: r.id,
+    at: ts(r),
+    kind: prettyKind(r.kind),
+    value: val(r) ?? undefined,
+    units: r.units ?? undefined,
+    source: r.thread_id ?? null,
+  }));
+
+  return NextResponse.json({ events });
 }
