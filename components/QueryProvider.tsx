@@ -17,7 +17,7 @@ export default function QueryProvider({ children }: { children: ReactNode }) {
             refetchOnWindowFocus: false,
             refetchOnReconnect: false,
             retry: 1,
-            keepPreviousData: true,
+            placeholderData: (previousData) => previousData,
           },
         },
       })
