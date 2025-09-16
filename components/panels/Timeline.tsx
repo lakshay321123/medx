@@ -57,6 +57,7 @@ export default function Timeline(){
   const [signedUrl, setSignedUrl] = useState<string|null>(null);
   useEffect(()=>{
     if (!open || !active?.file) { setSignedUrl(null); return; }
+    setSignedUrl(null);
     const f = active.file;
     const qs = f.upload_id
       ? `?uploadId=${encodeURIComponent(f.upload_id)}`
@@ -78,6 +79,15 @@ export default function Timeline(){
   const hasSummary = Boolean(long || short);
   const hasText = Boolean(text);
   const hasContent = hasSummary || hasText;
+  const defaultTab = hasSummary ? "summary" : "text";
+  const tabResetKey = active
+    ? active.id ??
+      active.meta?.file_name ??
+      active.name ??
+      active.observed_at ??
+      active.uploaded_at ??
+      ""
+    : "";
 
   return (
     <div className="p-4">
@@ -162,7 +172,7 @@ export default function Timeline(){
                 )
               ) : (
                 hasContent ? (
-                  <Tabs key={active.id} defaultValue={hasSummary ? 'summary' : 'text'}>
+                  <Tabs defaultValue={defaultTab} resetKey={tabResetKey}>
                     {hasSummary && (
                       <TabsList className="mb-3">
                         <TabsTrigger value="summary">Summary</TabsTrigger>

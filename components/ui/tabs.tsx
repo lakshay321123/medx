@@ -4,8 +4,19 @@ import * as React from "react";
 type Ctx = { value: string; setValue: (v: string) => void };
 const TabsContext = React.createContext<Ctx | null>(null);
 
-export function Tabs({ defaultValue, children }: { defaultValue: string; children: React.ReactNode }) {
+type TabsProps = {
+  defaultValue: string;
+  resetKey?: React.Key;
+  children: React.ReactNode;
+};
+
+export function Tabs({ defaultValue, resetKey, children }: TabsProps) {
   const [value, setValue] = React.useState(defaultValue);
+
+  React.useEffect(() => {
+    setValue(defaultValue);
+  }, [defaultValue, resetKey]);
+
   return <TabsContext.Provider value={{ value, setValue }}>{children}</TabsContext.Provider>;
 }
 
