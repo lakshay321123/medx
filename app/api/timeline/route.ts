@@ -33,12 +33,16 @@ const pickObserved = (r: any) =>
 export async function GET() {
   const userId = await getUserId();
   if (!userId) return NextResponse.json({ items: [] }, { headers: noStore });
+
   const supa = supabaseAdmin();
 
+  // Fetch predictions + observations for this user
   const [predRes, obsRes] = await Promise.all([
     supa.from("predictions").select("*").eq("user_id", userId),
-    supa.from("observations").select("*").eq("user_id", userId).eq('meta->>committed','true'),
+    // ⬇️ REMOVED the committed filter so all rows show up
+    supa.from("observations").select("*").eq("user_id", userId),
   ]);
+
   if (predRes.error)
     return NextResponse.json(
       { error: predRes.error.message },
@@ -124,6 +128,7 @@ export async function GET() {
     };
   });
 
+  // Deduplicate
   const dedup = new Map<string, any>();
   for (const it of [...preds, ...obs]) {
     const key =
@@ -132,9 +137,11 @@ export async function GET() {
       `${it.name}|${it.observed_at}|${"value" in it ? it.value ?? "" : ""}`;
     if (!dedup.has(key)) dedup.set(key, it);
   }
+
   const items = Array.from(dedup.values()).sort(
     (a, b) =>
       new Date(b.observed_at).getTime() - new Date(a.observed_at).getTime()
   );
+
   return NextResponse.json({ items }, { headers: noStore });
 }
