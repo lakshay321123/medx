@@ -6,6 +6,26 @@ import { getUserId } from "@/lib/getUserId";
 import { prisma } from "@/lib/prisma";
 import { wasAskedOnce, markAsked } from "@/lib/aidoc/memory";
 
+/**
+ * HTTP POST handler for the AI-doc chat endpoint.
+ *
+ * Processes incoming chat payloads to drive several flows:
+ * - Boot greeting: sets an `aidoc_booted` cookie and returns a greeting when the client requests `op: "boot"` and the cookie isn't set.
+ * - Prediction trigger: if the message text contains risk-related keywords and `patientId` is present, asynchronously posts `{ patientId, source: "chat" }` to `/api/predict` (fire-and-forget).
+ * - Triage (feature-gated): when `FEATURE_TRIAGE_V2 === "1"` and the message indicates experiential intent, calls `handleDocAITriage` and returns triage responses for stages `demographics`, `intake`, or `advice`.
+ * - Thread management: upserts a chat thread (title inferred from message if not provided) when not a boot request.
+ * - Medication prompt: if enabled and not previously asked in the thread, records that it asked and returns a prompt asking about regular medications.
+ * - Default: returns an empty messages array.
+ *
+ * Side effects:
+ * - May set the `aidoc_booted` cookie.
+ * - May perform a non-blocking fetch to the `/api/predict` endpoint.
+ * - Upserts a `chatThread` via the database.
+ * - Calls triage and memory utilities (e.g., `handleDocAITriage`, `wasAskedOnce`, `markAsked`), which may mutate external state.
+ *
+ * @param req - Incoming Request containing a JSON payload with fields like `message`/`text`, `op`/`boot`, `patientId`, `threadId`, `answers`, `profile`, and optional `title`.
+ * @returns A NextResponse whose JSON body varies by flow (greeting, triage prompts/results, med prompt, or `{ messages: [] }`).
+ */
 export async function POST(req: Request) {
   const payload = await req.json().catch(() => ({} as any));
   const hasBooted = cookies().get("aidoc_booted")?.value === "1";
@@ -24,17 +44,10 @@ export async function POST(req: Request) {
     /risk|red\s*flags|prediction|prognosis|heart|diabet|cancer/.test(text);
 
   if (wantsPrediction && payload?.patientId) {
-    const base = process.env.NEXTAUTH_URL;
-    const url = base ? new URL("/api/predict", base).toString() : "/api/predict";
-    const cookieHeader = cookies().toString();
-    fetch(url, {
+    fetch(`${process.env.NEXTAUTH_URL || ""}/api/predict`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(cookieHeader ? { cookie: cookieHeader } : {}),
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ patientId: payload.patientId, source: "chat" }),
-      cache: "no-store",
     }).catch(() => {});
   }
   // Structured payloads from UI

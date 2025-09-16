@@ -115,6 +115,18 @@ type ChatCall = { system: string; user: string; instruction: string; metadata?: 
 
 type CallIn = ChatCall | PredictCall;
 
+/**
+ * Attempts to parse a string as JSON, with a best-effort fallback that extracts
+ * the substring between the first `{` and the last `}` if direct parsing fails.
+ *
+ * Tries `JSON.parse(s)` first. If that throws, and the string contains at least
+ * one `{` and one `}` with the latter after the former, it attempts to parse
+ * `s.slice(firstBraceIndex, lastBraceIndex + 1)`. Returns the parsed value on
+ * success or `null` if parsing fails.
+ *
+ * @param s - The input string that may contain JSON.
+ * @returns The parsed JSON value, or `null` if no valid JSON could be parsed.
+ */
 function tryParseJson(s: string) {
   try { return JSON.parse(s); } catch {}
   const start = s.indexOf("{");
@@ -125,6 +137,12 @@ function tryParseJson(s: string) {
   return null;
 }
 
+/**
+ * Computes a SHA-256 hex digest of the JSON representation of a value.
+ *
+ * @param value - The value to hash; it is stringified with `JSON.stringify` before hashing.
+ * @returns The hex-encoded SHA-256 digest, or `null` if stringification or hashing fails.
+ */
 function hashObject(value: unknown) {
   try {
     return createHash("sha256").update(JSON.stringify(value) || "").digest("hex");
@@ -133,6 +151,25 @@ function hashObject(value: unknown) {
   }
 }
 
+/**
+ * Produce a prediction payload for cardiometabolic risk from a patient packet.
+ *
+ * If `patientPacket.derived.riskInputs` is missing or null, returns an object with an empty
+ * `predictions` array and an `inputs_hash` computed from the full `patientPacket`. If risk inputs
+ * are present, computes a single `cardiometabolic_risk` prediction using `scoreRisk`, normalizes
+ * `riskScore` to a 0–1 `score` (or `null` if not finite), derives a `confidence` from the risk band,
+ * and includes `top_factors` (names from `risk.factors`).
+ *
+ * The returned object always contains:
+ * - `predictions`: array (empty or one prediction object)
+ * - `inputs_hash`: SHA-256 hex digest of the inputs used for prediction (or of `patientPacket` when inputs are missing)
+ * - `model`: prioritized from environment (AIDOC_PREDICT_MODEL, then AIDOC_MODEL) or `"medx-heuristic-v1"`
+ * - `version`: `"v1"`
+ * - `source`: passed-through `source` argument
+ *
+ * @param patientPacket - Patient data; `derived.riskInputs` is read to produce predictions when present
+ * @param source - Optional origin identifier to include in the returned payload
+ */
 function handlePredict({ patientPacket, source }: PredictCall) {
   const riskInputs: RiskInputs | null =
     (patientPacket?.derived?.riskInputs as RiskInputs | null | undefined) ?? null;
@@ -170,6 +207,20 @@ function handlePredict({ patientPacket, source }: PredictCall) {
   };
 }
 
+/**
+ * Send a CallIn request and return a parsed AI-Doc JSON result or a prediction object.
+ *
+ * If `input.op === "predict"`, delegates to the risk prediction path and returns the prediction response.
+ * Otherwise sends a chat request to OpenAI using the provided system/user/instruction/metadata, attempts to parse
+ * the model's output as the AiDoc JSON schema, and retries with exponential backoff on transient failures.
+ *
+ * On success returns the parsed JSON object (matching AiDocJsonSchema for chat calls, or the prediction shape for predict calls).
+ * If all retries fail, logs the final error and returns a structured fallback AI-Doc object containing a default reply,
+ * empty save arrays, and brief observations.
+ *
+ * @param input - A CallIn union: a PredictCall (op: "predict", patientPacket, ...) or a ChatCall (system, user, instruction, metadata).
+ * @returns A Promise resolving to the parsed AI-Doc JSON (or prediction result) or a fallback AI-Doc object on repeated errors.
+ */
 export async function callOpenAIJson(input: CallIn): Promise<any> {
   if ((input as any)?.op === "predict") {
     return handlePredict(input as any);

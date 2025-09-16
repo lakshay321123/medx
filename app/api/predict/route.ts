@@ -7,6 +7,26 @@ import { getUserId } from "@/lib/getUserId";
 import { buildPatientPacket } from "@/lib/aidoc/patient-packet";
 import { callOpenAIJson } from "@/lib/aidoc/vendor";
 
+/**
+ * HTTP POST handler that generates AI risk predictions for a patient and persists them.
+ *
+ * Builds a patient packet for the authenticated user, sends it to the AI prediction service,
+ * transforms the returned predictions into rows for the `predictions` table, and inserts them.
+ *
+ * The request body must be JSON with `patientId` (string). Optional `source` (string) defaults to `"recompute"`.
+ * Behavior:
+ * - If the current user is not authenticated the handler responds with 401 and `{ error: "missing userId" }`.
+ * - If `patientId` is not provided the handler responds with 202 and `{ status: "skipped" }`.
+ * - On success it responds with 202 and `{ status: "ok", saved: <number_of_rows> }`.
+ * - On internal failure it responds with 202 and `{ status: "error" }`.
+ *
+ * Side effects:
+ * - Calls an external AI service to obtain predictions.
+ * - May insert one or more rows into the `predictions` table (each row includes patient_id, user_id, domain, label, probability, meta, and created_at).
+ *
+ * @param req - Incoming HTTP Request whose JSON body contains `{ patientId: string, source?: string }`.
+ * @returns A NextResponse JSON payload indicating status and number of saved rows (when applicable).
+ */
 export async function POST(req: Request) {
   try {
     const supa = supabaseAdmin();
@@ -23,16 +43,13 @@ export async function POST(req: Request) {
 
     const packet = await buildPatientPacket({ patientId, userId });
 
-    const ai = process.env.AIDOC_SYNC_PREDICT === "1" ? await callOpenAIJson({
+    const ai = await callOpenAIJson({
       op: "predict",
       patientPacket: packet,
       source,
       schema: "AiPredictionsV1",
-    }) : null;
-    if (!ai) {
-      // enqueue({ userId, patientId, source })
-      return NextResponse.json({ status: "queued" }, { status: 202 });
-    }
+    });
+
     const now = new Date().toISOString();
     const rows = (ai?.predictions ?? []).map((p: any) => ({
       patient_id: patientId,

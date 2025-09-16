@@ -45,6 +45,27 @@ type Groups = Record<
   "vitals" | "labs" | "imaging" | "medications" | "diagnoses" | "procedures" | "immunizations" | "notes" | "other",
   Item[]
 >;
+/**
+ * Render and manage the patient's medical profile UI.
+ *
+ * Displays editable demographic fields (name, DOB, sex, blood group, predispositions, chronic conditions),
+ * shows recent observations, grouped uploads, simple vitals/labs summaries, and an AI-generated summary with chat integration.
+ *
+ * Side effects:
+ * - Fetches profile, observations, and AI summary data on mount.
+ * - Subscribes to the "observations-updated" window event to refresh data.
+ * - Provides actions that call backend endpoints:
+ *   - Save (PUT /api/profile) to persist profile edits.
+ *   - Reset (POST /api/admin/reset) to clear or zero demo data.
+ *   - Recompute risk (POST /api/predict) which navigates to the AI predict panel and fires a background request.
+ *   - Loads profile/packet when pre-filling a chat context for "Discuss & Correct".
+ *
+ * Error behavior:
+ * - Save/reset failures surface an alert with the server message.
+ * - Summary and recompute requests intentionally swallow errors (fire-and-forget).
+ *
+ * Returns a React element containing the full profile UI.
+ */
 export default function MedicalProfile() {
   const { data, error, isLoading, mutate } = useProfile();
   const [obs, setObs] = useState<Observation[]>([]);
