@@ -35,50 +35,61 @@ export async function GET() {
   if (!userId) return NextResponse.json({ items: [] }, { headers: noStore });
   const supa = supabaseAdmin();
 
-  const [predRes, obsRes] = await Promise.all([
-    supa.from("predictions").select("*").eq("user_id", userId),
-    supa.from("observations").select("*").eq("user_id", userId).eq('meta->>committed','true'),
-  ]);
-  if (predRes.error)
-    return NextResponse.json(
-      { error: predRes.error.message },
-      { status: 500, headers: noStore }
-    );
+  const { data: patientRows, error: patientErr } = await supa
+    .from("patients")
+    .select("id")
+    .eq("user_id", userId);
+  if (patientErr)
+    return NextResponse.json({ error: patientErr.message }, { status: 500, headers: noStore });
+
+  const patientIds = (patientRows ?? []).map(r => r.id);
+
+  let predictionRows: any[] = [];
+  if (patientIds.length) {
+    const predRes = await supa
+      .from("predictions")
+      .select("id, patient_id, generated_at, condition, risk_score, risk_label, features, top_factors, model, patient_summary_md, clinician_summary_md, summarizer_model, summarizer_error")
+      .in("patient_id", patientIds);
+    if (predRes.error)
+      return NextResponse.json(
+        { error: predRes.error.message },
+        { status: 500, headers: noStore }
+      );
+    predictionRows = predRes.data ?? [];
+  }
+
+  const obsRes = await supa
+    .from("observations")
+    .select("*")
+    .eq("user_id", userId)
+    .eq('meta->>committed','true');
   if (obsRes.error)
     return NextResponse.json(
       { error: obsRes.error.message },
       { status: 500, headers: noStore }
     );
 
-  const preds = (predRes.data || []).map((r: any) => {
-    const d = r.details ?? r.meta ?? {};
-    const name =
-      r.name ??
-      r.label ??
-      r.finding ??
-      r.type ??
-      d?.analyte ??
-      d?.test_name ??
-      d?.label ??
-      d?.name ??
-      d?.task ??
-      "Prediction";
-    const prob =
-      typeof r.probability === "number"
-        ? r.probability
-        : typeof d?.fractured === "number"
-        ? d.fractured
-        : typeof d?.probability === "number"
-        ? d.probability
-        : null;
+  const preds = predictionRows.map((r: any) => {
+    const meta = {
+      risk_label: r.risk_label,
+      features: r.features,
+      top_factors: r.top_factors,
+      model: r.model,
+      patient_summary_md: r.patient_summary_md,
+      clinician_summary_md: r.clinician_summary_md,
+      summarizer_model: r.summarizer_model,
+      summarizer_error: r.summarizer_error,
+      patient_id: r.patient_id,
+    };
+    const prob = typeof r.risk_score === "number" ? r.risk_score : null;
     return {
       id: String(r.id),
       kind: "prediction",
-      name,
+      name: r.condition || "Prediction",
       probability: prob,
-      observed_at: pickObserved(r),
-      uploaded_at: iso(r.created_at ?? r.createdAt),
-      meta: d || {},
+      observed_at: iso(r.generated_at ?? Date.now()),
+      uploaded_at: iso(r.generated_at ?? Date.now()),
+      meta,
       file: null,
     };
   });
