@@ -76,6 +76,29 @@ export default function Timeline(){
   const short = active?.meta?.summary;
   const text = active?.meta?.text;
 
+  const renderSummaryTextTabs = () => (
+    <Tabs defaultValue={long ? 'summary' : (short ? 'summary' : 'text')}>
+      {(long || short) && (
+        <TabsList className="mb-3">
+          <TabsTrigger value="summary">Summary</TabsTrigger>
+          {text && <TabsTrigger value="text">Full text</TabsTrigger>}
+        </TabsList>
+      )}
+      {(long || short) && (
+        <TabsContent value="summary">
+          <article className="prose prose-zinc dark:prose-invert max-w-none whitespace-pre-wrap select-text">
+            {(long || short) as string}
+          </article>
+        </TabsContent>
+      )}
+      {text && (
+        <TabsContent value="text">
+          <pre className="whitespace-pre-wrap break-words text-sm leading-6 select-text">{text}</pre>
+        </TabsContent>
+      )}
+    </Tabs>
+  );
+
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-3">
@@ -94,7 +117,11 @@ export default function Timeline(){
       {resetError && <div className="mb-2 text-xs text-rose-600">{resetError}</div>}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {(["ALL","LABS","VITALS","IMAGING","AI","NOTES"] as Cat[]).map(c=>(
-          <button key={c} onClick={()=>setCat(c)} className={`text-xs px-2.5 py-1 rounded-full border ${cat===c?"bg-muted font-medium":"hover:bg-muted"}`}>{c}</button>
+          <button
+            key={c}
+            onClick={() => setCat(c)}
+            className={`text-xs px-2 py-1 rounded-md border ${cat===c ? "bg-muted font-medium" : "hover:bg-muted"}`}
+          >{c}</button>
         ))}
         <select value={range} onChange={e=>setRange(e.target.value as any)} className="text-xs border rounded-md px-2 py-1">
           <option value="ALL">All dates</option><option value="7">Last 7d</option>
@@ -130,12 +157,12 @@ export default function Timeline(){
       {open && active && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setOpen(false)} />
-          <aside className="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-[640px] bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-2xl ring-1 ring-black/5 overflow-y-auto">
-            <header className="sticky top-0 bg-white/90 dark:bg-zinc-900/90 backdrop-blur border-b border-zinc-200/70 dark:border-zinc-800/70 px-4 py-3 flex items-center gap-2">
+          <aside className="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-[560px] bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-2xl ring-1 ring-black/5 overflow-y-auto">
+            <header className="sticky top-0 bg-white/90 dark:bg-zinc-900/90 border-b border-zinc-200/70 dark:border-zinc-800/70 px-4 py-3 flex items-center gap-2">
               <h3 className="font-semibold truncate">{active.name || active.meta?.file_name || "Observation"}</h3>
               <div className="ml-auto flex gap-2">
                 {(active.file?.path || active.file?.upload_id) && signedUrl && (
-                  <button onClick={() => window.open(signedUrl, '_blank')} className="text-xs px-2 py-1 rounded-md border">Open</button>
+                  <button onClick={() => window.open(signedUrl, "_blank")} className="text-xs px-2 py-1 rounded-md border">Open</button>
                 )}
                 {(active.file?.path || active.file?.upload_id) && signedUrl && (
                   <a href={signedUrl} download className="text-xs px-2 py-1 rounded-md border">Download</a>
@@ -150,34 +177,17 @@ export default function Timeline(){
               {active.file?.path || active.file?.upload_id ? (
                 !signedUrl ? (
                   <div className="text-xs text-muted-foreground">Fetching file…</div>
+                ) : text ? (
+                  renderSummaryTextTabs()
                 ) : /\.pdf(\?|$)/i.test(signedUrl) ? (
                   <iframe src={signedUrl} className="w-full h-[80vh] bg-white" />
                 ) : /\.(png|jpe?g|gif|webp)(\?|$)/i.test(signedUrl) ? (
                   <img src={signedUrl} className="max-w-full max-h-[80vh] object-contain" />
                 ) : (
-                  <div className="text-sm text-muted-foreground text-center">Preview unavailable. Use <b>Open</b> or <b>Download</b>.</div>
+                  <div className="text-sm text-muted-foreground">Preview unavailable. Use <b>Open</b> or <b>Download</b>.</div>
                 )
               ) : (
-                <Tabs defaultValue={long ? 'summary' : (short ? 'summary' : 'text')}>
-                  {(long || short) && (
-                    <TabsList className="mb-3">
-                      <TabsTrigger value="summary">Summary</TabsTrigger>
-                      {text && <TabsTrigger value="text">Full text</TabsTrigger>}
-                    </TabsList>
-                  )}
-                  {(long || short) && (
-                    <TabsContent value="summary">
-                      <article className="prose prose-zinc dark:prose-invert max-w-none whitespace-pre-wrap select-text">
-                        {(long || short) as string}
-                      </article>
-                    </TabsContent>
-                  )}
-                  {text && (
-                    <TabsContent value="text">
-                      <pre className="whitespace-pre-wrap break-words text-sm leading-6 select-text">{text}</pre>
-                    </TabsContent>
-                  )}
-                </Tabs>
+                renderSummaryTextTabs()
               )}
             </div>
           </aside>
