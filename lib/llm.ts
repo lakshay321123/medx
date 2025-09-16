@@ -82,3 +82,22 @@ export async function askLLM({ prompt, mode }:{ prompt: string; mode?: string })
   }
 }
 
+
+export function createLLM() {
+  return {
+    async chat({ messages, temperature = 0.2, max_tokens = 1200, response_format }: { messages: ChatMsg[]; temperature?: number; max_tokens?: number; response_format?: any }) {
+      if (!GROQ_KEY) throw new Error('LLM_API_KEY (Groq) missing');
+      const body: any = { model: GROQ_MODEL, messages, temperature, max_tokens };
+      if (response_format) body.response_format = response_format;
+      const r = await fetch(`${GROQ_URL}/chat/completions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${GROQ_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(`Groq: ${j?.error?.message || r.statusText}`);
+      const content = j?.choices?.[0]?.message?.content || '';
+      return { content };
+    }
+  };
+}
