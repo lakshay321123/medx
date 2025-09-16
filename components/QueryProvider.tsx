@@ -15,7 +15,7 @@ export default function QueryProvider({ children }: { children: ReactNode }) {
             staleTime: STALE_TIME,
             gcTime: GC_TIME,
             refetchOnWindowFocus: false,
-            keepPreviousData: true,
+            placeholderData: (previousData) => previousData,
           },
         },
       })

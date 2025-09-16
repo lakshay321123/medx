@@ -46,6 +46,14 @@ type Groups = Record<
   Item[]
 >;
 type ProfilePayload = { profile: any; groups: Groups };
+type MetricEntry = {
+  value: number | null;
+  unit: string | null;
+  observedAt: string | null;
+  freshnessDays: number | null;
+};
+type MetricSnapshot = Record<string, MetricEntry>;
+type CoreMetricKey = "ldl" | "hba1c" | "sbp" | "bmi" | "egfr";
 
 export default function MedicalProfile() {
   const [obs, setObs] = useState<Observation[]>([]);
@@ -132,13 +140,13 @@ export default function MedicalProfile() {
   };
 
   const patientSummary = summaryData?.patient ?? null;
-  const metrics = summaryData?.metrics ?? {};
+  const metrics: MetricSnapshot = (summaryData?.metrics ?? {}) as MetricSnapshot;
   const predictions: Array<any> = Array.isArray(summaryData?.predictions)
     ? (summaryData?.predictions as any[])
     : [];
   const summaryErrorMessage = summaryError instanceof Error ? summaryError.message : summaryError ? String(summaryError) : null;
   const summaryRefreshing = summaryFetching && !!summaryData;
-  const metricConfig: Array<{ key: keyof typeof metrics; label: string }> = [
+  const metricConfig: Array<{ key: CoreMetricKey; label: string }> = [
     { key: "ldl" as const, label: "LDL-C" },
     { key: "hba1c" as const, label: "HbA1c" },
     { key: "sbp" as const, label: "Systolic BP" },
@@ -386,7 +394,7 @@ export default function MedicalProfile() {
         )}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {metricConfig.map(item => {
-            const metric = (metrics as Record<string, any>)[item.key] ?? null;
+            const metric = metrics[item.key] ?? null;
             const value = metric?.value ?? null;
             const unit = metric?.unit ?? null;
             const observedAt = metric?.observedAt ? new Date(metric.observedAt).toLocaleDateString() : "—";
