@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 // [AIDOC_TRIAGE_IMPORT] add triage imports
 import { handleDocAITriage, detectExperientialIntent } from "@/lib/aidoc/triage";
-import { POST as streamPOST, runtime } from "../../chat/stream/route";
+import { POST as streamPOST } from "../../chat/stream/route";
 
-export { runtime };
+export const runtime = "edge";
 
 export async function POST(req: NextRequest) {
   const cloned = req.clone();
