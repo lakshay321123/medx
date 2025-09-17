@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useTimeline } from "@/lib/hooks/useAppData";
+import { readResponseError } from "@/lib/utils/readResponseError";
 
 type Cat = "ALL"|"LABS"|"VITALS"|"IMAGING"|"AI"|"NOTES";
 const catOf = (it:any):Cat => {
@@ -14,31 +15,10 @@ const catOf = (it:any):Cat => {
   return "NOTES";
 };
 
-const readErrorMessage = async (res: Response, fallback: string) => {
-  const base = res.statusText || fallback;
-  const contentType = res.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) {
-    try {
-      const data = await res.clone().json();
-      const message =
-        typeof data?.error === "string"
-          ? data.error
-          : typeof data?.message === "string"
-          ? data.message
-          : null;
-      if (message) return message;
-    } catch {}
-  }
-  try {
-    const text = await res.text();
-    if (text) return text;
-  } catch {}
-  return base || fallback;
-};
-
 export default function Timeline(){
-  const [actionError, setActionError] = useState<string|null>(null);
-  const [deletingId, setDeletingId] = useState<string|null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const { data, error, isLoading, mutate } = useTimeline();
   const items = data?.items ?? [];
 
@@ -104,26 +84,34 @@ export default function Timeline(){
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-semibold">Timeline</h2>
         <button
+          type="button"
           onClick={async () => {
+            if (isResetting) return;
             if (!confirm('Reset all observations and predictions?')) return;
             setActionError(null);
+            setIsResetting(true);
             try {
               const res = await fetch('/api/observations/reset', { method: 'POST' });
               if (res.status === 401) {
                 setActionError('Please sign in');
-              } else if (!res.ok) {
-                setActionError(await readErrorMessage(res, 'Failed to reset timeline'));
-              } else {
-                await mutate();
-                setActionError(null);
+                return;
               }
+              if (!res.ok) {
+                setActionError(await readResponseError(res, 'Failed to reset timeline'));
+                return;
+              }
+              await mutate();
+              setActionError(null);
             } catch (err) {
               const message = err instanceof Error ? err.message : 'Failed to reset timeline';
               setActionError(message || 'Failed to reset timeline');
+            } finally {
+              setIsResetting(false);
             }
           }}
-          className="text-xs px-2 py-1 rounded-md border"
-        >Reset</button>
+          className="text-xs px-2 py-1 rounded-md border disabled:opacity-60"
+          disabled={isResetting}
+        >{isResetting ? 'Resetting…' : 'Reset'}</button>
       </div>
       {actionError && <div className="mb-2 text-xs text-rose-600">{actionError}</div>}
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -149,7 +137,8 @@ export default function Timeline(){
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted">{it.kind==="prediction"?"AI":"Obs"}</span>
                 {it.kind==="observation" && (
                   <button
-                    className="text-[10px] px-2 py-0.5 rounded-md border"
+                    type="button"
+                    className="text-[10px] px-2 py-0.5 rounded-md border disabled:opacity-60"
                     onClick={async (e) => {
                       e.stopPropagation();
                       if (!confirm('Delete this observation?')) return;
@@ -163,17 +152,19 @@ export default function Timeline(){
                         });
                         if (res.status === 401) {
                           setActionError('Please sign in');
-                        } else if (!res.ok) {
-                          setActionError(await readErrorMessage(res, 'Failed to delete observation'));
-                        } else {
-                          if (active?.id === it.id) {
-                            setOpen(false);
-                            setActive(null);
-                            setSignedUrl(null);
-                          }
-                          await mutate();
-                          setActionError(null);
+                          return;
                         }
+                        if (!res.ok) {
+                          setActionError(await readResponseError(res, 'Failed to delete observation'));
+                          return;
+                        }
+                        if (active?.id === it.id) {
+                          setOpen(false);
+                          setActive(null);
+                          setSignedUrl(null);
+                        }
+                        await mutate();
+                        setActionError(null);
                       } catch (err) {
                         const message = err instanceof Error ? err.message : 'Failed to delete observation';
                         setActionError(message || 'Failed to delete observation');
