@@ -995,7 +995,27 @@ ${linkNudge}`;
       const { getIntentStyle } = await import("@/lib/intents");
       const INTENT_STYLE = getIntentStyle(messageText || "", mode);
 
+      // Build drafting structure exactly once from the base mode
+      const DRAFT_STYLE = mode === "doctor" ? DOCTOR_DRAFT_STYLE : PATIENT_DRAFT_STYLE;
+      const STRUCTURE_STYLE = [DRAFT_STYLE, INTENT_STYLE || ""].filter(Boolean).join("\n\n");
+
+      // Keep research as an additive hint, never a new template
+      const RESEARCH_STITCH = researchMode
+        ? [
+            "RESEARCH INTEGRATION:",
+            "- Keep the above section headings exactly as-is.",
+            "- Add 1–2 bullets labeled **Research says:** where relevant.",
+            "- Cite inline as [1], [2] and include linked references at the end."
+          ].join("\n")
+        : "";
+
+      const buildSystemAll = (base: string, domain?: string, adv?: string) =>
+        [base, domain || "", adv || "", STRUCTURE_STYLE, RESEARCH_STITCH]
+          .filter(Boolean)
+          .join("\n\n");
+
       const sys = topicHint + systemCommon + baseSys;
+      const sysWithDomain = sys;
       let ADV_STYLE = "";
       const adv = detectAdvancedDomain(messageText);
       if (adv) {
@@ -1008,19 +1028,8 @@ ${linkNudge}`;
           adv === "preventive"     ? D.PREVENTIVE_STYLE :
           adv === "systems-policy" ? D.SYSTEMS_POLICY_STYLE : "";
       }
-      const DRAFT_STYLE = mode === "doctor" ? DOCTOR_DRAFT_STYLE : PATIENT_DRAFT_STYLE;
-      const STRUCTURE_STYLE = [DRAFT_STYLE, INTENT_STYLE || ""].filter(Boolean).join("\n\n");
-      const RESEARCH_STITCH = researchMode
-        ? [
-            "RESEARCH INTEGRATION:",
-            "- Keep the above section headings exactly as-is.",
-            "- Add 1–2 bullets labeled **Research says:** where relevant.",
-            "- Cite inline as [1], [2] and include linked references at the end."
-          ].join("\n")
-        : "";
-      const buildSystemAll = (base: string, domain?: string, adv?: string) =>
-        [base, domain || "", adv || "", STRUCTURE_STYLE, RESEARCH_STITCH].filter(Boolean).join("\n\n");
-      const systemAll = buildSystemAll(sys, DOMAIN_STYLE, ADV_STYLE);
+      // Append mode structure and any intent-specific structure
+      const systemAll = buildSystemAll(sysWithDomain, DOMAIN_STYLE, ADV_STYLE);
       let chatMessages: { role: string; content: string }[];
 
       const looksLikeMath = /[0-9\.\s+\-*\/^()]{6,}/.test(messageText) || /sin|cos|log|sqrt|derivative|integral|limit/i.test(messageText);
@@ -1097,7 +1106,8 @@ Here is the ENTIRE conversation so far:
 ${fullMem || "(none)"}
 
 ${systemCommon}` + baseSys;
-        const systemAll = buildSystemAll(system, DOMAIN_STYLE, ADV_STYLE);
+        const systemWithDomain = system;
+        const systemAll = buildSystemAll(systemWithDomain, DOMAIN_STYLE, ADV_STYLE);
         const userMsg = `Follow-up: ${text}\nIf the question is ambiguous, ask one concise disambiguation question and then answer briefly using the context.`;
         chatMessages = [
           { role: 'system', content: systemAll },
@@ -1113,7 +1123,8 @@ ${systemCommon}` + baseSys;
         );
 
         const sys = topicHint + systemCommon + baseSys;
-        const systemAll = buildSystemAll(sys, DOMAIN_STYLE, ADV_STYLE);
+        const sysWithDomain = sys;
+        const systemAll = buildSystemAll(sysWithDomain, DOMAIN_STYLE, ADV_STYLE);
         const planContextBlock = 'CONTEXT:\n' + JSON.stringify(plan.sections || {}, null, 2);
         chatMessages = [
           { role: 'system', content: systemAll },
@@ -1121,9 +1132,7 @@ ${systemCommon}` + baseSys;
         ];
       }
 
-      const researchOn =
-        new URLSearchParams(window.location.search).get('research')?.match(/^(1|true)$/i);
-      const url = `/api/chat/stream${researchOn ? '?research=1' : ''}`;
+      const url = `/api/chat/stream${researchMode ? '?research=1' : ''}`;
       const res = await fetch(url, {
         method: 'POST',
         headers: {
@@ -1137,7 +1146,7 @@ ${systemCommon}` + baseSys;
           threadId,
           context,
           clientRequestId,
-          research: !!researchOn
+          research: researchMode
         }),
         signal: ctrl.signal
       });
