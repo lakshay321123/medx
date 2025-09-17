@@ -18,11 +18,9 @@ import { isFollowUp } from '@/lib/followup';
 import { detectFollowupIntent } from '@/lib/intents';
 import { BRAND_NAME } from "@/lib/brand";
 import SuggestionChips from "@/components/chat/SuggestionChips";
-import SuggestBar from "@/components/suggest/SuggestBar";
 import ComposerFocus from "@/components/chat/ComposerFocus";
 import { normalizeSuggestions } from "@/lib/chat/normalize";
 import type { Suggestion } from "@/lib/chat/suggestions";
-import { getDefaultSuggestions, getInlineSuggestions } from "@/lib/suggestions/engine";
 import { safeJson } from '@/lib/safeJson';
 import { splitFollowUps } from '@/lib/splitFollowUps';
 import { getTrials } from "@/lib/hooks/useTrials";
@@ -301,7 +299,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const { country } = useCountry();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [userText, setUserText] = useState('');
+  const [note, setNote] = useState('');
   const [proactive, setProactive] = useState<null | { kind: 'predispositions'|'medications'|'weight' }>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -319,15 +317,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const mode: 'patient' | 'doctor' = modeState.base === 'doctor' ? 'doctor' : 'patient';
   const researchMode = modeState.research;
   const therapyMode = modeState.therapy;
-  const defaultSuggestions = useMemo(() => getDefaultSuggestions(modeState), [modeState]);
-  const liveSuggestions = useMemo(() => getInlineSuggestions(userText, modeState), [userText, modeState]);
-  const visibleMessages = useMemo(
-    () => messages.filter(m => m.role === 'user' || m.role === 'assistant'),
-    [messages]
-  );
-  const trimmedInput = userText.trim();
-  const showDefaultSuggestions = visibleMessages.length === 0 && trimmedInput.length === 0;
-  const showLiveSuggestions = trimmedInput.length > 0 && liveSuggestions.length > 0;
 
   const lastSuggestions = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -339,11 +328,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     return [];
   }, [messages]);
 
-  const handleSuggestionPick = (text: string) => {
-    setUserText(text);
-    setTimeout(() => inputRef.current?.focus(), 0);
-  };
-
   // Auto-resize the textarea up to a max height
   useEffect(() => {
     const el = (inputRef?.current as unknown as HTMLTextAreaElement | null);
@@ -351,7 +335,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     el.style.height = 'auto';
     const max = 200; // px; ~ChatGPT feel
     el.style.height = Math.min(el.scrollHeight, max) + 'px';
-  }, [userText, inputRef]);
+  }, [note, inputRef]);
 
   const [trialRows, setTrialRows] = useState<TrialRow[]>([]);
   const [searched, setSearched] = useState(false);
@@ -593,8 +577,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   // keep draft synced
   useEffect(() => {
     const key = draftKey(threadId);
-    try { localStorage.setItem(key, userText || ''); } catch {}
-  }, [userText, threadId]);
+    try { localStorage.setItem(key, note || ''); } catch {}
+  }, [note, threadId]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -670,28 +654,28 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         .replace(/\bnp\b/gi, "neutrophil percentage")
         .replace(/\bsgpt\b/gi, "ALT (SGPT)")
         .replace(/\bsgot\b/gi, "AST (SGOT)");
-    const messageText = isProfileThread ? normalize(text) : text;
+    const userText = isProfileThread ? normalize(text) : text;
     const visualEcho = opts.visualEcho !== false;
     const clientRequestId = opts.clientRequestId || crypto.randomUUID();
-    if (threadId) pushFullMem(threadId, "user", messageText);
+    if (threadId) pushFullMem(threadId, "user", userText);
     if (stableThreadId) {
-      try { pushFullMem(stableThreadId, "user", messageText); } catch {}
+      try { pushFullMem(stableThreadId, "user", userText); } catch {}
     }
 
     // Social intent handling (strict + low-noise)
-    const social = (SOCIAL_MODE === 'off' || therapyMode) ? null : detectSocialIntent(messageText);
+    const social = (SOCIAL_MODE === 'off' || therapyMode) ? null : detectSocialIntent(userText);
     if (social) {
       if (social === 'yes') {
         const lastUser = [...messages].reverse().find(m => m.role === 'user');
         const replay = (lastUser?.content || '').trim();
         setBusy(false);
         setThinkingStartedAt(null);
-        setUserText('');
+        setNote('');
         if (replay) await send(replay, researchMode, { visualEcho: false });
       } else {
         setBusy(false);
         setThinkingStartedAt(null);
-        setUserText('');
+        setNote('');
       }
       // 'chatty' (optional): uncomment to show lines
       // if (SOCIAL_MODE === 'chatty') {
@@ -715,11 +699,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     const pendingId = uid();
     // Dedupe: avoid back-to-back identical user bubbles
     const lastUser = [...messages].reverse().find(m => m.role === 'user');
-    const isDupUser = !!lastUser && lastUser.content.trim() === messageText.trim();
+    const isDupUser = !!lastUser && lastUser.content.trim() === userText.trim();
     const nextMsgs: ChatMessage[] = (visualEcho && !isDupUser)
       ? [
           ...messages,
-          { id: userId, role: 'user', kind: 'chat', content: messageText } as ChatMessage,
+          { id: userId, role: 'user', kind: 'chat', content: userText } as ChatMessage,
           { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true } as ChatMessage,
         ]
       : [
@@ -727,7 +711,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true } as ChatMessage,
         ];
     setMessages(nextMsgs);
-    const maybe = maybeFixMedicalTypo(messageText);
+    const maybe = maybeFixMedicalTypo(userText);
     if (maybe && messages.filter(m => m.role === "assistant").slice(-1)[0]?.content !== maybe.ask) {
       // Ask once, keep pending bubble as the question (no LLM call)
       setMessages(prev => prev.map(m => m.id === pendingId ? { ...m, content: maybe.ask, pending: false } : m));
@@ -742,7 +726,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       setThinkingStartedAt(null);
       return; // wait for user Yes/No
     }
-    setUserText('');
+    setNote('');
     if (
       !isProfileThread &&
       threadId &&
@@ -764,7 +748,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           ...messages
             .filter(m => !m.pending)
             .map(m => ({ role: m.role, content: (m as any).content || '' })),
-          { role: 'user', content: `${messageText}${contextBlock}` }
+          { role: 'user', content: `${userText}${contextBlock}` }
         ];
 
         const endpoint = '/api/aidoc/chat';
@@ -951,7 +935,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       // === ADD-ONLY: domain style selection ===
       let DOMAIN_STYLE = "";
       try {
-        const d = detectDomain(messageText);
+        const d = detectDomain(userText);
         if (d === "allied")      DOMAIN_STYLE = DomainStyles.ALLIED_STYLE;
         else if (d === "wellness")   DOMAIN_STYLE = DomainStyles.WELLNESS_STYLE;
         else if (d === "technical")  DOMAIN_STYLE = DomainStyles.TECHNICAL_SCI_STYLE;
@@ -993,26 +977,7 @@ ${linkNudge}`;
 
       // Intent-aware structure (lightweight)
       const { getIntentStyle } = await import("@/lib/intents");
-      const INTENT_STYLE = getIntentStyle(messageText || "", mode);
-
-      // Build drafting structure exactly once from the base mode
-      const DRAFT_STYLE = mode === "doctor" ? DOCTOR_DRAFT_STYLE : PATIENT_DRAFT_STYLE;
-      const STRUCTURE_STYLE = [DRAFT_STYLE, INTENT_STYLE || ""].filter(Boolean).join("\n\n");
-
-      // Keep research as an additive hint, never a new template
-      const RESEARCH_STITCH = researchMode
-        ? [
-            "RESEARCH INTEGRATION:",
-            "- Keep the above section headings exactly as-is.",
-            "- Add 1–2 bullets labeled **Research says:** where relevant.",
-            "- Cite inline as [1], [2] and include linked references at the end."
-          ].join("\n")
-        : "";
-
-      const buildSystemAll = (base: string, domain?: string, adv?: string) =>
-        [base, domain || "", adv || "", STRUCTURE_STYLE, RESEARCH_STITCH]
-          .filter(Boolean)
-          .join("\n\n");
+      const INTENT_STYLE = getIntentStyle(userText || "", mode);
 
       // Build drafting structure exactly once from the base mode
       const DRAFT_STYLE = modeState.base === "doctor" ? DOCTOR_DRAFT_STYLE : PATIENT_DRAFT_STYLE;
@@ -1036,7 +1001,7 @@ ${linkNudge}`;
       const sys = topicHint + systemCommon + baseSys;
       const sysWithDomain = sys;
       let ADV_STYLE = "";
-      const adv = detectAdvancedDomain(messageText);
+      const adv = detectAdvancedDomain(userText);
       if (adv) {
         const D = await import("@/lib/prompts/advancedDomains");
         ADV_STYLE =
@@ -1051,31 +1016,31 @@ ${linkNudge}`;
       const systemAll = buildSystemAll(sysWithDomain, DOMAIN_STYLE, ADV_STYLE);
       let chatMessages: { role: string; content: string }[];
 
-      const looksLikeMath = /[0-9\.\s+\-*\/^()]{6,}/.test(messageText) || /sin|cos|log|sqrt|derivative|integral|limit/i.test(messageText);
+      const looksLikeMath = /[0-9\.\s+\-*\/^()]{6,}/.test(userText) || /sin|cos|log|sqrt|derivative|integral|limit/i.test(userText);
       let toolBlock = "";
       if (looksLikeMath) {
-        try { const res = await computeEval(messageText); toolBlock = `\n\nTOOL RESULT:\n${res}`; } catch {}
+        try { const res = await computeEval(userText); toolBlock = `\n\nTOOL RESULT:\n${res}`; } catch {}
       }
-      const historyIntent = /\b(empire|war|dynasty|revolution|treaty|reign)\b/i.test(messageText);
-      const doctorIntent = mode === "doctor" || /\b(symptom|diagnosis|treatment|disease|syndrome|pain|infection|therapy|medication)\b/i.test(messageText);
+      const historyIntent = /\b(empire|war|dynasty|revolution|treaty|reign)\b/i.test(userText);
+      const doctorIntent = mode === "doctor" || /\b(symptom|diagnosis|treatment|disease|syndrome|pain|infection|therapy|medication)\b/i.test(userText);
 
       if (looksLikeMath) {
         const STYLE_MATH = `You are a rigorous solver. Show: (1) setup, (2) key steps, (3) final answer WITH UNITS, (4) quick self-check. Do not reveal hidden reasoning.`;
         chatMessages = [
           { role: "system", content: `${systemAll}\n\n${STYLE_MATH}` },
-          { role: "user", content: `${messageText}${toolBlock}${contextBlock}` }
+          { role: "user", content: `${userText}${toolBlock}${contextBlock}` }
         ];
       } else if (historyIntent) {
         const { HISTORY_STYLE: STYLE_HISTORY } = await import("@/lib/prompts/history");
         chatMessages = [
           { role: "system", content: `${systemAll}\n\n${STYLE_HISTORY}` },
-          { role: "user", content: `${messageText}${contextBlock}` }
+          { role: "user", content: `${userText}${contextBlock}` }
         ];
       } else if (doctorIntent) {
         const { DOCTOR_STYLE: STYLE_DOCTOR } = await import("@/lib/prompts/doctor");
         chatMessages = [
           { role: "system", content: `${systemAll}\n\n${STYLE_DOCTOR}` },
-          { role: "user", content: `${messageText}${contextBlock}` }
+          { role: "user", content: `${userText}${contextBlock}` }
         ];
       }
 
@@ -1151,7 +1116,9 @@ ${systemCommon}` + baseSys;
         ];
       }
 
-      const url = `/api/chat/stream${researchMode ? '?research=1' : ''}`;
+      const researchOn =
+        new URLSearchParams(window.location.search).get('research')?.match(/^(1|true)$/i);
+      const url = `/api/chat/stream${researchOn ? '?research=1' : ''}`;
       const res = await fetch(url, {
         method: 'POST',
         headers: {
@@ -1165,7 +1132,7 @@ ${systemCommon}` + baseSys;
           threadId,
           context,
           clientRequestId,
-          research: researchMode
+          research: !!researchOn
         }),
         signal: ctrl.signal
       });
@@ -1278,7 +1245,7 @@ ${systemCommon}` + baseSys;
     setTimeout(() => inputRef.current?.focus(), 0);
   }
 
-  async function analyzeFile(file: File, noteText: string) {
+  async function analyzeFile(file: File, note: string) {
     if (!file || busy) return;
     setBusy(true);
     setThinkingStartedAt(Date.now());
@@ -1292,7 +1259,7 @@ ${systemCommon}` + baseSys;
       fd.append('file', file);
       fd.append('doctorMode', String(mode === 'doctor'));
       fd.append('country', country.code3);
-      if (noteText.trim()) fd.append('note', noteText.trim());
+      if (note.trim()) fd.append('note', note.trim());
       const search = new URLSearchParams(window.location.search);
       const threadId = search.get('threadId');
       if (threadId) fd.append('threadId', threadId);
@@ -1342,7 +1309,7 @@ ${systemCommon}` + baseSys;
       setBusy(false);
       setThinkingStartedAt(null);
       setPendingFile(null);
-      setUserText('');
+      setNote('');
     }
   }
 
@@ -1350,13 +1317,13 @@ ${systemCommon}` + baseSys;
     if (busy || inFlight) return;
     inFlight = true;
     try {
-      const trimmed = userText.trim();
+      const trimmed = note.trim();
       if (!pendingFile && trimmed) {
         const summarizeMatch = /^summarize\s+(NCT\d{8})$/i.exec(trimmed);
         if (summarizeMatch) {
           const nct = summarizeMatch[1].toUpperCase();
           setMessages(prev => [...prev, { id: uid(), role: 'user', kind: 'chat', content: trimmed, pending: false } as any]);
-          setUserText('');
+          setNote('');
           if (threadId) pushFullMem(threadId, 'user', trimmed);
           if (stableThreadId) {
             try { pushFullMem(stableThreadId, 'user', trimmed); } catch {}
@@ -1399,8 +1366,8 @@ ${systemCommon}` + baseSys;
       }
 
     // --- Proactive single Q&A commit path (profile thread) ---
-    if (isProfileThread && proactive && !pendingFile && userText.trim()) {
-      const text = userText.trim();
+    if (isProfileThread && proactive && !pendingFile && note.trim()) {
+      const text = note.trim();
       const ack = (msg: string) => setMessages(prev => [...prev, { id: uid(), role:'assistant', kind:'chat', content: msg, pending:false } as any]);
       try {
         if (proactive.kind === 'predispositions') {
@@ -1430,14 +1397,14 @@ ${systemCommon}` + baseSys;
       } catch { /* swallow; user sees ack or can retry */ }
       setProactive(null);
       setMessages(prev => [...prev, { id: uid(), role:'user', kind:'chat', content: text, pending:false } as any]);
-      setUserText('');
+      setNote('');
       return;
     }
 
     // --- Medication verification (profile thread only; note-only submits) ---
-    if (isProfileThread && !pendingFile && userText.trim()) {
+    if (isProfileThread && !pendingFile && note.trim()) {
       try {
-        const v = await safeJson(fetch('/api/meds/verify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text: userText }) }));
+        const v = await safeJson(fetch('/api/meds/verify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text: note }) }));
         if (v?.ok && v?.suggestion && window.confirm(`Did you mean "${v.suggestion}"?`)) {
           await safeJson(fetch('/api/observations', {
             method:'POST', headers:{'Content-Type':'application/json'},
@@ -1464,27 +1431,27 @@ ${systemCommon}` + baseSys;
           const ackId = uid();
           setMessages(prev => [
             ...prev,
-            { id: uid(), role:'user', kind:'chat', content: userText, pending:false } as any,
+            { id: uid(), role:'user', kind:'chat', content: note, pending:false } as any,
             { id: ackId, role:'assistant', kind:'chat', content:`Saved **${v.suggestion}** to your profile.`, pending:false } as any
           ]);
-          setUserText('');
+          setNote('');
           return;
         }
       } catch {}
     }
 
     // Regular chat flow (file or note)
-    if (!pendingFile && !userText.trim()) return;
+    if (!pendingFile && !note.trim()) return;
     if (pendingFile) {
-      await analyzeFile(pendingFile, userText);
+      await analyzeFile(pendingFile, note);
     } else {
-      await send(userText, researchMode);
+      await send(note, researchMode);
       if (enabled) {
         try {
           const res = await fetch('/api/memory/suggest', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: userText, thread_id: threadId }),
+            body: JSON.stringify({ text: note, thread_id: threadId }),
           });
           if (res.ok) {
             const { suggestions } = await res.json();
@@ -1591,7 +1558,7 @@ ${systemCommon}` + baseSys;
   async function runAiDocWith(profileIntent: 'current' | 'new', newProfile?: any) {
     setLoadingAidoc(true);
     try {
-      const text = (userText || '').trim() || lastUserMessageText || '';
+      const text = (note || '').trim() || lastUserMessageText || '';
       const r = await fetch('/api/ai-doc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1762,16 +1729,6 @@ ${systemCommon}` + baseSys;
         ref={chatRef}
         className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 pb-28"
       >
-        {showDefaultSuggestions && (
-          <div className="mx-auto mb-4 w-full max-w-3xl">
-            <SuggestBar
-              title="Popular questions"
-              suggestions={defaultSuggestions}
-              onPick={handleSuggestionPick}
-              className="sticky top-2 z-10 rounded-2xl border border-zinc-200 bg-white/90 p-3 backdrop-blur dark:border-zinc-700 dark:bg-slate-900/80"
-            />
-          </div>
-        )}
         {ui.topic && (
           <div className="mx-auto mb-2 max-w-3xl px-4 sm:px-6">
             <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs bg-white dark:bg-gray-900 border-slate-200 dark:border-gray-800">
@@ -1791,7 +1748,7 @@ ${systemCommon}` + baseSys;
           </div>
         )}
       <div className="mx-auto w-full max-w-3xl space-y-4">
-        {visibleMessages.map(m =>
+        {messages.filter((m: any) => m.role !== 'system').map(m =>
             m.role === 'user' ? (
               <div
                 key={m.id}
@@ -1825,9 +1782,7 @@ ${systemCommon}` + baseSys;
         <div className="mx-auto w-full max-w-3xl">
           <div className="mt-3 rounded-lg border p-3 space-y-2">
             <div className="text-sm font-medium">Observations</div>
-            <div className="text-sm opacity-90">
-              <ChatMarkdown content={aidoc?.observations?.short || ""} />
-            </div>
+            <div className="text-sm opacity-90">{aidoc?.observations?.short}</div>
 
             {Array.isArray(aidoc?.plan?.steps) && aidoc.plan.steps.length > 0 && (
               <>
@@ -1924,35 +1879,27 @@ ${systemCommon}` + baseSys;
     </div>
   <div className="absolute bottom-4 left-0 right-0 flex justify-center">
         <div className="w-full max-w-3xl px-4">
-      {mode === 'doctor' && AIDOC_UI && (
-        <button
-          className="rounded-md px-3 py-1 border mb-2"
-          onClick={async () => {
-            if (AIDOC_PREFLIGHT) {
-              setShowPatientChooser(true);
-            } else {
-              runAiDocWith('current');
-            }
-          }}
-          aria-label="AI Doc Next Steps"
-          disabled={loadingAidoc}
-        >
-          {loadingAidoc ? 'Analyzing…' : 'Next steps (AI Doc)'}
-        </button>
-      )}
-      {showLiveSuggestions && (
-        <SuggestBar
-          title="Suggestions"
-          suggestions={liveSuggestions}
-          onPick={handleSuggestionPick}
-          className="rounded-2xl border border-zinc-200 bg-white/90 p-3 backdrop-blur dark:border-zinc-700 dark:bg-slate-900/80"
-        />
-      )}
-      <form
-        onSubmit={e => {
-          e.preventDefault();
-          onSubmit();
-        }}
+          {mode === 'doctor' && AIDOC_UI && (
+            <button
+              className="rounded-md px-3 py-1 border mb-2"
+              onClick={async () => {
+                if (AIDOC_PREFLIGHT) {
+                  setShowPatientChooser(true);
+                } else {
+                  runAiDocWith('current');
+                }
+              }}
+              aria-label="AI Doc Next Steps"
+              disabled={loadingAidoc}
+            >
+              {loadingAidoc ? 'Analyzing…' : 'Next steps (AI Doc)'}
+            </button>
+          )}
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              onSubmit();
+            }}
             className="w-full flex items-center gap-3 rounded-full medx-glass px-3 py-2"
           >
             <label
@@ -1995,8 +1942,8 @@ ${systemCommon}` + baseSys;
                     ? 'Add a note or question for this document (optional)'
                     : 'Send a message'
                 }
-                value={userText}
-                onChange={(e) => setUserText(e.target.value)}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
                 onKeyDown={(e) => {
                   // Send on Enter (no Shift), allow newline on Shift+Enter.
                   // Respect IME composition (don't send while composing).
@@ -2024,7 +1971,7 @@ ${systemCommon}` + baseSys;
                 <button
                   className="w-10 h-10 rounded-full flex items-center justify-center text-lg medx-btn-accent disabled:opacity-50"
                   type="submit"
-                  disabled={!pendingFile && !userText.trim()}
+                  disabled={!pendingFile && !note.trim()}
                   aria-label="Send"
                   title="Send"
                 >
