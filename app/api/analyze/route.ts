@@ -111,7 +111,7 @@ export async function POST(req: Request) {
 
     if (mime === "application/pdf" || name.toLowerCase().endsWith(".pdf")) {
       text = await extractTextFromPDF(buf);
-      if (text) {
+      if (!doctorMode && text) {
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
         const cookie = req.headers.get("cookie") || undefined;
         try {
@@ -238,7 +238,7 @@ export async function POST(req: Request) {
       category,
       report,
       disclaimer: "AI assistance only — not a medical diagnosis. Confirm with a clinician.",
-      obsIds,
+      obsIds: doctorMode ? [] : obsIds,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message || "analyze failed" }, { status: 500 });
