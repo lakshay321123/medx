@@ -977,7 +977,9 @@ ${linkNudge}`;
 
       // ---- Unified drafting helpers (define ONCE) --------------------------
       const { getIntentStyle } = await import("@/lib/intents");
-      const baseMode = (modeState?.base ?? mode) as "doctor" | "patient" | string;
+      // Ensure baseMode is a proper Mode union (no plain string)
+      type Mode = "doctor" | "patient" | "aidoc";
+      const baseMode = (modeState?.base ?? mode) as Mode;
       const INTENT_STYLE = getIntentStyle(userText || "", baseMode);
       const DRAFT_STYLE =
         baseMode === "doctor" ? DOCTOR_DRAFT_STYLE : PATIENT_DRAFT_STYLE;
