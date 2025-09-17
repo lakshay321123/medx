@@ -1,8 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { safeJson } from "@/lib/safeJson";
-import { useProfile } from "@/lib/hooks/useAppData";
+import { useProfile, useTimeline } from "@/lib/hooks/useAppData";
+import { buildPredictionBundle } from "@/lib/predict/collectFromUI";
+
+const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === "1";
 
 const SEXES = ["male", "female", "other"] as const;
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -47,6 +50,7 @@ type Groups = Record<
 >;
 export default function MedicalProfile() {
   const { data, error, isLoading, mutate } = useProfile();
+  const { data: timelineData } = useTimeline();
   const [obs, setObs] = useState<Observation[]>([]);
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState<null | "obs" | "all" | "zero">(null);
@@ -57,6 +61,100 @@ export default function MedicalProfile() {
 
   const [summary, setSummary] = useState<string>("");
   const [reasons, setReasons] = useState<string>("");
+
+  const profileGroups = data?.groups || null;
+  const currentProfileObject = data?.profile ?? null;
+  const currentObservationsArray = useMemo(() => {
+    if (!profileGroups) return [];
+    const keys = ["vitals", "imaging", "diagnoses", "procedures", "immunizations", "notes", "other"] as const;
+    const out: any[] = [];
+    for (const key of keys) {
+      const list = (profileGroups as any)[key];
+      if (!Array.isArray(list)) continue;
+      for (const item of list) {
+        if (!item) continue;
+        const label = typeof item.label === "string" && item.label.trim() ? item.label.trim() : undefined;
+        out.push({
+          id: item.key ? `${String(key)}:${item.key}` : undefined,
+          observed_at: item.observedAt || undefined,
+          type: item.key || label || String(key),
+          value: item.value ?? null,
+          units: item.unit ?? null,
+          note: item.source ?? null,
+        });
+      }
+    }
+    return out;
+  }, [profileGroups]);
+  const currentLabsArray = useMemo(() => {
+    const labs = (profileGroups as any)?.labs;
+    if (!Array.isArray(labs)) return [];
+    return labs.map((item: any) => ({
+      id: item?.key ? `lab:${item.key}` : undefined,
+      observed_at: item?.observedAt || undefined,
+      analyte: (item?.label || item?.key || "") || undefined,
+      value: item?.value ?? null,
+      units: item?.unit ?? null,
+      ref_low: null,
+      ref_high: null,
+      report_id: null,
+    }));
+  }, [profileGroups]);
+  const currentMedsArray = useMemo(() => {
+    const meds = (profileGroups as any)?.medications;
+    if (!Array.isArray(meds)) return [];
+    return meds.map((item: any) => {
+      const strength = typeof item?.value === "string" && item.value.trim() ? item.value.trim() : undefined;
+      return {
+        id: item?.key ? `med:${item.key}` : undefined,
+        name: (item?.label || item?.key || strength || "") || undefined,
+        strength,
+        route: undefined,
+        freq: undefined,
+        start_date: item?.observedAt || undefined,
+        stop_date: null,
+      };
+    });
+  }, [profileGroups]);
+  const currentTextChunksArray = useMemo(() => {
+    const items = Array.isArray(timelineData?.items) ? timelineData.items : [];
+    const out: { file_id: string; page: number; chunk_index: number; content: string }[] = [];
+    const seen = new Set<string>();
+    let chunkIndex = 0;
+    for (const item of items) {
+      if (!item || item.kind !== "observation") continue;
+      const meta = item.meta || {};
+      const texts: string[] = [];
+      const pushText = (val: any) => {
+        if (typeof val !== "string") return;
+        const trimmed = val.trim();
+        if (!trimmed || trimmed.length < 40) return;
+        if (!texts.includes(trimmed)) texts.push(trimmed);
+      };
+      pushText(meta.summary_long);
+      pushText(meta.summary);
+      pushText(meta.text);
+      pushText(item.value);
+      for (const text of texts) {
+        const fileId = item.file?.upload_id || item.file?.path || `timeline-${item.id ?? chunkIndex}`;
+        const pageRaw = meta.page ?? meta.page_number ?? meta.pageIndex;
+        const page = typeof pageRaw === "number" && Number.isFinite(pageRaw) ? pageRaw : 0;
+        const dedupKey = `${fileId}:${page}:${text.slice(0, 48)}`;
+        if (seen.has(dedupKey)) continue;
+        seen.add(dedupKey);
+        out.push({
+          file_id: String(fileId ?? `timeline-${chunkIndex}`),
+          page,
+          chunk_index: chunkIndex,
+          content: text,
+        });
+        chunkIndex += 1;
+        if (chunkIndex >= 600) break;
+      }
+      if (chunkIndex >= 600) break;
+    }
+    return out;
+  }, [timelineData]);
 
   const loadSummary = async () => {
     try {
@@ -422,6 +520,31 @@ export default function MedicalProfile() {
               onClick={async () => {
                 await fetch("/api/alerts/recompute", { method: "POST" });
                 await loadSummary();
+                if (AIDOC_UI) {
+                  try {
+                    const threadForPredict = (() => {
+                      if (typeof window === "undefined") return _threadId || "default_thread";
+                      try {
+                        return sessionStorage.getItem("aidoc_thread") || _threadId || "default_thread";
+                      } catch {
+                        return _threadId || "default_thread";
+                      }
+                    })();
+                    const bundle = buildPredictionBundle({
+                      profile: currentProfileObject,
+                      observations: currentObservationsArray,
+                      labs: currentLabsArray,
+                      meds: currentMedsArray,
+                      textChunks: currentTextChunksArray,
+                    });
+                    fetch("/api/aidoc/predict", {
+                      method: "POST",
+                      credentials: "include",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ threadId: threadForPredict, bundle }),
+                    }).catch(() => {});
+                  } catch {}
+                }
               }}
               className="text-xs px-2 py-1 rounded-md border"
             >Recompute Risk</button>

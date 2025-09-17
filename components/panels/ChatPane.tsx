@@ -45,9 +45,18 @@ import { StopButton } from "@/components/ui/StopButton";
 import { useTypewriterStore } from "@/lib/state/typewriterStore";
 import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
+import { useProfile, useTimeline } from "@/lib/hooks/useAppData";
+import { buildPredictionBundle } from "@/lib/predict/collectFromUI";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
+const PREDICTION_TRIGGERS = [
+  'predict my health',
+  'predict my risk',
+  'update my health',
+  'risk prediction',
+  'health forecast'
+];
 
 // Control how social intent behaves:
 //  - 'off'    : completely disabled
@@ -427,13 +436,108 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [commitBusy, setCommitBusy] = useState<null | 'save' | 'discard'>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
   const [aidoc, setAidoc] = useState<any | null>(null);
+  const { data: profileData, mutate: mutateProfile } = useProfile();
+  const { data: timelineData } = useTimeline();
   const [loadingAidoc, setLoadingAidoc] = useState(false);
   const [showPatientChooser, setShowPatientChooser] = useState(false);
   const [showNewIntake, setShowNewIntake] = useState(false);
   const [intake, setIntake] = useState({
     name: "", age: "", sex: "female", pregnant: "", symptoms: "", meds: "", allergies: ""
   });
-  const [activeProfile, setActiveProfile] = useState<any>(null);
+  const activeProfile = profileData?.profile ?? null;
+  const profileGroups = profileData?.groups || null;
+  const currentProfileObject = activeProfile || null;
+  const currentObservationsArray = useMemo(() => {
+    if (!profileGroups) return [];
+    const keys = ["vitals", "imaging", "diagnoses", "procedures", "immunizations", "notes", "other"] as const;
+    const out: any[] = [];
+    for (const key of keys) {
+      const list = (profileGroups as any)[key];
+      if (!Array.isArray(list)) continue;
+      for (const item of list) {
+        if (!item) continue;
+        const label = typeof item.label === "string" && item.label.trim() ? item.label.trim() : undefined;
+        out.push({
+          id: item.key ? `${String(key)}:${item.key}` : undefined,
+          observed_at: item.observedAt || undefined,
+          type: item.key || label || String(key),
+          value: item.value ?? null,
+          units: item.unit ?? null,
+          note: item.source ?? null,
+        });
+      }
+    }
+    return out;
+  }, [profileGroups]);
+  const currentLabsArray = useMemo(() => {
+    const labs = (profileGroups as any)?.labs;
+    if (!Array.isArray(labs)) return [];
+    return labs.map((item: any) => ({
+      id: item?.key ? `lab:${item.key}` : undefined,
+      observed_at: item?.observedAt || undefined,
+      analyte: (item?.label || item?.key || "") || undefined,
+      value: item?.value ?? null,
+      units: item?.unit ?? null,
+      ref_low: null,
+      ref_high: null,
+      report_id: null,
+    }));
+  }, [profileGroups]);
+  const currentMedsArray = useMemo(() => {
+    const meds = (profileGroups as any)?.medications;
+    if (!Array.isArray(meds)) return [];
+    return meds.map((item: any) => {
+      const strength = typeof item?.value === "string" && item.value.trim() ? item.value.trim() : undefined;
+      return {
+        id: item?.key ? `med:${item.key}` : undefined,
+        name: (item?.label || item?.key || strength || "") || undefined,
+        strength,
+        route: undefined,
+        freq: undefined,
+        start_date: item?.observedAt || undefined,
+        stop_date: null,
+      };
+    });
+  }, [profileGroups]);
+  const currentTextChunksArray = useMemo(() => {
+    const items = Array.isArray(timelineData?.items) ? timelineData!.items : [];
+    const out: { file_id: string; page: number; chunk_index: number; content: string }[] = [];
+    const seen = new Set<string>();
+    let chunkIndex = 0;
+    for (const item of items) {
+      if (!item || item.kind !== "observation") continue;
+      const meta = item.meta || {};
+      const texts: string[] = [];
+      const pushText = (val: any) => {
+        if (typeof val !== "string") return;
+        const trimmed = val.trim();
+        if (!trimmed || trimmed.length < 40) return;
+        if (!texts.includes(trimmed)) texts.push(trimmed);
+      };
+      pushText(meta.summary_long);
+      pushText(meta.summary);
+      pushText(meta.text);
+      pushText(item.value);
+      for (const text of texts) {
+        const fileId = item.file?.upload_id || item.file?.path || `timeline-${item.id ?? chunkIndex}`;
+        const pageRaw = meta.page ?? meta.page_number ?? meta.pageIndex;
+        const page = typeof pageRaw === "number" && Number.isFinite(pageRaw) ? pageRaw : 0;
+        const dedupKey = `${fileId}:${page}:${text.slice(0, 48)}`;
+        if (seen.has(dedupKey)) continue;
+        seen.add(dedupKey);
+        out.push({
+          file_id: String(fileId ?? `timeline-${chunkIndex}`),
+          page,
+          chunk_index: chunkIndex,
+          content: text,
+        });
+        chunkIndex += 1;
+        if (chunkIndex >= 600) break;
+      }
+      if (chunkIndex >= 600) break;
+    }
+    return out;
+  }, [timelineData]);
   const topAlerts = Array.isArray(aidoc?.softAlerts) ? aidoc.softAlerts : [];
   const planAlerts = Array.isArray(aidoc?.plan?.softAlerts)
     ? aidoc.plan.softAlerts
@@ -498,22 +602,17 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, []);
 
   useEffect(() => {
-    const fetchProfile = () => {
-      fetch('/api/profile', { cache: 'no-store' })
-        .then(r => r.ok ? r.json() : null)
-        .then(j => setActiveProfile(j?.profile || null))
-        .catch(() => {});
-    };
+    const refresh = () => { mutateProfile(); };
     const onProfileUpdated = () => {
       // if profile thread is open, nudge a silent refresh of readiness/prompts
       // (kept light: we don’t spam messages, just clear cached “askedRecently”.)
       sessionStorage.removeItem('asked:proactive');
-      fetchProfile();
+      refresh();
     };
-    fetchProfile();
+    refresh();
     window.addEventListener('profile-updated', onProfileUpdated);
     return () => window.removeEventListener('profile-updated', onProfileUpdated);
-  }, []);
+  }, [mutateProfile]);
 
   // Load per-thread UI whenever threadId changes
   useEffect(() => {
@@ -705,6 +804,57 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     const userText = isProfileThread ? normalize(text) : text;
     const visualEcho = opts.visualEcho !== false;
     const clientRequestId = opts.clientRequestId || crypto.randomUUID();
+    const predictHit = AIDOC_UI && PREDICTION_TRIGGERS.some(p => userText.trim().toLowerCase().includes(p));
+    if (predictHit) {
+      const userMessageId = uid();
+      const statusId = uid();
+      setMessages(prev => {
+        const lastUser = [...prev].reverse().find(m => m.role === 'user');
+        const isDupUser = !!lastUser && lastUser.content.trim() === userText.trim();
+        const next: ChatMessage[] = [...prev];
+        if (visualEcho && !isDupUser) {
+          next.push({ id: userMessageId, role: 'user', kind: 'chat', content: userText } as ChatMessage);
+        }
+        next.push({
+          id: statusId,
+          role: 'assistant',
+          kind: 'chat',
+          content: '_Predicting your health…_',
+          pending: false,
+        } as ChatMessage);
+        return next;
+      });
+      try {
+        useTypewriterStore.getState().markDone(statusId);
+      } catch {}
+      try {
+        const threadForPredict = (() => {
+          if (typeof window === 'undefined') return threadId || stableThreadId || 'default_thread';
+          try {
+            return sessionStorage.getItem('aidoc_thread') || threadId || stableThreadId || 'default_thread';
+          } catch {
+            return threadId || stableThreadId || 'default_thread';
+          }
+        })();
+        const bundle = buildPredictionBundle({
+          profile: currentProfileObject,
+          observations: currentObservationsArray,
+          labs: currentLabsArray,
+          meds: currentMedsArray,
+          textChunks: currentTextChunksArray,
+        });
+        fetch('/api/aidoc/predict', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ threadId: threadForPredict, bundle }),
+        }).catch(() => {});
+      } catch {}
+      setNote('');
+      setBusy(false);
+      setThinkingStartedAt(null);
+      return;
+    }
     if (threadId) pushFullMem(threadId, "user", userText);
     if (stableThreadId) {
       try { pushFullMem(stableThreadId, "user", userText); } catch {}
