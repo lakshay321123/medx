@@ -45,13 +45,18 @@ export const MED_HINTS = [
 
 export const CONDITION_HINTS = [
   "diagnosis",
+  "diagnoses",
   "condition",
+  "conditions",
   "problem",
   "disease",
   "icd",
   "impression",
   "hx",
+  "fhx",
+  "family history",
   "history",
+  "chronic",
 ];
 
 export const VITAL_HINTS = [
@@ -134,8 +139,11 @@ export function buildClinicalState(obsRows: any[], predRows: any[]): ClinicalSta
       catHas("diagnosis") ||
       catHas("diagnoses") ||
       catHas("condition") ||
+      catHas("conditions") ||
       catHas("problem") ||
+      catHas("chronic") ||
       catHas("history") ||
+      catHas("family") ||
       CONDITION_HINTS.some((hint) =>
         kind.includes(hint) || search.includes(hint) || catText.includes(hint)
       );

@@ -33,6 +33,35 @@ describe("AI Doc clinical state helpers", () => {
     expect(state.conditions.map((c) => c.label)).toContain("Hypertension");
   });
 
+  it("recognizes condition rows saved with supabase profile categories", () => {
+    const observations = [
+      {
+        kind: "condition.chronic_kidney_disease",
+        observed_at: "2023-12-01T00:00:00.000Z",
+        meta: { category: "conditions", label: "Chronic Kidney Disease", status: "active" },
+      },
+      {
+        kind: "history.fhx_breast_cancer",
+        observed_at: "2023-12-01T00:00:00.000Z",
+        meta: {
+          category: "family_history",
+          label: "Breast cancer",
+          status: "family",
+          group: "fhx",
+        },
+      },
+    ];
+
+    const state = buildClinicalState(observations as any, []);
+
+    expect(state.conditions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Chronic Kidney Disease", status: "active" }),
+        expect.objectContaining({ label: "Breast cancer", status: "family" }),
+      ])
+    );
+  });
+
   it("merges chronic and family history conditions", () => {
     const state = {
       labs: [],
