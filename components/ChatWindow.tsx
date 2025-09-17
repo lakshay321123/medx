@@ -5,20 +5,13 @@ import { ChatInput } from "@/components/ChatInput";
 import { persistIfTemp } from "@/lib/chat/persist";
 import ThinkingTimer from "@/components/ui/ThinkingTimer";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
-import Typewriter from "@/components/chat/Typewriter";
-import { useTypewriterStore } from "@/lib/state/typewriterStore";
 import { getResearchFlagFromUrl } from "@/utils/researchFlag";
 
 function MessageRow({ m }: { m: { id: string; role: string; content: string } }) {
-  const [fast, setFast] = useState(false);
-  const isDone = useTypewriterStore(s => s.isDone(m.id));
-  const markDone = useTypewriterStore(s => s.markDone);
   return (
-    <div className="p-2" onClick={() => setFast(true)}>
+    <div className="p-2">
       <strong>{m.role}:</strong>{" "}
-      {m.role === "assistant"
-        ? (isDone ? m.content : <Typewriter text={m.content} fast={fast} onDone={() => markDone(m.id)} />)
-        : m.content}
+      {m.content}
     </div>
   );
 }
