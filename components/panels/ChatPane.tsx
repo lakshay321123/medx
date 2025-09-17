@@ -1014,8 +1014,23 @@ ${linkNudge}`;
       const { getIntentStyle } = await import("@/lib/intents");
       const INTENT_STYLE = getIntentStyle(userText || "", mode);
 
+      // Build STRUCTURE_STYLE (per-mode template + intent outline) once
+      const STRUCTURE_STYLE =
+        [
+          mode === "doctor" ? DOCTOR_DRAFT_STYLE : PATIENT_DRAFT_STYLE,
+          INTENT_STYLE || ""
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+
+      // Build SYSTEM_ALL once (base + optional domain + advanced + structure)
+      const buildSystemAll = (base: string, domain: string, adv: string) =>
+        [base, domain || "", adv || "", STRUCTURE_STYLE]
+          .filter(Boolean)
+          .join("\n\n");
+
       const sys = topicHint + systemCommon + baseSys;
-      const sysWithDomain = DOMAIN_STYLE ? `${sys}\n\n${DOMAIN_STYLE}` : sys;
+      const sysWithDomain = sys;
       let ADV_STYLE = "";
       const adv = detectAdvancedDomain(userText);
       if (adv) {
@@ -1029,7 +1044,7 @@ ${linkNudge}`;
           adv === "systems-policy" ? D.SYSTEMS_POLICY_STYLE : "";
       }
       // Append mode structure and any intent-specific structure
-      const systemAll = `${sysWithDomain}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}\n\n${mode === "doctor" ? DOCTOR_DRAFT_STYLE : PATIENT_DRAFT_STYLE}${INTENT_STYLE ? "\n\n" + INTENT_STYLE : ""}`;
+      const systemAll = buildSystemAll(sysWithDomain, DOMAIN_STYLE, ADV_STYLE);
       let chatMessages: { role: string; content: string }[];
 
       const looksLikeMath = /[0-9\.\s+\-*\/^()]{6,}/.test(userText) || /sin|cos|log|sqrt|derivative|integral|limit/i.test(userText);
@@ -1106,8 +1121,8 @@ Here is the ENTIRE conversation so far:
 ${fullMem || "(none)"}
 
 ${systemCommon}` + baseSys;
-        const systemWithDomain = DOMAIN_STYLE ? `${system}\n\n${DOMAIN_STYLE}` : system;
-        const systemAll = `${systemWithDomain}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
+        const systemWithDomain = system;
+        const systemAll = buildSystemAll(systemWithDomain, DOMAIN_STYLE, ADV_STYLE);
         const userMsg = `Follow-up: ${text}\nIf the question is ambiguous, ask one concise disambiguation question and then answer briefly using the context.`;
         chatMessages = [
           { role: 'system', content: systemAll },
@@ -1123,8 +1138,8 @@ ${systemCommon}` + baseSys;
         );
 
         const sys = topicHint + systemCommon + baseSys;
-        const sysWithDomain = DOMAIN_STYLE ? `${sys}\n\n${DOMAIN_STYLE}` : sys;
-        const systemAll = `${sysWithDomain}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
+        const sysWithDomain = sys;
+        const systemAll = buildSystemAll(sysWithDomain, DOMAIN_STYLE, ADV_STYLE);
         const planContextBlock = 'CONTEXT:\n' + JSON.stringify(plan.sections || {}, null, 2);
         chatMessages = [
           { role: 'system', content: systemAll },
