@@ -140,25 +140,134 @@ function isNewTopic(text: string) {
 }
 type Brief = { tldr: string; bullets: string[]; citations: { title: string; url: string }[] };
 
-function renderBrief(raw: string) {
+type StructuredBullet = { label?: string; body: string };
+
+function escapeMarkdown(text: string) {
+  return text.replace(/([_*`\[\]()])/g, "\\$1");
+}
+
+function pickLabel(body: string) {
+  const match = body.match(/^[\p{L}\p{N}][\p{L}\p{N}\s/-]{2,40}/u);
+  if (!match) return undefined;
+  return match[0].trim().replace(/[\s-]+$/u, "").replace(/\.$/, "");
+}
+
+function normalizeBullet(text: string): StructuredBullet {
+  const trimmed = text.replace(/\s+/g, " ").trim();
+  if (!trimmed) return { body: "" };
+  const colon = trimmed.indexOf(":");
+  if (colon > 0 && colon < 80) {
+    const label = trimmed.slice(0, colon).trim();
+    const rest = trimmed.slice(colon + 1).trim();
+    return { label, body: rest };
+  }
+  const dash = trimmed.indexOf(" – ") >= 0 ? trimmed.indexOf(" – ") : trimmed.indexOf(" - ");
+  if (dash > 0 && dash < 80) {
+    const label = trimmed.slice(0, dash).trim();
+    const rest = trimmed.slice(dash + 3).trim();
+    return { label, body: rest };
+  }
+  const label = pickLabel(trimmed);
+  if (label) {
+    const rest = trimmed.slice(label.length).trim().replace(/^[-–—:\s]+/, "").trim();
+    return { label, body: rest || trimmed };
+  }
+  return { label, body: trimmed };
+}
+
+function truncate(text: string, limit = 220) {
+  if (text.length <= limit) return text;
+  const sliced = text.slice(0, limit).trim();
+  return sliced.replace(/[.,;:]?$/, "") + "…";
+}
+
+function bulletsToMarkdown(bullets: StructuredBullet[]) {
+  if (bullets.length === 0) return "";
+  const limit = Math.min(7, Math.max(5, bullets.length));
+  return bullets.slice(0, limit).map((item, i) => {
+    const baseLabel = item.label?.replace(/\*+/g, "").replace(/_+/g, "").replace(/[:\s]+$/, "") || (i === 0 ? "Summary" : "Detail");
+    const safeLabel = escapeMarkdown(baseLabel);
+    const safeBody = item.body ? escapeMarkdown(item.body) : "";
+    return safeBody ? `- **${safeLabel}:** *${safeBody}*` : `- **${safeLabel}**`;
+  }).join("\n");
+}
+
+function renderPatientResearchSummary(raw: string) {
+  const segments = raw
+    .split(/\n+/)
+    .flatMap(line => line.split(/(?<=[.!?])\s+(?=[A-Z(])/))
+    .map(s => s.trim())
+    .filter(Boolean);
+  const bullets: StructuredBullet[] = [];
+  for (const seg of segments) {
+    if (bullets.length >= 7) break;
+    const b = normalizeBullet(seg);
+    if (!b.body) continue;
+    bullets.push({ label: b.label, body: truncate(b.body) });
+  }
+  if (bullets.length === 0) {
+    bullets.push({ label: "Summary", body: truncate(raw.trim()) });
+  }
+  const markdown = bulletsToMarkdown(bullets);
+  return (
+    <div className="space-y-3">
+      <ChatMarkdown content={markdown} />
+    </div>
+  );
+}
+
+function renderBrief(raw: string, patientMode = false) {
   try {
     const b = JSON.parse(raw) as Brief;
+    const bullets: StructuredBullet[] = [];
+    if (patientMode && b.tldr) {
+      bullets.push({ label: "Summary", body: truncate(b.tldr, 180) });
+    }
+    b.bullets.forEach(str => {
+      if (bullets.length >= 7) return;
+      const normalized = normalizeBullet(str);
+      if (!normalized.body) return;
+      bullets.push({ ...normalized, body: truncate(normalized.body) });
+    });
+    if (patientMode) {
+      if (bullets.length === 0) {
+        return renderPatientResearchSummary(raw);
+      }
+      const markdown = bulletsToMarkdown(bullets);
+      return (
+        <div className="space-y-3">
+          <ChatMarkdown content={markdown} />
+          <div className="flex flex-wrap gap-2 pt-1">
+            {b.citations.slice(0, 5).map((c, i) => (
+              <a key={i} href={c.url} target="_blank" rel="noreferrer" className="underline">
+                [{i + 1}] {c.title || new URL(c.url).hostname}
+              </a>
+            ))}
+          </div>
+        </div>
+      );
+    }
     return (
       <div>
         <p className="font-medium">TL;DR: {b.tldr}</p>
         <ul className="list-disc pl-5">
-          {b.bullets.slice(0,3).map((x,i)=><li key={i}>{x}</li>)}
+          {b.bullets.slice(0, 3).map((x, i) => (
+            <li key={i}>{x}</li>
+          ))}
         </ul>
         <div className="flex flex-wrap gap-2 pt-2">
-          {b.citations.slice(0,5).map((c,i)=>
+          {b.citations.slice(0, 5).map((c, i) => (
             <a key={i} href={c.url} target="_blank" rel="noreferrer" className="underline">
-              [{i+1}] {c.title || new URL(c.url).hostname}
+              [{i + 1}] {c.title || new URL(c.url).hostname}
             </a>
-          )}
+          ))}
         </div>
       </div>
     );
   } catch {
+    if (patientMode) {
+      return renderPatientResearchSummary(raw);
+    }
     return <p>{raw}</p>;
   }
 }
@@ -287,7 +396,7 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
     </div>
   );
 }
-function ChatCard({ m, therapyMode, onAction, simple, researchOn }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onAction: (s: Suggestion) => void; simple: boolean; researchOn: boolean }) {
+function ChatCard({ m, therapyMode, onAction, simple, researchOn, patientMode }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onAction: (s: Suggestion) => void; simple: boolean; researchOn: boolean; patientMode: boolean }) {
   const [fast, setFast] = useState(false);
   const isDone = useTypewriterStore(s => s.isDone(m.id));
   const markDone = useTypewriterStore(s => s.markDone);
@@ -300,7 +409,7 @@ function ChatCard({ m, therapyMode, onAction, simple, researchOn }: { m: Extract
     >
       {m.role === "assistant" ? (
         researchOn
-          ? renderBrief(m.content)
+          ? renderBrief(m.content, patientMode)
           : (
             <ChatMarkdown
               content={m.content}
@@ -329,11 +438,11 @@ function ChatCard({ m, therapyMode, onAction, simple, researchOn }: { m: Extract
   );
 }
 
-function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onAction, simple }: { m: ChatMessage; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean; therapyMode: boolean; onAction: (s: Suggestion) => void; simple: boolean }) {
+function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onAction, simple, patientMode }: { m: ChatMessage; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean; therapyMode: boolean; onAction: (s: Suggestion) => void; simple: boolean; patientMode: boolean }) {
   return m.kind === "analysis" ? (
     <AnalysisCard m={m} researchOn={researchOn} onQuickAction={onQuickAction} busy={busy} />
   ) : (
-    <ChatCard m={m} therapyMode={therapyMode} onAction={onAction} simple={simple} researchOn={researchOn} />
+    <ChatCard m={m} therapyMode={therapyMode} onAction={onAction} simple={simple} researchOn={researchOn} patientMode={patientMode} />
   );
 }
 
@@ -360,6 +469,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const mode: 'patient' | 'doctor' = modeState.base === 'doctor' ? 'doctor' : 'patient';
   const researchMode = modeState.research;
   const therapyMode = modeState.therapy;
+  const patientBaseMode = mode === "patient";
 
   const lastSuggestions = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -1795,6 +1905,7 @@ ${systemCommon}` + baseSys;
                   therapyMode={therapyMode}
                   onAction={handleSuggestionAction}
                   simple={currentMode === 'patient'}
+                  patientMode={patientBaseMode}
                 />
                 <FeedbackBar
                   conversationId={conversationId}
