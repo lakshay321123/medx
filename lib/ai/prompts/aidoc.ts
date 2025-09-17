@@ -8,6 +8,11 @@ type BuildInput = {
 export function buildAiDocPrompt({ profile, labs, meds, conditions }: BuildInput) {
   const now = Date.now();
   const recentLabs = (labs||[]).filter(l => (now - new Date(l.takenAt).getTime()) <= 90*24*60*60*1000);
+  const activeConditions = (conditions||[]).filter((c:any)=> (c.status || "").toLowerCase() === 'active');
+  const familyHistory = (conditions||[]).filter((c:any)=> {
+    const status = (c.status || "").toLowerCase();
+    return status === 'family' || status === 'history' || status === 'predisposition';
+  });
 
   return [
     "You are a clinically careful assistant for doctors. Do not cite risk scores or calculators unless all required inputs are present and relevant to the chief complaint. Avoid hospital-only triage scores (e.g., NEWS2, SOFA) unless actual vitals (RR, HR, SBP, temp, SpO₂) are provided. Never guess missing inputs; if data is incomplete, ask concise clarifying questions instead of quoting scores.",
@@ -22,7 +27,8 @@ export function buildAiDocPrompt({ profile, labs, meds, conditions }: BuildInput
     "",
     "Patient Snapshot:",
     `- Demographics: Name: ${profile?.name || "—"}. Age: ${profile?.age ?? "—"}, Sex: ${profile?.sex ?? "—"}, Pregnant: ${profile?.pregnant ?? "—"}.`,
-    `- Active Conditions: ${(conditions||[]).filter((c:any)=>c.status==='active').map((c:any)=>c.label).join(', ') || 'none recorded'}`,
+    `- Active Conditions: ${activeConditions.map((c:any)=>c.label).join(', ') || 'none recorded'}`,
+    `- Family History: ${familyHistory.map((c:any)=>c.label).join(', ') || 'none noted'}`,
     `- Meds: ${(meds||[]).map((m:any)=>m.name + (m.dose?(" "+m.dose):"")).join(', ') || 'none recorded'}`,
     `- Recent Labs (≤90d): ${recentLabs.map((l:any)=>`${l.name} ${l.value??""}${l.unit??""} (${new Date(l.takenAt).toISOString().slice(0,10)})`).join('; ') || 'none'}`,
     "",
