@@ -148,7 +148,7 @@ export async function upsertMem(
   if (!userId || !key) return;
   const db = supabaseAdmin();
   const isThread = Boolean(threadId);
-  const sbScope = (isThread ? "thread" : "global") as const;
+  const sbScope: "thread" | "global" = isThread ? "thread" : "global";
   const existing = await findMemoryRow({
     userId,
     scope: sbScope,
