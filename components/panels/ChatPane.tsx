@@ -42,7 +42,6 @@ import * as DomainStyles from "@/lib/prompts/domains";
 import ThinkingTimer from "@/components/ui/ThinkingTimer";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { StopButton } from "@/components/ui/StopButton";
-import { useTypewriterStore } from "@/lib/state/typewriterStore";
 import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
 
@@ -288,15 +287,11 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
   );
 }
 function ChatCard({ m, therapyMode, onAction, simple, researchOn }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onAction: (s: Suggestion) => void; simple: boolean; researchOn: boolean }) {
-  const [fast, setFast] = useState(false);
-  const isDone = useTypewriterStore(s => s.isDone(m.id));
-  const markDone = useTypewriterStore(s => s.markDone);
   const suggestions = normalizeSuggestions(m.followUps);
   if (m.pending) return <PendingChatCard label="Thinking…" />;
   return (
     <div
       className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl"
-      onClick={() => setFast(true)}
     >
       {m.role === "assistant" ? (
         researchOn
@@ -304,9 +299,6 @@ function ChatCard({ m, therapyMode, onAction, simple, researchOn }: { m: Extract
           : (
             <ChatMarkdown
               content={m.content}
-              typing={!isDone}
-              fast={fast}
-              onDone={() => markDone(m.id)}
             />
           )
       ) : (
@@ -487,11 +479,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         pending: false,
       };
       setMessages(prev => [...prev, message]);
-      try {
-        useTypewriterStore.getState().markDone(id);
-      } catch {
-        /* ignore */
-      }
     };
     window.addEventListener('medx:push-assistant', onPush as EventListener);
     return () => window.removeEventListener('medx:push-assistant', onPush as EventListener);
