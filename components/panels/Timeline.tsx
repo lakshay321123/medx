@@ -109,12 +109,14 @@ export default function Timeline(){
             setActionError(null);
             try {
               const res = await fetch('/api/observations/reset', { method: 'POST' });
-              if (res.status === 401) { setActionError('Please sign in'); return; }
-              if (!res.ok) {
+              if (res.status === 401) {
+                setActionError('Please sign in');
+              } else if (!res.ok) {
                 setActionError(await readErrorMessage(res, 'Failed to reset timeline'));
-                return;
+              } else {
+                await mutate();
+                setActionError(null);
               }
-              await mutate();
             } catch (err) {
               const message = err instanceof Error ? err.message : 'Failed to reset timeline';
               setActionError(message || 'Failed to reset timeline');
@@ -159,17 +161,19 @@ export default function Timeline(){
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ id: it.id }),
                         });
-                        if (res.status === 401) { setActionError('Please sign in'); return; }
-                        if (!res.ok) {
+                        if (res.status === 401) {
+                          setActionError('Please sign in');
+                        } else if (!res.ok) {
                           setActionError(await readErrorMessage(res, 'Failed to delete observation'));
-                          return;
+                        } else {
+                          if (active?.id === it.id) {
+                            setOpen(false);
+                            setActive(null);
+                            setSignedUrl(null);
+                          }
+                          await mutate();
+                          setActionError(null);
                         }
-                        if (active?.id === it.id) {
-                          setOpen(false);
-                          setActive(null);
-                          setSignedUrl(null);
-                        }
-                        await mutate();
                       } catch (err) {
                         const message = err instanceof Error ? err.message : 'Failed to delete observation';
                         setActionError(message || 'Failed to delete observation');
