@@ -975,16 +975,17 @@ ${linkNudge}`;
         "Finish with one short follow-up question (≤10 words).",
       ].join("\n");
 
-      // Intent-aware structure (lightweight)
+      // ---- Unified drafting helpers (define ONCE) --------------------------
       const { getIntentStyle } = await import("@/lib/intents");
-      const INTENT_STYLE = getIntentStyle(userText || "", mode);
-
-      // Build drafting structure exactly once from the base mode
-      const DRAFT_STYLE = modeState.base === "doctor" ? DOCTOR_DRAFT_STYLE : PATIENT_DRAFT_STYLE;
-      const STRUCTURE_STYLE = [DRAFT_STYLE, INTENT_STYLE || ""].filter(Boolean).join("\n\n");
-
-      // Keep research as an additive hint, never a new template
-      const RESEARCH_STITCH = modeState.research
+      const baseMode = (modeState?.base ?? mode) as "doctor" | "patient" | string;
+      const INTENT_STYLE = getIntentStyle(userText || "", baseMode);
+      const DRAFT_STYLE =
+        baseMode === "doctor" ? DOCTOR_DRAFT_STYLE : PATIENT_DRAFT_STYLE;
+      const STRUCTURE_STYLE = [DRAFT_STYLE, INTENT_STYLE || ""]
+        .filter(Boolean)
+        .join("\n\n");
+      const researchEnabled = (modeState?.research ?? researchMode) === true;
+      const RESEARCH_STITCH = researchEnabled
         ? [
             "RESEARCH INTEGRATION:",
             "- Keep the above section headings exactly as-is.",
@@ -992,11 +993,11 @@ ${linkNudge}`;
             "- Cite inline as [1], [2] and include linked references at the end."
           ].join("\n")
         : "";
-
       const buildSystemAll = (base: string, domain?: string, adv?: string) =>
         [base, domain || "", adv || "", STRUCTURE_STYLE, RESEARCH_STITCH]
           .filter(Boolean)
           .join("\n\n");
+      // ----------------------------------------------------------------------
 
       const sys = topicHint + systemCommon + baseSys;
       const sysWithDomain = sys;

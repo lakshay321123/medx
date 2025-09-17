@@ -4,7 +4,6 @@ export const revalidate = 0;
 
 import { NextRequest, NextResponse } from "next/server";
 import { getUserId } from "@/lib/getUserId";
-import { prisma } from "@/lib/prisma";
 import { callOpenAIJson } from "@/lib/aidoc/vendor";
 import { getMemByThread, upsertMem } from "@/lib/aidoc/memory";
 import { runRules } from "@/lib/aidoc/rules";
@@ -14,6 +13,12 @@ import { buildAiDocPrompt } from "@/lib/ai/prompts/aidoc";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { extractAll, canonicalizeInputs } from "@/lib/medical/engine/extract";
 import { computeAll } from "@/lib/medical/engine/computeAll";
+import {
+  buildClinicalState,
+  mergeProfileConditions,
+  normalizeIso,
+  parseNumber,
+} from "@/lib/aidoc/clinicalState";
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
 
@@ -33,88 +38,360 @@ async function getFeedbackSummary(conversationId: string) {
   }
 }
 
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
+function asStringArray(input: any): string[] {
+  if (Array.isArray(input)) {
+    return input
+      .map((item) => (typeof item === "string" ? item.trim() : String(item ?? "").trim()))
+      .filter(Boolean);
+  }
+  if (typeof input === "string") {
+    try {
+      const parsed = JSON.parse(input);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item) => (typeof item === "string" ? item.trim() : String(item ?? "").trim()))
+          .filter(Boolean);
+      }
+    } catch {
+      // fall back to comma/newline separation for plain strings
+      return input
+        .split(/[,\n;]/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  }
+  return [];
+}
+
+function normalizePregnancy(input: any): "yes" | "no" | "unsure" | null {
+  if (input == null) return null;
+  if (typeof input === "boolean") return input ? "yes" : "no";
+  const text = String(input).trim().toLowerCase();
+  if (!text) return null;
+  if (["yes", "y", "true", "pregnant", "positive"].includes(text)) return "yes";
+  if (["no", "n", "false", "not pregnant", "negative"].includes(text)) return "no";
+  if (["not sure", "unsure", "unknown", "maybe"].includes(text)) return "unsure";
+  return null;
+}
+
+function clampAgeYears(input: any): number | null {
+  const num = parseNumber(input);
+  if (num == null) return null;
+  if (num < 0 || num > 130) return null;
+  return Math.round(num);
+}
+
+function computeAgeFromDob(dob?: string | null): number | null {
+  if (!dob) return null;
+  const birth = new Date(dob);
+  if (!Number.isFinite(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age >= 0 && age < 130 ? age : null;
+}
+
+function buildPromptProfile(row: any, overrides?: any) {
+  const name = (overrides?.name || row?.full_name || row?.name || "New Patient").toString();
+  const dobAge = computeAgeFromDob(row?.dob ?? null);
+  const ageRaw = overrides?.age ?? row?.age ?? dobAge;
+  const age = ageRaw == null ? null : Number(ageRaw);
+  const sex = overrides?.sex ?? row?.sex ?? null;
+  let pregnant: any = overrides?.pregnant ?? row?.pregnant ?? null;
+  if (typeof pregnant === "string") {
+    const p = pregnant.toLowerCase();
+    if (["yes", "true", "y"].includes(p)) pregnant = "yes";
+    else if (["no", "false", "n"].includes(p)) pregnant = "no";
+  }
+  return {
+    name,
+    age: Number.isFinite(age) ? Number(age) : null,
+    sex: sex ?? null,
+    pregnant: pregnant ?? null,
+  };
+}
+
+function safeSummary(text: string, max = 120) {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  return t.slice(0, max - 1).trimEnd() + "…";
+}
+
+function pushObservationRow(
+  collection: any[],
+  userId: string,
+  threadId: string | null,
+  row: {
+    kind: string;
+    value_num?: number | null;
+    value_text?: string | null;
+    unit?: string | null;
+    observed_at?: string | null;
+    meta?: Record<string, any>;
+  }
+) {
+  collection.push({
+    user_id: userId,
+    thread_id: threadId,
+    kind: row.kind,
+    value_num: row.value_num ?? null,
+    value_text: row.value_text ?? null,
+    unit: row.unit ?? null,
+    observed_at: normalizeIso(row.observed_at),
+    meta: { source_type: "ai_doc", ...(row.meta ?? {}) },
+  });
+}
+
+function latestObservationByKind(obsRows: any[], kind: string) {
+  let latest: any = null;
+  let latestTs = -Infinity;
+  for (const row of Array.isArray(obsRows) ? obsRows : []) {
+    if (!row || row.kind !== kind) continue;
+    const ts = new Date(row.observed_at ?? row.created_at ?? 0).getTime();
+    if (ts > latestTs) {
+      latest = row;
+      latestTs = ts;
+    }
+  }
+  return latest;
+}
+
+function hydrateProfileDemographics(
+  profileRow: any,
+  obsRows: any[],
+  mem: Awaited<ReturnType<typeof getMemByThread>>
+) {
+  if (!profileRow) return;
+
+  const ageFromMem = mem.facts.find((f) => f.key === "demographics.age_years");
+  if (profileRow.age == null && ageFromMem?.value != null) {
+    const parsed = clampAgeYears(ageFromMem.value);
+    if (parsed != null) profileRow.age = parsed;
+  }
+
+  const pregFromMem = mem.facts.find(
+    (f) => f.key === "demographics.pregnancy_status"
+  );
+  if (profileRow.pregnant == null && pregFromMem?.value != null) {
+    const norm = normalizePregnancy(pregFromMem.value);
+    if (norm) profileRow.pregnant = norm;
+  }
+
+  const ageObs = latestObservationByKind(obsRows, "demographics.age_years");
+  if (profileRow.age == null && ageObs) {
+    const val =
+      ageObs.value_num ??
+      clampAgeYears(ageObs.value_text) ??
+      clampAgeYears(ageObs.meta?.value);
+    if (val != null) profileRow.age = val;
+  }
+
+  const pregObs = latestObservationByKind(
+    obsRows,
+    "demographics.pregnancy_status"
+  );
+  if (profileRow.pregnant == null && pregObs) {
+    const val =
+      normalizePregnancy(pregObs.value_text) ??
+      normalizePregnancy(pregObs.meta?.value);
+    if (val) profileRow.pregnant = val;
+  }
+}
+
 export async function POST(req: NextRequest) {
   const userId = await getUserId(req);
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const { threadId, message, profileIntent, newProfile } = await req.json();
-  if (!message) return NextResponse.json({ error: "no message" }, { status: 400 });
+  const payload = await req.json().catch(() => ({} as any));
+  const rawMessage = payload?.message;
+  const message = typeof rawMessage === "string" ? rawMessage : String(rawMessage ?? "");
+  if (!message.trim()) return NextResponse.json({ error: "no message" }, { status: 400 });
 
-  // Ensure profile & load clinical state + memory
-  let profile = await prisma.patientProfile.findFirst({ where: { userId } });
+  const threadId =
+    typeof payload?.threadId === "string" && payload.threadId.trim()
+      ? payload.threadId.trim()
+      : null;
+  const profileIntent = payload?.profileIntent;
+  const newProfile = payload?.newProfile ?? null;
 
-  // New patient quick-create (only for this call)
+  const supa = supabaseAdmin();
+  let profileRow: any = null;
+
   if (profileIntent === "new") {
-    const p = await prisma.patientProfile.create({
-      data: {
-        userId,
-        name: (newProfile?.name || "New Patient").slice(0, 80),
-        age: newProfile?.age ? Number(newProfile.age) : null,
-        sex: newProfile?.sex || null,
-        pregnant:
-          newProfile?.pregnant === "yes"
-            ? true
-            : newProfile?.pregnant === "no"
-            ? false
-            : null,
-      } as any,
-    });
-    profile = p;
+    const patch: Record<string, any> = {
+      id: userId,
+      full_name: (newProfile?.name || "New Patient").toString().slice(0, 80),
+    };
+    if (newProfile?.sex) patch.sex = newProfile.sex;
 
-    // seed basic notes/meds from intake if provided
-    const ops: any[] = [];
-    if (newProfile?.symptoms)
-      ops.push(
-        prisma.note.create({
-          data: { profileId: p.id, body: `Symptoms: ${newProfile.symptoms}` },
-        }),
+    const { data: upserted, error: upsertErr } = await supa
+      .from("profiles")
+      .upsert(patch, { onConflict: "id" })
+      .select("*")
+      .single();
+    if (upsertErr) {
+      return NextResponse.json({ error: upsertErr.message }, { status: 500 });
+    }
+    profileRow = upserted;
+
+    const seeds: any[] = [];
+    const ageYears = clampAgeYears(newProfile?.age);
+    if (ageYears != null) {
+      profileRow.age = ageYears;
+      await upsertMem(userId, null, "aidoc.fact", "demographics.age_years", ageYears);
+      pushObservationRow(seeds, userId, threadId, {
+        kind: "demographics.age_years",
+        value_num: ageYears,
+        observed_at: new Date().toISOString(),
+        meta: {
+          category: "demographic",
+          summary: `Age ${ageYears}`,
+          value: ageYears,
+        },
+      });
+    }
+    const pregStatus = normalizePregnancy(newProfile?.pregnant);
+    if (pregStatus) {
+      profileRow.pregnant = pregStatus;
+      await upsertMem(
+        userId,
+        null,
+        "aidoc.fact",
+        "demographics.pregnancy_status",
+        pregStatus
       );
-    if (newProfile?.allergies)
-      ops.push(
-        prisma.note.create({
-          data: { profileId: p.id, body: `Allergies: ${newProfile.allergies}` },
-        }),
-      );
+      pushObservationRow(seeds, userId, threadId, {
+        kind: "demographics.pregnancy_status",
+        value_text: pregStatus,
+        observed_at: new Date().toISOString(),
+        meta: {
+          category: "demographic",
+          summary: `Pregnancy: ${pregStatus}`,
+          value: pregStatus,
+        },
+      });
+    }
+    if (newProfile?.symptoms) {
+      const text = String(newProfile.symptoms);
+      pushObservationRow(seeds, userId, threadId, {
+        kind: "note.intake_symptoms",
+        value_text: `Symptoms: ${text}`,
+        meta: { category: "note", summary: safeSummary(`Symptoms: ${text}`) },
+      });
+    }
+    if (newProfile?.allergies) {
+      const text = String(newProfile.allergies);
+      pushObservationRow(seeds, userId, threadId, {
+        kind: "note.intake_allergies",
+        value_text: `Allergies: ${text}`,
+        meta: { category: "note", summary: safeSummary(`Allergies: ${text}`) },
+      });
+    }
     if (newProfile?.meds) {
       const meds = String(newProfile.meds)
         .split(/[,;\n]/)
         .map((s) => s.trim())
         .filter(Boolean);
-      for (const m of meds)
-        ops.push(prisma.medication.create({ data: { profileId: p.id, name: m } }));
+      for (const med of meds) {
+        pushObservationRow(seeds, userId, threadId, {
+          kind: `medication.intake_${slugify(med)}`,
+          value_text: med,
+          meta: { category: "medication", summary: med },
+        });
+      }
     }
-    if (ops.length) await prisma.$transaction(ops);
+    if (seeds.length) {
+      const { error: seedErr } = await supa.from("observations").insert(seeds);
+      if (seedErr) {
+        return NextResponse.json({ error: seedErr.message }, { status: 500 });
+      }
+    }
   }
 
-  if (!profile) {
-    const p = await prisma.patientProfile.create({
-      data: { userId, name: "New Patient" } as any,
-    });
-    profile = p;
+  if (!profileRow) {
+    const { data, error } = await supa
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .maybeSingle();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    profileRow = data ?? null;
+  }
+  if (!profileRow) {
+    const { data, error } = await supa
+      .from("profiles")
+      .upsert({ id: userId, full_name: "New Patient" }, { onConflict: "id" })
+      .select("*")
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    profileRow = data;
   }
 
-  const [labs, meds, conditions, mem] = await Promise.all([
-    prisma.labResult.findMany({ where: { profileId: profile.id } }),
-    prisma.medication.findMany({ where: { profileId: profile.id } }),
-    prisma.condition.findMany({ where: { profileId: profile.id } }),
-    getMemByThread(threadId || ""),
-  ]);
+  if (profileRow) {
+    profileRow.chronic_conditions = asStringArray(profileRow.chronic_conditions);
+    profileRow.conditions_predisposition = asStringArray(
+      profileRow.conditions_predisposition
+    );
+  }
 
-  // Opportunistically capture preferences from user's message
-  for (const p of extractPrefsFromUser(message)) {
-    await upsertMem(threadId, "aidoc.pref", p.key, p.value);
-    await prisma.timelineEvent.create({
-      data: {
-        profileId: profile.id,
-        at: new Date(),
-        type: "preference",
-        summary: `Saved preference: ${p.key} = ${p.value}`,
-      },
+  let memBefore: Awaited<ReturnType<typeof getMemByThread>>;
+  try {
+    memBefore = await getMemByThread(userId, threadId);
+  } catch (err: any) {
+    console.error("[ai-doc] memory preload error", err?.message || err);
+    memBefore = { prefs: [], facts: [], redflags: [], goals: [] };
+  }
+
+  const obsRes = await supa
+    .from("observations")
+    .select("id, kind, value_num, value_text, unit, observed_at, created_at, meta")
+    .eq("user_id", userId);
+  if (obsRes.error) return NextResponse.json({ error: obsRes.error.message }, { status: 500 });
+
+  const predRes = await supa
+    .from("predictions")
+    .select("id, name, label, type, probability, created_at, details")
+    .eq("user_id", userId);
+  if (predRes.error) {
+    console.warn("[ai-doc] predictions load error", predRes.error.message);
+  }
+
+  const obsRows = Array.isArray(obsRes.data) ? obsRes.data : [];
+  const predRows = Array.isArray(predRes.data) ? predRes.data : [];
+  if (profileRow) {
+    hydrateProfileDemographics(profileRow, obsRows, memBefore);
+  }
+  const clinical = buildClinicalState(obsRows, predRows);
+  if (profileRow) {
+    mergeProfileConditions(
+      clinical,
+      profileRow.chronic_conditions ?? [],
+      profileRow.conditions_predisposition ?? []
+    );
+  }
+  const profile = buildPromptProfile(profileRow, newProfile);
+
+  const pendingObservations: any[] = [];
+  for (const pref of extractPrefsFromUser(message)) {
+    const val = pref?.value ?? "";
+    await upsertMem(userId, threadId, "aidoc.pref", pref.key, val);
+    pushObservationRow(pendingObservations, userId, threadId, {
+      kind: `preference.${slugify(pref.key)}`,
+      value_text: `Saved preference: ${pref.key} = ${val}`,
+      meta: { category: "note", summary: safeSummary(`Saved preference: ${pref.key} = ${val}`), raw: pref },
     });
   }
 
   // System prompt with guardrails
-  let system = buildAiDocPrompt({ profile, labs, meds, conditions });
+  let system = buildAiDocPrompt({ profile, labs: clinical.labs, meds: clinical.meds, conditions: clinical.conditions });
 
   const userText = String(message || "");
   const ctx = canonicalizeInputs(extractAll(userText));
@@ -228,7 +505,7 @@ export async function POST(req: NextRequest) {
     user: message,
     instruction: "Return JSON with {reply, save:{medications,conditions,labs,notes,prefs}, observations:{short,long}}",
     metadata: {
-      conversationId: threadId,
+      conversationId: threadId ?? undefined,
       lastMessageId: null,
       feedback_summary,
       app: "medx",
@@ -236,145 +513,114 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Persist structured saves + timeline
-  for (const p of out?.save?.prefs ?? []) {
-    await upsertMem(threadId, "aidoc.pref", p.key, String(p.value));
-    await prisma.timelineEvent.create({
-      data: {
-        profileId: profile.id,
-        at: new Date(),
-        type: "preference",
-        summary: `Saved preference: ${p.key} = ${p.value}`,
+  const save = out?.save || {};
+
+  for (const p of save.prefs ?? []) {
+    const val = p?.value ?? "";
+    await upsertMem(userId, threadId, "aidoc.pref", p.key, val);
+    pushObservationRow(pendingObservations, userId, threadId, {
+      kind: `preference.${slugify(p.key)}`,
+      value_text: `Saved preference: ${p.key} = ${val}`,
+      meta: { category: "note", summary: safeSummary(`Saved preference: ${p.key} = ${val}`), raw: p },
+    });
+  }
+
+  for (const c of save.conditions ?? []) {
+    if (!c?.label) continue;
+    const label = String(c.label).trim();
+    if (!label) continue;
+    const status = typeof c.status === "string" ? c.status : "active";
+    const since = normalizeIso(c.since ?? null);
+    clinical.conditions.push({ label, status, code: c.code ?? null, since });
+    pushObservationRow(pendingObservations, userId, threadId, {
+      kind: `condition.${slugify(label)}`,
+      value_text: label,
+      observed_at: since,
+      meta: { category: "diagnosis", status, code: c.code ?? null, summary: label, raw: c },
+    });
+  }
+
+  for (const m of save.medications ?? []) {
+    if (!m?.name) continue;
+    const name = String(m.name).trim();
+    if (!name) continue;
+    const dose = m.dose ? String(m.dose) : null;
+    const since = normalizeIso(m.since ?? null);
+    const stoppedAt = m.stoppedAt ? normalizeIso(m.stoppedAt) : null;
+    clinical.meds.push({ name, dose, since, stoppedAt });
+    pushObservationRow(pendingObservations, userId, threadId, {
+      kind: `medication.${slugify(name)}`,
+      value_text: dose ? `${name} ${dose}` : name,
+      observed_at: since,
+      meta: {
+        category: "medication",
+        name,
+        dose,
+        since,
+        stopped_at: stoppedAt,
+        summary: dose ? `${name} ${dose}` : name,
+        raw: m,
       },
     });
   }
 
-  const save = out?.save || {};
-  await prisma.$transaction(async (tx) => {
-    // CONDITIONS
-    for (const c of save.conditions ?? []) {
-      const existing = await tx.condition.findFirst({
-        where: { profileId: profile.id, label: c.label, status: (c.status as any) ?? "active" },
-      });
-      if (existing) {
-        await tx.condition.update({
-          where: { id: existing.id },
-          data: { code: c.code ?? existing.code, since: c.since ?? existing.since },
-        });
-      } else {
-        const row = await tx.condition.create({
-          data: {
-            profileId: profile.id,
-            label: c.label,
-            status: (c.status as any) ?? "active",
-            code: c.code ?? null,
-            since: c.since ?? null,
-          },
-        });
-        await tx.timelineEvent.create({
-          data: { profileId: profile.id, at: new Date(), type: "diagnosis", refId: row.id, summary: c.label },
-        });
-      }
-    }
+  for (const l of save.labs ?? []) {
+    if (!l?.name) continue;
+    const name = String(l.name).trim();
+    if (!name) continue;
+    const valueNum = parseNumber((l as any).value ?? (l as any).value_num ?? null);
+    const rawValue =
+      valueNum == null
+        ? ((l as any).value_text ?? l.value ?? null)
+        : null;
+    const valueText = rawValue != null ? String(rawValue) : null;
+    const takenAt = normalizeIso(l.takenAt ?? null);
+    clinical.labs.push({
+      name,
+      value: valueNum ?? valueText,
+      unit: l.unit ?? null,
+      takenAt,
+      panel: l.panel ?? null,
+      abnormal: (l as any).abnormal ?? null,
+    });
+    pushObservationRow(pendingObservations, userId, threadId, {
+      kind: `lab.${slugify(name)}`,
+      value_num: valueNum,
+      value_text: valueNum == null ? valueText : null,
+      unit: l.unit ?? null,
+      observed_at: takenAt,
+      meta: {
+        category: "lab",
+        label: name,
+        panel: l.panel ?? null,
+        abnormal: (l as any).abnormal ?? null,
+        summary: safeSummary(`${name}: ${valueText ?? valueNum ?? ""}${l.unit ? ` ${l.unit}` : ""}`),
+        raw: l,
+      },
+    });
+  }
 
-    // MEDICATIONS
-    for (const m of save.medications ?? []) {
-      const existing = await tx.medication.findFirst({
-        where: { profileId: profile.id, name: m.name, dose: m.dose ?? null, stoppedAt: null },
-      });
-      if (existing) {
-        await tx.medication.update({
-          where: { id: existing.id },
-          data: { since: m.since ?? existing.since },
-        });
-      } else {
-        const row = await tx.medication.create({
-          data: {
-            profileId: profile.id,
-            name: m.name,
-            dose: m.dose ?? null,
-            since: m.since ?? null,
-            stoppedAt: m.stoppedAt ?? null,
-          },
-        });
-        await tx.timelineEvent.create({
-          data: {
-            profileId: profile.id,
-            at: new Date(),
-            type: "med_start",
-            refId: row.id,
-            summary: (`Started ${m.name} ${m.dose || ""}`).trim(),
-          },
-        });
-      }
-    }
+  for (const note of save.notes ?? []) {
+    if (!note) continue;
+    const text = String(note).trim();
+    if (!text) continue;
+    pushObservationRow(pendingObservations, userId, threadId, {
+      kind: "note.ai_doc",
+      value_text: text,
+      meta: { category: "note", summary: safeSummary(text) },
+    });
+  }
 
-    // LABS
-    for (const l of save.labs ?? []) {
-      const takenAt = l.takenAt ? new Date(l.takenAt) : null;
-      const existing = await tx.labResult.findFirst({
-        where: { profileId: profile.id, name: l.name, takenAt },
-      });
-      if (existing) {
-        await tx.labResult.update({
-          where: { id: existing.id },
-          data: {
-            value: (l as any).value ?? existing.value,
-            unit: l.unit ?? existing.unit,
-            refLow: (l as any).normalLow ?? existing.refLow,
-            refHigh: (l as any).normalHigh ?? existing.refHigh,
-            abnormal: (l as any).abnormal ?? existing.abnormal,
-          },
-        });
-      } else {
-        const row = await tx.labResult.create({
-          data: {
-            profileId: profile.id,
-            panel: l.panel ?? null,
-            name: l.name,
-            value: (l as any).value ?? null,
-            unit: l.unit ?? null,
-            refLow: (l as any).normalLow ?? null,
-            refHigh: (l as any).normalHigh ?? null,
-            takenAt,
-            abnormal: (l as any).abnormal ?? null,
-          },
-        });
-        await tx.timelineEvent.create({
-          data: {
-            profileId: profile.id,
-            at: new Date(),
-            type: "lab",
-            refId: row.id,
-            summary: (`${l.name}: ${l.value ?? ""}${l.unit ?? ""}`).trim(),
-          },
-        });
-      }
-    }
+  let memAfter;
+  try {
+    memAfter = await getMemByThread(userId, threadId);
+  } catch (err: any) {
+    console.error("[ai-doc] memory load error", err?.message || err);
+    memAfter = { prefs: [], facts: [], redflags: [], goals: [] };
+  }
 
-    // NOTES
-    for (const note of save.notes ?? []) {
-      const row = await tx.note.create({ data: { profileId: profile.id, body: note } });
-      await tx.timelineEvent.create({
-        data: { profileId: profile.id, at: new Date(), type: "note", refId: row.id, summary: note },
-      });
-    }
-
-    // PREFS
-    for (const p of save.prefs ?? []) {
-      const existing = await tx.preference.findFirst({ where: { profileId: profile.id, key: p.key } });
-      if (existing) {
-        await tx.preference.update({ where: { id: existing.id }, data: { value: p.value } });
-      } else {
-        await tx.preference.create({ data: { profileId: profile.id, key: p.key, value: p.value } });
-      }
-    }
-  });
-
-  // Personalization via rule engine
-  const memAfter = await getMemByThread(threadId || "");
-  const ruled = runRules({ labs, meds, conditions, mem: memAfter });
-  const plan = buildPersonalPlan(ruled, memAfter, { symptomsText: message });
+  const ruled = runRules({ labs: clinical.labs, meds: clinical.meds, conditions: clinical.conditions, mem: memAfter });
+  const plan = buildPersonalPlan(ruled, memAfter, { vitals: clinical.vitals, symptomsText: message });
 
   // Keep core alerts fresh (stale/abnormal)
   await fetch(new URL("/api/alerts/recompute", req.url), {
@@ -382,16 +628,20 @@ export async function POST(req: NextRequest) {
     headers: { cookie: req.headers.get("cookie") || "" },
   }).catch(() => {});
 
-  // Log which rules fired
-  await prisma.timelineEvent.create({
-    data: {
-      profileId: profile.id,
-      at: new Date(),
-      type: "ai_reason",
+  pushObservationRow(pendingObservations, userId, threadId, {
+    kind: "ai_doc.rules_fired",
+    value_text: `Rules: ${plan.rulesFired.join(", ")}`,
+    meta: {
+      category: "note",
       summary: `Rules: ${plan.rulesFired.join(", ")}`,
-      details: JSON.stringify({ rules: plan.rulesFired }),
+      details: { rules: plan.rulesFired },
     },
   });
+
+  if (pendingObservations.length) {
+    const { error: insertErr } = await supa.from("observations").insert(pendingObservations);
+    if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
+  }
 
   return NextResponse.json({
     reply: out.reply,
