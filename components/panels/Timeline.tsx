@@ -15,7 +15,8 @@ const catOf = (it:any):Cat => {
 };
 
 export default function Timeline(){
-  const [resetError, setResetError] = useState<string|null>(null);
+  const [actionError, setActionError] = useState<string|null>(null);
+  const [deletingId, setDeletingId] = useState<string|null>(null);
   const { data, error, isLoading, mutate } = useTimeline();
   const items = data?.items ?? [];
 
@@ -83,15 +84,15 @@ export default function Timeline(){
         <button
           onClick={async () => {
             if (!confirm('Reset all observations and predictions?')) return;
-            setResetError(null);
+            setActionError(null);
             const res = await fetch('/api/observations/reset', { method: 'POST' });
-            if (res.status === 401) { setResetError('Please sign in'); return; }
+            if (res.status === 401) { setActionError('Please sign in'); return; }
             await mutate();
           }}
           className="text-xs px-2 py-1 rounded-md border"
         >Reset</button>
       </div>
-      {resetError && <div className="mb-2 text-xs text-rose-600">{resetError}</div>}
+      {actionError && <div className="mb-2 text-xs text-rose-600">{actionError}</div>}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {(["ALL","LABS","VITALS","IMAGING","AI","NOTES"] as Cat[]).map(c=>(
           <button key={c} onClick={()=>setCat(c)} className={`text-xs px-2.5 py-1 rounded-full border ${cat===c?"bg-muted font-medium":"hover:bg-muted"}`}>{c}</button>
@@ -111,7 +112,54 @@ export default function Timeline(){
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <div><span className="font-medium">Test date:</span> {new Date(it.observed_at).toLocaleString()}
               {it.uploaded_at && <> · <span className="font-medium">Uploaded:</span> {new Date(it.uploaded_at).toLocaleString()}</>}</div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted">{it.kind==="prediction"?"AI":"Obs"}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted">{it.kind==="prediction"?"AI":"Obs"}</span>
+                {it.kind==="observation" && (
+                  <button
+                    className="text-[10px] px-2 py-0.5 rounded-md border"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (!confirm('Delete this observation?')) return;
+                      setActionError(null);
+                      setDeletingId(it.id);
+                      try {
+                        const res = await fetch('/api/observations/discard', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ id: it.id }),
+                        });
+                        if (res.status === 401) {
+                          setActionError('Please sign in');
+                          return;
+                        }
+                        if (res.status === 500) {
+                          const message = await res.text();
+                          setActionError(message || 'Something went wrong');
+                          return;
+                        }
+                        if (!res.ok) {
+                          const message = await res.text();
+                          setActionError(message || 'Failed to delete observation');
+                          return;
+                        }
+                        if (active?.id === it.id) {
+                          setOpen(false);
+                          setActive(null);
+                          setSignedUrl(null);
+                        }
+                        await mutate();
+                      } catch (err) {
+                        setActionError('Failed to delete observation');
+                      } finally {
+                        setDeletingId(null);
+                      }
+                    }}
+                    disabled={deletingId === it.id}
+                  >
+                    {deletingId === it.id ? 'Deleting…' : 'Delete'}
+                  </button>
+                )}
+              </div>
             </div>
             <div className="mt-1 font-medium">
               {it.name}
