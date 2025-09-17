@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState, useMemo, RefObject, Fragment } from 'react';
+import { useEffect, useRef, useState, useMemo, RefObject, Fragment, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fromSearchParams } from '@/lib/modes/url';
 import Header from '../Header';
@@ -302,6 +302,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userText, setUserText] = useState('');
+  const [welcomeReady, setWelcomeReady] = useState(false);
+  const [messagesHydrated, setMessagesHydrated] = useState(false);
   const [proactive, setProactive] = useState<null | { kind: 'predispositions'|'medications'|'weight' }>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -326,7 +328,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     [messages]
   );
   const trimmedInput = userText.trim();
-  const showDefaultSuggestions = visibleMessages.length === 0 && trimmedInput.length === 0;
+  const showDefaultSuggestions = welcomeReady && visibleMessages.length === 0 && trimmedInput.length === 0;
   const showLiveSuggestions = trimmedInput.length > 0 && liveSuggestions.length > 0;
 
   const lastSuggestions = useMemo(() => {
@@ -385,6 +387,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           ? ((window as any).__medxEphemeralId ||= crypto.randomUUID())
           : 'ephemeral'));
 
+  useEffect(() => {
+    setWelcomeReady(isProfileThread || therapyMode);
+  }, [isProfileThread, therapyMode, threadId]);
+
   // Auto-create a fresh thread when landing on /?panel=chat with no threadId
   useEffect(() => {
     if (!threadId && !isProfileThread) {
@@ -436,14 +442,15 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const activeProfileName = activeProfile?.full_name || activeProfile?.name || 'current patient';
   const activeProfileId = activeProfile?.id || null;
 
-  const addAssistant = (text: string, opts?: Partial<ChatMessage>) =>
+  const addAssistant = useCallback((text: string, opts?: Partial<ChatMessage>) => {
     setMessages(prev => [...prev, { id: uid(), role: 'assistant', kind: 'chat', content: text, ...opts } as any]);
+  }, []);
 
-  function addOnce(id: string, content: string) {
+  const addOnce = useCallback((id: string, content: string) => {
     if (posted.current.has(id)) return;
     posted.current.add(id);
     addAssistant(content, { id });
-  }
+  }, [addAssistant]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -507,6 +514,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   useEffect(() => {
     posted.current.clear();
+    setMessagesHydrated(false);
     const tid = threadId || (isProfileThread ? 'med-profile' : null);
     if (tid) {
       ensureThread(tid);
@@ -516,6 +524,17 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     } else {
       setMessages([]);
     }
+    let timer: number | undefined;
+    if (typeof window !== 'undefined') {
+      timer = window.setTimeout(() => setMessagesHydrated(true), 0);
+    } else {
+      setMessagesHydrated(true);
+    }
+    return () => {
+      if (typeof window !== 'undefined' && typeof timer === 'number') {
+        window.clearTimeout(timer);
+      }
+    };
   }, [threadId, isProfileThread]);
 
   useEffect(() => {
@@ -566,10 +585,21 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, [isProfileThread, threadId, therapyMode]);
 
   useEffect(() => {
-    if (!isProfileThread && messages.length === 0) {
-      addOnce('welcome:chat', getRandomWelcome());
+    if (!messagesHydrated || welcomeReady) return;
+    if (isProfileThread || therapyMode || messages.length > 0) {
+      setWelcomeReady(true);
+      return;
     }
-  }, [isProfileThread, messages.length]);
+    addOnce('welcome:chat', getRandomWelcome());
+    setWelcomeReady(true);
+  }, [
+    addOnce,
+    isProfileThread,
+    messages.length,
+    messagesHydrated,
+    therapyMode,
+    welcomeReady,
+  ]);
 
   useEffect(() => {
     const tid = threadId || (isProfileThread ? 'med-profile' : null);
