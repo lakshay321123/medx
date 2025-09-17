@@ -1,78 +1,4 @@
-export const LAB_HINTS = [
-  "glucose",
-  "cholesterol",
-  "triglycer",
-  "hba1c",
-  "egfr",
-  "creatinine",
-  "bun",
-  "bilirubin",
-  "ast",
-  "alt",
-  "alp",
-  "ggt",
-  "hb",
-  "hemoglobin",
-  "wbc",
-  "platelet",
-  "esr",
-  "ferritin",
-  "tibc",
-  "uibc",
-  "transferrin",
-  "sodium",
-  "potassium",
-  "vitamin",
-  "lipase",
-  "amylase",
-  "fsh",
-  "lh",
-  "rheumatoid",
-];
-
-export const MED_HINTS = [
-  "med",
-  "rx",
-  "drug",
-  "dose",
-  "tablet",
-  "capsule",
-  "syrup",
-  "injection",
-  "prescription",
-  "therapy",
-];
-
-export const CONDITION_HINTS = [
-  "diagnosis",
-  "diagnoses",
-  "condition",
-  "conditions",
-  "problem",
-  "disease",
-  "icd",
-  "impression",
-  "hx",
-  "fhx",
-  "family history",
-  "history",
-  "chronic",
-];
-
-export const VITAL_HINTS = [
-  "bp",
-  "blood_pressure",
-  "heart_rate",
-  "hr",
-  "pulse",
-  "spo2",
-  "oxygen",
-  "resp",
-  "rr",
-  "temperature",
-  "temp",
-  "vital",
-];
+import { classifyObservation, normalizeObservationKind } from "../supabase/observationGroups";
 
 export type ClinicalState = {
   labs: any[];
@@ -100,11 +26,9 @@ export function buildClinicalState(obsRows: any[], predRows: any[]): ClinicalSta
   const vitals: ClinicalState["vitals"] = {};
 
   for (const row of Array.isArray(obsRows) ? obsRows : []) {
-    const kind = String(row?.kind || "").toLowerCase();
     const meta = (row?.meta as Record<string, any>) || {};
-    const cat = String(meta?.category || "").toLowerCase();
-    const type = String(meta?.type || "").toLowerCase();
-    const group = String(meta?.group || "").toLowerCase();
+    const canonicalKind = normalizeObservationKind(row?.kind ?? "");
+    const group = classifyObservation(row?.kind ?? "", meta);
     const labelRaw =
       meta?.label ??
       meta?.name ??
@@ -114,44 +38,7 @@ export function buildClinicalState(obsRows: any[], predRows: any[]): ClinicalSta
       "Observation";
     const label = String(labelRaw).trim();
     const observedAt = normalizeIso(row?.observed_at ?? meta?.observed_at ?? row?.created_at ?? null);
-    const search = `${kind} ${label} ${meta?.summary ?? meta?.notes ?? ""}`
-      .toLowerCase()
-      .replace(/[_-]+/g, " ");
-    const catText = `${cat} ${type} ${group}`;
-    const catHas = (needle: string) =>
-      needle &&
-      (cat.includes(needle) || type.includes(needle) || group.includes(needle));
-
-    const isLab =
-      catHas("lab") ||
-      catHas("labs") ||
-      kind.startsWith("lab") ||
-      LAB_HINTS.some((hint) => kind.includes(hint) || search.includes(hint));
-    const isMedication =
-      catHas("medication") ||
-      catHas("medications") ||
-      catHas("meds") ||
-      catHas("rx") ||
-      MED_HINTS.some((hint) =>
-        kind.includes(hint) || search.includes(hint) || catText.includes(hint)
-      );
-    const isCondition =
-      catHas("diagnosis") ||
-      catHas("diagnoses") ||
-      catHas("condition") ||
-      catHas("conditions") ||
-      catHas("problem") ||
-      catHas("chronic") ||
-      catHas("history") ||
-      catHas("family") ||
-      CONDITION_HINTS.some((hint) =>
-        kind.includes(hint) || search.includes(hint) || catText.includes(hint)
-      );
-    const isVital =
-      catHas("vital") ||
-      VITAL_HINTS.some((hint) => kind.includes(hint) || search.includes(hint));
-
-    if (isLab) {
+    if (group === "labs") {
       const numeric =
         row?.value_num != null
           ? parseNumber(row.value_num)
@@ -176,7 +63,7 @@ export function buildClinicalState(obsRows: any[], predRows: any[]): ClinicalSta
       }
     }
 
-    if (isMedication) {
+    if (group === "medications") {
       const dose =
         meta?.dose ??
         meta?.dosage ??
@@ -195,7 +82,7 @@ export function buildClinicalState(obsRows: any[], predRows: any[]): ClinicalSta
       }
     }
 
-    if (isCondition) {
+    if (group === "diagnoses") {
       const entry = {
         label,
         status: meta?.status ?? (meta?.active === false ? "resolved" : "active"),
@@ -209,8 +96,17 @@ export function buildClinicalState(obsRows: any[], predRows: any[]): ClinicalSta
       }
     }
 
-    if (isVital) {
-      if (kind.includes("bp") || search.includes("blood pressure")) {
+    const kindForVitals = `${canonicalKind} ${(meta?.label ?? "")} ${(meta?.name ?? "")} ${(meta?.summary ?? "")}`
+      .toLowerCase();
+    if (
+      group === "vitals" ||
+      canonicalKind.startsWith("vitals.") ||
+      canonicalKind.includes("bp") ||
+      canonicalKind.includes("heart") ||
+      canonicalKind.includes("spo2") ||
+      canonicalKind.includes("temperature")
+    ) {
+      if (kindForVitals.includes("bp") || kindForVitals.includes("blood pressure")) {
         const sbp = parseNumber(meta?.sbp ?? (Array.isArray(meta?.values) ? meta.values?.[0] : null));
         if (sbp != null) vitals.sbp = sbp;
         else if (typeof row?.value_text === "string" && row.value_text.includes("/")) {
@@ -219,21 +115,28 @@ export function buildClinicalState(obsRows: any[], predRows: any[]): ClinicalSta
           if (parsed != null) vitals.sbp = parsed;
         }
       }
-      if (kind.includes("hr") || kind.includes("heart") || search.includes("heart rate")) {
+      if (
+        kindForVitals.includes("hr") ||
+        kindForVitals.includes("heart") ||
+        kindForVitals.includes("heart rate")
+      ) {
         const hr =
           row?.value_num != null
             ? parseNumber(row.value_num)
             : parseNumber(meta?.value ?? row?.value_text);
         if (hr != null) vitals.hr = hr;
       }
-      if (kind.includes("spo2") || search.includes("spo2") || search.includes("oxygen")) {
+      if (
+        kindForVitals.includes("spo2") ||
+        kindForVitals.includes("oxygen")
+      ) {
         const spo2 =
           row?.value_num != null
             ? parseNumber(row.value_num)
             : parseNumber(meta?.value ?? row?.value_text);
         if (spo2 != null) vitals.spo2 = spo2;
       }
-      if (kind.includes("temp") || search.includes("temperature")) {
+      if (kindForVitals.includes("temp") || kindForVitals.includes("temperature")) {
         const temp =
           row?.value_num != null
             ? parseNumber(row.value_num)
