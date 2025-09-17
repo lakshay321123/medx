@@ -6,6 +6,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { LinkBadge } from "./SafeLink";
+import type { CodeProps } from "react-markdown/lib/ast-to-react";
 
 // --- Normalizer ---
 // normalize: unwrap full-message fences, convert ==== to <hr>, bold-lines → headings, list bullets
@@ -134,17 +135,25 @@ export default function ChatMarkdown({ content }: { content: string }) {
                 <table {...props}>{children}</table>
               </div>
             ),
-            code: ({ inline, children, ...props }) =>
-              inline ? (
-                <code
-                  {...props}
-                  className="rounded bg-black/5 px-1 py-0.5 dark:bg-white/10"
-                >
-                  {children}
-                </code>
-              ) : (
-                <CodeBlock>{String(children)}</CodeBlock>
-              ),
+            code: (props: CodeProps) => {
+              const { inline, children, ...rest } = props;
+              if (inline) {
+                return (
+                  <code
+                    {...rest}
+                    className="rounded bg-black/5 px-1 py-0.5 dark:bg-white/10"
+                  >
+                    {children}
+                  </code>
+                );
+              }
+
+              const text = Array.isArray(children)
+                ? children.join("")
+                : String(children ?? "");
+
+              return <CodeBlock>{text}</CodeBlock>;
+            },
           }}
         >
           {prepared}
