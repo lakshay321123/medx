@@ -137,31 +137,6 @@ function isNewTopic(text: string) {
     q.split(/\s+/).length <= 3
   );
 }
-type Brief = { tldr: string; bullets: string[]; citations: { title: string; url: string }[] };
-
-function renderBrief(raw: string) {
-  try {
-    const b = JSON.parse(raw) as Brief;
-    return (
-      <div>
-        <p className="font-medium">TL;DR: {b.tldr}</p>
-        <ul className="list-disc pl-5">
-          {b.bullets.slice(0,3).map((x,i)=><li key={i}>{x}</li>)}
-        </ul>
-        <div className="flex flex-wrap gap-2 pt-2">
-          {b.citations.slice(0,5).map((c,i)=>
-            <a key={i} href={c.url} target="_blank" rel="noreferrer" className="underline">
-              [{i+1}] {c.title || new URL(c.url).hostname}
-            </a>
-          )}
-        </div>
-      </div>
-    );
-  } catch {
-    return <p>{raw}</p>;
-  }
-}
-
 function inferTopicFromDoc(report: string) {
   const h1 = (report.match(/^#\s*(.+)$/m) || [, ""])[1];
   const hits = report.match(/\b(cancer|fracture|pneumonia|diabetes|hypertension|asthma|arthritis|kidney|liver|anemia)\b/i);
@@ -286,25 +261,15 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
     </div>
   );
 }
-function ChatCard({ m, therapyMode, onAction, simple, researchOn }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onAction: (s: Suggestion) => void; simple: boolean; researchOn: boolean }) {
+function ChatCard({ m, therapyMode, onAction, simple }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onAction: (s: Suggestion) => void; simple: boolean }) {
   const suggestions = normalizeSuggestions(m.followUps);
   if (m.pending) return <PendingChatCard label="Thinking…" />;
   return (
     <div
       className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl"
     >
-      {m.role === "assistant" ? (
-        researchOn
-          ? renderBrief(m.content)
-          : (
-            <ChatMarkdown
-              content={m.content}
-            />
-          )
-      ) : (
-        <ChatMarkdown content={m.content} />
-      )}
-      {m.role === "assistant" && !researchOn && (m.citations?.length || 0) > 0 && (
+      <ChatMarkdown content={m.content} />
+      {m.role === "assistant" && (m.citations?.length || 0) > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {(m.citations || []).slice(0, simple ? 3 : 6).map((c, i) => (
             <LinkBadge key={i} href={c.url}>
@@ -325,7 +290,7 @@ function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onA
   return m.kind === "analysis" ? (
     <AnalysisCard m={m} researchOn={researchOn} onQuickAction={onQuickAction} busy={busy} />
   ) : (
-    <ChatCard m={m} therapyMode={therapyMode} onAction={onAction} simple={simple} researchOn={researchOn} />
+    <ChatCard m={m} therapyMode={therapyMode} onAction={onAction} simple={simple} />
   );
 }
 
@@ -1014,8 +979,27 @@ ${linkNudge}`;
       const { getIntentStyle } = await import("@/lib/intents");
       const INTENT_STYLE = getIntentStyle(userText || "", mode);
 
+      // Build drafting structure exactly once from the base mode
+      const DRAFT_STYLE = modeState.base === "doctor" ? DOCTOR_DRAFT_STYLE : PATIENT_DRAFT_STYLE;
+      const STRUCTURE_STYLE = [DRAFT_STYLE, INTENT_STYLE || ""].filter(Boolean).join("\n\n");
+
+      // Keep research as an additive hint, never a new template
+      const RESEARCH_STITCH = modeState.research
+        ? [
+            "RESEARCH INTEGRATION:",
+            "- Keep the above section headings exactly as-is.",
+            "- Add 1–2 bullets labeled **Research says:** where relevant.",
+            "- Cite inline as [1], [2] and include linked references at the end."
+          ].join("\n")
+        : "";
+
+      const buildSystemAll = (base: string, domain?: string, adv?: string) =>
+        [base, domain || "", adv || "", STRUCTURE_STYLE, RESEARCH_STITCH]
+          .filter(Boolean)
+          .join("\n\n");
+
       const sys = topicHint + systemCommon + baseSys;
-      const sysWithDomain = DOMAIN_STYLE ? `${sys}\n\n${DOMAIN_STYLE}` : sys;
+      const sysWithDomain = sys;
       let ADV_STYLE = "";
       const adv = detectAdvancedDomain(userText);
       if (adv) {
@@ -1029,7 +1013,7 @@ ${linkNudge}`;
           adv === "systems-policy" ? D.SYSTEMS_POLICY_STYLE : "";
       }
       // Append mode structure and any intent-specific structure
-      const systemAll = `${sysWithDomain}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}\n\n${mode === "doctor" ? DOCTOR_DRAFT_STYLE : PATIENT_DRAFT_STYLE}${INTENT_STYLE ? "\n\n" + INTENT_STYLE : ""}`;
+      const systemAll = buildSystemAll(sysWithDomain, DOMAIN_STYLE, ADV_STYLE);
       let chatMessages: { role: string; content: string }[];
 
       const looksLikeMath = /[0-9\.\s+\-*\/^()]{6,}/.test(userText) || /sin|cos|log|sqrt|derivative|integral|limit/i.test(userText);
@@ -1106,8 +1090,8 @@ Here is the ENTIRE conversation so far:
 ${fullMem || "(none)"}
 
 ${systemCommon}` + baseSys;
-        const systemWithDomain = DOMAIN_STYLE ? `${system}\n\n${DOMAIN_STYLE}` : system;
-        const systemAll = `${systemWithDomain}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
+        const systemWithDomain = system;
+        const systemAll = buildSystemAll(systemWithDomain, DOMAIN_STYLE, ADV_STYLE);
         const userMsg = `Follow-up: ${text}\nIf the question is ambiguous, ask one concise disambiguation question and then answer briefly using the context.`;
         chatMessages = [
           { role: 'system', content: systemAll },
@@ -1123,8 +1107,8 @@ ${systemCommon}` + baseSys;
         );
 
         const sys = topicHint + systemCommon + baseSys;
-        const sysWithDomain = DOMAIN_STYLE ? `${sys}\n\n${DOMAIN_STYLE}` : sys;
-        const systemAll = `${sysWithDomain}${ADV_STYLE ? "\n\n" + ADV_STYLE : ""}`;
+        const sysWithDomain = sys;
+        const systemAll = buildSystemAll(sysWithDomain, DOMAIN_STYLE, ADV_STYLE);
         const planContextBlock = 'CONTEXT:\n' + JSON.stringify(plan.sections || {}, null, 2);
         chatMessages = [
           { role: 'system', content: systemAll },
