@@ -321,7 +321,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const therapyMode = modeState.therapy;
   const defaultSuggestions = useMemo(() => getDefaultSuggestions(modeState), [modeState]);
   const liveSuggestions = useMemo(() => getInlineSuggestions(userText, modeState), [userText, modeState]);
-  const visibleMessages = useMemo(() => messages.filter(m => m.role !== 'system'), [messages]);
+  const visibleMessages = useMemo(
+    () => messages.filter(m => m.role === 'user' || m.role === 'assistant'),
+    [messages]
+  );
   const trimmedInput = userText.trim();
   const showDefaultSuggestions = visibleMessages.length === 0 && trimmedInput.length === 0;
   const showLiveSuggestions = trimmedInput.length > 0 && liveSuggestions.length > 0;
