@@ -14,6 +14,28 @@ const catOf = (it:any):Cat => {
   return "NOTES";
 };
 
+const readErrorMessage = async (res: Response, fallback: string) => {
+  const base = res.statusText || fallback;
+  const contentType = res.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    try {
+      const data = await res.clone().json();
+      const message =
+        typeof data?.error === "string"
+          ? data.error
+          : typeof data?.message === "string"
+          ? data.message
+          : null;
+      if (message) return message;
+    } catch {}
+  }
+  try {
+    const text = await res.text();
+    if (text) return text;
+  } catch {}
+  return base || fallback;
+};
+
 export default function Timeline(){
   const [actionError, setActionError] = useState<string|null>(null);
   const [deletingId, setDeletingId] = useState<string|null>(null);
@@ -85,9 +107,18 @@ export default function Timeline(){
           onClick={async () => {
             if (!confirm('Reset all observations and predictions?')) return;
             setActionError(null);
-            const res = await fetch('/api/observations/reset', { method: 'POST' });
-            if (res.status === 401) { setActionError('Please sign in'); return; }
-            await mutate();
+            try {
+              const res = await fetch('/api/observations/reset', { method: 'POST' });
+              if (res.status === 401) { setActionError('Please sign in'); return; }
+              if (!res.ok) {
+                setActionError(await readErrorMessage(res, 'Failed to reset timeline'));
+                return;
+              }
+              await mutate();
+            } catch (err) {
+              const message = err instanceof Error ? err.message : 'Failed to reset timeline';
+              setActionError(message || 'Failed to reset timeline');
+            }
           }}
           className="text-xs px-2 py-1 rounded-md border"
         >Reset</button>
@@ -128,18 +159,9 @@ export default function Timeline(){
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ id: it.id }),
                         });
-                        if (res.status === 401) {
-                          setActionError('Please sign in');
-                          return;
-                        }
-                        if (res.status === 500) {
-                          const message = await res.text();
-                          setActionError(message || 'Something went wrong');
-                          return;
-                        }
+                        if (res.status === 401) { setActionError('Please sign in'); return; }
                         if (!res.ok) {
-                          const message = await res.text();
-                          setActionError(message || 'Failed to delete observation');
+                          setActionError(await readErrorMessage(res, 'Failed to delete observation'));
                           return;
                         }
                         if (active?.id === it.id) {
@@ -149,7 +171,8 @@ export default function Timeline(){
                         }
                         await mutate();
                       } catch (err) {
-                        setActionError('Failed to delete observation');
+                        const message = err instanceof Error ? err.message : 'Failed to delete observation';
+                        setActionError(message || 'Failed to delete observation');
                       } finally {
                         setDeletingId(null);
                       }
