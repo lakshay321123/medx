@@ -93,6 +93,49 @@ function slugify(value: string) {
     .replace(/(^-|-$)/g, "");
 }
 
+function asStringArray(input: any): string[] {
+  if (Array.isArray(input)) {
+    return input
+      .map((item) => (typeof item === "string" ? item.trim() : String(item ?? "").trim()))
+      .filter(Boolean);
+  }
+  if (typeof input === "string") {
+    try {
+      const parsed = JSON.parse(input);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item) => (typeof item === "string" ? item.trim() : String(item ?? "").trim()))
+          .filter(Boolean);
+      }
+    } catch {
+      // fall back to comma/newline separation for plain strings
+      return input
+        .split(/[,\n;]/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  }
+  return [];
+}
+
+function normalizePregnancy(input: any): "yes" | "no" | "unsure" | null {
+  if (input == null) return null;
+  if (typeof input === "boolean") return input ? "yes" : "no";
+  const text = String(input).trim().toLowerCase();
+  if (!text) return null;
+  if (["yes", "y", "true", "pregnant", "positive"].includes(text)) return "yes";
+  if (["no", "n", "false", "not pregnant", "negative"].includes(text)) return "no";
+  if (["not sure", "unsure", "unknown", "maybe"].includes(text)) return "unsure";
+  return null;
+}
+
+function clampAgeYears(input: any): number | null {
+  const num = parseNumber(input);
+  if (num == null) return null;
+  if (num < 0 || num > 130) return null;
+  return Math.round(num);
+}
+
 function computeAgeFromDob(dob?: string | null): number | null {
   if (!dob) return null;
   const birth = new Date(dob);
@@ -334,6 +377,111 @@ function pushObservationRow(
   });
 }
 
+function mergeProfileConditions(
+  clinical: ClinicalState,
+  chronic: string[],
+  predisposition: string[]
+) {
+  const map = new Map<string, any>();
+  for (const c of clinical.conditions) {
+    if (!c?.label) continue;
+    map.set(String(c.label).toLowerCase(), c);
+  }
+
+  for (const label of chronic) {
+    const trimmed = label.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    const existing = map.get(key);
+    const entry = {
+      label: trimmed,
+      status: "active",
+      code: existing?.code ?? null,
+      since: existing?.since ?? null,
+      source: existing?.source ?? "profile",
+    };
+    map.set(key, { ...existing, ...entry });
+  }
+
+  for (const label of predisposition) {
+    const trimmed = label.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (map.has(key)) {
+      const existing = map.get(key);
+      map.set(key, { ...existing, source: existing?.source ?? "profile" });
+      continue;
+    }
+    map.set(key, {
+      label: trimmed,
+      status: "history",
+      code: null,
+      since: null,
+      source: "profile",
+    });
+  }
+
+  clinical.conditions = Array.from(map.values()).sort(
+    (a, b) => new Date(b.since || 0).getTime() - new Date(a.since || 0).getTime()
+  );
+}
+
+function latestObservationByKind(obsRows: any[], kind: string) {
+  let latest: any = null;
+  let latestTs = -Infinity;
+  for (const row of Array.isArray(obsRows) ? obsRows : []) {
+    if (!row || row.kind !== kind) continue;
+    const ts = new Date(row.observed_at ?? row.created_at ?? 0).getTime();
+    if (ts > latestTs) {
+      latest = row;
+      latestTs = ts;
+    }
+  }
+  return latest;
+}
+
+function hydrateProfileDemographics(
+  profileRow: any,
+  obsRows: any[],
+  mem: Awaited<ReturnType<typeof getMemByThread>>
+) {
+  if (!profileRow) return;
+
+  const ageFromMem = mem.facts.find((f) => f.key === "demographics.age_years");
+  if (profileRow.age == null && ageFromMem?.value != null) {
+    const parsed = clampAgeYears(ageFromMem.value);
+    if (parsed != null) profileRow.age = parsed;
+  }
+
+  const pregFromMem = mem.facts.find(
+    (f) => f.key === "demographics.pregnancy_status"
+  );
+  if (profileRow.pregnant == null && pregFromMem?.value != null) {
+    const norm = normalizePregnancy(pregFromMem.value);
+    if (norm) profileRow.pregnant = norm;
+  }
+
+  const ageObs = latestObservationByKind(obsRows, "demographics.age_years");
+  if (profileRow.age == null && ageObs) {
+    const val =
+      ageObs.value_num ??
+      clampAgeYears(ageObs.value_text) ??
+      clampAgeYears(ageObs.meta?.value);
+    if (val != null) profileRow.age = val;
+  }
+
+  const pregObs = latestObservationByKind(
+    obsRows,
+    "demographics.pregnancy_status"
+  );
+  if (profileRow.pregnant == null && pregObs) {
+    const val =
+      normalizePregnancy(pregObs.value_text) ??
+      normalizePregnancy(pregObs.meta?.value);
+    if (val) profileRow.pregnant = val;
+  }
+}
+
 export async function POST(req: NextRequest) {
   const userId = await getUserId(req);
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -371,6 +519,42 @@ export async function POST(req: NextRequest) {
     profileRow = upserted;
 
     const seeds: any[] = [];
+    const ageYears = clampAgeYears(newProfile?.age);
+    if (ageYears != null) {
+      profileRow.age = ageYears;
+      await upsertMem(userId, null, "aidoc.fact", "demographics.age_years", ageYears);
+      pushObservationRow(seeds, userId, threadId, {
+        kind: "demographics.age_years",
+        value_num: ageYears,
+        observed_at: new Date().toISOString(),
+        meta: {
+          category: "demographic",
+          summary: `Age ${ageYears}`,
+          value: ageYears,
+        },
+      });
+    }
+    const pregStatus = normalizePregnancy(newProfile?.pregnant);
+    if (pregStatus) {
+      profileRow.pregnant = pregStatus;
+      await upsertMem(
+        userId,
+        null,
+        "aidoc.fact",
+        "demographics.pregnancy_status",
+        pregStatus
+      );
+      pushObservationRow(seeds, userId, threadId, {
+        kind: "demographics.pregnancy_status",
+        value_text: pregStatus,
+        observed_at: new Date().toISOString(),
+        meta: {
+          category: "demographic",
+          summary: `Pregnancy: ${pregStatus}`,
+          value: pregStatus,
+        },
+      });
+    }
     if (newProfile?.symptoms) {
       const text = String(newProfile.symptoms);
       pushObservationRow(seeds, userId, threadId, {
@@ -427,6 +611,21 @@ export async function POST(req: NextRequest) {
     profileRow = data;
   }
 
+  if (profileRow) {
+    profileRow.chronic_conditions = asStringArray(profileRow.chronic_conditions);
+    profileRow.conditions_predisposition = asStringArray(
+      profileRow.conditions_predisposition
+    );
+  }
+
+  let memBefore: Awaited<ReturnType<typeof getMemByThread>>;
+  try {
+    memBefore = await getMemByThread(userId, threadId);
+  } catch (err: any) {
+    console.error("[ai-doc] memory preload error", err?.message || err);
+    memBefore = { prefs: [], facts: [], redflags: [], goals: [] };
+  }
+
   const obsRes = await supa
     .from("observations")
     .select("id, kind, value_num, value_text, unit, observed_at, created_at, meta")
@@ -443,7 +642,17 @@ export async function POST(req: NextRequest) {
 
   const obsRows = Array.isArray(obsRes.data) ? obsRes.data : [];
   const predRows = Array.isArray(predRes.data) ? predRes.data : [];
+  if (profileRow) {
+    hydrateProfileDemographics(profileRow, obsRows, memBefore);
+  }
   const clinical = buildClinicalState(obsRows, predRows);
+  if (profileRow) {
+    mergeProfileConditions(
+      clinical,
+      profileRow.chronic_conditions ?? [],
+      profileRow.conditions_predisposition ?? []
+    );
+  }
   const profile = buildPromptProfile(profileRow, newProfile);
 
   const pendingObservations: any[] = [];
