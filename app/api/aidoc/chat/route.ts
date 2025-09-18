@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
     title: string | null;
     payload: unknown;
   }> = [];
+  let labsPacket: any = null;
   try {
     const userId = await getUserId(req);
     if (userId) {
@@ -46,6 +47,15 @@ export async function POST(req: NextRequest) {
             .order("observed_at", { ascending: false })
             .limit(50)
         : { data: null };
+      try {
+        const { data: labs } = await sb
+          .from("observation_labs")
+          .select("test_code,test_name,value,unit,sample_date")
+          .eq("user_id", userId)
+          .order("sample_date", { ascending: false })
+          .limit(300);
+        labsPacket = labs || [];
+      } catch {}
       const obs = obsResponse.data;
       const dob = prof?.dob ? new Date(prof.dob) : null;
       const age = dob && !Number.isNaN(dob.getTime())
@@ -81,6 +91,17 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("Failed to load profile for triage:", err);
     observations = [];
+  }
+
+  if (labsPacket !== null) {
+    messages.unshift({
+      role: "system",
+      content: `If LABS are present, ground your answer in them:
+<LABS>${JSON.stringify(labsPacket)}</LABS>
+- "check my last blood report" → summarize latest per test_code.
+- "pull all my reports & changes" → compare latest vs previous (Improving/Worsening/Flat).
+- "see them date wise" → list date→value for each test, newest first.`
+    });
   }
 
   const demoFromAnswers = (answers && typeof (answers as any).demographics === "object") ? (answers as any).demographics : null;

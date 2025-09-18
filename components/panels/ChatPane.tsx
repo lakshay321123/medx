@@ -1335,6 +1335,24 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, [therapyMode]);
 
 
+  function labsMarkdown(trend: any[]) {
+    if (!Array.isArray(trend) || trend.length === 0) return 'I couldn\'t find structured lab values yet.';
+    const formatDate = (d?: string) => (d ? new Date(d).toLocaleDateString() : '—');
+    return [
+      '**Your latest labs (vs previous):**',
+      ...trend.map((t: any) => {
+        const latest = t.latest ? `${t.latest.value} ${t.unit} (${formatDate(t.latest.sample_date)})` : '—';
+        const prev = t.previous ? `${t.previous.value} ${t.unit} (${formatDate(t.previous.sample_date)})` : '—';
+        const verdict = t.direction === 'improving' ? '✅ Improving'
+          : t.direction === 'worsening' ? '⚠️ Worsening'
+          : t.direction === 'flat' ? '➖ No change'
+          : '—';
+        return `- **${t.test_name}**: ${latest} | Prev: ${prev} → ${verdict}`;
+      }),
+    ].join('\n');
+  }
+
+
   async function send(text: string, researchMode: boolean, opts: SendOpts = {}) {
     if (!text.trim() || busy) return;
     setBusy(true);
@@ -1435,6 +1453,32 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       const fullContext = buildFullContext(stableThreadId);
       const contextBlock = fullContext ? `\n\nCONTEXT (recent conversation):\n${fullContext}` : "";
       if (isProfileThread) {
+        const isLast = /last (blood )?(report|labs?)/i.test(messageText);
+        const isChanges = /(all|my) (reports|labs?).*(changes|trend|improv|wors)/i.test(messageText);
+        const isDatewise = /(date ?wise|by date|chronolog)/i.test(messageText);
+        if (isLast || isChanges || isDatewise) {
+          try {
+            const res = await fetch('/api/labs/summary');
+            const body = await res.json().catch(() => null);
+            if (body?.ok && Array.isArray(body.trend)) {
+              const summary = labsMarkdown(body.trend);
+              setMessages(prev =>
+                prev.map(m => (m.id === pendingId ? { ...m, content: summary, pending: false } : m))
+              );
+              if (threadId && summary.trim()) {
+                pushFullMem(threadId, 'assistant', summary);
+                maybeIndexStructured(threadId, summary);
+              }
+              if (stableThreadId) {
+                try { pushFullMem(stableThreadId, 'assistant', summary); } catch {}
+              }
+              setBusy(false);
+              setThinkingStartedAt(null);
+              return;
+            }
+          } catch {}
+        }
+
         const thread = [
           ...messages
             .filter(m => !m.pending)
