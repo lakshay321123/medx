@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export type SearchResult = {
   title: string;
-  snippet: string;
+  snippet?: string;
   url: string;
   source: string;
 };
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     }
 
     const [web, pubmed, openfda, trials] = await Promise.all([
-      webSearch(query),
+      webSearch(query, req),
       pubmedSearch(query),
       openFdaSearch(query),
       clinicalTrialsSearch(query)
@@ -28,19 +28,27 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function webSearch(q: string): Promise<SearchResult[]> {
-  const endpoint = (process.env.SEARCH_API_URL || '').trim();
+async function webSearch(q: string, req: NextRequest): Promise<SearchResult[]> {
+  const query = q.trim();
+  if (!query) return [];
+
+  const endpoint = (process.env.SEARCH_API_URL || '/api/websearch').trim();
   if (!endpoint) return [];
   try {
-    const res = await fetch(`${endpoint}?q=${encodeURIComponent(q)}`, { cache: 'no-store' });
+    const base = new URL(req.url).origin;
+    const url = new URL(endpoint, base);
+    url.searchParams.set('q', query);
+
+    const res = await fetch(url.toString(), { method: 'GET', cache: 'no-store' });
     if (!res.ok) return [];
-    const j = await res.json();
-    const arr = Array.isArray(j.results) ? j.results : Array.isArray(j) ? j : [];
+    const j = await res.json().catch(() => ({}));
+    const arr = Array.isArray(j?.results) ? j.results : Array.isArray(j) ? j : [];
     return arr
       .map((r: any) => ({
-        title: r.title || r.name || '',
-        snippet: r.snippet || r.description || '',
-        url: r.url || r.link || '',
+        ...r,
+        title: r?.title || r?.name || '',
+        snippet: r?.snippet ?? r?.description ?? '',
+        url: r?.url || r?.link || '',
         source: 'web'
       }))
       .filter((r: SearchResult) => r.title && r.url);

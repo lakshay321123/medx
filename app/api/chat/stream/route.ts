@@ -66,8 +66,27 @@ export async function POST(req: NextRequest) {
   const history: Array<{role:'system'|'user'|'assistant'; content:string}> =
     Array.isArray(body?.messages) ? body.messages : [];
 
+  const latestHistoryUser = [...history].reverse().find((m) => m.role === 'user');
+  const fallbackQuestion = typeof body?.question === 'string' ? body.question : '';
+  const latestContent = (latestHistoryUser?.content || fallbackQuestion || '').trim();
+
   // 2) Build source block if research is on
-  const sources: WebHit[] = body.__sources ?? [];
+  let sources: WebHit[] = Array.isArray(body?.__sources) ? (body.__sources as WebHit[]) : [];
+  if (research && (!sources || sources.length === 0) && latestContent) {
+    try {
+      const origin = reqUrl.origin;
+      const r = await fetch(`${origin}/api/search`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ query: latestContent }),
+        cache: 'no-store',
+      });
+      if (r.ok) {
+        const j = await r.json().catch(() => ({}));
+        if (Array.isArray(j?.results)) sources = j.results as WebHit[];
+      }
+    } catch { /* keep empty, the model will answer without web */ }
+  }
   const srcBlock = research && sources.length
     ? sources.slice(0, 5)
         .map((s, i) => `[${i + 1}] ${s.title || s.url}\n${s.url}\n${s.snippet ?? ''}`)
@@ -79,7 +98,7 @@ export async function POST(req: NextRequest) {
   const latestUser =
     recent.length && recent[recent.length - 1].role === 'user'
       ? recent.pop()!
-      : { role: 'user' as const, content: String(body?.question ?? '').trim() };
+      : { role: 'user' as const, content: latestContent };
 
   const briefMessages: Array<{role:'system'|'user'|'assistant'; content:string}> =
     research && !long
