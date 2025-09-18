@@ -1,4 +1,5 @@
 'use client';
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, useMemo, RefObject, Fragment, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fromSearchParams } from '@/lib/modes/url';
@@ -46,6 +47,8 @@ import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { StopButton } from "@/components/ui/StopButton";
 import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
+
+const ChatSuggestions = dynamic(() => import("./ChatSuggestions"), { ssr: false });
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -302,6 +305,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userText, setUserText] = useState('');
+  const [mounted, setMounted] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
   const [proactive, setProactive] = useState<null | { kind: 'predispositions'|'medications'|'weight' }>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -326,8 +331,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     [messages]
   );
   const trimmedInput = userText.trim();
-  const showDefaultSuggestions = visibleMessages.length === 0 && trimmedInput.length === 0;
-  const showLiveSuggestions = trimmedInput.length > 0 && liveSuggestions.length > 0;
+  const isTyping = trimmedInput.length > 0;
+  const showDefaultSuggestions = visibleMessages.length === 0 && !isTyping;
+  const showLiveSuggestions = inputFocused && isTyping && liveSuggestions.length > 0;
+  const showSuggestions = mounted && inputFocused && !isTyping;
 
   const lastSuggestions = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -343,6 +350,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     setUserText(text);
     setTimeout(() => inputRef.current?.focus(), 0);
   };
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Auto-resize the textarea up to a max height
   useEffect(() => {
@@ -1841,15 +1852,8 @@ ${systemCommon}` + baseSys;
         ref={chatRef}
         className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 pb-28"
       >
-        {showDefaultSuggestions && (
-          <div className="mx-auto mb-4 w-full max-w-3xl">
-            <SuggestBar
-              title="Popular questions"
-              suggestions={defaultSuggestions}
-              onPick={handleSuggestionPick}
-              className="sticky top-2 z-10 rounded-2xl border border-zinc-200 bg-white/90 p-3 backdrop-blur dark:border-zinc-700 dark:bg-slate-900/80"
-            />
-          </div>
+        {showDefaultSuggestions && showSuggestions && (
+          <ChatSuggestions suggestions={defaultSuggestions} onSelect={handleSuggestionPick} />
         )}
         {ui.topic && (
           <div className="mx-auto mb-2 max-w-3xl px-4 sm:px-6">
@@ -2048,6 +2052,14 @@ ${systemCommon}` + baseSys;
                 }
                 value={userText}
                 onChange={(e) => setUserText(e.target.value)}
+                onFocus={() => setInputFocused(true)}
+                onBlur={(e) => {
+                  const next = e.relatedTarget as HTMLElement | null;
+                  if (next?.dataset?.suggestionButton === 'true') {
+                    return;
+                  }
+                  setInputFocused(false);
+                }}
                 onKeyDown={(e) => {
                   // Send on Enter (no Shift), allow newline on Shift+Enter.
                   // Respect IME composition (don't send while composing).
