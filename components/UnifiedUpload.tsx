@@ -74,7 +74,7 @@ export default function UnifiedUpload() {
           {out.type === "pdf" && (
             <>
               <section className="p-3 border rounded">
-                <h3 className="font-semibold mb-1">Patient Summary</h3>
+                <h3 className="font-semibold mb-1">Wellness Summary</h3>
                 <p className="whitespace-pre-wrap text-sm">{out.patient}</p>
               </section>
               {out.doctor && (

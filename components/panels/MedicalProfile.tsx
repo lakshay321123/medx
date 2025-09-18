@@ -143,7 +143,7 @@ export default function MedicalProfile() {
     <div className="p-4 space-y-4 relative z-0">
       <section className="rounded-xl border p-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Patient Info</h2>
+          <h2 className="font-semibold">Wellness Info</h2>
           <div className="flex items-center gap-2">
             {/* Reset (sidebar-safe) */}
             <button
