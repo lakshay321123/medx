@@ -203,7 +203,7 @@ function parseRadiusMatch(match: RegExpExecArray | null): number | null {
 
 function normalizeRadiusKm(km: number): number {
   const clamped = Math.min(Math.max(km, 0.5), NEARBY_RADIUS_CHOICES[NEARBY_RADIUS_CHOICES.length - 1]);
-  let best = NEARBY_RADIUS_CHOICES[0];
+  let best: (typeof NEARBY_RADIUS_CHOICES)[number] = NEARBY_RADIUS_CHOICES[0];
   let bestDiff = Math.abs(clamped - best);
   for (const candidate of NEARBY_RADIUS_CHOICES) {
     const diff = Math.abs(clamped - candidate);
