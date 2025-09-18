@@ -66,20 +66,39 @@ export async function POST(req: NextRequest) {
   const history: Array<{role:'system'|'user'|'assistant'; content:string}> =
     Array.isArray(body?.messages) ? body.messages : [];
 
-  // 2) Build source block if research is on
-  const sources: WebHit[] = body.__sources ?? [];
-  const srcBlock = research && sources.length
-    ? sources.slice(0, 5)
-        .map((s, i) => `[${i + 1}] ${s.title || s.url}\n${s.url}\n${s.snippet ?? ''}`)
-        .join('\n\n')
-    : '';
-
-  // 3) Brief message plan: style + (recent history) + latest user
+  // 2) Identify latest user turn (used for both research search and prompting)
   const recent = takeRecentTurns(history, 8);                 // keep continuity
   const latestUser =
     recent.length && recent[recent.length - 1].role === 'user'
       ? recent.pop()!
       : { role: 'user' as const, content: String(body?.question ?? '').trim() };
+
+  // 3) Build/fetch sources when research is on
+  let sources: WebHit[] = Array.isArray(body?.__sources) ? body.__sources : [];
+  if (research && (!sources || sources.length === 0) && latestUser?.content?.trim()) {
+    try {
+      const origin = reqUrl.origin;
+      const response = await fetch(`${origin}/api/search`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ query: latestUser.content }),
+        cache: 'no-store',
+      });
+      if (response.ok) {
+        const json = await response.json().catch(() => ({} as any));
+        if (Array.isArray(json?.results)) {
+          sources = json.results;
+        }
+      }
+    } catch {
+      // keep sources empty; downstream will surface a helpful message
+    }
+  }
+  const srcBlock = research && Array.isArray(sources) && sources.length
+    ? sources.slice(0, 5)
+        .map((s, i) => `[${i + 1}] ${s.title || s.url}\n${s.url}\n${s.snippet ?? ''}`)
+        .join('\n\n')
+    : '';
 
   const briefMessages: Array<{role:'system'|'user'|'assistant'; content:string}> =
     research && !long

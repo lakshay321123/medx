@@ -14,8 +14,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing query' }, { status: 400 });
     }
 
+    const origin = req.nextUrl.origin;
+
     const [web, pubmed, openfda, trials] = await Promise.all([
-      webSearch(query),
+      webSearch(query, origin),
       pubmedSearch(query),
       openFdaSearch(query),
       clinicalTrialsSearch(query)
@@ -28,12 +30,16 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function webSearch(q: string): Promise<SearchResult[]> {
-  const endpoint = (process.env.SEARCH_API_URL || '').trim();
-  if (!endpoint) return [];
+async function webSearch(q: string, origin: string): Promise<SearchResult[]> {
+  const endpoint = (process.env.SEARCH_API_URL || '/api/websearch').trim();
+  const url = new URL(endpoint, origin);
+  url.searchParams.set('q', q);
   try {
-    const res = await fetch(`${endpoint}?q=${encodeURIComponent(q)}`, { cache: 'no-store' });
-    if (!res.ok) return [];
+    const res = await fetch(url.toString(), { cache: 'no-store' });
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      throw new Error(`Web search failed (${res.status}): ${text || res.statusText}`);
+    }
     const j = await res.json();
     const arr = Array.isArray(j.results) ? j.results : Array.isArray(j) ? j : [];
     return arr
@@ -44,8 +50,9 @@ async function webSearch(q: string): Promise<SearchResult[]> {
         source: 'web'
       }))
       .filter((r: SearchResult) => r.title && r.url);
-  } catch {
-    return [];
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`Web search error: ${message}`);
   }
 }
 
