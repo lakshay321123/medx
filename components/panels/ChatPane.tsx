@@ -321,7 +321,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const sp = useSearchParams();
   const modeState = useMemo(() => fromSearchParams(sp, 'light'), [sp]);
-  const mode: 'patient' | 'doctor' = modeState.base === 'doctor' ? 'doctor' : 'patient';
+  const mode: 'patient' | 'doctor' =
+    modeState.base === 'doctor' || modeState.base === 'aidoc' ? 'doctor' : 'patient';
   const researchMode = modeState.research;
   const therapyMode = modeState.therapy;
   const defaultSuggestions = useMemo(() => getDefaultSuggestions(modeState), [modeState]);
