@@ -46,12 +46,14 @@ import ThinkingTimer from "@/components/ui/ThinkingTimer";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { StopButton } from "@/components/ui/StopButton";
 import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
+import { getUserPosition, fetchNearby } from "@/lib/nearby";
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
 
 const ChatSuggestions = dynamic(() => import("./ChatSuggestions"), { ssr: false });
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
+const NEAR_RE = /\b(pharmacy|doctor|hospital|lab|clinic)s?\s+(near\s+me|nearby|around|near\s+([A-Za-z0-9\-,\s]+))\b/i;
 
 // Control how social intent behaves:
 //  - 'off'    : completely disabled
@@ -449,6 +451,51 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const addAssistant = (text: string, opts?: Partial<ChatMessage>) =>
     setMessages(prev => [...prev, { id: uid(), role: 'assistant', kind: 'chat', content: text, ...opts } as any]);
+  const pushAssistantText = (text: string, opts?: Partial<ChatMessage>) => addAssistant(text, opts);
+
+  async function tryNearbyQuickPath(text: string) {
+    const m = text.match(NEAR_RE);
+    if (!m) return false;
+    const kind = (m[1] || 'pharmacy').toLowerCase();
+
+    let pos: { lat: number; lon: number } | null = null;
+    try {
+      pos = await getUserPosition();
+    } catch {
+      pos = null;
+    }
+
+    if (!pos) {
+      pushAssistantText('Share your area or pincode to find nearby places (we won’t store it).');
+      return true;
+    }
+
+    try {
+      const { results, attribution } = await fetchNearby(kind, pos.lat, pos.lon, 2000);
+      if (!results?.length) {
+        pushAssistantText(`No ${kind}s within 2 km. Try 5 km or another category.`);
+        return true;
+      }
+
+      const lines = results
+        .slice(0, 10)
+        .map((p: any, i: number) => {
+          const km = p.distance_m != null ? (p.distance_m / 1000).toFixed(1) + ' km' : '';
+          const maps = `https://www.google.com/maps?q=${p.lat},${p.lon}`;
+          const phone = p.phone ? ` | 📞 ${p.phone}` : '';
+          return `${i + 1}. ${p.name} — ${km}\n${p.address || ''}\n🧭 ${maps}${phone}`;
+        })
+        .join('\n\n');
+
+      const footer = attribution ? `\n\n${attribution}` : '';
+      pushAssistantText(`Here are nearby ${kind}s:\n\n${lines}${footer}`);
+    } catch (err) {
+      console.error('nearby fetch failed', err);
+      pushAssistantText('Sorry — could not fetch nearby places right now. Please try again in a bit.');
+    }
+
+    return true;
+  }
 
   function addOnce(id: string, content: string) {
     if (posted.current.has(id)) return;
@@ -1414,6 +1461,11 @@ ${systemCommon}` + baseSys;
           }
           return;
         }
+      }
+
+      if (!pendingFile && trimmed && (await tryNearbyQuickPath(trimmed))) {
+        setUserText('');
+        return;
       }
 
     // --- Proactive single Q&A commit path (profile thread) ---
