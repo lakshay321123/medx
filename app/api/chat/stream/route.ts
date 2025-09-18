@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
 
   // 3) Build or auto-fetch sources if research is on
   let sources: WebHit[] = Array.isArray(body?.__sources) ? body.__sources as WebHit[] : [];
+  console.log('research=', research, 'sources.len=', sources?.length);
   if (research && (!sources || sources.length === 0) && latestUser?.content?.trim()) {
     try {
       const r = await fetch(`${origin}/api/search`, {
