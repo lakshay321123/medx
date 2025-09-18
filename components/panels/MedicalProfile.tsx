@@ -77,6 +77,7 @@ export default function MedicalProfile() {
       const url = new URL(window.location.href);
       url.searchParams.set("panel", "ai-doc");
       url.searchParams.set("threadId", threadId);
+      url.searchParams.set("context", "ai-doc-med-profile");
       history.replaceState(null, "", url.toString());
 
       const res = await fetch("/api/predictions/compute", {

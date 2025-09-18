@@ -28,14 +28,28 @@ export async function POST(req: Request) {
   // ensure you have resolved the `profile` object here
   // profile = { name, age, sex, pregnant }
   let profile: any = null;
+  let observations: Array<{
+    id: string;
+    observed_at: string;
+    kind: string;
+    title: string | null;
+    payload: unknown;
+  }> = [];
   if (rawUserId) {
     try {
       const sb = supabaseAdmin();
-      const { data: prof } = await sb
+      const profilePromise = sb
         .from("profiles")
         .select("full_name,dob,sex,blood_group,conditions_predisposition,chronic_conditions")
         .eq("id", rawUserId)
         .maybeSingle();
+      const observationsPromise = sb
+        .from("observations")
+        .select("id, observed_at, kind, title, payload")
+        .eq("user_id", rawUserId)
+        .order("observed_at", { ascending: false })
+        .limit(50);
+      const [{ data: prof }, { data: obs }] = await Promise.all([profilePromise, observationsPromise]);
       const dob = prof?.dob ? new Date(prof.dob) : null;
       const age = dob && !Number.isNaN(dob.getTime())
         ? Math.max(0, Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 3600 * 1000)))
@@ -45,8 +59,10 @@ export async function POST(req: Request) {
         age,
         sex: prof?.sex || undefined,
       };
+      observations = Array.isArray(obs) ? obs : [];
     } catch (err) {
       console.error("Failed to load profile for triage:", err);
+      observations = [];
     }
   }
 
@@ -57,6 +73,12 @@ export async function POST(req: Request) {
     age: (incomingProfile as any)?.age ?? profile?.age,
     sex: (incomingProfile as any)?.sex ?? profile?.sex,
     pregnant: (incomingProfile as any)?.pregnant ?? profile?.pregnant,
+    observationsSnapshot: observations.slice(0, 25).map((o) => ({
+      when: o.observed_at,
+      kind: o.kind,
+      title: o.title,
+      summary: typeof o.payload === "string" ? o.payload.slice(0, 600) : o.payload,
+    })),
     ...(demoFromAnswers ?? {}),
   };
 
