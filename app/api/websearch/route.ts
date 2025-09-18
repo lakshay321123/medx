@@ -1,25 +1,55 @@
 export const runtime = 'nodejs';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
-export async function GET(req: NextRequest) {
-  const q = new URL(req.url).searchParams.get('q') || '';
+type Hit = { title: string; url: string; snippet?: string; source?: 'web' };
+
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const q = (searchParams.get('q') || '').trim();
   if (!q) return NextResponse.json({ results: [] });
 
-  const key = process.env.GOOGLE_CSE_KEY!;
-  const cx  = process.env.GOOGLE_CSE_CX!;
-  const r = await fetch(
-    `https://www.googleapis.com/customsearch/v1?key=${key}&cx=${cx}&q=${encodeURIComponent(q)}`,
-    { cache: 'no-store' }
-  );
-  if (!r.ok) return NextResponse.json({ results: [] });
+  const key = process.env.GOOGLE_CSE_KEY;
+  const cx  = process.env.GOOGLE_CSE_CX;
 
-  const j = await r.json();
-  const results = (j.items || []).map((it: any) => ({
-    title: it.title || '',
-    snippet: it.snippet || it.htmlSnippet || '',
-    url: it.link || '',
-    source: 'web'
-  })).filter((x: any) => x.title && x.url);
+  // Gentle degrade: if env missing, don't crash; just return no web results.
+  if (!key || !cx) {
+    return NextResponse.json(
+      { results: [], error: 'missing_google_cse_env' },
+      { status: 200 }
+    );
+  }
 
-  return NextResponse.json({ results });
+  const api = new URL('https://www.googleapis.com/customsearch/v1');
+  api.searchParams.set('key', key);
+  api.searchParams.set('cx', cx);
+  api.searchParams.set('q', q);
+
+  try {
+    const r = await fetch(api.toString(), { method: 'GET', cache: 'no-store' });
+    const data = await r.json().catch(() => ({}));
+
+    // Still gentle on provider errors: do not surface 4xx/5xx to the app.
+    if (!r.ok) {
+      return NextResponse.json(
+        { results: [], error: 'google_cse_http_error', status: r.status },
+        { status: 200 }
+      );
+    }
+
+    const results: Hit[] = Array.isArray((data as any).items)
+      ? (data as any).items.slice(0, 8).map((it: any) => ({
+          title: it?.title || it?.link || 'Untitled',
+          url: it?.link,
+          snippet: it?.snippet || '',
+          source: 'web'
+        }))
+      : [];
+
+    return NextResponse.json({ results });
+  } catch {
+    return NextResponse.json(
+      { results: [], error: 'google_cse_network_error' },
+      { status: 200 }
+    );
+  }
 }

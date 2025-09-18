@@ -14,8 +14,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing query' }, { status: 400 });
     }
 
+    const origin = req.nextUrl.origin;
     const [web, pubmed, openfda, trials] = await Promise.all([
-      webSearch(query),
+      webSearch(query, origin),
       pubmedSearch(query),
       openFdaSearch(query),
       clinicalTrialsSearch(query)
@@ -28,14 +29,20 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function webSearch(q: string): Promise<SearchResult[]> {
-  const endpoint = (process.env.SEARCH_API_URL || '').trim();
+async function webSearch(q: string, origin: string): Promise<SearchResult[]> {
+  const endpoint = (process.env.SEARCH_API_URL || '/api/websearch').trim();
   if (!endpoint) return [];
   try {
-    const res = await fetch(`${endpoint}?q=${encodeURIComponent(q)}`, { cache: 'no-store' });
+    const url = new URL(endpoint, origin);
+    url.searchParams.set('q', q);
+    const res = await fetch(url.toString(), { method: 'GET', cache: 'no-store' });
     if (!res.ok) return [];
-    const j = await res.json();
-    const arr = Array.isArray(j.results) ? j.results : Array.isArray(j) ? j : [];
+    const data = await res.json().catch(() => ({}));
+    const arr = Array.isArray((data as any)?.results)
+      ? (data as any).results
+      : Array.isArray(data)
+        ? data
+        : [];
     return arr
       .map((r: any) => ({
         title: r.title || r.name || '',
