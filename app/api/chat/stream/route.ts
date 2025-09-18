@@ -53,6 +53,7 @@ type WebHit = { title:string; snippet?:string; url:string; source?:string };
 
 export async function POST(req: NextRequest) {
   const reqUrl = new URL(req.url);
+  const origin = reqUrl.origin;
   const qp = reqUrl.searchParams.get('research');
   const long = reqUrl.searchParams.get('long') === '1';
   let body: any = {};
@@ -66,20 +67,38 @@ export async function POST(req: NextRequest) {
   const history: Array<{role:'system'|'user'|'assistant'; content:string}> =
     Array.isArray(body?.messages) ? body.messages : [];
 
-  // 2) Build source block if research is on
-  const sources: WebHit[] = body.__sources ?? [];
-  const srcBlock = research && sources.length
-    ? sources.slice(0, 5)
-        .map((s, i) => `[${i + 1}] ${s.title || s.url}\n${s.url}\n${s.snippet ?? ''}`)
-        .join('\n\n')
-    : '';
-
-  // 3) Brief message plan: style + (recent history) + latest user
+  // 2) Determine latest user turn for research sourcing + chat flow
   const recent = takeRecentTurns(history, 8);                 // keep continuity
   const latestUser =
     recent.length && recent[recent.length - 1].role === 'user'
       ? recent.pop()!
       : { role: 'user' as const, content: String(body?.question ?? '').trim() };
+
+  // 3) Build or auto-fetch sources if research is on
+  let sources: WebHit[] = Array.isArray(body?.__sources) ? body.__sources as WebHit[] : [];
+  console.log('research=', research, 'sources.len=', sources?.length);
+  if (research && (!sources || sources.length === 0) && latestUser?.content?.trim()) {
+    try {
+      const r = await fetch(`${origin}/api/search`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ query: latestUser.content }),
+        cache: 'no-store',
+      });
+      if (r.ok) {
+        const j = await r.json().catch(() => ({}));
+        if (Array.isArray(j?.results)) sources = j.results;
+      }
+    } catch {
+      // keep sources empty; model will still answer
+    }
+  }
+
+  const srcBlock = research && Array.isArray(sources) && sources.length
+    ? sources.slice(0, 5)
+        .map((s, i) => `[${i + 1}] ${s.title || s.url}\n${s.url}\n${s.snippet ?? ''}`)
+        .join('\n\n')
+    : '';
 
   const briefMessages: Array<{role:'system'|'user'|'assistant'; content:string}> =
     research && !long
