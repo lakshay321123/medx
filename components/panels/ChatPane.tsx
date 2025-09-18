@@ -302,7 +302,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userText, setUserText] = useState('');
-  const [userHasTyped, setUserHasTyped] = useState(false);
+  const [bootstrapped, setBootstrapped] = useState(false);
+  useEffect(() => {
+    setBootstrapped(true);
+  }, []);
+  const [inputFocused, setInputFocused] = useState(false);
   const [proactive, setProactive] = useState<null | { kind: 'predispositions'|'medications'|'weight' }>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -326,9 +330,14 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     () => messages.filter(m => m.role === 'user' || m.role === 'assistant'),
     [messages]
   );
+  const hasUserMessage = Array.isArray(messages)
+    ? messages.some(m => m?.role === 'user')
+    : false;
   const trimmedInput = userText.trim();
-  const showDefaultSuggestions = !userHasTyped && trimmedInput.length === 0;
-  const showLiveSuggestions = trimmedInput.length > 0 && liveSuggestions.length > 0;
+  const isTyping = trimmedInput.length > 0;
+  const showDefaultSuggestions =
+    bootstrapped && !hasUserMessage && !isTyping && !inputFocused;
+  const showLiveSuggestions = isTyping && liveSuggestions.length > 0;
 
   const lastSuggestions = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -673,8 +682,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   async function send(text: string, researchMode: boolean, opts: SendOpts = {}) {
     if (!text.trim() || busy) return;
-    if (!userHasTyped && opts.visualEcho !== false) {
-      setUserHasTyped(true);
+    if (!hasUserMessage) {
+      // hide suggestions once the user actually sends something
+      setInputFocused(true);
     }
     setBusy(true);
     setThinkingStartedAt(Date.now());
@@ -1348,10 +1358,6 @@ ${systemCommon}` + baseSys;
       const hasContent = !!pendingFile || trimmed.length > 0;
       if (!hasContent) return;
 
-      if (!userHasTyped) {
-        setUserHasTyped(true);
-      }
-
       if (!pendingFile && trimmed) {
         const summarizeMatch = /^summarize\s+(NCT\d{8})$/i.exec(trimmed);
         if (summarizeMatch) {
@@ -1996,6 +2002,8 @@ ${systemCommon}` + baseSys;
                     : 'Send a message'
                 }
                 value={userText}
+                onFocus={() => setInputFocused(true)}
+                onBlur={() => setInputFocused(false)}
                 onChange={(e) => setUserText(e.target.value)}
                 onKeyDown={(e) => {
                   // Send on Enter (no Shift), allow newline on Shift+Enter.
