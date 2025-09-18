@@ -406,7 +406,7 @@ export function doctorPatientFromSnapshot(
       if (!text) return null;
       return { name: lab.name, value: text, unit: lab.unit ?? null };
     })
-    .filter((row): row is { name: string; value: string | number; unit?: string | null } => !!row)
+    .filter((row): row is { name: string; value: string | number; unit: string | null } => !!row)
     .slice(0, 20);
 
   const diagnoses = collectStringsByCategory(snapshot.rawObservations, "diagnosis");
