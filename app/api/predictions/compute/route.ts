@@ -64,29 +64,6 @@ export async function POST(req: NextRequest) {
 
 type SupaClient = ReturnType<typeof supabaseAdmin>;
 
-type Snapshot = {
-  profile: PatientProfile;
-  observations: ObservationLine[];
-  highlights: string[];
-};
-
-type PatientProfile = {
-  name: string | null;
-  dob: string | null;
-  age: number | null;
-  sex: string | null;
-  blood_group: string | null;
-  chronic_conditions: string[];
-  conditions_predisposition: string[];
-};
-
-type ObservationLine = {
-  label: string;
-  value: string;
-  observedAt: string;
-  category: string;
-};
-
 type Snapshot = Omit<PatientSnapshot, "rawObservations">;
 
 function buildPrompts(snapshot: Snapshot) {
