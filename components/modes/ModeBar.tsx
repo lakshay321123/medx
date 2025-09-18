@@ -48,7 +48,7 @@ export default function ModeBar() {
       <div className="mx-auto flex max-w-screen-xl items-center gap-2 px-4 py-2">
         <button className={btn(state.base === "patient")}
                 onClick={() => apply({ type: "toggle/patient" })}>
-          Patient
+          Wellness
         </button>
         <button className={btn(state.therapy, aidocOn || state.base !== "patient")}
                 disabled={aidocOn || state.base !== "patient"}
