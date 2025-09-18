@@ -156,7 +156,11 @@ export async function POST(req: Request) {
             assumeAdultIfUnknown: FLAGS.ASSUME_ADULT,
             maxReviewPasses: FLAGS.MAX_REVIEW,
           });
-          return NextResponse.json(result, { status: 200 });
+          const payload =
+            result && typeof result === "object"
+              ? { ...result, obsIds: doctorMode ? [] : obsIds }
+              : { result, obsIds: doctorMode ? [] : obsIds };
+          return NextResponse.json(payload, { status: 200 });
         }
 
         if (FLAGS.DUAL && FLAGS.LLM && FLAGS.USE_CALC && category !== "lab_report") {
@@ -170,7 +174,11 @@ export async function POST(req: Request) {
             assumeAdultIfUnknown: FLAGS.ASSUME_ADULT,
             maxReviewPasses: FLAGS.MAX_REVIEW,
           });
-          return NextResponse.json(result, { status: 200 });
+          const payload =
+            result && typeof result === "object"
+              ? { ...result, obsIds: doctorMode ? [] : obsIds }
+              : { result, obsIds: doctorMode ? [] : obsIds };
+          return NextResponse.json(payload, { status: 200 });
         }
 
         const basePrompt = promptForCategory(category, doctorMode);

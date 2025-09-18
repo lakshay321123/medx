@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { safeJson } from "@/lib/safeJson";
 import { useProfile } from "@/lib/hooks/useAppData";
@@ -50,6 +50,7 @@ export default function MedicalProfile() {
   const [obs, setObs] = useState<Observation[]>([]);
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState<null | "obs" | "all" | "zero">(null);
+  const [recomputing, setRecomputing] = useState(false);
 
   const router = useRouter();
   const params = useSearchParams();
@@ -58,7 +59,7 @@ export default function MedicalProfile() {
   const [summary, setSummary] = useState<string>("");
   const [reasons, setReasons] = useState<string>("");
 
-  const loadSummary = async () => {
+  const loadSummary = useCallback(async () => {
     try {
       const r = await fetch("/api/profile/summary", { cache: "no-store" });
       const j = await r.json();
@@ -66,29 +67,59 @@ export default function MedicalProfile() {
       else if (j?.summary) setSummary(j.summary);
       if (j?.reasons) setReasons(j.reasons);
     } catch {}
-  };
-  useEffect(() => { loadSummary(); }, []);
+  }, []);
+  useEffect(() => { loadSummary(); }, [loadSummary]);
 
-  const onRecomputeRisk = async () => {
-    const btn = document.getElementById("recompute-risk-btn") as HTMLButtonElement | null;
-    if (btn) btn.disabled = true;
+  const onRecomputeRisk = () => {
+    if (recomputing) return;
+    setRecomputing(true);
+
+    const requestId = crypto.randomUUID();
+    const detail = { threadId: "med-profile", requestId, label: "Recompute Risk" } as const;
+
+    const handleComplete = (event: Event) => {
+      const data = (event as CustomEvent<{ requestId?: string }>).detail;
+      if (data?.requestId !== requestId) return;
+      cleanup();
+      setRecomputing(false);
+      loadSummary();
+    };
+
+    const handleError = (event: Event) => {
+      const data = (event as CustomEvent<{ requestId?: string; error?: string }>).detail;
+      if (data?.requestId !== requestId) return;
+      cleanup();
+      setRecomputing(false);
+      const message = data?.error || "Unknown error";
+      console.error("Recompute failed:", message);
+      alert(`Recompute failed: ${message}`);
+    };
+
+    const cleanup = () => {
+      window.clearTimeout(timeoutId);
+      window.removeEventListener("aidoc:recompute-complete", handleComplete as EventListener);
+      window.removeEventListener("aidoc:recompute-error", handleError as EventListener);
+      try { sessionStorage.removeItem("aidoc:pending-recompute"); } catch {}
+    };
+
+    const timeoutId = window.setTimeout(() => {
+      cleanup();
+      setRecomputing(false);
+      alert("Recompute timed out. Please try again.");
+    }, 20000);
+
+    window.addEventListener("aidoc:recompute-complete", handleComplete as EventListener);
+    window.addEventListener("aidoc:recompute-error", handleError as EventListener);
+
     try {
-      const res = await fetch("/api/predictions/compute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ threadId: "med-profile" })
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok || body?.ok === false) {
-        throw new Error(body?.error || `HTTP ${res.status}`);
-      }
-      await loadSummary();
-    } catch (err: any) {
-      console.error("Recompute failed:", err?.message || err);
-      alert(`Recompute failed: ${err?.message || String(err)}`);
-    } finally {
-      if (btn) btn.disabled = false;
-    }
+      sessionStorage.setItem("aidoc:pending-recompute", JSON.stringify(detail));
+    } catch {}
+
+    router.push(`/?panel=chat&threadId=med-profile&context=profile`);
+
+    window.setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("aidoc:recompute-risk", { detail }));
+    }, 120);
   };
 
   const prof = data?.profile ?? null;
@@ -443,8 +474,9 @@ export default function MedicalProfile() {
             <button
               id="recompute-risk-btn"
               onClick={onRecomputeRisk}
-              className="text-xs px-2 py-1 rounded-md border"
-            >Recompute Risk</button>
+              disabled={recomputing}
+              className="text-xs px-2 py-1 rounded-md border disabled:opacity-50 disabled:cursor-not-allowed"
+            >{recomputing ? "Recomputing…" : "Recompute Risk"}</button>
           </div>
         </div>
         <p className="mt-2 text-sm whitespace-pre-wrap">{summary || "No summary yet."}</p>

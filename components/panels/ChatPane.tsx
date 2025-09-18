@@ -104,6 +104,12 @@ type ChatMessage =
 
 const uid = () => Math.random().toString(36).slice(2);
 
+type RecomputeDetail = {
+  threadId?: string;
+  requestId?: string;
+  label?: string;
+};
+
 function getLastAnalysis(list: ChatMessage[]) {
   for (let i = list.length - 1; i >= 0; i--) {
     const m = list[i];
@@ -1700,6 +1706,106 @@ ${systemCommon}` + baseSys;
       setShowNewIntake(false);
     }
   }
+
+  const kickoffRecompute = useCallback(
+    (detail?: RecomputeDetail | null) => {
+      if (typeof window === 'undefined') return false;
+      if (!detail) return false;
+      const targetThread = detail.threadId || 'med-profile';
+      const label = (detail.label || 'Recompute Risk').trim() || 'Recompute Risk';
+      const requestId = detail.requestId;
+      const current = threadId || (isProfileThread ? 'med-profile' : null);
+      if (current !== targetThread) return false;
+
+      const userId = uid();
+      const pendingId = uid();
+
+      setMessages(prev => [
+        ...prev,
+        { id: userId, role: 'user', kind: 'chat', content: label } as ChatMessage,
+        { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true } as ChatMessage,
+      ]);
+      posted.current.add(pendingId);
+
+      if (current) {
+        try { pushFullMem(current, 'user', label); } catch {}
+      }
+
+      (async () => {
+        try {
+          const res = await fetch('/api/predictions/compute', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ threadId: targetThread }),
+          });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok || body?.ok === false) {
+            throw new Error(body?.error || `HTTP ${res.status}`);
+          }
+          const summaryText = typeof body?.summary === 'string' && body.summary.trim()
+            ? body.summary.trim()
+            : 'Risk prediction updated.';
+          const content = `**Recompute Risk**\n\n${summaryText}`;
+          setMessages(prev =>
+            prev.map(m =>
+              m.id === pendingId
+                ? { ...m, content, pending: false }
+                : m
+            )
+          );
+          if (current) {
+            try { pushFullMem(current, 'assistant', content); } catch {}
+          }
+          window.dispatchEvent(new CustomEvent('aidoc:recompute-complete', { detail: { requestId } }));
+          window.dispatchEvent(new Event('predictions-updated'));
+        } catch (err: any) {
+          const message = err?.message || 'Unknown error';
+          const content = `⚠️ Recompute failed: ${message}`;
+          setMessages(prev =>
+            prev.map(m =>
+              m.id === pendingId
+                ? { ...m, content, pending: false }
+                : m
+            )
+          );
+          window.dispatchEvent(new CustomEvent('aidoc:recompute-error', { detail: { requestId, error: message } }));
+        } finally {
+          try { sessionStorage.removeItem('aidoc:pending-recompute'); } catch {}
+        }
+      })();
+
+      return true;
+    },
+    [threadId, isProfileThread]
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let payload: RecomputeDetail | null = null;
+    try {
+      const raw = sessionStorage.getItem('aidoc:pending-recompute');
+      payload = raw ? (JSON.parse(raw) as RecomputeDetail) : null;
+    } catch {
+      try { sessionStorage.removeItem('aidoc:pending-recompute'); } catch {}
+      payload = null;
+    }
+    if (!payload) return;
+    if (kickoffRecompute(payload)) {
+      try { sessionStorage.removeItem('aidoc:pending-recompute'); } catch {}
+    }
+  }, [kickoffRecompute]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = (event: Event) => {
+      const payload = (event as CustomEvent<RecomputeDetail>).detail;
+      if (kickoffRecompute(payload || null)) {
+        try { sessionStorage.removeItem('aidoc:pending-recompute'); } catch {}
+      }
+    };
+    window.addEventListener('aidoc:recompute-risk', handler as EventListener);
+    return () => window.removeEventListener('aidoc:recompute-risk', handler as EventListener);
+  }, [kickoffRecompute]);
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape' && busy) {
