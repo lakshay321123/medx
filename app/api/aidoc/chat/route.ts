@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 // [AIDOC_TRIAGE_IMPORT] add triage imports
 import { handleDocAITriage, detectExperientialIntent } from "@/lib/aidoc/triage";
 import { POST as streamPOST, runtime } from "../../chat/stream/route";
+import { getUserId } from "@/lib/getUserId";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export { runtime };
 
@@ -14,7 +16,29 @@ export async function POST(req: NextRequest) {
 
   // ensure you have resolved the `profile` object here
   // profile = { name, age, sex, pregnant }
-  const profile: any = undefined;
+  let profile: any = null;
+  try {
+    const userId = await getUserId(req);
+    if (userId) {
+      const sb = supabaseAdmin();
+      const { data: prof } = await sb
+        .from("profiles")
+        .select("full_name,dob,sex,blood_group,conditions_predisposition,chronic_conditions")
+        .eq("id", userId)
+        .maybeSingle();
+      const dob = prof?.dob ? new Date(prof.dob) : null;
+      const age = dob && !Number.isNaN(dob.getTime())
+        ? Math.max(0, Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 3600 * 1000)))
+        : undefined;
+      profile = {
+        name: prof?.full_name || undefined,
+        age,
+        sex: prof?.sex || undefined,
+      };
+    }
+  } catch (err) {
+    console.error("Failed to load profile for triage:", err);
+  }
 
   const demoFromAnswers = (answers && typeof (answers as any).demographics === "object") ? (answers as any).demographics : null;
   const triageProfile = {
