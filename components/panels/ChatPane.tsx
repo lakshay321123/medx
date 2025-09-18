@@ -979,12 +979,14 @@ ${linkNudge}`;
       const { getIntentStyle } = await import("@/lib/intents");
       const INTENT_STYLE = getIntentStyle(userText || "", mode);
 
+      const { base: baseMode, research: researchModeActive } = modeState;
+
       // Build drafting structure exactly once from the base mode
-      const DRAFT_STYLE = modeState.base === "doctor" ? DOCTOR_DRAFT_STYLE : PATIENT_DRAFT_STYLE;
+      const DRAFT_STYLE = baseMode === "doctor" ? DOCTOR_DRAFT_STYLE : PATIENT_DRAFT_STYLE;
       const STRUCTURE_STYLE = [DRAFT_STYLE, INTENT_STYLE || ""].filter(Boolean).join("\n\n");
 
       // Keep research as an additive hint, never a new template
-      const RESEARCH_STITCH = modeState.research
+      const RESEARCH_STITCH = researchModeActive
         ? [
             "RESEARCH INTEGRATION:",
             "- Keep the above section headings exactly as-is.",
