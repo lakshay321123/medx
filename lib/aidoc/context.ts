@@ -396,18 +396,18 @@ export function doctorPatientFromSnapshot(
     };
   }
 
-  const labs = labsFromObservations(snapshot.rawObservations)
-    .map((lab) => {
-      if (!lab.name) return null;
-      if (typeof lab.value === "number") {
-        return { name: lab.name, value: lab.value, unit: lab.unit ?? null };
-      }
+  const labs: Array<{ name: string; value: string | number; unit: string | null }> = [];
+  for (const lab of labsFromObservations(snapshot.rawObservations)) {
+    if (!lab.name) continue;
+    if (typeof lab.value === "number") {
+      labs.push({ name: lab.name, value: lab.value, unit: lab.unit ?? null });
+    } else {
       const text = lab.value == null ? "" : cleanWhitespace(String(lab.value));
-      if (!text) return null;
-      return { name: lab.name, value: text, unit: lab.unit ?? null };
-    })
-    .filter((row): row is { name: string; value: string | number; unit: string | null } => !!row)
-    .slice(0, 20);
+      if (!text) continue;
+      labs.push({ name: lab.name, value: text, unit: lab.unit ?? null });
+    }
+    if (labs.length >= 20) break;
+  }
 
   const diagnoses = collectStringsByCategory(snapshot.rawObservations, "diagnosis");
   const meds = collectStringsByCategory(snapshot.rawObservations, "medication");
