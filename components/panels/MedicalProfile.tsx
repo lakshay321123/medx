@@ -73,16 +73,41 @@ export default function MedicalProfile() {
     const btn = document.getElementById("recompute-risk-btn") as HTMLButtonElement | null;
     if (btn) btn.disabled = true;
     try {
+      const threadId = "med-profile";
+      const url = new URL(window.location.href);
+      url.searchParams.set("panel", "ai-doc");
+      url.searchParams.set("threadId", threadId);
+      url.searchParams.set("context", "ai-doc-med-profile");
+      history.replaceState(null, "", url.toString());
+
       const res = await fetch("/api/predictions/compute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ threadId: "med-profile" })
+        body: JSON.stringify({ threadId })
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok || body?.ok === false) {
         throw new Error(body?.error || `HTTP ${res.status}`);
       }
       await loadSummary();
+
+      fetch("/api/aidoc/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "doctor",
+          threadId,
+          messages: [
+            {
+              role: "user",
+              content:
+                "Recompute risk based on my latest profile and timeline. Summarize key risks & next steps.",
+            },
+          ],
+          context: "ai-doc-med-profile",
+          clientRequestId: `recompute-${Date.now()}`,
+        }),
+      }).catch(() => {});
     } catch (err: any) {
       console.error("Recompute failed:", err?.message || err);
       alert(`Recompute failed: ${err?.message || String(err)}`);

@@ -1,20 +1,87 @@
 import { NextRequest, NextResponse } from 'next/server';
 // [AIDOC_TRIAGE_IMPORT] add triage imports
 import { handleDocAITriage, detectExperientialIntent } from "@/lib/aidoc/triage";
-import { POST as streamPOST, runtime } from "../../chat/stream/route";
+import { POST as streamPOST } from "../../chat/stream/route";
+import { getUserId } from "@/lib/getUserId";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
-export { runtime };
+export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
-  const cloned = req.clone();
   const body = await req.json().catch(() => ({} as any));
   const message = (body?.message ?? body?.text ?? "").toString();
   const answers = (body?.answers && typeof body.answers === "object") ? body.answers : null;
   const incomingProfile = (body?.profile && typeof body.profile === "object") ? body.profile : null;
+  const messages: Array<{ role: string; content: string }> = Array.isArray(body?.messages)
+    ? [...body.messages]
+    : [];
+  const context = typeof body?.context === "string" ? body.context : undefined;
+  const needsContextPacket = !!context && ["profile", "timeline", "ai-doc-med-profile"].includes(context);
 
   // ensure you have resolved the `profile` object here
   // profile = { name, age, sex, pregnant }
-  const profile: any = undefined;
+  let profile: any = null;
+  let contextPacket: any = null;
+  let observations: Array<{
+    id: string;
+    observed_at: string;
+    kind: string;
+    title: string | null;
+    payload: unknown;
+  }> = [];
+  try {
+    const userId = await getUserId(req);
+    if (userId) {
+      const sb = supabaseAdmin();
+      const { data: prof } = await sb
+        .from("profiles")
+        .select("full_name,dob,sex,blood_group,conditions_predisposition,chronic_conditions")
+        .eq("id", userId)
+        .maybeSingle();
+      const obsResponse = needsContextPacket
+        ? await sb
+            .from("observations")
+            .select("id, observed_at, kind, title, payload")
+            .eq("user_id", userId)
+            .order("observed_at", { ascending: false })
+            .limit(50)
+        : { data: null };
+      const obs = obsResponse.data;
+      const dob = prof?.dob ? new Date(prof.dob) : null;
+      const age = dob && !Number.isNaN(dob.getTime())
+        ? Math.max(0, Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 3600 * 1000)))
+        : undefined;
+      profile = {
+        name: prof?.full_name || undefined,
+        age,
+        sex: prof?.sex || undefined,
+      };
+      observations = Array.isArray(obs) ? obs : [];
+      if (needsContextPacket) {
+        const briefObs = observations.map((o) => ({
+          id: o.id,
+          when: o.observed_at,
+          kind: o.kind,
+          title: o.title,
+          summary: typeof o.payload === "string" ? o.payload.slice(0, 800) : o.payload,
+        }));
+        contextPacket = {
+          profile: {
+            name: prof?.full_name,
+            age,
+            sex: prof?.sex,
+            blood_group: prof?.blood_group,
+            chronic_conditions: prof?.chronic_conditions,
+            risk_predisposition: prof?.conditions_predisposition,
+          },
+          observations: briefObs,
+        };
+      }
+    }
+  } catch (err) {
+    console.error("Failed to load profile for triage:", err);
+    observations = [];
+  }
 
   const demoFromAnswers = (answers && typeof (answers as any).demographics === "object") ? (answers as any).demographics : null;
   const triageProfile = {
@@ -61,6 +128,43 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // -------- Context Packet: profile + observations --------
+  if (!contextPacket && needsContextPacket && profile) {
+    const briefObs = observations.map((o) => ({
+      id: o.id,
+      when: o.observed_at,
+      kind: o.kind,
+      title: o.title,
+      summary: typeof o.payload === "string" ? o.payload.slice(0, 800) : o.payload,
+    }));
+    contextPacket = {
+      profile: {
+        name: profile?.name,
+        age: profile?.age,
+        sex: profile?.sex,
+      },
+      observations: briefObs,
+    };
+  }
+
+  const systemPreamble = {
+    role: "system",
+    content:
+      "You are AI Doc. If a context packet is present, USE IT for clinical reasoning before asking for clarifications."
+      + (contextPacket ? `\n\n<CONTEXT_PACKET>${JSON.stringify(contextPacket)}</CONTEXT_PACKET>` : ""),
+  };
+  const finalMessages = [systemPreamble, ...messages];
+  const forwardBody = { ...body, messages: finalMessages };
+
+  const headers = new Headers(req.headers);
+  headers.delete("content-length");
+  headers.set("content-type", "application/json");
+  const forwardReq = new NextRequest(req.url, {
+    method: req.method,
+    headers,
+    body: JSON.stringify(forwardBody),
+  });
+
   // existing streaming setup continues here
-  return streamPOST(cloned as any);
+  return streamPOST(forwardReq);
 }
