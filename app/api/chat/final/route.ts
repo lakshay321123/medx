@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ensureMinDelay } from "@/lib/utils/ensureMinDelay";
 import { callGroqChat, callOpenAIChat } from "@/lib/medx/providers";
+import { runHybridPatientAnswer } from "@/lib/medx/patientHybrid";
 
 // Optional calculator prelude (safe if absent)
 let composeCalcPrelude: any, extractAll: any, canonicalizeInputs: any, computeAll: any;
@@ -17,7 +18,14 @@ function pickProvider(mode?: string) {
 }
 
 export async function POST(req: Request) {
-  const { messages = [], mode } = await req.json();
+  const { messages = [], mode, context } = await req.json();
+  const normalizedMode = (mode || "").toLowerCase();
+
+  if (normalizedMode === "patient") {
+    const { text, provider } = await runHybridPatientAnswer({ messages, context });
+    return NextResponse.json({ ok: true, provider, reply: text });
+  }
+
   const provider = pickProvider(mode);
 
   if (provider === "groq") {
