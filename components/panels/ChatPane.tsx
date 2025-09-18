@@ -302,6 +302,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userText, setUserText] = useState('');
+  const [userHasTyped, setUserHasTyped] = useState(false);
   const [proactive, setProactive] = useState<null | { kind: 'predispositions'|'medications'|'weight' }>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -326,7 +327,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     [messages]
   );
   const trimmedInput = userText.trim();
-  const showDefaultSuggestions = visibleMessages.length === 0 && trimmedInput.length === 0;
+  const showDefaultSuggestions = !userHasTyped && trimmedInput.length === 0;
   const showLiveSuggestions = trimmedInput.length > 0 && liveSuggestions.length > 0;
 
   const lastSuggestions = useMemo(() => {
@@ -506,6 +507,16 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
 
   useEffect(() => {
+    if (messages.some(m => m.role === 'user')) {
+      setUserHasTyped(true);
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    setUserHasTyped(false);
+  }, [threadId]);
+
+  useEffect(() => {
     posted.current.clear();
     const tid = threadId || (isProfileThread ? 'med-profile' : null);
     if (tid) {
@@ -662,6 +673,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   async function send(text: string, researchMode: boolean, opts: SendOpts = {}) {
     if (!text.trim() || busy) return;
+    if (!userHasTyped && opts.visualEcho !== false) {
+      setUserHasTyped(true);
+    }
     setBusy(true);
     setThinkingStartedAt(Date.now());
 
@@ -1331,6 +1345,13 @@ ${systemCommon}` + baseSys;
     inFlight = true;
     try {
       const trimmed = userText.trim();
+      const hasContent = !!pendingFile || trimmed.length > 0;
+      if (!hasContent) return;
+
+      if (!userHasTyped) {
+        setUserHasTyped(true);
+      }
+
       if (!pendingFile && trimmed) {
         const summarizeMatch = /^summarize\s+(NCT\d{8})$/i.exec(trimmed);
         if (summarizeMatch) {
@@ -1379,8 +1400,8 @@ ${systemCommon}` + baseSys;
       }
 
     // --- Proactive single Q&A commit path (profile thread) ---
-    if (isProfileThread && proactive && !pendingFile && userText.trim()) {
-      const text = userText.trim();
+    if (isProfileThread && proactive && !pendingFile && trimmed) {
+      const text = trimmed;
       const ack = (msg: string) => setMessages(prev => [...prev, { id: uid(), role:'assistant', kind:'chat', content: msg, pending:false } as any]);
       try {
         if (proactive.kind === 'predispositions') {
@@ -1415,7 +1436,7 @@ ${systemCommon}` + baseSys;
     }
 
     // --- Medication verification (profile thread only; note-only submits) ---
-    if (isProfileThread && !pendingFile && userText.trim()) {
+    if (isProfileThread && !pendingFile && trimmed) {
       try {
         const v = await safeJson(fetch('/api/meds/verify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text: userText }) }));
         if (v?.ok && v?.suggestion && window.confirm(`Did you mean "${v.suggestion}"?`)) {
@@ -1454,7 +1475,6 @@ ${systemCommon}` + baseSys;
     }
 
     // Regular chat flow (file or note)
-    if (!pendingFile && !userText.trim()) return;
     if (pendingFile) {
       await analyzeFile(pendingFile, userText);
     } else {
