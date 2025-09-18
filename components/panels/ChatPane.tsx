@@ -1619,16 +1619,22 @@ ${systemCommon}` + baseSys;
 
   const renderedMessages = useMemo(
     () =>
-      visibleMessages.map(m =>
-        m.role === 'user' ? (
+      visibleMessages.map((m, index) => {
+        const derivedKey =
+          m.id ??
+          (typeof (m as any).localId === 'string' ? (m as any).localId : undefined) ??
+          (typeof (m as any).tempId === 'string' ? (m as any).tempId : undefined) ??
+          `message-${index}`;
+
+        return m.role === 'user' ? (
           <div
-            key={m.id}
+            key={derivedKey}
             className="ml-auto max-w-3xl rounded-2xl px-4 py-3 shadow-sm bg-slate-200 text-slate-900 dark:bg-gray-700 dark:text-gray-100 text-left whitespace-normal"
           >
             <ChatMarkdown content={m.content} />
           </div>
         ) : (
-          <Fragment key={m.id}>
+          <Fragment key={derivedKey}>
             <AssistantMessage
               m={m}
               researchOn={researchMode}
@@ -1646,8 +1652,8 @@ ${systemCommon}` + baseSys;
               hiddenInTherapy={true}
             />
           </Fragment>
-        )
-      ),
+        );
+      }),
     [
       visibleMessages,
       researchMode,
