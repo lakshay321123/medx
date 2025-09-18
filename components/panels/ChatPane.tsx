@@ -46,12 +46,217 @@ import ThinkingTimer from "@/components/ui/ThinkingTimer";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { StopButton } from "@/components/ui/StopButton";
 import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
+import { getUserPosition, fetchNearby, geocodeArea, type NearbyKind, type NearbyPlace } from "@/lib/nearby";
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
 
 const ChatSuggestions = dynamic(() => import("./ChatSuggestions"), { ssr: false });
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
+
+const NEARBY_DEFAULT_RADIUS_KM = 2;
+const NEARBY_RADIUS_CHOICES = [1, 2, 3, 5, 8, 10] as const;
+const NEARBY_EXPAND_SEQUENCE = [2, 5, 8, 10];
+const NEARBY_SESSION_TTL_MS = 30 * 60 * 1000;
+const NEARBY_CHUNK_SIZE = 5;
+const PINCODE_RE = /\b\d{5,6}\b/;
+const NEARBY_CONFIRM_RE = /\b(yes|ok|okay|sure|go ahead|proceed|haan|haanji)\b/i;
+const NEARBY_EXPAND_RE = /\b(expand|wider|broaden|increase range)\b/i;
+const NEARBY_RADIUS_RE = /(\d+(?:\.\d+)?)\s*(km|kms|kilometers|kilometres|m|meter|meters)\b/i;
+const NEARBY_LOCATION_REFRESH_RE = /\b(near me|use my location|refresh location)\b/i;
+const NEARBY_SHOW_MORE_RE = /\b(show more|next)\b/i;
+const NEARBY_PREVIOUS_RE = /\b(previous|back)\b/i;
+const NEARBY_DIRECTIONS_RE = /\b(?:directions|navigate)\s*#?(\d{1,2})\b/i;
+const NEARBY_CALL_RE = /\bcall\s*#?(\d{1,2})\b/i;
+const NEARBY_OPEN_NOW_RE = /\b(open now|24\/?7|24x7|24-7)\b/i;
+const NEARBY_CHANGE_CATEGORY_RE = /\b(change category|different (?:type|category)|another (?:category|type))\b/i;
+const NEARBY_NEAR_WORD_RE = /\b(near|nearby|around|close to|within)\b/i;
+
+const NEARBY_KIND_SYNONYMS: Record<NearbyKind, string[]> = {
+  pharmacy: [
+    "pharmacy",
+    "pharmacies",
+    "chemist",
+    "chemists",
+    "medical store",
+    "medical stores",
+    "medicine shop",
+    "medicine shops",
+    "medical shop",
+    "medical shops",
+    "24x7",
+    "24/7",
+  ],
+  doctor: [
+    "doctor",
+    "doctors",
+    "gp",
+    "g.p.",
+    "physician",
+    "physicians",
+    "dentist",
+    "dentists",
+    "pediatrician",
+    "pediatricians",
+    "paediatrician",
+    "gyn",
+    "gynecologist",
+    "gynecologists",
+    "gynaecologist",
+    "gynaecologists",
+    "ortho",
+    "orthopedic",
+    "orthopedics",
+    "orthopaedic",
+    "ent",
+    "derma",
+    "dermatologist",
+    "dermatologists",
+    "general practitioner",
+    "family doctor",
+    "physio",
+    "physiotherapist",
+  ],
+  clinic: [
+    "clinic",
+    "clinics",
+    "polyclinic",
+    "polyclinics",
+  ],
+  hospital: [
+    "hospital",
+    "hospitals",
+    "nursing home",
+    "nursing homes",
+    "emergency",
+    "urgent care",
+    "trauma center",
+    "trauma centre",
+  ],
+  lab: [
+    "lab",
+    "labs",
+    "laboratory",
+    "laboratories",
+    "pathology",
+    "diagnostics",
+    "diagnostic centre",
+    "diagnostic center",
+    "blood test",
+    "blood tests",
+    "radiology",
+    "x-ray",
+    "xray",
+    "mri",
+    "ct",
+  ],
+};
+
+const NEARBY_LABELS: Record<NearbyKind, { singular: string; plural: string }> = {
+  pharmacy: { singular: "pharmacy", plural: "pharmacies" },
+  doctor: { singular: "doctor", plural: "doctors" },
+  clinic: { singular: "clinic", plural: "clinics" },
+  hospital: { singular: "hospital", plural: "hospitals" },
+  lab: { singular: "lab", plural: "labs" },
+};
+
+const NEARBY_RADIUS_CHIPS = "1 km · 3 km · 5 km · 8 km · 10 km · Change category · Refresh location";
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const NEARBY_SYNONYM_PATTERNS = Object.entries(NEARBY_KIND_SYNONYMS)
+  .flatMap(([kind, items]) =>
+    items.map((term) => ({
+      kind: kind as NearbyKind,
+      term,
+      regex: new RegExp(`\\b${escapeRegExp(term).replace(/\\s+/g, "\\s+")}\\b`, "i"),
+    })),
+  )
+  .sort((a, b) => b.term.length - a.term.length);
+
+function detectNearbyKindFromText(text: string, fallback?: NearbyKind): NearbyKind | null {
+  const match = NEARBY_SYNONYM_PATTERNS.find(({ regex }) => regex.test(text));
+  if (match) return match.kind;
+  return fallback ?? null;
+}
+
+function hasNearbyKeyword(text: string) {
+  return NEARBY_NEAR_WORD_RE.test(text) || PINCODE_RE.test(text) || NEARBY_LOCATION_REFRESH_RE.test(text);
+}
+
+function extractAreaFromText(text: string): string | null {
+  const areaMatch = text.match(/\b(?:near|around|in|at|close to)\s+(?!me\b)([A-Za-z0-9,\-\s]{3,})/i);
+  if (!areaMatch) return null;
+  const cleaned = areaMatch[1].replace(/\b(?:here|there|nearby)\b/gi, "").trim();
+  if (!cleaned || cleaned.toLowerCase() === "me") return null;
+  return cleaned.replace(/[?.!]+$/, "").trim();
+}
+
+function parseRadiusMatch(match: RegExpExecArray | null): number | null {
+  if (!match) return null;
+  const value = parseFloat(match[1]);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  const unit = match[2].toLowerCase();
+  const km = unit.startsWith("m") && !unit.startsWith("mi") ? value / 1000 : value;
+  return km;
+}
+
+function normalizeRadiusKm(km: number): number {
+  const clamped = Math.min(Math.max(km, 0.5), NEARBY_RADIUS_CHOICES[NEARBY_RADIUS_CHOICES.length - 1]);
+  let best: (typeof NEARBY_RADIUS_CHOICES)[number] = NEARBY_RADIUS_CHOICES[0];
+  let bestDiff = Math.abs(clamped - best);
+  for (const candidate of NEARBY_RADIUS_CHOICES) {
+    const diff = Math.abs(clamped - candidate);
+    if (diff < bestDiff) {
+      best = candidate;
+      bestDiff = diff;
+    }
+  }
+  return best;
+}
+
+function nextExpandRadius(current: number) {
+  for (const candidate of NEARBY_EXPAND_SEQUENCE) {
+    if (candidate > current) return candidate;
+  }
+  return current;
+}
+
+function formatDistanceKm(distanceMeters?: number) {
+  if (!Number.isFinite(distanceMeters)) return "";
+  const km = distanceMeters! / 1000;
+  if (km >= 1) return `${km.toFixed(1)} km`;
+  return `${Math.max(1, Math.round(distanceMeters!))} m`;
+}
+
+function formatNearbyCards(results: NearbyPlace[], start: number, count: number) {
+  return results.slice(start, start + count).map((place, index) => {
+    const absoluteIndex = start + index + 1;
+    const distance = formatDistanceKm(place.distance_m);
+    const header = distance ? `${absoluteIndex}. ${place.name} — ${distance}` : `${absoluteIndex}. ${place.name}`;
+    const lines = [header];
+    if (place.address) {
+      lines.push(place.address);
+    }
+    if (place.opening_hours) {
+      lines.push(`🕒 Hours: ${place.opening_hours}`);
+    }
+    const mapsUrl = `https://www.google.com/maps?q=${place.lat},${place.lon}`;
+    const directions = `🧭 Directions: ${mapsUrl} | ${place.osm_url}`;
+    if (place.phone) {
+      lines.push(`📞 Call: ${place.phone}`);
+    }
+    lines.push(directions);
+    if (place.website) {
+      lines.push(`🌐 Website: ${place.website}`);
+    }
+    return lines.join("\n");
+  }).join("\n\n");
+}
+
+function radiusLabel(km: number) {
+  return Number.isInteger(km) ? `${km} km` : `${km.toFixed(1)} km`;
+}
 
 // Control how social intent behaves:
 //  - 'off'    : completely disabled
@@ -74,6 +279,21 @@ type ChatUiState = {
 
 const UI_DEFAULTS: ChatUiState = { topic: null, contextFrom: null };
 const uiKey = (threadId: string) => `chat:${threadId}:ui`;
+
+type NearbySessionState = {
+  kind: NearbyKind;
+  lat: number;
+  lon: number;
+  radiusKm: number;
+  ts: number;
+  lastResults: NearbyPlace[];
+  lastResultsEmpty: boolean;
+  nextIndex: number;
+  chunkSize: number;
+  lastAction?: "nearby";
+  locationLabel?: string;
+  attribution?: string;
+};
 
 type ChatMessage =
   | (BaseChatMessage & {
@@ -424,6 +644,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     : [];
   const softAlerts = Array.from(new Set([...topAlerts, ...planAlerts]));
   const posted = useRef(new Set<string>());
+  const nearbySessions = useRef<Map<string, NearbySessionState>>(new Map());
   const bootedRef = useRef<{[k:string]:boolean}>({});
   const askedKey = (thread?: string|null, kind?: string)=> `aidoc:${thread||'med-profile'}:asked:${kind||'any'}`;
   const askedRecently = (thread?: string|null, kind?: string, minutes = 60) => {
@@ -449,6 +670,422 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const addAssistant = (text: string, opts?: Partial<ChatMessage>) =>
     setMessages(prev => [...prev, { id: uid(), role: 'assistant', kind: 'chat', content: text, ...opts } as any]);
+  const pushAssistantText = (text: string, opts?: Partial<ChatMessage>) => addAssistant(text, opts);
+
+  const nearbySessionKey = () => threadId || `${mode}-default`;
+
+  const getNearbySession = (key: string) => {
+    const existing = nearbySessions.current.get(key);
+    if (!existing) return undefined;
+    if (Date.now() - existing.ts > NEARBY_SESSION_TTL_MS) {
+      nearbySessions.current.delete(key);
+      return undefined;
+    }
+    return existing;
+  };
+
+  const setNearbySession = (key: string, session: NearbySessionState) => {
+    nearbySessions.current.set(key, {
+      ...session,
+      ts: Date.now(),
+      lastResults: [...session.lastResults],
+    });
+  };
+
+  const emitNearbyResults = (
+    session: NearbySessionState,
+    start: number,
+    count: number,
+    options?: { prefix?: string; includeChips?: boolean; note?: string },
+  ) => {
+    if (!session.lastResults.length) {
+      pushAssistantText('No nearby results saved yet. Try searching again.');
+      return;
+    }
+
+    const safeStart = Math.max(0, start);
+    const available = session.lastResults.length;
+    const actualCount = Math.min(count, Math.max(0, available - safeStart));
+    if (actualCount <= 0) {
+      pushAssistantText('No more places to show. Try widening the radius or changing the category.');
+      return;
+    }
+
+    const locationHint = session.locationLabel ? ` of ${session.locationLabel}` : '';
+    const defaultPrefix =
+      safeStart === 0
+        ? `Here are nearby ${NEARBY_LABELS[session.kind].plural} within ${radiusLabel(session.radiusKm)}${locationHint}.`
+        : `More ${NEARBY_LABELS[session.kind].plural}:`;
+    let message = `${options?.prefix ?? defaultPrefix}\n\n${formatNearbyCards(session.lastResults, safeStart, actualCount)}`;
+
+    if (available > safeStart + actualCount) {
+      message += `\n\nSay "show more" to see additional places.`;
+    }
+    if (safeStart > 0) {
+      message += `\n\nSay "previous" to go back.`;
+    }
+    if (options?.note) {
+      message += `\n\n${options.note}`;
+    }
+    if (options?.includeChips !== false) {
+      message += `\n\n${NEARBY_RADIUS_CHIPS}`;
+    }
+    if (session.attribution) {
+      message += `\n\n${session.attribution}`;
+    }
+
+    pushAssistantText(message);
+  };
+
+  const ensureChunkSize = (session: NearbySessionState) => session.chunkSize || NEARBY_CHUNK_SIZE;
+
+  const fetchAndRenderNearby = async (key: string, session: NearbySessionState) => {
+    const radiusMeters = Math.round(session.radiusKm * 1000);
+    const response = await fetchNearby(session.kind, session.lat, session.lon, radiusMeters);
+    const attribution = response.attribution || session.attribution;
+
+    if (response.error === "service_busy") {
+      const updated: NearbySessionState = {
+        ...session,
+        attribution,
+        lastAction: session.lastAction ?? "nearby",
+      };
+      setNearbySession(key, updated);
+      pushAssistantText('Nearby service is busy right now. Please try again in a moment.');
+      if (updated.lastResults.length) {
+        emitNearbyResults(updated, 0, Math.min(updated.lastResults.length, ensureChunkSize(updated)), {
+          prefix: `Reusing the last ${NEARBY_LABELS[updated.kind].plural}:`,
+        });
+      }
+      return true;
+    }
+
+    if (response.error && !response.results.length) {
+      pushAssistantText('Sorry — could not fetch nearby places right now. Please try again shortly.');
+      return true;
+    }
+
+    if (!response.results.length) {
+      const nextRadius = nextExpandRadius(session.radiusKm);
+      const suggestion =
+        nextRadius > session.radiusKm
+          ? `You can say "expand" to widen to ${radiusLabel(nextRadius)}.`
+          : 'Try another category such as pharmacies, clinics, hospitals, or labs.';
+      const locationHint = session.locationLabel ? ` of ${session.locationLabel}` : '';
+      const note = `No ${NEARBY_LABELS[session.kind].plural} within ${radiusLabel(session.radiusKm)}${locationHint}. ${suggestion}`;
+      const updated: NearbySessionState = {
+        ...session,
+        attribution,
+        lastResults: [],
+        lastResultsEmpty: true,
+        nextIndex: 0,
+        chunkSize: ensureChunkSize(session),
+        lastAction: "nearby",
+      };
+      setNearbySession(key, updated);
+      pushAssistantText(attribution ? `${note}\n\n${attribution}` : note);
+      return true;
+    }
+
+    const chunkSize = ensureChunkSize(session);
+    const firstCount = Math.min(response.results.length, chunkSize);
+    const updated: NearbySessionState = {
+      ...session,
+      attribution,
+      lastResults: response.results,
+      lastResultsEmpty: false,
+      nextIndex: firstCount,
+      chunkSize,
+      lastAction: "nearby",
+    };
+    setNearbySession(key, updated);
+    emitNearbyResults(updated, 0, firstCount);
+    return true;
+  };
+
+  const showMoreNearby = (key: string, session: NearbySessionState) => {
+    if (!session.lastResults.length) {
+      pushAssistantText('No saved nearby results yet. Try searching again.');
+      return true;
+    }
+    const chunkSize = ensureChunkSize(session);
+    if (session.nextIndex >= session.lastResults.length) {
+      pushAssistantText('You have reached the end of the list. Try widening the radius or another category.');
+      return true;
+    }
+    const start = session.nextIndex;
+    const count = Math.min(chunkSize, session.lastResults.length - start);
+    const updated: NearbySessionState = {
+      ...session,
+      nextIndex: start + count,
+      lastAction: "nearby",
+    };
+    setNearbySession(key, updated);
+    emitNearbyResults(updated, start, count, { prefix: `More ${NEARBY_LABELS[session.kind].plural}:` });
+    return true;
+  };
+
+  const showPreviousNearby = (key: string, session: NearbySessionState) => {
+    if (!session.lastResults.length) {
+      pushAssistantText('No saved nearby results yet. Try searching again.');
+      return true;
+    }
+    const chunkSize = ensureChunkSize(session);
+    if (session.nextIndex <= chunkSize) {
+      emitNearbyResults(session, 0, Math.min(chunkSize, session.lastResults.length));
+      return true;
+    }
+    const start = Math.max(0, session.nextIndex - chunkSize * 2);
+    const updated: NearbySessionState = {
+      ...session,
+      nextIndex: Math.max(chunkSize, start + chunkSize),
+      lastAction: "nearby",
+    };
+    setNearbySession(key, updated);
+    emitNearbyResults(updated, start, Math.min(chunkSize, updated.lastResults.length - start), {
+      prefix: `Previous ${NEARBY_LABELS[session.kind].plural}:`,
+    });
+    return true;
+  };
+
+  const respondWithDirections = (session: NearbySessionState, index: number) => {
+    if (!session.lastResults.length) {
+      pushAssistantText('No saved places yet. Try running a nearby search first.');
+      return true;
+    }
+    const idx = index - 1;
+    if (idx < 0 || idx >= session.lastResults.length) {
+      pushAssistantText('That number is out of range. Try a smaller number.');
+      return true;
+    }
+    const place = session.lastResults[idx];
+    const mapsUrl = `https://www.google.com/maps?q=${place.lat},${place.lon}`;
+    const message = `🧭 Directions for **${place.name}**:\n- Google Maps: ${mapsUrl}\n- OpenStreetMap: ${place.osm_url}`;
+    pushAssistantText(message);
+    return true;
+  };
+
+  const respondWithCall = (session: NearbySessionState, index: number) => {
+    if (!session.lastResults.length) {
+      pushAssistantText('No saved places yet. Try running a nearby search first.');
+      return true;
+    }
+    const idx = index - 1;
+    if (idx < 0 || idx >= session.lastResults.length) {
+      pushAssistantText('That number is out of range. Try a smaller number.');
+      return true;
+    }
+    const place = session.lastResults[idx];
+    if (!place.phone) {
+      pushAssistantText(`No phone number listed for **${place.name}**.`);
+      return true;
+    }
+    pushAssistantText(`📞 Call **${place.name}** at ${place.phone}.`);
+    return true;
+  };
+
+  const filterOpenNow = (session: NearbySessionState) => {
+    if (!session.lastResults.length) {
+      pushAssistantText('No saved places yet. Try running a nearby search first.');
+      return true;
+    }
+    const withHours = session.lastResults.filter((item) => typeof item.opening_hours === 'string' && item.opening_hours.trim().length);
+    if (!withHours.length) {
+      pushAssistantText('The current results do not list opening hours. Showing all places instead.');
+      emitNearbyResults(session, 0, Math.min(ensureChunkSize(session), session.lastResults.length));
+      return true;
+    }
+    const aroundTheClock = withHours.filter((item) => /24\s*[x/\-]?7/i.test(item.opening_hours ?? ''));
+    if (!aroundTheClock.length) {
+      pushAssistantText('None of the saved places are marked 24/7.');
+      return true;
+    }
+    const mockSession: NearbySessionState = {
+      ...session,
+      lastResults: aroundTheClock,
+      attribution: session.attribution,
+    };
+    emitNearbyResults(mockSession, 0, Math.min(ensureChunkSize(session), aroundTheClock.length), {
+      prefix: `Places tagged 24/7 (${NEARBY_LABELS[session.kind].plural}):`,
+    });
+    return true;
+  };
+
+  async function tryNearbyQuickPath(text: string) {
+    const raw = text.trim();
+    if (!raw) return false;
+
+    const lower = raw.toLowerCase();
+    const key = nearbySessionKey();
+    const session = getNearbySession(key);
+    const inNearbyContext = !!session && session.lastAction === 'nearby';
+
+    const radiusMatch = NEARBY_RADIUS_RE.exec(lower);
+    const requestedRadiusKm = parseRadiusMatch(radiusMatch);
+    const areaFromText = extractAreaFromText(raw);
+    const pinMatch = raw.match(PINCODE_RE);
+    const pinCode = pinMatch ? pinMatch[0] : null;
+    const kindCandidate = detectNearbyKindFromText(lower, session?.kind);
+    const wantsNearby = hasNearbyKeyword(lower) || Boolean(pinCode) || (!!kindCandidate && /\bnear\b/i.test(lower));
+
+    if (session) {
+      if (inNearbyContext && NEARBY_CONFIRM_RE.test(lower)) {
+        const nextRadius = session.lastResultsEmpty ? nextExpandRadius(session.radiusKm) : session.radiusKm;
+        const updatedSession: NearbySessionState = {
+          ...session,
+          radiusKm: nextRadius,
+          lastResultsEmpty: false,
+        };
+        return fetchAndRenderNearby(key, updatedSession);
+      }
+
+      if (NEARBY_EXPAND_RE.test(lower)) {
+        const nextRadius = nextExpandRadius(session.radiusKm);
+        if (nextRadius === session.radiusKm) {
+          pushAssistantText('Radius is already at the maximum of 10 km. Try another category.');
+          return true;
+        }
+        const updatedSession: NearbySessionState = {
+          ...session,
+          radiusKm: nextRadius,
+          lastResultsEmpty: false,
+        };
+        return fetchAndRenderNearby(key, updatedSession);
+      }
+
+      if (requestedRadiusKm !== null) {
+        const updatedSession: NearbySessionState = {
+          ...session,
+          radiusKm: normalizeRadiusKm(requestedRadiusKm),
+          lastResultsEmpty: false,
+        };
+        return fetchAndRenderNearby(key, updatedSession);
+      }
+
+      if (NEARBY_SHOW_MORE_RE.test(lower) && inNearbyContext) {
+        return showMoreNearby(key, session);
+      }
+
+      if (NEARBY_PREVIOUS_RE.test(lower) && inNearbyContext) {
+        return showPreviousNearby(key, session);
+      }
+
+      const directionsMatch = NEARBY_DIRECTIONS_RE.exec(lower);
+      if (directionsMatch && inNearbyContext) {
+        return respondWithDirections(session, Number(directionsMatch[1]));
+      }
+
+      const callMatch = NEARBY_CALL_RE.exec(lower);
+      if (callMatch && inNearbyContext) {
+        return respondWithCall(session, Number(callMatch[1]));
+      }
+
+      if (NEARBY_OPEN_NOW_RE.test(lower) && inNearbyContext) {
+        return filterOpenNow(session);
+      }
+
+      if (NEARBY_CHANGE_CATEGORY_RE.test(lower) && inNearbyContext) {
+        pushAssistantText('Sure — tell me which category you need: pharmacy, doctor, clinic, hospital, or lab.');
+        setNearbySession(key, { ...session, lastAction: 'nearby' });
+        return true;
+      }
+
+      if (NEARBY_LOCATION_REFRESH_RE.test(lower)) {
+        const pos = await getUserPosition().catch(() => null);
+        if (!pos) {
+          pushAssistantText('Share your area or pincode to update the search (we won’t store it).');
+          return true;
+        }
+        const updatedSession: NearbySessionState = {
+          ...session,
+          lat: pos.lat,
+          lon: pos.lon,
+          locationLabel: 'your location',
+          lastResultsEmpty: false,
+        };
+        return fetchAndRenderNearby(key, updatedSession);
+      }
+
+      if ((pinCode || areaFromText) && (inNearbyContext || wantsNearby)) {
+        const query = pinCode || areaFromText || '';
+        const coords = await geocodeArea(query);
+        if (!coords) {
+          pushAssistantText(`Couldn't find **${query}**. Try another landmark or share your location.`);
+          return true;
+        }
+        const label = pinCode ? `PIN ${pinCode}` : query.trim();
+        const updatedSession: NearbySessionState = {
+          ...session,
+          lat: coords.lat,
+          lon: coords.lon,
+          locationLabel: label,
+          lastResultsEmpty: false,
+        };
+        return fetchAndRenderNearby(key, updatedSession);
+      }
+
+      if (kindCandidate && kindCandidate !== session.kind && (inNearbyContext || wantsNearby)) {
+        const updatedSession: NearbySessionState = {
+          ...session,
+          kind: kindCandidate,
+          lastResultsEmpty: false,
+        };
+        return fetchAndRenderNearby(key, updatedSession);
+      }
+    }
+
+    if (!kindCandidate) {
+      return false;
+    }
+
+    if (!wantsNearby && !session) {
+      return false;
+    }
+
+    let coords: { lat: number; lon: number } | null = null;
+    let locationLabel: string | undefined;
+
+    if (NEARBY_LOCATION_REFRESH_RE.test(lower) || /\bnear\s+me\b/.test(lower) || /\bnearby\b/.test(lower)) {
+      coords = await getUserPosition().catch(() => null);
+      if (coords) {
+        locationLabel = 'your location';
+      }
+    }
+
+    if (!coords && (pinCode || areaFromText)) {
+      const query = pinCode || areaFromText || '';
+      const resolved = await geocodeArea(query);
+      if (!resolved) {
+        pushAssistantText(`Couldn't find **${query}**. Try another landmark or share your location.`);
+        return true;
+      }
+      coords = resolved;
+      locationLabel = pinCode ? `PIN ${pinCode}` : query.trim();
+    }
+
+    if (!coords) {
+      pushAssistantText('Share your area or pincode to find nearby places (we won’t store it).');
+      return true;
+    }
+
+    const radiusKm = requestedRadiusKm !== null ? normalizeRadiusKm(requestedRadiusKm) : NEARBY_DEFAULT_RADIUS_KM;
+    const newSession: NearbySessionState = {
+      kind: kindCandidate,
+      lat: coords.lat,
+      lon: coords.lon,
+      radiusKm,
+      ts: Date.now(),
+      lastResults: [],
+      lastResultsEmpty: false,
+      nextIndex: 0,
+      chunkSize: NEARBY_CHUNK_SIZE,
+      lastAction: 'nearby',
+      locationLabel,
+      attribution: undefined,
+    };
+    setNearbySession(key, newSession);
+    return fetchAndRenderNearby(key, newSession);
+  }
 
   function addOnce(id: string, content: string) {
     if (posted.current.has(id)) return;
@@ -1414,6 +2051,11 @@ ${systemCommon}` + baseSys;
           }
           return;
         }
+      }
+
+      if (!pendingFile && trimmed && (await tryNearbyQuickPath(trimmed))) {
+        setUserText('');
+        return;
       }
 
     // --- Proactive single Q&A commit path (profile thread) ---

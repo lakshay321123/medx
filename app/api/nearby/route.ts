@@ -1,64 +1,178 @@
-export const runtime = "nodejs";
+import { NextResponse } from "next/server";
 
-import { NextRequest, NextResponse } from "next/server";
-import { buildOverpassQuery, callOverpass } from "@/lib/nearby/overpass";
-import { mapOverpassElements } from "@/lib/nearby/normalize";
-import type { NearbyType, NearbyResponse } from "@/lib/nearby/types";
+const OVERPASS_URL = process.env.OVERPASS_URL || "https://overpass-api.de/api/interpreter";
+const MAX_RADIUS_METERS = 10000;
+const MIN_RADIUS_METERS = 100;
+const RETRY_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 800;
 
-const ON = (k: string) => (process.env[k] || "").toLowerCase() === "true";
-const FEATURE = ON("FEATURE_NEARBY");
+const TYPE_TAGS: Record<string, string[]> = {
+  pharmacy: [
+    `node["amenity"="pharmacy"]`,
+    `way["amenity"="pharmacy"]`,
+    `relation["amenity"="pharmacy"]`,
+  ],
+  doctor: [
+    `node["amenity"="doctors"]`,
+    `way["amenity"="doctors"]`,
+    `relation["amenity"="doctors"]`,
+  ],
+  clinic: [
+    `node["amenity"="clinic"]`,
+    `way["amenity"="clinic"]`,
+    `relation["amenity"="clinic"]`,
+  ],
+  hospital: [
+    `node["amenity"="hospital"]`,
+    `way["amenity"="hospital"]`,
+    `relation["amenity"="hospital"]`,
+  ],
+  lab: [
+    `node["healthcare"="laboratory"]`,
+    `way["healthcare"="laboratory"]`,
+    `relation["healthcare"="laboratory"]`,
+    `node["amenity"="laboratory"]`,
+    `way["amenity"="laboratory"]`,
+    `relation["amenity"="laboratory"]`,
+  ],
+};
 
-const DEF_RADIUS = Number(process.env.NEARBY_DEFAULT_RADIUS_KM || 5);
-const MAX_RESULTS = Number(process.env.NEARBY_MAX_RESULTS || 40);
-const TTL = Number(process.env.NEARBY_CACHE_TTL_SEC || 300);
+const toRad = (d: number) => (d * Math.PI) / 180;
+const distM = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) => {
+  const R = 6371000;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const c =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(c));
+};
 
-function clamp(n: number, min: number, max: number) {
-  return isNaN(n) ? min : Math.max(min, Math.min(max, n));
+function clampRadius(meters: number) {
+  if (!Number.isFinite(meters) || meters <= 0) return MIN_RADIUS_METERS;
+  return Math.max(MIN_RADIUS_METERS, Math.min(MAX_RADIUS_METERS, Math.round(meters)));
 }
 
-export async function GET(req: NextRequest) {
-  if (!FEATURE) return NextResponse.json({ error: "disabled" }, { status: 404 });
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
+export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const type = (searchParams.get("type") || "doctor") as NearbyType;
-  const specialty = (searchParams.get("specialty") || "").trim();
+  if (process.env.FEATURE_NEARBY !== "true") return NextResponse.json({ results: [] });
+
+  const type = (searchParams.get("type") || "pharmacy").toLowerCase();
   const lat = Number(searchParams.get("lat"));
-  const lng = Number(searchParams.get("lng"));
-  const radiusKm = clamp(Number(searchParams.get("radius_km") || DEF_RADIUS), 1, 20);
-  const limit = clamp(Number(searchParams.get("limit") || MAX_RESULTS), 1, MAX_RESULTS);
+  const lon = Number(searchParams.get("lon"));
+  const radiusMeters = clampRadius(Number(searchParams.get("radius") || 2000));
 
-  if (!isFinite(lat) || !isFinite(lng)) {
-    return NextResponse.json({ error: "coords_required" }, { status: 400 });
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return NextResponse.json({ error: "missing_lat_lon", results: [], attribution: "© OpenStreetMap contributors" }, { status: 400 });
   }
 
-  const key = `nearby:${type}:${specialty}:${lat.toFixed(3)}:${lng.toFixed(3)}:${radiusKm}`;
-  // const cached = await kv.get<NearbyResponse>(key);
-  // if (cached) return NextResponse.json({ ...cached, meta: { ...cached.meta, cached: true } });
+  const selectors = TYPE_TAGS[type] || TYPE_TAGS.pharmacy;
+  const query = `
+    [out:json][timeout:30];
+    (
+      ${selectors.map((s) => `${s}(around:${radiusMeters},${lat},${lon});`).join("\n")}
+    );
+    out center tags 60;
+  `.trim();
 
-  const q = buildOverpassQuery(lat, lng, radiusKm * 1000, type, specialty);
-  let data;
-  try {
-    data = await callOverpass(q);
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "overpass_error" }, { status: 502 });
+  let attempt = 0;
+  let payload: any = null;
+  let error: string | undefined;
+
+  while (attempt < RETRY_ATTEMPTS) {
+    try {
+      const response = await fetch(OVERPASS_URL, {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+          "user-agent": "SecondOpinion/Nearby",
+        },
+        body: new URLSearchParams({ data: query }).toString(),
+        cache: "no-store",
+      });
+
+      if (response.ok) {
+        payload = await response.json().catch(() => null);
+        if (payload) {
+          error = undefined;
+          break;
+        }
+        error = "invalid_response";
+        break;
+      }
+
+      if (response.status === 429 || response.status >= 500) {
+        error = "service_busy";
+        await delay(RETRY_DELAY_MS);
+        attempt += 1;
+        continue;
+      }
+
+      error = `upstream_${response.status}`;
+      payload = await response.json().catch(() => null);
+      break;
+    } catch (err) {
+      error = "network_error";
+      break;
+    }
   }
 
-  const elements = Array.isArray(data?.elements) ? data.elements : [];
-  let items = mapOverpassElements(elements, { lat, lng }, type);
+  const elements = Array.isArray(payload?.elements) ? payload.elements : [];
+  const origin = { lat, lon };
+  const results = elements
+    .map((el: any) => {
+      const plat = Number(el.lat ?? el.center?.lat);
+      const plon = Number(el.lon ?? el.center?.lon);
+      if (!Number.isFinite(plat) || !Number.isFinite(plon)) return null;
 
-  if (type === "specialist" && specialty) {
-    const rx = new RegExp(`(^|;)\\s*${specialty}\\s*($|;)`, "i");
-    items = items.filter((i) => rx.test(i.specialty || ""));
-  }
+      const name = el.tags?.name || el.tags?.["name:en"] || "(Unnamed)";
+      const address = [
+        el.tags?.["addr:housenumber"],
+        el.tags?.["addr:street"],
+        el.tags?.["addr:suburb"],
+        el.tags?.["addr:city"],
+      ]
+        .filter(Boolean)
+        .join(", ");
 
-  items.sort((a, b) => a.distance_km - b.distance_km);
-  items = items.slice(0, limit);
+      return {
+        name,
+        lat: plat,
+        lon: plon,
+        address: address || undefined,
+        phone: el.tags?.phone || el.tags?.["contact:phone"],
+        website: el.tags?.website || el.tags?.["contact:website"],
+        osm_url: `https://www.openstreetmap.org/${el.type}/${el.id}`,
+        distance_m: Math.round(distM(origin, { lat: plat, lon: plon })),
+        opening_hours: el.tags?.opening_hours,
+      };
+    })
+    .filter((p: any): p is {
+      name: string;
+      lat: number;
+      lon: number;
+      address?: string;
+      phone?: string;
+      website?: string;
+      osm_url: string;
+      distance_m: number;
+      opening_hours?: string;
+    } => Boolean(p))
+    .sort((a, b) => (a.distance_m ?? Number.POSITIVE_INFINITY) - (b.distance_m ?? Number.POSITIVE_INFINITY))
+    .slice(0, 25);
 
-  const payload: NearbyResponse = {
-    meta: { provider: "overpass", radius_km: radiusKm, total: items.length, cached: false },
-    items,
+  const body: Record<string, unknown> = {
+    results,
+    attribution: "© OpenStreetMap contributors",
   };
 
-  // await kv.set(key, payload, { ex: TTL });
-  return NextResponse.json(payload, { status: 200 });
+  if (error && !results.length) {
+    body.error = error;
+  }
+
+  return NextResponse.json(body);
 }
