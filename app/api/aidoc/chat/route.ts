@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 // [AIDOC_TRIAGE_IMPORT] add triage imports
 import { handleDocAITriage, detectExperientialIntent } from "@/lib/aidoc/triage";
-import { POST as streamPOST, runtime } from "../../chat/stream/route";
+import { POST as streamPOST } from "../../chat/stream/route";
 import { getUserId } from "@/lib/getUserId";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
-export { runtime };
+export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({} as any));
@@ -33,20 +33,20 @@ export async function POST(req: NextRequest) {
     const userId = await getUserId(req);
     if (userId) {
       const sb = supabaseAdmin();
-      const profilePromise = sb
+      const { data: prof } = await sb
         .from("profiles")
         .select("full_name,dob,sex,blood_group,conditions_predisposition,chronic_conditions")
         .eq("id", userId)
         .maybeSingle();
-      const observationsPromise: Promise<{ data: typeof observations | null }> = needsContextPacket
-        ? sb
+      const obsResponse = needsContextPacket
+        ? await sb
             .from("observations")
             .select("id, observed_at, kind, title, payload")
             .eq("user_id", userId)
             .order("observed_at", { ascending: false })
             .limit(50)
-        : Promise.resolve({ data: null });
-      const [{ data: prof }, { data: obs }] = await Promise.all([profilePromise, observationsPromise]);
+        : { data: null };
+      const obs = obsResponse.data;
       const dob = prof?.dob ? new Date(prof.dob) : null;
       const age = dob && !Number.isNaN(dob.getTime())
         ? Math.max(0, Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 3600 * 1000)))
