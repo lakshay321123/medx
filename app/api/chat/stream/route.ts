@@ -53,6 +53,7 @@ type WebHit = { title:string; snippet?:string; url:string; source?:string };
 
 export async function POST(req: NextRequest) {
   const reqUrl = new URL(req.url);
+  const origin = reqUrl.origin;
   const qp = reqUrl.searchParams.get('research');
   const long = reqUrl.searchParams.get('long') === '1';
   let body: any = {};
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
   let sources: WebHit[] = Array.isArray(body?.__sources) ? body.__sources as WebHit[] : [];
   if (research && (!sources || sources.length === 0) && latestUser?.content?.trim()) {
     try {
-      const r = await fetch(`${reqUrl.origin}/api/search`, {
+      const r = await fetch(`${origin}/api/search`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ query: latestUser.content }),

@@ -15,43 +15,53 @@ export async function POST(req: Request) {
 
   const term = String(query).trim();
 
-  // Build absolute URLs without relying on nextUrl (works in node & edge)
   const origin = new URL(req.url).origin;
+  const endpoint = (process.env.SEARCH_API_URL || '/api/websearch').trim();
+  const webUrl = new URL(endpoint, origin);
+  webUrl.searchParams.set('q', term);
 
-  // --- WEB SEARCH (Google via local wrapper) ---
-  const webResults = await (async () => {
-    try {
-      const endpoint = (process.env.SEARCH_API_URL || '/api/websearch').trim();
-      const url = new URL(endpoint, origin);
-      url.searchParams.set('q', term);
-
-      const r = await fetch(url.toString(), { method: 'GET', cache: 'no-store' });
-      if (!r.ok) return [] as SearchResult[];
-      const data = await r.json().catch(() => ({}));
-      const hits = Array.isArray((data as any).results) ? (data as any).results : [];
-      return hits
-        .map((x: any) => ({
-          title: x.title || x.name || '',
-          snippet: x.snippet || x.description || '',
-          url: x.url || x.link || '',
-          source: 'web'
-        }))
-        .filter((item: SearchResult) => item.title && item.url);
-    } catch {
-      return [] as SearchResult[];
-    }
-  })();
-
-  // --- YOUR EXISTING OTHER SOURCES ---
-  const [pubmed, openfda, trials] = await Promise.all([
+  const otherSourcesPromise = Promise.all([
     pubmedSearch(term),
     openFdaSearch(term),
     clinicalTrialsSearch(term)
   ]);
 
-  // Combine and return in whatever shape your UI expects
+  let web: SearchResult[] = [];
+  try {
+    const r = await fetch(webUrl.toString(), { method: 'GET', cache: 'no-store' });
+    if (!r.ok) {
+      const [pubmed, openfda, trials] = await otherSourcesPromise;
+      const fallback = [
+        ...(Array.isArray(pubmed) ? pubmed : []),
+        ...(Array.isArray(openfda) ? openfda : []),
+        ...(Array.isArray(trials) ? trials : [])
+      ];
+      return NextResponse.json({ results: fallback });
+    }
+    const data = await r.json().catch(() => ({}));
+    web = Array.isArray((data as any)?.results)
+      ? (data as any).results
+          .map((x: any) => ({
+            title: x.title || x.name || '',
+            snippet: x.snippet || x.description || '',
+            url: x.url || x.link || '',
+            source: 'web'
+          }))
+          .filter((item: SearchResult) => item.title && item.url)
+      : [];
+  } catch {
+    const [pubmed, openfda, trials] = await otherSourcesPromise;
+    const fallback = [
+      ...(Array.isArray(pubmed) ? pubmed : []),
+      ...(Array.isArray(openfda) ? openfda : []),
+      ...(Array.isArray(trials) ? trials : [])
+    ];
+    return NextResponse.json({ results: fallback });
+  }
+
+  const [pubmed, openfda, trials] = await otherSourcesPromise;
   const results: SearchResult[] = [
-    ...webResults,
+    ...web,
     ...(Array.isArray(pubmed) ? pubmed : []),
     ...(Array.isArray(openfda) ? openfda : []),
     ...(Array.isArray(trials) ? trials : [])
