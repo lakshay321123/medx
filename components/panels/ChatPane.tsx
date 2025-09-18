@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState, useMemo, RefObject, Fragment } from 'react';
+import { useEffect, useRef, useState, useMemo, RefObject, Fragment, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fromSearchParams } from '@/lib/modes/url';
 import Header from '../Header';
@@ -503,7 +503,34 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     } catch {}
   }, [threadId, ui]);
 
-  useEffect(()=>{ chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight }); },[messages]);
+  const isNearBottom = (el: HTMLElement, threshold = 120) =>
+    el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+
+  const scrollToBottom = useCallback((el: HTMLElement) => {
+    window.clearTimeout((scrollToBottom as any)._t);
+    (scrollToBottom as any)._t = window.setTimeout(() => {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    }, 90);
+  }, []);
+
+  useEffect(() => {
+    const el = chatRef.current;
+    if (!el) return;
+    if (isNearBottom(el)) scrollToBottom(el);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
+
+  useEffect(() => {
+    const el = chatRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+
+    const ro = new ResizeObserver(() => {
+      if (isNearBottom(el)) scrollToBottom(el);
+    });
+    ro.observe(el);
+
+    return () => ro.disconnect();
+  }, [scrollToBottom]);
 
   useEffect(() => {
     posted.current.clear();
@@ -1568,6 +1595,78 @@ ${systemCommon}` + baseSys;
     send(s.label, researchMode);
   }
 
+  const onQuickActionRef = useRef(onQuickAction);
+  useEffect(() => {
+    onQuickActionRef.current = onQuickAction;
+  }, [onQuickAction]);
+  const stableOnQuickAction = useCallback(
+    (action: 'simpler' | 'doctor' | 'next') => {
+      return onQuickActionRef.current?.(action);
+    },
+    []
+  );
+
+  const handleSuggestionActionRef = useRef(handleSuggestionAction);
+  useEffect(() => {
+    handleSuggestionActionRef.current = handleSuggestionAction;
+  }, [handleSuggestionAction]);
+  const stableHandleSuggestionAction = useCallback((s: Suggestion) => {
+    handleSuggestionActionRef.current?.(s);
+  }, []);
+
+  const assistantBusy = loadingAction !== null;
+  const simpleMode = currentMode === 'patient';
+
+  const renderedMessages = useMemo(
+    () =>
+      visibleMessages.map((m, index) => {
+        const derivedKey =
+          m.id ??
+          (typeof (m as any).localId === 'string' ? (m as any).localId : undefined) ??
+          (typeof (m as any).tempId === 'string' ? (m as any).tempId : undefined) ??
+          `message-${index}`;
+
+        return m.role === 'user' ? (
+          <div
+            key={derivedKey}
+            className="ml-auto max-w-3xl rounded-2xl px-4 py-3 shadow-sm bg-slate-200 text-slate-900 dark:bg-gray-700 dark:text-gray-100 text-left whitespace-normal"
+          >
+            <ChatMarkdown content={m.content} />
+          </div>
+        ) : (
+          <Fragment key={derivedKey}>
+            <AssistantMessage
+              m={m}
+              researchOn={researchMode}
+              onQuickAction={stableOnQuickAction}
+              busy={assistantBusy}
+              therapyMode={therapyMode}
+              onAction={stableHandleSuggestionAction}
+              simple={simpleMode}
+            />
+            <FeedbackBar
+              conversationId={conversationId}
+              messageId={m.id}
+              mode={currentMode}
+              model={undefined}
+              hiddenInTherapy={true}
+            />
+          </Fragment>
+        );
+      }),
+    [
+      visibleMessages,
+      researchMode,
+      assistantBusy,
+      therapyMode,
+      stableHandleSuggestionAction,
+      simpleMode,
+      conversationId,
+      currentMode,
+      stableOnQuickAction
+    ]
+  );
+
   async function runAiDocWith(profileIntent: 'current' | 'new', newProfile?: any) {
     setLoadingAidoc(true);
     try {
@@ -1771,35 +1870,7 @@ ${systemCommon}` + baseSys;
           </div>
         )}
       <div className="mx-auto w-full max-w-3xl space-y-4">
-        {visibleMessages.map(m =>
-            m.role === 'user' ? (
-              <div
-                key={m.id}
-                className="ml-auto max-w-3xl rounded-2xl px-4 py-3 shadow-sm bg-slate-200 text-slate-900 dark:bg-gray-700 dark:text-gray-100 text-left whitespace-normal"
-              >
-                <ChatMarkdown content={m.content} />
-              </div>
-            ) : (
-              <Fragment key={m.id}>
-                <AssistantMessage
-                  m={m}
-                  researchOn={researchMode}
-                  onQuickAction={onQuickAction}
-                  busy={loadingAction !== null}
-                  therapyMode={therapyMode}
-                  onAction={handleSuggestionAction}
-                  simple={currentMode === 'patient'}
-                />
-                <FeedbackBar
-                  conversationId={conversationId}
-                  messageId={m.id}
-                  mode={currentMode}
-                  model={undefined}
-                  hiddenInTherapy={true}
-                />
-              </Fragment>
-            )
-        )}
+        {renderedMessages}
       </div>
       {AIDOC_UI && aidoc && (
         <div className="mx-auto w-full max-w-3xl">
