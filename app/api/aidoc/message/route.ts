@@ -5,6 +5,7 @@ import { handleDocAITriage, detectExperientialIntent } from "@/lib/aidoc/triage"
 import { getUserId } from "@/lib/getUserId";
 import { prisma } from "@/lib/prisma";
 import { wasAskedOnce, markAsked } from "@/lib/aidoc/memory";
+import { loadPatientSnapshot, type PatientSnapshot } from "@/lib/patient/snapshot";
 
 export async function POST(req: Request) {
   const payload = await req.json().catch(() => ({} as any));
@@ -18,6 +19,15 @@ export async function POST(req: Request) {
   const op = payload?.op;
   const boot = payload?.boot === true || op === "boot";
   const userId = (await getUserId()) ?? "";
+  let supaSnapshot: PatientSnapshot | null = null;
+  if (userId) {
+    try {
+      supaSnapshot = await loadPatientSnapshot(userId);
+    } catch (err) {
+      console.error("[AidocMessage] failed to load patient snapshot", err);
+      supaSnapshot = null;
+    }
+  }
   const threadId = payload.threadId || "aidoc:" + userId;
   // Structured payloads from UI
   const answers = (payload?.answers && typeof payload.answers === "object") ? payload.answers : null;
@@ -25,7 +35,12 @@ export async function POST(req: Request) {
 
   // ensure you have resolved the `profile` object here
   // profile = { name, age, sex, pregnant }
-  const profile: any = undefined;
+  const profile = {
+    name: supaSnapshot?.profile?.name ?? null,
+    age: supaSnapshot?.profile?.age ?? null,
+    sex: supaSnapshot?.profile?.sex ?? null,
+    pregnant: null as boolean | null,
+  };
 
   // Merge demographics from request (or from answers.demographics) into profile for triage
   const demoFromAnswers = (answers && typeof (answers as any).demographics === "object") ? (answers as any).demographics : null;
