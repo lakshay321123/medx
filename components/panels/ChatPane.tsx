@@ -503,14 +503,34 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     } catch {}
   }, [threadId, ui]);
 
+  const isNearBottom = (el: HTMLElement, threshold = 120) =>
+    el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+
+  const scrollToBottom = useCallback((el: HTMLElement) => {
+    window.clearTimeout((scrollToBottom as any)._t);
+    (scrollToBottom as any)._t = window.setTimeout(() => {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    }, 90);
+  }, []);
+
   useEffect(() => {
     const el = chatRef.current;
     if (!el) return;
-    const timeout = window.setTimeout(() => {
-      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-    }, 100);
-    return () => window.clearTimeout(timeout);
-  }, [messages.length]);
+    if (isNearBottom(el)) scrollToBottom(el);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
+
+  useEffect(() => {
+    const el = chatRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+
+    const ro = new ResizeObserver(() => {
+      if (isNearBottom(el)) scrollToBottom(el);
+    });
+    ro.observe(el);
+
+    return () => ro.disconnect();
+  }, [scrollToBottom]);
 
   useEffect(() => {
     posted.current.clear();
