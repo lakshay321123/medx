@@ -29,7 +29,15 @@ import { polishResponse } from "@/lib/conversation/polish";
 import { normalizeMode } from "@/lib/conversation/mode";
 import { DOCTOR_JSON_SYSTEM, coerceDoctorJson } from "@/lib/conversation/doctorJson";
 import { renderDeterministicDoctorReport } from "@/lib/renderer/templates/doctor";
-import { buildPatientSnapshot } from "@/lib/patient/snapshot";
+import { loadPatientSnapshot } from "@/lib/patient/snapshot";
+import {
+  doctorPatientFromSnapshot,
+  extractObservationInputs,
+  formatPatientContext,
+  mergeClinicalInputs,
+} from "@/lib/aidoc/context";
+import { extractAll } from "@/lib/medical/engine/extract";
+import { computeAll, renderResultsBlock } from "@/lib/medical/engine/computeAll";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchTrialByNct } from "@/lib/trials/byId";
 import { singleTrialPatientPrompt, singleTrialClinicianPrompt } from "@/lib/prompts/trials";
@@ -210,10 +218,53 @@ export async function POST(req: Request) {
   console.log("[DoctorMode] mode=", mode, "thread_id=", thread_id);
 
   if (mode === "doctor") {
-    const patient = await buildPatientSnapshot(thread_id);
+    const supaSnapshot = userId
+      ? await loadPatientSnapshot(userId).catch((err) => {
+          console.error("[DoctorMode] failed to load patient snapshot", err);
+          return null;
+        })
+      : null;
+
+    const patient = doctorPatientFromSnapshot(supaSnapshot);
+    const contextMessages: ChatCompletionMessageParam[] = [];
+
+    if (supaSnapshot) {
+      const patientContext = formatPatientContext({
+        snapshot: supaSnapshot,
+        rawObservations: supaSnapshot.rawObservations,
+      });
+      const observationInputs = extractObservationInputs(supaSnapshot.rawObservations);
+      if (supaSnapshot.profile.age != null && observationInputs.age == null) {
+        observationInputs.age = supaSnapshot.profile.age;
+      }
+      const messageInputs = extractAll(userMessage || "");
+      const mergedInputs = mergeClinicalInputs(observationInputs, messageInputs);
+      const computed = computeAll({ ...mergedInputs });
+      const derivedBlock = renderResultsBlock(computed);
+
+      const instructions = [
+        "Patient chart context is provided below. Integrate relevant details directly into each JSON bullet.",
+        "When you cite labs, vitals, or other observations, quote the exact value with units and observation date.",
+        "If you reference derived calculations (e.g., corrected sodium, Winter’s expected pCO₂, osmolal gap), mention which inputs were used.",
+        patientContext,
+        derivedBlock,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
+      contextMessages.push({ role: "system", content: instructions });
+    } else {
+      contextMessages.push({
+        role: "system",
+        content:
+          "No structured patient profile or observations were found. Ask the user for the key history, medications, vitals, and labs before final recommendations.",
+      });
+    }
+
     const systemPrompt = DOCTOR_JSON_SYSTEM;
     const msg: ChatCompletionMessageParam[] = [
       { role: "system", content: systemPrompt },
+      ...contextMessages,
       ...(incomingMessages || []),
     ];
     const jsonStr = await callGroq(msg, { temperature: 0 });

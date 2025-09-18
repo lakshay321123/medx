@@ -367,3 +367,137 @@ export function mergeClinicalInputs(
   return canonicalizeInputs(raw);
 }
 
+export type DoctorPatientSummary = {
+  name?: string | null;
+  age?: number | string | null;
+  sex?: string | null;
+  encounterDate?: string | null;
+  diagnoses?: string[];
+  comorbidities?: string[];
+  meds?: string[];
+  labs?: Array<{ name: string; value: string | number; unit?: string | null }>;
+  allergies?: string[];
+};
+
+export function doctorPatientFromSnapshot(
+  snapshot: PatientSnapshot | null | undefined,
+): DoctorPatientSummary {
+  if (!snapshot) {
+    return {
+      name: null,
+      age: null,
+      sex: null,
+      encounterDate: null,
+      diagnoses: [],
+      comorbidities: [],
+      meds: [],
+      labs: [],
+      allergies: [],
+    };
+  }
+
+  const labs = labsFromObservations(snapshot.rawObservations)
+    .map((lab) => {
+      if (!lab.name) return null;
+      if (typeof lab.value === "number") {
+        return { name: lab.name, value: lab.value, unit: lab.unit ?? null };
+      }
+      const text = lab.value == null ? "" : cleanWhitespace(String(lab.value));
+      if (!text) return null;
+      return { name: lab.name, value: text, unit: lab.unit ?? null };
+    })
+    .filter((row): row is { name: string; value: string | number; unit?: string | null } => !!row)
+    .slice(0, 20);
+
+  const diagnoses = collectStringsByCategory(snapshot.rawObservations, "diagnosis");
+  const meds = collectStringsByCategory(snapshot.rawObservations, "medication");
+  const allergies = collectStringsByCategory(snapshot.rawObservations, "allergy");
+
+  const chronic = dedupeStrings(snapshot.profile.chronic_conditions || []);
+  const familyHistory = dedupeStrings(snapshot.profile.conditions_predisposition || []).map(
+    (item) => `Family history: ${item}`,
+  );
+  const comorbidities = dedupeStrings([...chronic, ...familyHistory]);
+
+  const encounterDate = latestEncounterDate(snapshot.rawObservations);
+
+  const fallbacks = dedupeStrings([...diagnoses, ...chronic]);
+
+  return {
+    name: snapshot.profile.name ?? null,
+    age: snapshot.profile.age ?? null,
+    sex: snapshot.profile.sex ?? null,
+    encounterDate,
+    diagnoses: fallbacks.length ? fallbacks : undefined,
+    comorbidities: comorbidities.length ? comorbidities : undefined,
+    meds: meds.length ? meds : undefined,
+    labs: labs.length ? labs : undefined,
+    allergies: allergies.length ? allergies : undefined,
+  };
+}
+
+function latestEncounterDate(rows: RawObservation[]): string | null {
+  let latest = -Infinity;
+  for (const row of rows) {
+    const ts = new Date(row?.observed_at || row?.created_at || 0).getTime();
+    if (!Number.isFinite(ts)) continue;
+    if (ts > latest) latest = ts;
+  }
+  if (!Number.isFinite(latest) || latest <= 0) return null;
+  return new Date(latest).toISOString().slice(0, 10);
+}
+
+function collectStringsByCategory(
+  rows: RawObservation[],
+  category: string,
+  limit = 12,
+): string[] {
+  const sorted = [...rows].sort(
+    (a, b) =>
+      new Date(b?.observed_at || b?.created_at || 0).getTime() -
+      new Date(a?.observed_at || a?.created_at || 0).getTime(),
+  );
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const row of sorted) {
+    if (inferCategory(row) !== category) continue;
+    const text = describeObservation(row);
+    if (!text) continue;
+    const key = text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(text);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function describeObservation(row: RawObservation): string | null {
+  const label = labelFor(row);
+  const value = valueFor(row);
+  const cleanLabel = label ? cleanWhitespace(label) : "";
+  const cleanValue = value ? cleanWhitespace(value) : "";
+  if (cleanLabel && cleanValue) {
+    const vLower = cleanValue.toLowerCase();
+    const lLower = cleanLabel.toLowerCase();
+    if (vLower.startsWith(lLower)) return cleanValue;
+    return `${cleanLabel} — ${cleanValue}`;
+  }
+  return cleanValue || cleanLabel || null;
+}
+
+function dedupeStrings(values: Array<string | null | undefined>): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of values) {
+    if (raw == null) continue;
+    const text = cleanWhitespace(String(raw));
+    if (!text) continue;
+    const key = text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(text);
+  }
+  return out;
+}
+

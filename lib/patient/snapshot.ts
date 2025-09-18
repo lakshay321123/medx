@@ -182,6 +182,8 @@ export function inferCategory(row: RawObservation): string {
   const kind = `${row?.kind || ""}`.toLowerCase();
   if (/(lab|glucose|chol|hba1c|egfr|bilirubin|ldl|hdl|vitamin)/.test(kind)) return "lab";
   if (/(note|symptom|complaint)/.test(kind)) return "note";
+  if (/(diagnosis|dx|problem|assessment)/.test(kind)) return "diagnosis";
+  if (/(allergy|intolerance)/.test(kind)) return "allergy";
   if (/(med|rx|drug|tablet|capsule)/.test(kind)) return "medication";
   if (/(imaging|ct|mri|xray|ultrasound|echo)/.test(kind)) return "imaging";
   return cat || "observation";
