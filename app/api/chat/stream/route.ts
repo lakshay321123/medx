@@ -192,19 +192,35 @@ export async function POST(req: NextRequest) {
   if (context === 'profile') {
     try {
       const origin = req.nextUrl.origin;
-      const headers = { cookie: req.headers.get('cookie') || '' } as any;
-      const [s, p, pk] = await Promise.all([
-        fetch(`${origin}/api/profile/summary`, { headers }).then(r => r.json()).catch(() => ({})),
-        fetch(`${origin}/api/profile`, { headers }).then(r => r.json()).catch(() => null),
-        fetch(`${origin}/api/profile/packet`, { headers }).then(r => r.json()).catch(() => ({ text: '' })),
-      ]);
+      const cookie = req.headers.get('cookie') || '';
+      const base = { headers: { cookie, 'cache-control': 'no-store' } as any };
+
+      // 1) Initial fetch (no cache)
+      let s = await fetch(`${origin}/api/profile/summary`, { ...base }).then(r => r.json()).catch(() => ({}));
+      const p  = await fetch(`${origin}/api/profile`, { ...base }).then(r => r.json()).catch(() => null);
+      const pk = await fetch(`${origin}/api/profile/packet`, { ...base }).then(r => r.json()).catch(() => ({ text: '' }));
+
+      // 2) If no summary text yet, trigger a prediction compute, then re-fetch summary
+      if (!s?.summary && !s?.text) {
+        try {
+          await fetch(`${origin}/api/predictions/compute`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', cookie },
+            body: JSON.stringify({ threadId: 'med-profile' })
+          });
+          s = await fetch(`${origin}/api/profile/summary`, { ...base }).then(r => r.json()).catch(() => ({}));
+        } catch {}
+      }
+
+      // 3) Build system context (profile + observations + prediction line)
       const sys = profileChatSystem({
-        summary: s.summary || s.text || '',
-        reasons: s.reasons || '',
+        summary: s?.summary || s?.text || '',
+        reasons: s?.reasons || '',
         profile: p?.profile || p || null,
-        packet: pk.text || '',
+        packet: pk?.text || '',
       });
-      // Combine clinical profile with brevity rules (keeps context + concision)
+
+      // 4) Prepend to the conversation
       finalMessages = [{ role: 'system', content: [sys, brevitySystem].join('\n\n') }, ...finalMessages];
     } catch {}
   }
