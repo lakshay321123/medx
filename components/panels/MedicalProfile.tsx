@@ -69,28 +69,6 @@ export default function MedicalProfile() {
   };
   useEffect(() => { loadSummary(); }, []);
 
-  const onRecomputeRisk = async () => {
-    const btn = document.getElementById("recompute-risk-btn") as HTMLButtonElement | null;
-    if (btn) btn.disabled = true;
-    try {
-      const res = await fetch("/api/predictions/compute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ threadId: "med-profile" })
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok || body?.ok === false) {
-        throw new Error(body?.error || `HTTP ${res.status}`);
-      }
-      await loadSummary();
-    } catch (err: any) {
-      console.error("Recompute failed:", err?.message || err);
-      alert(`Recompute failed: ${err?.message || String(err)}`);
-    } finally {
-      if (btn) btn.disabled = false;
-    }
-  };
-
   const prof = data?.profile ?? null;
   const [bootstrapped, setBootstrapped] = useState(false);
   const [fullName, setFullName] = useState("");
@@ -442,7 +420,14 @@ export default function MedicalProfile() {
             >Discuss & Correct in Chat</button>
             <button
               id="recompute-risk-btn"
-              onClick={onRecomputeRisk}
+              onClick={async () => {
+                await fetch("/api/predictions/compute", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ threadId: "med-profile" })
+                });
+                await loadSummary();
+              }}
               className="text-xs px-2 py-1 rounded-md border"
             >Recompute Risk</button>
           </div>

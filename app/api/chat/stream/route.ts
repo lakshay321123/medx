@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     : { temperature: 0.7, max_tokens: 900 };
 
   const messages = history.length ? history : [latestUser];
-  const showClinicalPrelude = mode === 'doctor' || mode === 'research';
+  const showClinicalPrelude = mode === 'doctor' || mode === 'research' || context === 'profile';
   const now = Date.now();
   for (const [id, ts] of recentReqs.entries()) {
     if (now - ts > 60_000) recentReqs.delete(id);
