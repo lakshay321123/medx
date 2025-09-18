@@ -52,12 +52,22 @@ const recentReqs = new Map<string, number>();
 type WebHit = { title:string; snippet?:string; url:string; source?:string };
 
 export async function POST(req: NextRequest) {
-  const reqUrl = new URL(req.url);
-  const qp = reqUrl.searchParams.get('research');
-  const long = reqUrl.searchParams.get('long') === '1';
+  const qp = req.nextUrl.searchParams.get('research');
+  const long = req.nextUrl.searchParams.get('long') === '1';
+
+  // Read body (may be empty on SSR replays)
   let body: any = {};
   try { body = await req.json(); } catch {}
-  const { context, clientRequestId, mode } = body;
+
+  // Accept context from body or URL (?context=profile)
+  const urlContext  = req.nextUrl.searchParams.get('context');
+  const bodyContext = body?.context;
+  const context = bodyContext || urlContext || null;
+
+  // Mode fallback
+  const mode = body?.mode || req.nextUrl.searchParams.get('mode') || 'patient';
+
+  const clientRequestId = body?.clientRequestId;
 
   const research =
     qp === '1' || qp === 'true' || body?.research === true || body?.research === 'true';
@@ -98,7 +108,7 @@ export async function POST(req: NextRequest) {
     : { temperature: 0.7, max_tokens: 900 };
 
   const messages = history.length ? history : [latestUser];
-  const showClinicalPrelude = mode === 'doctor' || mode === 'research';
+  let showClinicalPrelude = mode === 'doctor' || mode === 'research';
   const now = Date.now();
   for (const [id, ts] of recentReqs.entries()) {
     if (now - ts > 60_000) recentReqs.delete(id);
@@ -192,21 +202,47 @@ export async function POST(req: NextRequest) {
   if (context === 'profile') {
     try {
       const origin = req.nextUrl.origin;
-      const headers = { cookie: req.headers.get('cookie') || '' } as any;
-      const [s, p, pk] = await Promise.all([
-        fetch(`${origin}/api/profile/summary`, { headers }).then(r => r.json()).catch(() => ({})),
-        fetch(`${origin}/api/profile`, { headers }).then(r => r.json()).catch(() => null),
-        fetch(`${origin}/api/profile/packet`, { headers }).then(r => r.json()).catch(() => ({ text: '' })),
-      ]);
+      const cookie = req.headers.get('cookie') || '';
+      const base = { headers: { cookie, 'cache-control': 'no-store' } as any };
+
+      // 1) Pull current profile summary + raw profile + packet (no cache)
+      let s  = await fetch(`${origin}/api/profile/summary`, { ...base }).then(r => r.json()).catch(() => ({}));
+      const p  = await fetch(`${origin}/api/profile`,        { ...base }).then(r => r.json()).catch(() => null);
+      const pk = await fetch(`${origin}/api/profile/packet`, { ...base }).then(r => r.json()).catch(() => ({ text: '' }));
+
+      // 2) If summary is empty, compute a prediction and re-fetch summary
+      if (!s?.summary && !s?.text) {
+        try {
+          await fetch(`${origin}/api/predictions/compute`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', cookie },
+            body: JSON.stringify({ threadId: 'med-profile' })
+          });
+          s = await fetch(`${origin}/api/profile/summary`, { ...base }).then(r => r.json()).catch(() => ({}));
+        } catch (e) {
+          console.warn('[aidoc] compute-on-demand failed:', (e as any)?.message || e);
+        }
+      }
+
+      // 3) Build system message from profile+observations+prediction line
       const sys = profileChatSystem({
-        summary: s.summary || s.text || '',
-        reasons: s.reasons || '',
+        summary: s?.summary || s?.text || '',
+        reasons: s?.reasons || '',
         profile: p?.profile || p || null,
-        packet: pk.text || '',
+        packet: pk?.text || '',
       });
-      // Combine clinical profile with brevity rules (keeps context + concision)
-      finalMessages = [{ role: 'system', content: [sys, brevitySystem].join('\n\n') }, ...finalMessages];
-    } catch {}
+
+      // 4) Ensure clinical prelude shows for Ai Doc conversations too
+      showClinicalPrelude =
+        mode === 'doctor' || mode === 'research' || context === 'profile';
+
+      finalMessages = [
+        { role: 'system', content: [sys, brevitySystem].join('\n\n') },
+        ...finalMessages
+      ];
+    } catch (e) {
+      console.warn('[aidoc] profile injection failed:', (e as any)?.message || e);
+    }
   }
   // === [MEDX_CALC_PRELUDE_START] ===
   const __calcPrelude = composeCalcPrelude(latestUserMessage ?? "");
