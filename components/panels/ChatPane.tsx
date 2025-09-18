@@ -303,6 +303,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userText, setUserText] = useState('');
   const [bootstrapped, setBootstrapped] = useState(false);
+  const [userHasTyped, setUserHasTyped] = useState(false);
   useEffect(() => {
     setBootstrapped(true);
   }, []);
@@ -330,13 +331,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     () => messages.filter(m => m.role === 'user' || m.role === 'assistant'),
     [messages]
   );
-  const hasUserMessage = Array.isArray(messages)
-    ? messages.some(m => m?.role === 'user')
-    : false;
   const trimmedInput = userText.trim();
   const isTyping = trimmedInput.length > 0;
   const showDefaultSuggestions =
-    bootstrapped && !hasUserMessage && !isTyping && !inputFocused;
+    bootstrapped && !userHasTyped && !isTyping && !inputFocused;
   const showLiveSuggestions = isTyping && liveSuggestions.length > 0;
 
   const lastSuggestions = useMemo(() => {
@@ -350,6 +348,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, [messages]);
 
   const handleSuggestionPick = (text: string) => {
+    if (!userHasTyped) setUserHasTyped(true);
     setUserText(text);
     setTimeout(() => inputRef.current?.focus(), 0);
   };
@@ -682,10 +681,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   async function send(text: string, researchMode: boolean, opts: SendOpts = {}) {
     if (!text.trim() || busy) return;
-    if (!hasUserMessage) {
-      // hide suggestions once the user actually sends something
-      setInputFocused(true);
-    }
+    if (!userHasTyped) setUserHasTyped(true);
     setBusy(true);
     setThinkingStartedAt(Date.now());
 
@@ -1357,6 +1353,8 @@ ${systemCommon}` + baseSys;
       const trimmed = userText.trim();
       const hasContent = !!pendingFile || trimmed.length > 0;
       if (!hasContent) return;
+
+      if (!userHasTyped) setUserHasTyped(true);
 
       if (!pendingFile && trimmed) {
         const summarizeMatch = /^summarize\s+(NCT\d{8})$/i.exec(trimmed);
