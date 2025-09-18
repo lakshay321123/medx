@@ -31,8 +31,9 @@ class NodeCanvasFactory {
 export async function rasterizeFirstPage(buffer: Buffer): Promise<string> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   (pdfjs as any).GlobalWorkerOptions.workerSrc = "";
+  const data = buffer instanceof Buffer ? new Uint8Array(buffer) : buffer;
   const doc = await pdfjs
-    .getDocument({ data: buffer, disableWorker: true } as any)
+    .getDocument({ data, disableWorker: true } as any)
     .promise;
   const page = await doc.getPage(1);
   const viewport = page.getViewport({ scale: 2.0 });

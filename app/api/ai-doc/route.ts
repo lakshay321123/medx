@@ -12,8 +12,15 @@ import { buildPersonalPlan } from "@/lib/aidoc/planner";
 import { extractPrefsFromUser } from "@/lib/aidoc/extractors/prefs";
 import { buildAiDocPrompt } from "@/lib/ai/prompts/aidoc";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { extractAll, canonicalizeInputs } from "@/lib/medical/engine/extract";
+import { extractAll } from "@/lib/medical/engine/extract";
 import { computeAll } from "@/lib/medical/engine/computeAll";
+import { loadPatientSnapshot, type PatientSnapshot } from "@/lib/patient/snapshot";
+import {
+  extractObservationInputs,
+  formatPatientContext,
+  labsFromObservations,
+  mergeClinicalInputs,
+} from "@/lib/aidoc/context";
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
 
@@ -31,6 +38,64 @@ async function getFeedbackSummary(conversationId: string) {
   } catch {
     return { up: 0, down: 0 };
   }
+}
+
+function mergeProfilesForPrompt(profile: any, supaProfile: PatientSnapshot["profile"] | null) {
+  if (!supaProfile) return profile;
+  return {
+    ...profile,
+    name: profile?.name ?? supaProfile.name ?? null,
+    age: profile?.age ?? supaProfile.age ?? null,
+    sex: profile?.sex ?? supaProfile.sex ?? null,
+    bloodGroup: profile?.bloodGroup ?? supaProfile.blood_group ?? null,
+  };
+}
+
+type SupaLab = { name: string; value: number | string | null; unit: string | null; takenAt: string };
+
+function mergeLabsForPrompt(prismaLabs: any[], supaLabs: SupaLab[]) {
+  if (!supaLabs.length) return prismaLabs;
+  const merged = [...prismaLabs];
+  const seen = new Set<string>();
+  for (const lab of prismaLabs || []) {
+    const name = typeof lab?.name === "string" ? lab.name.toLowerCase().trim() : "";
+    const when = lab?.takenAt ? new Date(lab.takenAt).toISOString().slice(0, 10) : "";
+    if (name) seen.add(`${name}|${when}`);
+  }
+  for (const lab of supaLabs) {
+    const name = String(lab?.name || "").trim();
+    if (!name) continue;
+    const when = lab?.takenAt ? new Date(lab.takenAt).toISOString().slice(0, 10) : "";
+    const key = `${name.toLowerCase()}|${when}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push({
+      name,
+      value: lab.value ?? null,
+      unit: lab.unit ?? null,
+      takenAt: lab.takenAt,
+    });
+  }
+  return merged;
+}
+
+function mergeConditionsForPrompt(prismaConditions: any[], chronic: string[]) {
+  if (!chronic.length) return prismaConditions;
+  const merged = [...prismaConditions];
+  const seen = new Set<string>(
+    (prismaConditions || [])
+      .map((c: any) => (typeof c?.label === "string" ? c.label.toLowerCase().trim() : ""))
+      .filter(Boolean),
+  );
+  for (const raw of chronic) {
+    const label = String(raw || "").trim();
+    if (!label) continue;
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push({ label, status: "active", code: null, since: null, source: "supabase" });
+  }
+  return merged;
 }
 
 export async function POST(req: NextRequest) {
@@ -93,12 +158,33 @@ export async function POST(req: NextRequest) {
     profile = p;
   }
 
-  const [labs, meds, conditions, mem] = await Promise.all([
+  const [labs, meds, conditions, mem, snapshotWithRaw] = await Promise.all([
     prisma.labResult.findMany({ where: { profileId: profile.id } }),
     prisma.medication.findMany({ where: { profileId: profile.id } }),
     prisma.condition.findMany({ where: { profileId: profile.id } }),
     getMemByThread(threadId || ""),
+    loadPatientSnapshot(userId).catch((err) => {
+      console.error("[aidoc] failed to load supabase snapshot", err);
+      return null as PatientSnapshot | null;
+    }),
   ]);
+
+  const supaSnapshot = snapshotWithRaw;
+  const supaObservationInputs =
+    supaSnapshot?.rawObservations ? extractObservationInputs(supaSnapshot.rawObservations) : {};
+  if (supaSnapshot?.profile?.age != null && supaObservationInputs.age == null) {
+    supaObservationInputs.age = supaSnapshot.profile.age;
+  }
+  const supaLabs = supaSnapshot?.rawObservations ? labsFromObservations(supaSnapshot.rawObservations) : [];
+  const profileForPrompt = mergeProfilesForPrompt(profile, supaSnapshot?.profile ?? null);
+  const labsForPrompt = mergeLabsForPrompt(labs, supaLabs);
+  const conditionsForPrompt = mergeConditionsForPrompt(
+    conditions,
+    supaSnapshot?.profile?.chronic_conditions ?? [],
+  );
+  const patientContextBlock = supaSnapshot
+    ? formatPatientContext({ snapshot: supaSnapshot, rawObservations: supaSnapshot.rawObservations })
+    : "";
 
   // Opportunistically capture preferences from user's message
   for (const p of extractPrefsFromUser(message)) {
@@ -113,11 +199,22 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // System prompt with guardrails
-  let system = buildAiDocPrompt({ profile, labs, meds, conditions });
+  const basePrompt = buildAiDocPrompt({
+    profile: profileForPrompt,
+    labs: labsForPrompt,
+    meds,
+    conditions: conditionsForPrompt,
+  });
+  const contextInstructions = [
+    "Patient chart context is provided below. Integrate any relevant data directly into your reasoning.",
+    "When referencing labs, vitals, or other observations, cite the exact value with units and the observation date (e.g., Na 134 mmol/L on 2024-03-04).",
+    "When you surface derived calculations (anion gap, corrected sodium, Winter’s expected pCO₂, osmolar gap, etc.), briefly mention which inputs you used.",
+  ].join("\n");
+  let system = [contextInstructions, patientContextBlock, basePrompt].filter(Boolean).join("\n\n");
 
   const userText = String(message || "");
-  const ctx = canonicalizeInputs(extractAll(userText));
+  const messageInputs = extractAll(userText);
+  const ctx = mergeClinicalInputs(supaObservationInputs, messageInputs);
   const computed = computeAll(ctx);
   // Curate what we surface to the model: top, relevant items only.
   const CRIT_IDS = new Set([

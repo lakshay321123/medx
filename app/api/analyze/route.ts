@@ -195,8 +195,14 @@ export async function POST(req: Request) {
         const data = await r.json();
         report = data?.choices?.[0]?.message?.content || "";
       } else {
-        dataUrl = await rasterizeFirstPage(buf);
-        category = await classifyImage(dataUrl);
+        try {
+          dataUrl = await rasterizeFirstPage(buf);
+          category = dataUrl ? await classifyImage(dataUrl) : "other_medical_doc";
+        } catch (err) {
+          console.error("rasterize fallback failed", err);
+          dataUrl = null;
+          category = "other_medical_doc";
+        }
       }
     } else if (mime.startsWith("image/")) {
       dataUrl = `data:${mime};base64,${buf.toString("base64")}`;
