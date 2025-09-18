@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 export type SearchResult = {
   title: string;
@@ -7,53 +7,56 @@ export type SearchResult = {
   source: string;
 };
 
-export async function POST(req: NextRequest) {
-  try {
-    const { query } = await req.json();
-    if (!query || typeof query !== 'string') {
-      return NextResponse.json({ error: 'Missing query' }, { status: 400 });
+export async function POST(req: Request) {
+  const { query } = await req.json().catch(() => ({ query: '' }));
+  if (!query || !String(query).trim()) {
+    return NextResponse.json({ error: 'Missing query' }, { status: 400 });
+  }
+
+  const term = String(query).trim();
+
+  // Build absolute URLs without relying on nextUrl (works in node & edge)
+  const origin = new URL(req.url).origin;
+
+  // --- WEB SEARCH (Google via local wrapper) ---
+  const webResults = await (async () => {
+    try {
+      const endpoint = (process.env.SEARCH_API_URL || '/api/websearch').trim();
+      const url = new URL(endpoint, origin);
+      url.searchParams.set('q', term);
+
+      const r = await fetch(url.toString(), { method: 'GET', cache: 'no-store' });
+      if (!r.ok) return [] as SearchResult[];
+      const data = await r.json().catch(() => ({}));
+      const hits = Array.isArray((data as any).results) ? (data as any).results : [];
+      return hits
+        .map((x: any) => ({
+          title: x.title || x.name || '',
+          snippet: x.snippet || x.description || '',
+          url: x.url || x.link || '',
+          source: 'web'
+        }))
+        .filter((item: SearchResult) => item.title && item.url);
+    } catch {
+      return [] as SearchResult[];
     }
+  })();
 
-    const origin = req.nextUrl.origin;
-    const [web, pubmed, openfda, trials] = await Promise.all([
-      webSearch(query, origin),
-      pubmedSearch(query),
-      openFdaSearch(query),
-      clinicalTrialsSearch(query)
-    ]);
+  // --- YOUR EXISTING OTHER SOURCES ---
+  const [pubmed, openfda, trials] = await Promise.all([
+    pubmedSearch(term),
+    openFdaSearch(term),
+    clinicalTrialsSearch(term)
+  ]);
 
-    const results: SearchResult[] = [...web, ...pubmed, ...openfda, ...trials];
-    return NextResponse.json({ results });
-  } catch (e: any) {
-    return NextResponse.json({ error: String(e?.message || e) }, { status: 500 });
-  }
-}
-
-async function webSearch(q: string, origin: string): Promise<SearchResult[]> {
-  const endpoint = (process.env.SEARCH_API_URL || '/api/websearch').trim();
-  if (!endpoint) return [];
-  try {
-    const url = new URL(endpoint, origin);
-    url.searchParams.set('q', q);
-    const res = await fetch(url.toString(), { method: 'GET', cache: 'no-store' });
-    if (!res.ok) return [];
-    const data = await res.json().catch(() => ({}));
-    const arr = Array.isArray((data as any)?.results)
-      ? (data as any).results
-      : Array.isArray(data)
-        ? data
-        : [];
-    return arr
-      .map((r: any) => ({
-        title: r.title || r.name || '',
-        snippet: r.snippet || r.description || '',
-        url: r.url || r.link || '',
-        source: 'web'
-      }))
-      .filter((r: SearchResult) => r.title && r.url);
-  } catch {
-    return [];
-  }
+  // Combine and return in whatever shape your UI expects
+  const results: SearchResult[] = [
+    ...webResults,
+    ...(Array.isArray(pubmed) ? pubmed : []),
+    ...(Array.isArray(openfda) ? openfda : []),
+    ...(Array.isArray(trials) ? trials : [])
+  ];
+  return NextResponse.json({ results });
 }
 
 async function pubmedSearch(q: string): Promise<SearchResult[]> {
