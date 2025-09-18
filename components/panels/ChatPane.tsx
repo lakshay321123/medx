@@ -993,32 +993,12 @@ ${linkNudge}`;
 
       // Intent-aware structure (lightweight)
       const { getIntentStyle } = await import("@/lib/intents");
-      const INTENT_STYLE = getIntentStyle(messageText || "", mode);
 
-      // Build drafting structure exactly once from the base mode
-      const DRAFT_STYLE = mode === "doctor" ? DOCTOR_DRAFT_STYLE : PATIENT_DRAFT_STYLE;
-      const STRUCTURE_STYLE = [DRAFT_STYLE, INTENT_STYLE || ""].filter(Boolean).join("\n\n");
-
-      // Keep research as an additive hint, never a new template
-      const RESEARCH_STITCH = researchMode
-        ? [
-            "RESEARCH INTEGRATION:",
-            "- Keep the above section headings exactly as-is.",
-            "- Add 1–2 bullets labeled **Research says:** where relevant.",
-            "- Cite inline as [1], [2] and include linked references at the end."
-          ].join("\n")
-        : "";
-
-      const buildSystemAll = (base: string, domain?: string, adv?: string) =>
-        [base, domain || "", adv || "", STRUCTURE_STYLE, RESEARCH_STITCH]
-          .filter(Boolean)
-          .join("\n\n");
-
-      // Build drafting structure exactly once from the base mode
+      // Build drafting structure once from the base mode
       const DRAFT_STYLE = modeState.base === "doctor" ? DOCTOR_DRAFT_STYLE : PATIENT_DRAFT_STYLE;
+      const INTENT_STYLE = getIntentStyle(messageText || "", mode);
       const STRUCTURE_STYLE = [DRAFT_STYLE, INTENT_STYLE || ""].filter(Boolean).join("\n\n");
 
-      // Keep research as an additive hint, never a new template
       const RESEARCH_STITCH = modeState.research
         ? [
             "RESEARCH INTEGRATION:",
