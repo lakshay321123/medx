@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint || true",
-    "test": "vitest run test/extract.noFalsePositives.test.ts test/aidoc.vendor.test.ts test/aidoc.redflags.test.ts test/engine.nanFilter.test.ts && tsx --test test/analyze.doctorMode.test.ts test/medx.test.ts test/selfLearning.test.ts test/pediatricFlow.test.ts test/clarifyMinimal.test.ts test/vaccineIntent.test.ts test/seniorSafety.test.ts test/firstAidCards.test.ts test/symptomTriage.test.ts test/drugInteractions.test.ts test/mentalHealthResources.test.ts test/womensHealthBasics.test.ts test/pediatricGrowthInfo.test.ts test/conditionCarePack.test.ts test/labExplainers.test.ts test/vaccineReminders.test.ts test/allergyChecker.test.ts test/newFeatures.test.ts test/emergencyNumbers.test.ts test/symptomTracker.test.ts"
+    "test": "vitest run test/extract.noFalsePositives.test.ts test/aidoc.vendor.test.ts test/aidoc.redflags.test.ts test/engine.nanFilter.test.ts && tsx --test test/medx.test.ts test/selfLearning.test.ts test/pediatricFlow.test.ts test/clarifyMinimal.test.ts test/vaccineIntent.test.ts test/seniorSafety.test.ts test/firstAidCards.test.ts test/symptomTriage.test.ts test/drugInteractions.test.ts test/mentalHealthResources.test.ts test/womensHealthBasics.test.ts test/pediatricGrowthInfo.test.ts test/conditionCarePack.test.ts test/labExplainers.test.ts test/vaccineReminders.test.ts test/allergyChecker.test.ts test/newFeatures.test.ts test/emergencyNumbers.test.ts test/symptomTracker.test.ts"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.78",
