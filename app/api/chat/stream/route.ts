@@ -98,6 +98,7 @@ export async function POST(req: NextRequest) {
     : { temperature: 0.7, max_tokens: 900 };
 
   const messages = history.length ? history : [latestUser];
+  const preservedSystems = messages.filter((m: any) => m?.role === 'system');
   const showClinicalPrelude = mode === 'doctor' || mode === 'research';
   const now = Date.now();
   for (const [id, ts] of recentReqs.entries()) {
@@ -160,10 +161,18 @@ export async function POST(req: NextRequest) {
   // The calc prelude should only be added when this is true.
   let hasFilteredComputed = false;
   // Ensure brevity guidance and optional source block
-  finalMessages = [{ role: 'system', content: brevitySystem }, ...finalMessages];
+  const systemPrelude: Array<{ role: 'system'; content: string }> = [
+    { role: 'system', content: brevitySystem },
+  ];
   if (srcBlock) {
-    finalMessages = [{ role: 'system', content: srcBlock }, ...finalMessages];
+    systemPrelude.push({ role: 'system', content: srcBlock });
   }
+  for (const sys of preservedSystems) {
+    if (sys?.content && typeof sys.content === 'string') {
+      systemPrelude.push({ role: 'system', content: sys.content });
+    }
+  }
+  finalMessages = [...systemPrelude, ...finalMessages];
 
   const userText = (messages || []).map((m: any) => m?.content || '').join('\n');
   const ctx = canonicalizeInputs(extractAll(userText));
