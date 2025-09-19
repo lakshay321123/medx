@@ -4,6 +4,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/getUserId";
 import LLM, { type Msg } from "@/lib/LLM";
+import {
+  buildLabsSnapshot,
+  fetchLabsTrend,
+  type LabsSnapshot,
+  type TrendItem,
+  type TrendPoint,
+  type TrendDirection,
+} from "@/lib/labs/trend";
 
 const MODEL_NAME = process.env.LLM_MODEL_ID || "llama-3.1-70b";
 
@@ -59,14 +67,18 @@ type Snapshot = {
   profile: PatientProfile;
   observations: ObservationLine[];
   highlights: string[];
+  labs: LabsSnapshot;
 };
 
 type PatientProfile = {
   name: string | null;
-  dob: string | null;
-  age: number | null;
+  date_of_birth: string | null;
+  age_years: number | null;
   sex: string | null;
   blood_group: string | null;
+  height_cm: number | null;
+  weight_kg: number | null;
+  bmi: number | null;
   chronic_conditions: string[];
   conditions_predisposition: string[];
 };
@@ -80,43 +92,70 @@ type ObservationLine = {
 
 async function loadSnapshot(userId: string): Promise<Snapshot | null> {
   const supa = supabaseAdmin();
-  const [{ data: profileRow, error: profileErr }, { data: obsRows, error: obsErr }] = await Promise.all([
-    supa
-      .from("profiles")
-      .select("full_name,dob,sex,blood_group,conditions_predisposition,chronic_conditions")
-      .eq("id", userId)
-      .maybeSingle(),
-    supa
-      .from("observations")
-      .select("kind,name,value_num,value_text,unit,meta,details,observed_at,created_at")
-      .eq("user_id", userId)
-      .order("observed_at", { ascending: false })
-      .limit(120),
+
+  const profilePromise = supa
+    .from("profiles")
+    .select(
+      "full_name,dob,date_of_birth,sex,blood_group,height_cm,weight_kg,conditions_predisposition,chronic_conditions",
+    )
+    .eq("id", userId)
+    .maybeSingle();
+
+  const obsPromise = supa
+    .from("observations")
+    .select("kind,name,value_num,value_text,unit,meta,details,observed_at,created_at")
+    .eq("user_id", userId)
+    .order("observed_at", { ascending: false })
+    .limit(120);
+
+  const labsPromise = fetchLabsTrend({ client: supa, userId }).catch(err => {
+    console.error("[predictions] failed to load labs", err);
+    return [] as TrendItem[];
+  });
+
+  const [profileResult, obsResult, labsTrend] = await Promise.all([
+    profilePromise,
+    obsPromise,
+    labsPromise,
   ]);
+
+  const { data: profileRow, error: profileErr } = profileResult;
+  const { data: obsRows, error: obsErr } = obsResult;
 
   if (profileErr) throw new Error(profileErr.message);
   if (obsErr) throw new Error(obsErr.message);
 
-  if (!profileRow && !obsRows?.length) return null;
+  if (!profileRow && !obsRows?.length && labsTrend.length === 0) return null;
 
   const profile = normalizeProfile(profileRow || {});
   const observations = buildObservationLines(obsRows || []);
   const highlights = buildHighlights(obsRows || []);
+  const labs = buildLabsSnapshot(labsTrend);
 
-  return { profile, observations, highlights };
+  return { profile, observations, highlights, labs };
 }
 
 function normalizeProfile(row: any): PatientProfile {
   const chronic = toArray(row?.chronic_conditions);
   const predis = toArray(row?.conditions_predisposition);
-  const dob = typeof row?.dob === "string" ? row.dob : null;
-  const age = dob ? calcAge(dob) : null;
+  const dob = typeof row?.date_of_birth === "string" && row.date_of_birth
+    ? row.date_of_birth
+    : typeof row?.dob === "string"
+      ? row.dob
+      : null;
+  const age_years = dob ? calcAge(dob) : null;
+  const height_cm = toNumber(row?.height_cm);
+  const weight_kg = toNumber(row?.weight_kg);
+  const bmi = calcBmi(height_cm, weight_kg);
   return {
     name: typeof row?.full_name === "string" ? row.full_name : null,
-    dob,
-    age,
+    date_of_birth: dob,
+    age_years,
     sex: typeof row?.sex === "string" ? row.sex : null,
     blood_group: typeof row?.blood_group === "string" ? row.blood_group : null,
+    height_cm,
+    weight_kg,
+    bmi,
     chronic_conditions: chronic,
     conditions_predisposition: predis,
   };
@@ -135,11 +174,30 @@ function toArray(value: unknown): string[] {
   return [];
 }
 
+function toNumber(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 function calcAge(dob: string): number | null {
   const d = new Date(dob);
   if (Number.isNaN(d.getTime())) return null;
   const diff = Date.now() - d.getTime();
   return Math.max(0, Math.floor(diff / (365.25 * 24 * 3600 * 1000)));
+}
+
+function calcBmi(height_cm: number | null, weight_kg: number | null): number | null {
+  if (height_cm == null || weight_kg == null) return null;
+  if (!Number.isFinite(height_cm) || !Number.isFinite(weight_kg)) return null;
+  if (height_cm <= 0) return null;
+  const meters = height_cm / 100;
+  const bmi = weight_kg / (meters * meters);
+  if (!Number.isFinite(bmi)) return null;
+  return Math.round(bmi * 10) / 10;
 }
 
 type RawObservation = {
@@ -250,7 +308,7 @@ function buildHighlights(rows: RawObservation[]): string[] {
 }
 
 function buildPrompts(snapshot: Snapshot) {
-  const { profile, observations, highlights } = snapshot;
+  const { profile, observations, highlights, labs } = snapshot;
 
   const profileLines = [
     profileLine(profile),
@@ -263,23 +321,24 @@ function buildPrompts(snapshot: Snapshot) {
   ];
 
   const highlightLines = highlights.length
-    ? [`Key recent labs:`, ...highlights.map(h => `- ${h}`)]
+    ? [`Observation highlights:`, ...highlights.map(h => `- ${h}`)]
     : [];
 
   const obsLines = observations.map(o => `- [${o.category}] ${o.label}: ${o.value} (${o.observedAt})`);
+  const labsSection = formatLabsSection(labs, "-", "Labs (latest vs previous):");
 
-  const userBlock = [
-    profileLines.join("\n"),
-    highlightLines.join("\n"),
-    obsLines.length ? "Observations:" : "",
-    ...obsLines,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const blocks: string[] = [];
+  blocks.push(profileLines.join("\n"));
+  if (highlightLines.length) blocks.push(highlightLines.join("\n"));
+  if (labsSection) blocks.push(labsSection);
+  if (obsLines.length) blocks.push(["Observations:", ...obsLines].join("\n"));
+
+  const userBlock = blocks.join("\n");
 
   const systemPrompt = [
     "You are a clinical reasoning assistant. Analyze the patient snapshot and produce a structured overview.",
     "Use only the provided data. If data is missing or stale, acknowledge the gap.",
+    "Ground your risk reasoning in the profile, BMI, and structured labs (latest values plus directions).",
     "Return JSON that matches the AiDocOut schema with patient and doctor replies plus observations.",
     "Ensure medications/conditions/labs saved arrays are concise and deduplicated.",
   ].join("\n");
@@ -290,11 +349,77 @@ function buildPrompts(snapshot: Snapshot) {
   return { systemPrompt, instruction, userBlock };
 }
 
+function formatLabsSection(labs: LabsSnapshot, prefix: string, header: string): string {
+  const lines: string[] = [];
+  const entries = labs.trend.slice(0, 12);
+  if (!entries.length) {
+    lines.push(`${prefix} No structured lab values captured.`);
+  } else {
+    for (const item of entries) {
+      const recency = labs.recency_days[item.test_code] ?? null;
+      lines.push(formatTrendLine(item, recency, prefix));
+    }
+  }
+  return [header, ...lines].join("\n");
+}
+
+function formatTrendLine(item: TrendItem, recencyDays: number | null, prefix: string): string {
+  const latest = formatTrendPoint(item.latest, item.unit);
+  const prev = item.previous ? formatTrendPoint(item.previous, item.unit) : "no prior value to compare";
+  const hasPrev = !!item.previous;
+  const trend = hasPrev ? ` → ${directionLabel(item.direction)}` : "";
+  const recency = formatRecency(recencyDays);
+  const compare = hasPrev ? ` | Prev: ${prev}${trend}` : ` | ${prev}`;
+  return `${prefix} ${item.test_name} (${item.test_code}): ${latest}${compare}${recency}`;
+}
+
+function formatTrendPoint(point: TrendPoint | null, fallbackUnit: string | null): string {
+  if (!point || point.value == null) return "—";
+  const unit = point.unit ?? fallbackUnit ?? "";
+  const value = unit ? `${point.value} ${unit}` : `${point.value}`;
+  const date = formatDate(point.sample_date);
+  return `${value} (${date})`;
+}
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toISOString().slice(0, 10);
+}
+
+function directionLabel(direction: TrendDirection): string {
+  switch (direction) {
+    case "improving":
+      return "Improving";
+    case "worsening":
+      return "Worsening";
+    case "flat":
+      return "No change";
+    default:
+      return "Trend unclear";
+  }
+}
+
+function formatRecency(recencyDays: number | null): string {
+  if (recencyDays == null) return "";
+  if (recencyDays <= 0) return " (sample today)";
+  if (recencyDays === 1) return " (sample 1 day ago)";
+  return ` (sample ${recencyDays} days ago)`;
+}
+
 function profileLine(profile: PatientProfile) {
-  const parts = [] as string[];
+  const parts: string[] = [];
   if (profile.name) parts.push(`Name: ${profile.name}`);
-  if (profile.age != null) parts.push(`Age: ${profile.age}`);
+  if (profile.age_years != null) parts.push(`Age: ${profile.age_years}`);
   if (profile.sex) parts.push(`Sex: ${profile.sex}`);
+  if (typeof profile.bmi === "number") parts.push(`BMI: ${profile.bmi.toFixed(1)}`);
+
+  const body: string[] = [];
+  if (typeof profile.weight_kg === "number") body.push(`Weight: ${profile.weight_kg} kg`);
+  if (typeof profile.height_cm === "number") body.push(`Height: ${profile.height_cm} cm`);
+  if (body.length) parts.push(body.join(", "));
+
   if (profile.blood_group) parts.push(`Blood group: ${profile.blood_group}`);
   return parts.length ? parts.join(", ") : "Demographics: not recorded";
 }
@@ -307,9 +432,20 @@ async function generateSummary({
   structured: any;
 }): Promise<string> {
   const profile = profileLine(snapshot.profile);
-  const highlightLines = snapshot.highlights.length
+  const observationHighlights = snapshot.highlights.length
     ? snapshot.highlights.map(h => `• ${h}`).join("\n")
-    : "• No recent labs captured.";
+    : "";
+  const labsSummary = formatLabsSection(snapshot.labs, "•", "Labs snapshot:");
+
+  const sections: string[] = [
+    `Patient profile: ${profile}`,
+    "Structured JSON:",
+    JSON.stringify(structured, null, 2),
+  ];
+  if (observationHighlights) {
+    sections.push("Observation highlights:", observationHighlights);
+  }
+  sections.push(labsSummary);
 
   const messages: Msg[] = [
     {
@@ -318,13 +454,7 @@ async function generateSummary({
     },
     {
       role: "user",
-      content: [
-        `Patient profile: ${profile}`,
-        "Structured JSON:",
-        JSON.stringify(structured, null, 2),
-        "Key labs:",
-        highlightLines,
-      ].join("\n\n"),
+      content: sections.join("\n\n"),
     },
   ];
 

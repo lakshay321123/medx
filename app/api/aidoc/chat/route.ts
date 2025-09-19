@@ -4,6 +4,7 @@ import { handleDocAITriage, detectExperientialIntent } from "@/lib/aidoc/triage"
 import { POST as streamPOST } from "../../chat/stream/route";
 import { getUserId } from "@/lib/getUserId";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { buildLabsSnapshot, fetchLabsTrend } from "@/lib/labs/trend";
 
 export const runtime = 'nodejs';
 
@@ -48,14 +49,11 @@ export async function POST(req: NextRequest) {
             .limit(50)
         : { data: null };
       try {
-        const { data: labs } = await sb
-          .from("observation_labs")
-          .select("test_code,test_name,value,unit,sample_date")
-          .eq("user_id", userId)
-          .order("sample_date", { ascending: false })
-          .limit(300);
-        labsPacket = labs || [];
-      } catch {}
+        const labsTrend = await fetchLabsTrend({ client: sb, userId });
+        labsPacket = buildLabsSnapshot(labsTrend);
+      } catch (labsErr) {
+        console.error("Failed to load labs for AI Doc chat:", labsErr);
+      }
       const obs = obsResponse.data;
       const dob = prof?.dob ? new Date(prof.dob) : null;
       const age = dob && !Number.isNaN(dob.getTime())
@@ -93,14 +91,14 @@ export async function POST(req: NextRequest) {
     observations = [];
   }
 
-  if (labsPacket !== null) {
+  if (labsPacket) {
     messages.unshift({
       role: "system",
-      content: `If LABS are present, ground your answer in them:
-<LABS>${JSON.stringify(labsPacket)}</LABS>
-- "check my last blood report" → summarize latest per test_code.
-- "pull all my reports & changes" → compare latest vs previous (Improving/Worsening/Flat).
-- "see them date wise" → list date→value for each test, newest first.`
+      content:
+        "Structured labs are provided below. Use them for any lab-related reasoning."
+        + "\n<LABS>" + JSON.stringify(labsPacket) + "</LABS>"
+        + "\nDirections: LDL-C, TG, TC, HBA1C, ALT, AST, CRP improve as values fall; HDL-C and VITD improve as values rise."
+        + "\nIf no prior value exists, acknowledge there is no prior value to compare.",
     });
   }
 

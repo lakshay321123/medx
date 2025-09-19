@@ -1335,21 +1335,53 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, [therapyMode]);
 
 
-  function labsMarkdown(trend: any[]) {
+  const formatLabDate = (value?: string) => (value ? new Date(value).toLocaleDateString() : '—');
+  const formatLabValue = (point?: any, unit?: string | null) => {
+    if (!point || point.value == null) return '—';
+    const u = point.unit ?? unit ?? '';
+    return `${point.value}${u ? ` ${u}` : ''}`;
+  };
+
+  function labsSummary(trend: any[]) {
     if (!Array.isArray(trend) || trend.length === 0) return 'I couldn\'t find structured lab values yet.';
-    const formatDate = (d?: string) => (d ? new Date(d).toLocaleDateString() : '—');
     return [
       '**Your latest labs (vs previous):**',
       ...trend.map((t: any) => {
-        const latest = t.latest ? `${t.latest.value} ${t.unit} (${formatDate(t.latest.sample_date)})` : '—';
-        const prev = t.previous ? `${t.previous.value} ${t.unit} (${formatDate(t.previous.sample_date)})` : '—';
-        const verdict = t.direction === 'improving' ? '✅ Improving'
-          : t.direction === 'worsening' ? '⚠️ Worsening'
-          : t.direction === 'flat' ? '➖ No change'
+        const latest = t.latest
+          ? `${formatLabValue(t.latest, t.unit)} (${formatLabDate(t.latest.sample_date)})`
           : '—';
-        return `- **${t.test_name}**: ${latest} | Prev: ${prev} → ${verdict}`;
+        const prev = t.previous
+          ? `${formatLabValue(t.previous, t.unit)} (${formatLabDate(t.previous.sample_date)})`
+          : 'no prior value to compare';
+        const verdict = t.direction === 'improving'
+          ? '✅ Improving'
+          : t.direction === 'worsening'
+            ? '⚠️ Worsening'
+            : t.direction === 'flat'
+              ? '➖ No change'
+              : '—';
+        const verdictSuffix = t.previous ? ` → ${verdict}` : '';
+        return `- **${t.test_name ?? t.test_code}**: ${latest} | Prev: ${prev}${verdictSuffix}`;
       }),
     ].join('\n');
+  }
+
+  function labsDatewise(trend: any[]) {
+    if (!Array.isArray(trend) || trend.length === 0) return 'I couldn\'t find structured lab values yet.';
+    return [
+      '**Your labs by date (newest first):**',
+      ...trend.map((t: any) => {
+        const lines = Array.isArray(t.series)
+          ? t.series.map((point: any) => `  - ${formatLabDate(point.sample_date)}: ${formatLabValue(point, t.unit)}`)
+          : [];
+        const block = lines.length ? lines.join('\n') : '  - (no values recorded)';
+        return [`- **${t.test_name ?? t.test_code}**`, block].join('\n');
+      }),
+    ].join('\n');
+  }
+
+  function labsMarkdown(trend: any[], mode: 'summary' | 'datewise' = 'summary') {
+    return mode === 'datewise' ? labsDatewise(trend) : labsSummary(trend);
   }
 
 
@@ -1461,7 +1493,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             const res = await fetch('/api/labs/summary');
             const body = await res.json().catch(() => null);
             if (body?.ok && Array.isArray(body.trend)) {
-              const summary = labsMarkdown(body.trend);
+              const summary = labsMarkdown(body.trend, isDatewise ? 'datewise' : 'summary');
               setMessages(prev =>
                 prev.map(m => (m.id === pendingId ? { ...m, content: summary, pending: false } : m))
               );
