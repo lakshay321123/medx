@@ -16,6 +16,8 @@ type RawObservation = {
   unit: string | null;
   observed_at: string | null;
   created_at: string | null;
+  thread_id: string | null;
+  report_id: string | null;
 };
 
 type NormalizedPoint = {
@@ -45,7 +47,7 @@ export type LabTrend = {
 
 export type LabSummaryResult = {
   trend: LabTrend[];
-  meta: { source: "observations"; points: number };
+  meta: { source: "observations"; points: number; total_reports: number };
 };
 
 export type LabSummaryOptions = {
@@ -195,26 +197,19 @@ export async function fetchLabSummary(
 ): Promise<LabSummaryResult> {
   const tests = resolveTestCodes(options.tests ?? undefined);
   if (tests && tests.length === 0) {
-    return { trend: [], meta: { source: "observations", points: 0 } };
+    return { trend: [], meta: { source: "observations", points: 0, total_reports: 0 } };
   }
 
-  const defs = tests
-    ? tests.map(code => CODE_TO_TEST.get(code)!).filter(Boolean)
-    : TEST_DEFINITIONS;
-  const kinds = Array.from(new Set(defs.flatMap(def => def.kinds)));
-  if (kinds.length === 0) {
-    return { trend: [], meta: { source: "observations", points: 0 } };
-  }
+  const limit = options.limit ?? 5000;
 
   let query = client
     .from("observations")
-    .select("kind,value_num,unit,observed_at,created_at")
+    .select("kind,value_num,unit,observed_at,created_at,thread_id,report_id")
     .eq("user_id", options.userId)
-    .in("kind", kinds)
-    .order("observed_at", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false, nullsFirst: false });
+    .not("value_num", "is", null)
+    .order("observed_at", { ascending: false })
+    .order("created_at", { ascending: false });
 
-  const limit = options.limit ?? 1000;
   if (limit > 0) {
     query = query.limit(limit);
   }
@@ -225,6 +220,23 @@ export async function fetchLabSummary(
   }
 
   const rows = (data ?? []) as RawObservation[];
+  const reportKey = (row: RawObservation): string | null => {
+    const timestamp = row.observed_at ?? row.created_at;
+    if (!timestamp) return row.report_id ?? row.thread_id ?? null;
+    const d = new Date(timestamp);
+    if (Number.isNaN(d.getTime())) {
+      return row.report_id ?? row.thread_id ?? null;
+    }
+    const dayIso = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString();
+    return row.report_id ?? row.thread_id ?? dayIso;
+  };
+
+  const allReportKeys = new Set<string>();
+  for (const r of rows) {
+    const key = reportKey(r);
+    if (key) allReportKeys.add(key);
+  }
+
   const normalized = rows
     .map(normalizeObservation)
     .filter((p): p is NormalizedPoint => !!p);
@@ -282,5 +294,5 @@ export async function fetchLabSummary(
     return a.test_name.localeCompare(b.test_name);
   });
 
-  return { trend, meta: { source: "observations", points } };
+  return { trend, meta: { source: "observations", points, total_reports: allReportKeys.size } };
 }
