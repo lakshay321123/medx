@@ -66,7 +66,7 @@ export async function GET() {
   const kinds = Object.keys(LAB_KINDS);
   const sb = supabaseAdmin();
   const { data, error } = await sb
-    .from<ObservationRow>("observations")
+    .from("observations")
     .select("kind,value_num,unit,observed_at,created_at")
     .eq("user_id", userId)
     .in("kind", kinds)
