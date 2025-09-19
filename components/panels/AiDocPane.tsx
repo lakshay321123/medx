@@ -3,6 +3,12 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ChatMarkdown from "@/components/ChatMarkdown";
 import { useAidocStore } from "@/stores/useAidocStore";
+import {
+  LABS_INTENT_REGEX,
+  RAW_TEXT_REGEX,
+  canonicalForCode,
+  detectLabsInText,
+} from "@/lib/labs/codes";
 
 function uid() {
   return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
@@ -18,80 +24,422 @@ type TrendItem = {
   test_code: string;
   test_name: string;
   unit: string | null;
+  better: "lower" | "higher" | null;
   direction: "improving" | "worsening" | "flat" | "unknown";
   latest: TrendPoint | null;
   previous: TrendPoint | null;
   series: TrendPoint[];
 };
 
-const LABS_INTENT = /(report|reports|observation|observations|blood|lab|labs|lipid|cholesterol|ldl|hdl|triglycerides|a1c|hba1c|vitamin\s*d|crp|esr|uibc|lipase|date\s*wise|datewise|trend|changes?)/i;
-const LDLHDL_INTENT = /(ldl|hdl|cholesterol)/i;
-
 const fDate = (d?: string | null) => (d ? new Date(d).toLocaleDateString() : "—");
 
-const toTimestamp = (value?: string | null) => {
-  if (!value) return -Infinity;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : -Infinity;
-};
-
-const describePointWithDate = (point?: TrendPoint | null, fallbackUnit?: string | null) => {
-  if (!point || point.value == null) return null;
-  const unit = point.unit ?? fallbackUnit ?? "";
-  const unitPart = unit ? ` ${unit}` : "";
-  const datePart = point.sample_date ? ` (${fDate(point.sample_date)})` : "";
-  return `${point.value}${unitPart}${datePart}`;
-};
-
-const describeValue = (point?: TrendPoint | null, fallbackUnit?: string | null) => {
+const formatValue = (point?: TrendPoint | null, fallbackUnit?: string | null) => {
   if (!point || point.value == null) return "—";
   const unit = point.unit ?? fallbackUnit ?? "";
-  const unitPart = unit ? ` ${unit}` : "";
-  return `${point.value}${unitPart}`;
+  return unit ? `${point.value} ${unit}` : `${point.value}`;
 };
 
-function seriesBlock(title: string, s?: TrendPoint[] | null, fallbackUnit?: string | null) {
-  if (!s?.length) return `- **${title}**: _no values found_`;
-  const lines = s
-    .slice()
-    .sort((a, b) => toTimestamp(b?.sample_date) - toTimestamp(a?.sample_date))
-    .map(point => `  - ${fDate(point?.sample_date)}: ${describeValue(point, fallbackUnit)}`);
-  return [`**${title}**`, ...lines].join("\n");
-}
+const formatValueWithDate = (point?: TrendPoint | null, fallbackUnit?: string | null) => {
+  if (!point || point.value == null) return null;
+  const value = formatValue(point, fallbackUnit);
+  return point.sample_date ? `${value} (${fDate(point.sample_date)})` : value;
+};
 
-function labsSummaryMarkdown(trend: TrendItem[], meta?: any) {
-  if (!trend?.length) return "I couldn’t find any structured lab values yet.";
-  const head = meta ? `_source: ${meta.source} · tests: ${meta.kinds_seen} · points: ${meta.total_points}_\n\n` : "";
-  return head + [
-    "**Your latest labs (vs previous):**",
-    ...trend.map(t => {
-      const latest = describePointWithDate(t.latest, t.unit) ?? "—";
-      const prev = describePointWithDate(t.previous, t.unit) ?? "no prior value to compare";
-      const verdict = t.direction === "improving"
-        ? "✅ Improving"
-        : t.direction === "worsening"
-          ? "⚠️ Worsening"
-          : t.direction === "flat"
-            ? "➖ No change"
-            : "—";
-      return `- **${t.test_name ?? t.test_code}**: ${latest} | Prev: ${prev} → ${verdict}`;
-    }),
-  ].join("\n");
-}
+const toDateKey = (value?: string | null) => {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+};
 
-function labsDatewiseMarkdown(trend: TrendItem[], meta?: any) {
+const sameDay = (sampleDate?: string | null, key?: string | null) => {
+  if (!sampleDate || !key) return false;
+  return toDateKey(sampleDate) === key;
+};
+
+const diffDaysFromNow = (sampleDate?: string | null) => {
+  if (!sampleDate) return null;
+  const d = new Date(sampleDate);
+  if (Number.isNaN(d.getTime())) return null;
+  const diff = Date.now() - d.getTime();
+  return Math.round(diff / (1000 * 60 * 60 * 24));
+};
+
+const verdictLabel = (direction: TrendItem["direction"]) => {
+  switch (direction) {
+    case "improving":
+      return "✅ Improving";
+    case "worsening":
+      return "⚠️ Worsening";
+    case "flat":
+      return "➖ No change";
+    default:
+      return "—";
+  }
+};
+
+const metaBanner = (meta?: { source?: string; points?: number }) => {
+  if (!meta) return "";
+  const bits = [] as string[];
+  if (meta.source) bits.push(meta.source);
+  if (typeof meta.points === "number") bits.push(`${meta.points} points`);
+  return bits.length ? `_${bits.join(" · ")}_\n\n` : "";
+};
+
+const filterTrendByCodes = (trend: TrendItem[], codes: string[]) => {
+  if (!codes.length) return trend;
+  const wanted = new Set(codes.map(code => code.toUpperCase()));
+  return trend.filter(item => wanted.has(item.test_code.toUpperCase()));
+};
+
+const labsSummaryMarkdown = (trend: TrendItem[], meta?: { source?: string; points?: number }) => {
   if (!trend?.length) return "I couldn’t find any structured lab values yet.";
-  const head = meta ? `_source: ${meta.source} · tests: ${meta.kinds_seen} · points: ${meta.total_points}_\n\n` : "";
-  const sections = trend.map(t => {
-    const lines = t.series
-      .slice()
-      .sort((a, b) => toTimestamp(b?.sample_date) - toTimestamp(a?.sample_date))
-      .map(point => `  - ${fDate(point?.sample_date)}: ${describeValue(point, t.unit)}`);
-    const block = lines.length ? lines.join("\n") : "  - (no values recorded)";
-    return [`- **${t.test_name ?? t.test_code}**`, block].join("\n");
+  const head = metaBanner(meta);
+  const body = trend.map(t => {
+    const latest = formatValueWithDate(t.latest, t.unit) ?? "—";
+    const prev = formatValueWithDate(t.previous, t.unit) ?? "no prior value to compare";
+    return `- **${t.test_name ?? t.test_code}**: ${latest} | Prev: ${prev} → ${verdictLabel(t.direction)}`;
+  });
+  return head + ["**Your latest labs (vs previous):**", ...body].join("\n");
+};
+
+const labsDatewiseMarkdown = (trend: TrendItem[], meta?: { source?: string; points?: number }) => {
+  if (!trend?.length) return "I couldn’t find any structured lab values yet.";
+  const groups = new Map<string, { label: string; entries: string[] }>();
+  for (const item of trend) {
+    for (const point of item.series) {
+      if (!point || point.value == null) continue;
+      const key = toDateKey(point.sample_date);
+      if (!key) continue;
+      const label = fDate(`${key}T00:00:00Z`);
+      if (!groups.has(key)) {
+        groups.set(key, { label, entries: [] });
+      }
+      groups.get(key)!.entries.push(`  - ${item.test_name ?? item.test_code}: ${formatValue(point, item.unit)}`);
+    }
+  }
+  const orderedKeys = Array.from(groups.keys()).sort((a, b) => (a > b ? -1 : 1));
+  if (!orderedKeys.length) return "I couldn’t find any structured lab values yet.";
+  const head = metaBanner(meta);
+  const sections = orderedKeys.map(key => {
+    const group = groups.get(key)!;
+    return [`- ${group.label}`, ...group.entries].join("\n");
   });
   return head + ["**Your labs by date (newest first):**", ...sections].join("\n");
-}
+};
+
+const labsComparisonMarkdown = (trend: TrendItem[], meta?: { source?: string; points?: number }) => {
+  if (!trend?.length) return "I couldn’t find any structured lab values yet.";
+  const head = metaBanner(meta);
+  const rows = trend.map(t => {
+    const latest = formatValueWithDate(t.latest, t.unit) ?? "—";
+    const prev = formatValueWithDate(t.previous, t.unit) ?? "no prior value to compare";
+    return `- **${t.test_name ?? t.test_code}**: ${latest} | Prev: ${prev} → ${verdictLabel(t.direction)}`;
+  });
+
+  const improving = trend.filter(t => t.direction === "improving");
+  const worsening = trend.filter(t => t.direction === "worsening");
+  const flat = trend.filter(t => t.direction === "flat");
+
+  const summaryParts: string[] = [];
+  if (improving.length) summaryParts.push(`Improving: ${improving.map(t => t.test_name ?? t.test_code).join(", ")}.`);
+  if (worsening.length) summaryParts.push(`Needs attention: ${worsening.map(t => t.test_name ?? t.test_code).join(", ")}.`);
+  if (flat.length) summaryParts.push(`Holding steady: ${flat.map(t => t.test_name ?? t.test_code).join(", ")}.`);
+  if (!summaryParts.length) summaryParts.push("No clear trend yet—need more readings.");
+
+  return head + ["**What’s changed:**", ...rows, "", summaryParts.join(" ")].join("\n");
+};
+
+type DateRequest = { key: string; label: string };
+type SpecificRequests = {
+  date?: DateRequest;
+  highest?: boolean;
+  lowest?: boolean;
+  recency?: boolean;
+};
+
+const labsSpecificMarkdown = (
+  trend: TrendItem[],
+  meta: { source?: string; points?: number } | undefined,
+  requests: SpecificRequests,
+  tests: string[],
+) => {
+  const filtered = filterTrendByCodes(trend, tests);
+  if (!filtered.length) {
+    if (tests.length) {
+      const names = tests
+        .map(code => canonicalForCode(code)?.name ?? code)
+        .join(", ");
+      return `I couldn’t find structured values for ${names} yet.`;
+    }
+    return "I couldn’t find any structured lab values yet.";
+  }
+
+  const head = metaBanner(meta);
+  const lines: string[] = [];
+
+  if (requests.date) {
+    const matches: string[] = [];
+    const missing: string[] = [];
+    for (const item of filtered) {
+      const point = item.series.find(p => sameDay(p.sample_date, requests.date?.key));
+      if (point && point.value != null) {
+        matches.push(`- **${item.test_name ?? item.test_code} (${requests.date.label})**: ${formatValue(point, item.unit)}`);
+      } else {
+        missing.push(item.test_name ?? item.test_code);
+      }
+    }
+    if (matches.length) lines.push(...matches);
+    if (missing.length) lines.push(`- No readings for ${missing.join(", ")} on ${requests.date.label}.`);
+    if (!matches.length && !missing.length) {
+      lines.push(`- I couldn’t find labs recorded on ${requests.date.label}.`);
+    }
+  }
+
+  if (requests.highest) {
+    for (const item of filtered) {
+      const best = [...item.series].filter(p => p.value != null).sort((a, b) => (b.value ?? 0) - (a.value ?? 0))[0];
+      if (best && best.value != null) {
+        lines.push(`- **Highest ${item.test_name ?? item.test_code}**: ${formatValueWithDate(best, item.unit) ?? "—"}`);
+      } else {
+        lines.push(`- **Highest ${item.test_name ?? item.test_code}**: no readings yet.`);
+      }
+    }
+  }
+
+  if (requests.lowest) {
+    for (const item of filtered) {
+      const lowest = [...item.series].filter(p => p.value != null).sort((a, b) => (a.value ?? 0) - (b.value ?? 0))[0];
+      if (lowest && lowest.value != null) {
+        lines.push(`- **Lowest ${item.test_name ?? item.test_code}**: ${formatValueWithDate(lowest, item.unit) ?? "—"}`);
+      } else {
+        lines.push(`- **Lowest ${item.test_name ?? item.test_code}**: no readings yet.`);
+      }
+    }
+  }
+
+  if (requests.recency) {
+    for (const item of filtered) {
+      const latest = item.latest;
+      if (latest?.sample_date) {
+        const days = diffDaysFromNow(latest.sample_date);
+        const when = days == null
+          ? fDate(latest.sample_date)
+          : days === 0
+            ? `today (${fDate(latest.sample_date)})`
+            : `${days} day${days === 1 ? "" : "s"} ago (${fDate(latest.sample_date)})`;
+        lines.push(`- **${item.test_name ?? item.test_code}**: last measured ${when}.`);
+      } else {
+        lines.push(`- **${item.test_name ?? item.test_code}**: no measurements yet.`);
+      }
+    }
+  }
+
+  if (!lines.length) {
+    lines.push("- I didn’t detect a specific value to report yet.");
+  }
+
+  return head + ["**Lab details:**", ...lines].join("\n");
+};
+
+type LabsMode = "snapshot" | "datewise" | "comparison" | "specific";
+
+type LabsPromptDetails = {
+  mode: LabsMode;
+  tests: string[];
+  range: { from?: string; to?: string } | null;
+  requests: SpecificRequests;
+};
+
+const DATEWISE_REGEX = /(date\s*wise|by date|chronolog|timeline|pull (?:all|up).*(?:reports|labs)|see (?:them|my )?(?:reports|labs).*date|all (?:my )?(?:reports|labs))/i;
+const COMPARISON_REGEX = /(what changed|changes?|trend|improv|worsen|better|worse|compare|progress)/i;
+const RECENCY_REGEX = /(days since|last measured|how long since|when was (?:my )?(?:last )?)/i;
+const HIGHEST_REGEX = /(highest|max(imum)?|peak)/i;
+const LOWEST_REGEX = /(lowest|min(imum)?|drop)/i;
+
+const parseLabsPrompt = (text: string): LabsPromptDetails => {
+  const tests = detectLabsInText(text);
+  const range = extractRelativeRange(text);
+  const requests = parseSpecificRequests(text);
+
+  let mode: LabsMode = "snapshot";
+  if (hasSpecificRequest(requests)) {
+    mode = "specific";
+  } else if (COMPARISON_REGEX.test(text)) {
+    mode = "comparison";
+  } else if (DATEWISE_REGEX.test(text)) {
+    mode = "datewise";
+  }
+
+  return { mode, tests, range, requests };
+};
+
+const hasSpecificRequest = (requests: SpecificRequests) =>
+  Boolean(requests.date || requests.highest || requests.lowest || requests.recency);
+
+const extractRelativeRange = (text: string): { from?: string; to?: string } | null => {
+  const match = text.match(/(last|past)\s+(?:the\s+)?(\d+)?\s*(day|days|week|weeks|month|months|year|years)/i);
+  if (!match) return null;
+  const count = Number(match[2] ?? "1");
+  const unit = match[3].toLowerCase();
+  const now = new Date();
+  const end = new Date(now.getTime());
+  const start = new Date(now.getTime());
+
+  switch (unit) {
+    case "day":
+    case "days":
+      start.setDate(start.getDate() - count);
+      break;
+    case "week":
+    case "weeks":
+      start.setDate(start.getDate() - count * 7);
+      break;
+    case "month":
+    case "months":
+      start.setMonth(start.getMonth() - count);
+      break;
+    case "year":
+    case "years":
+      start.setFullYear(start.getFullYear() - count);
+      break;
+    default:
+      break;
+  }
+
+  const from = start.toISOString().slice(0, 10);
+  const to = end.toISOString().slice(0, 10);
+  return { from, to };
+};
+
+const parseSpecificRequests = (text: string): SpecificRequests => {
+  const lowered = text.toLowerCase();
+  const date = extractDateFromText(text);
+  return {
+    date: date ?? undefined,
+    highest: HIGHEST_REGEX.test(lowered) || undefined,
+    lowest: LOWEST_REGEX.test(lowered) || undefined,
+    recency: RECENCY_REGEX.test(lowered) || undefined,
+  };
+};
+
+const MONTH_NAMES = [
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+];
+
+const extractDateFromText = (text: string): DateRequest | null => {
+  const cleaned = text.replace(/(\d+)(st|nd|rd|th)/gi, "$1");
+
+  const isoMatch = cleaned.match(/\b\d{4}-\d{2}-\d{2}\b/);
+  if (isoMatch) {
+    const key = isoMatch[0];
+    return { key, label: labelForKey(key) };
+  }
+
+  const numericMatch = cleaned.match(/\b\d{1,4}[\/-]\d{1,2}[\/-]\d{1,4}\b/);
+  if (numericMatch) {
+    const key = parseNumericDate(numericMatch[0]);
+    if (key) return { key, label: labelForKey(key) };
+  }
+
+  const monthFirst = cleaned.match(
+    /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+\d{1,2}(?:,?\s*\d{2,4})?\b/i,
+  );
+  if (monthFirst) {
+    const key = parseMonthDate(monthFirst[0], false);
+    if (key) return { key, label: labelForKey(key) };
+  }
+
+  const dayMonth = cleaned.match(
+    /\b\d{1,2}\s+(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+\d{2,4})?\b/i,
+  );
+  if (dayMonth) {
+    const key = parseMonthDate(dayMonth[0], true);
+    if (key) return { key, label: labelForKey(key) };
+  }
+
+  return null;
+};
+
+const labelForKey = (key: string) => {
+  const date = new Date(`${key}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return key;
+  return date.toLocaleDateString();
+};
+
+const parseNumericDate = (value: string): string | null => {
+  const parts = value.split(/[\/-]/).map(v => Number(v));
+  if (parts.length !== 3 || parts.some(n => Number.isNaN(n))) return null;
+
+  let year: number;
+  let month: number;
+  let day: number;
+
+  if (parts[0] > 31) {
+    // yyyy-mm-dd or yyyy/mm/dd
+    [year, month, day] = parts;
+  } else {
+    let first = parts[0];
+    let second = parts[1];
+    let third = parts[2];
+    if (third < 100) third += 2000;
+    if (value.match(/^\d{2,2}[\/-]\d{2,2}[\/-]\d{4}$/) && first > 12 && second <= 12) {
+      day = first;
+      month = second;
+      year = third;
+    } else {
+      month = first;
+      day = second;
+      year = third;
+    }
+  }
+
+  if (year < 100) year += 2000;
+  return isoFromParts(year, month, day);
+};
+
+const parseMonthDate = (value: string, dayFirst: boolean): string | null => {
+  const tokens = value.replace(/[,]/g, " ").trim().split(/\s+/);
+  if (tokens.length < 2) return null;
+  const lowerTokens = tokens.map(t => t.toLowerCase());
+  let day: number | undefined;
+  let monthName: string | undefined;
+  let year: number | undefined;
+
+  if (dayFirst) {
+    day = Number(lowerTokens[0]);
+    monthName = lowerTokens[1];
+    year = lowerTokens[2] ? Number(lowerTokens[2]) : undefined;
+  } else {
+    monthName = lowerTokens[0];
+    day = Number(lowerTokens[1]);
+    year = lowerTokens[2] ? Number(lowerTokens[2]) : undefined;
+  }
+
+  if (!monthName || Number.isNaN(day!)) return null;
+  const monthIndex = MONTH_NAMES.findIndex(name => monthName!.startsWith(name.slice(0, 3)));
+  if (monthIndex < 0) return null;
+  const fullYear = year == null || Number.isNaN(year) ? new Date().getFullYear() : year < 100 ? year + 2000 : year;
+  return isoFromParts(fullYear, monthIndex + 1, day!);
+};
+
+const isoFromParts = (year: number, month: number, day: number): string | null => {
+  if (!year || !month || !day) return null;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10);
+};
 
 export default function AiDocPane() {
   const router = useRouter();
@@ -164,29 +512,48 @@ export default function AiDocPane() {
     const userMessage = { id: uid(), role: "user" as const, content: text };
     appendMessage(userMessage);
 
-    if (LABS_INTENT.test(text)) {
+    if (LABS_INTENT_REGEX.test(text)) {
+      if (RAW_TEXT_REGEX.test(text)) {
+        appendMessage({
+          id: uid(),
+          role: "assistant",
+          content: "I can show your structured values here—open the Timeline to view the raw report text if you need the OCR copy.",
+        });
+        setIsSending(false);
+        return;
+      }
+
       try {
-        const res = await fetch("/api/labs/summary");
+        const details = parseLabsPrompt(text);
+        const params = new URLSearchParams();
+        if (details.tests.length) params.set("tests", details.tests.join(","));
+        if (details.range?.from) params.set("from", details.range.from);
+        if (details.range?.to) params.set("to", details.range.to);
+        const query = params.toString();
+        const res = await fetch(`/api/labs/summary${query ? `?${query}` : ""}`);
         const body = await res.json().catch(() => null);
         if (body?.ok && Array.isArray(body.trend)) {
-          const wantsDatewise = /(date ?wise|by date|chronolog)/i.test(text);
-          if (LDLHDL_INTENT.test(text)) {
-            const ldl = (body.trend as TrendItem[]).find(t => t.test_code === "LDL-C");
-            const hdl = (body.trend as TrendItem[]).find(t => t.test_code === "HDL-C");
-            const md = [
-              `_source: ${body.meta?.source ?? "observations"}_`,
-              "",
-              seriesBlock(ldl?.test_name ?? "LDL Cholesterol", ldl?.series ?? [], ldl?.unit ?? null),
-              "",
-              seriesBlock(hdl?.test_name ?? "HDL Cholesterol", hdl?.series ?? [], hdl?.unit ?? null),
-            ].join("\n");
-            appendMessage({ id: uid(), role: "assistant", content: md });
-          } else {
-            const content = wantsDatewise
-              ? labsDatewiseMarkdown(body.trend as TrendItem[], body.meta)
-              : labsSummaryMarkdown(body.trend as TrendItem[], body.meta);
-            appendMessage({ id: uid(), role: "assistant", content });
+          const trend = filterTrendByCodes(body.trend as TrendItem[], details.tests);
+          const meta = body.meta as { source?: string; points?: number } | undefined;
+          let content: string;
+
+          switch (details.mode) {
+            case "datewise":
+              content = labsDatewiseMarkdown(trend, meta);
+              break;
+            case "comparison":
+              content = labsComparisonMarkdown(trend, meta);
+              break;
+            case "specific":
+              content = labsSpecificMarkdown(trend, meta, details.requests, details.tests);
+              break;
+            case "snapshot":
+            default:
+              content = labsSummaryMarkdown(trend, meta);
+              break;
           }
+
+          appendMessage({ id: uid(), role: "assistant", content });
         } else {
           appendMessage({
             id: uid(),

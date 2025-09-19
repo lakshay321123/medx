@@ -1,26 +1,45 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getUserId } from "@/lib/getUserId";
 import { fetchLabsTrend } from "@/lib/labs/trend";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const userId = await getUserId();
   if (!userId) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 
   try {
-    const trend = await fetchLabsTrend({ userId });
-    const grouped = trend.reduce<Record<string, typeof trend[number]["series"]>>((acc, item) => {
-      acc[item.test_code] = item.series;
-      return acc;
-    }, {});
+    const { searchParams } = request.nextUrl;
+    const rawTests = searchParams.getAll("tests");
+    const parsedTests = new Set<string>();
+    for (const entry of rawTests) {
+      if (!entry) continue;
+      entry
+        .split(",")
+        .map(token => token.trim())
+        .filter(Boolean)
+        .forEach(token => parsedTests.add(token.toUpperCase()));
+    }
+
+    const fromParam = searchParams.get("from") ?? undefined;
+    const toParam = searchParams.get("to") ?? undefined;
+
+    const from = fromParam && !Number.isNaN(Date.parse(fromParam)) ? fromParam : undefined;
+    const to = toParam && !Number.isNaN(Date.parse(toParam)) ? toParam : undefined;
+
+    const trend = await fetchLabsTrend({
+      userId,
+      tests: parsedTests.size ? Array.from(parsedTests) : undefined,
+      from,
+      to,
+    });
+
     return NextResponse.json({
       ok: true,
       trend,
       meta: {
         source: "observations",
-        kinds_seen: Object.keys(grouped).length,
-        total_points: Object.values(grouped).reduce((sum, rows) => sum + rows.length, 0),
+        points: trend.reduce((sum, item) => sum + item.series.length, 0),
       },
     });
   } catch (err) {

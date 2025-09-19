@@ -1,89 +1,11 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
-
-export type CanonicalDirection = "lower" | "higher" | null;
-
-export type CanonicalLab = {
-  code: string;
-  name: string;
-  better: CanonicalDirection;
-  kinds: string[];
-};
-
-const CANONICAL_LABS: CanonicalLab[] = [
-  {
-    code: "LDL-C",
-    name: "LDL Cholesterol",
-    better: "lower",
-    kinds: ["ldl", "ldl_cholesterol", "ldl cholesterol", "ldl-c"],
-  },
-  {
-    code: "HDL-C",
-    name: "HDL Cholesterol",
-    better: "higher",
-    kinds: ["hdl", "hdl_cholesterol", "hdl cholesterol", "hdl-c"],
-  },
-  {
-    code: "TG",
-    name: "Triglycerides",
-    better: "lower",
-    kinds: ["triglycerides", "tg"],
-  },
-  {
-    code: "TC",
-    name: "Total Cholesterol",
-    better: "lower",
-    kinds: ["total_cholesterol", "cholesterol", "cholesterol_total", "total cholesterol"],
-  },
-  {
-    code: "HBA1C",
-    name: "HbA1c",
-    better: "lower",
-    kinds: ["hba1c", "a1c"],
-  },
-  {
-    code: "CRP",
-    name: "C-reactive protein",
-    better: "lower",
-    kinds: ["crp", "c_reactive_protein", "c-reactive protein"],
-  },
-  {
-    code: "ESR",
-    name: "ESR",
-    better: "lower",
-    kinds: ["esr"],
-  },
-  {
-    code: "VITD",
-    name: "Vitamin D (25-OH)",
-    better: "higher",
-    kinds: ["vitamin_d", "vitamin_d_25_oh", "vitd", "25_oh_vitamin_d", "vitamin d"],
-  },
-  {
-    code: "UIBC",
-    name: "UIBC",
-    better: null,
-    kinds: ["uibc", "unsaturated_iron_binding_capacity"],
-  },
-  {
-    code: "ALT",
-    name: "ALT (SGPT)",
-    better: "lower",
-    kinds: ["sgpt", "alt", "alt (sgpt)"],
-  },
-  {
-    code: "AST",
-    name: "AST (SGOT)",
-    better: "lower",
-    kinds: ["sgot", "ast", "ast (sgot)"],
-  },
-];
-
-const KIND_TO_CANONICAL = new Map<string, CanonicalLab>();
-for (const lab of CANONICAL_LABS) {
-  for (const raw of lab.kinds) {
-    KIND_TO_CANONICAL.set(raw.toLowerCase(), lab);
-  }
-}
+import {
+  CANONICAL_LABS,
+  canonicalForCode,
+  canonicalForKind,
+  type CanonicalDirection,
+  type CanonicalLab,
+} from "@/lib/labs/codes";
 
 export type ObservationRow = {
   kind: string | null;
@@ -127,11 +49,37 @@ type FetchParams = {
   userId: string;
   client?: SupabaseClient;
   limit?: number;
+  tests?: string[];
+  from?: string;
+  to?: string;
 };
 
-export async function fetchLabsTrend({ userId, client, limit = 1000 }: FetchParams): Promise<TrendItem[]> {
+export async function fetchLabsTrend({
+  userId,
+  client,
+  limit = 1000,
+  tests,
+  from,
+  to,
+}: FetchParams): Promise<TrendItem[]> {
   const supa = client ?? supabaseAdmin();
-  const kinds = Array.from(KIND_TO_CANONICAL.keys());
+  const targetLabs = Array.isArray(tests) && tests.length
+    ? tests
+        .map(code => canonicalForCode(code))
+        .filter((lab): lab is CanonicalLab => !!lab)
+    : CANONICAL_LABS;
+  if (!targetLabs.length) return [];
+
+  const kinds = Array.from(
+    new Set(
+      targetLabs
+        .map(lab => lab.kinds)
+        .flat()
+        .map(kind => kind.toLowerCase()),
+    ),
+  );
+  if (!kinds.length) return [];
+
   const { data, error } = await supa
     .from("observations")
     .select("kind,value_num,unit,observed_at,created_at")
@@ -142,28 +90,39 @@ export async function fetchLabsTrend({ userId, client, limit = 1000 }: FetchPara
     .limit(limit);
 
   if (error) throw new Error(error.message);
-  return buildTrendFromRows(data ?? []);
+  const rows = (data ?? []).filter(row => {
+    const sample = ts(toIsoTimestamp(row.observed_at || row.created_at));
+    if (!Number.isFinite(sample)) return false;
+    if (from) {
+      const fromTs = Date.parse(from);
+      if (Number.isFinite(fromTs) && sample < fromTs) return false;
+    }
+    if (to) {
+      const toTs = Date.parse(to);
+      if (Number.isFinite(toTs) && sample > toTs) return false;
+    }
+    return true;
+  });
+  return buildTrendFromRows(rows, targetLabs.map(l => l.code));
 }
 
-export function buildTrendFromRows(rows: ObservationRow[]): TrendItem[] {
+export function buildTrendFromRows(rows: ObservationRow[], allowedCodes?: string[]): TrendItem[] {
   const grouped = new Map<string, TrendItem>();
 
   for (const row of rows) {
     const canonical = canonicalForKind(row.kind);
     if (!canonical) continue;
+    if (allowedCodes && allowedCodes.length && !allowedCodes.includes(canonical.code)) continue;
 
-    const point: TrendPoint = {
-      value: parseNumeric(row.value_num),
-      unit: row.unit ?? null,
-      sample_date: toIsoTimestamp(row.observed_at || row.created_at),
-    };
+    const point = buildPoint(row, canonical);
+    if (!point) continue;
 
     const bucket = grouped.get(canonical.code);
     if (!bucket) {
       grouped.set(canonical.code, {
         test_code: canonical.code,
         test_name: canonical.name,
-        unit: row.unit ?? null,
+        unit: point.unit,
         better: canonical.better,
         latest: null,
         previous: null,
@@ -171,7 +130,7 @@ export function buildTrendFromRows(rows: ObservationRow[]): TrendItem[] {
         series: [point],
       });
     } else {
-      if (!bucket.unit && row.unit) bucket.unit = row.unit;
+      if (!bucket.unit && point.unit) bucket.unit = point.unit;
       bucket.series.push(point);
     }
   }
@@ -233,11 +192,6 @@ export function buildLabsSnapshot(trend: TrendItem[]): LabsSnapshot {
   return { trend, latest, previous, direction, recency_days, counts };
 }
 
-function canonicalForKind(kind?: string | null): CanonicalLab | undefined {
-  if (!kind) return undefined;
-  return KIND_TO_CANONICAL.get(kind.toLowerCase());
-}
-
 function parseNumeric(value: number | string | null | undefined): number | null {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (typeof value === "string" && value.trim()) {
@@ -258,4 +212,76 @@ function ts(value: string | null): number {
   if (!value) return -Infinity;
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : -Infinity;
+}
+
+function buildPoint(row: ObservationRow, canonical: CanonicalLab): TrendPoint | null {
+  const value = parseNumeric(row.value_num);
+  const sample_date = toIsoTimestamp(row.observed_at || row.created_at);
+  if (value == null || !sample_date) return null;
+
+  const normalized = normalizeValue({ value, unit: row.unit, lab: canonical });
+  if (!normalized) return null;
+
+  return {
+    value: normalized.value,
+    unit: normalized.unit,
+    sample_date,
+  };
+}
+
+function normalizeValue({
+  value,
+  unit,
+  lab,
+}: {
+  value: number;
+  unit: string | null;
+  lab: CanonicalLab;
+}): { value: number; unit: string | null } | null {
+  const rawUnit = typeof unit === "string" ? unit.trim() : "";
+  const normUnit = rawUnit.toLowerCase();
+
+  const mgdl = "mg/dL";
+
+  const isMmol = (u: string) => /mmol\s*\/\s*l/.test(u);
+  const isMg = (u: string) => /mg\s*\/\s*dl/.test(u);
+
+  switch (lab.code) {
+    case "LDL-C":
+    case "HDL-C":
+    case "TC": {
+      if (isMmol(normUnit)) {
+        return { value: round(value * 38.67, 1), unit: mgdl };
+      }
+      if (!rawUnit || isMg(normUnit)) {
+        return { value: round(value, 1), unit: mgdl };
+      }
+      return null;
+    }
+    case "TG": {
+      if (isMmol(normUnit)) {
+        return { value: round(value * 88.57, 1), unit: mgdl };
+      }
+      if (!rawUnit || isMg(normUnit)) {
+        return { value: round(value, 1), unit: mgdl };
+      }
+      return null;
+    }
+    case "HBA1C": {
+      if (!rawUnit || normUnit === "%" || normUnit === "percent") {
+        return { value: round(value, 1), unit: "%" };
+      }
+      return null;
+    }
+    default:
+      return {
+        value: round(value, 2),
+        unit: rawUnit || null,
+      };
+  }
+}
+
+function round(value: number, precision = 2): number {
+  const factor = 10 ** precision;
+  return Math.round(value * factor) / factor;
 }
