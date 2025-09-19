@@ -4,6 +4,7 @@ import { handleDocAITriage, detectExperientialIntent } from "@/lib/aidoc/triage"
 import { POST as streamPOST } from "../../chat/stream/route";
 import { getUserId } from "@/lib/getUserId";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { fetchLabSummary } from "@/lib/labs/summary";
 
 export const runtime = 'nodejs';
 
@@ -48,13 +49,8 @@ export async function POST(req: NextRequest) {
             .limit(50)
         : { data: null };
       try {
-        const { data: labs } = await sb
-          .from("observation_labs")
-          .select("test_code,test_name,value,unit,sample_date")
-          .eq("user_id", userId)
-          .order("sample_date", { ascending: false })
-          .limit(300);
-        labsPacket = labs || [];
+        const summary = await fetchLabSummary(sb, { userId, limit: 1000 });
+        labsPacket = summary;
       } catch {}
       const obs = obsResponse.data;
       const dob = prof?.dob ? new Date(prof.dob) : null;
