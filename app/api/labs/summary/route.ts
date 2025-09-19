@@ -10,12 +10,19 @@ export async function GET() {
 
   try {
     const trend = await fetchLabsTrend({ userId });
-    const meta = {
-      source: "observations" as const,
-      kinds_seen: trend.length,
-      total_points: trend.reduce((sum, item) => sum + item.series.length, 0),
-    };
-    return NextResponse.json({ ok: true, trend, meta });
+    const grouped = trend.reduce<Record<string, typeof trend[number]["series"]>>((acc, item) => {
+      acc[item.test_code] = item.series;
+      return acc;
+    }, {});
+    return NextResponse.json({
+      ok: true,
+      trend,
+      meta: {
+        source: "observations",
+        kinds_seen: Object.keys(grouped).length,
+        total_points: Object.values(grouped).reduce((sum, rows) => sum + rows.length, 0),
+      },
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "failed to load labs";
     return NextResponse.json({ ok: false, error: message }, { status: 400 });

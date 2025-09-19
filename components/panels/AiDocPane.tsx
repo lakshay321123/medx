@@ -24,32 +24,49 @@ type TrendItem = {
   series: TrendPoint[];
 };
 
-const LABS_INTENT = /(report|reports|observation|observations|blood|lab|labs|lipid|cholesterol|ldl|hdl|triglycerides|a1c|hba1c|vitamin\s*d|crp|esr|uibc|lipase|lft|liver|kidney|date\s*wise|datewise|trend|changes?)/i;
+const LABS_INTENT = /(report|reports|observation|observations|blood|lab|labs|lipid|cholesterol|ldl|hdl|triglycerides|a1c|hba1c|vitamin\s*d|crp|esr|uibc|lipase|date\s*wise|datewise|trend|changes?)/i;
+const LDLHDL_INTENT = /(ldl|hdl|cholesterol)/i;
 
-const formatDate = (value?: string | null) => (value ? new Date(value).toLocaleDateString() : "—");
+const fDate = (d?: string | null) => (d ? new Date(d).toLocaleDateString() : "—");
+
+const toTimestamp = (value?: string | null) => {
+  if (!value) return -Infinity;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : -Infinity;
+};
 
 const describePointWithDate = (point?: TrendPoint | null, fallbackUnit?: string | null) => {
-  if (!point || point.value == null) return "—";
+  if (!point || point.value == null) return null;
   const unit = point.unit ?? fallbackUnit ?? "";
-  const value = `${point.value}${unit ? ` ${unit}` : ""}`;
-  const date = point.sample_date ? ` (${formatDate(point.sample_date)})` : "";
-  return `${value}${date}`;
+  const unitPart = unit ? ` ${unit}` : "";
+  const datePart = point.sample_date ? ` (${fDate(point.sample_date)})` : "";
+  return `${point.value}${unitPart}${datePart}`;
 };
 
 const describeValue = (point?: TrendPoint | null, fallbackUnit?: string | null) => {
   if (!point || point.value == null) return "—";
   const unit = point.unit ?? fallbackUnit ?? "";
-  return `${point.value}${unit ? ` ${unit}` : ""}`;
+  const unitPart = unit ? ` ${unit}` : "";
+  return `${point.value}${unitPart}`;
 };
 
-function labsMarkdown(trend: TrendItem[], meta?: any) {
+function seriesBlock(title: string, s?: TrendPoint[] | null, fallbackUnit?: string | null) {
+  if (!s?.length) return `- **${title}**: _no values found_`;
+  const lines = s
+    .slice()
+    .sort((a, b) => toTimestamp(b?.sample_date) - toTimestamp(a?.sample_date))
+    .map(point => `  - ${fDate(point?.sample_date)}: ${describeValue(point, fallbackUnit)}`);
+  return [`**${title}**`, ...lines].join("\n");
+}
+
+function labsSummaryMarkdown(trend: TrendItem[], meta?: any) {
   if (!trend?.length) return "I couldn’t find any structured lab values yet.";
-  const head = meta ? `_source: ${meta.source}, tests: ${meta.kinds_seen}, points: ${meta.total_points}_\n\n` : "";
+  const head = meta ? `_source: ${meta.source} · tests: ${meta.kinds_seen} · points: ${meta.total_points}_\n\n` : "";
   return head + [
     "**Your latest labs (vs previous):**",
     ...trend.map(t => {
-      const latest = describePointWithDate(t.latest, t.unit);
-      const prev = t.previous ? describePointWithDate(t.previous, t.unit) : "no prior value to compare";
+      const latest = describePointWithDate(t.latest, t.unit) ?? "—";
+      const prev = describePointWithDate(t.previous, t.unit) ?? "no prior value to compare";
       const verdict = t.direction === "improving"
         ? "✅ Improving"
         : t.direction === "worsening"
@@ -64,13 +81,12 @@ function labsMarkdown(trend: TrendItem[], meta?: any) {
 
 function labsDatewiseMarkdown(trend: TrendItem[], meta?: any) {
   if (!trend?.length) return "I couldn’t find any structured lab values yet.";
-  const head = meta ? `_source: ${meta.source}, tests: ${meta.kinds_seen}, points: ${meta.total_points}_\n\n` : "";
+  const head = meta ? `_source: ${meta.source} · tests: ${meta.kinds_seen} · points: ${meta.total_points}_\n\n` : "";
   const sections = trend.map(t => {
-    const lines = t.series.map(point => {
-      const value = describeValue(point, t.unit);
-      const date = formatDate(point.sample_date);
-      return `  - ${date}: ${value}`;
-    });
+    const lines = t.series
+      .slice()
+      .sort((a, b) => toTimestamp(b?.sample_date) - toTimestamp(a?.sample_date))
+      .map(point => `  - ${fDate(point?.sample_date)}: ${describeValue(point, t.unit)}`);
     const block = lines.length ? lines.join("\n") : "  - (no values recorded)";
     return [`- **${t.test_name ?? t.test_code}**`, block].join("\n");
   });
@@ -148,16 +164,29 @@ export default function AiDocPane() {
     const userMessage = { id: uid(), role: "user" as const, content: text };
     appendMessage(userMessage);
 
-    const wantsDatewise = /(date ?wise|by date|chronolog)/i.test(text);
     if (LABS_INTENT.test(text)) {
       try {
         const res = await fetch("/api/labs/summary");
         const body = await res.json().catch(() => null);
         if (body?.ok && Array.isArray(body.trend)) {
-          const content = wantsDatewise
-            ? labsDatewiseMarkdown(body.trend as TrendItem[], body.meta)
-            : labsMarkdown(body.trend as TrendItem[], body.meta);
-          appendMessage({ id: uid(), role: "assistant", content });
+          const wantsDatewise = /(date ?wise|by date|chronolog)/i.test(text);
+          if (LDLHDL_INTENT.test(text)) {
+            const ldl = (body.trend as TrendItem[]).find(t => t.test_code === "LDL-C");
+            const hdl = (body.trend as TrendItem[]).find(t => t.test_code === "HDL-C");
+            const md = [
+              `_source: ${body.meta?.source ?? "observations"}_`,
+              "",
+              seriesBlock(ldl?.test_name ?? "LDL Cholesterol", ldl?.series ?? [], ldl?.unit ?? null),
+              "",
+              seriesBlock(hdl?.test_name ?? "HDL Cholesterol", hdl?.series ?? [], hdl?.unit ?? null),
+            ].join("\n");
+            appendMessage({ id: uid(), role: "assistant", content: md });
+          } else {
+            const content = wantsDatewise
+              ? labsDatewiseMarkdown(body.trend as TrendItem[], body.meta)
+              : labsSummaryMarkdown(body.trend as TrendItem[], body.meta);
+            appendMessage({ id: uid(), role: "assistant", content });
+          }
         } else {
           appendMessage({
             id: uid(),
