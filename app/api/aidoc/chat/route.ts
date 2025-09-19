@@ -4,7 +4,6 @@ import { handleDocAITriage, detectExperientialIntent } from "@/lib/aidoc/triage"
 import { POST as streamPOST } from "../../chat/stream/route";
 import { getUserId } from "@/lib/getUserId";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { buildLabsSnapshot, fetchLabsTrend } from "@/lib/labs/trend";
 
 export const runtime = 'nodejs';
 
@@ -30,7 +29,7 @@ export async function POST(req: NextRequest) {
     title: string | null;
     payload: unknown;
   }> = [];
-  let labsPacket: any = null;
+  let labsTrend: any[] | null = null;
   try {
     const userId = await getUserId(req);
     if (userId) {
@@ -49,10 +48,19 @@ export async function POST(req: NextRequest) {
             .limit(50)
         : { data: null };
       try {
-        const labsTrend = await fetchLabsTrend({ client: sb, userId });
-        labsPacket = buildLabsSnapshot(labsTrend);
+        const baseURL = req.nextUrl.origin;
+        const res = await fetch(`${baseURL}/api/labs/summary`, {
+          headers: {
+            cookie: req.headers.get("cookie") ?? "",
+          },
+          cache: "no-store",
+        });
+        const body = await res.json().catch(() => null);
+        if (body?.ok && Array.isArray(body.trend)) {
+          labsTrend = body.trend as any[];
+        }
       } catch (labsErr) {
-        console.error("Failed to load labs for AI Doc chat:", labsErr);
+        console.error("Failed to fetch labs summary for AI Doc chat:", labsErr);
       }
       const obs = obsResponse.data;
       const dob = prof?.dob ? new Date(prof.dob) : null;
@@ -91,14 +99,13 @@ export async function POST(req: NextRequest) {
     observations = [];
   }
 
-  if (labsPacket) {
+  if (labsTrend) {
     messages.unshift({
       role: "system",
       content:
-        "Structured labs are provided below. Use them for any lab-related reasoning."
-        + "\n<LABS>" + JSON.stringify(labsPacket) + "</LABS>"
-        + "\nDirections: LDL-C, TG, TC, HBA1C, ALT, AST, CRP improve as values fall; HDL-C and VITD improve as values rise."
-        + "\nIf no prior value exists, acknowledge there is no prior value to compare.",
+        "Use this structured patient context:"
+        + "\n<LABS>" + JSON.stringify(labsTrend) + "</LABS>"
+        + "\nIf asked about reports or trends, rely on LABS only (do not parse free text).",
     });
   }
 

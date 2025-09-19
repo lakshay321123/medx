@@ -24,26 +24,32 @@ type TrendItem = {
   series: TrendPoint[];
 };
 
-const LABS_INTENT_REGEX = /report|reports|observation|observations|blood|lab|labs|cholesterol|ldl|hdl|triglycerides|a1c|hba1c|vitamin\s*d|crp|esr|uibc|lipase|lft|liver|kidney/i;
+const LABS_INTENT = /(report|reports|observation|observations|blood|lab|labs|lipid|cholesterol|ldl|hdl|triglycerides|a1c|hba1c|vitamin\s*d|crp|esr|uibc|lipase|lft|liver|kidney|date\s*wise|datewise|trend|changes?)/i;
 
-const formatDate = (value?: string | null) =>
-  value ? new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
+const formatDate = (value?: string | null) => (value ? new Date(value).toLocaleDateString() : "—");
 
-const formatValue = (point?: TrendPoint | null, fallbackUnit?: string | null) => {
+const describePointWithDate = (point?: TrendPoint | null, fallbackUnit?: string | null) => {
+  if (!point || point.value == null) return "—";
+  const unit = point.unit ?? fallbackUnit ?? "";
+  const value = `${point.value}${unit ? ` ${unit}` : ""}`;
+  const date = point.sample_date ? ` (${formatDate(point.sample_date)})` : "";
+  return `${value}${date}`;
+};
+
+const describeValue = (point?: TrendPoint | null, fallbackUnit?: string | null) => {
   if (!point || point.value == null) return "—";
   const unit = point.unit ?? fallbackUnit ?? "";
   return `${point.value}${unit ? ` ${unit}` : ""}`;
 };
 
-function labsSummaryMarkdown(trend: TrendItem[]) {
-  if (!trend?.length) return "I couldn’t find structured lab values yet.";
-  return [
+function labsMarkdown(trend: TrendItem[], meta?: any) {
+  if (!trend?.length) return "I couldn’t find any structured lab values yet.";
+  const head = meta ? `_source: ${meta.source}, tests: ${meta.kinds_seen}, points: ${meta.total_points}_\n\n` : "";
+  return head + [
     "**Your latest labs (vs previous):**",
     ...trend.map(t => {
-      const latest = t.latest ? `${formatValue(t.latest, t.unit)} (${formatDate(t.latest.sample_date)})` : "—";
-      const prev = t.previous
-        ? `${formatValue(t.previous, t.unit)} (${formatDate(t.previous.sample_date)})`
-        : "no prior value to compare";
+      const latest = describePointWithDate(t.latest, t.unit);
+      const prev = t.previous ? describePointWithDate(t.previous, t.unit) : "no prior value to compare";
       const verdict = t.direction === "improving"
         ? "✅ Improving"
         : t.direction === "worsening"
@@ -51,25 +57,24 @@ function labsSummaryMarkdown(trend: TrendItem[]) {
           : t.direction === "flat"
             ? "➖ No change"
             : "—";
-      const verdictSuffix = t.previous ? ` → ${verdict}` : "";
-      return `- **${t.test_name ?? t.test_code}**: ${latest} | Prev: ${prev}${verdictSuffix}`;
+      return `- **${t.test_name ?? t.test_code}**: ${latest} | Prev: ${prev} → ${verdict}`;
     }),
   ].join("\n");
 }
 
-function labsDatewiseMarkdown(trend: TrendItem[]) {
-  if (!trend?.length) return "I couldn’t find structured lab values yet.";
-  return [
-    "**Your labs by date (newest first):**",
-    ...trend.map(t => {
-      const lines = t.series.map(point => {
-        const value = formatValue(point, t.unit);
-        return `  - ${formatDate(point.sample_date)}: ${value}`;
-      });
-      const block = lines.length ? lines.join("\n") : "  - (no values recorded)";
-      return [`- **${t.test_name ?? t.test_code}**`, block].join("\n");
-    }),
-  ].join("\n");
+function labsDatewiseMarkdown(trend: TrendItem[], meta?: any) {
+  if (!trend?.length) return "I couldn’t find any structured lab values yet.";
+  const head = meta ? `_source: ${meta.source}, tests: ${meta.kinds_seen}, points: ${meta.total_points}_\n\n` : "";
+  const sections = trend.map(t => {
+    const lines = t.series.map(point => {
+      const value = describeValue(point, t.unit);
+      const date = formatDate(point.sample_date);
+      return `  - ${date}: ${value}`;
+    });
+    const block = lines.length ? lines.join("\n") : "  - (no values recorded)";
+    return [`- **${t.test_name ?? t.test_code}**`, block].join("\n");
+  });
+  return head + ["**Your labs by date (newest first):**", ...sections].join("\n");
 }
 
 export default function AiDocPane() {
@@ -142,26 +147,37 @@ export default function AiDocPane() {
     const existing = useAidocStore.getState().messages.filter(m => !m.pending);
     const userMessage = { id: uid(), role: "user" as const, content: text };
     appendMessage(userMessage);
-    const pendingId = uid();
-    appendMessage({ id: pendingId, role: "assistant", content: "", pending: true });
 
     const wantsDatewise = /(date ?wise|by date|chronolog)/i.test(text);
-    const labsIntent = LABS_INTENT_REGEX.test(text);
-
-    if (labsIntent) {
+    if (LABS_INTENT.test(text)) {
       try {
         const res = await fetch("/api/labs/summary");
         const body = await res.json().catch(() => null);
         if (body?.ok && Array.isArray(body.trend)) {
-          const summary = wantsDatewise
-            ? labsDatewiseMarkdown(body.trend as TrendItem[])
-            : labsSummaryMarkdown(body.trend as TrendItem[]);
-          updateMessage(pendingId, { content: summary, pending: false });
-          setIsSending(false);
-          return;
+          const content = wantsDatewise
+            ? labsDatewiseMarkdown(body.trend as TrendItem[], body.meta)
+            : labsMarkdown(body.trend as TrendItem[], body.meta);
+          appendMessage({ id: uid(), role: "assistant", content });
+        } else {
+          appendMessage({
+            id: uid(),
+            role: "assistant",
+            content: "I couldn’t access your structured labs just now.",
+          });
         }
-      } catch {}
+      } catch {
+        appendMessage({
+          id: uid(),
+          role: "assistant",
+          content: "I hit an error fetching your labs.",
+        });
+      }
+      setIsSending(false);
+      return;
     }
+
+    const pendingId = uid();
+    appendMessage({ id: pendingId, role: "assistant", content: "", pending: true });
 
     const history = [
       ...existing.map(m => ({ role: m.role, content: m.content })),

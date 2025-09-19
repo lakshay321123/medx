@@ -10,7 +10,12 @@ export async function GET() {
 
   try {
     const trend = await fetchLabsTrend({ userId });
-    return NextResponse.json({ ok: true, trend });
+    const meta = {
+      source: "observations" as const,
+      kinds_seen: trend.length,
+      total_points: trend.reduce((sum, item) => sum + item.series.length, 0),
+    };
+    return NextResponse.json({ ok: true, trend, meta });
   } catch (err) {
     const message = err instanceof Error ? err.message : "failed to load labs";
     return NextResponse.json({ ok: false, error: message }, { status: 400 });
