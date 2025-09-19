@@ -10,13 +10,12 @@ type TestDefinition = {
   kinds: string[];
 };
 
-type RawObservation = {
+export type ObservationRow = {
   kind: string;
   value_num: number | null;
   unit: string | null;
   observed_at: string | null;
   created_at: string | null;
-  thread_id: string | null;
   report_id: string | null;
 };
 
@@ -140,7 +139,7 @@ function normalizeValue(testCode: string, rawValue: number, unitInput: string | 
   return { value, unit };
 }
 
-function normalizeObservation(row: RawObservation): NormalizedPoint | null {
+function normalizeObservation(row: ObservationRow): NormalizedPoint | null {
   const def = KIND_TO_TEST.get(row.kind);
   if (!def) return null;
   if (row.value_num === null || row.value_num === undefined) return null;
@@ -191,50 +190,16 @@ export function resolveTestCodes(input?: string[] | null): string[] | undefined 
   return unique.size ? Array.from(unique) : [];
 }
 
-export async function fetchLabSummary(
-  client: SupabaseClient,
-  options: LabSummaryOptions,
-): Promise<LabSummaryResult> {
-  const tests = resolveTestCodes(options.tests ?? undefined);
+type SummarizeOptions = Pick<LabSummaryOptions, "tests" | "from" | "to">;
+
+function buildTrendFromRows(
+  rows: ObservationRow[],
+  options: SummarizeOptions,
+  resolvedTests?: string[] | undefined,
+): { trend: LabTrend[]; points: number } {
+  const tests = resolvedTests ?? resolveTestCodes(options.tests ?? undefined);
   if (tests && tests.length === 0) {
-    return { trend: [], meta: { source: "observations", points: 0, total_reports: 0 } };
-  }
-
-  const limit = options.limit ?? 5000;
-
-  let query = client
-    .from("observations")
-    .select("kind,value_num,unit,observed_at,created_at,thread_id,report_id")
-    .eq("user_id", options.userId)
-    .not("value_num", "is", null)
-    .order("observed_at", { ascending: false })
-    .order("created_at", { ascending: false });
-
-  if (limit > 0) {
-    query = query.limit(limit);
-  }
-
-  const { data, error } = await query;
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  const rows = (data ?? []) as RawObservation[];
-  const reportKey = (row: RawObservation): string | null => {
-    const timestamp = row.observed_at ?? row.created_at;
-    if (!timestamp) return row.report_id ?? row.thread_id ?? null;
-    const d = new Date(timestamp);
-    if (Number.isNaN(d.getTime())) {
-      return row.report_id ?? row.thread_id ?? null;
-    }
-    const dayIso = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString();
-    return row.report_id ?? row.thread_id ?? dayIso;
-  };
-
-  const allReportKeys = new Set<string>();
-  for (const r of rows) {
-    const key = reportKey(r);
-    if (key) allReportKeys.add(key);
+    return { trend: [], points: 0 };
   }
 
   const normalized = rows
@@ -248,7 +213,7 @@ export async function fetchLabSummary(
 
   const grouped = new Map<string, NormalizedPoint[]>();
   for (const point of filtered) {
-    if (tests && !tests.includes(point.test_code)) continue;
+    if (tests && tests.length > 0 && !tests.includes(point.test_code)) continue;
     const arr = grouped.get(point.test_code) ?? [];
     arr.push(point);
     grouped.set(point.test_code, arr);
@@ -263,11 +228,13 @@ export async function fetchLabSummary(
       .slice()
       .sort((a, b) => (a.sample_date > b.sample_date ? -1 : a.sample_date < b.sample_date ? 1 : 0));
     const primaryUnit = sorted[0]?.unit;
-    const series = sorted.filter(p => !primaryUnit || p.unit === primaryUnit).map(p => ({
-      value: p.value,
-      unit: p.unit,
-      sample_date: p.sample_date,
-    }));
+    const series = sorted
+      .filter(p => !primaryUnit || p.unit === primaryUnit)
+      .map(p => ({
+        value: p.value,
+        unit: p.unit,
+        sample_date: p.sample_date,
+      }));
 
     if (series.length === 0) continue;
 
@@ -294,5 +261,67 @@ export async function fetchLabSummary(
     return a.test_name.localeCompare(b.test_name);
   });
 
-  return { trend, meta: { source: "observations", points, total_reports: allReportKeys.size } };
+  return { trend, points };
+}
+
+function countTotalReports(rows: ObservationRow[]): number {
+  const keys = new Set<string>();
+  for (const r of rows) {
+    const reportId = r.report_id;
+    const obs = r.observed_at;
+    let key: string | null = null;
+    if (reportId) {
+      key = reportId;
+    } else if (obs) {
+      const parsed = new Date(obs);
+      if (!Number.isNaN(parsed.getTime())) {
+        key = parsed.toISOString().slice(0, 10);
+      }
+    }
+    if (key) keys.add(key);
+  }
+  return keys.size;
+}
+
+export function summarizeLabObservations(
+  rows: ObservationRow[],
+  options: SummarizeOptions = {},
+): { trend: LabTrend[]; points: number } {
+  const resolvedTests = resolveTestCodes(options.tests ?? undefined);
+  return buildTrendFromRows(rows, { ...options, tests: resolvedTests }, resolvedTests);
+}
+
+export async function fetchLabSummary(
+  client: SupabaseClient,
+  options: LabSummaryOptions,
+): Promise<LabSummaryResult> {
+  const resolvedTests = resolveTestCodes(options.tests ?? undefined);
+  if (resolvedTests && resolvedTests.length === 0) {
+    return { trend: [], meta: { source: "observations", points: 0, total_reports: 0 } };
+  }
+
+  const limit = options.limit ?? 5000;
+
+  let query = client
+    .from("observations")
+    .select("kind,value_num,unit,observed_at,created_at,report_id")
+    .eq("user_id", options.userId)
+    .not("value_num", "is", null)
+    .order("observed_at", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (limit > 0) {
+    query = query.limit(limit);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const rows = (data ?? []) as ObservationRow[];
+  const { trend, points } = buildTrendFromRows(rows, { ...options, tests: resolvedTests }, resolvedTests);
+  const totalReports = countTotalReports(rows);
+
+  return { trend, meta: { source: "observations", points, total_reports: totalReports } };
 }

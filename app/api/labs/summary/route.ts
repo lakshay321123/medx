@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/getUserId";
-import { fetchLabSummary } from "@/lib/labs/summary";
+import { summarizeLabObservations, ObservationRow } from "@/lib/labs/summary";
 
 export async function GET(req: Request) {
   const userId = await getUserId();
@@ -21,13 +21,51 @@ export async function GET(req: Request) {
     : undefined;
 
   try {
-    const { trend, meta } = await fetchLabSummary(supabaseAdmin(), {
-      userId,
-      tests,
-      from,
-      to,
+    const sb = supabaseAdmin();
+    const { data, error } = await sb
+      .from("observations")
+      .select("kind,value_num,unit,observed_at,created_at,report_id")
+      .eq("user_id", userId)
+      .not("value_num", "is", null)
+      .order("observed_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(5000);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const rows = (data ?? []) as ObservationRow[];
+
+    const keys = new Set<string>();
+    for (const r of rows) {
+      const reportId = (r as any).report_id;
+      const obs = (r as any).observed_at;
+      let key: string | null = null;
+      if (reportId) {
+        key = reportId;
+      } else if (obs) {
+        const parsed = new Date(obs);
+        if (!Number.isNaN(parsed.getTime())) {
+          key = parsed.toISOString().slice(0, 10);
+        }
+      }
+      if (key) keys.add(key);
+    }
+
+    const totalReports = keys.size;
+
+    const { trend, points } = summarizeLabObservations(rows, { tests, from, to });
+
+    return NextResponse.json({
+      ok: true,
+      trend,
+      meta: {
+        source: "observations",
+        points,
+        total_reports: totalReports,
+      },
     });
-    return NextResponse.json({ ok: true, trend, meta });
   } catch (err) {
     const message = err instanceof Error ? err.message : "unknown error";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
