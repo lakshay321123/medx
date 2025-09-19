@@ -562,6 +562,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [busy, setBusy] = useState(false);
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
+  const [labSummary, setLabSummary] = useState<any | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef =
@@ -605,27 +606,33 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     setMounted(true);
   }, []);
 
-  useEffect(() => () => {
-    labSummaryAbortRef.current?.abort();
+  const fetchLabSummary = useCallback(async () => {
+    try {
+      const res = await fetch('/api/labs/summary');
+      const body = await res.json();
+      if (body?.ok) setLabSummary(body);
+    } catch (e) {
+      console.error('labs summary error', e);
+    }
   }, []);
 
   useEffect(() => {
     if (!AIDOC_UI) return;
     fetchLabSummary();
-  }, [fetchLabSummary]);
+  }, [AIDOC_UI, fetchLabSummary]);
 
   useEffect(() => {
     if (!AIDOC_UI) return;
     const handler = () => fetchLabSummary();
     window.addEventListener('observations-updated', handler);
     return () => window.removeEventListener('observations-updated', handler);
-  }, [fetchLabSummary]);
+  }, [AIDOC_UI, fetchLabSummary]);
 
   useEffect(() => {
     if (!AIDOC_UI) return;
     if (!aidoc) return;
     fetchLabSummary();
-  }, [aidoc, fetchLabSummary]);
+  }, [AIDOC_UI, aidoc, fetchLabSummary]);
 
   // Auto-resize the textarea up to a max height
   useEffect(() => {
@@ -684,10 +691,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [commitError, setCommitError] = useState<string | null>(null);
   const [aidoc, setAidoc] = useState<any | null>(null);
   const [loadingAidoc, setLoadingAidoc] = useState(false);
-  const [labSummaryCard, setLabSummaryCard] = useState<string | null>(null);
-  const [labSummaryError, setLabSummaryError] = useState<string | null>(null);
-  const [labSummaryLoading, setLabSummaryLoading] = useState(false);
-  const labSummaryAbortRef = useRef<AbortController | null>(null);
   const [showPatientChooser, setShowPatientChooser] = useState(false);
   const [showNewIntake, setShowNewIntake] = useState(false);
   const [intake, setIntake] = useState({
@@ -728,73 +731,42 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     setMessages(prev => [...prev, { id: uid(), role: 'assistant', kind: 'chat', content: text, ...opts } as any]);
   const pushAssistantText = (text: string, opts?: Partial<ChatMessage>) => addAssistant(text, opts);
 
-  const fetchLabSummary = useCallback(() => {
-    if (!AIDOC_UI) return;
-    if (labSummaryAbortRef.current) {
-      labSummaryAbortRef.current.abort();
-    }
-    const controller = new AbortController();
-    labSummaryAbortRef.current = controller;
-    setLabSummaryLoading(true);
-    (async () => {
-      try {
-        setLabSummaryError(null);
-        const res = await fetch('/api/labs/summary', { signal: controller.signal, cache: 'no-store' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const body = await res.json().catch(() => null);
-        if (!body?.ok) {
-          throw new Error(body?.error || 'Unable to load lab summary');
-        }
-        const trend = Array.isArray(body.trend) ? body.trend : [];
-        const meta = body.meta ?? null;
-        const days = new Set<string>();
-        let latestTimestamp = Number.NEGATIVE_INFINITY;
-        for (const t of trend) {
-          const series = Array.isArray(t?.series) ? t.series : [];
-          for (const p of series) {
-            const d = p?.sample_date ? new Date(p.sample_date) : null;
-            if (!d || Number.isNaN(d.getTime())) continue;
-            const key = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10);
-            days.add(key);
-            const ts = d.getTime();
-            if (ts > latestTimestamp) {
-              latestTimestamp = ts;
-            }
-          }
-        }
-        const totalReports =
-          (meta && typeof meta.total_reports === 'number' ? meta.total_reports : undefined) ?? days.size;
-        const latestDate = Number.isFinite(latestTimestamp)
-          ? new Date(latestTimestamp).toLocaleDateString()
-          : '—';
-        const lines = [
-          '**Medical Records Summary**',
-          `- **Reports:** ${totalReports} (distinct dates)`,
-          `- **Latest report:** ${latestDate}`,
-        ];
-        const trendLines = buildTrendLines(trend);
-        if (trendLines.length > 0) {
-          lines.push('', ...trendLines);
-        } else {
-          lines.push('', NO_LABS_MESSAGE);
-        }
-        if (!controller.signal.aborted) {
-          setLabSummaryCard(lines.join('\n'));
-        }
-      } catch (err: any) {
-        if (controller.signal.aborted) return;
-        setLabSummaryCard(null);
-        if (process.env.NODE_ENV !== 'production') {
-          console.error('Failed to load structured labs summary', err);
-        }
-        setLabSummaryError("Couldn't load structured labs. Please try again.");
-      } finally {
-        if (!controller.signal.aborted) {
-          setLabSummaryLoading(false);
+  const labSummaryCard = useMemo(() => {
+    if (!labSummary?.ok) return null;
+    const trend = Array.isArray(labSummary.trend) ? labSummary.trend : [];
+    const days = new Set<string>();
+    let latestDateValue: Date | null = null;
+    for (const t of trend) {
+      const series = Array.isArray(t?.series) ? t.series : [];
+      for (const p of series) {
+        if (!p?.sample_date) continue;
+        const d = new Date(p.sample_date);
+        if (Number.isNaN(d.getTime())) continue;
+        const dayKey = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10);
+        days.add(dayKey);
+        if (!latestDateValue || d > latestDateValue) {
+          latestDateValue = d;
         }
       }
-    })();
-  }, []);
+    }
+    const totalReports =
+      (labSummary.meta && typeof labSummary.meta.total_reports === 'number'
+        ? labSummary.meta.total_reports
+        : undefined) ?? days.size;
+    const latestDate = latestDateValue ? latestDateValue.toLocaleDateString() : '—';
+    const lines = [
+      '**Medical Records Summary**',
+      `- **Reports:** ${totalReports} (distinct dates)`,
+      `- **Latest report:** ${latestDate}`,
+    ];
+    const trendLines = buildTrendLines(trend);
+    if (trendLines.length > 0) {
+      lines.push('', ...trendLines);
+    } else {
+      lines.push('', NO_LABS_MESSAGE);
+    }
+    return lines.join('\n');
+  }, [labSummary]);
 
   const nearbySessionKey = () => threadId || `${mode}-default`;
 
@@ -2682,10 +2654,6 @@ ${systemCommon}` + baseSys;
             <div className="text-sm opacity-90">
               {labSummaryCard ? (
                 <ChatMarkdown content={labSummaryCard} />
-              ) : labSummaryLoading ? (
-                <div className="text-sm text-muted-foreground">Loading structured labs…</div>
-              ) : labSummaryError ? (
-                <div className="text-sm text-rose-600">{labSummaryError}</div>
               ) : (
                 <ChatMarkdown content={NO_LABS_MESSAGE} />
               )}
