@@ -31,6 +31,14 @@ type TrendItem = {
   series: TrendPoint[];
 };
 
+type LabsMeta = {
+  source?: string;
+  points?: number;
+  total_points?: number;
+  tests?: number;
+  kinds_seen?: number;
+};
+
 const fDate = (d?: string | null) => (d ? new Date(d).toLocaleDateString() : "—");
 
 const formatValue = (point?: TrendPoint | null, fallbackUnit?: string | null) => {
@@ -57,6 +65,17 @@ const sameDay = (sampleDate?: string | null, key?: string | null) => {
   return toDateKey(sampleDate) === key;
 };
 
+const collectReportDates = (trend: TrendItem[]) => {
+  const days = new Set<string>();
+  for (const item of trend) {
+    for (const point of item.series) {
+      const key = toDateKey(point.sample_date);
+      if (key) days.add(key);
+    }
+  }
+  return days;
+};
+
 const diffDaysFromNow = (sampleDate?: string | null) => {
   if (!sampleDate) return null;
   const d = new Date(sampleDate);
@@ -78,11 +97,14 @@ const verdictLabel = (direction: TrendItem["direction"]) => {
   }
 };
 
-const metaBanner = (meta?: { source?: string; points?: number }) => {
+const metaBanner = (meta?: LabsMeta) => {
   if (!meta) return "";
   const bits = [] as string[];
-  if (meta.source) bits.push(meta.source);
-  if (typeof meta.points === "number") bits.push(`${meta.points} points`);
+  const points = typeof meta.points === "number" ? meta.points : meta.total_points;
+  if (meta.source) bits.push(`source: ${meta.source}`);
+  const tests = typeof meta.tests === "number" ? meta.tests : meta.kinds_seen;
+  if (typeof tests === "number") bits.push(`tests: ${tests}`);
+  if (typeof points === "number") bits.push(`points: ${points}`);
   return bits.length ? `_${bits.join(" · ")}_\n\n` : "";
 };
 
@@ -92,7 +114,7 @@ const filterTrendByCodes = (trend: TrendItem[], codes: string[]) => {
   return trend.filter(item => wanted.has(item.test_code.toUpperCase()));
 };
 
-const labsSummaryMarkdown = (trend: TrendItem[], meta?: { source?: string; points?: number }) => {
+const labsSummaryMarkdown = (trend: TrendItem[], meta?: LabsMeta) => {
   if (!trend?.length) return "I couldn’t find any structured lab values yet.";
   const head = metaBanner(meta);
   const body = trend.map(t => {
@@ -103,7 +125,7 @@ const labsSummaryMarkdown = (trend: TrendItem[], meta?: { source?: string; point
   return head + ["**Your latest labs (vs previous):**", ...body].join("\n");
 };
 
-const labsDatewiseMarkdown = (trend: TrendItem[], meta?: { source?: string; points?: number }) => {
+const labsDatewiseMarkdown = (trend: TrendItem[], meta?: LabsMeta) => {
   if (!trend?.length) return "I couldn’t find any structured lab values yet.";
   const groups = new Map<string, { label: string; entries: string[] }>();
   for (const item of trend) {
@@ -128,7 +150,7 @@ const labsDatewiseMarkdown = (trend: TrendItem[], meta?: { source?: string; poin
   return head + ["**Your labs by date (newest first):**", ...sections].join("\n");
 };
 
-const labsComparisonMarkdown = (trend: TrendItem[], meta?: { source?: string; points?: number }) => {
+const labsComparisonMarkdown = (trend: TrendItem[], meta?: LabsMeta) => {
   if (!trend?.length) return "I couldn’t find any structured lab values yet.";
   const head = metaBanner(meta);
   const rows = trend.map(t => {
@@ -150,6 +172,22 @@ const labsComparisonMarkdown = (trend: TrendItem[], meta?: { source?: string; po
   return head + ["**What’s changed:**", ...rows, "", summaryParts.join(" ")].join("\n");
 };
 
+const labsCountMarkdown = (trend: TrendItem[], meta?: LabsMeta) => {
+  const head = metaBanner(meta);
+  if (!trend?.length) {
+    return head + "I couldn’t find any structured lab values yet.";
+  }
+
+  const dates = collectReportDates(trend);
+  if (!dates.size) {
+    return head + "**Lab Reports** — I couldn’t find any structured lab dates yet.";
+  }
+
+  const total = dates.size;
+  const label = total === 1 ? "report" : "reports";
+  return head + `**Lab Reports** — You have **${total}** ${label} (distinct test dates).`;
+};
+
 type DateRequest = { key: string; label: string };
 type SpecificRequests = {
   date?: DateRequest;
@@ -160,7 +198,7 @@ type SpecificRequests = {
 
 const labsSpecificMarkdown = (
   trend: TrendItem[],
-  meta: { source?: string; points?: number } | undefined,
+  meta: LabsMeta | undefined,
   requests: SpecificRequests,
   tests: string[],
 ) => {
@@ -242,7 +280,7 @@ const labsSpecificMarkdown = (
   return head + ["**Lab details:**", ...lines].join("\n");
 };
 
-type LabsMode = "snapshot" | "datewise" | "comparison" | "specific";
+type LabsMode = "snapshot" | "datewise" | "comparison" | "specific" | "count";
 
 type LabsPromptDetails = {
   mode: LabsMode;
@@ -256,6 +294,7 @@ const COMPARISON_REGEX = /(what changed|changes?|trend|improv|worsen|better|wors
 const RECENCY_REGEX = /(days since|last measured|how long since|when was (?:my )?(?:last )?)/i;
 const HIGHEST_REGEX = /(highest|max(imum)?|peak)/i;
 const LOWEST_REGEX = /(lowest|min(imum)?|drop)/i;
+const COUNT_REGEX = /\b(how many|number of|count)\b.*\b(reports?|labs?)\b/i;
 
 const parseLabsPrompt = (text: string): LabsPromptDetails => {
   const tests = detectLabsInText(text);
@@ -263,7 +302,9 @@ const parseLabsPrompt = (text: string): LabsPromptDetails => {
   const requests = parseSpecificRequests(text);
 
   let mode: LabsMode = "snapshot";
-  if (hasSpecificRequest(requests)) {
+  if (COUNT_REGEX.test(text)) {
+    mode = "count";
+  } else if (hasSpecificRequest(requests)) {
     mode = "specific";
   } else if (COMPARISON_REGEX.test(text)) {
     mode = "comparison";
@@ -533,8 +574,14 @@ export default function AiDocPane() {
         const res = await fetch(`/api/labs/summary${query ? `?${query}` : ""}`);
         const body = await res.json().catch(() => null);
         if (body?.ok && Array.isArray(body.trend)) {
-          const trend = filterTrendByCodes(body.trend as TrendItem[], details.tests);
-          const meta = body.meta as { source?: string; points?: number } | undefined;
+          const fullTrend = body.trend as TrendItem[];
+          const meta = body.meta as LabsMeta | undefined;
+          const trend =
+            details.mode === "count"
+              ? details.tests.length
+                ? filterTrendByCodes(fullTrend, details.tests)
+                : fullTrend
+              : filterTrendByCodes(fullTrend, details.tests);
           let content: string;
 
           switch (details.mode) {
@@ -546,6 +593,9 @@ export default function AiDocPane() {
               break;
             case "specific":
               content = labsSpecificMarkdown(trend, meta, details.requests, details.tests);
+              break;
+            case "count":
+              content = labsCountMarkdown(trend, meta);
               break;
             case "snapshot":
             default:

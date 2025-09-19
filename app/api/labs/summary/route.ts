@@ -34,12 +34,18 @@ export async function GET(request: NextRequest) {
       to,
     });
 
+    const totalPoints = trend.reduce((sum, item) => sum + item.series.length, 0);
+    const kindsSeen = new Set(trend.map(item => item.test_code)).size;
+
     return NextResponse.json({
       ok: true,
       trend,
       meta: {
         source: "observations",
-        points: trend.reduce((sum, item) => sum + item.series.length, 0),
+        tests: kindsSeen,
+        kinds_seen: kindsSeen,
+        points: totalPoints,
+        total_points: totalPoints,
       },
     });
   } catch (err) {
