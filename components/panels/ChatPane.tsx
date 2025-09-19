@@ -72,6 +72,38 @@ const NEARBY_OPEN_NOW_RE = /\b(open now|24\/?7|24x7|24-7)\b/i;
 const NEARBY_CHANGE_CATEGORY_RE = /\b(change category|different (?:type|category)|another (?:category|type))\b/i;
 const NEARBY_NEAR_WORD_RE = /\b(near|nearby|around|close to|within)\b/i;
 
+const NO_LABS_MESSAGE = "I couldn't find structured lab values yet.";
+const LABS_INTENT = /(report|reports|observation|observations|blood|lab|labs|lipid|cholesterol|ldl|hdl|triglycerides|a1c|hba1c|vitamin\s*d|crp|esr|uibc|tibc|creatinine|egfr|urea|bilirubin|ast|alt|sgot|sgpt|ggt|alkaline|alp|date\s*wise|datewise|trend|changes?)/i;
+const RAW_TEXT_INTENT = /(raw text|full text|show .*report text)/i;
+
+const formatTrendDate = (iso?: string) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
+};
+
+const trendLineFor = (t: any) => {
+  const unit = t?.unit ? ` ${t.unit}` : "";
+  const formatPoint = (point?: { value: number; sample_date: string } | null) =>
+    point && typeof point.value === "number"
+      ? `${point.value}${unit} (${formatTrendDate(point.sample_date)})`
+      : "—";
+  const verdict =
+    t?.direction === "improving"
+      ? "✅ Improving"
+      : t?.direction === "worsening"
+      ? "⚠️ Worsening"
+      : t?.direction === "flat"
+      ? "➖ No change"
+      : "—";
+  return `- **${t?.test_name ?? t?.test_code ?? "Test"}**: ${formatPoint(t?.latest)} | Prev: ${formatPoint(t?.previous)} → ${verdict}`;
+};
+
+const buildTrendLines = (trend: any[]): string[] => {
+  if (!Array.isArray(trend)) return [];
+  return trend.map(trendLineFor);
+};
+
 const NEARBY_KIND_SYNONYMS: Record<NearbyKind, string[]> = {
   pharmacy: [
     "pharmacy",
@@ -532,6 +564,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [busy, setBusy] = useState(false);
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
+  const [labSummary, setLabSummary] = useState<any | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef =
@@ -575,6 +608,88 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     setMounted(true);
   }, []);
 
+  const fetchLabSummary = useCallback(async () => {
+    try {
+      const res = await fetch('/api/labs/summary');
+      const body = await res.json();
+      if (body?.ok) setLabSummary(body);
+    } catch (e) {
+      console.error('labs summary error', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!AIDOC_UI) return;
+    fetchLabSummary();
+  }, [AIDOC_UI, fetchLabSummary]);
+
+  useEffect(() => {
+    if (!AIDOC_UI) return;
+    const handler = () => fetchLabSummary();
+    window.addEventListener('observations-updated', handler);
+    return () => window.removeEventListener('observations-updated', handler);
+  }, [AIDOC_UI, fetchLabSummary]);
+
+  const addAssistant = (text: string, opts?: Partial<ChatMessage>) =>
+    setMessages(prev => [
+      ...prev,
+      { id: uid(), role: 'assistant', kind: 'chat', content: text, ...opts } as any,
+    ]);
+  const pushAssistantText = (text: string, opts?: Partial<ChatMessage>) =>
+    addAssistant(text, opts);
+
+  const buildReportTimelineCard = useCallback(async () => {
+    try {
+      const response = await fetch('/api/labs/summary');
+      const body: any = await response.json();
+      if (!body?.ok) return "Couldn’t load structured labs.";
+
+      setLabSummary(body);
+
+      const trend: any[] = Array.isArray(body.trend) ? body.trend : [];
+      const dayMap = new Map<string, { date: Date; items: string[] }>();
+      for (const t of trend) {
+        const series = Array.isArray(t?.series) ? t.series : [];
+        for (const p of series) {
+          if (!p?.sample_date) continue;
+          const d = new Date(p.sample_date);
+          if (Number.isNaN(d.getTime())) continue;
+          const key = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10);
+          const name = t?.test_name ?? t?.test_code ?? 'Test';
+          const unit = t?.unit ? ` ${t.unit}` : '';
+          const existing = dayMap.get(key);
+          if (existing) {
+            existing.items.push(`${name}: ${p.value}${unit}`);
+          } else {
+            dayMap.set(key, { date: d, items: [`${name}: ${p.value}${unit}`] });
+          }
+        }
+      }
+
+      const days = Array.from(dayMap.values()).sort((a, b) => b.date.getTime() - a.date.getTime());
+      const totalReports =
+        typeof body.meta?.total_reports === 'number' ? body.meta.total_reports : days.length;
+
+      let md = `**Report Timeline**\n\nHere are your reports, sorted by date:\n\n`;
+      if (days.length === 0) {
+        md += `${NO_LABS_MESSAGE}`;
+      } else {
+        for (const group of days) {
+          md += `- **${group.date.toLocaleDateString()}**: ${group.items.join(' • ')}\n`;
+        }
+      }
+      md += `\n**Total documents:** ${totalReports}`;
+      return md;
+    } catch (err) {
+      console.error('labs timeline error', err);
+      return "Couldn’t load structured labs.";
+    }
+  }, [setLabSummary]);
+
+  const showOcrText = useCallback(async () => {
+    pushAssistantText('Raw report text is currently only available from the document view.');
+  }, [pushAssistantText]);
+
   // Auto-resize the textarea up to a max height
   useEffect(() => {
     const el = (inputRef?.current as unknown as HTMLTextAreaElement | null);
@@ -583,6 +698,26 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     const max = 200; // px; ~ChatGPT feel
     el.style.height = Math.min(el.scrollHeight, max) + 'px';
   }, [userText, inputRef]);
+
+  const [aidoc, setAidoc] = useState<any | null>(null);
+  const [loadingAidoc, setLoadingAidoc] = useState(false);
+  const [showPatientChooser, setShowPatientChooser] = useState(false);
+  const [showNewIntake, setShowNewIntake] = useState(false);
+  const [intake, setIntake] = useState({
+    name: "", age: "", sex: "female", pregnant: "", symptoms: "", meds: "", allergies: ""
+  });
+  const [activeProfile, setActiveProfile] = useState<any>(null);
+  const topAlerts = Array.isArray(aidoc?.softAlerts) ? aidoc.softAlerts : [];
+  const planAlerts = Array.isArray(aidoc?.plan?.softAlerts)
+    ? aidoc.plan.softAlerts
+    : [];
+  const softAlerts = Array.from(new Set([...topAlerts, ...planAlerts]));
+
+  useEffect(() => {
+    if (!AIDOC_UI) return;
+    if (!aidoc) return;
+    fetchLabSummary();
+  }, [AIDOC_UI, aidoc, fetchLabSummary]);
 
   const [trialRows, setTrialRows] = useState<TrialRow[]>([]);
   const [searched, setSearched] = useState(false);
@@ -630,19 +765,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [pendingCommitIds, setPendingCommitIds] = useState<string[]>([]);
   const [commitBusy, setCommitBusy] = useState<null | 'save' | 'discard'>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
-  const [aidoc, setAidoc] = useState<any | null>(null);
-  const [loadingAidoc, setLoadingAidoc] = useState(false);
-  const [showPatientChooser, setShowPatientChooser] = useState(false);
-  const [showNewIntake, setShowNewIntake] = useState(false);
-  const [intake, setIntake] = useState({
-    name: "", age: "", sex: "female", pregnant: "", symptoms: "", meds: "", allergies: ""
-  });
-  const [activeProfile, setActiveProfile] = useState<any>(null);
-  const topAlerts = Array.isArray(aidoc?.softAlerts) ? aidoc.softAlerts : [];
-  const planAlerts = Array.isArray(aidoc?.plan?.softAlerts)
-    ? aidoc.plan.softAlerts
-    : [];
-  const softAlerts = Array.from(new Set([...topAlerts, ...planAlerts]));
   const posted = useRef(new Set<string>());
   const nearbySessions = useRef<Map<string, NearbySessionState>>(new Map());
   const bootedRef = useRef<{[k:string]:boolean}>({});
@@ -668,9 +790,42 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const activeProfileName = activeProfile?.full_name || activeProfile?.name || 'current patient';
   const activeProfileId = activeProfile?.id || null;
 
-  const addAssistant = (text: string, opts?: Partial<ChatMessage>) =>
-    setMessages(prev => [...prev, { id: uid(), role: 'assistant', kind: 'chat', content: text, ...opts } as any]);
-  const pushAssistantText = (text: string, opts?: Partial<ChatMessage>) => addAssistant(text, opts);
+  const labSummaryCard = useMemo(() => {
+    if (!labSummary?.ok) return null;
+    const trend = Array.isArray(labSummary.trend) ? labSummary.trend : [];
+    const days = new Set<string>();
+    let latestDateValue: Date | null = null;
+    for (const t of trend) {
+      const series = Array.isArray(t?.series) ? t.series : [];
+      for (const p of series) {
+        if (!p?.sample_date) continue;
+        const d = new Date(p.sample_date);
+        if (Number.isNaN(d.getTime())) continue;
+        const dayKey = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10);
+        days.add(dayKey);
+        if (!latestDateValue || d > latestDateValue) {
+          latestDateValue = d;
+        }
+      }
+    }
+    const totalReports =
+      (labSummary.meta && typeof labSummary.meta.total_reports === 'number'
+        ? labSummary.meta.total_reports
+        : undefined) ?? days.size;
+    const latestDate = latestDateValue ? latestDateValue.toLocaleDateString() : '—';
+    const lines = [
+      '**Medical Records Summary**',
+      `- **Reports:** ${totalReports} (distinct dates)`,
+      `- **Latest report:** ${latestDate}`,
+    ];
+    const trendLines = buildTrendLines(trend);
+    if (trendLines.length > 0) {
+      lines.push('', ...trendLines);
+    } else {
+      lines.push('', NO_LABS_MESSAGE);
+    }
+    return lines.join('\n');
+  }, [labSummary]);
 
   const nearbySessionKey = () => threadId || `${mode}-default`;
 
@@ -1336,20 +1491,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
 
   function labsMarkdown(trend: any[]) {
-    if (!Array.isArray(trend) || trend.length === 0) return 'I couldn\'t find structured lab values yet.';
-    const formatDate = (d?: string) => (d ? new Date(d).toLocaleDateString() : '—');
-    return [
-      '**Your latest labs (vs previous):**',
-      ...trend.map((t: any) => {
-        const latest = t.latest ? `${t.latest.value} ${t.unit} (${formatDate(t.latest.sample_date)})` : '—';
-        const prev = t.previous ? `${t.previous.value} ${t.unit} (${formatDate(t.previous.sample_date)})` : '—';
-        const verdict = t.direction === 'improving' ? '✅ Improving'
-          : t.direction === 'worsening' ? '⚠️ Worsening'
-          : t.direction === 'flat' ? '➖ No change'
-          : '—';
-        return `- **${t.test_name}**: ${latest} | Prev: ${prev} → ${verdict}`;
-      }),
-    ].join('\n');
+    const lines = buildTrendLines(trend);
+    if (lines.length === 0) return NO_LABS_MESSAGE;
+    return ['**Your latest labs (vs previous):**', ...lines].join('\n');
   }
 
 
@@ -2097,6 +2241,29 @@ ${systemCommon}` + baseSys;
         }
       }
 
+      if (!pendingFile && trimmed) {
+        if (RAW_TEXT_INTENT.test(trimmed)) {
+          setMessages(prev => [
+            ...prev,
+            { id: uid(), role: 'user', kind: 'chat', content: trimmed, pending: false } as any,
+          ]);
+          setUserText('');
+          await showOcrText();
+          return;
+        }
+
+        if (LABS_INTENT.test(trimmed)) {
+          setMessages(prev => [
+            ...prev,
+            { id: uid(), role: 'user', kind: 'chat', content: trimmed, pending: false } as any,
+          ]);
+          setUserText('');
+          const md = await buildReportTimelineCard();
+          pushAssistantText(md);
+          return;
+        }
+      }
+
       if (!pendingFile && trimmed && (await tryNearbyQuickPath(trimmed))) {
         setUserText('');
         return;
@@ -2567,7 +2734,11 @@ ${systemCommon}` + baseSys;
           <div className="mt-3 rounded-lg border p-3 space-y-2">
             <div className="text-sm font-medium">Observations</div>
             <div className="text-sm opacity-90">
-              <ChatMarkdown content={aidoc?.observations?.short || ""} />
+              {labSummaryCard ? (
+                <ChatMarkdown content={labSummaryCard} />
+              ) : (
+                <ChatMarkdown content={NO_LABS_MESSAGE} />
+              )}
             </div>
 
             {Array.isArray(aidoc?.plan?.steps) && aidoc.plan.steps.length > 0 && (
