@@ -8,14 +8,42 @@ function uid() {
   return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
 }
 
-function labsMarkdown(trend: any[]) {
+type TrendPoint = {
+  value: number | null;
+  unit: string | null;
+  sample_date: string | null;
+};
+
+type TrendItem = {
+  test_code: string;
+  test_name: string;
+  unit: string | null;
+  direction: "improving" | "worsening" | "flat" | "unknown";
+  latest: TrendPoint | null;
+  previous: TrendPoint | null;
+  series: TrendPoint[];
+};
+
+const LABS_INTENT_REGEX = /report|reports|observation|observations|blood|lab|labs|cholesterol|ldl|hdl|triglycerides|a1c|hba1c|vitamin\s*d|crp|esr|uibc|lipase|lft|liver|kidney/i;
+
+const formatDate = (value?: string | null) =>
+  value ? new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
+
+const formatValue = (point?: TrendPoint | null, fallbackUnit?: string | null) => {
+  if (!point || point.value == null) return "—";
+  const unit = point.unit ?? fallbackUnit ?? "";
+  return `${point.value}${unit ? ` ${unit}` : ""}`;
+};
+
+function labsSummaryMarkdown(trend: TrendItem[]) {
   if (!trend?.length) return "I couldn’t find structured lab values yet.";
-  const f = (d?: string) => (d ? new Date(d).toLocaleDateString() : "—");
   return [
     "**Your latest labs (vs previous):**",
-    ...trend.map((t: any) => {
-      const latest = t.latest ? `${t.latest.value} ${t.unit} (${f(t.latest.sample_date)})` : "—";
-      const prev = t.previous ? `${t.previous.value} ${t.unit} (${f(t.previous.sample_date)})` : "—";
+    ...trend.map(t => {
+      const latest = t.latest ? `${formatValue(t.latest, t.unit)} (${formatDate(t.latest.sample_date)})` : "—";
+      const prev = t.previous
+        ? `${formatValue(t.previous, t.unit)} (${formatDate(t.previous.sample_date)})`
+        : "no prior value to compare";
       const verdict = t.direction === "improving"
         ? "✅ Improving"
         : t.direction === "worsening"
@@ -23,7 +51,23 @@ function labsMarkdown(trend: any[]) {
           : t.direction === "flat"
             ? "➖ No change"
             : "—";
-      return `- **${t.test_name ?? t.test_code}**: ${latest} | Prev: ${prev} → ${verdict}`;
+      const verdictSuffix = t.previous ? ` → ${verdict}` : "";
+      return `- **${t.test_name ?? t.test_code}**: ${latest} | Prev: ${prev}${verdictSuffix}`;
+    }),
+  ].join("\n");
+}
+
+function labsDatewiseMarkdown(trend: TrendItem[]) {
+  if (!trend?.length) return "I couldn’t find structured lab values yet.";
+  return [
+    "**Your labs by date (newest first):**",
+    ...trend.map(t => {
+      const lines = t.series.map(point => {
+        const value = formatValue(point, t.unit);
+        return `  - ${formatDate(point.sample_date)}: ${value}`;
+      });
+      const block = lines.length ? lines.join("\n") : "  - (no values recorded)";
+      return [`- **${t.test_name ?? t.test_code}**`, block].join("\n");
     }),
   ].join("\n");
 }
@@ -101,16 +145,17 @@ export default function AiDocPane() {
     const pendingId = uid();
     appendMessage({ id: pendingId, role: "assistant", content: "", pending: true });
 
-    const isLast = /last (blood )?(report|labs?)/i.test(text);
-    const isChanges = /(all|my) (reports|labs?).*(changes|trend|improv|wors)/i.test(text);
-    const isDatewise = /(date ?wise|by date|chronolog)/i.test(text);
+    const wantsDatewise = /(date ?wise|by date|chronolog)/i.test(text);
+    const labsIntent = LABS_INTENT_REGEX.test(text);
 
-    if (isLast || isChanges || isDatewise) {
+    if (labsIntent) {
       try {
         const res = await fetch("/api/labs/summary");
         const body = await res.json().catch(() => null);
         if (body?.ok && Array.isArray(body.trend)) {
-          const summary = labsMarkdown(body.trend);
+          const summary = wantsDatewise
+            ? labsDatewiseMarkdown(body.trend as TrendItem[])
+            : labsSummaryMarkdown(body.trend as TrendItem[]);
           updateMessage(pendingId, { content: summary, pending: false });
           setIsSending(false);
           return;
