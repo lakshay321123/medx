@@ -630,6 +630,14 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     return () => window.removeEventListener('observations-updated', handler);
   }, [AIDOC_UI, fetchLabSummary]);
 
+  const addAssistant = (text: string, opts?: Partial<ChatMessage>) =>
+    setMessages(prev => [
+      ...prev,
+      { id: uid(), role: 'assistant', kind: 'chat', content: text, ...opts } as any,
+    ]);
+  const pushAssistantText = (text: string, opts?: Partial<ChatMessage>) =>
+    addAssistant(text, opts);
+
   const buildReportTimelineCard = useCallback(async () => {
     try {
       const response = await fetch('/api/labs/summary');
@@ -781,10 +789,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, [messages]);
   const activeProfileName = activeProfile?.full_name || activeProfile?.name || 'current patient';
   const activeProfileId = activeProfile?.id || null;
-
-  const addAssistant = (text: string, opts?: Partial<ChatMessage>) =>
-    setMessages(prev => [...prev, { id: uid(), role: 'assistant', kind: 'chat', content: text, ...opts } as any]);
-  const pushAssistantText = (text: string, opts?: Partial<ChatMessage>) => addAssistant(text, opts);
 
   const labSummaryCard = useMemo(() => {
     if (!labSummary?.ok) return null;
