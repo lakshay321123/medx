@@ -72,6 +72,36 @@ const NEARBY_OPEN_NOW_RE = /\b(open now|24\/?7|24x7|24-7)\b/i;
 const NEARBY_CHANGE_CATEGORY_RE = /\b(change category|different (?:type|category)|another (?:category|type))\b/i;
 const NEARBY_NEAR_WORD_RE = /\b(near|nearby|around|close to|within)\b/i;
 
+const NO_LABS_MESSAGE = "I couldn't find structured lab values yet.";
+
+const formatTrendDate = (iso?: string) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
+};
+
+const trendLineFor = (t: any) => {
+  const unit = t?.unit ? ` ${t.unit}` : "";
+  const formatPoint = (point?: { value: number; sample_date: string } | null) =>
+    point && typeof point.value === "number"
+      ? `${point.value}${unit} (${formatTrendDate(point.sample_date)})`
+      : "—";
+  const verdict =
+    t?.direction === "improving"
+      ? "✅ Improving"
+      : t?.direction === "worsening"
+      ? "⚠️ Worsening"
+      : t?.direction === "flat"
+      ? "➖ No change"
+      : "—";
+  return `- **${t?.test_name ?? t?.test_code ?? "Test"}**: ${formatPoint(t?.latest)} | Prev: ${formatPoint(t?.previous)} → ${verdict}`;
+};
+
+const buildTrendLines = (trend: any[]): string[] => {
+  if (!Array.isArray(trend)) return [];
+  return trend.map(trendLineFor);
+};
+
 const NEARBY_KIND_SYNONYMS: Record<NearbyKind, string[]> = {
   pharmacy: [
     "pharmacy",
@@ -575,6 +605,28 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     setMounted(true);
   }, []);
 
+  useEffect(() => () => {
+    labSummaryAbortRef.current?.abort();
+  }, []);
+
+  useEffect(() => {
+    if (!AIDOC_UI) return;
+    fetchLabSummary();
+  }, [fetchLabSummary]);
+
+  useEffect(() => {
+    if (!AIDOC_UI) return;
+    const handler = () => fetchLabSummary();
+    window.addEventListener('observations-updated', handler);
+    return () => window.removeEventListener('observations-updated', handler);
+  }, [fetchLabSummary]);
+
+  useEffect(() => {
+    if (!AIDOC_UI) return;
+    if (!aidoc) return;
+    fetchLabSummary();
+  }, [aidoc, fetchLabSummary]);
+
   // Auto-resize the textarea up to a max height
   useEffect(() => {
     const el = (inputRef?.current as unknown as HTMLTextAreaElement | null);
@@ -632,6 +684,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [commitError, setCommitError] = useState<string | null>(null);
   const [aidoc, setAidoc] = useState<any | null>(null);
   const [loadingAidoc, setLoadingAidoc] = useState(false);
+  const [labSummaryCard, setLabSummaryCard] = useState<string | null>(null);
+  const [labSummaryError, setLabSummaryError] = useState<string | null>(null);
+  const [labSummaryLoading, setLabSummaryLoading] = useState(false);
+  const labSummaryAbortRef = useRef<AbortController | null>(null);
   const [showPatientChooser, setShowPatientChooser] = useState(false);
   const [showNewIntake, setShowNewIntake] = useState(false);
   const [intake, setIntake] = useState({
@@ -671,6 +727,74 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const addAssistant = (text: string, opts?: Partial<ChatMessage>) =>
     setMessages(prev => [...prev, { id: uid(), role: 'assistant', kind: 'chat', content: text, ...opts } as any]);
   const pushAssistantText = (text: string, opts?: Partial<ChatMessage>) => addAssistant(text, opts);
+
+  const fetchLabSummary = useCallback(() => {
+    if (!AIDOC_UI) return;
+    if (labSummaryAbortRef.current) {
+      labSummaryAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    labSummaryAbortRef.current = controller;
+    setLabSummaryLoading(true);
+    (async () => {
+      try {
+        setLabSummaryError(null);
+        const res = await fetch('/api/labs/summary', { signal: controller.signal, cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = await res.json().catch(() => null);
+        if (!body?.ok) {
+          throw new Error(body?.error || 'Unable to load lab summary');
+        }
+        const trend = Array.isArray(body.trend) ? body.trend : [];
+        const meta = body.meta ?? null;
+        const days = new Set<string>();
+        let latestTimestamp = Number.NEGATIVE_INFINITY;
+        for (const t of trend) {
+          const series = Array.isArray(t?.series) ? t.series : [];
+          for (const p of series) {
+            const d = p?.sample_date ? new Date(p.sample_date) : null;
+            if (!d || Number.isNaN(d.getTime())) continue;
+            const key = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10);
+            days.add(key);
+            const ts = d.getTime();
+            if (ts > latestTimestamp) {
+              latestTimestamp = ts;
+            }
+          }
+        }
+        const totalReports =
+          (meta && typeof meta.total_reports === 'number' ? meta.total_reports : undefined) ?? days.size;
+        const latestDate = Number.isFinite(latestTimestamp)
+          ? new Date(latestTimestamp).toLocaleDateString()
+          : '—';
+        const lines = [
+          '**Medical Records Summary**',
+          `- **Reports:** ${totalReports} (distinct dates)`,
+          `- **Latest report:** ${latestDate}`,
+        ];
+        const trendLines = buildTrendLines(trend);
+        if (trendLines.length > 0) {
+          lines.push('', ...trendLines);
+        } else {
+          lines.push('', NO_LABS_MESSAGE);
+        }
+        if (!controller.signal.aborted) {
+          setLabSummaryCard(lines.join('\n'));
+        }
+      } catch (err: any) {
+        if (controller.signal.aborted) return;
+        setLabSummaryCard(null);
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('Failed to load structured labs summary', err);
+        }
+        setLabSummaryError("Couldn't load structured labs. Please try again.");
+      } finally {
+        if (!controller.signal.aborted) {
+          setLabSummaryLoading(false);
+        }
+      }
+    })();
+  }, []);
 
   const nearbySessionKey = () => threadId || `${mode}-default`;
 
@@ -1336,20 +1460,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
 
   function labsMarkdown(trend: any[]) {
-    if (!Array.isArray(trend) || trend.length === 0) return 'I couldn\'t find structured lab values yet.';
-    const formatDate = (d?: string) => (d ? new Date(d).toLocaleDateString() : '—');
-    return [
-      '**Your latest labs (vs previous):**',
-      ...trend.map((t: any) => {
-        const latest = t.latest ? `${t.latest.value} ${t.unit} (${formatDate(t.latest.sample_date)})` : '—';
-        const prev = t.previous ? `${t.previous.value} ${t.unit} (${formatDate(t.previous.sample_date)})` : '—';
-        const verdict = t.direction === 'improving' ? '✅ Improving'
-          : t.direction === 'worsening' ? '⚠️ Worsening'
-          : t.direction === 'flat' ? '➖ No change'
-          : '—';
-        return `- **${t.test_name}**: ${latest} | Prev: ${prev} → ${verdict}`;
-      }),
-    ].join('\n');
+    const lines = buildTrendLines(trend);
+    if (lines.length === 0) return NO_LABS_MESSAGE;
+    return ['**Your latest labs (vs previous):**', ...lines].join('\n');
   }
 
 
@@ -2567,7 +2680,15 @@ ${systemCommon}` + baseSys;
           <div className="mt-3 rounded-lg border p-3 space-y-2">
             <div className="text-sm font-medium">Observations</div>
             <div className="text-sm opacity-90">
-              <ChatMarkdown content={aidoc?.observations?.short || ""} />
+              {labSummaryCard ? (
+                <ChatMarkdown content={labSummaryCard} />
+              ) : labSummaryLoading ? (
+                <div className="text-sm text-muted-foreground">Loading structured labs…</div>
+              ) : labSummaryError ? (
+                <div className="text-sm text-rose-600">{labSummaryError}</div>
+              ) : (
+                <ChatMarkdown content={NO_LABS_MESSAGE} />
+              )}
             </div>
 
             {Array.isArray(aidoc?.plan?.steps) && aidoc.plan.steps.length > 0 && (

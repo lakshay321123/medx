@@ -16,6 +16,7 @@ export type ObservationRow = {
   unit: string | null;
   observed_at: string | null;
   created_at: string | null;
+  thread_id: string | null;
   report_id: string | null;
 };
 
@@ -304,7 +305,7 @@ export async function fetchLabSummary(
 
   let query = client
     .from("observations")
-    .select("kind,value_num,unit,observed_at,created_at,report_id")
+    .select("kind,value_num,unit,observed_at,created_at,thread_id,report_id")
     .eq("user_id", options.userId)
     .not("value_num", "is", null)
     .order("observed_at", { ascending: false })

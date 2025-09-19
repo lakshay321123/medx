@@ -24,7 +24,7 @@ export async function GET(req: Request) {
     const sb = supabaseAdmin();
     const { data, error } = await sb
       .from("observations")
-      .select("kind,value_num,unit,observed_at,created_at,report_id")
+      .select("kind,value_num,unit,observed_at,created_at,thread_id,report_id")
       .eq("user_id", userId)
       .not("value_num", "is", null)
       .order("observed_at", { ascending: false })
@@ -36,23 +36,17 @@ export async function GET(req: Request) {
     }
 
     const rows = (data ?? []) as ObservationRow[];
-
+    const dayKey = (iso?: string) => {
+      const d = iso ? new Date(iso) : null;
+      return d && !Number.isNaN(+d)
+        ? new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10)
+        : null;
+    };
     const keys = new Set<string>();
     for (const r of rows) {
-      const reportId = (r as any).report_id;
-      const obs = (r as any).observed_at;
-      let key: string | null = null;
-      if (reportId) {
-        key = reportId;
-      } else if (obs) {
-        const parsed = new Date(obs);
-        if (!Number.isNaN(parsed.getTime())) {
-          key = parsed.toISOString().slice(0, 10);
-        }
-      }
-      if (key) keys.add(key);
+      const k = (r as any).report_id ?? dayKey((r as any).observed_at) ?? null;
+      if (k) keys.add(k);
     }
-
     const totalReports = keys.size;
 
     const { trend, points } = summarizeLabObservations(rows, { tests, from, to });
