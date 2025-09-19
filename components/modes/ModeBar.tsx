@@ -35,11 +35,22 @@ export default function ModeBar() {
     router.push(toQuery(next, sp));
   };
 
-  const btn = (active: boolean, disabled?: boolean) =>
-    `h-9 px-3 rounded-lg border text-sm transition
-     ${active ? "bg-[var(--medx-accent)] text-white border-[var(--medx-accent)]"
-              : "bg-card text-foreground border-border hover:bg-muted"}
-     ${disabled ? "opacity-50 cursor-not-allowed" : ""}`;
+  const btn = (active: boolean, disabled?: boolean) => {
+    const classes = [
+      "h-9 px-3 rounded-full text-sm transition-[filter,color] duration-150",
+      "border border-transparent",
+    ];
+
+    classes.push(active ? "medx-btn-accent shadow-sm" : "medx-surface text-medx");
+
+    if (disabled) {
+      classes.push("opacity-60 cursor-not-allowed");
+    } else {
+      classes.push("hover:brightness-[1.05]");
+    }
+
+    return classes.join(" ");
+  };
 
   const aidocOn = state.base === "aidoc";
 

@@ -2326,7 +2326,7 @@ ${systemCommon}` + baseSys;
         return m.role === 'user' ? (
           <div
             key={derivedKey}
-            className="ml-auto max-w-3xl rounded-2xl px-4 py-3 shadow-sm bg-slate-200 text-slate-900 dark:bg-gray-700 dark:text-gray-100 text-left whitespace-normal"
+            className="ml-auto max-w-3xl rounded-2xl px-4 py-3 shadow-sm bg-[var(--medx-accent)] text-white text-left whitespace-normal dark:bg-[var(--medx-accent)]/90"
           >
             <ChatMarkdown content={m.content} />
           </div>
