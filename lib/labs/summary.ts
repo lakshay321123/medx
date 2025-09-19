@@ -265,20 +265,24 @@ function buildTrendFromRows(
   return { trend, points };
 }
 
+function normalizeReportKey(row: ObservationRow): string | null {
+  if (row.report_id) return row.report_id;
+  if (row.thread_id) return row.thread_id;
+
+  const iso = row.observed_at ?? row.created_at;
+  if (!iso) return null;
+
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  const day = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  return day.toISOString();
+}
+
 function countTotalReports(rows: ObservationRow[]): number {
   const keys = new Set<string>();
-  for (const r of rows) {
-    const reportId = r.report_id;
-    const obs = r.observed_at;
-    let key: string | null = null;
-    if (reportId) {
-      key = reportId;
-    } else if (obs) {
-      const parsed = new Date(obs);
-      if (!Number.isNaN(parsed.getTime())) {
-        key = parsed.toISOString().slice(0, 10);
-      }
-    }
+  for (const row of rows) {
+    const key = normalizeReportKey(row);
     if (key) keys.add(key);
   }
   return keys.size;

@@ -36,18 +36,28 @@ export async function GET(req: Request) {
     }
 
     const rows = (data ?? []) as ObservationRow[];
-    const dayKey = (iso?: string) => {
-      const d = iso ? new Date(iso) : null;
-      return d && !Number.isNaN(+d)
-        ? new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10)
-        : null;
+
+    const reportKey = (row: ObservationRow): string | null => {
+      if (row.report_id) return row.report_id;
+      if (row.thread_id) return row.thread_id;
+
+      const iso = row.observed_at ?? row.created_at;
+      if (!iso) return null;
+
+      const parsed = new Date(iso);
+      if (Number.isNaN(parsed.getTime())) return null;
+
+      const day = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+      return day.toISOString();
     };
-    const keys = new Set<string>();
-    for (const r of rows) {
-      const k = (r as any).report_id ?? dayKey((r as any).observed_at) ?? null;
-      if (k) keys.add(k);
+
+    const allReportKeys = new Set<string>();
+    for (const row of rows) {
+      const key = reportKey(row);
+      if (key) allReportKeys.add(key);
     }
-    const totalReports = keys.size;
+
+    const totalReports = allReportKeys.size;
 
     const { trend, points } = summarizeLabObservations(rows, { tests, from, to });
 

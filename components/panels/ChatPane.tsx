@@ -628,12 +628,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     return () => window.removeEventListener('observations-updated', handler);
   }, [AIDOC_UI, fetchLabSummary]);
 
-  useEffect(() => {
-    if (!AIDOC_UI) return;
-    if (!aidoc) return;
-    fetchLabSummary();
-  }, [AIDOC_UI, aidoc, fetchLabSummary]);
-
   // Auto-resize the textarea up to a max height
   useEffect(() => {
     const el = (inputRef?.current as unknown as HTMLTextAreaElement | null);
@@ -642,6 +636,26 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     const max = 200; // px; ~ChatGPT feel
     el.style.height = Math.min(el.scrollHeight, max) + 'px';
   }, [userText, inputRef]);
+
+  const [aidoc, setAidoc] = useState<any | null>(null);
+  const [loadingAidoc, setLoadingAidoc] = useState(false);
+  const [showPatientChooser, setShowPatientChooser] = useState(false);
+  const [showNewIntake, setShowNewIntake] = useState(false);
+  const [intake, setIntake] = useState({
+    name: "", age: "", sex: "female", pregnant: "", symptoms: "", meds: "", allergies: ""
+  });
+  const [activeProfile, setActiveProfile] = useState<any>(null);
+  const topAlerts = Array.isArray(aidoc?.softAlerts) ? aidoc.softAlerts : [];
+  const planAlerts = Array.isArray(aidoc?.plan?.softAlerts)
+    ? aidoc.plan.softAlerts
+    : [];
+  const softAlerts = Array.from(new Set([...topAlerts, ...planAlerts]));
+
+  useEffect(() => {
+    if (!AIDOC_UI) return;
+    if (!aidoc) return;
+    fetchLabSummary();
+  }, [AIDOC_UI, aidoc, fetchLabSummary]);
 
   const [trialRows, setTrialRows] = useState<TrialRow[]>([]);
   const [searched, setSearched] = useState(false);
@@ -689,19 +703,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [pendingCommitIds, setPendingCommitIds] = useState<string[]>([]);
   const [commitBusy, setCommitBusy] = useState<null | 'save' | 'discard'>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
-  const [aidoc, setAidoc] = useState<any | null>(null);
-  const [loadingAidoc, setLoadingAidoc] = useState(false);
-  const [showPatientChooser, setShowPatientChooser] = useState(false);
-  const [showNewIntake, setShowNewIntake] = useState(false);
-  const [intake, setIntake] = useState({
-    name: "", age: "", sex: "female", pregnant: "", symptoms: "", meds: "", allergies: ""
-  });
-  const [activeProfile, setActiveProfile] = useState<any>(null);
-  const topAlerts = Array.isArray(aidoc?.softAlerts) ? aidoc.softAlerts : [];
-  const planAlerts = Array.isArray(aidoc?.plan?.softAlerts)
-    ? aidoc.plan.softAlerts
-    : [];
-  const softAlerts = Array.from(new Set([...topAlerts, ...planAlerts]));
   const posted = useRef(new Set<string>());
   const nearbySessions = useRef<Map<string, NearbySessionState>>(new Map());
   const bootedRef = useRef<{[k:string]:boolean}>({});
