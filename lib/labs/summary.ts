@@ -15,7 +15,6 @@ export type ObservationRow = {
   value_num: number | null;
   unit: string | null;
   observed_at: string | null;
-  created_at: string | null;
   thread_id: string | null;
   report_id: string | null;
 };
@@ -144,7 +143,7 @@ function normalizeObservation(row: ObservationRow): NormalizedPoint | null {
   const def = KIND_TO_TEST.get(row.kind);
   if (!def) return null;
   if (row.value_num === null || row.value_num === undefined) return null;
-  const sampleDate = parseDate(row.observed_at) ?? parseDate(row.created_at);
+  const sampleDate = parseDate(row.observed_at);
   if (!sampleDate) return null;
   const normalized = normalizeValue(def.test_code, row.value_num, row.unit);
   if (!normalized) return null;
@@ -269,7 +268,7 @@ function normalizeReportKey(row: ObservationRow): string | null {
   if (row.report_id) return row.report_id;
   if (row.thread_id) return row.thread_id;
 
-  const iso = row.observed_at ?? row.created_at;
+  const iso = row.observed_at;
   if (!iso) return null;
 
   const parsed = new Date(iso);
@@ -309,11 +308,10 @@ export async function fetchLabSummary(
 
   let query = client
     .from("observations")
-    .select("kind,value_num,unit,observed_at,created_at,thread_id,report_id")
+    .select("kind,value_num,unit,observed_at,thread_id,report_id")
     .eq("user_id", options.userId)
     .not("value_num", "is", null)
-    .order("observed_at", { ascending: false })
-    .order("created_at", { ascending: false });
+    .order("observed_at", { ascending: false });
 
   if (limit > 0) {
     query = query.limit(limit);

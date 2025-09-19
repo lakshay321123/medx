@@ -24,11 +24,10 @@ export async function GET(req: Request) {
     const sb = supabaseAdmin();
     const { data, error } = await sb
       .from("observations")
-      .select("kind,value_num,unit,observed_at,created_at,thread_id,report_id")
+      .select("kind,value_num,unit,observed_at,thread_id,report_id")
       .eq("user_id", userId)
       .not("value_num", "is", null)
       .order("observed_at", { ascending: false })
-      .order("created_at", { ascending: false })
       .limit(5000);
 
     if (error) {
@@ -41,7 +40,7 @@ export async function GET(req: Request) {
       if (row.report_id) return row.report_id;
       if (row.thread_id) return row.thread_id;
 
-      const iso = row.observed_at ?? row.created_at;
+      const iso = row.observed_at;
       if (!iso) return null;
 
       const parsed = new Date(iso);
