@@ -5,6 +5,9 @@
 html, body, #__next {
   height: 100%;
 }
+html, body {
+  overflow: hidden;
+}
 
 :root.dark {
   --medx-bg-grad: linear-gradient(180deg,#06122E 0%,#071534 15%,#0A1C45 100%);

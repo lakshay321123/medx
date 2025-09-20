@@ -39,10 +39,8 @@ export default function MainLive({ panel, chatInputRef }: MainLiveProps) {
   }, [normalized, chatInputRef]);
 
   return (
-    <div className="m-6 flex-1 overflow-hidden">
-      <div className="h-full rounded-2xl p-6 ring-1 bg-white/80 dark:bg-slate-900/60 ring-black/5 dark:ring-white/10 flex flex-col">
-        {content}
-      </div>
+    <div className="flex h-full flex-col rounded-2xl p-6 ring-1 bg-white/80 dark:bg-slate-900/60 ring-black/5 dark:ring-white/10">
+      {content}
     </div>
   );
 }

@@ -107,9 +107,10 @@ export default function ShellLive() {
   );
 
   const panel = (searchParams.get("panel") ?? "chat").toLowerCase();
+  const isChatPanel = panel === "chat";
 
   return (
-    <div className={`h-full min-h-screen flex flex-col ${appBg}`}>
+    <div className={`flex h-full min-h-screen flex-col ${appBg}`}>
       <HeaderLive
         dark={dark}
         setDark={(value) => setTheme(value ? "dark" : "light")}
@@ -120,9 +121,9 @@ export default function ShellLive() {
         onModePress={handleModePress}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-12 flex-1 min-h-[calc(100vh-62px)]">
+      <div className="grid grow min-h-0 grid-cols-1 md:grid-cols-12">
         <aside
-          className={`hidden md:flex md:col-span-3 lg:col-span-2 backdrop-blur-sm p-3 flex-col gap-3 text-sm border-r ${
+          className={`hidden md:flex md:col-span-3 lg:col-span-2 shrink-0 min-h-0 overflow-y-auto backdrop-blur-sm p-3 flex-col gap-3 text-sm border-r ${
             dark
               ? "bg-slate-900/40 border-slate-800 text-white"
               : "bg-white/70 border-slate-200/60 text-slate-900"
@@ -131,9 +132,15 @@ export default function ShellLive() {
           <SidebarLive />
         </aside>
 
-        <main className="col-span-1 md:col-span-9 lg:col-span-10 flex min-h-[calc(100vh-62px)]">
-          <div className="flex flex-col flex-1 overflow-hidden">
-            <MainLive panel={panel} chatInputRef={chatInputRef} />
+        <main className="col-span-1 md:col-span-9 lg:col-span-10 flex min-h-0">
+          <div className="flex flex-1 min-h-0 flex-col">
+            <div
+              className={`flex-1 min-h-0 px-4 py-4 sm:px-6 sm:py-6 lg:px-8 ${
+                isChatPanel ? "overflow-hidden" : "overflow-y-auto"
+              }`}
+            >
+              <MainLive panel={panel} chatInputRef={chatInputRef} />
+            </div>
           </div>
         </main>
       </div>
