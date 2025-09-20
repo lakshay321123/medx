@@ -105,25 +105,41 @@ function normalizeClaimLines(lines: unknown): UniversalCodingClaimLine[] {
   return lines
     .map((line) => {
       if (!line || typeof line !== 'object') return null;
-      const record = line as Partial<UniversalCodingClaimLine> & { cpt?: unknown };
-      if (!record.cpt) return null;
+
+      const record = line as Record<string, unknown>;
+      const cptValue = record.cpt;
+      if (cptValue === undefined || cptValue === null) return null;
+
+      const rawUnits = record.units;
+      let units: number | undefined;
+      if (typeof rawUnits === 'number' && Number.isFinite(rawUnits)) {
+        units = rawUnits;
+      } else if (typeof rawUnits === 'string') {
+        const trimmed = rawUnits.trim();
+        if (trimmed.length > 0) {
+          const parsed = Number(trimmed);
+          if (Number.isFinite(parsed)) {
+            units = parsed;
+          }
+        }
+      }
+
+      const rawCharge = record.charge;
+      let charge: number | null | undefined;
+      if (typeof rawCharge === 'number' && Number.isFinite(rawCharge)) {
+        charge = rawCharge;
+      } else if (rawCharge === null) {
+        charge = null;
+      }
+
       return {
-        cpt: String(record.cpt),
+        cpt: String(cptValue),
         modifiers: ensureStringArray(record.modifiers),
         dxPointers: ensureNumberArray(record.dxPointers),
-        units: typeof record.units === 'number' && Number.isFinite(record.units)
-          ? record.units
-          : typeof record.units === 'string' && record.units.trim().length > 0
-          ? Number(record.units)
-          : undefined,
+        units,
         pos: typeof record.pos === 'string' ? record.pos : undefined,
         notes: typeof record.notes === 'string' ? record.notes : undefined,
-        charge:
-          typeof record.charge === 'number' && Number.isFinite(record.charge)
-            ? record.charge
-            : record.charge === null
-            ? null
-            : undefined
+        charge
       } satisfies UniversalCodingClaimLine;
     })
     .filter((line): line is UniversalCodingClaimLine => line !== null);
