@@ -187,8 +187,8 @@ export default function ShellLive({ Sidebar, Main, Composer }: ShellProps) {
         onModePress={onModePress}
       />
 
-      <div className="flex-1 min-h-0 overflow-hidden">
-        <div className="grid grid-cols-12 flex-1 min-h-[calc(100vh-62px)] overflow-hidden">
+      <div className="flex-1 min-h-0">
+        <div className="grid grid-cols-12 flex-1 min-h-[calc(100vh-62px)]">
           <aside
             className={`col-span-12 md:col-span-4 lg:col-span-3 xl:col-span-2 backdrop-blur-sm p-3 flex h-full flex-col gap-3 text-sm border-r min-h-0
             ${dark ? "bg-slate-900/40 border-slate-800 text-white" : "bg-white/70 border-slate-200/60 text-slate-900"}`}
@@ -197,25 +197,27 @@ export default function ShellLive({ Sidebar, Main, Composer }: ShellProps) {
           </aside>
 
           <main
-            className={`col-span-12 md:col-span-8 lg:col-span-9 xl:col-span-10 flex flex-col min-h-[calc(100vh-62px)] overflow-hidden ${
+            className={`col-span-12 md:col-span-8 lg:col-span-9 xl:col-span-10 flex min-h-[calc(100vh-62px)] ${
               dark ? "text-white" : "text-slate-900"
             }`}
           >
-            <div className="flex-1 min-h-0 overflow-y-auto">
-              <div className={`m-6 rounded-2xl p-6 ring-1 ${paneSurface}`}>
-                <MainComponent ui={ui} panel={panel} />
-              </div>
-            </div>
-
-            {composerElement ? (
-              <div className={`sticky bottom-0 z-20 border-t ${dark ? "border-slate-800" : "border-slate-200/70"}`}>
-                <div className="px-6 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
-                  <div className={`rounded-xl border ${composerSurface} bg-transparent`}>
-                    {composerElement}
-                  </div>
+            <div className="flex flex-col flex-1">
+              <div className="flex-1 overflow-y-auto">
+                <div className={`m-6 rounded-2xl p-6 ring-1 ${paneSurface}`}>
+                  <MainComponent ui={ui} panel={panel} />
                 </div>
               </div>
-            ) : null}
+
+              {composerElement ? (
+                <div className="mt-auto">
+                  <div className="px-6 pb-[max(16px,env(safe-area-inset-bottom))]">
+                    <div className={`rounded-xl border ${composerSurface} bg-transparent`}>
+                      {composerElement}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </main>
         </div>
       </div>
