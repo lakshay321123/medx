@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+html, body, #__next {
+  height: 100%;
+}
+
+:root.dark {
+  --medx-bg-grad: linear-gradient(180deg,#06122E 0%,#071534 15%,#0A1C45 100%);
+  --medx-text: #ffffff;
+}
+
 /* smooth theme transitions */
 * { transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
 
@@ -56,7 +65,7 @@
 }
 
 /* Ensure body/content contrast in dark */
-.dark body { color: rgb(229 231 235); }           /* text-gray-200 */
+.dark body { background: var(--medx-bg-grad) !important; color: var(--medx-text) !important; }
 .dark .card,.dark .panel { background: #0f172a; } /* slate-900 */
 .dark .border { border-color: rgb(71 85 105); }   /* slate-600 */
 .dark .prose-medx :where(li)::marker { color: rgb(148 163 184); }

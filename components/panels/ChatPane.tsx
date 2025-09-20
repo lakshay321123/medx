@@ -3,7 +3,6 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, useMemo, RefObject, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fromSearchParams } from '@/lib/modes/url';
-import Header from '../Header';
 import { useRouter } from 'next/navigation';
 import ChatMarkdown from '@/components/ChatMarkdown';
 import ResearchFilters from '@/components/ResearchFilters';
@@ -13,7 +12,6 @@ import type { TrialRow } from "@/types/trials";
 import { useResearchFilters } from '@/store/researchFilters';
 import { Send, Paperclip, Clipboard, Stethoscope, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { useCountry } from '@/lib/country';
-import { getRandomWelcome } from '@/lib/welcomeMessages';
 import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
 import { detectFollowupIntent } from '@/lib/intents';
@@ -1467,12 +1465,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, [isProfileThread, threadId, therapyMode]);
 
   useEffect(() => {
-    if (!isProfileThread && messages.length === 0) {
-      addOnce('welcome:chat', getRandomWelcome());
-    }
-  }, [isProfileThread, messages.length]);
-
-  useEffect(() => {
     const tid = threadId || (isProfileThread ? 'med-profile' : null);
     if (tid) saveMessages(tid, messages as any);
   }, [messages, threadId, isProfileThread]);
@@ -2655,7 +2647,6 @@ ${systemCommon}` + baseSys;
 
   return (
     <div className="relative flex h-full flex-col">
-      <Header />
       {mode === "doctor" && researchMode && (
         <>
           <ResearchFilters mode="research" onResults={handleTrials} />
@@ -2787,7 +2778,7 @@ ${systemCommon}` + baseSys;
       )}
       <div
         ref={chatRef}
-        className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 pb-28"
+        className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 pb-6"
       >
         {showDefaultSuggestions && showSuggestions && (
           <ChatSuggestions suggestions={defaultSuggestions} onSelect={handleSuggestionPick} />
@@ -2918,39 +2909,39 @@ ${systemCommon}` + baseSys;
         </div>
       )}
     </div>
-  <div className="absolute bottom-4 left-0 right-0 flex justify-center">
-        <div className="w-full max-w-3xl px-4">
-      {mode === 'doctor' && AIDOC_UI && (
-        <button
-          className="rounded-md px-3 py-1 border mb-2"
-          onClick={async () => {
-            if (AIDOC_PREFLIGHT) {
-              setShowPatientChooser(true);
-            } else {
-              runAiDocWith('current');
-            }
-          }}
-          aria-label="AI Doc Next Steps"
-          disabled={loadingAidoc}
-        >
-          {loadingAidoc ? 'Analyzing…' : 'Next steps (AI Doc)'}
-        </button>
-      )}
-      {showLiveSuggestions && (
-        <SuggestBar
-          title="Suggestions"
-          suggestions={liveSuggestions}
-          onPick={handleSuggestionPick}
-          className="rounded-2xl border border-zinc-200 bg-white/90 p-3 backdrop-blur dark:border-zinc-700 dark:bg-slate-900/80"
-        />
-      )}
-      <form
-        onSubmit={e => {
-          e.preventDefault();
-          onSubmit();
-        }}
-            className="w-full flex items-center gap-3 rounded-full medx-glass px-3 py-2"
+    <div className="px-4 sm:px-6 lg:px-8 pt-4 pb-4 border-t border-slate-200 dark:border-slate-800">
+      <div className="mx-auto max-w-3xl space-y-3">
+        {mode === 'doctor' && AIDOC_UI && (
+          <button
+            className="rounded-md px-3 py-1 border"
+            onClick={async () => {
+              if (AIDOC_PREFLIGHT) {
+                setShowPatientChooser(true);
+              } else {
+                runAiDocWith('current');
+              }
+            }}
+            aria-label="AI Doc Next Steps"
+            disabled={loadingAidoc}
           >
+            {loadingAidoc ? 'Analyzing…' : 'Next steps (AI Doc)'}
+          </button>
+        )}
+        {showLiveSuggestions && (
+          <SuggestBar
+            title="Suggestions"
+            suggestions={liveSuggestions}
+            onPick={handleSuggestionPick}
+            className="rounded-2xl border border-zinc-200 bg-white/90 p-3 backdrop-blur dark:border-zinc-700 dark:bg-slate-900/80"
+          />
+        )}
+        <form
+          onSubmit={e => {
+            e.preventDefault();
+            onSubmit();
+          }}
+          className="w-full flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/80 px-4 py-3"
+        >
             <label
               className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md medx-surface text-medx"
               title="Upload PDF or image"
@@ -3024,20 +3015,20 @@ ${systemCommon}` + baseSys;
               )}
             </div>
 
-              {!busy && (
-                <button
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-lg medx-btn-accent disabled:opacity-50"
-                  type="submit"
-                  disabled={!pendingFile && !userText.trim()}
-                  aria-label="Send"
-                  title="Send"
-                >
-                  <Send size={16} />
-                </button>
-              )}
-          </form>
-        </div>
+            {!busy && (
+              <button
+                className="w-10 h-10 rounded-full flex items-center justify-center text-lg medx-btn-accent disabled:opacity-50"
+                type="submit"
+                disabled={!pendingFile && !userText.trim()}
+                aria-label="Send"
+                title="Send"
+              >
+                <Send size={16} />
+              </button>
+            )}
+        </form>
       </div>
+    </div>
       {/* Preflight chooser (flagged) */}
       {AIDOC_UI && AIDOC_PREFLIGHT && showPatientChooser && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/20">
