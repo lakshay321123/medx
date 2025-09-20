@@ -161,3 +161,15 @@
   animation: caret 1s steps(1, end) infinite;
 }
 
+/* Ensure message content is always clickable */
+.message-content,
+.message-content * {
+  pointer-events: auto;
+}
+/* Any decorative overlays should not intercept clicks */
+.message-overlay,
+.fade-mask,
+.gradient-mask {
+  pointer-events: none;
+}
+

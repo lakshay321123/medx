@@ -96,7 +96,7 @@ export default function ChatMarkdown({ content }: { content: string }) {
   return (
     <div
       className="
-        prose prose-slate dark:prose-invert max-w-[72ch]
+        message-content prose prose-slate dark:prose-invert max-w-[72ch]
         prose-headings:font-semibold prose-headings:mb-2 prose-headings:mt-3
         prose-h3:text-lg prose-h4:text-base
         prose-p:my-2 prose-li:my-1 prose-strong:font-medium
