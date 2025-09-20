@@ -49,6 +49,9 @@ import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
 import { getUserPosition, fetchNearby, geocodeArea, type NearbyKind, type NearbyPlace } from "@/lib/nearby";
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
 import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
+import { collectCaseInput } from '@/lib/coding/collectCaseInput';
+import { useAutoCodingGuide } from '@/lib/coding/useAutoCodingGuide';
+import { UniversalCodingCard } from '@/components/coding/UniversalCodingCard';
 
 const ChatSuggestions = dynamic(() => import("./ChatSuggestions"), { ssr: false });
 
@@ -2810,9 +2813,31 @@ ${systemCommon}` + baseSys;
             </div>
           </div>
         )}
-      <div className="mx-auto w-full max-w-3xl space-y-4">
-        {renderedMessages}
-      </div>
+        {autoCodingMode && (autoCodingLoading || autoCodingData || autoCodingError) ? (
+          <div className="mx-auto mb-3 w-full max-w-3xl space-y-2">
+            {autoCodingLoading ? (
+              <div className="animate-pulse rounded-lg border border-dashed border-slate-300 bg-slate-100/70 px-3 py-3 text-sm text-slate-500">
+                Generating coding guidance…
+              </div>
+            ) : null}
+            {autoCodingError ? (
+              <div className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <span>Unable to load coding guidance.</span>
+                <button
+                  type="button"
+                  onClick={refreshAutoCoding}
+                  className="rounded border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : null}
+            {autoCodingData ? <UniversalCodingCard data={autoCodingData} /> : null}
+          </div>
+        ) : null}
+        <div className="mx-auto w-full max-w-3xl space-y-4">
+          {renderedMessages}
+        </div>
       {AIDOC_UI && aidoc && (
         <div className="mx-auto w-full max-w-3xl">
           <div className="mt-3 rounded-lg border p-3 space-y-2">
@@ -3108,3 +3133,82 @@ ${systemCommon}` + baseSys;
     </div>
   );
 }
+  const autoCodingMode = modeState.base === 'doctor' ? (researchMode ? 'doctor_research' : 'doctor') : null;
+  const searchParamsString = sp.toString();
+
+  const caseParams = useMemo(() => {
+    if (!autoCodingMode) return null;
+    const params = new URLSearchParams(searchParamsString);
+    const data: Record<string, unknown> = {};
+    const simpleKeys = [
+      'procedure',
+      'procedureName',
+      'procedure_name',
+      'primaryProcedure',
+      'pos',
+      'siteOfService',
+      'site_of_service',
+      'placeOfService',
+      'dx',
+      'diagnosis',
+      'dxFreeText',
+      'dx_text',
+      'indication',
+      'payer',
+      'insurance',
+      'specialty',
+      'side',
+      'laterality'
+    ];
+
+    for (const key of simpleKeys) {
+      const value = params.get(key);
+      if (value) {
+        data[key] = value;
+      }
+    }
+
+    const dxCodeKeys = ['dxCode', 'dx_code', 'icdCode', 'icd_code'];
+    const dxCodes: string[] = [];
+    for (const key of dxCodeKeys) {
+      const values = params.getAll(key);
+      if (values.length) {
+        dxCodes.push(...values.filter(Boolean));
+      }
+    }
+    if (dxCodes.length) {
+      data.dxCodes = dxCodes;
+    }
+
+    return Object.keys(data).length > 0 ? data : null;
+  }, [autoCodingMode, searchParamsString]);
+
+  const getCaseInput = useCallback(() => {
+    if (!autoCodingMode) return null;
+    const globalCase = typeof window !== 'undefined'
+      ? (window as any).__medxDoctorCase ?? (window as any).medxDoctorCase ?? null
+      : null;
+
+    if (globalCase && caseParams) {
+      return collectCaseInput({ ...globalCase, ...caseParams });
+    }
+
+    if (globalCase) {
+      const mapped = collectCaseInput(globalCase);
+      if (mapped) return mapped;
+    }
+
+    if (caseParams) {
+      return collectCaseInput(caseParams);
+    }
+
+    return null;
+  }, [autoCodingMode, caseParams]);
+
+  const {
+    data: autoCodingData,
+    loading: autoCodingLoading,
+    error: autoCodingError,
+    refresh: refreshAutoCoding
+  } = useAutoCodingGuide({ mode: autoCodingMode ?? 'doctor', getCaseInput });
+
