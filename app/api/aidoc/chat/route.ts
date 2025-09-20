@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 // [AIDOC_TRIAGE_IMPORT] add triage imports
 import { handleDocAITriage, detectExperientialIntent } from "@/lib/aidoc/triage";
-import { POST as streamPOST } from "../../chat/stream/route";
 import { getUserId } from "@/lib/getUserId";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchLabSummary } from "@/lib/labs/summary";
+import { callAiDocWithFallback } from "@/lib/llm/aidocFailover";
 
 export const runtime = 'nodejs';
 
@@ -171,17 +171,41 @@ export async function POST(req: NextRequest) {
       + (contextPacket ? `\n\n<CONTEXT_PACKET>${JSON.stringify(contextPacket)}</CONTEXT_PACKET>` : ""),
   };
   const finalMessages = [systemPreamble, ...messages];
-  const forwardBody = { ...body, messages: finalMessages };
 
-  const headers = new Headers(req.headers);
-  headers.delete("content-length");
-  headers.set("content-type", "application/json");
-  const forwardReq = new NextRequest(req.url, {
-    method: req.method,
-    headers,
-    body: JSON.stringify(forwardBody),
-  });
+  try {
+    const { reply, provider } = await callAiDocWithFallback({ messages: finalMessages });
+    const text = reply || "";
+    const encoder = new TextEncoder();
+    const tag = `openai-fallback:${provider}`;
 
-  // existing streaming setup continues here
-  return streamPOST(forwardReq);
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const send = (chunk: string) => {
+          const payload = { choices: [{ delta: { content: chunk } }], provider: tag };
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+        };
+
+        if (text) {
+          const size = 180;
+          for (let i = 0; i < text.length; i += size) {
+            send(text.slice(i, i + size));
+          }
+        }
+
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+      },
+    });
+  } catch (err: any) {
+    console.error("AiDoc chat fallback failed", err);
+    return NextResponse.json({ ok: false, error: "ai-doc chat failed" }, { status: 500 });
+  }
 }

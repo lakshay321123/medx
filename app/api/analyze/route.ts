@@ -5,6 +5,7 @@ import { analyzeLabText } from "@/lib/labReport";
 import { extractAll, canonicalizeInputs } from "@/lib/medical/engine/extract";
 import { computeAll } from "@/lib/medical/engine/computeAll";
 import { dualEngineSummarize } from "@/lib/reports/dualEngine";
+import { callAiDocWithFallback } from "@/lib/llm/aidocFailover";
 
 const OAI_KEY = process.env.OPENAI_API_KEY!;
 const MODEL_TEXT = process.env.OPENAI_TEXT_MODEL || "gpt-5";
@@ -14,14 +15,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 async function classifyText(text: string): Promise<string> {
-  const r = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OAI_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: MODEL_TEXT,
+  try {
+    const { reply } = await callAiDocWithFallback({
       messages: [
         {
           role: "system",
@@ -30,33 +25,65 @@ async function classifyText(text: string): Promise<string> {
         },
         { role: "user", content: text.slice(0, 2000) },
       ],
-    }),
-  });
-  const data = await r.json();
-  return data?.choices?.[0]?.message?.content?.trim() || "other_medical_doc";
+      model: MODEL_TEXT,
+      temperature: 0,
+    });
+    return reply?.trim() || "other_medical_doc";
+  } catch (err) {
+    console.error("classifyText failed", err);
+    return "other_medical_doc";
+  }
 }
 
 async function classifyImage(dataUrl: string): Promise<string> {
-  const r = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OAI_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: MODEL_VISION,
-      messages: [
-        {
-          role: "system",
-          content:
-            "Classify this medical image into: xray, lab_report, prescription, discharge_summary, other_medical_doc.",
-        },
-        { role: "user", content: [{ type: "image_url", image_url: { url: dataUrl } }] },
-      ],
-    }),
-  });
-  const data = await r.json();
-  return data?.choices?.[0]?.message?.content?.trim() || "other_medical_doc";
+  try {
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OAI_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: MODEL_VISION,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Classify this medical image into: xray, lab_report, prescription, discharge_summary, other_medical_doc.",
+          },
+          { role: "user", content: [{ type: "image_url", image_url: { url: dataUrl } }] },
+        ],
+      }),
+    });
+    if (!r.ok) {
+      throw new Error(await r.text());
+    }
+    const data = await r.json();
+    return data?.choices?.[0]?.message?.content?.trim() || "other_medical_doc";
+  } catch (err) {
+    console.error("classifyImage vision failed", err);
+    try {
+      const { reply } = await callAiDocWithFallback({
+        messages: [
+          {
+            role: "system",
+            content:
+              "Vision model unavailable. When unsure, respond with 'other_medical_doc'.",
+          },
+          {
+            role: "user",
+            content:
+              "Vision classification failed for an uploaded medical image. Provide the best fallback category.",
+          },
+        ],
+        temperature: 0,
+      });
+      return reply?.trim() || "other_medical_doc";
+    } catch (fallbackErr) {
+      console.error("classifyImage fallback failed", fallbackErr);
+      return "other_medical_doc";
+    }
+  }
 }
 
 function promptForCategory(category: string, doctorMode: boolean): string {
@@ -175,14 +202,8 @@ export async function POST(req: Request) {
 
         const basePrompt = promptForCategory(category, doctorMode);
         const systemPrompt = `User country: ${country.code3} (${country.name}).\nLocalize counseling, OTC examples, and triage advice to this country when relevant.\nDo not invent brand names; use generics if uncertain.\n` + basePrompt;
-        const r = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${OAI_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: MODEL_TEXT,
+        try {
+          const { reply } = await callAiDocWithFallback({
             messages: [
               { role: "system", content: systemPrompt },
               {
@@ -190,10 +211,13 @@ export async function POST(req: Request) {
                 content: `User note (optional): ${note || "not provided"}\n---\n${text.slice(0, 15000)}`,
               },
             ],
-          }),
-        });
-        const data = await r.json();
-        report = data?.choices?.[0]?.message?.content || "";
+            model: MODEL_TEXT,
+          });
+          report = reply || "";
+        } catch (err) {
+          console.error("text summarization failed", err);
+          report = "Unable to generate summary right now.";
+        }
       } else {
         dataUrl = await rasterizeFirstPage(buf);
         category = await classifyImage(dataUrl);
@@ -208,28 +232,55 @@ export async function POST(req: Request) {
     if (dataUrl && !report) {
       const basePrompt = promptForCategory(category, doctorMode);
       const systemPrompt = `User country: ${country.code3} (${country.name}).\nLocalize counseling, OTC examples, and triage advice to this country when relevant.\nDo not invent brand names; use generics if uncertain.\n` + basePrompt;
-      const r = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${OAI_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: MODEL_VISION,
-          messages: [
-            { role: "system", content: systemPrompt },
-            {
-              role: "user",
-              content: [
-                ...(note ? [{ type: "text", text: note }] : []),
-                { type: "image_url", image_url: { url: dataUrl } },
-              ],
-            },
-          ],
-        }),
-      });
-      const data = await r.json();
-      report = data?.choices?.[0]?.message?.content || "";
+      try {
+        const r = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${OAI_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: MODEL_VISION,
+            messages: [
+              { role: "system", content: systemPrompt },
+              {
+                role: "user",
+                content: [
+                  ...(note ? [{ type: "text", text: note }] : []),
+                  { type: "image_url", image_url: { url: dataUrl } },
+                ],
+              },
+            ],
+          }),
+        });
+        if (!r.ok) {
+          throw new Error(await r.text());
+        }
+        const data = await r.json();
+        report = data?.choices?.[0]?.message?.content || "";
+      } catch (err) {
+        console.error("vision summarization failed", err);
+        try {
+          const { reply } = await callAiDocWithFallback({
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You cannot see the user's image. Provide a short note advising them to upload text or describe the document.",
+              },
+              {
+                role: "user",
+                content: note ? `User note: ${note}` : "No additional note provided.",
+              },
+            ],
+            temperature: doctorMode ? 0.2 : 0.4,
+          });
+          report = reply || "We couldn't analyze that image right now.";
+        } catch (fallbackErr) {
+          console.error("vision summarization fallback failed", fallbackErr);
+          report = "We couldn't analyze that image right now.";
+        }
+      }
     }
 
     return NextResponse.json({

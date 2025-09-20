@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/getUserId";
 import LLM, { type Msg } from "@/lib/LLM";
+import { callAiDocWithFallback } from "@/lib/llm/aidocFailover";
 
 const MODEL_NAME = process.env.LLM_MODEL_ID || "llama-3.1-70b";
 
@@ -328,7 +329,8 @@ async function generateSummary({
     },
   ];
 
-  const text = await LLM.finalize(messages);
+  const { reply } = await callAiDocWithFallback({ messages, temperature: 0.1 });
+  const text = reply?.trim();
   return text || "AI summary unavailable.";
 }
 

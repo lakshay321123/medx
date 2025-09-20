@@ -35,3 +35,11 @@ export async function callGroq(messages: ChatCompletionMessageParam[], {
   const content = data?.choices?.[0]?.message?.content ?? "";
   return content as string;
 }
+
+export async function callGroqChat(params: {
+  messages: ChatCompletionMessageParam[];
+  temperature?: number;
+}) {
+  const { messages, temperature } = params;
+  return callGroq(messages, { temperature });
+}
