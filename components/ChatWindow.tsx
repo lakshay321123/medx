@@ -6,12 +6,21 @@ import { persistIfTemp } from "@/lib/chat/persist";
 import ThinkingTimer from "@/components/ui/ThinkingTimer";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { getResearchFlagFromUrl } from "@/utils/researchFlag";
+import { AssistantContent } from "@/components/citations/AssistantContent";
+import { normalizeCitations } from "@/lib/normalizeCitations";
 
-function MessageRow({ m }: { m: { id: string; role: string; content: string } }) {
+function MessageRow({ m }: { m: { id: string; role: string; content: string; citations?: any } }) {
+  const isAssistant = m.role === "assistant";
   return (
     <div className="p-2">
-      <strong>{m.role}:</strong>{" "}
-      {m.content}
+      <strong>{m.role}:</strong>
+      <div className="mt-1">
+        {isAssistant ? (
+          <AssistantContent text={m.content} citations={normalizeCitations(m)} />
+        ) : (
+          <span>{m.content}</span>
+        )}
+      </div>
     </div>
   );
 }

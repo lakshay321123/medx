@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useTimeline } from "@/lib/hooks/useAppData";
+import { AssistantContent } from "@/components/citations/AssistantContent";
+import { normalizeCitations } from "@/lib/normalizeCitations";
 
 type Cat = "ALL"|"LABS"|"VITALS"|"IMAGING"|"AI"|"NOTES";
 const catOf = (it:any):Cat => {
@@ -167,9 +169,10 @@ export default function Timeline(){
                   )}
                   {(long || short) && (
                     <TabsContent value="summary">
-                      <article className="prose prose-zinc dark:prose-invert max-w-none whitespace-pre-wrap select-text">
-                        {(long || short) as string}
-                      </article>
+                      <AssistantContent
+                        text={(long || short) as string}
+                        citations={normalizeCitations(active?.meta)}
+                      />
                     </TabsContent>
                   )}
                   {text && (

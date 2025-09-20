@@ -1,0 +1,41 @@
+.so-assistant .so-body {
+  white-space: pre-wrap;
+}
+
+.so-source-chips {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.so-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 9999px;
+  border: 1px solid rgba(2,6,23,0.12);
+  background: rgba(255,255,255,0.7);
+  font-size: 12px;
+  line-height: 1;
+  color: #0ea5e9;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.so-chip:hover {
+  background: #fff;
+  border-color: rgba(2,6,23,0.2);
+  text-decoration: underline;
+}
+
+.so-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #10b981;
+}
+
+.message-content, .so-assistant, .so-assistant * { pointer-events: auto; }
+.message-overlay, .fade-mask { pointer-events: none; }

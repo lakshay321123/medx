@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { safeJson } from "@/lib/safeJson";
 import { useProfile } from "@/lib/hooks/useAppData";
+import { AssistantContent } from "@/components/citations/AssistantContent";
+import { normalizeCitations } from "@/lib/normalizeCitations";
 
 const SEXES = ["male", "female", "other"] as const;
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -57,6 +59,7 @@ export default function MedicalProfile() {
 
   const [summary, setSummary] = useState<string>("");
   const [reasons, setReasons] = useState<string>("");
+  const [summaryPayload, setSummaryPayload] = useState<any>(null);
 
   const loadSummary = async () => {
     try {
@@ -65,6 +68,7 @@ export default function MedicalProfile() {
       if (j?.text) setSummary(j.text);
       else if (j?.summary) setSummary(j.summary);
       if (j?.reasons) setReasons(j.reasons);
+      setSummaryPayload(j);
     } catch {}
   };
   useEffect(() => { loadSummary(); }, []);
@@ -472,7 +476,16 @@ export default function MedicalProfile() {
             >Recompute Risk</button>
           </div>
         </div>
-        <p className="mt-2 text-sm whitespace-pre-wrap">{summary || "No summary yet."}</p>
+        <div className="mt-2">
+          {summary ? (
+            <AssistantContent
+              text={summary}
+              citations={normalizeCitations(summaryPayload)}
+            />
+          ) : (
+            <span className="text-sm">No summary yet.</span>
+          )}
+        </div>
         <div className="mt-3 text-[11px] text-muted-foreground">
           ⚠️ This is AI-generated support, not a medical diagnosis. Always consult a qualified clinician.
         </div>

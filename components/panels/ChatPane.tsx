@@ -7,7 +7,6 @@ import Header from '../Header';
 import { useRouter } from 'next/navigation';
 import ChatMarkdown from '@/components/ChatMarkdown';
 import ResearchFilters from '@/components/ResearchFilters';
-import { LinkBadge } from '@/components/SafeLink';
 import TrialsTable from "@/components/TrialsTable";
 import type { TrialRow } from "@/types/trials";
 import { useResearchFilters } from '@/store/researchFilters';
@@ -48,6 +47,8 @@ import { StopButton } from "@/components/ui/StopButton";
 import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
 import { getUserPosition, fetchNearby, geocodeArea, type NearbyKind, type NearbyPlace } from "@/lib/nearby";
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
+import { AssistantContent } from "@/components/citations/AssistantContent";
+import { normalizeCitations } from "@/lib/normalizeCitations";
 
 const ChatSuggestions = dynamic(() => import("./ChatSuggestions"), { ssr: false });
 
@@ -478,7 +479,7 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
           </span>
         )}
       </header>
-      <ChatMarkdown content={m.content} />
+      <AssistantContent text={m.content} citations={normalizeCitations(m)} />
       {m.error && (
         <div className="inline-flex items-center gap-2 text-xs rounded-lg px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-900/20 dark:text-rose-200 dark:border-rose-800">
           ⚠️ {m.error}
@@ -525,17 +526,7 @@ function ChatCard({ m, therapyMode, onAction, simple }: { m: Extract<ChatMessage
     <div
       className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl"
     >
-      <ChatMarkdown content={m.content} />
-      {m.role === "assistant" && (m.citations?.length || 0) > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {(m.citations || []).slice(0, simple ? 3 : 6).map((c, i) => (
-            <LinkBadge key={i} href={c.url}>
-              {c.source.toUpperCase()}
-              {c.extra?.evidenceLevel ? ` · ${c.extra.evidenceLevel}` : ""}
-            </LinkBadge>
-          ))}
-        </div>
-      )}
+      <AssistantContent text={m.content} citations={normalizeCitations(m)} />
       {!therapyMode && suggestions.length > 0 && (
         <SuggestionChips suggestions={suggestions} onAction={onAction} />
       )}
@@ -2060,7 +2051,7 @@ ${systemCommon}` + baseSys;
             body: JSON.stringify({ query: lastUserMsg, filters, audience })
           });
           const data = await r.json();
-          const cites = Array.isArray(data?.citations) ? data.citations : [];
+          const cites = normalizeCitations(data);
           setMessages(prev => prev.map(msg =>
             msg.id === pendingId ? { ...msg, citations: cites } : msg
           ));
@@ -2734,11 +2725,10 @@ ${systemCommon}` + baseSys;
           <div className="mt-3 rounded-lg border p-3 space-y-2">
             <div className="text-sm font-medium">Observations</div>
             <div className="text-sm opacity-90">
-              {labSummaryCard ? (
-                <ChatMarkdown content={labSummaryCard} />
-              ) : (
-                <ChatMarkdown content={NO_LABS_MESSAGE} />
-              )}
+              <AssistantContent
+                text={labSummaryCard ?? NO_LABS_MESSAGE}
+                citations={normalizeCitations(labSummary)}
+              />
             </div>
 
             {Array.isArray(aidoc?.plan?.steps) && aidoc.plan.steps.length > 0 && (

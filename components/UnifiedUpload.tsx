@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 import { safeJson } from "@/lib/safeJson";
+import { AssistantContent } from "@/components/citations/AssistantContent";
+import { normalizeCitations } from "@/lib/normalizeCitations";
 
 export default function UnifiedUpload() {
   const [loading, setLoading] = useState(false);
@@ -75,12 +77,12 @@ export default function UnifiedUpload() {
             <>
               <section className="p-3 border rounded">
                 <h3 className="font-semibold mb-1">Wellness Summary</h3>
-                <p className="whitespace-pre-wrap text-sm">{out.patient}</p>
+                <AssistantContent text={out.patient} citations={normalizeCitations(out)} />
               </section>
               {out.doctor && (
                 <section className="p-3 border rounded">
                   <h3 className="font-semibold mb-1">Doctor Summary</h3>
-                  <p className="whitespace-pre-wrap text-sm">{out.doctor}</p>
+                  <AssistantContent text={out.doctor} citations={normalizeCitations(out)} />
                 </section>
               )}
             </>
@@ -88,10 +90,12 @@ export default function UnifiedUpload() {
           {out.type === "image" && (
             <section className="p-3 border rounded">
               <h3 className="font-semibold mb-1">Imaging Report</h3>
-              <p className="whitespace-pre-wrap text-sm">{out.report}</p>
+              <AssistantContent text={out.report} citations={normalizeCitations(out)} />
             </section>
           )}
-          <p className="text-xs text-gray-400">{out.disclaimer}</p>
+          <div className="text-xs text-gray-400">
+            <AssistantContent text={out.disclaimer} citations={normalizeCitations(out)} />
+          </div>
         </div>
       )}
     </div>
