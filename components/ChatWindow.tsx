@@ -6,12 +6,14 @@ import { persistIfTemp } from "@/lib/chat/persist";
 import { AnalyzingInline } from "@/components/chat/AnalyzingInline";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { getResearchFlagFromUrl } from "@/utils/researchFlag";
+import ChatMarkdown from "@/components/ChatMarkdown";
+import { LinkBadge } from "@/components/SafeLink";
 
 function MessageRow({ m }: { m: { id: string; role: string; content: string } }) {
   return (
-    <div className="p-2">
-      <strong>{m.role}:</strong>{" "}
-      {m.content}
+    <div className="p-2 space-y-1">
+      <div className="text-xs uppercase tracking-wide text-slate-500">{m.role}</div>
+      <ChatMarkdown content={m.content} />
     </div>
   );
 }
@@ -72,11 +74,19 @@ export function ChatWindow() {
               <div key={place.id} className="result-card border p-2 rounded">
                 <p>{place.name}</p>
                 <p className="text-sm opacity-80">{place.address}</p>
-                {place.mapLink && (
-                  <a className="text-blue-600 underline" href={place.mapLink} target="_blank" rel="noopener noreferrer">
-                    Directions
-                  </a>
-                )}
+                <div className="flex flex-wrap items-center gap-3 text-sm">
+                  {place.phone && (
+                    <a href={`tel:${place.phone}`} className="underline">
+                      Call
+                    </a>
+                  )}
+                  {place.mapLink && (
+                    <LinkBadge href={place.mapLink}>
+                      Directions
+                    </LinkBadge>
+                  )}
+                  <span className="opacity-70">{place.distance_km} km</span>
+                </div>
               </div>
             ))}
           </div>

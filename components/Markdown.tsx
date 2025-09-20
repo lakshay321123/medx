@@ -25,5 +25,10 @@ export default function Markdown({ text }: { text: string }) {
       <span>${useLabel}</span><span aria-hidden="true" class="opacity-70">↗</span>
   </a>`;
   });
-  return <div className="markdown" dangerouslySetInnerHTML={{ __html: withSafeLinks }} />;
+  return (
+    <div
+      className="markdown message-content"
+      dangerouslySetInnerHTML={{ __html: withSafeLinks }}
+    />
+  );
 }

@@ -1,38 +1,24 @@
 import React from "react";
 import { sourceLabelFromUrl } from "@/lib/url";
 
-const ALLOW = [
-  "nih.gov",
-  "ncbi.nlm.nih.gov",
-  "cancer.gov",
-  "who.int",
-  "cdc.gov",
-  "nhs.uk",
-  "mayoclinic.org",
-  "uptodate.com",
-  "clinicaltrials.gov",
-  "europepmc.org",
-  "ctri.nic.in", // allow CTRI
-];
-
 export function normalizeExternalHref(input?: string): string | null {
   if (!input) return null;
   let href = input.trim();
+  if (!href) return null;
 
   // If model returned "[Learn more](www.nhs.uk/)" (no protocol), add https
   if (/^www\./i.test(href)) href = "https://" + href;
 
-  // If relative or missing protocol → invalid
-  if (!/^https?:\/\//i.test(href)) return null;
-
   try {
-    const url = new URL(href);
-    // encode spaces etc.
+    const base =
+      typeof window !== "undefined" ? window.location.origin : "https://example.org";
+    const url = new URL(href, base);
+
+    // allow only http/https, block javascript:, data:, etc.
+    if (!/^https?:$/i.test(url.protocol)) return null;
+
+    // encode spaces etc. (path segments only)
     url.pathname = url.pathname.split("/").map(encodeURIComponent).join("/");
-    const hostOk = ALLOW.some(
-      d => url.hostname === d || url.hostname.endsWith(`.${d}`)
-    );
-    if (!hostOk) return null;
     return url.toString();
   } catch {
     return null;
