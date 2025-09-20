@@ -173,3 +173,19 @@
   pointer-events: none;
 }
 
+/* ----- MedX Live UI look ----- */
+:root.dark {
+  --medx-bg-grad: linear-gradient(180deg,#06122E 0%,#071534 15%,#0A1C45 100%);
+  --medx-text: #ffffff;
+  --medx-pane: rgba(15, 23, 42, 0.6);
+  --medx-pane-ring: rgba(255,255,255,0.10);
+  --medx-composer: rgba(15, 23, 42, 0.7);
+  --medx-border: #1f2937;
+}
+
+.dark body { background: var(--medx-bg-grad) !important; color: var(--medx-text) !important; }
+.dark .medx-pane { background: var(--medx-pane); box-shadow: none; }
+.dark .medx-ring { box-shadow: 0 0 0 1px var(--medx-pane-ring) inset; }
+.dark .medx-border { border-color: var(--medx-border) !important; }
+.dark .medx-text { color: var(--medx-text) !important; }
+

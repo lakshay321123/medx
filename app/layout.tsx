@@ -1,6 +1,5 @@
 import "./globals.css";
 import { ThemeProvider } from "next-themes";
-import Sidebar from "../components/Sidebar";
 import { CountryProvider } from "@/lib/country";
 import { ContextProvider } from "@/lib/context";
 import { TopicProvider } from "@/lib/topic";
@@ -27,15 +26,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <CountryProvider>
             <ContextProvider>
               <TopicProvider>
-                <div className="flex medx-gradient">
-                  <Suspense fallback={null}>
-                    <Sidebar />
-                  </Suspense>
-                  <main className="flex-1 md:ml-64 min-h-dvh flex flex-col relative z-0">
-                    {children}
-                    <MemorySnackbar />
-                    <UndoToast />
-                  </main>
+                <div className="min-h-screen flex flex-col relative">
+                  <Suspense fallback={null}>{children}</Suspense>
+                  <MemorySnackbar />
+                  <UndoToast />
                 </div>
               </TopicProvider>
             </ContextProvider>

@@ -34,12 +34,17 @@ export function normalizeExternalHref(input?: string): string | null {
   }
 }
 
-export const SafeAnchor: React.FC<React.AnchorHTMLAttributes<HTMLAnchorElement>> = ({ href, children, ...rest }) => {
+export const SafeAnchor: React.FC<React.AnchorHTMLAttributes<HTMLAnchorElement>> = ({
+  href,
+  children,
+  className = "",
+  ...rest
+}) => {
   const safe = normalizeExternalHref(href);
   if (!safe) {
     return (
       <span
-        className="text-slate-500 dark:text-slate-400 cursor-not-allowed"
+        className={`inline-flex items-center rounded-full border border-slate-200 dark:border-slate-700 bg-gray-200 dark:bg-slate-800 px-2 py-1 text-xs text-gray-500 cursor-not-allowed ${className}`.trim()}
         title="Link unavailable"
       >
         {children}
@@ -51,10 +56,13 @@ export const SafeAnchor: React.FC<React.AnchorHTMLAttributes<HTMLAnchorElement>>
       href={safe}
       target="_blank"
       rel="noopener noreferrer"
-      className="underline underline-offset-2 decoration-slate-400 hover:decoration-slate-600 dark:decoration-slate-500 dark:hover:decoration-slate-300"
+      className={`inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-xs font-medium text-slate-700 dark:text-white shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition ${className}`.trim()}
       {...rest}
     >
       {children}
+      <span aria-hidden className="opacity-70">
+        ↗
+      </span>
     </a>
   );
 };
@@ -137,9 +145,8 @@ export function LinkBadge(props: React.AnchorHTMLAttributes<HTMLAnchorElement>) 
 
   if (!safe || verdict === "dead") {
     const disabledClass =
-      "inline-flex items-center rounded-full border px-2 py-1 text-xs opacity-70 cursor-not-allowed " +
-      "border-slate-200 dark:border-gray-700 text-slate-400" +
-      (className ? " " + className : "");
+      "inline-flex items-center rounded-full border border-slate-200 dark:border-slate-700 bg-gray-200 dark:bg-slate-800 px-2 py-1 text-xs text-gray-500 cursor-not-allowed " +
+      (className ? className : "");
     return (
       <span className={disabledClass} title="Link unavailable">
         {label}
@@ -153,11 +160,7 @@ export function LinkBadge(props: React.AnchorHTMLAttributes<HTMLAnchorElement>) 
       target="_blank"
       rel="noopener noreferrer"
       aria-busy={verdict === null ? "true" : "false"}
-      className={
-        "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs shadow-sm hover:bg-slate-50 dark:hover:bg-gray-800 transition " +
-        "border-slate-200 dark:border-gray-700" +
-        (className ? " " + className : "")
-      }
+      className={`inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-xs font-medium text-slate-700 dark:text-white shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition ${className}`.trim()}
       {...rest}
     >
       <span>{label}</span>
