@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
 import { ChatInput } from "@/components/ChatInput";
 import { persistIfTemp } from "@/lib/chat/persist";
-import ThinkingTimer from "@/components/ui/ThinkingTimer";
+import { AnalyzingInline } from "@/components/chat/AnalyzingInline";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { getResearchFlagFromUrl } from "@/utils/researchFlag";
 
@@ -23,13 +23,11 @@ export function ChatWindow() {
   const [results, setResults] = useState<any[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
   const [isThinking, setIsThinking] = useState(false);
-  const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
 
   const handleSend = async (content: string, locationToken?: string) => {
     // after sending user message, persist thread if needed
     await persistIfTemp();
     setIsThinking(true);
-    setThinkingStartedAt(Date.now());
     if (locationToken) {
       const research = getResearchFlagFromUrl();
       const res = await fetch("/api/chat", {
@@ -46,7 +44,6 @@ export function ChatWindow() {
       addMessage({ role: "assistant", content: `You said: ${content}` });
     }
     setIsThinking(false);
-    setThinkingStartedAt(null);
   };
 
   return (
@@ -54,13 +51,16 @@ export function ChatWindow() {
       <div ref={chatRef} className="flex-1 overflow-auto">
         {messages.map((m, idx) => {
           const isLastMessage = idx === messages.length - 1;
-          const showThinkingTimer = isLastMessage && isThinking && thinkingStartedAt !== null;
+          const showThinkingTimer = isLastMessage && isThinking;
           return (
             <div key={m.id} className="space-y-2">
               <MessageRow m={m} />
               {showThinkingTimer ? (
                 <div className="px-2">
-                  <ThinkingTimer label="Analyzing" startedAt={thinkingStartedAt ?? undefined} />
+                  <div className="mt-1 inline-flex items-center gap-3 text-sm text-slate-500">
+                    <span>Thinking…</span>
+                    <AnalyzingInline active={showThinkingTimer} />
+                  </div>
                 </div>
               ) : null}
             </div>
