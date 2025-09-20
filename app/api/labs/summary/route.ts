@@ -24,7 +24,7 @@ export async function GET(req: Request) {
     const sb = supabaseAdmin();
     const { data, error } = await sb
       .from("observations")
-      .select("kind,value_num,unit,observed_at,thread_id,report_id")
+      .select("kind,value_num,unit,observed_at,report_id")
       .eq("user_id", userId)
       .not("value_num", "is", null)
       .order("observed_at", { ascending: false })
@@ -35,37 +35,25 @@ export async function GET(req: Request) {
     }
 
     const rows = (data ?? []) as ObservationRow[];
+    const { trend } = summarizeLabObservations(rows, { tests, from, to });
 
-    const reportKey = (row: ObservationRow): string | null => {
-      if (row.report_id) return row.report_id;
-      if (row.thread_id) return row.thread_id;
-
-      const iso = row.observed_at;
-      if (!iso) return null;
-
-      const parsed = new Date(iso);
-      if (Number.isNaN(parsed.getTime())) return null;
-
-      const day = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
-      return day.toISOString();
-    };
-
-    const allReportKeys = new Set<string>();
+    const reportKeys = new Set<string>();
     for (const row of rows) {
-      const key = reportKey(row);
-      if (key) allReportKeys.add(key);
+      const observed = row.observed_at ? new Date(row.observed_at) : null;
+      const day = observed && !Number.isNaN(+observed)
+        ? new Date(observed.getFullYear(), observed.getMonth(), observed.getDate())
+            .toISOString()
+            .slice(0, 10)
+        : null;
+      const key = row.report_id ?? day;
+      if (key) reportKeys.add(key);
     }
-
-    const totalReports = allReportKeys.size;
-
-    const { trend, points } = summarizeLabObservations(rows, { tests, from, to });
+    const totalReports = reportKeys.size;
 
     return NextResponse.json({
       ok: true,
       trend,
       meta: {
-        source: "observations",
-        points,
         total_reports: totalReports,
       },
     });

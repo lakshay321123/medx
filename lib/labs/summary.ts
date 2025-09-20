@@ -15,7 +15,6 @@ export type ObservationRow = {
   value_num: number | null;
   unit: string | null;
   observed_at: string | null;
-  thread_id: string | null;
   report_id: string | null;
 };
 
@@ -58,22 +57,119 @@ export type LabSummaryOptions = {
 };
 
 const TEST_DEFINITIONS: TestDefinition[] = [
-  { test_code: "LDL-C", test_name: "LDL Cholesterol", direction: "lower", kinds: ["ldl", "ldl_cholesterol"] },
-  { test_code: "HDL-C", test_name: "HDL Cholesterol", direction: "higher", kinds: ["hdl", "hdl_cholesterol"] },
-  { test_code: "TG", test_name: "Triglycerides", direction: "lower", kinds: ["triglycerides", "tg"] },
-  { test_code: "TC", test_name: "Total Cholesterol", direction: "lower", kinds: ["total_cholesterol", "cholesterol", "cholesterol_total"] },
-  { test_code: "HBA1C", test_name: "HbA1c", direction: "lower", kinds: ["hba1c"] },
-  { test_code: "FBG", test_name: "Fasting Glucose", direction: "lower", kinds: ["blood_sugar_fasting", "fbg"] },
+  {
+    test_code: "LDL-C",
+    test_name: "LDL Cholesterol",
+    direction: "lower",
+    kinds: [
+      "ldl",
+      "ldl_c",
+      "ldlcholesterol",
+      "ldl_cholesterol",
+      "ldl_cholesterol_direct",
+      "ldl_direct",
+      "ldl_direct_cholesterol",
+      "ldl_calc",
+      "ldl_calculated",
+      "cholesterol_ldl",
+      "ldl_cholesterol_direct_serum",
+    ],
+  },
+  {
+    test_code: "HDL-C",
+    test_name: "HDL Cholesterol",
+    direction: "higher",
+    kinds: [
+      "hdl",
+      "hdl_c",
+      "hdlcholesterol",
+      "hdl_cholesterol",
+      "hdl_direct",
+      "hdl_direct_cholesterol",
+      "cholesterol_hdl",
+    ],
+  },
+  {
+    test_code: "TG",
+    test_name: "Triglycerides",
+    direction: "lower",
+    kinds: ["triglycerides", "triglyceride", "tg", "serum_triglycerides", "triglycerides_total"],
+  },
+  {
+    test_code: "TC",
+    test_name: "Total Cholesterol",
+    direction: "lower",
+    kinds: [
+      "total_cholesterol",
+      "cholesterol",
+      "cholesterol_total",
+      "total_chol",
+      "cholesterol_total_serum",
+      "total_cholesterol_serum",
+    ],
+  },
+  {
+    test_code: "HBA1C",
+    test_name: "HbA1c",
+    direction: "lower",
+    kinds: ["hba1c", "glycated_hemoglobin", "glycosylated_hemoglobin", "hba1c_ifcc", "hba1c_dcct"],
+  },
+  {
+    test_code: "FBG",
+    test_name: "Fasting Glucose",
+    direction: "lower",
+    kinds: [
+      "blood_sugar_fasting",
+      "fbg",
+      "fasting_glucose",
+      "fasting_blood_sugar",
+      "fasting_plasma_glucose",
+      "glucose_fasting",
+      "fpg",
+    ],
+  },
   { test_code: "CRP", test_name: "CRP", direction: "lower", kinds: ["crp", "c_reactive_protein"] },
   { test_code: "ESR", test_name: "ESR", direction: "lower", kinds: ["esr"] },
-  { test_code: "ALT (SGPT)", test_name: "ALT (SGPT)", direction: "lower", kinds: ["sgpt", "alt"] },
-  { test_code: "AST (SGOT)", test_name: "AST (SGOT)", direction: "lower", kinds: ["sgot", "ast"] },
+  {
+    test_code: "ALT (SGPT)",
+    test_name: "ALT (SGPT)",
+    direction: "lower",
+    kinds: ["sgpt", "alt", "alanine_aminotransferase", "alt_sgpt", "sgpt_alt"],
+  },
+  {
+    test_code: "AST (SGOT)",
+    test_name: "AST (SGOT)",
+    direction: "lower",
+    kinds: ["sgot", "ast", "aspartate_aminotransferase", "ast_sgot", "sgot_ast"],
+  },
   { test_code: "GGT", test_name: "GGT", direction: "lower", kinds: ["ggt"] },
-  { test_code: "ALP", test_name: "ALP", direction: "lower", kinds: ["alkaline_phosphatase", "alp"] },
-  { test_code: "CREAT", test_name: "Creatinine", direction: "lower", kinds: ["creatinine"] },
-  { test_code: "EGFR", test_name: "EGFR", direction: "higher", kinds: ["egfr"] },
-  { test_code: "UREA", test_name: "Urea", direction: "lower", kinds: ["urea"] },
-  { test_code: "VITD", test_name: "Vitamin D (25-OH)", direction: "higher", kinds: ["vitamin_d", "vitamin_d_25_oh", "vitd", "25_oh_vitamin_d"] },
+  {
+    test_code: "ALP",
+    test_name: "ALP",
+    direction: "lower",
+    kinds: ["alkaline_phosphatase", "alp", "alkaline_phosphatase_total", "alk_phos"],
+  },
+  {
+    test_code: "CREAT",
+    test_name: "Creatinine",
+    direction: "lower",
+    kinds: ["creatinine", "serum_creatinine"],
+  },
+  { test_code: "EGFR", test_name: "EGFR", direction: "higher", kinds: ["egfr", "estimated_glomerular_filtration_rate"] },
+  { test_code: "UREA", test_name: "Urea", direction: "lower", kinds: ["urea", "blood_urea", "bun"] },
+  {
+    test_code: "VITD",
+    test_name: "Vitamin D (25-OH)",
+    direction: "higher",
+    kinds: [
+      "vitamin_d",
+      "vitamin_d_25_oh",
+      "vitamin_d_total",
+      "vitd",
+      "25_oh_vitamin_d",
+      "25_hydroxy_vitamin_d",
+    ],
+  },
   { test_code: "UIBC", test_name: "UIBC", direction: "neutral", kinds: ["uibc", "unsaturated_iron_binding_capacity"] },
   { test_code: "TIBC", test_name: "TIBC", direction: "neutral", kinds: ["tibc"] },
   { test_code: "FERRITIN", test_name: "Ferritin", direction: "neutral", kinds: ["ferritin"] },
@@ -84,7 +180,7 @@ const CODE_TO_TEST = new Map<string, TestDefinition>();
 for (const def of TEST_DEFINITIONS) {
   CODE_TO_TEST.set(def.test_code, def);
   for (const kind of def.kinds) {
-    KIND_TO_TEST.set(kind, def);
+    KIND_TO_TEST.set(kind.toLowerCase(), def);
   }
 }
 
@@ -140,7 +236,8 @@ function normalizeValue(testCode: string, rawValue: number, unitInput: string | 
 }
 
 function normalizeObservation(row: ObservationRow): NormalizedPoint | null {
-  const def = KIND_TO_TEST.get(row.kind);
+  const kindKey = typeof row.kind === "string" ? row.kind.trim().toLowerCase() : "";
+  const def = KIND_TO_TEST.get(kindKey);
   if (!def) return null;
   if (row.value_num === null || row.value_num === undefined) return null;
   const sampleDate = parseDate(row.observed_at);
@@ -266,7 +363,6 @@ function buildTrendFromRows(
 
 function normalizeReportKey(row: ObservationRow): string | null {
   if (row.report_id) return row.report_id;
-  if (row.thread_id) return row.thread_id;
 
   const iso = row.observed_at;
   if (!iso) return null;
@@ -275,7 +371,8 @@ function normalizeReportKey(row: ObservationRow): string | null {
   if (Number.isNaN(parsed.getTime())) return null;
 
   const day = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
-  return day.toISOString();
+  const dayKey = day.toISOString().slice(0, 10);
+  return dayKey;
 }
 
 function countTotalReports(rows: ObservationRow[]): number {
@@ -308,7 +405,7 @@ export async function fetchLabSummary(
 
   let query = client
     .from("observations")
-    .select("kind,value_num,unit,observed_at,thread_id,report_id")
+    .select("kind,value_num,unit,observed_at,report_id")
     .eq("user_id", options.userId)
     .not("value_num", "is", null)
     .order("observed_at", { ascending: false });

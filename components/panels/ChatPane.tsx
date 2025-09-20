@@ -84,8 +84,8 @@ const NEARBY_OPEN_NOW_RE = /\b(open now|24\/?7|24x7|24-7)\b/i;
 const NEARBY_CHANGE_CATEGORY_RE = /\b(change category|different (?:type|category)|another (?:category|type))\b/i;
 const NEARBY_NEAR_WORD_RE = /\b(near|nearby|around|close to|within)\b/i;
 
-const NO_LABS_MESSAGE = "I couldn't find structured lab values yet.";
-const LABS_INTENT = /(report|reports|observation|observations|blood|lab|labs|lipid|cholesterol|ldl|hdl|triglycerides|a1c|hba1c|vitamin\s*d|crp|esr|uibc|tibc|creatinine|egfr|urea|bilirubin|ast|alt|sgot|sgpt|ggt|alkaline|alp|date\s*wise|datewise|trend|changes?)/i;
+const NO_LABS_MESSAGE = "I couldn’t find structured labs for your account.";
+const LABS_INTENT = /(report|reports|timeline|date\s*wise|datewise|lab|labs|lipid|ldl|hdl|triglycerides?|tg|chol|hba1c|a1c|egfr|creatinine|urea|alt|ast|alp|crp|vitamin\s*d|trend|changes?)/i;
 const RAW_TEXT_INTENT = /(raw text|full text|show .*report text)/i;
 const DATEWISE_INTENT = /(report|reports|timeline|date\s*wise|datewise)/i;
 const LATEST_INTENT = /(latest( report| labs)?|current labs?)/i;
@@ -756,7 +756,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       const summary = await ensureLabsSummary();
       const trend = Array.isArray(summary.trend) ? summary.trend : [];
       if (!trend.length) {
-        return 'Structured lab data is not available right now.';
+        return NO_LABS_MESSAGE;
       }
       const meta = summary.meta;
       const lower = query.toLowerCase();
