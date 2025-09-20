@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import ChatPane from "@/components/panels/ChatPane";
 import MedicalProfile from "@/components/panels/MedicalProfile";
 import Timeline from "@/components/panels/Timeline";
@@ -36,9 +36,26 @@ export default function MainAdapter({ ui, panel }: Props) {
       ? "Research assist: ON"
       : "Research assist: OFF";
 
+  const panelContent = useMemo(() => {
+    switch (activePanel) {
+      case "profile":
+        return <MedicalProfile />;
+      case "timeline":
+        return <Timeline />;
+      case "alerts":
+        return <AlertsPane />;
+      case "settings":
+        return <SettingsPane />;
+      case "ai-doc":
+        return <AiDocPane />;
+      default:
+        return null;
+    }
+  }, [activePanel]);
+
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="flex h-full flex-col">
+      <div className="shrink-0">
         <h1 className="text-3xl font-semibold">Get a quick second opinion</h1>
         <ul className="mt-3 list-disc pl-6 space-y-1 text-base opacity-90">
           {HERO_POINTS.map(point => (
@@ -48,19 +65,17 @@ export default function MainAdapter({ ui, panel }: Props) {
         </ul>
       </div>
 
-      {activePanel === "chat" && (
-        <section className="block h-full">
-          <ResearchFiltersProvider>
-            <ChatPane inputRef={chatInputRef} showHeader={false} />
-          </ResearchFiltersProvider>
-        </section>
-      )}
-
-      {activePanel === "profile" && <MedicalProfile />}
-      {activePanel === "timeline" && <Timeline />}
-      {activePanel === "alerts" && <AlertsPane />}
-      {activePanel === "settings" && <SettingsPane />}
-      {activePanel === "ai-doc" && <AiDocPane />}
+      <div className="mt-6 flex-1 min-h-0">
+        {activePanel === "chat" ? (
+          <div className="flex h-full flex-col">
+            <ResearchFiltersProvider>
+              <ChatPane inputRef={chatInputRef} showHeader={false} />
+            </ResearchFiltersProvider>
+          </div>
+        ) : (
+          <div className="h-full overflow-y-auto pr-1">{panelContent}</div>
+        )}
+      </div>
     </div>
   );
 }

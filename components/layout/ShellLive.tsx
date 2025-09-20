@@ -197,8 +197,8 @@ export default function ShellLive({ Sidebar, Main, Composer }: ShellProps) {
             className={`col-span-12 md:col-span-8 lg:col-span-9 xl:col-span-10 flex flex-col min-h-0 overflow-hidden
             ${dark ? "text-white" : "text-slate-900"}`}
           >
-            <div className="flex-1 overflow-y-auto px-6 pt-6 pb-4">
-              <div className="rounded-2xl p-6 medx-pane medx-ring">
+            <div className="flex-1 min-h-0 px-6 pt-6 pb-4">
+              <div className="flex h-full flex-col overflow-hidden rounded-2xl p-6 medx-pane medx-ring">
                 <MainComponent ui={ui} panel={panel} />
               </div>
             </div>
