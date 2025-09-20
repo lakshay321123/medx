@@ -655,6 +655,92 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const showLiveSuggestions = inputFocused && isTyping && liveSuggestions.length > 0;
   const showSuggestions = mounted && inputFocused && !isTyping;
 
+  const autoCodingMode = useMemo(() => {
+    if (isAiDocMode) return null;
+    if (modeState.base !== 'doctor') return null;
+    return researchMode ? 'doctor_research' : 'doctor';
+  }, [isAiDocMode, modeState.base, researchMode]);
+
+  const searchParamsString = useMemo(() => sp.toString(), [sp]);
+
+  const caseParams = useMemo(() => {
+    if (!autoCodingMode) return null;
+
+    const params = new URLSearchParams(searchParamsString);
+    const data: Record<string, unknown> = {};
+    const simpleKeys = [
+      'procedure',
+      'procedureName',
+      'procedure_name',
+      'primaryProcedure',
+      'pos',
+      'siteOfService',
+      'site_of_service',
+      'placeOfService',
+      'dx',
+      'diagnosis',
+      'dxFreeText',
+      'dx_text',
+      'indication',
+      'payer',
+      'insurance',
+      'specialty',
+      'side',
+      'laterality'
+    ];
+
+    for (const key of simpleKeys) {
+      const value = params.get(key);
+      if (value) {
+        data[key] = value;
+      }
+    }
+
+    const dxCodeKeys = ['dxCode', 'dx_code', 'icdCode', 'icd_code'];
+    const dxCodes: string[] = [];
+    for (const key of dxCodeKeys) {
+      const values = params.getAll(key);
+      if (values.length) {
+        dxCodes.push(...values.filter(Boolean));
+      }
+    }
+    if (dxCodes.length) {
+      data.dxCodes = dxCodes;
+    }
+
+    return Object.keys(data).length > 0 ? data : null;
+  }, [autoCodingMode, searchParamsString]);
+
+  const getCaseInput = useCallback(() => {
+    if (!autoCodingMode) return null;
+
+    const globalCase = typeof window !== 'undefined' && !isAiDocMode
+      ? (window as any).__medxDoctorCase ?? (window as any).medxDoctorCase ?? null
+      : null;
+
+    if (globalCase && caseParams) {
+      return collectCaseInput({ ...globalCase, ...caseParams });
+    }
+
+    if (globalCase) {
+      const mapped = collectCaseInput(globalCase);
+      if (mapped) return mapped;
+    }
+
+    if (caseParams) {
+      return collectCaseInput(caseParams);
+    }
+
+    return null;
+  }, [autoCodingMode, caseParams, isAiDocMode]);
+
+  const {
+    data: autoCodingData,
+    loading: autoCodingLoading,
+    error: autoCodingError,
+    refresh: refreshAutoCoding
+  } = useAutoCodingGuide({ mode: autoCodingMode ?? 'doctor', getCaseInput });
+
   const lastSuggestions = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i];
@@ -3133,82 +3219,3 @@ ${systemCommon}` + baseSys;
     </div>
   );
 }
-  const autoCodingMode = modeState.base === 'doctor' ? (researchMode ? 'doctor_research' : 'doctor') : null;
-  const searchParamsString = sp.toString();
-
-  const caseParams = useMemo(() => {
-    if (!autoCodingMode) return null;
-    const params = new URLSearchParams(searchParamsString);
-    const data: Record<string, unknown> = {};
-    const simpleKeys = [
-      'procedure',
-      'procedureName',
-      'procedure_name',
-      'primaryProcedure',
-      'pos',
-      'siteOfService',
-      'site_of_service',
-      'placeOfService',
-      'dx',
-      'diagnosis',
-      'dxFreeText',
-      'dx_text',
-      'indication',
-      'payer',
-      'insurance',
-      'specialty',
-      'side',
-      'laterality'
-    ];
-
-    for (const key of simpleKeys) {
-      const value = params.get(key);
-      if (value) {
-        data[key] = value;
-      }
-    }
-
-    const dxCodeKeys = ['dxCode', 'dx_code', 'icdCode', 'icd_code'];
-    const dxCodes: string[] = [];
-    for (const key of dxCodeKeys) {
-      const values = params.getAll(key);
-      if (values.length) {
-        dxCodes.push(...values.filter(Boolean));
-      }
-    }
-    if (dxCodes.length) {
-      data.dxCodes = dxCodes;
-    }
-
-    return Object.keys(data).length > 0 ? data : null;
-  }, [autoCodingMode, searchParamsString]);
-
-  const getCaseInput = useCallback(() => {
-    if (!autoCodingMode) return null;
-    const globalCase = typeof window !== 'undefined'
-      ? (window as any).__medxDoctorCase ?? (window as any).medxDoctorCase ?? null
-      : null;
-
-    if (globalCase && caseParams) {
-      return collectCaseInput({ ...globalCase, ...caseParams });
-    }
-
-    if (globalCase) {
-      const mapped = collectCaseInput(globalCase);
-      if (mapped) return mapped;
-    }
-
-    if (caseParams) {
-      return collectCaseInput(caseParams);
-    }
-
-    return null;
-  }, [autoCodingMode, caseParams]);
-
-  const {
-    data: autoCodingData,
-    loading: autoCodingLoading,
-    error: autoCodingError,
-    refresh: refreshAutoCoding
-  } = useAutoCodingGuide({ mode: autoCodingMode ?? 'doctor', getCaseInput });
-
