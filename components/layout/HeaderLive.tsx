@@ -48,7 +48,7 @@ export default function HeaderLive({
 
   return (
     <header
-      className={`sticky top-0 z-10 h-[62px] flex items-center justify-between px-4 border-b backdrop-blur-sm text-sm transition-colors
+      className={`sticky top-0 z-20 h-[62px] flex items-center justify-between px-4 border-b backdrop-blur-sm text-sm transition-colors
       ${dark ? "bg-slate-900/60 border-slate-800 text-white" : "bg-white/70 border-slate-200/70 text-slate-900"}`}
     >
       <div className="flex items-center gap-1 font-semibold text-base">

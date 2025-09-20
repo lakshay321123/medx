@@ -184,29 +184,36 @@ export default function ShellLive({ Sidebar, Main, Composer }: ShellProps) {
         onModePress={onModePress}
       />
 
-      <div className="flex-1 grid grid-cols-12 relative">
-        <aside
-          className={`col-span-12 md:col-span-4 lg:col-span-3 xl:col-span-2 backdrop-blur-sm p-3 flex flex-col gap-3 text-sm border-r
-          ${dark ? "bg-slate-900/40 border-slate-800 text-white" : "bg-white/70 border-slate-200/60 text-slate-900"}`}
-        >
-          <SidebarComponent />
-        </aside>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="grid h-full min-h-0 grid-cols-12">
+          <aside
+            className={`col-span-12 md:col-span-4 lg:col-span-3 xl:col-span-2 backdrop-blur-sm p-3 flex h-full flex-col gap-3 text-sm border-r min-h-0
+            ${dark ? "bg-slate-900/40 border-slate-800 text-white" : "bg-white/70 border-slate-200/60 text-slate-900"}`}
+          >
+            <SidebarComponent />
+          </aside>
 
-        <main className="col-span-12 md:col-span-8 lg:col-span-9 xl:col-span-10 overflow-y-auto pb-28">
-          <div className="m-6 rounded-2xl p-6 medx-pane medx-ring">
-            <MainComponent ui={ui} panel={panel} />
-          </div>
-        </main>
-
-        {composerElement ? (
-          <div className="absolute bottom-0 left-[20%] right-6 px-6 pb-4">
-            <div
-              className={`rounded-xl border shadow-lg ${dark ? "bg-slate-900/70 border-slate-800" : "bg-white/80 border-slate-200/70"}`}
-            >
-              {composerElement}
+          <section
+            className={`col-span-12 md:col-span-8 lg:col-span-9 xl:col-span-10 flex flex-col min-h-0 overflow-hidden
+            ${dark ? "text-white" : "text-slate-900"}`}
+          >
+            <div className="flex-1 overflow-y-auto px-6 pt-6 pb-4">
+              <div className="rounded-2xl p-6 medx-pane medx-ring">
+                <MainComponent ui={ui} panel={panel} />
+              </div>
             </div>
-          </div>
-        ) : null}
+
+            {composerElement ? (
+              <div className="px-6 pb-6">
+                <div
+                  className={`rounded-xl border shadow-lg ${dark ? "bg-slate-900/70 border-slate-800" : "bg-white/80 border-slate-200/70"}`}
+                >
+                  {composerElement}
+                </div>
+              </div>
+            ) : null}
+          </section>
+        </div>
       </div>
     </div>
   );
