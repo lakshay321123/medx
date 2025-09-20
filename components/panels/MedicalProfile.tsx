@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import ChatMarkdown from "@/components/ChatMarkdown";
 import { safeJson } from "@/lib/safeJson";
 import { useProfile } from "@/lib/hooks/useAppData";
 
@@ -472,7 +473,11 @@ export default function MedicalProfile() {
             >Recompute Risk</button>
           </div>
         </div>
-        <p className="mt-2 text-sm whitespace-pre-wrap">{summary || "No summary yet."}</p>
+        <div className="mt-2">
+          {summary
+            ? <ChatMarkdown text={summary} />
+            : <p className="text-sm text-muted-foreground">No summary yet.</p>}
+        </div>
         <div className="mt-3 text-[11px] text-muted-foreground">
           ⚠️ This is AI-generated support, not a medical diagnosis. Always consult a qualified clinician.
         </div>

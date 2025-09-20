@@ -90,8 +90,13 @@ function normalizeLLM(s: string) {
     .trim();
 }
 
-export default function ChatMarkdown({ content }: { content: string }) {
-  const prepared = normalizeLLM(normalize(content));
+type ChatMarkdownProps = {
+  content?: string | null;
+  text?: string | null;
+};
+
+export default function ChatMarkdown({ content, text }: ChatMarkdownProps) {
+  const prepared = normalizeLLM(normalize(content ?? text ?? ""));
 
   return (
     <div
