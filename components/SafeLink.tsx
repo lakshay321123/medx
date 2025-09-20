@@ -72,6 +72,20 @@ export function LinkBadge(props: React.AnchorHTMLAttributes<HTMLAnchorElement>) 
         mounted = false;
       };
     }
+    const key = `linkcheck:${safe}`;
+    if (typeof window !== "undefined") {
+      try {
+        const cached = window.sessionStorage.getItem(key);
+        if (cached) {
+          setOk(cached === "1");
+          return () => {
+            mounted = false;
+          };
+        }
+      } catch {
+        // ignore sessionStorage issues and fall back to fetch
+      }
+    }
     setOk(null);
     (async () => {
       try {
@@ -81,9 +95,28 @@ export function LinkBadge(props: React.AnchorHTMLAttributes<HTMLAnchorElement>) 
           body: JSON.stringify({ url: safe }),
         });
         const json = await response.json();
-        if (mounted) setOk(Boolean(json.ok));
+        if (mounted) {
+          const good = Boolean(json.ok);
+          setOk(good);
+          if (typeof window !== "undefined") {
+            try {
+              window.sessionStorage.setItem(key, good ? "1" : "0");
+            } catch {
+              // ignore storage failures
+            }
+          }
+        }
       } catch {
-        if (mounted) setOk(false);
+        if (mounted) {
+          setOk(false);
+          if (typeof window !== "undefined") {
+            try {
+              window.sessionStorage.setItem(key, "0");
+            } catch {
+              // ignore storage failures
+            }
+          }
+        }
       }
     })();
     return () => {
