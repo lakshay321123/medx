@@ -91,7 +91,7 @@ export default function ShellLive() {
 
   const disabled = useCallback(
     (key: ModeKey) => {
-      if (key === "therapy") return modeState.base !== "patient" || modeState.base === "aidoc";
+      if (key === "therapy") return modeState.base !== "patient";
       if (key === "research") return modeState.therapy || modeState.base === "aidoc";
       return false;
     },
