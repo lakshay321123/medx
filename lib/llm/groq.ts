@@ -3,22 +3,28 @@ import type { ChatCompletionMessageParam } from "./types";
 const API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MODEL = process.env.GROQ_DEFAULT_MODEL || "llama3-70b-8192";
 
-export async function callGroq(messages: ChatCompletionMessageParam[], {
-  temperature = 0.2,
-  max_tokens = 1200,
-  metadata,
-}: { temperature?: number; max_tokens?: number; metadata?: any } = {}) {
+type CallGroqOptions = {
+  temperature?: number;
+  max_tokens?: number;
+  metadata?: any;
+  model?: string;
+};
+
+export async function callGroq(
+  messages: ChatCompletionMessageParam[],
+  { temperature = 0.2, max_tokens = 1200, metadata, model }: CallGroqOptions = {}
+) {
   const key = process.env.GROQ_API_KEY;
   if (!key) throw new Error("GROQ_API_KEY missing");
 
   const res = await fetch(API_URL, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${key}`,
+      Authorization: `Bearer ${key}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: MODEL,
+      model: model || MODEL,
       messages,
       temperature,
       max_tokens,
@@ -39,7 +45,8 @@ export async function callGroq(messages: ChatCompletionMessageParam[], {
 export async function callGroqChat(params: {
   messages: ChatCompletionMessageParam[];
   temperature?: number;
+  model?: string;
 }) {
-  const { messages, temperature } = params;
-  return callGroq(messages, { temperature });
+  const { messages, temperature, model } = params;
+  return callGroq(messages, { temperature, model });
 }

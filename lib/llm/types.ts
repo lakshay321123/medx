@@ -1,4 +1,1 @@
-export type ChatCompletionMessageParam = {
-  role: "system" | "user" | "assistant";
-  content: string;
-};
+export type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
