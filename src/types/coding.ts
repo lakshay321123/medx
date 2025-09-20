@@ -12,7 +12,7 @@ export interface ModifierRow {
   useCase: string;
 }
 
-export interface UniversalCodingClaimLine {
+interface ClaimLine {
   cpt: string;
   modifiers?: string[];
   dxPointers?: number[]; // 1-based pointers matching Box 21 order
@@ -22,6 +22,8 @@ export interface UniversalCodingClaimLine {
   charge?: number | null;
 }
 
+export type UniversalCodingClaimLine = ClaimLine;
+
 export interface UniversalCodingAnswer {
   mode: CodingMode;
   quickSummary: CodingSummaryRow[];
@@ -29,7 +31,7 @@ export interface UniversalCodingAnswer {
   ncciBundlingBullets: string[];
   claimExample: {
     dxCodes: string[];                 // ≤4, ordered for CMS-1500 Box 21
-    claimLines: UniversalCodingClaimLine[];
+    claimLines: ClaimLine[];
     authBox23?: string | null;
   };
   checklist: string[];
