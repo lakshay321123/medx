@@ -48,6 +48,7 @@ import { StopButton } from "@/components/ui/StopButton";
 import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
 import { getUserPosition, fetchNearby, geocodeArea, type NearbyKind, type NearbyPlace } from "@/lib/nearby";
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
+import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
 
 const ChatSuggestions = dynamic(() => import("./ChatSuggestions"), { ssr: false });
 
@@ -73,6 +74,7 @@ const NEARBY_CHANGE_CATEGORY_RE = /\b(change category|different (?:type|category
 const NEARBY_NEAR_WORD_RE = /\b(near|nearby|around|close to|within)\b/i;
 
 const NO_LABS_MESSAGE = "I couldn't find structured lab values yet.";
+const REPORTS_LOCKED_MESSAGE = "Reports are available only in AI Doc mode.";
 const LABS_INTENT = /(report|reports|observation|observations|blood|lab|labs|lipid|cholesterol|ldl|hdl|triglycerides|a1c|hba1c|vitamin\s*d|crp|esr|uibc|tibc|creatinine|egfr|urea|bilirubin|ast|alt|sgot|sgpt|ggt|alkaline|alp|date\s*wise|datewise|trend|changes?)/i;
 const RAW_TEXT_INTENT = /(raw text|full text|show .*report text)/i;
 
@@ -633,6 +635,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const { filters } = useResearchFilters();
 
   const sp = useSearchParams();
+  const isAiDocMode = useIsAiDocMode();
   const modeState = useMemo(() => fromSearchParams(sp, 'light'), [sp]);
   const mode: 'patient' | 'doctor' = modeState.base === 'doctor' ? 'doctor' : 'patient';
   const researchMode = modeState.research;
@@ -669,26 +672,27 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, []);
 
   const fetchLabSummary = useCallback(async () => {
+    if (!isAiDocMode) return;
     try {
-      const res = await fetch('/api/labs/summary');
+      const res = await fetch('/api/labs/summary?mode=ai-doc');
       const body = await res.json();
       if (body?.ok) setLabSummary(body);
     } catch (e) {
       console.error('labs summary error', e);
     }
-  }, []);
+  }, [isAiDocMode]);
 
   useEffect(() => {
-    if (!AIDOC_UI) return;
+    if (!AIDOC_UI || !isAiDocMode) return;
     fetchLabSummary();
-  }, [AIDOC_UI, fetchLabSummary]);
+  }, [isAiDocMode, fetchLabSummary]);
 
   useEffect(() => {
-    if (!AIDOC_UI) return;
+    if (!AIDOC_UI || !isAiDocMode) return;
     const handler = () => fetchLabSummary();
     window.addEventListener('observations-updated', handler);
     return () => window.removeEventListener('observations-updated', handler);
-  }, [AIDOC_UI, fetchLabSummary]);
+  }, [isAiDocMode, fetchLabSummary]);
 
   const addAssistant = (text: string, opts?: Partial<ChatMessage>) =>
     setMessages(prev => [
@@ -699,8 +703,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     addAssistant(text, opts);
 
   const buildReportTimelineCard = useCallback(async () => {
+    if (!isAiDocMode) return REPORTS_LOCKED_MESSAGE;
     try {
-      const response = await fetch('/api/labs/summary');
+      const response = await fetch('/api/labs/summary?mode=ai-doc');
       const body: any = await response.json();
       if (!body?.ok) return "Couldn’t load structured labs.";
 
@@ -744,7 +749,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       console.error('labs timeline error', err);
       return "Couldn’t load structured labs.";
     }
-  }, [setLabSummary]);
+  }, [isAiDocMode, setLabSummary]);
 
   const showOcrText = useCallback(async () => {
     pushAssistantText('Raw report text is currently only available from the document view.');
@@ -774,10 +779,16 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const softAlerts = Array.from(new Set([...topAlerts, ...planAlerts]));
 
   useEffect(() => {
-    if (!AIDOC_UI) return;
+    if (isAiDocMode) return;
+    setAidoc(null);
+    setLabSummary(null);
+  }, [isAiDocMode]);
+
+  useEffect(() => {
+    if (!AIDOC_UI || !isAiDocMode) return;
     if (!aidoc) return;
     fetchLabSummary();
-  }, [AIDOC_UI, aidoc, fetchLabSummary]);
+  }, [aidoc, fetchLabSummary, isAiDocMode]);
 
   const [trialRows, setTrialRows] = useState<TrialRow[]>([]);
   const [searched, setSearched] = useState(false);
@@ -1661,8 +1672,20 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         const isChanges = /(all|my) (reports|labs?).*(changes|trend|improv|wors)/i.test(messageText);
         const isDatewise = /(date ?wise|by date|chronolog)/i.test(messageText);
         if (isLast || isChanges || isDatewise) {
+          if (!isAiDocMode) {
+            setMessages(prev =>
+              prev.map(m =>
+                m.id === pendingId
+                  ? { ...m, content: REPORTS_LOCKED_MESSAGE, pending: false }
+                  : m
+              )
+            );
+            setBusy(false);
+            setThinkingStartedAt(null);
+            return;
+          }
           try {
-            const res = await fetch('/api/labs/summary');
+            const res = await fetch('/api/labs/summary?mode=ai-doc');
             const body = await res.json().catch(() => null);
             if (body?.ok && Array.isArray(body.trend)) {
               const summary = labsMarkdown(body.trend);

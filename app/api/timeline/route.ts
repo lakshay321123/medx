@@ -30,7 +30,15 @@ const pickObserved = (r: any) =>
       r.details?.observed_at
   );
 
-export async function GET() {
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const mode = url.searchParams.get("mode")?.toLowerCase();
+  if (mode !== "ai-doc") {
+    return NextResponse.json(
+      { error: "Timeline is available only in AI Doc mode" },
+      { status: 403, headers: noStore }
+    );
+  }
   const userId = await getUserId();
   if (!userId) return NextResponse.json({ items: [] }, { headers: noStore });
 

@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useTimeline } from "@/lib/hooks/useAppData";
+import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
 
 type Cat = "ALL"|"LABS"|"VITALS"|"IMAGING"|"AI"|"NOTES";
 const catOf = (it:any):Cat => {
@@ -15,8 +16,9 @@ const catOf = (it:any):Cat => {
 };
 
 export default function Timeline(){
+  const isAiDoc = useIsAiDocMode();
   const [resetError, setResetError] = useState<string|null>(null);
-  const { data, error, isLoading, mutate } = useTimeline();
+  const { data, error, isLoading, mutate } = useTimeline(isAiDoc);
   const items = data?.items ?? [];
 
   const [cat,setCat] = useState<Cat>("ALL");
@@ -66,6 +68,8 @@ export default function Timeline(){
     if (!qs) return;
     fetch(`/api/uploads/signed-url${qs}`).then(r=>r.json()).then(d=>{ if (d?.url) setSignedUrl(d.url); });
   }, [open, active]);
+
+  if (!isAiDoc) return null;
 
   if (isLoading) return <div className="p-6 text-sm text-muted-foreground">Loading timeline…</div>;
   if (error)     return <div className="p-6 text-sm text-red-500">Couldn’t load timeline. Retrying in background…</div>;
