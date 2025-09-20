@@ -13,8 +13,8 @@ import { BRAND_NAME, LOGO_SRC, LOGO_FALLBACKS } from "@/lib/brand";
  * - If all fail, shows brand name text (so you never see a broken image)
  */
 export default function Logo({
-  width = 160,
-  height = 48,
+  width = 200,
+  height = 50,
   className = "",
 }: {
   width?: number;
@@ -45,16 +45,18 @@ export default function Logo({
       {showText || !src ? (
         <span className="font-semibold tracking-tight">{BRAND_NAME}</span>
       ) : (
-        <Image
-          key={src} // force re-render on src change
-          src={src}
-          alt={BRAND_NAME}
-          width={width}
-          height={height}
-          priority
-          className="block select-none"
-          onError={handleError}
-        />
+        <div className="top-panel-logo">
+          <Image
+            key={src} // force re-render on src change
+            src={src}
+            alt={BRAND_NAME}
+            width={width}
+            height={height}
+            priority
+            className="logo-img select-none"
+            onError={handleError}
+          />
+        </div>
       )}
     </Link>
   );
