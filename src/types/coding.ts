@@ -1,3 +1,5 @@
+// src/types/coding.ts
+
 export type CodingMode = 'doctor' | 'doctor_research';
 
 export interface CodingSummaryRow {
@@ -10,13 +12,13 @@ export interface ModifierRow {
   useCase: string;
 }
 
-export interface ClaimLine {
+export interface UniversalCodingClaimLine {
   cpt: string;
   modifiers?: string[];
-  dxPointers?: number[];
-  units?: number;
-  pos?: string;
-  notes?: string;
+  dxPointers?: number[]; // 1-based pointers matching Box 21 order
+  units?: number;        // default 1 if omitted by the model
+  pos?: string;          // e.g., "21" | "22" | "24"
+  notes?: string;        // Box 19
   charge?: number | null;
 }
 
@@ -26,18 +28,14 @@ export interface UniversalCodingAnswer {
   modifiers: ModifierRow[];
   ncciBundlingBullets: string[];
   claimExample: {
-    dxCodes: string[];
-    claimLines: ClaimLine[];
+    dxCodes: string[];                 // ≤4, ordered for CMS-1500 Box 21
+    claimLines: UniversalCodingClaimLine[];
     authBox23?: string | null;
   };
   checklist: string[];
+  // Doctor+Research only:
   rationale?: string;
   payerNotes?: string[];
   icdSpecificity?: string[];
-  references?: {
-    label: string;
-    url?: string;
-  }[];
+  references?: { label: string; url?: string }[];
 }
-
-export type UniversalCodingClaimLine = ClaimLine;
