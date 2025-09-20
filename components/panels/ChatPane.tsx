@@ -2662,7 +2662,7 @@ ${systemCommon}` + baseSys;
   }, [busy]);
 
   return (
-    <div className="relative flex h-full flex-col">
+    <div className="relative flex h-full min-h-0 flex-col">
       {showHeader && <Header />}
       {mode === "doctor" && researchMode && (
         <>
@@ -2795,7 +2795,7 @@ ${systemCommon}` + baseSys;
       )}
       <div
         ref={chatRef}
-        className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 pb-28"
+        className="flex-1 min-h-0 overflow-y-auto px-4 pt-4 pb-6 sm:px-6 lg:px-8 md:pt-6"
       >
         {showDefaultSuggestions && showSuggestions && (
           <ChatSuggestions suggestions={defaultSuggestions} onSelect={handleSuggestionPick} />
@@ -2926,38 +2926,39 @@ ${systemCommon}` + baseSys;
         </div>
       )}
     </div>
-  <div className="absolute bottom-4 left-0 right-0 flex justify-center">
-        <div className="w-full max-w-3xl px-4">
-      {mode === 'doctor' && AIDOC_UI && (
-        <button
-          className="rounded-md px-3 py-1 border mb-2"
-          onClick={async () => {
-            if (AIDOC_PREFLIGHT) {
-              setShowPatientChooser(true);
-            } else {
-              runAiDocWith('current');
-            }
-          }}
-          aria-label="AI Doc Next Steps"
-          disabled={loadingAidoc}
-        >
-          {loadingAidoc ? 'Analyzing…' : 'Next steps (AI Doc)'}
-        </button>
-      )}
-      {showLiveSuggestions && (
-        <SuggestBar
-          title="Suggestions"
-          suggestions={liveSuggestions}
-          onPick={handleSuggestionPick}
-          className="rounded-2xl border border-zinc-200 bg-white/90 p-3 backdrop-blur dark:border-zinc-700 dark:bg-slate-900/80"
-        />
-      )}
-      <form
-        onSubmit={e => {
-          e.preventDefault();
-          onSubmit();
-        }}
-            className="w-full flex items-center gap-3 rounded-full medx-glass px-3 py-2"
+
+      <div className="shrink-0 border-t bg-white/80 px-4 py-4 backdrop-blur-sm medx-border medx-composer dark:bg-transparent sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-3xl space-y-3">
+          {mode === "doctor" && AIDOC_UI && (
+            <button
+              className="rounded-md border px-3 py-1"
+              onClick={async () => {
+                if (AIDOC_PREFLIGHT) {
+                  setShowPatientChooser(true);
+                } else {
+                  runAiDocWith('current');
+                }
+              }}
+              aria-label="AI Doc Next Steps"
+              disabled={loadingAidoc}
+            >
+              {loadingAidoc ? 'Analyzing…' : 'Next steps (AI Doc)'}
+            </button>
+          )}
+          {showLiveSuggestions && (
+            <SuggestBar
+              title="Suggestions"
+              suggestions={liveSuggestions}
+              onPick={handleSuggestionPick}
+              className="rounded-2xl border border-zinc-200 bg-white/90 p-3 backdrop-blur dark:border-zinc-700 dark:bg-slate-900/80"
+            />
+          )}
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              onSubmit();
+            }}
+            className="flex w-full items-center gap-3 rounded-full px-3 py-2 medx-glass"
           >
             <label
               className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md medx-surface text-medx"
@@ -3034,7 +3035,7 @@ ${systemCommon}` + baseSys;
 
               {!busy && (
                 <button
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-lg medx-btn-accent disabled:opacity-50"
+                  className="flex h-10 w-10 items-center justify-center rounded-full text-lg medx-btn-accent disabled:opacity-50"
                   type="submit"
                   disabled={!pendingFile && !userText.trim()}
                   aria-label="Send"
