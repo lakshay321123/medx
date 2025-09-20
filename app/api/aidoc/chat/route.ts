@@ -171,7 +171,13 @@ export async function POST(req: NextRequest) {
       + (contextPacket ? `\n\n<CONTEXT_PACKET>${JSON.stringify(contextPacket)}</CONTEXT_PACKET>` : ""),
   };
   const finalMessages = [systemPreamble, ...messages];
-  const forwardBody = { ...body, messages: finalMessages };
+  const inferredPanel =
+    typeof body?.panel === "string"
+      ? body.panel
+      : context === "ai-doc-med-profile"
+      ? "med-profile"
+      : "ai-doc";
+  const forwardBody = { ...body, panel: inferredPanel, messages: finalMessages };
 
   const headers = new Headers(req.headers);
   headers.delete("content-length");

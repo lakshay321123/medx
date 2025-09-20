@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { getLLM } from "../llm";
 
 export const AiDocJsonSchema = {
   name: "AiDocOut",
@@ -114,7 +114,8 @@ function tryParseJson(s: string) {
 }
 
 export async function callOpenAIJson({ system, user, instruction, metadata }: CallIn): Promise<any> {
-  const oai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const oai = getLLM('openai');
+  if (!oai) throw new Error('OpenAI client unavailable');
   const model = process.env.AIDOC_MODEL || "gpt-5";
   const backoff = [250, 750, 1500];
   let lastErr: any;

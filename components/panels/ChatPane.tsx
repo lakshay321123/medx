@@ -72,8 +72,8 @@ const NEARBY_OPEN_NOW_RE = /\b(open now|24\/?7|24x7|24-7)\b/i;
 const NEARBY_CHANGE_CATEGORY_RE = /\b(change category|different (?:type|category)|another (?:category|type))\b/i;
 const NEARBY_NEAR_WORD_RE = /\b(near|nearby|around|close to|within)\b/i;
 
-const NO_LABS_MESSAGE = "I couldn't find structured lab values yet.";
-const LABS_INTENT = /(report|reports|observation|observations|blood|lab|labs|lipid|cholesterol|ldl|hdl|triglycerides|a1c|hba1c|vitamin\s*d|crp|esr|uibc|tibc|creatinine|egfr|urea|bilirubin|ast|alt|sgot|sgpt|ggt|alkaline|alp|date\s*wise|datewise|trend|changes?)/i;
+const NO_LABS_MESSAGE = "I couldn’t find structured labs for your account.";
+const LABS_INTENT = /(report|reports|timeline|date\s*wise|datewise|lab|labs|lipid|ldl|hdl|triglycerides?|tg|chol|hba1c|a1c|egfr|creatinine|urea|alt|ast|alp|crp|vitamin\s*d|trend|changes?)/i;
 const RAW_TEXT_INTENT = /(raw text|full text|show .*report text)/i;
 
 const formatTrendDate = (iso?: string) => {
@@ -103,6 +103,205 @@ const buildTrendLines = (trend: any[]): string[] => {
   if (!Array.isArray(trend)) return [];
   return trend.map(trendLineFor);
 };
+
+const KEYWORD_TO_CODES: Record<string, string[]> = {
+  ldl: ['LDL-C'],
+  'ldl-c': ['LDL-C'],
+  hdl: ['HDL-C'],
+  'hdl-c': ['HDL-C'],
+  triglyceride: ['TG'],
+  triglycerides: ['TG'],
+  tg: ['TG'],
+  chol: ['TC'],
+  'total chol': ['TC'],
+  'total cholesterol': ['TC'],
+  hba1c: ['HBA1C'],
+  a1c: ['HBA1C'],
+  egfr: ['EGFR'],
+  creatinine: ['CREAT'],
+  urea: ['UREA'],
+  alt: ['ALT (SGPT)'],
+  ast: ['AST (SGOT)'],
+  alp: ['ALP'],
+  crp: ['CRP'],
+  'vitamin d': ['VITD'],
+};
+
+function renderDatewise(trend: any[], meta?: any) {
+  const groups = new Map<string, { date: Date; items: string[] }>();
+  for (const t of Array.isArray(trend) ? trend : []) {
+    const series = Array.isArray(t?.series) ? t.series : [];
+    const name = t?.test_name ?? t?.test_code ?? 'Test';
+    const unit = t?.unit ? ` ${t.unit}` : '';
+    for (const point of series) {
+      if (!point?.sample_date || typeof point.value !== 'number') continue;
+      const d = new Date(point.sample_date);
+      if (Number.isNaN(d.getTime())) continue;
+      const key = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10);
+      const label = `${name}: ${point.value}${unit}`;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.items.push(label);
+      } else {
+        groups.set(key, { date: d, items: [label] });
+      }
+    }
+  }
+
+  const days = Array.from(groups.values()).sort((a, b) => b.date.getTime() - a.date.getTime());
+  const totalReports = typeof meta?.total_reports === 'number' ? meta.total_reports : days.length;
+  if (days.length === 0) {
+    return NO_LABS_MESSAGE;
+  }
+
+  const lines = ['**Report timeline**', ''];
+  for (const group of days) {
+    lines.push(`- **${group.date.toLocaleDateString()}**: ${group.items.join(' • ')}`);
+  }
+  lines.push('', `**Total documents:** ${totalReports}`);
+  return lines.join('\n');
+}
+
+function renderLatest(trend: any[]) {
+  const lines = ['**Latest lab snapshot**'];
+  let count = 0;
+  for (const t of Array.isArray(trend) ? trend : []) {
+    const latest = t?.latest;
+    if (!latest || typeof latest.value !== 'number') continue;
+    count++;
+    const unit = t?.unit ? ` ${t.unit}` : '';
+    const latestDate = formatTrendDate(latest.sample_date);
+    const prev = t?.previous && typeof t.previous.value === 'number'
+      ? `${t.previous.value}${unit} (${formatTrendDate(t.previous.sample_date)})`
+      : null;
+    const dir = typeof t?.direction === 'string' ? t.direction.toLowerCase() : '';
+    let direction = '';
+    if (dir === 'improving') direction = ' → ✅ Improving';
+    else if (dir === 'worsening') direction = ' → ⚠️ Worsening';
+    else if (dir === 'flat') direction = ' → ➖ No change';
+    const prevPart = prev ? ` | Prev: ${prev}` : '';
+    lines.push(`- **${t?.test_name ?? t?.test_code ?? 'Test'}**: ${latest.value}${unit} (${latestDate})${prevPart}${direction}`);
+  }
+  if (!count) {
+    lines.push(NO_LABS_MESSAGE);
+  }
+  return lines.join('\n');
+}
+
+function renderCompareAuto(trend: any[]) {
+  const lines = ['**Latest vs previous labs**'];
+  let count = 0;
+  for (const t of Array.isArray(trend) ? trend : []) {
+    const latest = t?.latest;
+    const prev = t?.previous;
+    if (!latest || typeof latest.value !== 'number' || !prev || typeof prev.value !== 'number') continue;
+    count++;
+    const unit = t?.unit ? ` ${t.unit}` : '';
+    const latestLabel = `${latest.value}${unit} (${formatTrendDate(latest.sample_date)})`;
+    const prevLabel = `${prev.value}${unit} (${formatTrendDate(prev.sample_date)})`;
+    const dir = typeof t?.direction === 'string' ? t.direction.toLowerCase() : '';
+    const verdict = dir === 'improving'
+      ? '✅ Improving'
+      : dir === 'worsening'
+      ? '⚠️ Worsening'
+      : dir === 'flat'
+      ? '➖ No change'
+      : '—';
+    lines.push(`- **${t?.test_name ?? t?.test_code ?? 'Test'}**: ${latestLabel} vs ${prevLabel} → ${verdict}`);
+  }
+  if (!count) {
+    lines.push(NO_LABS_MESSAGE);
+  }
+  return lines.join('\n');
+}
+
+function renderSeriesAuto(trend: any[], text: string) {
+  const lower = text.toLowerCase();
+  const wanted = new Set<string>();
+  for (const [keyword, codes] of Object.entries(KEYWORD_TO_CODES)) {
+    if (lower.includes(keyword)) {
+      for (const code of codes) wanted.add(code);
+    }
+  }
+  if (wanted.size === 0) {
+    return renderLatest(trend);
+  }
+  const selected = (Array.isArray(trend) ? trend : []).filter(t => wanted.has(t?.test_code));
+  if (!selected.length) {
+    return 'I couldn’t find structured readings for those tests yet.';
+  }
+  const lines = ['**Requested lab history**'];
+  for (const t of selected) {
+    const name = t?.test_name ?? t?.test_code ?? 'Test';
+    const unit = t?.unit ? ` ${t.unit}` : '';
+    lines.push(`- **${name}**`);
+    const series = Array.isArray(t?.series) ? [...t.series] : [];
+    series.sort((a, b) => {
+      const aDate = new Date(a?.sample_date ?? 0).getTime();
+      const bDate = new Date(b?.sample_date ?? 0).getTime();
+      return bDate - aDate;
+    });
+    if (!series.length) {
+      lines.push('  - No structured readings yet.');
+      continue;
+    }
+    for (const point of series) {
+      if (!point?.sample_date || typeof point.value !== 'number') continue;
+      lines.push(`  - ${formatTrendDate(point.sample_date)}: ${point.value}${unit}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+function renderTrends(trend: any[]) {
+  const groups: Record<string, string[]> = {
+    improving: [],
+    worsening: [],
+    flat: [],
+    unknown: [],
+  };
+  for (const t of Array.isArray(trend) ? trend : []) {
+    const dir = typeof t?.direction === 'string' ? t.direction.toLowerCase() : 'unknown';
+    const key = groups[dir as keyof typeof groups] ? dir : 'unknown';
+    const label = t?.test_name ?? t?.test_code ?? 'Test';
+    groups[key].push(label);
+  }
+  const lines = ['**Lab trends at a glance**'];
+  const describe = (label: string, items: string[], icon: string) => {
+    if (!items.length) return `${icon} ${label}: —`;
+    return `${icon} ${label}: ${items.join(', ')}`;
+  };
+  lines.push('', describe('Improving', groups.improving, '✅'));
+  lines.push(describe('Worsening', groups.worsening, '⚠️'));
+  lines.push(describe('Stable', groups.flat, '➖'));
+  lines.push(describe('Need more data', groups.unknown, 'ℹ️'));
+  return lines.join('\n');
+}
+
+function renderGaps(trend: any[], meta?: any) {
+  const totalPoints = typeof meta?.points === 'number' ? meta.points : undefined;
+  const totalReports = typeof meta?.total_reports === 'number' ? meta.total_reports : undefined;
+  const missingUnits = (Array.isArray(trend) ? trend : []).filter(t => !t?.unit);
+  const singleReadings = (Array.isArray(trend) ? trend : []).filter(t => !t?.previous || typeof t.previous?.value !== 'number');
+  const lines = ['**Lab data coverage**'];
+  if (typeof totalReports === 'number') lines.push(`- Distinct reports: ${totalReports}`);
+  if (typeof totalPoints === 'number') lines.push(`- Structured points captured: ${totalPoints}`);
+  lines.push(`- Tests tracked: ${(Array.isArray(trend) ? trend.length : 0)}`);
+  if (missingUnits.length) {
+    lines.push(`- Missing units for: ${missingUnits.map(t => t?.test_name ?? t?.test_code ?? 'Test').join(', ')}`);
+  } else {
+    lines.push('- All structured tests include units.');
+  }
+  if (singleReadings.length) {
+    lines.push(`- Only one reading so far for: ${singleReadings.map(t => t?.test_name ?? t?.test_code ?? 'Test').join(', ')}`);
+  } else {
+    lines.push('- Each tracked test has at least two readings.');
+  }
+  if (!Array.isArray(trend) || trend.length === 0) {
+    lines.push('', NO_LABS_MESSAGE);
+  }
+  return lines.join('\n');
+}
 
 const NEARBY_KIND_SYNONYMS: Record<NearbyKind, string[]> = {
   pharmacy: [
@@ -610,12 +809,16 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const fetchLabSummary = useCallback(async () => {
     try {
-      const res = await fetch('/api/labs/summary');
+      const res = await fetch('/api/labs/summary', { cache: 'no-store' });
       const body = await res.json();
-      if (body?.ok) setLabSummary(body);
+      if (body?.ok) {
+        setLabSummary(body);
+        return body;
+      }
     } catch (e) {
       console.error('labs summary error', e);
     }
+    return null;
   }, []);
 
   useEffect(() => {
@@ -685,10 +888,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       return "Couldn’t load structured labs.";
     }
   }, [setLabSummary]);
-
-  const showOcrText = useCallback(async () => {
-    pushAssistantText('Raw report text is currently only available from the document view.');
-  }, [pushAssistantText]);
 
   // Auto-resize the textarea up to a max height
   useEffect(() => {
@@ -1490,11 +1689,34 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, [therapyMode]);
 
 
-  function labsMarkdown(trend: any[]) {
-    const lines = buildTrendLines(trend);
-    if (lines.length === 0) return NO_LABS_MESSAGE;
-    return ['**Your latest labs (vs previous):**', ...lines].join('\n');
-  }
+  const handleAiDocMessage = useCallback(async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return undefined;
+
+    if (RAW_TEXT_INTENT.test(trimmed)) {
+      return 'You can open the original scan from the Labs view. I’ll stay with the structured numbers here.';
+    }
+
+    if (!LABS_INTENT.test(trimmed)) return undefined;
+
+    const summary = await fetchLabSummary();
+    const trend = Array.isArray(summary?.trend) ? summary.trend : [];
+    const meta = summary?.meta || {};
+
+    if (!summary?.ok || trend.length === 0) {
+      return NO_LABS_MESSAGE;
+    }
+
+    if (/date\s*wise|timeline/i.test(trimmed)) return renderDatewise(trend, meta);
+    if (/latest|current/i.test(trimmed)) return renderLatest(trend);
+    if (/compare|vs|changed since/i.test(trimmed)) return renderCompareAuto(trend);
+    if (/(ldl|hdl|hba1c|a1c|egfr|creatinine|urea|alt|ast|alp|crp|vitamin\s*d|triglycerides?|total chol)/i.test(trimmed)) {
+      return renderSeriesAuto(trend, trimmed);
+    }
+    if (/trend|improving|worse/i.test(trimmed)) return renderTrends(trend);
+    if (/missing|unit|unmapped/i.test(trimmed)) return renderGaps(trend, meta);
+    return renderDatewise(trend, meta);
+  }, [fetchLabSummary]);
 
 
   async function send(text: string, researchMode: boolean, opts: SendOpts = {}) {
@@ -1597,30 +1819,22 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       const fullContext = buildFullContext(stableThreadId);
       const contextBlock = fullContext ? `\n\nCONTEXT (recent conversation):\n${fullContext}` : "";
       if (isProfileThread) {
-        const isLast = /last (blood )?(report|labs?)/i.test(messageText);
-        const isChanges = /(all|my) (reports|labs?).*(changes|trend|improv|wors)/i.test(messageText);
-        const isDatewise = /(date ?wise|by date|chronolog)/i.test(messageText);
-        if (isLast || isChanges || isDatewise) {
-          try {
-            const res = await fetch('/api/labs/summary');
-            const body = await res.json().catch(() => null);
-            if (body?.ok && Array.isArray(body.trend)) {
-              const summary = labsMarkdown(body.trend);
-              setMessages(prev =>
-                prev.map(m => (m.id === pendingId ? { ...m, content: summary, pending: false } : m))
-              );
-              if (threadId && summary.trim()) {
-                pushFullMem(threadId, 'assistant', summary);
-                maybeIndexStructured(threadId, summary);
-              }
-              if (stableThreadId) {
-                try { pushFullMem(stableThreadId, 'assistant', summary); } catch {}
-              }
-              setBusy(false);
-              setThinkingStartedAt(null);
-              return;
-            }
-          } catch {}
+        const aiDocReply = await handleAiDocMessage(messageText);
+        if (typeof aiDocReply === 'string') {
+          const content = aiDocReply || NO_LABS_MESSAGE;
+          setMessages(prev =>
+            prev.map(m => (m.id === pendingId ? { ...m, content, pending: false } : m))
+          );
+          if (threadId && content.trim()) {
+            pushFullMem(threadId, 'assistant', content);
+            maybeIndexStructured(threadId, content);
+          }
+          if (stableThreadId) {
+            try { pushFullMem(stableThreadId, 'assistant', content); } catch {}
+          }
+          setBusy(false);
+          setThinkingStartedAt(null);
+          return;
         }
 
         const thread = [
@@ -1631,6 +1845,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         ];
 
         const endpoint = '/api/aidoc/chat';
+        const panelName =
+          context === 'ai-doc-med-profile' || threadId === 'med-profile'
+            ? 'med-profile'
+            : 'ai-doc';
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1639,7 +1857,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             messages: thread,
             threadId,
             context,
-            clientRequestId
+            clientRequestId,
+            panel: panelName
           }),
           signal: ctrl.signal
         });
@@ -1995,6 +2214,10 @@ ${systemCommon}` + baseSys;
       }
 
       const url = `/api/chat/stream${researchMode ? '?research=1' : ''}`;
+      const panelName =
+        context === 'profile' || threadId === 'med-profile'
+          ? 'med-profile'
+          : 'chat';
       const res = await fetch(url, {
         method: 'POST',
         headers: {
@@ -2008,7 +2231,8 @@ ${systemCommon}` + baseSys;
           threadId,
           context,
           clientRequestId,
-          research: researchMode
+          research: researchMode,
+          panel: panelName
         }),
         signal: ctrl.signal
       });
@@ -2248,7 +2472,10 @@ ${systemCommon}` + baseSys;
             { id: uid(), role: 'user', kind: 'chat', content: trimmed, pending: false } as any,
           ]);
           setUserText('');
-          await showOcrText();
+          const reply = await handleAiDocMessage(trimmed);
+          if (typeof reply === 'string') {
+            pushAssistantText(reply);
+          }
           return;
         }
 
@@ -2258,8 +2485,13 @@ ${systemCommon}` + baseSys;
             { id: uid(), role: 'user', kind: 'chat', content: trimmed, pending: false } as any,
           ]);
           setUserText('');
-          const md = await buildReportTimelineCard();
-          pushAssistantText(md);
+          const reply = await handleAiDocMessage(trimmed);
+          if (typeof reply === 'string') {
+            pushAssistantText(reply);
+          } else {
+            const md = await buildReportTimelineCard();
+            pushAssistantText(md);
+          }
           return;
         }
       }

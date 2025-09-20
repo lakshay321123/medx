@@ -7,6 +7,7 @@ import { computeAll } from '@/lib/medical/engine/computeAll';
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
 import { RESEARCH_BRIEF_STYLE } from '@/lib/styles';
+import { pickProvider } from '@/lib/provider';
 
 // --- tiny helper: keep only the last N non-system turns (cheap token control)
 function takeRecentTurns(
@@ -59,6 +60,9 @@ export async function POST(req: NextRequest) {
   let body: any = {};
   try { body = await req.json(); } catch {}
   const { context, clientRequestId, mode } = body;
+
+  const panel = typeof body?.panel === 'string' ? body.panel : 'chat';
+  const provider = pickProvider({ panel, intent: mode });
 
   const research =
     qp === '1' || qp === 'true' || body?.research === true || body?.research === 'true';
@@ -129,31 +133,6 @@ export async function POST(req: NextRequest) {
     }
     recentReqs.set(clientRequestId, now);
   }
-  const base  = process.env.LLM_BASE_URL!;
-  const model = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
-  const key   = process.env.LLM_API_KEY!;
-  const url = `${base.replace(/\/$/,'')}/chat/completions`;
-
-  if (research && !long) {
-    const upstream = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model,
-        messages: briefMessages,
-        stream: true,
-        ...modelOptions
-      })
-    });
-    if (!upstream.ok) {
-      const err = await upstream.text();
-      return new Response(`LLM error: ${err}`, { status: 500 });
-    }
-    return new Response(upstream.body, {
-      headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }
-    });
-  }
-
   // === Concision controls (SOFT cap, no cutoffs) ===
   const latestUserMessage =
     (messages || []).filter((m: any) => m.role === 'user').slice(-1)[0]?.content || '';
@@ -236,20 +215,112 @@ export async function POST(req: NextRequest) {
   }
   // === [MEDX_CALC_PRELUDE_END] ===
 
+  const tokenLimit = Math.min(768, Math.max(200, Math.round((targetWordCap + 40) * 1.7)));
+
+  if (provider === 'none') {
+    return new Response('LLM provider unavailable', { status: 503 });
+  }
+
+  if (provider === 'openai') {
+    const openaiKey = process.env.OPENAI_API_KEY;
+    if (!openaiKey) {
+      return new Response('OPENAI_API_KEY missing', { status: 500 });
+    }
+    const base = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, '');
+    const model = process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini';
+    if (research && !long) {
+      const upstream = await fetch(`${base}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
+        body: JSON.stringify({
+          model,
+          messages: briefMessages,
+          stream: true,
+          ...modelOptions,
+        }),
+      });
+      if (!upstream.ok) {
+        const err = await upstream.text();
+        return new Response(`OpenAI error: ${err}`, { status: upstream.status || 500 });
+      }
+      return new Response(upstream.body, {
+        headers: {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'x-medx-provider': 'openai',
+          'x-medx-model': model,
+        },
+      });
+    }
+
+    const upstream = await fetch(`${base}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
+      body: JSON.stringify({
+        model,
+        messages: finalMessages,
+        max_tokens: tokenLimit,
+        stream: true,
+        temperature: 0.4,
+        top_p: 1,
+        frequency_penalty: 0,
+        presence_penalty: 0,
+      }),
+    });
+    if (!upstream.ok) {
+      const err = await upstream.text();
+      return new Response(`OpenAI error: ${err}`, { status: upstream.status || 500 });
+    }
+    return new Response(upstream.body, {
+      headers: {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'x-medx-provider': 'openai',
+        'x-medx-model': model,
+      },
+    });
+  }
+
+  const base = process.env.LLM_BASE_URL!;
+  const model = process.env.LLM_MODEL_ID || 'llama-3.1-8b-instant';
+  const key = process.env.LLM_API_KEY!;
+  const url = `${base.replace(/\/$/, '')}/chat/completions`;
+
+  if (research && !long) {
+    const upstream = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model,
+        messages: briefMessages,
+        stream: true,
+        ...modelOptions,
+      }),
+    });
+    if (!upstream.ok) {
+      const err = await upstream.text();
+      return new Response(`LLM error: ${err}`, { status: 500 });
+    }
+    return new Response(upstream.body, {
+      headers: {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'x-medx-provider': 'groq',
+        'x-medx-model': model,
+      },
+    });
+  }
+
   const upstream = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
     body: JSON.stringify({
       model,
       messages: finalMessages,
-      // Token cap with buffer to avoid API truncation while honoring SOFT word cap
-      max_tokens: Math.min(768, Math.max(200, Math.round((targetWordCap + 40) * 1.7))),
+      max_tokens: tokenLimit,
       stream: true,
       temperature: 0.4,
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,
-    })
+    }),
   });
 
   if (!upstream.ok) {
@@ -257,8 +328,11 @@ export async function POST(req: NextRequest) {
     return new Response(`LLM error: ${err}`, { status: 500 });
   }
 
-  // Pass-through SSE; frontend parses "data: {delta.content}"
   return new Response(upstream.body, {
-    headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'x-medx-provider': 'groq',
+      'x-medx-model': model,
+    },
   });
 }

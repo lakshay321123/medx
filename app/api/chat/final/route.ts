@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ensureMinDelay } from "@/lib/utils/ensureMinDelay";
 import { callGroqChat, callOpenAIChat } from "@/lib/medx/providers";
+import { pickProvider } from "@/lib/provider";
 
 // Optional calculator prelude (safe if absent)
 let composeCalcPrelude: any, extractAll: any, canonicalizeInputs: any, computeAll: any;
@@ -11,14 +12,9 @@ try {
   ({ computeAll } = require("@/lib/medical/engine/computeAll"));
 } catch {}
 
-function pickProvider(mode?: string) {
-  const m = (mode || "").toLowerCase();
-  return (m === "basic" || m === "casual") ? "groq" : "openai";
-}
-
 export async function POST(req: Request) {
   const { messages = [], mode } = await req.json();
-  const provider = pickProvider(mode);
+  const provider = pickProvider({ panel: 'chat', intent: mode });
 
   if (provider === "groq") {
     const reply = await ensureMinDelay(callGroqChat(messages, { temperature: 0.2, max_tokens: 1200 }));

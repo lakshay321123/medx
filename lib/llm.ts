@@ -1,4 +1,15 @@
+import OpenAI from 'openai';
+
 export type ChatMsg = { role: 'system'|'user'|'assistant'; content: string };
+
+export type Provider = 'openai' | 'none';
+
+export function getLLM(provider: Provider = 'openai') {
+  if (provider === 'openai') {
+    return new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+  }
+  return null;
+}
 
 const GROQ_URL   = process.env.LLM_BASE_URL || 'https://api.groq.com/openai/v1';
 const GROQ_KEY   = process.env.LLM_API_KEY!;
