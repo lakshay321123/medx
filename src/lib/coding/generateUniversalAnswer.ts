@@ -102,47 +102,73 @@ function ensureNumberArray(value: unknown): number[] {
 
 function normalizeClaimLines(lines: unknown): UniversalCodingClaimLine[] {
   if (!Array.isArray(lines)) return [];
-  return lines
-    .map((line) => {
-      if (!line || typeof line !== 'object') return null;
 
-      const record = line as Record<string, unknown>;
-      const cptValue = record.cpt;
-      if (cptValue === undefined || cptValue === null) return null;
+  const normalized: UniversalCodingClaimLine[] = [];
 
-      const rawUnits = record.units;
-      let units: number | undefined;
-      if (typeof rawUnits === 'number' && Number.isFinite(rawUnits)) {
-        units = rawUnits;
-      } else if (typeof rawUnits === 'string') {
-        const trimmed = rawUnits.trim();
-        if (trimmed.length > 0) {
-          const parsed = Number(trimmed);
-          if (Number.isFinite(parsed)) {
-            units = parsed;
-          }
+  for (const line of lines) {
+    if (!line || typeof line !== 'object') continue;
+
+    const record = line as Record<string, unknown>;
+    const cptValue = record.cpt;
+    if (cptValue === undefined || cptValue === null) continue;
+
+    const rawUnits = record.units;
+    let units: number | undefined;
+    if (typeof rawUnits === 'number' && Number.isFinite(rawUnits)) {
+      units = rawUnits;
+    } else if (typeof rawUnits === 'string') {
+      const trimmed = rawUnits.trim();
+      if (trimmed.length > 0) {
+        const parsed = Number(trimmed);
+        if (Number.isFinite(parsed)) {
+          units = parsed;
         }
       }
+    }
 
-      const rawCharge = record.charge;
-      let charge: number | null | undefined;
-      if (typeof rawCharge === 'number' && Number.isFinite(rawCharge)) {
-        charge = rawCharge;
-      } else if (rawCharge === null) {
-        charge = null;
-      }
+    const rawCharge = record.charge;
+    let charge: number | null | undefined;
+    if (typeof rawCharge === 'number' && Number.isFinite(rawCharge)) {
+      charge = rawCharge;
+    } else if (rawCharge === null) {
+      charge = null;
+    }
 
-      return {
-        cpt: String(cptValue),
-        modifiers: ensureStringArray(record.modifiers),
-        dxPointers: ensureNumberArray(record.dxPointers),
-        units,
-        pos: typeof record.pos === 'string' ? record.pos : undefined,
-        notes: typeof record.notes === 'string' ? record.notes : undefined,
-        charge
-      } satisfies UniversalCodingClaimLine;
-    })
-    .filter((line): line is UniversalCodingClaimLine => line !== null);
+    const modifiers = ensureStringArray(record.modifiers);
+    const dxPointers = ensureNumberArray(record.dxPointers);
+
+    const claimLine: UniversalCodingClaimLine = {
+      cpt: String(cptValue)
+    };
+
+    if (modifiers.length > 0) {
+      claimLine.modifiers = modifiers;
+    }
+
+    if (dxPointers.length > 0) {
+      claimLine.dxPointers = dxPointers;
+    }
+
+    if (typeof units === 'number') {
+      claimLine.units = units;
+    }
+
+    if (typeof record.pos === 'string') {
+      claimLine.pos = record.pos;
+    }
+
+    if (typeof record.notes === 'string') {
+      claimLine.notes = record.notes;
+    }
+
+    if (charge !== undefined) {
+      claimLine.charge = charge;
+    }
+
+    normalized.push(claimLine);
+  }
+
+  return normalized;
 }
 
 function normalizeAnswer(raw: any, mode: UniversalCodingMode): UniversalCodingAnswer {
