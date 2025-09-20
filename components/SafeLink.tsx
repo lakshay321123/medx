@@ -1,5 +1,14 @@
+"use client";
+
 import React from "react";
 import { sourceLabelFromUrl } from "@/lib/url";
+
+const REWRITE_MAP: Record<string, string> = {
+  "https://www.cms.gov/medicare/coding/place-of-service-codes/place-service-code-set":
+    "https://www.cms.gov/medicare/coding-billing/place-of-service-codes/code-sets",
+  "http://www.cms.gov/medicare/coding/place-of-service-codes/place-service-code-set":
+    "https://www.cms.gov/medicare/coding-billing/place-of-service-codes/code-sets",
+};
 
 export function normalizeExternalHref(input?: string): string | null {
   if (!input) return null;
@@ -9,16 +18,16 @@ export function normalizeExternalHref(input?: string): string | null {
   // If model returned "[Learn more](www.nhs.uk/)" (no protocol), add https
   if (/^www\./i.test(href)) href = "https://" + href;
 
+  if (REWRITE_MAP[href]) href = REWRITE_MAP[href];
+
   try {
     const base =
       typeof window !== "undefined" ? window.location.origin : "https://example.org";
     const url = new URL(href, base);
 
-    // allow only http/https, block javascript:, data:, etc.
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    const scheme = url.protocol.replace(":", "").toLowerCase();
+    if (!["http", "https"].includes(scheme)) return null;
 
-    // encode spaces etc. (path segments only)
-    url.pathname = url.pathname.split("/").map(encodeURIComponent).join("/");
     return url.toString();
   } catch {
     return null;
@@ -53,37 +62,108 @@ export const SafeAnchor: React.FC<React.AnchorHTMLAttributes<HTMLAnchorElement>>
 export function LinkBadge(props: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
   const { href, children, className = "", ...rest } = props;
   const safe = normalizeExternalHref(typeof href === "string" ? href : undefined);
-  if (!safe) {
+  const [verdict, setVerdict] = React.useState<"alive" | "dead" | "uncertain" | null>(null);
+
+  React.useEffect(() => {
+    let mounted = true;
+    if (!safe) {
+      setVerdict("dead");
+      return () => {
+        mounted = false;
+      };
+    }
+
+    if (typeof window === "undefined") {
+      setVerdict("uncertain");
+      return () => {
+        mounted = false;
+      };
+    }
+
+    const key = `linkcheck:${safe}`;
+    try {
+      const cached = window.sessionStorage.getItem(key);
+      if (cached === "alive" || cached === "dead" || cached === "uncertain") {
+        setVerdict(cached as "alive" | "dead" | "uncertain");
+        return () => {
+          mounted = false;
+        };
+      }
+    } catch {
+      // ignore storage errors
+    }
+
+    setVerdict(null);
+
+    (async () => {
+      try {
+        const response = await fetch("/api/linkcheck", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ url: safe }),
+        });
+        const json = await response.json();
+        const v: "alive" | "dead" | "uncertain" =
+          json?.verdict === "dead" || json?.verdict === "alive" ? json.verdict : "uncertain";
+        if (mounted) {
+          setVerdict(v);
+        }
+        try {
+          window.sessionStorage.setItem(key, v);
+        } catch {
+          // ignore storage failures
+        }
+      } catch {
+        if (mounted) {
+          setVerdict("uncertain");
+        }
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [safe]);
+
+  const label = React.useMemo(() => {
+    if (typeof children === "string" && children.trim().length > 0) {
+      return children;
+    }
+    if (safe) {
+      return sourceLabelFromUrl(safe);
+    }
+    return children ?? "Source";
+  }, [children, safe]);
+
+  if (!safe || verdict === "dead") {
+    const disabledClass =
+      "inline-flex items-center rounded-full border px-2 py-1 text-xs opacity-70 cursor-not-allowed " +
+      "border-slate-200 dark:border-gray-700 text-slate-400" +
+      (className ? " " + className : "");
     return (
-      <span
-        className="inline-flex items-center rounded-full border border-slate-200 dark:border-gray-700 px-2 py-1 text-xs text-slate-400"
-        title="Link unavailable"
-      >
-        {children ?? "Source"}
+      <span className={disabledClass} title="Link unavailable">
+        {label}
       </span>
     );
   }
-
-  // Use provided text if present; otherwise show derived source label
-  const label =
-    (typeof children === "string" && children.trim().length > 0)
-      ? children
-      : sourceLabelFromUrl(safe);
 
   return (
     <a
       href={safe}
       target="_blank"
       rel="noopener noreferrer"
+      aria-busy={verdict === null ? "true" : "false"}
       className={
-        "inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-gray-700 " +
-        "bg-white dark:bg-gray-900 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 " +
-        "shadow-sm hover:bg-slate-50 dark:hover:bg-gray-800 transition " + className
+        "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs shadow-sm hover:bg-slate-50 dark:hover:bg-gray-800 transition " +
+        "border-slate-200 dark:border-gray-700" +
+        (className ? " " + className : "")
       }
       {...rest}
     >
       <span>{label}</span>
-      <span aria-hidden="true" className="opacity-70">↗</span>
+      <span aria-hidden="true" className="opacity-70">
+        ↗
+      </span>
     </a>
   );
 }
