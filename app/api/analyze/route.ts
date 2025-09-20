@@ -5,6 +5,7 @@ import { analyzeLabText } from "@/lib/labReport";
 import { extractAll, canonicalizeInputs } from "@/lib/medical/engine/extract";
 import { computeAll } from "@/lib/medical/engine/computeAll";
 import { dualEngineSummarize } from "@/lib/reports/dualEngine";
+import { FORCE_OPENAI_HEADER, FORCE_OPENAI_VALUE } from "@/lib/medx/providers";
 
 const OAI_KEY = process.env.OPENAI_API_KEY!;
 const MODEL_TEXT = process.env.OPENAI_TEXT_MODEL || "gpt-5";
@@ -86,6 +87,12 @@ function promptForCategory(category: string, doctorMode: boolean): string {
 
 export async function POST(req: Request) {
   try {
+    const isAiDoc = req.headers.get(FORCE_OPENAI_HEADER)?.toLowerCase() === FORCE_OPENAI_VALUE;
+    const json = (payload: any, init?: ResponseInit) => {
+      const res = NextResponse.json(payload, init);
+      if (isAiDoc) res.headers.set(FORCE_OPENAI_HEADER, FORCE_OPENAI_VALUE);
+      return res;
+    };
     const fd = await req.formData();
     const file = fd.get("file") as File | null;
     const doctorMode = fd.get("doctorMode") === "true";
@@ -97,7 +104,7 @@ export async function POST(req: Request) {
       COUNTRIES.find(c => c.code3 === code) ||
       COUNTRIES.find(c => c.code3 === "USA")!;
 
-    if (!file) return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+    if (!file) return json({ error: "No file uploaded" }, { status: 400 });
 
     const name = file.name || "document";
     const mime = file.type || "";
@@ -111,7 +118,7 @@ export async function POST(req: Request) {
 
     if (mime === "application/pdf" || name.toLowerCase().endsWith(".pdf")) {
       text = await extractTextFromPDF(buf);
-      if (!doctorMode && text) {
+      if (!doctorMode) {
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
         const cookie = req.headers.get("cookie") || undefined;
         try {
@@ -146,7 +153,7 @@ export async function POST(req: Request) {
           MAX_REVIEW: Number(process.env.REPORT_LLM_MAX_REVIEW_PASSES || 2),
         };
 
-        if (FLAGS.DUAL && FLAGS.LLM && category === "lab_report") {
+        if (!isAiDoc && FLAGS.DUAL && FLAGS.LLM && category === "lab_report") {
           const labFacts = analyzeLabText(text, { region: FLAGS.REGION });
           const result = await dualEngineSummarize({
             kind: "lab",
@@ -156,10 +163,10 @@ export async function POST(req: Request) {
             assumeAdultIfUnknown: FLAGS.ASSUME_ADULT,
             maxReviewPasses: FLAGS.MAX_REVIEW,
           });
-          return NextResponse.json(result, { status: 200 });
+          return json(result, { status: 200 });
         }
 
-        if (FLAGS.DUAL && FLAGS.LLM && FLAGS.USE_CALC && category !== "lab_report") {
+        if (!isAiDoc && FLAGS.DUAL && FLAGS.LLM && FLAGS.USE_CALC && category !== "lab_report") {
           const ctx = canonicalizeInputs(extractAll(text));
           const derived = computeAll(ctx);
           const result = await dualEngineSummarize({
@@ -170,7 +177,7 @@ export async function POST(req: Request) {
             assumeAdultIfUnknown: FLAGS.ASSUME_ADULT,
             maxReviewPasses: FLAGS.MAX_REVIEW,
           });
-          return NextResponse.json(result, { status: 200 });
+          return json(result, { status: 200 });
         }
 
         const basePrompt = promptForCategory(category, doctorMode);
@@ -202,7 +209,7 @@ export async function POST(req: Request) {
       dataUrl = `data:${mime};base64,${buf.toString("base64")}`;
       category = await classifyImage(dataUrl);
     } else {
-      return NextResponse.json({ error: "Unsupported file type" }, { status: 400 });
+      return json({ error: "Unsupported file type" }, { status: 400 });
     }
 
     if (dataUrl && !report) {
@@ -232,7 +239,7 @@ export async function POST(req: Request) {
       report = data?.choices?.[0]?.message?.content || "";
     }
 
-    return NextResponse.json({
+    return json({
       type: "auto",
       filename: name,
       category,
@@ -241,7 +248,12 @@ export async function POST(req: Request) {
       obsIds: doctorMode ? [] : obsIds,
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message || "analyze failed" }, { status: 500 });
+    console.error('analyze error', e);
+    const res = NextResponse.json({ error: e.message || "analyze failed" }, { status: 500 });
+    if (req.headers.get(FORCE_OPENAI_HEADER)?.toLowerCase() === FORCE_OPENAI_VALUE) {
+      res.headers.set(FORCE_OPENAI_HEADER, FORCE_OPENAI_VALUE);
+    }
+    return res;
   }
 }
 

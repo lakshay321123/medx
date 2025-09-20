@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 // [AIDOC_TRIAGE_IMPORT] add triage imports
 import { handleDocAITriage, detectExperientialIntent } from "@/lib/aidoc/triage";
-import { POST as streamPOST } from "../../chat/stream/route";
 import { getUserId } from "@/lib/getUserId";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchLabSummary } from "@/lib/labs/summary";
+import { callOpenAIChat, FORCE_OPENAI_HEADER, FORCE_OPENAI_VALUE } from "@/lib/medx/providers";
 
 export const runtime = 'nodejs';
+
+const recentReqs = new Map<string, number>();
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({} as any));
@@ -171,17 +173,40 @@ export async function POST(req: NextRequest) {
       + (contextPacket ? `\n\n<CONTEXT_PACKET>${JSON.stringify(contextPacket)}</CONTEXT_PACKET>` : ""),
   };
   const finalMessages = [systemPreamble, ...messages];
-  const forwardBody = { ...body, messages: finalMessages };
+  const clientRequestId = typeof body?.clientRequestId === "string" ? body.clientRequestId : undefined;
+  const now = Date.now();
+  for (const [id, ts] of recentReqs.entries()) {
+    if (now - ts > 60_000) recentReqs.delete(id);
+  }
+  if (clientRequestId) {
+    const prev = recentReqs.get(clientRequestId);
+    if (prev && now - prev < 60_000) {
+      return new NextResponse(null, {
+        status: 409,
+        headers: { [FORCE_OPENAI_HEADER]: FORCE_OPENAI_VALUE },
+      });
+    }
+    recentReqs.set(clientRequestId, now);
+  }
 
-  const headers = new Headers(req.headers);
-  headers.delete("content-length");
-  headers.set("content-type", "application/json");
-  const forwardReq = new NextRequest(req.url, {
-    method: req.method,
+  const upstream = (await callOpenAIChat(finalMessages, {
+    stream: true,
+    temperature: 0.1,
+  })) as Response;
+
+  if (!upstream.ok || !upstream.body) {
+    const err = upstream.ok ? "No response body" : await upstream.text().catch(() => "OpenAI error");
+    return new NextResponse(`OpenAI stream error: ${err}`, {
+      status: upstream.status || 500,
+      headers: { [FORCE_OPENAI_HEADER]: FORCE_OPENAI_VALUE },
+    });
+  }
+
+  const headers = new Headers(upstream.headers);
+  headers.set("content-type", "text/event-stream; charset=utf-8");
+  headers.set(FORCE_OPENAI_HEADER, FORCE_OPENAI_VALUE);
+  return new Response(upstream.body, {
+    status: upstream.status,
     headers,
-    body: JSON.stringify(forwardBody),
   });
-
-  // existing streaming setup continues here
-  return streamPOST(forwardReq);
 }

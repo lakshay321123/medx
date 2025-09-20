@@ -82,7 +82,7 @@ export default function MedicalProfile() {
 
       const res = await fetch("/api/predictions/compute", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-medx-context": "aidoc" },
         body: JSON.stringify({ threadId })
       });
       const body = await res.json().catch(() => ({}));
@@ -93,7 +93,7 @@ export default function MedicalProfile() {
 
       fetch("/api/aidoc/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-medx-context": "aidoc" },
         body: JSON.stringify({
           mode: "doctor",
           threadId,

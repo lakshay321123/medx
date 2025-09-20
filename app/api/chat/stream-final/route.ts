@@ -1,5 +1,5 @@
 import { ensureMinDelay, minDelayMs } from "@/lib/utils/ensureMinDelay";
-import { callOpenAIChat } from "@/lib/medx/providers";
+import { callOpenAIChat, FORCE_OPENAI_HEADER, FORCE_OPENAI_VALUE } from "@/lib/medx/providers";
 
 // Optional calculator prelude (safe if engine absent)
 let composeCalcPrelude: any, extractAll: any, canonicalizeInputs: any, computeAll: any;
@@ -13,6 +13,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const isAiDoc = req.headers.get(FORCE_OPENAI_HEADER)?.toLowerCase() === FORCE_OPENAI_VALUE;
   const { messages = [], mode } = await req.json();
 
   // This endpoint is explicitly the OpenAI (final say) stream for non-basic modes.
@@ -39,11 +40,11 @@ export async function POST(req: Request) {
     const err = upstream ? await upstream.text() : "Upstream error";
     return new Response(`OpenAI stream error: ${err}`, { status: 500 });
   }
-  return new Response(upstream.body, {
-    headers: {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "x-medx-provider": "openai",
-      "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-5"
-    }
-  });
+  const headers: Record<string, string> = {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "x-medx-provider": "openai",
+    "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-5",
+  };
+  if (isAiDoc) headers[FORCE_OPENAI_HEADER] = FORCE_OPENAI_VALUE;
+  return new Response(upstream.body, { headers });
 }

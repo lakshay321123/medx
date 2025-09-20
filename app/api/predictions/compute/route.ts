@@ -3,18 +3,29 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/getUserId";
-import LLM, { type Msg } from "@/lib/LLM";
+import { AiDocJsonSchema } from "@/lib/LLM";
+import { callOpenAIChat, callOpenAIJson, FORCE_OPENAI_HEADER, FORCE_OPENAI_VALUE } from "@/lib/medx/providers";
 
-const MODEL_NAME = process.env.LLM_MODEL_ID || "llama-3.1-70b";
+const MODEL_NAME = process.env.OPENAI_TEXT_MODEL || "gpt-5";
 
 export async function POST(req: NextRequest) {
   try {
     const userId = await getUserId();
-    if (!userId) return new NextResponse("Unauthorized", { status: 401 });
+    const isAiDoc = req.headers.get(FORCE_OPENAI_HEADER)?.toLowerCase() === FORCE_OPENAI_VALUE;
+    if (!userId) {
+      const headers = new Headers();
+      if (isAiDoc) headers.set(FORCE_OPENAI_HEADER, FORCE_OPENAI_VALUE);
+      return new NextResponse("Unauthorized", { status: 401, headers });
+    }
 
     const { threadId = "" } = (await req.json().catch(() => ({}))) as { threadId?: string };
     if (!threadId) {
-      return NextResponse.json({ ok: false, error: "threadId required" }, { status: 400 });
+      const headers = new Headers({ "content-type": "application/json" });
+      if (isAiDoc) headers.set(FORCE_OPENAI_HEADER, FORCE_OPENAI_VALUE);
+      return new NextResponse(JSON.stringify({ ok: false, error: "threadId required" }), {
+        status: 400,
+        headers,
+      });
     }
 
     const snapshot = await loadSnapshot(userId);
@@ -23,7 +34,17 @@ export async function POST(req: NextRequest) {
     }
 
     const { systemPrompt, instruction, userBlock } = buildPrompts(snapshot);
-    const structured = await LLM.validateJson(systemPrompt, instruction, userBlock);
+    const structured = await callOpenAIJson({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "system", content: instruction },
+        { role: "user", content: userBlock },
+      ],
+      schema: AiDocJsonSchema.schema,
+      schemaName: AiDocJsonSchema.name,
+      model: MODEL_NAME,
+      temperature: 0.2,
+    });
 
     const summary = await generateSummary({ snapshot, structured });
 
@@ -39,17 +60,29 @@ export async function POST(req: NextRequest) {
 
     await recordTimelineEvent({ supa, userId, threadId, summary, structured });
 
-    return NextResponse.json({
-      ok: true,
-      prediction: inserted,
-      structured,
-      summary,
-      snapshot,
-    });
+    const headers = new Headers({ "content-type": "application/json" });
+    if (isAiDoc) headers.set(FORCE_OPENAI_HEADER, FORCE_OPENAI_VALUE);
+    return new NextResponse(
+      JSON.stringify({
+        ok: true,
+        prediction: inserted,
+        structured,
+        summary,
+        snapshot,
+      }),
+      { headers }
+    );
   } catch (err: any) {
     console.error("[predictions/compute]", err);
     const message = err?.message || "compute failed";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    const headers = new Headers({ "content-type": "application/json" });
+    if (req.headers.get(FORCE_OPENAI_HEADER)?.toLowerCase() === FORCE_OPENAI_VALUE) {
+      headers.set(FORCE_OPENAI_HEADER, FORCE_OPENAI_VALUE);
+    }
+    return new NextResponse(JSON.stringify({ ok: false, error: message }), {
+      status: 500,
+      headers,
+    });
   }
 }
 
@@ -311,25 +344,26 @@ async function generateSummary({
     ? snapshot.highlights.map(h => `• ${h}`).join("\n")
     : "• No recent labs captured.";
 
-  const messages: Msg[] = [
-    {
-      role: "system",
-      content: "You are a clinical summarizer. Produce a concise 4–6 sentence risk overview using the structured JSON provided.",
-    },
-    {
-      role: "user",
-      content: [
-        `Patient profile: ${profile}`,
-        "Structured JSON:",
-        JSON.stringify(structured, null, 2),
-        "Key labs:",
-        highlightLines,
-      ].join("\n\n"),
-    },
-  ];
-
-  const text = await LLM.finalize(messages);
-  return text || "AI summary unavailable.";
+  const reply = await callOpenAIChat(
+    [
+      {
+        role: "system",
+        content: "You are a clinical summarizer. Produce a concise 4–6 sentence risk overview using the structured JSON provided.",
+      },
+      {
+        role: "user",
+        content: [
+          `Patient profile: ${profile}`,
+          "Structured JSON:",
+          JSON.stringify(structured, null, 2),
+          "Key labs:",
+          highlightLines,
+        ].join("\n\n"),
+      },
+    ],
+    { temperature: 0.2, model: MODEL_NAME }
+  );
+  return (reply || "").trim() || "AI summary unavailable.";
 }
 
 async function savePrediction({

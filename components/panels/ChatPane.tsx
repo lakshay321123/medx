@@ -1633,7 +1633,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         const endpoint = '/api/aidoc/chat';
         const res = await fetch(endpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-medx-context': 'aidoc' },
           body: JSON.stringify({
             mode: mode === 'doctor' ? 'doctor' : 'patient',
             messages: thread,
@@ -2142,7 +2142,11 @@ ${systemCommon}` + baseSys;
       const sourceHash = `${file?.name ?? 'doc'}:${file?.size ?? ''}:${(file as any)?.lastModified ?? ''}`;
       fd.append('sourceHash', sourceHash);
       const data = await safeJson(
-        fetch('/api/analyze', { method: 'POST', body: fd })
+        fetch('/api/analyze', {
+          method: 'POST',
+          headers: isProfileThread ? { 'x-medx-context': 'aidoc' } : undefined,
+          body: fd,
+        })
       );
       setMessages(prev =>
         prev.map(m =>
