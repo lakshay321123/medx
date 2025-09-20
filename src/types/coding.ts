@@ -1,72 +1,43 @@
-export type UniversalCodingMode = 'doctor' | 'doctor_research';
+export type CodingMode = 'doctor' | 'doctor_research';
 
-export interface UniversalCodingQuickSummaryItem {
+export interface CodingSummaryRow {
   label: string;
   value: string;
-  notes?: string;
 }
 
-export interface UniversalCodingModifierItem {
+export interface ModifierRow {
   modifier: string;
   useCase: string;
 }
 
-export interface UniversalCodingClaimLine {
+export interface ClaimLine {
   cpt: string;
   modifiers?: string[];
-  dxPointers: string[];
-  pos: string;
-  units: number;
+  dxPointers?: number[];
+  units?: number;
+  pos?: string;
   notes?: string;
-  charge?: number;
+  charge?: number | null;
 }
 
-export interface UniversalCodingReference {
-  label: string;
-  url: string;
-}
-
-export interface UniversalCodingClaimExample {
-  dxCodes: string[];
-  claimLines: UniversalCodingClaimLine[];
-  authBox23?: string;
-}
-
-export interface UniversalCodingBaseAnswer {
-  mode: UniversalCodingMode;
-  quickSummary: UniversalCodingQuickSummaryItem[];
-  modifiers: UniversalCodingModifierItem[];
+export interface UniversalCodingAnswer {
+  mode: CodingMode;
+  quickSummary: CodingSummaryRow[];
+  modifiers: ModifierRow[];
   ncciBundlingBullets: string[];
-  claimExample: UniversalCodingClaimExample;
+  claimExample: {
+    dxCodes: string[];
+    claimLines: ClaimLine[];
+    authBox23?: string | null;
+  };
   checklist: string[];
+  rationale?: string;
+  payerNotes?: string[];
+  icdSpecificity?: string[];
+  references?: {
+    label: string;
+    url?: string;
+  }[];
 }
 
-export interface UniversalCodingDoctorAnswer extends UniversalCodingBaseAnswer {
-  mode: 'doctor';
-  rationale?: never;
-  payerNotes?: never;
-  icdSpecificity?: never;
-  references?: never;
-}
-
-export interface UniversalCodingDoctorResearchAnswer extends UniversalCodingBaseAnswer {
-  mode: 'doctor_research';
-  rationale: string;
-  payerNotes: string[];
-  icdSpecificity: string[];
-  references: UniversalCodingReference[];
-}
-
-export type UniversalCodingAnswer =
-  | UniversalCodingDoctorAnswer
-  | UniversalCodingDoctorResearchAnswer;
-
-export interface UniversalCodingInput {
-  clinicalContext: string;
-  specialty?: string;
-  suspectedDiagnosis?: string;
-  procedureDetails?: string;
-  payer?: string;
-  placeOfService?: string;
-  additionalNotes?: string;
-}
+export type UniversalCodingClaimLine = ClaimLine;

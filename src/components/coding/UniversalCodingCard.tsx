@@ -11,9 +11,19 @@ function formatCharge(charge: UniversalCodingClaimLine['charge']): string | null
   return `$${charge.toFixed(2)}`;
 }
 
+function formatDxPointers(dxPointers: UniversalCodingClaimLine['dxPointers']): string {
+  if (!dxPointers || dxPointers.length === 0) {
+    return '—';
+  }
+  return dxPointers.map((pointer) => pointer.toString()).join(', ');
+}
+
 export function UniversalCodingCard({ data }: UniversalCodingCardProps) {
   const { quickSummary, modifiers, ncciBundlingBullets, claimExample, checklist, mode } = data;
   const isResearch = mode === 'doctor_research';
+  const payerNotes = data.payerNotes ?? [];
+  const icdSpecificity = data.icdSpecificity ?? [];
+  const references = data.references ?? [];
 
   return (
     <div className="space-y-8 rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
@@ -27,12 +37,7 @@ export function UniversalCodingCard({ data }: UniversalCodingCardProps) {
                   <th scope="row" className="w-1/3 bg-neutral-50 px-4 py-3 text-left font-medium text-neutral-600">
                     {item.label}
                   </th>
-                  <td className="px-4 py-3 text-neutral-900">
-                    <div className="font-medium">{item.value}</div>
-                    {item.notes ? (
-                      <p className="mt-1 text-sm text-neutral-600">{item.notes}</p>
-                    ) : null}
-                  </td>
+                  <td className="px-4 py-3 text-neutral-900">{item.value}</td>
                 </tr>
               ))}
             </tbody>
@@ -97,18 +102,16 @@ export function UniversalCodingCard({ data }: UniversalCodingCardProps) {
             </thead>
             <tbody className="divide-y divide-neutral-200">
               {claimExample.claimLines.map((line, index) => {
-                const formattedCharge = formatCharge(line.charge);
+                const formattedCharge = formatCharge(line.charge ?? undefined);
                 return (
                   <tr key={`${line.cpt}-${index}`} className="bg-white">
                     <td className="px-4 py-2 font-medium text-neutral-900">{line.cpt}</td>
                     <td className="px-4 py-2 text-neutral-700">
                       {line.modifiers && line.modifiers.length > 0 ? line.modifiers.join(', ') : '—'}
                     </td>
-                    <td className="px-4 py-2 text-neutral-700">
-                      {line.dxPointers && line.dxPointers.length > 0 ? line.dxPointers.join(', ') : '—'}
-                    </td>
-                    <td className="px-4 py-2 text-neutral-700">{line.pos}</td>
-                    <td className="px-4 py-2 text-neutral-700">{line.units}</td>
+                    <td className="px-4 py-2 text-neutral-700">{formatDxPointers(line.dxPointers)}</td>
+                    <td className="px-4 py-2 text-neutral-700">{line.pos ?? '—'}</td>
+                    <td className="px-4 py-2 text-neutral-700">{line.units ?? '—'}</td>
                     <td className="px-4 py-2 text-neutral-700">{line.notes ?? '—'}</td>
                     <td className="px-4 py-2 text-neutral-700">{formattedCharge ?? '—'}</td>
                   </tr>
@@ -136,14 +139,14 @@ export function UniversalCodingCard({ data }: UniversalCodingCardProps) {
         <>
           <section className="space-y-3">
             <h2 className="text-lg font-semibold">Rationale</h2>
-            <p className="text-sm text-neutral-800">{data.rationale}</p>
+            <p className="text-sm text-neutral-800">{data.rationale ?? 'No rationale provided.'}</p>
           </section>
 
           <section className="space-y-3">
             <h2 className="text-lg font-semibold">Payer Notes</h2>
-            {data.payerNotes.length > 0 ? (
+            {payerNotes.length > 0 ? (
               <ul className="list-disc space-y-2 pl-5 text-sm text-neutral-800">
-                {data.payerNotes.map((note, index) => (
+                {payerNotes.map((note, index) => (
                   <li key={index}>{note}</li>
                 ))}
               </ul>
@@ -154,9 +157,9 @@ export function UniversalCodingCard({ data }: UniversalCodingCardProps) {
 
           <section className="space-y-3">
             <h2 className="text-lg font-semibold">ICD-10 Specificity</h2>
-            {data.icdSpecificity.length > 0 ? (
+            {icdSpecificity.length > 0 ? (
               <ul className="list-disc space-y-2 pl-5 text-sm text-neutral-800">
-                {data.icdSpecificity.map((item, index) => (
+                {icdSpecificity.map((item, index) => (
                   <li key={index}>{item}</li>
                 ))}
               </ul>
@@ -167,18 +170,22 @@ export function UniversalCodingCard({ data }: UniversalCodingCardProps) {
 
           <section className="space-y-3">
             <h2 className="text-lg font-semibold">References</h2>
-            {data.references.length > 0 ? (
+            {references.length > 0 ? (
               <ul className="space-y-2 text-sm text-neutral-800">
-                {data.references.map((reference) => (
-                  <li key={`${reference.label}-${reference.url}`}>
-                    <a
-                      href={reference.url}
-                      className="text-blue-600 underline decoration-blue-400 decoration-2 underline-offset-4 hover:text-blue-700"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {reference.label}
-                    </a>
+                {references.map((reference, index) => (
+                  <li key={`${reference.label}-${reference.url ?? index}`}>
+                    {reference.url ? (
+                      <a
+                        href={reference.url}
+                        className="text-blue-600 underline decoration-blue-400 decoration-2 underline-offset-4 hover:text-blue-700"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {reference.label}
+                      </a>
+                    ) : (
+                      <span>{reference.label}</span>
+                    )}
                   </li>
                 ))}
               </ul>

@@ -1,23 +1,22 @@
 import { createLLM } from '@/lib/llm';
-import type {
-  UniversalCodingAnswer,
-  UniversalCodingInput,
-  UniversalCodingMode,
-  UniversalCodingDoctorResearchAnswer,
-  UniversalCodingDoctorAnswer,
-  UniversalCodingClaimExample,
-  UniversalCodingClaimLine,
-  UniversalCodingQuickSummaryItem,
-  UniversalCodingModifierItem,
-  UniversalCodingReference
-} from '@/types/coding';
+import type { UniversalCodingAnswer, UniversalCodingClaimLine } from '@/types/coding';
+
+export interface UniversalCodingInput {
+  clinicalContext: string;
+  specialty?: string;
+  suspectedDiagnosis?: string;
+  procedureDetails?: string;
+  payer?: string;
+  placeOfService?: string;
+  additionalNotes?: string;
+}
+
+export type UniversalCodingMode = UniversalCodingAnswer['mode'];
 
 const llm = createLLM();
 
 function formatInputDetails(input: UniversalCodingInput): string {
-  const details: string[] = [
-    `Clinical context: ${input.clinicalContext}`
-  ];
+  const details: string[] = [`Clinical context: ${input.clinicalContext}`];
 
   if (input.specialty) {
     details.push(`Specialty: ${input.specialty}`);
@@ -47,21 +46,23 @@ function formatInputDetails(input: UniversalCodingInput): string {
 }
 
 function buildPrompt(input: UniversalCodingInput, mode: UniversalCodingMode): string {
-  const commonSections = `Return a JSON object with these fields:\n` +
+  const commonSections =
+    'Return a JSON object with these fields:\n' +
     `- mode: the exact string "${mode}".\n` +
-    `- quickSummary: array of objects with { "label", "value", optional "notes" }. Include the following rows in order: CPT/HCPCS, ICD-10-CM (principal first), POS (21/22/24), Global period, Authorization (Y/N).\n` +
-    `- modifiers: array of objects { "modifier", "useCase" } describing modifier intent or leave empty array when none apply.\n` +
-    `- ncciBundlingBullets: array of concise bullet strings highlighting frequent NCCI edits for this scenario.\n` +
-    `- claimExample: object with { "dxCodes" (max 4 ICD-10-CM codes ordered for Box 21), "claimLines" (array) and optional "authBox23" }. Each claim line requires { "cpt", optional "modifiers" array, "dxPointers" (e.g. ["A", "B"] mapping to Box 21 order), "pos", "units", optional "notes", optional numeric "charge" }.\n` +
-    `- checklist: array of denial-prevention bullet strings.`;
+    '- quickSummary: array of objects with { "label", "value" } and include rows for CPT/HCPCS, ICD-10-CM (principal first), POS (21/22/24), Global period, Authorization (Y/N).\n' +
+    '- modifiers: array of objects { "modifier", "useCase" } describing modifier intent (use empty array if not needed).\n' +
+    '- ncciBundlingBullets: array of concise bullet strings about common NCCI or payer edits.\n' +
+    '- claimExample: object with { "dxCodes" (max 4 ICD-10-CM codes ordered for Box 21), "claimLines" (array), optional "authBox23" }. Each claim line should include { "cpt", optional "modifiers" array, optional numeric "dxPointers" array (use 1-4 to map to Box 21 order), optional "pos", optional numeric "units", optional "notes", optional numeric "charge" }.\n' +
+    '- checklist: array of denial-prevention bullet strings.';
 
-  const doctorOnly = `Do not include rationale, payerNotes, icdSpecificity, or references.`;
+  const doctorOnly = 'Do not include rationale, payerNotes, icdSpecificity, or references.';
 
-  const researchExtras = `Also include:\n` +
-    `- rationale: succinct prose explaining code choice and assumptions.\n` +
-    `- payerNotes: array of payer-specific considerations (authorization, bilateral rules, assistant surgery coverage, etc.).\n` +
-    `- icdSpecificity: array describing ICD-10 specificity reminders (laterality, 7th characters, combination codes).\n` +
-    `- references: array of objects { "label", "url" } citing authoritative sources (CMS, NCCI, specialty guidelines). If any scenario detail is missing, choose the most typical option and call out that assumption inside rationale.`;
+  const researchExtras =
+    'Also include:\n' +
+    '- rationale: succinct prose explaining coding selection and any assumptions.\n' +
+    '- payerNotes: array of payer-specific considerations (authorization, bilateral rules, assistant surgery coverage, etc.).\n' +
+    '- icdSpecificity: array of ICD-10 specificity reminders (laterality, extensions, combination coding, 7th characters).\n' +
+    '- references: array of objects { "label", optional "url" } citing authoritative guidance (CMS, NCCI, specialty guidelines). If any information is missing, pick the typical option and state the assumption within rationale.';
 
   const instructions = [
     'You are an expert professional fee medical coding assistant.',
@@ -71,9 +72,7 @@ function buildPrompt(input: UniversalCodingInput, mode: UniversalCodingMode): st
     'Ensure claim lines align with the ICD-10 codes in Box 21 and reflect realistic CMS-1500/837P billing.'
   ];
 
-  const sectionGuidance = mode === 'doctor'
-    ? `${commonSections}\n${doctorOnly}`
-    : `${commonSections}\n${researchExtras}`;
+  const sectionGuidance = mode === 'doctor' ? `${commonSections}\n${doctorOnly}` : `${commonSections}\n${researchExtras}`;
 
   const caseDetails = formatInputDetails(input);
 
@@ -86,46 +85,107 @@ function cleanJsonContent(content: string): any {
   return JSON.parse(withoutFence || trimmed);
 }
 
-function ensureArray<T>(value: T[] | undefined | null): T[] {
-  return Array.isArray(value) ? value : [];
+function ensureStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item)).filter((item) => item.length > 0);
 }
 
-function normalizeClaimLines(lines: UniversalCodingClaimLine[] | undefined): UniversalCodingClaimLine[] {
+function ensureNumberArray(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      const num = typeof item === 'number' ? item : Number(item);
+      return Number.isFinite(num) ? num : null;
+    })
+    .filter((item): item is number => item !== null);
+}
+
+function normalizeClaimLines(lines: unknown): UniversalCodingClaimLine[] {
   if (!Array.isArray(lines)) return [];
-  return lines.map((line) => ({
-    cpt: line.cpt,
-    modifiers: ensureArray(line.modifiers ?? undefined),
-    dxPointers: ensureArray(line.dxPointers),
-    pos: line.pos,
-    units: line.units,
-    notes: line.notes,
-    charge: line.charge
-  }));
+  return lines
+    .map((line) => {
+      if (!line || typeof line !== 'object') return null;
+      const record = line as Partial<UniversalCodingClaimLine> & { cpt?: unknown };
+      if (!record.cpt) return null;
+      return {
+        cpt: String(record.cpt),
+        modifiers: ensureStringArray(record.modifiers),
+        dxPointers: ensureNumberArray(record.dxPointers),
+        units: typeof record.units === 'number' && Number.isFinite(record.units)
+          ? record.units
+          : typeof record.units === 'string' && record.units.trim().length > 0
+          ? Number(record.units)
+          : undefined,
+        pos: typeof record.pos === 'string' ? record.pos : undefined,
+        notes: typeof record.notes === 'string' ? record.notes : undefined,
+        charge:
+          typeof record.charge === 'number' && Number.isFinite(record.charge)
+            ? record.charge
+            : record.charge === null
+            ? null
+            : undefined
+      } satisfies UniversalCodingClaimLine;
+    })
+    .filter((line): line is UniversalCodingClaimLine => line !== null);
 }
 
-function normalizeClaimExample(claimExample: Partial<UniversalCodingClaimExample> | undefined): UniversalCodingClaimExample {
-  return {
-    dxCodes: ensureArray<string>(claimExample?.dxCodes as string[] | undefined).slice(0, 4),
-    claimLines: normalizeClaimLines(claimExample?.claimLines as UniversalCodingClaimLine[] | undefined),
-    authBox23: claimExample?.authBox23
+function normalizeAnswer(raw: any, mode: UniversalCodingMode): UniversalCodingAnswer {
+  const quickSummary = Array.isArray(raw?.quickSummary)
+    ? raw.quickSummary
+        .map((item: any) => ({ label: String(item?.label ?? ''), value: String(item?.value ?? '') }))
+        .filter((item: { label: string; value: string }) => item.label.length > 0 && item.value.length > 0)
+    : [];
+
+  const modifiers = Array.isArray(raw?.modifiers)
+    ? raw.modifiers
+        .map((item: any) => ({ modifier: String(item?.modifier ?? ''), useCase: String(item?.useCase ?? '') }))
+        .filter((item: { modifier: string; useCase: string }) => item.modifier.length > 0 && item.useCase.length > 0)
+    : [];
+
+  const claimExampleRaw = raw?.claimExample ?? {};
+
+  const claimExample = {
+    dxCodes: ensureStringArray(claimExampleRaw.dxCodes).slice(0, 4),
+    claimLines: normalizeClaimLines(claimExampleRaw.claimLines),
+    authBox23:
+      typeof claimExampleRaw.authBox23 === 'string'
+        ? claimExampleRaw.authBox23
+        : claimExampleRaw.authBox23 === null
+        ? null
+        : undefined
   };
-}
 
-function normalizeQuickSummary(items: UniversalCodingQuickSummaryItem[] | undefined): UniversalCodingQuickSummaryItem[] {
-  if (!Array.isArray(items)) return [];
-  return items.map((item) => ({
-    label: item.label,
-    value: item.value,
-    notes: item.notes
-  }));
-}
+  const baseAnswer: UniversalCodingAnswer = {
+    mode,
+    quickSummary,
+    modifiers,
+    ncciBundlingBullets: ensureStringArray(raw?.ncciBundlingBullets),
+    claimExample,
+    checklist: ensureStringArray(raw?.checklist)
+  };
 
-function normalizeModifiers(items: UniversalCodingModifierItem[] | undefined): UniversalCodingModifierItem[] {
-  if (!Array.isArray(items)) return [];
-  return items.map((item) => ({
-    modifier: item.modifier,
-    useCase: item.useCase
-  }));
+  if (mode === 'doctor') {
+    return baseAnswer;
+  }
+
+  return {
+    ...baseAnswer,
+    rationale: typeof raw?.rationale === 'string' ? raw.rationale : undefined,
+    payerNotes: ensureStringArray(raw?.payerNotes),
+    icdSpecificity: ensureStringArray(raw?.icdSpecificity),
+    references: Array.isArray(raw?.references)
+      ? raw.references
+          .map((item: any) => {
+            const label = String(item?.label ?? '');
+            if (!label) return null;
+            return {
+              label,
+              url: typeof item?.url === 'string' && item.url.length > 0 ? item.url : undefined
+            };
+          })
+          .filter((item: { label: string } | null): item is { label: string; url?: string } => item !== null)
+      : []
+  };
 }
 
 export async function generateUniversalAnswer(
@@ -145,31 +205,5 @@ export async function generateUniversalAnswer(
 
   const raw = cleanJsonContent(content);
 
-  const baseAnswer = {
-    mode,
-    quickSummary: normalizeQuickSummary(raw.quickSummary as UniversalCodingQuickSummaryItem[] | undefined),
-    modifiers: normalizeModifiers(raw.modifiers as UniversalCodingModifierItem[] | undefined),
-    ncciBundlingBullets: ensureArray<string>(raw.ncciBundlingBullets as string[] | undefined),
-    claimExample: normalizeClaimExample(raw.claimExample as UniversalCodingClaimExample | undefined),
-    checklist: ensureArray<string>(raw.checklist as string[] | undefined)
-  };
-
-  if (mode === 'doctor') {
-    const doctorAnswer: UniversalCodingDoctorAnswer = {
-      ...baseAnswer,
-      mode: 'doctor'
-    };
-    return doctorAnswer;
-  }
-
-  const researchAnswer: UniversalCodingDoctorResearchAnswer = {
-    ...baseAnswer,
-    mode: 'doctor_research',
-    rationale: raw.rationale || '',
-    payerNotes: ensureArray<string>(raw.payerNotes as string[] | undefined),
-    icdSpecificity: ensureArray<string>(raw.icdSpecificity as string[] | undefined),
-    references: ensureArray<UniversalCodingReference>(raw.references as UniversalCodingReference[] | undefined)
-  };
-
-  return researchAnswer;
+  return normalizeAnswer(raw, mode);
 }
