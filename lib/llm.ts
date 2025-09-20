@@ -1,4 +1,5 @@
 export type ChatMsg = { role: 'system'|'user'|'assistant'; content: string };
+export type ResponseFormat = { type: string; [key: string]: any };
 
 const GROQ_URL   = process.env.LLM_BASE_URL || 'https://api.groq.com/openai/v1';
 const GROQ_KEY   = process.env.LLM_API_KEY!;
@@ -80,6 +81,70 @@ export async function askLLM({ prompt, mode }:{ prompt: string; mode?: string })
   } catch {
     // no-op
   }
+}
+
+
+export type CallLLMArgs = {
+  system: string;
+  prompt: string;
+  temperature?: number;
+  maxTokens?: number;
+  response_format?: ResponseFormat;
+};
+
+export async function callLLM({
+  system,
+  prompt,
+  temperature = 0.1,
+  maxTokens,
+  response_format
+}: CallLLMArgs) {
+  if (!OAI_KEY) throw new Error('OPENAI_API_KEY missing');
+
+  const primary = process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini';
+  const fallbacks = (process.env.OPENAI_FALLBACK_MODELS || 'gpt-4o,gpt-4o-mini')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+  const models = [...new Set([primary, ...fallbacks])];
+
+  const messages = [
+    { role: 'system' as const, content: system },
+    { role: 'user' as const, content: prompt }
+  ];
+
+  const baseUrl = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+  let lastError: unknown;
+
+  for (const model of models) {
+    try {
+      const body: any = { model, messages };
+      if (maxTokens) body.max_tokens = maxTokens;
+      if (response_format) body.response_format = response_format;
+      if (!/^gpt-5/i.test(model)) body.temperature = temperature;
+
+      const res = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${OAI_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        const message = data?.error?.message || res.statusText;
+        throw new Error(`OpenAI ${model}: ${message}`);
+      }
+
+      const content = data?.choices?.[0]?.message?.content;
+      if (content) return content as string;
+      lastError = new Error('OpenAI response missing content');
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  if (lastError instanceof Error) throw lastError;
+  throw new Error('LLM call failed');
 }
 
 
