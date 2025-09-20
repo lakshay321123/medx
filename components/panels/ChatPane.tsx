@@ -613,7 +613,15 @@ function AssistantMessage({
   );
 }
 
-export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: RefObject<HTMLInputElement> } = {}) {
+type ChatPaneProps = {
+  inputRef?: RefObject<HTMLInputElement>;
+  showHeader?: boolean;
+};
+
+export default function ChatPane({
+  inputRef: externalInputRef,
+  showHeader = true,
+}: ChatPaneProps = {}) {
 
   const { country } = useCountry();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
@@ -2655,7 +2663,7 @@ ${systemCommon}` + baseSys;
 
   return (
     <div className="relative flex h-full flex-col">
-      <Header />
+      {showHeader && <Header />}
       {mode === "doctor" && researchMode && (
         <>
           <ResearchFilters mode="research" onResults={handleTrials} />

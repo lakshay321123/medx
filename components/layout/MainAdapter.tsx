@@ -51,7 +51,7 @@ export default function MainAdapter({ ui, panel }: Props) {
       {activePanel === "chat" && (
         <section className="block h-full">
           <ResearchFiltersProvider>
-            <ChatPane inputRef={chatInputRef} />
+            <ChatPane inputRef={chatInputRef} showHeader={false} />
           </ResearchFiltersProvider>
         </section>
       )}
