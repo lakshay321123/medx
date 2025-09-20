@@ -5,7 +5,7 @@ import net from "node:net";
 
 export const runtime = "nodejs";
 
-const TIMEOUT_MS = 4000;
+const TIMEOUT_MS = 5000;
 const MAX_REDIRECTS = 3;
 const ALLOWED_PORTS = new Set([80, 443]);
 
@@ -108,7 +108,7 @@ async function fetchSafe(u0: URL) {
       }
       return { ok: res.ok, status: res.status, finalUrl: u.toString() };
     } catch {
-      return { ok: false, status: 0, finalUrl: u.toString() };
+      return { ok: false, status: 0, finalUrl: u.toString(), reason: "Request failed" };
     } finally {
       clearTimeout(timer);
     }
@@ -155,5 +155,41 @@ export async function POST(req: NextRequest) {
   }
 
   const result = await fetchSafe(u);
-  return NextResponse.json(result, { status: 200, headers: { "Referrer-Policy": "no-referrer" } });
+
+  let verdict: "alive" | "dead" | "uncertain";
+  if (result.ok) {
+    verdict = "alive";
+  } else if (
+    [
+      401, 403, 405, 407, 408, 409, 412, 415, 418, 421, 422, 423, 425, 426, 428, 429,
+      431, 451,
+    ].includes(result.status)
+  ) {
+    verdict = "alive";
+  } else if (result.status === 404 || result.status === 410) {
+    verdict = "dead";
+  } else if (
+    result.status === 0 &&
+    [
+      "Invalid URL",
+      "DNS lookup failed",
+      "DNS resolution failed",
+      "Resolved to private/special IP",
+      "Only http/https allowed",
+      "localhost blocked",
+      "private TLD blocked",
+      "Port not allowed",
+      "Host not on allowlist",
+      "Too many redirects",
+    ].includes((result as any).reason || "")
+  ) {
+    verdict = "dead";
+  } else {
+    verdict = "uncertain";
+  }
+
+  return NextResponse.json(
+    { ...result, verdict },
+    { status: 200, headers: { "Referrer-Policy": "no-referrer" } }
+  );
 }

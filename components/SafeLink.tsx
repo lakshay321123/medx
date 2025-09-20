@@ -62,31 +62,39 @@ export const SafeAnchor: React.FC<React.AnchorHTMLAttributes<HTMLAnchorElement>>
 export function LinkBadge(props: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
   const { href, children, className = "", ...rest } = props;
   const safe = normalizeExternalHref(typeof href === "string" ? href : undefined);
-  const [ok, setOk] = React.useState<boolean | null>(null);
+  const [verdict, setVerdict] = React.useState<"alive" | "dead" | "uncertain" | null>(null);
 
   React.useEffect(() => {
     let mounted = true;
     if (!safe) {
-      setOk(false);
+      setVerdict("dead");
       return () => {
         mounted = false;
       };
     }
-    const key = `linkcheck:${safe}`;
-    if (typeof window !== "undefined") {
-      try {
-        const cached = window.sessionStorage.getItem(key);
-        if (cached) {
-          setOk(cached === "1");
-          return () => {
-            mounted = false;
-          };
-        }
-      } catch {
-        // ignore sessionStorage issues and fall back to fetch
-      }
+
+    if (typeof window === "undefined") {
+      setVerdict("uncertain");
+      return () => {
+        mounted = false;
+      };
     }
-    setOk(null);
+
+    const key = `linkcheck:${safe}`;
+    try {
+      const cached = window.sessionStorage.getItem(key);
+      if (cached === "alive" || cached === "dead" || cached === "uncertain") {
+        setVerdict(cached as "alive" | "dead" | "uncertain");
+        return () => {
+          mounted = false;
+        };
+      }
+    } catch {
+      // ignore storage errors
+    }
+
+    setVerdict(null);
+
     (async () => {
       try {
         const response = await fetch("/api/linkcheck", {
@@ -95,30 +103,23 @@ export function LinkBadge(props: React.AnchorHTMLAttributes<HTMLAnchorElement>) 
           body: JSON.stringify({ url: safe }),
         });
         const json = await response.json();
+        const v: "alive" | "dead" | "uncertain" =
+          json?.verdict === "dead" || json?.verdict === "alive" ? json.verdict : "uncertain";
         if (mounted) {
-          const good = Boolean(json.ok);
-          setOk(good);
-          if (typeof window !== "undefined") {
-            try {
-              window.sessionStorage.setItem(key, good ? "1" : "0");
-            } catch {
-              // ignore storage failures
-            }
-          }
+          setVerdict(v);
+        }
+        try {
+          window.sessionStorage.setItem(key, v);
+        } catch {
+          // ignore storage failures
         }
       } catch {
         if (mounted) {
-          setOk(false);
-          if (typeof window !== "undefined") {
-            try {
-              window.sessionStorage.setItem(key, "0");
-            } catch {
-              // ignore storage failures
-            }
-          }
+          setVerdict("uncertain");
         }
       }
     })();
+
     return () => {
       mounted = false;
     };
@@ -134,7 +135,7 @@ export function LinkBadge(props: React.AnchorHTMLAttributes<HTMLAnchorElement>) 
     return children ?? "Source";
   }, [children, safe]);
 
-  if (!safe || ok === false) {
+  if (!safe || verdict === "dead") {
     const disabledClass =
       "inline-flex items-center rounded-full border px-2 py-1 text-xs opacity-70 cursor-not-allowed " +
       "border-slate-200 dark:border-gray-700 text-slate-400" +
@@ -151,7 +152,7 @@ export function LinkBadge(props: React.AnchorHTMLAttributes<HTMLAnchorElement>) 
       href={safe}
       target="_blank"
       rel="noopener noreferrer"
-      aria-busy={ok === null ? "true" : "false"}
+      aria-busy={verdict === null ? "true" : "false"}
       className={
         "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs shadow-sm hover:bg-slate-50 dark:hover:bg-gray-800 transition " +
         "border-slate-200 dark:border-gray-700" +
