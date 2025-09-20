@@ -101,3 +101,31 @@ export function createLLM() {
     }
   };
 }
+
+export async function callLLM({
+  system,
+  prompt,
+  temperature = 0.2,
+  max_tokens = 1200,
+  response_format,
+}: {
+  system: string;
+  prompt: string;
+  temperature?: number;
+  max_tokens?: number;
+  response_format?: any;
+}) {
+  const llm = createLLM();
+  const resp: any = await llm.chat({
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: prompt }
+    ],
+    temperature,
+    max_tokens,
+    response_format
+  });
+  const text = typeof resp === 'string' ? resp : resp?.content ?? '';
+  if (!text) throw new Error('Empty response from LLM');
+  return text;
+}
