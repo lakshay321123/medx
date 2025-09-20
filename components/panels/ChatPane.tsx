@@ -1,6 +1,6 @@
 'use client';
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState, useMemo, RefObject, Fragment, useCallback } from 'react';
+import { useEffect, useRef, useState, useMemo, RefObject, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fromSearchParams } from '@/lib/modes/url';
 import Header from '../Header';
@@ -42,7 +42,7 @@ import { detectAdvancedDomain } from "@/lib/intents/advanced";
 // === ADD-ONLY for domain routing ===
 import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
-import ThinkingTimer from "@/components/ui/ThinkingTimer";
+import { AnalyzingInline } from "@/components/chat/AnalyzingInline";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { StopButton } from "@/components/ui/StopButton";
 import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
@@ -449,25 +449,43 @@ No fabricated IDs. Provide themes, not specific trial numbers unless confident.`
   ];
 }
 
-function PendingAnalysisCard({ label }: { label: string }) {
+function PendingAnalysisCard({ label, active }: { label: string; active?: boolean }) {
   return (
     <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
-      <div className="text-sm text-slate-600 dark:text-slate-300">{label}</div>
+      <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
+        <span>{label}</span>
+        <AnalyzingInline active={!!active} />
+      </div>
     </div>
   );
 }
 
-function PendingChatCard({ label }: { label: string }) {
+function PendingChatCard({ label, active }: { label: string; active?: boolean }) {
   return (
     <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
-      <div className="text-sm text-slate-600 dark:text-slate-300">{label}</div>
+      <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
+        <span>{label}</span>
+        <AnalyzingInline active={!!active} />
+      </div>
     </div>
   );
 }
 
-function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatMessage, { kind: "analysis" }>; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean }) {
+function AnalysisCard({
+  m,
+  researchOn,
+  onQuickAction,
+  busy,
+  pendingTimerActive
+}: {
+  m: Extract<ChatMessage, { kind: "analysis" }>;
+  researchOn: boolean;
+  onQuickAction: (k: "simpler" | "doctor" | "next") => void;
+  busy: boolean;
+  pendingTimerActive?: boolean;
+}) {
   const header = titleForCategory(m.category);
-  if (m.pending) return <PendingAnalysisCard label="Analyzing file…" />;
+  if (m.pending) return <PendingAnalysisCard label="Analyzing file…" active={pendingTimerActive} />;
   return (
     <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl space-y-2">
       <header className="flex items-center gap-2">
@@ -518,9 +536,21 @@ function AnalysisCard({ m, researchOn, onQuickAction, busy }: { m: Extract<ChatM
     </div>
   );
 }
-function ChatCard({ m, therapyMode, onAction, simple }: { m: Extract<ChatMessage, { kind: "chat" }>; therapyMode: boolean; onAction: (s: Suggestion) => void; simple: boolean }) {
+function ChatCard({
+  m,
+  therapyMode,
+  onAction,
+  simple,
+  pendingTimerActive
+}: {
+  m: Extract<ChatMessage, { kind: "chat" }>;
+  therapyMode: boolean;
+  onAction: (s: Suggestion) => void;
+  simple: boolean;
+  pendingTimerActive?: boolean;
+}) {
   const suggestions = normalizeSuggestions(m.followUps);
-  if (m.pending) return <PendingChatCard label="Thinking…" />;
+  if (m.pending) return <PendingChatCard label="Thinking…" active={pendingTimerActive} />;
   return (
     <div
       className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl"
@@ -543,11 +573,41 @@ function ChatCard({ m, therapyMode, onAction, simple }: { m: Extract<ChatMessage
   );
 }
 
-function AssistantMessage({ m, researchOn, onQuickAction, busy, therapyMode, onAction, simple }: { m: ChatMessage; researchOn: boolean; onQuickAction: (k: "simpler" | "doctor" | "next") => void; busy: boolean; therapyMode: boolean; onAction: (s: Suggestion) => void; simple: boolean }) {
+function AssistantMessage({
+  m,
+  researchOn,
+  onQuickAction,
+  busy,
+  therapyMode,
+  onAction,
+  simple,
+  pendingTimerActive
+}: {
+  m: ChatMessage;
+  researchOn: boolean;
+  onQuickAction: (k: "simpler" | "doctor" | "next") => void;
+  busy: boolean;
+  therapyMode: boolean;
+  onAction: (s: Suggestion) => void;
+  simple: boolean;
+  pendingTimerActive?: boolean;
+}) {
   return m.kind === "analysis" ? (
-    <AnalysisCard m={m} researchOn={researchOn} onQuickAction={onQuickAction} busy={busy} />
+    <AnalysisCard
+      m={m}
+      researchOn={researchOn}
+      onQuickAction={onQuickAction}
+      busy={busy}
+      pendingTimerActive={pendingTimerActive}
+    />
   ) : (
-    <ChatCard m={m} therapyMode={therapyMode} onAction={onAction} simple={simple} />
+    <ChatCard
+      m={m as Extract<ChatMessage, { kind: "chat" }>}
+      therapyMode={therapyMode}
+      onAction={onAction}
+      simple={simple}
+      pendingTimerActive={pendingTimerActive}
+    />
   );
 }
 
@@ -2489,33 +2549,37 @@ ${systemCommon}` + baseSys;
           (typeof (m as any).localId === 'string' ? (m as any).localId : undefined) ??
           (typeof (m as any).tempId === 'string' ? (m as any).tempId : undefined) ??
           `message-${index}`;
+        const isLastVisible = index === visibleMessages.length - 1;
+        const showThinkingTimer = isLastVisible && m.role === 'assistant' && busy && !!thinkingStartedAt;
 
-        return m.role === 'user' ? (
-          <div
-            key={derivedKey}
-            className="ml-auto max-w-3xl rounded-2xl px-4 py-3 shadow-sm bg-slate-200 text-slate-900 dark:bg-gray-700 dark:text-gray-100 text-left whitespace-normal"
-          >
-            <ChatMarkdown content={m.content} />
+        return (
+          <div key={derivedKey} className="space-y-2">
+            {m.role === 'user' ? (
+              <div className="ml-auto max-w-3xl rounded-2xl px-4 py-3 shadow-sm bg-slate-200 text-slate-900 dark:bg-gray-700 dark:text-gray-100 text-left whitespace-normal">
+                <ChatMarkdown content={m.content} />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <AssistantMessage
+                  m={m}
+                  researchOn={researchMode}
+                  onQuickAction={stableOnQuickAction}
+                  busy={assistantBusy}
+                  therapyMode={therapyMode}
+                  onAction={stableHandleSuggestionAction}
+                  simple={simpleMode}
+                  pendingTimerActive={showThinkingTimer}
+                />
+                <FeedbackBar
+                  conversationId={conversationId}
+                  messageId={m.id}
+                  mode={currentMode}
+                  model={undefined}
+                  hiddenInTherapy={true}
+                />
+              </div>
+            )}
           </div>
-        ) : (
-          <Fragment key={derivedKey}>
-            <AssistantMessage
-              m={m}
-              researchOn={researchMode}
-              onQuickAction={stableOnQuickAction}
-              busy={assistantBusy}
-              therapyMode={therapyMode}
-              onAction={stableHandleSuggestionAction}
-              simple={simpleMode}
-            />
-            <FeedbackBar
-              conversationId={conversationId}
-              messageId={m.id}
-              mode={currentMode}
-              model={undefined}
-              hiddenInTherapy={true}
-            />
-          </Fragment>
         );
       }),
     [
@@ -2527,7 +2591,9 @@ ${systemCommon}` + baseSys;
       simpleMode,
       conversationId,
       currentMode,
-      stableOnQuickAction
+      stableOnQuickAction,
+      busy,
+      thinkingStartedAt
     ]
   );
 
@@ -2567,11 +2633,6 @@ ${systemCommon}` + baseSys;
   return (
     <div className="relative flex h-full flex-col">
       <Header />
-      {busy && thinkingStartedAt && (
-        <div className="px-4 sm:px-6 lg:px-8 pt-2">
-          <ThinkingTimer label="Analyzing" startedAt={thinkingStartedAt} />
-        </div>
-      )}
       {mode === "doctor" && researchMode && (
         <>
           <ResearchFilters mode="research" onResults={handleTrials} />
