@@ -52,9 +52,20 @@ export function ChatWindow() {
   return (
     <div className="flex flex-col h-full">
       <div ref={chatRef} className="flex-1 overflow-auto">
-        {messages.map(m => (
-          <MessageRow key={m.id} m={m} />
-        ))}
+        {messages.map((m, idx) => {
+          const isLastMessage = idx === messages.length - 1;
+          const showThinkingTimer = isLastMessage && isThinking && thinkingStartedAt !== null;
+          return (
+            <div key={m.id} className="space-y-2">
+              <MessageRow m={m} />
+              {showThinkingTimer ? (
+                <div className="px-2">
+                  <ThinkingTimer label="Analyzing" startedAt={thinkingStartedAt ?? undefined} />
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
         {results.length > 0 && (
           <div className="p-2 space-y-2">
             {results.map((place) => (
@@ -71,11 +82,6 @@ export function ChatWindow() {
           </div>
         )}
       </div>
-      {isThinking && thinkingStartedAt && (
-        <div className="p-2">
-          <ThinkingTimer label="Analyzing" startedAt={thinkingStartedAt} />
-        </div>
-      )}
       <ChatInput onSend={handleSend} />
       <ScrollToBottom targetRef={chatRef} rebindKey={currentId} />
     </div>

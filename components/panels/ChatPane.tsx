@@ -1,6 +1,6 @@
 'use client';
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState, useMemo, RefObject, Fragment, useCallback } from 'react';
+import { useEffect, useRef, useState, useMemo, RefObject, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fromSearchParams } from '@/lib/modes/url';
 import Header from '../Header';
@@ -2489,33 +2489,41 @@ ${systemCommon}` + baseSys;
           (typeof (m as any).localId === 'string' ? (m as any).localId : undefined) ??
           (typeof (m as any).tempId === 'string' ? (m as any).tempId : undefined) ??
           `message-${index}`;
+        const isLastVisible = index === visibleMessages.length - 1;
+        const showThinkingTimer = isLastVisible && busy && !!thinkingStartedAt;
 
-        return m.role === 'user' ? (
-          <div
-            key={derivedKey}
-            className="ml-auto max-w-3xl rounded-2xl px-4 py-3 shadow-sm bg-slate-200 text-slate-900 dark:bg-gray-700 dark:text-gray-100 text-left whitespace-normal"
-          >
-            <ChatMarkdown content={m.content} />
+        return (
+          <div key={derivedKey} className="space-y-2">
+            {m.role === 'user' ? (
+              <div className="ml-auto max-w-3xl rounded-2xl px-4 py-3 shadow-sm bg-slate-200 text-slate-900 dark:bg-gray-700 dark:text-gray-100 text-left whitespace-normal">
+                <ChatMarkdown content={m.content} />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <AssistantMessage
+                  m={m}
+                  researchOn={researchMode}
+                  onQuickAction={stableOnQuickAction}
+                  busy={assistantBusy}
+                  therapyMode={therapyMode}
+                  onAction={stableHandleSuggestionAction}
+                  simple={simpleMode}
+                />
+                <FeedbackBar
+                  conversationId={conversationId}
+                  messageId={m.id}
+                  mode={currentMode}
+                  model={undefined}
+                  hiddenInTherapy={true}
+                />
+              </div>
+            )}
+            {showThinkingTimer ? (
+              <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-300">
+                <ThinkingTimer label="Analyzing" startedAt={thinkingStartedAt ?? undefined} />
+              </div>
+            ) : null}
           </div>
-        ) : (
-          <Fragment key={derivedKey}>
-            <AssistantMessage
-              m={m}
-              researchOn={researchMode}
-              onQuickAction={stableOnQuickAction}
-              busy={assistantBusy}
-              therapyMode={therapyMode}
-              onAction={stableHandleSuggestionAction}
-              simple={simpleMode}
-            />
-            <FeedbackBar
-              conversationId={conversationId}
-              messageId={m.id}
-              mode={currentMode}
-              model={undefined}
-              hiddenInTherapy={true}
-            />
-          </Fragment>
         );
       }),
     [
@@ -2527,7 +2535,9 @@ ${systemCommon}` + baseSys;
       simpleMode,
       conversationId,
       currentMode,
-      stableOnQuickAction
+      stableOnQuickAction,
+      busy,
+      thinkingStartedAt
     ]
   );
 
@@ -2567,11 +2577,6 @@ ${systemCommon}` + baseSys;
   return (
     <div className="relative flex h-full flex-col">
       <Header />
-      {busy && thinkingStartedAt && (
-        <div className="px-4 sm:px-6 lg:px-8 pt-2">
-          <ThinkingTimer label="Analyzing" startedAt={thinkingStartedAt} />
-        </div>
-      )}
       {mode === "doctor" && researchMode && (
         <>
           <ResearchFilters mode="research" onResults={handleTrials} />
