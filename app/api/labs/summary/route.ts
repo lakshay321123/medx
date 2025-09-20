@@ -10,6 +10,13 @@ export async function GET(req: Request) {
   }
 
   const url = new URL(req.url);
+  const mode = url.searchParams.get("mode")?.toLowerCase();
+  if (mode !== "ai-doc") {
+    return NextResponse.json(
+      { ok: false, error: "Reports are available only in AI Doc mode" },
+      { status: 403 }
+    );
+  }
   const testsParam = url.searchParams.get("tests");
   const from = url.searchParams.get("from") || undefined;
   const to = url.searchParams.get("to") || undefined;

@@ -8,8 +8,9 @@ const fetcher = async (url: string) => {
 };
 
 // Cached across routes; no revalidate on focus (prevents reload on tab switch)
-export function useTimeline() {
-  return useSWR<{ items: any[] }>("/api/timeline", fetcher, {
+export function useTimeline(enabled = true) {
+  const key = enabled ? "/api/timeline?mode=ai-doc" : null;
+  return useSWR<{ items: any[] }>(key, fetcher, {
     revalidateOnFocus: false,
     shouldRetryOnError: true,
     errorRetryCount: 3,
