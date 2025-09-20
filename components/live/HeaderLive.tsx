@@ -1,6 +1,6 @@
 "use client";
+import { useRef } from "react";
 import { Globe2 } from "lucide-react";
-import { COUNTRIES } from "@/data/countries";
 
 type ModeKey = "wellness" | "therapy" | "research" | "doctor" | "ai_doc";
 
@@ -22,6 +22,10 @@ const MODES: { key: ModeKey; label: string; icon: string }[] = [
   { key: "ai_doc", label: "AI Doc", icon: "🧪" },
 ];
 
+const COUNTRIES = [{ code3: "IND" }, { code3: "USA" }, { code3: "GBR" }] as const;
+
+const flagFor = (code: string) => ({ IND: "🇮🇳", USA: "🇺🇸", GBR: "🇬🇧" }[code] ?? "🌐");
+
 export default function HeaderLive({
   dark,
   setDark,
@@ -31,6 +35,8 @@ export default function HeaderLive({
   disabled,
   onModePress,
 }: HeaderLiveProps) {
+  const countryMenuRef = useRef<HTMLDetailsElement>(null);
+
   return (
     <header
       className={`sticky top-0 z-10 h-[62px] flex items-center justify-between px-4 border-b backdrop-blur-sm
@@ -84,34 +90,46 @@ export default function HeaderLive({
           {dark ? "🌙" : "☀️"}
         </button>
 
-        <div
-          className={`relative flex items-center border rounded-full pl-2 pr-6 py-1 gap-1 shadow-sm
-          ${
-            dark
-              ? "bg-slate-800/80 border-slate-700 text-white"
-              : "bg-white/80 border-slate-200 text-slate-900"
-          }`}
+        <details
+          ref={countryMenuRef}
+          className={`relative flex items-center border rounded-full py-1 pl-2 pr-8 text-sm shadow-sm transition
+            ${
+              dark
+                ? "bg-slate-800/80 border-slate-700 text-white"
+                : "bg-white/80 border-slate-200 text-slate-900"
+            }`}
         >
-          <Globe2 className="w-4 h-4" aria-hidden="true" />
-          <select
-            value={country}
-            onChange={(e) => setCountry(e.target.value)}
-            className={`appearance-none bg-transparent outline-none text-sm pl-1 pr-6 py-0.5 rounded-full
-              focus:ring-2 focus:ring-blue-500 hover:bg-blue-800/10 ${dark ? "text-white" : "text-slate-900"}`}
-            aria-label="Select country"
+          <summary className="flex cursor-pointer items-center gap-2 outline-none [&::-webkit-details-marker]:hidden">
+            <Globe2 className="w-4 h-4" aria-hidden="true" />
+            <span className="font-medium tracking-wide">{country}</span>
+            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 opacity-70">▾</span>
+          </summary>
+          <ul
+            className={`absolute right-0 top-[calc(100%+0.5rem)] z-20 min-w-[8rem] rounded-lg border p-1 text-sm shadow-lg ${
+              dark
+                ? "bg-slate-900/95 border-slate-700 text-white"
+                : "bg-white border-slate-200 text-slate-900"
+            }`}
           >
             {COUNTRIES.map((c) => (
-              <option
-                key={c.code3}
-                value={c.code3}
-                className={dark ? "bg-slate-900 text-white" : "bg-white text-slate-900"}
-              >
-                {c.flag} {c.code3}
-              </option>
+              <li key={c.code3}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCountry(c.code3);
+                    requestAnimationFrame(() => countryMenuRef.current?.removeAttribute("open"));
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left hover:bg-blue-500/10"
+                >
+                  <span className="text-lg" aria-hidden="true">
+                    {flagFor(c.code3)}
+                  </span>
+                  <span>{c.code3}</span>
+                </button>
+              </li>
             ))}
-          </select>
-          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 opacity-70">▾</span>
-        </div>
+          </ul>
+        </details>
       </div>
     </header>
   );
