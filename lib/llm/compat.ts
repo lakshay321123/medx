@@ -3,15 +3,22 @@
 
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
-const OPENAI_ROLES = new Set(["system", "user", "assistant"] as const);
+type OpenAIRole = "system" | "user" | "assistant";
 
-export type LooseMsg = { role: string; content: string };
+const OPENAI_ROLES = new Set<OpenAIRole>(["system", "user", "assistant"]);
 
-export function toOpenAIMessages(messages: LooseMsg[]): ChatCompletionMessageParam[] {
-  return messages.map((m) => {
-    const role = OPENAI_ROLES.has(m.role as any)
-      ? (m.role as "system" | "user" | "assistant")
-      : "user";
-    return { role, content: m.content } satisfies ChatCompletionMessageParam;
+export type AiDocMessage = { role: string; content: string };
+export type NormalizedAiDocMessage = { role: OpenAIRole; content: string };
+
+function normalizeRole(role: string | undefined): OpenAIRole {
+  return OPENAI_ROLES.has(role as OpenAIRole) ? (role as OpenAIRole) : "user";
+}
+
+export function toOpenAIMessages(messages: AiDocMessage[]): ChatCompletionMessageParam[] {
+  return messages.map((message) => {
+    const role = normalizeRole(message.role);
+    const content = typeof message.content === "string" ? message.content : "";
+
+    return { role, content } satisfies ChatCompletionMessageParam;
   });
 }

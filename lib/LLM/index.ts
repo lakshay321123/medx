@@ -1,7 +1,7 @@
 import { callAiDocWithFallback } from "@/lib/llm/aidocFailover";
-import type { ChatCompletionMessageParam } from "@/lib/llm/types";
+import type { NormalizedAiDocMessage } from "@/lib/llm/compat";
 
-export type Msg = ChatCompletionMessageParam;
+export type Msg = NormalizedAiDocMessage;
 
 const EMPTY_STRUCTURED = {
   reply_patient: "",
@@ -11,7 +11,7 @@ const EMPTY_STRUCTURED = {
 };
 
 export async function validateJson(system: string, instruction: string, user: string): Promise<any> {
-  const messages: ChatCompletionMessageParam[] = [
+  const messages: Msg[] = [
     { role: "system", content: system },
     { role: "system", content: instruction },
     { role: "user", content: user },
