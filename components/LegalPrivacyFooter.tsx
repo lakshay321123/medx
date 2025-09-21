@@ -217,17 +217,21 @@ export default function LegalPrivacyFooter() {
   return (
     <>
       <footer className="flex-shrink-0 border-t border-black/10 bg-white/80 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/60">
-        <div className="mx-auto flex w-full max-w-3xl flex-col items-center justify-center gap-1.5 px-4 py-1.5 text-center text-[11px] text-slate-600 dark:text-slate-300 sm:flex-row sm:gap-3 sm:text-xs">
-          <p className="leading-4 sm:max-w-3xl">
-            {BRAND} can make mistakes. This is not medical advice. Always consult a clinician.
-          </p>
-          <button
-            type="button"
-            onClick={openModal}
-            className="rounded-md px-2.5 py-1 text-xs font-medium text-primary transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white sm:ml-2 sm:text-xs dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900"
-          >
-            Legal &amp; Privacy
-          </button>
+        <div className="px-6">
+          <div className="mx-auto w-full max-w-3xl px-4">
+            <div className="flex w-full flex-col items-center gap-1.5 px-3 py-1.5 text-center text-[11px] text-slate-600 dark:text-slate-300 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:text-xs">
+              <p className="leading-4 sm:text-left">
+                {BRAND} can make mistakes. This is not medical advice. Always consult a clinician.
+              </p>
+              <button
+                type="button"
+                onClick={openModal}
+                className="rounded-md px-2.5 py-1 text-xs font-medium text-primary transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white sm:text-xs dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900"
+              >
+                Legal &amp; Privacy
+              </button>
+            </div>
+          </div>
         </div>
       </footer>
 
