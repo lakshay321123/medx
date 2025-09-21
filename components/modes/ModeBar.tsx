@@ -1,10 +1,12 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { reduce } from "@/lib/modes/modeMachine";
 import { fromSearchParams, toQuery } from "@/lib/modes/url";
 import { useTheme } from "next-themes";
-import { createNewThreadId } from "@/lib/chatThreads";
+import type { ModeState } from "@/lib/modes/types";
+import { createThread } from "@/lib/chatThreads";
+import { pushToast } from "@/lib/ui/toast";
 
 export default function ModeBar() {
   const router = useRouter();
@@ -12,9 +14,11 @@ export default function ModeBar() {
   const { theme } = useTheme();
 
   const state = useMemo(
-    () => fromSearchParams(sp, (theme as "light"|"dark") ?? "light"),
-    [sp, theme]
+    () => fromSearchParams(sp, (theme as "light" | "dark") ?? "light"),
+    [sp, theme],
   );
+
+  const [therapyBusy, setTherapyBusy] = useState(false);
 
   // remember last non-aidoc base to exit aidoc gracefully
   const lastNonAidoc = useRef<"patient"|"doctor">("patient");
@@ -28,8 +32,65 @@ export default function ModeBar() {
     lastPatientThread.current = sp.get("threadId");
   }, [sp, state.therapy]);
 
+  const startTherapy = useCallback(
+    async (nextState: ModeState, currentThread: string | null) => {
+      if (therapyBusy) return;
+      if (currentThread) lastPatientThread.current = currentThread;
+      setTherapyBusy(true);
+      try {
+        const { id } = await createThread({
+          title: "Therapy session",
+          mode: "patient",
+          therapy: true,
+        });
+        const params = new URLSearchParams(sp.toString());
+        params.set("threadId", id);
+        params.delete("context");
+        router.push(toQuery(nextState, params));
+      } catch (err) {
+        console.error("Failed to start therapy session", err);
+        pushToast({
+          title: "Couldn’t start Therapy chat",
+          description: "Please check your connection and try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setTherapyBusy(false);
+      }
+    },
+    [router, sp, therapyBusy],
+  );
+
+  const exitTherapy = useCallback(
+    async (nextState: ModeState) => {
+      const params = new URLSearchParams(sp.toString());
+      params.delete("therapy");
+      params.delete("context");
+
+      const fallback = lastPatientThread.current;
+      if (fallback) {
+        params.set("threadId", fallback);
+        router.push(toQuery(nextState, params));
+        return;
+      }
+
+      try {
+        const { id } = await createThread({
+          title: "New chat",
+          mode: nextState.base === "doctor" ? "doctor" : "patient",
+        });
+        params.set("threadId", id);
+      } catch (err) {
+        console.error("Failed to create fallback chat after therapy", err);
+        params.delete("threadId");
+      }
+
+      router.push(toQuery(nextState, params));
+    },
+    [router, sp],
+  );
+
   const apply = (action: Parameters<typeof reduce>[1]) => {
-    // custom exit for aidoc toggle
     if (action.type === "toggle/aidoc" && state.base === "aidoc") {
       const q = toQuery(
         { ...state, base: lastNonAidoc.current, therapy: false, research: false },
@@ -39,46 +100,20 @@ export default function ModeBar() {
       return;
     }
 
-    if (action.type === "toggle/therapy") {
-      const currentThread = sp.get("threadId");
-
-      if (!state.therapy && state.base === "patient") {
-        lastPatientThread.current = currentThread;
-        const params = new URLSearchParams(sp.toString());
-        params.set("panel", "chat");
-        params.set("mode", "patient");
-        params.set("therapy", "1");
-        params.delete("research");
-        params.set("threadId", createNewThreadId());
-        params.delete("context");
-        router.push(`/?${params.toString()}`);
-        return;
-      }
-
-      if (state.therapy) {
-        const params = new URLSearchParams(sp.toString());
-        params.set("panel", "chat");
-        params.set("mode", "patient");
-        params.delete("therapy");
-        params.delete("context");
-        const fallback = lastPatientThread.current;
-        if (fallback) params.set("threadId", fallback);
-        else params.delete("threadId");
-        router.push(`/?${params.toString()}`);
-        return;
-      }
-    }
-
     const next = reduce(state, action);
-    if (state.therapy && !next.therapy) {
-      const params = new URLSearchParams(sp.toString());
-      params.delete("therapy");
-      const fallback = lastPatientThread.current;
-      if (fallback) params.set("threadId", fallback);
-      else params.delete("threadId");
-      router.push(toQuery(next, params));
+
+    if (!state.therapy && next.therapy) {
+      if (therapyBusy) return;
+      const currentThread = sp.get("threadId");
+      void startTherapy(next, currentThread);
       return;
     }
+
+    if (state.therapy && !next.therapy) {
+      void exitTherapy(next);
+      return;
+    }
+
     router.push(toQuery(next, sp));
   };
 
@@ -104,11 +139,17 @@ export default function ModeBar() {
         Wellness
       </button>
       <button
-        className={btn(state.therapy, aidocOn || state.base !== "patient")}
-        disabled={aidocOn || state.base !== "patient"}
+        className={btn(state.therapy, aidocOn || state.base !== "patient" || therapyBusy)}
+        disabled={aidocOn || state.base !== "patient" || therapyBusy}
         onClick={() => apply({ type: "toggle/therapy" })}
+        aria-busy={therapyBusy}
       >
-        Therapy
+        <span>Therapy</span>
+        {therapyBusy && !state.therapy ? (
+          <span className="ml-2 inline-flex h-3 w-3 items-center" aria-hidden="true">
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          </span>
+        ) : null}
       </button>
       <button
         className={btn(state.research, aidocOn)}

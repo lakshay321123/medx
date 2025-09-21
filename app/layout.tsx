@@ -10,6 +10,7 @@ import { BRAND_NAME } from "@/lib/brand";
 import { Suspense } from "react";
 import MemorySnackbar from "@/components/memory/Snackbar";
 import UndoToast from "@/components/memory/UndoToast";
+import AppToastHost from "@/components/ui/AppToastHost";
 import { Roboto } from "next/font/google";
 
 export const metadata = { title: BRAND_NAME, description: "Global medical AI" };
@@ -50,6 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <LegalPrivacyFooter />
                   <MemorySnackbar />
                   <UndoToast />
+                  <AppToastHost />
                 </div>
               </TopicProvider>
             </ContextProvider>
