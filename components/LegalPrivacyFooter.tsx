@@ -14,6 +14,12 @@ type ToggleableCookie = Exclude<keyof CookiePrefs, "essential">;
 const CONSENT_KEY = "secondopinion.consent.v1.0";
 const COOKIE_KEY = "secondopinion.cookies.v1.0";
 
+const BRAND = process.env.NEXT_PUBLIC_BRAND_NAME ?? "Second Opinion";
+const PRIVACY_EMAIL =
+  process.env.NEXT_PUBLIC_PRIVACY_EMAIL ?? "privacy@secondopinion.ai";
+const GOVERNING_LAW =
+  process.env.NEXT_PUBLIC_GOVERNING_LAW ?? "Delaware, USA";
+
 const DEFAULT_PREFS: CookiePrefs = {
   essential: true,
   analytics: false,
@@ -32,7 +38,7 @@ const SECTION_COPY = [
     title: "Introduction",
     body: (
       <p>
-        Second Opinion provides AI-assisted health insights designed to complement conversations with
+        {BRAND} provides AI-assisted health insights designed to complement conversations with
         licensed clinicians. These terms explain how we handle information, the limits of the
         service, and your choices around cookies and data use.
       </p>
@@ -75,8 +81,8 @@ const SECTION_COPY = [
 const LIABILITY_COPY = (
   <p>
     This service is provided on an “as-is” basis without warranties of any kind. To the extent
-    permitted by law, Second Opinion and its partners are not liable for damages arising from your
-    use of the platform. These terms are governed by the laws of the State of Delaware, USA. Local
+    permitted by law, {BRAND} and its partners are not liable for damages arising from your use of
+    the platform. These terms are governed by the laws of {GOVERNING_LAW}. Local
     consumer protections still apply where relevant.
   </p>
 );
@@ -85,12 +91,18 @@ const CONTACT_COPY = (
   <p>
     Questions about these terms or your data? Email us at
     {" "}
-    <a className="text-primary underline" href="mailto:privacy@secondopinion.ai">
-      privacy@secondopinion.ai
+    <a className="text-primary underline" href={`mailto:${PRIVACY_EMAIL}`}>
+      {PRIVACY_EMAIL}
     </a>
     .
   </p>
 );
+
+const parseConsentValue = (value: string | null): "true" | "false" | null => {
+  if (value === null) return null;
+  if (value === "true" || value === "false") return value;
+  return "true";
+};
 
 function getStoredPrefs(): CookiePrefs {
   if (typeof window === "undefined") return DEFAULT_PREFS;
@@ -111,33 +123,25 @@ function getStoredPrefs(): CookiePrefs {
 
 export default function LegalPrivacyFooter() {
   const [isOpen, setIsOpen] = useState(false);
-  const [hasConsent, setHasConsent] = useState(false);
+  const [consentValue, setConsentValue] = useState<"true" | "false" | null>(null);
   const [agreeChecked, setAgreeChecked] = useState(false);
   const [cookiePrefs, setCookiePrefs] = useState<CookiePrefs>(DEFAULT_PREFS);
-  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const storedConsent = window.localStorage.getItem(CONSENT_KEY);
+    const storedConsentRaw = window.localStorage.getItem(CONSENT_KEY);
+    const parsedConsent = parseConsentValue(storedConsentRaw);
     const storedPrefs = getStoredPrefs();
 
     setCookiePrefs(storedPrefs);
-    const accepted = Boolean(storedConsent);
-    setHasConsent(accepted);
-    setAgreeChecked(accepted);
+    setConsentValue(parsedConsent);
+    setAgreeChecked(parsedConsent === "true");
 
-    if (!storedConsent) {
+    if (parsedConsent === null) {
       setIsOpen(true);
     }
-
-    setInitialized(true);
   }, []);
-
-  useEffect(() => {
-    if (!initialized || typeof window === "undefined") return;
-    window.localStorage.setItem(COOKIE_KEY, JSON.stringify(cookiePrefs));
-  }, [cookiePrefs, initialized]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -168,15 +172,18 @@ export default function LegalPrivacyFooter() {
   const handleAccept = () => {
     if (!agreeChecked) return;
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(CONSENT_KEY, new Date().toISOString());
+      window.localStorage.setItem(CONSENT_KEY, "true");
       window.localStorage.setItem(COOKIE_KEY, JSON.stringify(cookiePrefs));
     }
-    setHasConsent(true);
+    setConsentValue("true");
     setIsOpen(false);
   };
 
   const openModal = () => {
-    setAgreeChecked(hasConsent);
+    if (typeof window !== "undefined") {
+      setCookiePrefs(getStoredPrefs());
+    }
+    setAgreeChecked(consentValue === "true");
     setIsOpen(true);
   };
 
@@ -187,16 +194,32 @@ export default function LegalPrivacyFooter() {
         label: key.charAt(0).toUpperCase() + key.slice(1),
         description: COOKIE_DESCRIPTIONS[key],
         value: cookiePrefs[key],
+        labelId: `cookie-${key}-label`,
+        descriptionId: `cookie-${key}-description`,
       })),
     [cookiePrefs]
   );
+
+  const handleReject = () => {
+    if (typeof window !== "undefined") {
+      const essentialOnly: CookiePrefs = {
+        ...DEFAULT_PREFS,
+      };
+      window.localStorage.setItem(CONSENT_KEY, "false");
+      window.localStorage.setItem(COOKIE_KEY, JSON.stringify(essentialOnly));
+    }
+    setCookiePrefs({ ...DEFAULT_PREFS });
+    setConsentValue("false");
+    setAgreeChecked(false);
+    setIsOpen(false);
+  };
 
   return (
     <>
       <footer className="flex-shrink-0 border-t border-black/10 bg-white/80 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/60">
         <div className="mx-auto flex w-full max-w-screen-2xl flex-col items-center justify-center gap-2 px-6 py-2 text-center text-xs text-slate-600 dark:text-slate-300 sm:flex-row sm:gap-4 sm:text-sm">
           <p className="leading-5 sm:max-w-3xl">
-            Second Opinion can make mistakes. This is not medical advice. Always consult a clinician.
+            {BRAND} can make mistakes. This is not medical advice. Always consult a clinician.
           </p>
           <button
             type="button"
@@ -209,7 +232,7 @@ export default function LegalPrivacyFooter() {
       </footer>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 py-6">
           <div
             className="absolute inset-0 bg-black/40"
             aria-hidden="true"
@@ -274,15 +297,25 @@ export default function LegalPrivacyFooter() {
                         className="flex items-start justify-between gap-4 rounded-lg border border-black/5 bg-white/70 p-3 transition dark:border-white/10 dark:bg-slate-900/40"
                       >
                         <div>
-                          <div className="text-sm font-medium capitalize text-slate-700 dark:text-slate-200">
+                          <span
+                            id={option.labelId}
+                            className="block text-sm font-medium capitalize text-slate-700 dark:text-slate-200"
+                          >
                             {option.label}
-                          </div>
-                          <p className="text-sm text-slate-600 dark:text-slate-300">{option.description}</p>
+                          </span>
+                          <p
+                            id={option.descriptionId}
+                            className="text-sm text-slate-600 dark:text-slate-300"
+                          >
+                            {option.description}
+                          </p>
                         </div>
                         <button
                           type="button"
                           role="switch"
                           aria-checked={option.value}
+                          aria-labelledby={option.labelId}
+                          aria-describedby={option.descriptionId}
                           onClick={() => toggleCookie(option.key)}
                           onKeyDown={event => {
                             if (event.key === "Enter" || event.key === " ") {
@@ -333,13 +366,20 @@ export default function LegalPrivacyFooter() {
                   </span>
                 </label>
 
-                <div className="mt-4 flex justify-end gap-2">
+                <div className="mt-4 flex flex-wrap justify-end gap-2">
                   <button
                     type="button"
                     onClick={() => setIsOpen(false)}
                     className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900"
                   >
                     Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleReject}
+                    className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900"
+                  >
+                    Reject Non-Essential
                   </button>
                   <button
                     type="button"
