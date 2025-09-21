@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { reduce } from "@/lib/modes/modeMachine";
 import { fromSearchParams, toQuery } from "@/lib/modes/url";
 import { useTheme } from "next-themes";
+import { createNewThreadId } from "@/lib/chatThreads";
 
 export default function ModeBar() {
   const router = useRouter();
@@ -21,6 +22,12 @@ export default function ModeBar() {
     if (state.base !== "aidoc") lastNonAidoc.current = state.base;
   }, [state.base]);
 
+  const lastPatientThread = useRef<string | null>(null);
+  useEffect(() => {
+    if (state.therapy) return;
+    lastPatientThread.current = sp.get("threadId");
+  }, [sp, state.therapy]);
+
   const apply = (action: Parameters<typeof reduce>[1]) => {
     // custom exit for aidoc toggle
     if (action.type === "toggle/aidoc" && state.base === "aidoc") {
@@ -31,7 +38,46 @@ export default function ModeBar() {
       router.push(q);
       return;
     }
+
+    if (action.type === "toggle/therapy") {
+      const currentThread = sp.get("threadId");
+
+      if (!state.therapy && state.base === "patient") {
+        lastPatientThread.current = currentThread;
+        const params = new URLSearchParams(sp.toString());
+        params.set("panel", "chat");
+        params.set("mode", "patient");
+        params.set("therapy", "1");
+        params.set("threadId", createNewThreadId());
+        params.delete("context");
+        router.push(`/?${params.toString()}`);
+        return;
+      }
+
+      if (state.therapy) {
+        const params = new URLSearchParams(sp.toString());
+        params.set("panel", "chat");
+        params.set("mode", "patient");
+        params.delete("therapy");
+        params.delete("context");
+        const fallback = lastPatientThread.current;
+        if (fallback) params.set("threadId", fallback);
+        else params.delete("threadId");
+        router.push(`/?${params.toString()}`);
+        return;
+      }
+    }
+
     const next = reduce(state, action);
+    if (state.therapy && !next.therapy) {
+      const params = new URLSearchParams(sp.toString());
+      params.delete("therapy");
+      const fallback = lastPatientThread.current;
+      if (fallback) params.set("threadId", fallback);
+      else params.delete("threadId");
+      router.push(toQuery(next, params));
+      return;
+    }
     router.push(toQuery(next, sp));
   };
 
