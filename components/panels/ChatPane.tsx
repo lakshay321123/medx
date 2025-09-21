@@ -74,8 +74,8 @@ const NEARBY_NEAR_WORD_RE = /\b(near|nearby|around|close to|within)\b/i;
 
 const NO_LABS_MESSAGE = "I couldn't find structured lab values yet.";
 const REPORTS_LOCKED_MESSAGE = "Reports are available only in AI Doc mode.";
-// Updated LABS_TREND_INTENT: full phrases only, prevents partial matches
-const LABS_TREND_INTENT = /\b(pull my reports|show my reports|fetch my reports|what do my reports say|compare my reports|trend|date\s*wise|datewise|history|lab history)\b/i;
+// Updated LABS_TREND_INTENT: only triggers on explicit lab/report phrases
+const LABS_TREND_INTENT = /\b(pull my reports|show my reports|fetch my reports|what do my reports say|compare my reports|lab history|lab trend|report history|report trend|date\s*wise|datewise)\b/i;
 const RAW_TEXT_INTENT = /(raw text|full text|show .*report text)/i;
 
 const formatTrendDate = (iso?: string) => {
