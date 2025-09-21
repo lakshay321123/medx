@@ -2,6 +2,7 @@ import "./globals.css";
 import { ThemeProvider } from "next-themes";
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
+import LegalPrivacyFooter from "@/components/LegalPrivacyFooter";
 import { CountryProvider } from "@/lib/country";
 import { ContextProvider } from "@/lib/context";
 import { TopicProvider } from "@/lib/topic";
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       </div>
                     </main>
                   </div>
+                  <LegalPrivacyFooter />
                   <MemorySnackbar />
                   <UndoToast />
                 </div>
