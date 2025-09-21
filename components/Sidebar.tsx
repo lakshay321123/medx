@@ -40,24 +40,32 @@ export default function Sidebar() {
   };
   const filtered = threads.filter(t => t.title.toLowerCase().includes(q.toLowerCase()));
   return (
-    <aside className="sidebar-click-guard hidden md:flex md:flex-col justify-between !fixed inset-y-0 left-0 w-64 h-full medx-glass text-medx">
-      <button type="button" onClick={handleNew} className="w-full text-left px-4 py-3 rounded-xl mb-4 font-medium medx-btn-accent">
+    <div className="sidebar-click-guard flex h-full w-full flex-col gap-4 px-4 py-6 text-medx">
+      <button
+        type="button"
+        onClick={handleNew}
+        className="w-full rounded-full bg-blue-600 px-4 py-2.5 text-left text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500"
+      >
         + New Chat
       </button>
 
-      <div className="px-3">
+      <div>
         <div className="relative">
-          <input className="w-full h-10 rounded-lg pl-3 pr-8 text-sm medx-surface text-medx placeholder:text-slate-500 dark:placeholder:text-slate-400" placeholder="Search chats" onChange={e => handleSearch(e.target.value)} />
-          <Search size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input
+            className="w-full h-10 rounded-full border border-black/10 bg-white/70 pl-3 pr-8 text-sm text-slate-700 placeholder:text-slate-500 backdrop-blur dark:border-white/10 dark:bg-slate-900/50 dark:text-slate-100 dark:placeholder:text-slate-400"
+            placeholder="Search chats"
+            onChange={e => handleSearch(e.target.value)}
+          />
+          <Search size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400" />
         </div>
         <Tabs />
       </div>
 
-      <div className="mt-3 space-y-1 px-2 flex-1 overflow-y-auto">
+      <div className="mt-2 flex-1 space-y-1 overflow-y-auto pr-1">
         {filtered.map(t => (
           <div
             key={t.id}
-            className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm mb-1.5 medx-surface text-medx"
+            className="flex items-center gap-2 rounded-xl border border-black/5 bg-white/70 px-4 py-2.5 text-sm shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/60"
           >
             <button
               onClick={() => router.push(`/?panel=chat&threadId=${t.id}`)}
@@ -83,9 +91,12 @@ export default function Sidebar() {
 
         {aidocThreads.length > 0 && (
           <div className="mt-4">
-            <div className="px-4 text-xs font-semibold opacity-60 mb-1">AI Doc</div>
+            <div className="px-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">AI Doc</div>
             {aidocThreads.map(t => (
-              <div key={t.id} className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm mb-1.5 medx-surface text-medx">
+              <div
+                key={t.id}
+                className="mt-2 flex items-center gap-2 rounded-xl border border-black/5 bg-white/70 px-4 py-2.5 text-sm shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/60"
+              >
                 <button
                   onClick={() => router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`)}
                   className="flex-1 text-left truncate text-sm"
@@ -99,9 +110,12 @@ export default function Sidebar() {
         )}
       </div>
 
-      <button type="button" className="mx-3 mt-auto mb-3 h-10 rounded-lg px-3 text-left flex items-center gap-2 medx-surface text-medx">
+      <button
+        type="button"
+        className="mt-auto flex h-11 items-center gap-2 rounded-full border border-black/10 bg-white/70 px-4 text-left text-sm backdrop-blur transition hover:bg-white dark:border-white/10 dark:bg-slate-900/60 dark:hover:bg-slate-900"
+      >
         <Settings size={16} /> Preferences
       </button>
-    </aside>
+    </div>
   );
 }
