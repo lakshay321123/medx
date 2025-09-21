@@ -21,7 +21,9 @@ export function reduce(s: ModeState, a: Action): ModeState {
   let n = { ...s };
   switch (a.type) {
     case "toggle/patient":
-      n.base = s.base === "patient" ? "patient" : "patient";
+      n.base = "patient";
+      n.therapy = false;
+      n.research = false;
       break;
     case "toggle/doctor":
       n.base = "doctor";

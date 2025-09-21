@@ -48,6 +48,7 @@ export default function ModeBar() {
         params.set("panel", "chat");
         params.set("mode", "patient");
         params.set("therapy", "1");
+        params.delete("research");
         params.set("threadId", createNewThreadId());
         params.delete("context");
         router.push(`/?${params.toString()}`);
@@ -91,11 +92,13 @@ export default function ModeBar() {
     ].filter(Boolean).join(" ");
 
   const aidocOn = state.base === "aidoc";
+  const wellnessActive = state.base === "patient" && !state.therapy && !state.research;
+  const doctorActive = state.base === "doctor" && !state.research;
 
   return (
     <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-black/10 bg-white/60 px-2 py-1 backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
       <button
-        className={btn(state.base === "patient")}
+        className={btn(wellnessActive)}
         onClick={() => apply({ type: "toggle/patient" })}
       >
         Wellness
@@ -115,7 +118,7 @@ export default function ModeBar() {
         Research
       </button>
       <button
-        className={btn(state.base === "doctor")}
+        className={btn(doctorActive)}
         onClick={() => apply({ type: "toggle/doctor" })}
       >
         Doctor
