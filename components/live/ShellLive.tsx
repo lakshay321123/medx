@@ -133,11 +133,7 @@ export default function ShellLive() {
         </aside>
 
         <main className="col-span-1 md:col-span-9 lg:col-span-10 flex min-h-0">
-          <div className="flex flex-1 min-h-0 flex-col">
-            <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
-              <MainLive panel={panel} chatInputRef={chatInputRef} />
-            </div>
-          </div>
+          <MainLive panel={panel} chatInputRef={chatInputRef} />
         </main>
       </div>
     </div>

@@ -16,6 +16,18 @@ type MainLiveProps = {
 export default function MainLive({ panel, chatInputRef }: MainLiveProps) {
   const normalized = panel.toLowerCase();
 
+  if (normalized === "chat") {
+    return (
+      <div className="flex w-full flex-1 min-h-0 flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+        <div className="flex flex-1 min-h-0 flex-col rounded-2xl p-6 ring-1 bg-white/80 dark:bg-slate-900/60 ring-black/5 dark:ring-white/10">
+          <ResearchFiltersProvider>
+            <ChatPane inputRef={chatInputRef} />
+          </ResearchFiltersProvider>
+        </div>
+      </div>
+    );
+  }
+
   const content = useMemo(() => {
     switch (normalized) {
       case "profile":
@@ -28,19 +40,18 @@ export default function MainLive({ panel, chatInputRef }: MainLiveProps) {
         return <SettingsPane />;
       case "ai-doc":
         return <AiDocPane />;
-      case "chat":
       default:
-        return (
-          <ResearchFiltersProvider>
-            <ChatPane inputRef={chatInputRef} />
-          </ResearchFiltersProvider>
-        );
+        return <ChatPane inputRef={chatInputRef} />;
     }
   }, [normalized, chatInputRef]);
 
   return (
-    <div className="flex h-full flex-col rounded-2xl p-6 ring-1 bg-white/80 dark:bg-slate-900/60 ring-black/5 dark:ring-white/10">
-      {content}
+    <div className="flex w-full flex-1 min-h-0 flex-col">
+      <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+        <div className="rounded-2xl p-6 ring-1 bg-white/80 dark:bg-slate-900/60 ring-black/5 dark:ring-white/10">
+          {content}
+        </div>
+      </div>
     </div>
   );
 }
