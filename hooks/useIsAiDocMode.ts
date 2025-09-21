@@ -9,6 +9,7 @@ export function useIsAiDocMode() {
   const context = sp.get("context")?.toLowerCase();
 
   if (mode === "ai-doc") return true;
+  if (panel === "timeline") return true;
   if (panel === "ai-doc") return true;
   if (panel === "chat" && threadId === "med-profile" && context === "profile") return true;
   if (context === "ai-doc-med-profile") return true;
