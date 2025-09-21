@@ -40,7 +40,7 @@ export default function Sidebar() {
   };
   const filtered = threads.filter(t => t.title.toLowerCase().includes(q.toLowerCase()));
   return (
-    <div className="sidebar-click-guard flex h-full w-full flex-col gap-4 px-4 py-6 text-medx">
+    <div className="sidebar-click-guard flex h-full w-full flex-col gap-4 px-4 pt-6 pb-0 text-medx">
       <button
         type="button"
         onClick={handleNew}
@@ -110,12 +110,16 @@ export default function Sidebar() {
         )}
       </div>
 
-      <button
-        type="button"
-        className="mt-auto flex h-11 items-center gap-2 rounded-full border border-black/10 bg-white/70 px-4 text-left text-sm backdrop-blur transition hover:bg-white dark:border-white/10 dark:bg-slate-900/60 dark:hover:bg-slate-900"
-      >
-        <Settings size={16} /> Preferences
-      </button>
+      <div className="mt-auto">
+        <div className="sticky bottom-0 left-0 -mx-4 border-t border-black/5 bg-white/80 px-4 py-3 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/50">
+          <button
+            type="button"
+            className="flex items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-white/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900"
+          >
+            <Settings size={14} /> Preferences
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
