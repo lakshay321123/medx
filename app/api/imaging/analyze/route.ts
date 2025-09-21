@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 
 import { applyHandHeuristics } from "@/lib/imaging/handHeuristics";
+import { ImagingFindings, normalizeFindings } from "@/lib/imaging/findings";
 
-const OAI_KEY = process.env.OPENAI_API_KEY!;
+const OAI_KEY = process.env.OPENAI_API_KEY ?? "";
+if (!OAI_KEY) {
+  throw new Error("Missing OPENAI_API_KEY");
+}
 const MODEL_VISION = process.env.OPENAI_VISION_MODEL || "gpt-5"; // images
 const MODEL_TEXT   = process.env.OPENAI_TEXT_MODEL   || "gpt-5"; // PDFs
 
@@ -28,44 +31,8 @@ const FRACTURE_SYSTEM_PROMPT = `You are a radiologist. Return ONLY compact JSON 
   FRACTURE_SCHEMA,
 )}. No prose. If unsure, set confidence_0_1 conservatively.`;
 
-const FindingsSchema = z.object({
-  fracture_present: z.boolean(),
-  suspected_type: z.string().nullable().optional(),
-  bone: z.string().nullable().optional(),
-  region: z.string().nullable().optional(),
-  angulation_deg: z.number().nullable().optional(),
-  displacement_mm: z.number().nullable().optional(),
-  rotation_suspected: z.boolean().nullable().optional(),
-  need_additional_views: z.boolean().nullable().optional(),
-  red_flags: z.array(z.string()).nullable().optional(),
-  confidence_0_1: z.number(),
-});
-
-type ImagingFindings = {
-  fracture_present: boolean | null;
-  suspected_type: string | null;
-  bone: string | null;
-  region: string | null;
-  angulation_deg: number | null;
-  displacement_mm: number | null;
-  rotation_suspected: boolean | null;
-  need_additional_views: boolean | null;
-  red_flags: string[];
-  confidence_0_1: number;
-};
-
-const BASE_FINDINGS: ImagingFindings = {
-  fracture_present: null,
-  suspected_type: null,
-  bone: null,
-  region: null,
-  angulation_deg: null,
-  displacement_mm: null,
-  rotation_suspected: null,
-  need_additional_views: null,
-  red_flags: [],
-  confidence_0_1: 0,
-};
+const MAX_IMAGE_COUNT = 3;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB per image
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -206,13 +173,28 @@ export async function POST(req: Request) {
     }
 
     const imageFiles = multi.length ? multi : [file];
-    const encodedImages: { dataUrl: string }[] = [];
+    if (imageFiles.length > MAX_IMAGE_COUNT) {
+      return NextResponse.json(
+        { error: `Upload up to ${MAX_IMAGE_COUNT} images (PA, lateral, oblique).` },
+        { status: 400 }
+      );
+    }
+
+    const resolvedImages: { name: string; mime: string; buffer: Buffer }[] = [];
     for (let i = 0; i < imageFiles.length; i++) {
       const current = imageFiles[i];
-      const displayName = (current as any).name || name || "upload";
+      const displayName = (current as any).name || name || `upload-${i + 1}`;
       const currentName = displayName.toLowerCase();
       const currentBuf = i === 0 ? buf : Buffer.from(await current.arrayBuffer());
       let currentMime = current.type || (i === 0 ? mime : "");
+
+      if (currentBuf.length > MAX_IMAGE_BYTES) {
+        return NextResponse.json(
+          { error: `Each image must be under 5 MB. ${displayName} is too large.` },
+          { status: 413 }
+        );
+      }
+
       const isImage =
         (currentMime && currentMime.startsWith("image/")) ||
         /\.(png|jpe?g|webp|bmp|gif|tif?f)$/i.test(currentName);
@@ -227,25 +209,33 @@ export async function POST(req: Request) {
           { status: 415 }
         );
       }
+
       if (!currentMime || currentMime === "application/octet-stream") {
         const ext = currentName.split(".").pop() || "";
         if (ext === "jpg" || ext === "jpeg") currentMime = "image/jpeg";
         else if (ext === "tif" || ext === "tiff") currentMime = "image/tiff";
         else currentMime = ext ? `image/${ext}` : "image/jpeg";
       }
-      encodedImages.push({ dataUrl: toDataUrl(currentBuf, currentMime) });
+
+      resolvedImages.push({ name: displayName, mime: currentMime, buffer: currentBuf });
     }
 
     const userContent = [
       {
         type: "text",
         text:
-          "Multiple hand radiographs (may include PA, lateral, oblique). Aggregate across views to decide." +
-          " Task: detect fracture on a HAND radiograph. If 5th metacarpal neck fracture → suspected_type='Boxer’s fracture'." +
-          " Estimate angulation in degrees if visible on this view; otherwise set angulation_deg=null and need_additional_views=true.",
+          "Multiple hand radiographs: front (PA), lateral, and/or oblique views." +
+          " Aggregate across all views before deciding on fracture presence, type, and measurements." +
+          " Return structured JSON only (no prose). If angulation is not measurable, set angulation_deg=null and need_additional_views=true." +
+          " If a 5th metacarpal neck fracture is seen, label suspected_type as \"Boxer’s fracture\".",
       },
-      ...encodedImages,
+      ...resolvedImages.map(image => ({
+        type: "image_url" as const,
+        image_url: { url: toDataUrl(image.buffer, image.mime) },
+      })),
     ];
+
+    const inferenceStartedAt = Date.now();
 
     const resp = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -267,42 +257,28 @@ export async function POST(req: Request) {
 
     const j = await resp.json();
     if (!resp.ok) throw new Error(j?.error?.message || resp.statusText);
-    const raw = j.choices?.[0]?.message?.content?.trim() || "{}";
-    let findings: ImagingFindings = { ...BASE_FINDINGS };
-    try {
-      const parsed = JSON.parse(raw);
-      const validated = FindingsSchema.safeParse(parsed);
-      if (validated.success) {
-        findings = {
-          ...BASE_FINDINGS,
-          ...validated.data,
-          angulation_deg:
-            validated.data.angulation_deg ?? null,
-          displacement_mm:
-            validated.data.displacement_mm ?? null,
-          rotation_suspected:
-            validated.data.rotation_suspected ?? null,
-          need_additional_views:
-            validated.data.need_additional_views ?? null,
-          suspected_type: validated.data.suspected_type ?? null,
-          bone: validated.data.bone ?? null,
-          region: validated.data.region ?? null,
-          red_flags: validated.data.red_flags ?? [],
-          confidence_0_1: Math.max(0, Math.min(1, validated.data.confidence_0_1)),
-        };
-      } else {
-        console.warn("[/api/imaging/analyze] vision JSON validation failed", validated.error.format());
-      }
-    } catch (err) {
-      console.warn("[/api/imaging/analyze] vision JSON parse failed", { err, raw });
+    const raw = j.choices?.[0]?.message?.content?.trim() || "";
+    const { findings: normalizedFindings, warning } = normalizeFindings(raw);
+    const findings = applyHandHeuristics({ ...normalizedFindings }) as ImagingFindings;
+    const durationMs = Date.now() - inferenceStartedAt;
+
+    if (warning) {
+      console.warn("[/api/imaging/analyze] structured vision output warning", { warning, raw });
     }
 
-    findings = applyHandHeuristics(findings);
+    console.info("[/api/imaging/analyze] completed", {
+      filename: name,
+      mime,
+      views: resolvedImages.length,
+      confidence: findings.confidence_0_1,
+      durationMs,
+    });
 
     const res = NextResponse.json({
       type: "image",
       filename: name,
       findings,
+      warning,
       disclaimer: "AI assistance only — not a medical diagnosis. Confirm with a clinician.",
     });
     res.headers.set("x-branch", "image");

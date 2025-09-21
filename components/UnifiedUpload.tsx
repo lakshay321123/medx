@@ -1,12 +1,16 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { safeJson } from "@/lib/safeJson";
+
+const MAX_VIEW_COUNT = 3;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB per image
 
 export default function UnifiedUpload() {
   const [loading, setLoading] = useState(false);
   const [doctorMode, setDoctorMode] = useState(true);
   const [out, setOut] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   async function onChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -32,6 +36,18 @@ export default function UnifiedUpload() {
 
     if (pdfFiles.length > 1) {
       setErr("Upload a single PDF at a time.");
+      e.target.value = "";
+      return;
+    }
+
+    if (!pdfFiles.length && imageFiles.length > MAX_VIEW_COUNT) {
+      setErr(`Upload up to ${MAX_VIEW_COUNT} images (PA, lateral, oblique).`);
+      e.target.value = "";
+      return;
+    }
+
+    if (imageFiles.some(file => file.size > MAX_IMAGE_BYTES)) {
+      setErr("Each image must be under 5 MB.");
       e.target.value = "";
       return;
     }
@@ -77,8 +93,12 @@ export default function UnifiedUpload() {
       const message = String(e?.message || e) || "Upload failed";
       if (message.includes("415")) {
         setErr("Unsupported file type. Upload DICOM/PDF/PNG/JPG.");
+      } else if (message.includes("413")) {
+        setErr("Each image must be under 5 MB.");
+      } else if (message.includes("Upload up to")) {
+        setErr(`Upload up to ${MAX_VIEW_COUNT} images (PA, lateral, oblique).`);
       } else {
-        setErr(message);
+        setErr("Upload clearer image or side view.");
       }
     } finally {
       setLoading(false);
@@ -92,10 +112,20 @@ export default function UnifiedUpload() {
     return Number.isNaN(rounded) ? null : rounded.toString();
   };
 
+  const warning = typeof out?.warning === "string" && out.warning.trim() ? out.warning : null;
+  const showUploadMore =
+    !loading &&
+    out?.type === "image" &&
+    out?.findings &&
+    out.findings.need_additional_views === true;
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
-        <label className="px-4 py-2 rounded bg-black text-white cursor-pointer">
+        <label
+          className="px-4 py-2 rounded bg-black text-white cursor-pointer"
+          onClick={() => fileInputRef.current?.click()}
+        >
           <span>Upload</span>
           <input
             type="file"
@@ -103,6 +133,7 @@ export default function UnifiedUpload() {
             multiple
             onChange={onChange}
             className="hidden"
+            ref={fileInputRef}
           />
         </label>
         <label className="flex items-center gap-2 text-sm">
@@ -112,7 +143,7 @@ export default function UnifiedUpload() {
       </div>
 
       <p className="text-xs text-gray-500">
-        (Upload medical reports, prescriptions, discharge summaries, or X-rays — PDF or image. Multiple views supported.)
+        (Upload medical reports, prescriptions, discharge summaries, or hand X-rays — PDF or up to 3 image views: PA, lateral, oblique.)
       </p>
 
       {loading && <p>Analyzing…</p>}
@@ -135,79 +166,96 @@ export default function UnifiedUpload() {
             </>
           )}
           {out.type === "image" && (
-            <section className="p-3 border rounded">
-              <h3 className="font-semibold mb-1">Imaging Findings</h3>
+            <section className="p-3 border rounded space-y-2">
+              <h3 className="font-semibold">Imaging Findings</h3>
               {out.findings ? (
-                <div className="space-y-2 text-sm">
-                  {(() => {
-                    const findings = out.findings || {};
-                    const fracturePresent =
-                      typeof findings.fracture_present === "boolean"
-                        ? findings.fracture_present
-                        : null;
-                    const confidence =
-                      typeof findings.confidence_0_1 === "number"
-                        ? Math.round(findings.confidence_0_1 * 100)
-                        : null;
-                    const fractureLabel =
-                      fracturePresent === null ? "Unknown" : fracturePresent ? "Yes" : "No";
-                    const confidenceLabel =
-                      confidence === null ? null : `${confidence}%`;
-                    const segments: string[] = [];
-                    if (findings.bone) segments.push(`Bone: ${findings.bone}`);
-                    if (findings.region) segments.push(`Region: ${findings.region}`);
-                    const suspected = findings.suspected_type ? ` → ${findings.suspected_type}` : "";
-                    const angulation =
-                      typeof findings.angulation_deg === "number"
-                        ? formatNumber(findings.angulation_deg)
-                        : null;
-                    const displacement =
-                      typeof findings.displacement_mm === "number"
-                        ? formatNumber(findings.displacement_mm)
-                        : null;
-                    const rotation =
-                      typeof findings.rotation_suspected === "boolean"
-                        ? findings.rotation_suspected
-                        : null;
-                    const metrics: string[] = [];
-                    if (angulation) metrics.push(`Angulation: ${angulation}°`);
-                    if (displacement) metrics.push(`Displacement: ${displacement} mm`);
-                    if (rotation !== null) metrics.push(`Rotation suspected: ${rotation ? "Yes" : "No"}`);
-                    const redFlags = Array.isArray(findings.red_flags)
-                      ? findings.red_flags.filter((f: unknown) => typeof f === "string" && f.trim())
-                      : [];
-                    const nextLine =
-                      findings.need_additional_views === true
-                        ? "Next: Lateral/oblique views recommended."
-                        : findings.need_additional_views === false
-                        ? "Next: No additional views requested."
-                        : "Next: Await clinician review.";
+                (() => {
+                  const findings = out.findings || {};
+                  const fracturePresent =
+                    typeof findings.fracture_present === "boolean" ? findings.fracture_present : null;
+                  const confidence =
+                    typeof findings.confidence_0_1 === "number"
+                      ? Math.round(findings.confidence_0_1 * 100)
+                      : null;
+                  const fractureLabel =
+                    fracturePresent === null ? "Unknown" : fracturePresent ? "YES" : "NO";
+                  const confidenceLabel = confidence === null ? "" : ` (${confidence}%)`;
+                  const boneSegment =
+                    typeof findings.bone === "string" && findings.bone.trim()
+                      ? findings.bone.trim()
+                      : "—";
+                  const regionSegment =
+                    typeof findings.region === "string" && findings.region.trim()
+                      ? findings.region.trim()
+                      : null;
+                  const suspected =
+                    typeof findings.suspected_type === "string" && findings.suspected_type.trim()
+                      ? findings.suspected_type.trim()
+                      : "—";
+                  const angulation =
+                    typeof findings.angulation_deg === "number"
+                      ? formatNumber(findings.angulation_deg)
+                      : null;
+                  const displacement =
+                    typeof findings.displacement_mm === "number"
+                      ? formatNumber(findings.displacement_mm)
+                      : null;
+                  const rotation =
+                    typeof findings.rotation_suspected === "boolean"
+                      ? findings.rotation_suspected
+                      : null;
+                  const metrics: string[] = [];
+                  if (angulation) metrics.push(`Angulation: ${angulation}°`);
+                  if (displacement) metrics.push(`Displacement: ${displacement} mm`);
+                  if (rotation !== null) metrics.push(`Rotation suspected: ${rotation ? "Yes" : "No"}`);
+                  const redFlags = Array.isArray(findings.red_flags)
+                    ? findings.red_flags.filter((f: unknown) => typeof f === "string" && f.trim())
+                    : [];
+                  const nextLine =
+                    findings.need_additional_views === true
+                      ? "Add lateral or oblique view to measure angulation."
+                      : findings.need_additional_views === false
+                      ? "No additional views requested."
+                      : "Await clinician review.";
 
-                    return (
-                      <div className="space-y-1">
+                  return (
+                    <div className="space-y-1 text-sm">
+                      <p>
+                        <span className="font-medium">Fracture:</span> {fractureLabel}
+                        {confidenceLabel}
+                      </p>
+                      <p>
+                        <span className="font-medium">Bone:</span> {boneSegment}
+                        {regionSegment ? ` — Region: ${regionSegment}` : ""}
+                      </p>
+                      <p>
+                        <span className="font-medium">Type:</span> {suspected}
+                      </p>
+                      {metrics.length > 0 && <p>{metrics.join(" • ")}</p>}
+                      <p>
+                        <span className="font-medium">Next:</span> {nextLine}
+                      </p>
+                      {redFlags.length > 0 && (
                         <p>
-                          Fracture: {fractureLabel}
-                          {confidenceLabel ? ` (${confidenceLabel})` : ""}
+                          <span className="font-medium">Red flags:</span> {redFlags.join(", ")}
                         </p>
-                        {(segments.length > 0 || suspected) && (
-                          <p>
-                            {segments.join(" — ")}
-                            {suspected}
-                          </p>
-                        )}
-                        {metrics.length > 0 && <p>{metrics.join(" • ")}</p>}
-                        <p>{nextLine}</p>
-                        {redFlags.length > 0 && (
-                          <p>Red flags: {redFlags.join(", ")}</p>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-              ) : out.report ? (
-                <p className="whitespace-pre-wrap text-sm">{out.report}</p>
+                      )}
+                    </div>
+                  );
+                })()
               ) : (
                 <p className="text-sm">No findings returned.</p>
+              )}
+              {warning && <p className="text-xs text-amber-600">⚠️ {warning}</p>}
+              {showUploadMore && (
+                <button
+                  type="button"
+                  className="text-xs px-3 py-1 border border-dashed rounded disabled:opacity-60"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={loading}
+                >
+                  Upload more views
+                </button>
               )}
             </section>
           )}
