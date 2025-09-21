@@ -91,6 +91,7 @@
 :root {
   --medx-bg-a: #e9efff;   /* light indigo */
   --medx-bg-b: #d0f3ff;   /* light cyan */
+  --medx-bg-c: #ffffff;   /* fallback third stop */
   --medx-text: #0F172A;
   --medx-subtext: #334155;
 
@@ -107,8 +108,9 @@
   --medx-outline: rgba(15, 23, 42, 0.10);
 }
 .dark {
-  --medx-bg-a: #342eec;   /* deep indigo */
-  --medx-bg-b: #27b6da;   /* cyan/teal */
+  --medx-bg-a: #06122E;   /* deep navy */
+  --medx-bg-b: #071534;   /* mid navy */
+  --medx-bg-c: #0A1C45;   /* rich midnight */
   --medx-text: #E6E9F1;
   --medx-subtext: #B6C2D0;
 
@@ -131,7 +133,7 @@
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: linear-gradient(135deg, var(--medx-bg-a), var(--medx-bg-b));
+  background: linear-gradient(135deg, var(--medx-bg-a), var(--medx-bg-b), var(--medx-bg-c));
 }
 
 /* Glass helpers */
@@ -171,5 +173,16 @@
 .fade-mask,
 .gradient-mask {
   pointer-events: none;
+}
+
+html,
+body,
+#__next {
+  height: 100%;
+}
+
+html,
+body {
+  overflow: hidden;
 }
 

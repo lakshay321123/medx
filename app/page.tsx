@@ -20,20 +20,36 @@ export default function Page({ searchParams }: { searchParams: Search }) {
     return () => window.removeEventListener("focus-chat-input", handler);
   }, []);
 
+  const renderPane = () => {
+    switch (panel) {
+      case "profile":
+        return <MedicalProfile />;
+      case "timeline":
+        return <Timeline />;
+      case "alerts":
+        return <AlertsPane />;
+      case "settings":
+        return <SettingsPane />;
+      case "ai-doc":
+        return <AiDocPane />;
+      default:
+        return null;
+    }
+  };
+
   return (
-    <main className="flex-1 overflow-y-auto content-layer">
-      {panel === "chat" && (
-        <section className="block h-full">
-          <ResearchFiltersProvider>
-            <ChatPane inputRef={chatInputRef} />
-          </ResearchFiltersProvider>
-        </section>
+    <div className="flex flex-1 min-h-0 flex-col">
+      {panel === "chat" ? (
+        <ResearchFiltersProvider>
+          <ChatPane inputRef={chatInputRef} />
+        </ResearchFiltersProvider>
+      ) : (
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="m-6 rounded-2xl p-6 ring-1 ring-black/5 bg-white/80 dark:bg-slate-900/60 dark:ring-white/10">
+            {renderPane()}
+          </div>
+        </div>
       )}
-      {panel === "profile" && <MedicalProfile />}
-      {panel === "timeline" && <Timeline />}
-      {panel === "alerts" && <AlertsPane />}
-      {panel === "settings" && <SettingsPane />}
-      {panel === "ai-doc" && <AiDocPane />}
-    </main>
+    </div>
   );
 }

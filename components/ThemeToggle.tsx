@@ -13,10 +13,7 @@ export default function ThemeToggle() {
     <button
       aria-label="Toggle theme"
       onClick={() => setTheme(next)}
-      className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm
-                 bg-slate-100 text-slate-800 border-slate-200
-                 hover:bg-slate-200
-                 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 dark:hover:bg-gray-700"
+      className="inline-flex h-10 items-center gap-2 rounded-full border border-black/10 bg-white/70 px-4 text-sm font-medium text-slate-900 transition hover:bg-white dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-100 dark:hover:bg-slate-900"
     >
       {theme === "dark" ? "Light" : "Dark"}
     </button>

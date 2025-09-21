@@ -1,6 +1,7 @@
 import "./globals.css";
 import { ThemeProvider } from "next-themes";
 import Sidebar from "../components/Sidebar";
+import Header from "../components/Header";
 import { CountryProvider } from "@/lib/country";
 import { ContextProvider } from "@/lib/context";
 import { TopicProvider } from "@/lib/topic";
@@ -22,20 +23,27 @@ const roboto = Roboto({
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={roboto.variable} suppressHydrationWarning>
-      <body className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-gray-100 font-sans antialiased">
+      <body className="h-full bg-slate-100 text-slate-900 dark:bg-transparent dark:text-slate-100 font-sans antialiased">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <CountryProvider>
             <ContextProvider>
               <TopicProvider>
-                <div className="flex medx-gradient">
-                  <Suspense fallback={null}>
-                    <Sidebar />
-                  </Suspense>
-                  <main className="flex-1 md:ml-64 min-h-dvh flex flex-col relative z-0">
-                    {children}
-                    <MemorySnackbar />
-                    <UndoToast />
-                  </main>
+                <div className="flex h-full min-h-screen flex-col medx-gradient">
+                  <Header />
+                  <div className="grid grow min-h-0 grid-cols-12">
+                    <aside className="hidden min-h-0 overflow-y-auto border-r border-black/5 bg-white/70 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/40 md:col-span-3 md:flex lg:col-span-2">
+                      <Suspense fallback={null}>
+                        <Sidebar />
+                      </Suspense>
+                    </aside>
+                    <main className="col-span-12 flex min-h-0 md:col-span-9 lg:col-span-10">
+                      <div className="flex flex-1 min-h-0 flex-col">
+                        {children}
+                      </div>
+                    </main>
+                  </div>
+                  <MemorySnackbar />
+                  <UndoToast />
                 </div>
               </TopicProvider>
             </ContextProvider>
