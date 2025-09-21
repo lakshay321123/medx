@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type {
-  UniversalCodingAnswer,
-  UniversalCodingInput,
-  UniversalCodingMode
-} from '@/lib/coding/generateUniversalAnswer';
+import type { UniversalCodingAnswer } from '@/types/coding';
+import type { UniversalCodingInput, UniversalCodingMode } from '@/lib/coding/generateUniversalAnswer';
 import type { CaseCodingInput } from '@/lib/coding/collectCaseInput';
 
 type HookMode = UniversalCodingMode;
