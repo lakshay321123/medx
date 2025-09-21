@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ensureMinDelay } from "@/lib/utils/ensureMinDelay";
 import { callGroqChat, callOpenAIChat } from "@/lib/medx/providers";
+import { shouldShowSavedReportWarning, REPORTS_LOCKED_MESSAGE } from "@/lib/chat/intent/savedReportWarning";
 
 // Optional calculator prelude (safe if absent)
 let composeCalcPrelude: any, extractAll: any, canonicalizeInputs: any, computeAll: any;
@@ -17,7 +18,11 @@ function pickProvider(mode?: string) {
 }
 
 export async function POST(req: Request) {
-  const { messages = [], mode } = await req.json();
+  const { messages = [], mode, threadId } = await req.json();
+  const latestUser = messages.slice().reverse().find((m: any) => m.role === "user")?.content || "";
+  if (shouldShowSavedReportWarning({ mode, message: latestUser, threadId })) {
+    return NextResponse.json({ ok: true, provider: "system", reply: REPORTS_LOCKED_MESSAGE });
+  }
   const provider = pickProvider(mode);
 
   if (provider === "groq") {

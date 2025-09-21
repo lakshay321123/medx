@@ -36,6 +36,7 @@ import { singleTrialPatientPrompt, singleTrialClinicianPrompt } from "@/lib/prom
 import { searchTrials, dedupeTrials, rankValue } from "@/lib/trials/search";
 import { byName } from "@/data/countries";
 import { searchNearby } from "@/lib/openpass";
+import { shouldShowSavedReportWarning, REPORTS_LOCKED_MESSAGE } from "@/lib/chat/intent/savedReportWarning";
 
 type WebHit = { title: string; snippet: string; url: string; source: string };
 
@@ -109,6 +110,10 @@ export async function POST(req: Request) {
   };
   if (isNewChat) {
     console.log("new_chat_started", { conversationId });
+  }
+  const threadIdForWarning = typeof thread_id === "string" ? thread_id : undefined;
+  if (shouldShowSavedReportWarning({ mode, message: userMessage, threadId: threadIdForWarning })) {
+    return respond({ ok: true, threadId: threadIdForWarning ?? null, text: REPORTS_LOCKED_MESSAGE });
   }
   const ISOLATE = process.env.NEW_CHAT_ISOLATION !== "false";
   const ALLOW_ROLL = process.env.ALLOW_CONTEXT_ROLLFORWARD === "true";

@@ -3,6 +3,7 @@ import { profileChatSystem } from '@/lib/profileChatSystem';
 import { extractAll, canonicalizeInputs } from '@/lib/medical/engine/extract';
 import { BRAND_NAME } from "@/lib/brand";
 import { computeAll } from '@/lib/medical/engine/computeAll';
+import { shouldShowSavedReportWarning, REPORTS_LOCKED_MESSAGE } from "@/lib/chat/intent/savedReportWarning";
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
   let body: any = {};
   try { body = await req.json(); } catch {}
   const { context, clientRequestId, mode } = body;
+  const threadId = typeof body?.threadId === 'string' ? body.threadId : undefined;
 
   const research =
     qp === '1' || qp === 'true' || body?.research === true || body?.research === 'true';
@@ -73,6 +75,27 @@ export async function POST(req: NextRequest) {
     recent.length && recent[recent.length - 1].role === 'user'
       ? recent.pop()!
       : { role: 'user' as const, content: String(body?.question ?? '').trim() };
+
+  const latestUserMessage = latestUser?.content ?? '';
+  if (shouldShowSavedReportWarning({ mode, message: latestUserMessage, threadId })) {
+    const payload = JSON.stringify({
+      choices: [
+        {
+          delta: {
+            content: REPORTS_LOCKED_MESSAGE
+          }
+        }
+      ]
+    });
+    const streamBody = `data: ${payload}\n\ndata: [DONE]\n\n`;
+    return new Response(streamBody, {
+      headers: {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive'
+      }
+    });
+  }
 
   // 3) Build or auto-fetch sources if research is on
   let sources: WebHit[] = Array.isArray(body?.__sources) ? body.__sources as WebHit[] : [];

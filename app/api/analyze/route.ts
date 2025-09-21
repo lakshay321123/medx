@@ -5,6 +5,7 @@ import { analyzeLabText } from "@/lib/labReport";
 import { extractAll, canonicalizeInputs } from "@/lib/medical/engine/extract";
 import { computeAll } from "@/lib/medical/engine/computeAll";
 import { dualEngineSummarize } from "@/lib/reports/dualEngine";
+import { markHasFreshUpload } from "@/lib/chat/session/uploadState";
 
 const OAI_KEY = process.env.OPENAI_API_KEY!;
 const MODEL_TEXT = process.env.OPENAI_TEXT_MODEL || "gpt-5";
@@ -232,7 +233,7 @@ export async function POST(req: Request) {
       report = data?.choices?.[0]?.message?.content || "";
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       type: "auto",
       filename: name,
       category,
@@ -240,6 +241,10 @@ export async function POST(req: Request) {
       disclaimer: "AI assistance only — not a medical diagnosis. Confirm with a clinician.",
       obsIds: doctorMode ? [] : obsIds,
     });
+    if (threadId) {
+      markHasFreshUpload(threadId);
+    }
+    return response;
   } catch (e: any) {
     return NextResponse.json({ error: e.message || "analyze failed" }, { status: 500 });
   }

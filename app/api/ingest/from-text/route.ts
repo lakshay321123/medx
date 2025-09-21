@@ -6,6 +6,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { extractReportDate } from "@/lib/reportDate";
 import { summarizeMedicalDoc } from "@/lib/summarizeDoc";
 import { buildShortSummaryFromText } from "@/lib/shortSummary";
+import { markHasFreshUpload } from "@/lib/chat/session/uploadState";
 import OpenAI from "openai";
 
 const HAVE_OPENAI = !!process.env.OPENAI_API_KEY;
@@ -213,5 +214,8 @@ meta.category in {lab|vital|imaging|medication|diagnosis|procedure|immunization|
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const ids = (inserted || []).map((r: any) => r.id);
+  if (typeof threadId === "string" && threadId) {
+    markHasFreshUpload(threadId);
+  }
   return NextResponse.json({ ok: true, ids, inserted: ids.length, usedFallback });
 }
