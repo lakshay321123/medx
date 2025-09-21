@@ -194,14 +194,14 @@ export default function LegalPrivacyFooter() {
   return (
     <>
       <footer className="flex-shrink-0 border-t border-black/10 bg-white/80 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/60">
-        <div className="mx-auto flex w-full max-w-screen-2xl flex-col items-center justify-center gap-2 px-6 py-3 text-center text-xs text-slate-600 dark:text-slate-300 sm:text-sm">
-          <p className="leading-5">
+        <div className="mx-auto flex w-full max-w-screen-2xl flex-col items-center justify-center gap-2 px-6 py-2 text-center text-xs text-slate-600 dark:text-slate-300 sm:flex-row sm:gap-4 sm:text-sm">
+          <p className="leading-5 sm:max-w-3xl">
             Second Opinion can make mistakes. This is not medical advice. Always consult a clinician.
           </p>
           <button
             type="button"
             onClick={openModal}
-            className="rounded-md px-3 py-1.5 text-sm font-medium text-primary transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900"
+            className="rounded-md px-3 py-1.5 text-sm font-medium text-primary transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white sm:ml-2 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900"
           >
             Legal &amp; Privacy
           </button>
