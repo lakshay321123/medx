@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { ArrowDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 type Props = {
   /** Ref to the scrollable chat container (div) */
@@ -142,14 +141,14 @@ export default function ScrollToBottom({
       style={{ bottom: 96 }}
       aria-hidden={!visible}
     >
-      <Button
-        size="icon"
-        className="pointer-events-auto h-9 w-9 rounded-full shadow-lg bg-primary text-primary-foreground hover:opacity-90"
+      <button
+        type="button"
+        className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition hover:opacity-90"
         aria-label="Jump to newest messages"
         onClick={scrollToBottom}
       >
         <ArrowDown className="h-4 w-4" />
-      </Button>
+      </button>
     </div>
   );
 }
