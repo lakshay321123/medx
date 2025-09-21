@@ -2656,7 +2656,7 @@ ${systemCommon}` + baseSys;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div ref={chatRef} className="flex-1 min-h-0 overflow-y-auto">
-        <div className="m-6 rounded-2xl bg-white/80 p-6 ring-1 ring-black/5 dark:bg-slate-900/60 dark:ring-white/10">
+        <div className="m-6 p-6">
           {mode === "doctor" && researchMode && (
             <div className="mb-6 space-y-4">
               <ResearchFilters mode="research" onResults={handleTrials} />
@@ -2917,8 +2917,7 @@ ${systemCommon}` + baseSys;
 
       <div className="mt-auto">
         <div className="px-6 pt-3 pb-[max(16px,env(safe-area-inset-bottom))]">
-          <div className="rounded-xl border border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-900/70">
-            <div className="mx-auto max-w-3xl space-y-3 px-4 py-4">
+          <div className="mx-auto max-w-3xl space-y-3 px-4 py-4">
               {mode === 'doctor' && AIDOC_UI && (
                 <button
                   className="rounded-full border border-slate-200 px-3 py-1 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
@@ -2950,10 +2949,10 @@ ${systemCommon}` + baseSys;
                   e.preventDefault();
                   onSubmit();
                 }}
-                className="flex w-full items-end gap-3 rounded-2xl border border-slate-200 bg-white/90 px-3 py-2 dark:border-slate-700 dark:bg-slate-900/80"
+                className="flex w-full items-end gap-3 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80"
               >
                 <label
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-white/70 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-white dark:bg-slate-900/70 dark:text-slate-200"
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
                   title="Upload PDF or image"
                 >
                   <Paperclip size={16} aria-hidden="true" />
@@ -3035,7 +3034,6 @@ ${systemCommon}` + baseSys;
                 )}
               </form>
             </div>
-          </div>
         </div>
       </div>
       {/* Preflight chooser (flagged) */}
