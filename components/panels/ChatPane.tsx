@@ -629,6 +629,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [labSummary, setLabSummary] = useState<any | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
+  const composerContainerRef = useRef<HTMLDivElement>(null);
+  const [composerHeight, setComposerHeight] = useState(0);
   const inputRef =
     (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ??
     (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
@@ -670,6 +672,24 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    const el = composerContainerRef.current;
+    if (!el) return;
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      setComposerHeight(rect.height);
+    };
+    measure();
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => measure());
+      observer.observe(el);
+      return () => observer.disconnect();
+    }
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [mounted]);
 
   const fetchLabSummary = useCallback(async () => {
     if (!isAiDocMode) return;
@@ -796,6 +816,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [stats, setStats] = useState<TrialStats | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const { enabled, rememberThisThread, autoSave, pushSuggestion, setLastSaved } = useMemoryStore();
+
+  const chatBottomPadding = Math.max(200, composerHeight + 24);
 
   function handleTrials(rows: TrialRow[]) {
     setTrialRows(rows);
@@ -2654,9 +2676,9 @@ ${systemCommon}` + baseSys;
   }, [busy]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col">
       <div ref={chatRef} className="flex-1 min-h-0 overflow-y-auto">
-        <div className="m-6 p-6">
+        <div className="m-6 p-6" style={{ paddingBottom: chatBottomPadding }}>
           {mode === "doctor" && researchMode && (
             <div className="mb-6 space-y-4">
               <ResearchFilters mode="research" onResults={handleTrials} />
@@ -2915,8 +2937,12 @@ ${systemCommon}` + baseSys;
         </div>
       </div>
 
-      <div className="mt-auto">
-        <div className="px-6 pt-3 pb-[max(16px,env(safe-area-inset-bottom))]">
+      <div
+        ref={composerContainerRef}
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-20"
+      >
+        <div className="pointer-events-none absolute inset-x-0 bottom-full h-32 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-slate-950 dark:via-slate-950/90" />
+        <div className="pointer-events-auto px-6 pt-3 pb-[max(16px,env(safe-area-inset-bottom))]">
           <div className="mx-auto max-w-3xl space-y-3 px-4 py-4">
               {mode === 'doctor' && AIDOC_UI && (
                 <button
@@ -2949,7 +2975,7 @@ ${systemCommon}` + baseSys;
                   e.preventDefault();
                   onSubmit();
                 }}
-                className="flex w-full items-end gap-3 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80"
+                className="flex w-full items-end gap-3 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 shadow-lg shadow-slate-900/5 dark:border-slate-700/60 dark:bg-slate-900/80 dark:shadow-black/20"
               >
                 <label
                   className="inline-flex cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
