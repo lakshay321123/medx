@@ -16,6 +16,8 @@ type Props = {
   onJump?: () => void;
   /** Auto hide timeout */
   autohideMs?: number;
+  /** Distance from the bottom of the viewport */
+  offsetBottom?: number;
 };
 
 export default function ScrollToBottom({
@@ -25,6 +27,7 @@ export default function ScrollToBottom({
   unread = 0,
   onJump,
   autohideMs = 2500,
+  offsetBottom = 132,
 }: Props) {
   const [container, setContainer] = useState<HTMLElement | null>(containerProp ?? targetRef?.current ?? null);
   const [visible, setVisible] = useState(false);
@@ -138,7 +141,7 @@ export default function ScrollToBottom({
         "pointer-events-none fixed left-1/2 z-[60] -translate-x-1/2 transition-all",
         visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2",
       ].join(" ")}
-      style={{ bottom: 96 }}
+      style={{ bottom: offsetBottom }}
       aria-hidden={!visible}
     >
       <button
