@@ -11,6 +11,16 @@
          dark:bg-gray-800 dark:text-slate-100 dark:border-gray-600 dark:hover:bg-gray-700;
 }
 
+@layer utilities {
+  .text-primary {
+    @apply text-blue-600 dark:text-sky-400;
+  }
+
+  .bg-primary {
+    @apply bg-blue-600 text-white dark:bg-sky-500;
+  }
+}
+
 /* Ensures sidebar sits above content and accepts clicks */
 .sidebar-click-guard {
   position: relative;
