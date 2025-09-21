@@ -29,7 +29,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <ContextProvider>
               <TopicProvider>
                 <div className="flex h-full min-h-screen flex-col medx-gradient">
-                  <Header />
+                  <Suspense fallback={<div className="h-[62px]" />}>
+                    <Header />
+                  </Suspense>
                   <div className="grid grow min-h-0 grid-cols-12">
                     <aside className="hidden min-h-0 overflow-y-auto border-r border-black/5 bg-white/70 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/40 md:col-span-3 md:flex lg:col-span-2">
                       <Suspense fallback={null}>
@@ -38,7 +40,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     </aside>
                     <main className="col-span-12 flex min-h-0 md:col-span-9 lg:col-span-10">
                       <div className="flex flex-1 min-h-0 flex-col">
-                        {children}
+                        <Suspense fallback={<div className="flex-1 min-h-0" />}>
+                          {children}
+                        </Suspense>
                       </div>
                     </main>
                   </div>
