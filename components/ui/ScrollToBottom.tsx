@@ -1,64 +1,157 @@
 "use client";
-import { useEffect, useState, type RefObject } from "react";
+
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { ArrowDown } from "lucide-react";
 
 type Props = {
   /** Ref to the scrollable chat container (div) */
-  targetRef: RefObject<HTMLElement>;
-  /** Show threshold (px from bottom) before button appears */
-  threshold?: number;
+  targetRef?: RefObject<HTMLElement>;
+  /** Optional container override */
+  container?: HTMLElement | null;
   /** optional key to force rebind on thread change */
   rebindKey?: string | number;
+  /** Unread messages count */
+  unread?: number;
+  /** Callback fired when user jumps to bottom */
+  onJump?: () => void;
+  /** Auto hide timeout */
+  autohideMs?: number;
+  /** Distance from the bottom of the viewport */
+  offsetBottom?: number;
 };
 
-export default function ScrollToBottom({ targetRef, threshold = 120, rebindKey }: Props) {
-  const [show, setShow] = useState(false);
-  const [boundEl, setBoundEl] = useState<HTMLElement | null>(null);
+export default function ScrollToBottom({
+  targetRef,
+  container: containerProp,
+  rebindKey,
+  unread = 0,
+  onJump,
+  autohideMs = 2500,
+  offsetBottom = 132,
+}: Props) {
+  const [container, setContainer] = useState<HTMLElement | null>(containerProp ?? targetRef?.current ?? null);
+  const [visible, setVisible] = useState(false);
+  const lastScrollTop = useRef(0);
+  const hideTimer = useRef<number | null>(null);
 
-  // Bind to the ref element when it becomes available or when rebindKey changes
+  const isNearBottom = useCallback((el: HTMLElement) => {
+    return el.scrollHeight - (el.scrollTop + el.clientHeight) < 24;
+  }, []);
+
+  const show = useCallback(() => {
+    setVisible(true);
+    if (hideTimer.current) window.clearTimeout(hideTimer.current);
+    hideTimer.current = window.setTimeout(() => setVisible(false), autohideMs);
+  }, [autohideMs]);
+
   useEffect(() => {
-    if (targetRef?.current && targetRef.current !== boundEl) {
-      setBoundEl(targetRef.current);
+    if (containerProp !== undefined) {
+      setContainer(containerProp);
+      lastScrollTop.current = containerProp?.scrollTop ?? 0;
+      return;
     }
+
+    if (!targetRef) {
+      setContainer(null);
+      return;
+    }
+
+    if (targetRef.current) {
+      setContainer(targetRef.current);
+      lastScrollTop.current = targetRef.current.scrollTop;
+      return;
+    }
+
     let raf: number | null = null;
-    if (!targetRef?.current) {
-      const tick = () => {
-        if (targetRef?.current) setBoundEl(targetRef.current);
-        else raf = requestAnimationFrame(tick);
-      };
-      raf = requestAnimationFrame(tick);
-    }
-    return () => { if (raf) cancelAnimationFrame(raf); };
-  }, [targetRef, rebindKey, boundEl]);
-
-  // Listen for scroll to determine when to show the button
-  useEffect(() => {
-    const el = boundEl ?? document.documentElement;
-    const listener = () => {
-      const scrollTop = el.scrollTop || document.documentElement.scrollTop || document.body.scrollTop;
-      const height = el.scrollHeight || document.documentElement.scrollHeight;
-      const client = el.clientHeight || window.innerHeight;
-      const distanceFromBottom = height - (scrollTop + client);
-      setShow(distanceFromBottom > threshold);
+    const tick = () => {
+      if (targetRef.current) {
+        setContainer(targetRef.current);
+        lastScrollTop.current = targetRef.current.scrollTop;
+      } else {
+        raf = window.requestAnimationFrame(tick);
+      }
     };
-    listener();
-    const on: any = boundEl ?? window;
-    on.addEventListener("scroll", listener, { passive: true });
-    return () => on.removeEventListener("scroll", listener as any);
-  }, [boundEl, threshold]);
 
-  if (!show) return null;
+    raf = window.requestAnimationFrame(tick);
+
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf);
+    };
+  }, [containerProp, targetRef, rebindKey]);
+
+  useEffect(() => {
+    return () => {
+      if (hideTimer.current) {
+        window.clearTimeout(hideTimer.current);
+        hideTimer.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!container) return;
+
+    const el = container;
+    const onScroll = () => {
+      const curr = el.scrollTop;
+      const goingUp = curr < lastScrollTop.current;
+      lastScrollTop.current = curr;
+
+      if (!isNearBottom(el)) {
+        if (goingUp) show();
+        else setVisible(true);
+      } else {
+        setVisible(false);
+        if (hideTimer.current) {
+          window.clearTimeout(hideTimer.current);
+          hideTimer.current = null;
+        }
+        onJump?.();
+      }
+    };
+
+    el.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+    };
+  }, [container, isNearBottom, onJump, show]);
+
+  useEffect(() => {
+    if (!container) return;
+    if (unread > 0 && !isNearBottom(container)) show();
+  }, [unread, container, isNearBottom, show]);
+
+  const scrollToBottom = () => {
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    onJump?.();
+    setVisible(false);
+    if (hideTimer.current) {
+      window.clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+  };
+
+  if (!container) return null;
 
   return (
-    <button
-      type="button"
-      onClick={() => {
-        (boundEl ?? window).scrollTo({ top: (boundEl?.scrollHeight ?? document.documentElement.scrollHeight), behavior: "smooth" });
-      }}
-      className="fixed bottom-5 right-5 z-50 rounded-full bg-neutral-900 px-4 py-2 text-sm text-white shadow-lg transition active:scale-95 dark:bg-neutral-100 dark:text-neutral-900"
-      aria-label="Scroll to bottom"
+    <div
+      className={[
+        "pointer-events-none fixed left-1/2 z-[60] -translate-x-1/2 transition-all",
+        visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2",
+      ].join(" ")}
+      style={{ bottom: offsetBottom }}
+      aria-hidden={!visible}
     >
-      ↓ New messages
-    </button>
+      <button
+        type="button"
+        className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition hover:opacity-90"
+        aria-label="Jump to newest messages"
+        onClick={scrollToBottom}
+      >
+        <ArrowDown className="h-4 w-4" />
+      </button>
+    </div>
   );
 }
-
