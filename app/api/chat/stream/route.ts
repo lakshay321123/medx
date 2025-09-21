@@ -178,8 +178,6 @@ export async function POST(req: NextRequest) {
   }
 
   // === Concision controls (SOFT cap, no cutoffs) ===
-  const latestUserMessage =
-    (messages || []).filter((m: any) => m.role === 'user').slice(-1)[0]?.content || '';
   const wordCount = (latestUserMessage || '').trim().split(/\s+/).filter(Boolean).length;
   const isShortQuery = wordCount <= 6;
   const briefTopic = /\b(what is|types?|symptoms?|causes?|treatment|home care|prevention|red flags?)\b/i
