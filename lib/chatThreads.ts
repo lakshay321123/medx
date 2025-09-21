@@ -1,10 +1,51 @@
-export type Thread = { id: string; title: string; createdAt: number; updatedAt: number; mode: "patient"|"doctor"; };
+export type Thread = {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  mode: "patient" | "doctor";
+  therapy?: boolean;
+};
 export type ChatMsg = { id: string; role: "user"|"assistant"; content: string; ts: number; };
 
 const LS_KEY = "medx.chat.threads";
 const LS_MSG = (id:string)=>`medx.chat.thread.${id}.msgs`;
 
 export const createNewThreadId = () => crypto.randomUUID();
+
+type CreateThreadOpts = {
+  title?: string;
+  mode?: "patient" | "doctor";
+  therapy?: boolean;
+};
+
+export async function createThread(opts: CreateThreadOpts = {}): Promise<Thread> {
+  const now = Date.now();
+  const id = createNewThreadId();
+  const thread: Thread = {
+    id,
+    title: opts.title ?? "New chat",
+    createdAt: now,
+    updatedAt: now,
+    mode: opts.mode ?? "patient",
+  };
+  if (opts.therapy) thread.therapy = true;
+
+  const existing = listThreads();
+  try {
+    saveThreads([thread, ...existing]);
+  } catch (err) {
+    throw err instanceof Error
+      ? err
+      : new Error("Failed to save new chat thread");
+  }
+
+  try {
+    upsertThreadIndex(thread.id, thread.title);
+  } catch {}
+
+  return thread;
+}
 
 export function listThreads(): Thread[] {
   try { return JSON.parse(localStorage.getItem(LS_KEY) || "[]"); } catch { return []; }
