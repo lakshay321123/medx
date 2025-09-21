@@ -74,7 +74,8 @@ const NEARBY_NEAR_WORD_RE = /\b(near|nearby|around|close to|within)\b/i;
 
 const NO_LABS_MESSAGE = "I couldn't find structured lab values yet.";
 const REPORTS_LOCKED_MESSAGE = "Reports are available only in AI Doc mode.";
-const LABS_INTENT = /(report|reports|observation|observations|blood|lab|labs|lipid|cholesterol|ldl|hdl|triglycerides|a1c|hba1c|vitamin\s*d|crp|esr|uibc|tibc|creatinine|egfr|urea|bilirubin|ast|alt|sgot|sgpt|ggt|alkaline|alp|date\s*wise|datewise|trend|changes?)/i;
+// Updated LABS_TREND_INTENT: only triggers on explicit lab/report phrases
+const LABS_TREND_INTENT = /\b(pull my reports|show my reports|fetch my reports|what do my reports say|compare my reports|lab history|lab trend|report history|report trend|date\s*wise|datewise)\b/i;
 const RAW_TEXT_INTENT = /(raw text|full text|show .*report text)/i;
 
 const formatTrendDate = (iso?: string) => {
@@ -2334,7 +2335,7 @@ ${systemCommon}` + baseSys;
           return;
         }
 
-        if (LABS_INTENT.test(trimmed)) {
+        if (LABS_TREND_INTENT.test(trimmed)) {
           setMessages(prev => [
             ...prev,
             { id: uid(), role: 'user', kind: 'chat', content: trimmed, pending: false } as any,
