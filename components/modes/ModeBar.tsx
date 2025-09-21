@@ -92,8 +92,8 @@ export default function ModeBar() {
     ].filter(Boolean).join(" ");
 
   const aidocOn = state.base === "aidoc";
-  const wellnessActive = state.base === "patient" && !state.therapy && !state.research;
-  const doctorActive = state.base === "doctor" && !state.research;
+  const wellnessActive = state.base === "patient" && !state.therapy;
+  const doctorActive = state.base === "doctor";
 
   return (
     <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-black/10 bg-white/60 px-2 py-1 backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
