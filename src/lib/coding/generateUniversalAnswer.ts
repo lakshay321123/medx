@@ -1,6 +1,8 @@
 import { createLLM } from '@/lib/llm';
 import type { UniversalCodingAnswer, UniversalCodingClaimLine } from '@/types/coding';
 
+export type { UniversalCodingAnswer } from '@/types/coding';
+
 export interface UniversalCodingInput {
   clinicalContext: string;
   specialty?: string;
