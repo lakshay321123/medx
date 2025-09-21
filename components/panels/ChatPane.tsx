@@ -2656,7 +2656,7 @@ ${systemCommon}` + baseSys;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div ref={chatRef} className="flex-1 min-h-0 overflow-y-auto">
-        <div className="m-6 flex min-h-full flex-col justify-end p-6">
+        <div className="flex min-h-full flex-col justify-end px-6 pt-6">
           {mode === "doctor" && researchMode && (
             <div className="mb-6 space-y-4">
               <ResearchFilters mode="research" onResults={handleTrials} />
@@ -2916,7 +2916,7 @@ ${systemCommon}` + baseSys;
       </div>
 
       <div className="mt-auto">
-        <div className="px-6 pt-3 pb-[max(16px,env(safe-area-inset-bottom))]">
+        <div className="px-6 pb-[max(16px,env(safe-area-inset-bottom))]">
           <div className="mx-auto max-w-3xl space-y-3 px-4 py-4">
               {mode === 'doctor' && AIDOC_UI && (
                 <button
