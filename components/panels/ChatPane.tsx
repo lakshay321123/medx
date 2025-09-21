@@ -74,7 +74,14 @@ const NEARBY_NEAR_WORD_RE = /\b(near|nearby|around|close to|within)\b/i;
 
 const NO_LABS_MESSAGE = "I couldn't find structured lab values yet.";
 const REPORTS_LOCKED_MESSAGE = "Reports are available only in AI Doc mode.";
-const LABS_INTENT = /(report|reports|observation|observations|blood|lab|labs|lipid|cholesterol|ldl|hdl|triglycerides|a1c|hba1c|vitamin\s*d|crp|esr|uibc|tibc|creatinine|egfr|urea|bilirubin|ast|alt|sgot|sgpt|ggt|alkaline|alp|date\s*wise|datewise|trend|changes?)/i;
+// A) Trend/history intent (no first-person needed)
+const LABS_TREND_INTENT = /\b(trend|date\s*wise|datewise|history|compare)\b/i;
+
+// B) Saved-history intent (first-person + retrieval verb)
+const SAVED_REPORTS_INTENT = /\bmy\s+(?:report|reports|labs|test results|bloodwork)\b.*\b(pull|show|fetch|compare|what do my reports say)\b/i;
+
+// C) Safe lab tokens: whole words only (no false positives like "heALT h")
+const LAB_TOKEN_INTENT = /\b(report|reports|observation|observations|blood|lab|labs|lipid|hdl|ldl|tg|triglycerides|cholesterol|hba1c|glucose|sugar|thyroid|tsh|t3|t4|bilirubin|creatinine|uric|hemoglobin|platelets|wbc|rbc|neutrophils|eosinophils|lymphocytes|vitamin\s*d|vitamin\s*b12|iron|ferritin|transferrin|crp|esr|d-dimer|alt|ast|sgot|sgpt|ggt|alkaline|alp)\b/i;
 const RAW_TEXT_INTENT = /(raw text|full text|show .*report text)/i;
 
 const formatTrendDate = (iso?: string) => {
@@ -2334,15 +2341,21 @@ ${systemCommon}` + baseSys;
           return;
         }
 
-        if (LABS_INTENT.test(trimmed)) {
+        // Explicit saved-history/trend requests → fetch timeline
+        if (LABS_TREND_INTENT.test(trimmed) || SAVED_REPORTS_INTENT.test(trimmed)) {
           setMessages(prev => [
             ...prev,
             { id: uid(), role: 'user', kind: 'chat', content: trimmed, pending: false } as any,
           ]);
           setUserText('');
-          const md = await buildReportTimelineCard();
+          const md = await buildReportTimelineCard(); // returns lock message if not AI Doc
           pushAssistantText(md);
           return;
+        }
+
+        // Casual lab mentions → continue normal Q&A (no timeline fetch)
+        if (LAB_TOKEN_INTENT.test(trimmed)) {
+          // do nothing special, fall through to normal chat flow
         }
       }
 
