@@ -653,7 +653,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [mounted, setMounted] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
   const [proactive, setProactive] = useState<null | { kind: 'predispositions'|'medications'|'weight' }>(null);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [queueActive, setQueueActive] = useState(false);
   const [busy, setBusy] = useState(false);
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
@@ -663,7 +664,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const inputRef =
     (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ??
     (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
-  const previewUrlRef = useRef<string | null>(null);
+  const previewUrlsRef = useRef<string[]>([]);
+  const queueAbortRef = useRef<AbortController | null>(null);
   const { filters } = useResearchFilters();
 
   const sp = useSearchParams();
@@ -2262,54 +2264,86 @@ ${systemCommon}` + baseSys;
     }
   }
 
+  function onStopQueue() {
+    const c = queueAbortRef.current;
+    if (c) {
+      try {
+        c.abort();
+      } catch {}
+    }
+    queueAbortRef.current = null;
+  }
+
+  function onFilesSelected(files: File[]) {
+    if (files.length === 0) return;
+    const next = [...pendingFiles, ...files].slice(0, 10);
+    setPendingFiles(next);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
+  function removePendingFile(index: number) {
+    setPendingFiles(prev => prev.filter((_, i) => i !== index));
+  }
+
   function onStop() {
+    onStopQueue();
     const c = abortRef.current;
     if (c) c.abort();
   }
 
-  function onFileSelected(file: File) {
-    setPendingFile(file);
-    setTimeout(() => inputRef.current?.focus(), 0);
-  }
+  async function analyzeFile(
+    file: File,
+    noteText: string,
+    opts: { signal?: AbortSignal; queue?: boolean } = {}
+  ) {
+    if (!file) return;
+    const { signal, queue = false } = opts;
+    const trimmedNote = noteText.trim();
 
-  async function analyzeFile(file: File, noteText: string) {
-    if (!file || busy) return;
-    setBusy(true);
-    setThinkingStartedAt(Date.now());
-    const pendingId = uid();
-    setMessages(prev => [
-      ...prev,
-      { id: pendingId, role: 'assistant', kind: 'analysis', content: 'Analyzing…', pending: true }
-    ]);
+    if (!queue) {
+      if (busy) return;
+      setBusy(true);
+      setThinkingStartedAt(Date.now());
+    }
+
+    const messageId = uid();
+
+    if (!queue) {
+      setMessages(prev => [
+        ...prev,
+        { id: messageId, role: 'assistant', kind: 'analysis', content: 'Analyzing…', pending: true }
+      ]);
+    }
+
     try {
       const fd = new FormData();
       fd.append('file', file);
       fd.append('doctorMode', String(mode === 'doctor'));
       fd.append('country', country.code3);
-      if (noteText.trim()) fd.append('note', noteText.trim());
+      if (trimmedNote) fd.append('note', trimmedNote);
       const search = new URLSearchParams(window.location.search);
       const threadId = search.get('threadId');
       if (threadId) fd.append('threadId', threadId);
       const sourceHash = `${file?.name ?? 'doc'}:${file?.size ?? ''}:${(file as any)?.lastModified ?? ''}`;
       fd.append('sourceHash', sourceHash);
       const data = await safeJson(
-        fetch('/api/analyze', { method: 'POST', body: fd })
+        fetch('/api/analyze', { method: 'POST', body: fd, signal })
       );
-      setMessages(prev =>
-        prev.map(m =>
-          m.id === pendingId
-            ? {
-                id: pendingId,
-                role: 'assistant',
-                kind: 'analysis',
-                category: data.category,
-                content: data.report,
-                pending: false
-              }
-            : m
-        )
-      );
-      setFromAnalysis({ id: pendingId, category: data.category, content: data.report });
+      const finalMessage: ChatMessage = {
+        id: messageId,
+        role: 'assistant',
+        kind: 'analysis',
+        category: data.category,
+        content: data.report,
+        pending: false
+      } as any;
+      setMessages(prev => {
+        if (queue) {
+          return [...prev, finalMessage];
+        }
+        return prev.map(m => (m.id === messageId ? finalMessage : m));
+      });
+      setFromAnalysis({ id: messageId, category: data.category, content: data.report });
       setUi(prev => ({
         ...prev,
         contextFrom: titleForCategory(data.category),
@@ -2319,33 +2353,184 @@ ${systemCommon}` + baseSys;
         setPendingCommitIds(data.obsIds.map(String));
       }
     } catch (e: any) {
-      console.error(e);
+      if (!queue) {
+        console.error(e);
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === messageId
+              ? {
+                  ...m,
+                  content: `⚠️ ${String(e?.message || e)}`,
+                  pending: false,
+                  error: String(e?.message || e)
+                }
+              : m
+          )
+        );
+        return;
+      }
+      throw e;
+    } finally {
+      if (!queue) {
+        const urls = previewUrlsRef.current.splice(0);
+        if (urls.length > 0) {
+          setTimeout(() => {
+            urls.forEach(u => {
+              try {
+                URL.revokeObjectURL(u);
+              } catch {}
+            });
+          }, 120000);
+        }
+        setBusy(false);
+        setThinkingStartedAt(null);
+        setPendingFiles([]);
+        setUserText('');
+      }
+    }
+  }
+
+  async function analyzeFileWithTimeout(file: File, noteText: string, signal?: AbortSignal) {
+    const timeoutMs = 120000;
+    const attemptController = new AbortController();
+    const cleanups: (() => void)[] = [];
+
+    if (signal) {
+      if (signal.aborted) {
+        attemptController.abort();
+      } else {
+        const onAbort = () => {
+          try {
+            attemptController.abort();
+          } catch {}
+        };
+        signal.addEventListener('abort', onAbort);
+        cleanups.push(() => signal.removeEventListener('abort', onAbort));
+      }
+    }
+
+    const timeout = setTimeout(() => {
+      try {
+        attemptController.abort();
+      } catch {}
+    }, timeoutMs);
+
+    try {
+      await analyzeFile(file, noteText, { signal: attemptController.signal, queue: true });
+    } finally {
+      clearTimeout(timeout);
+      cleanups.forEach(fn => fn());
+    }
+  }
+
+  async function runFileQueueSequential(files: File[], analyzingId: string, noteText: string) {
+    if (queueAbortRef.current) {
+      try {
+        queueAbortRef.current.abort();
+      } catch {}
+    }
+
+    const ac = new AbortController();
+    queueAbortRef.current = ac;
+    setQueueActive(true);
+    setBusy(true);
+    setThinkingStartedAt(Date.now());
+
+    const N = files.length;
+    const maxAttempts = 3;
+    let completed = 0;
+
+    try {
+      for (let i = 0; i < N; i++) {
+        if (ac.signal.aborted) break;
+        const f = files[i];
+
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === analyzingId
+              ? { ...m, content: `Analyzing file ${i + 1}/${N}…` }
+              : m
+          )
+        );
+
+        let ok = false;
+        let attempt = 0;
+        let lastErr: any = null;
+
+        while (!ok && attempt < maxAttempts && !ac.signal.aborted) {
+          attempt++;
+          try {
+            await analyzeFileWithTimeout(f, noteText, ac.signal);
+            ok = true;
+          } catch (err) {
+            lastErr = err;
+            if (ac.signal.aborted) break;
+            if (attempt < maxAttempts) {
+              const delay = [500, 1500, 3000][attempt - 1] ?? 3000;
+              await new Promise(r => setTimeout(r, delay));
+            }
+          }
+        }
+
+        if (ac.signal.aborted) {
+          break;
+        }
+
+        if (!ok) {
+          setMessages(prev =>
+            prev.map(m =>
+              m.id === analyzingId
+                ? { ...m, content: `Analyzing file ${i + 1}/${N}… failed, continuing…` }
+                : m
+            )
+          );
+          if (lastErr) {
+            const errorText = String((lastErr && (lastErr as any).message) || lastErr || 'Unknown error');
+            setMessages(prev => [
+              ...prev,
+              {
+                id: uid(),
+                role: 'assistant',
+                kind: 'analysis',
+                content: `⚠️ Could not process **${f.name || 'file'}**: ${errorText}`,
+                pending: false,
+                error: errorText
+              } as any
+            ]);
+          }
+        }
+
+        completed++;
+      }
+    } finally {
+      const aborted = ac.signal.aborted;
+      const summary = aborted
+        ? `Stopped. Processed ${completed} of ${N} file${N === 1 ? '' : 's'}.`
+        : `Done. Processed ${N} file${N === 1 ? '' : 's'}.`;
+
       setMessages(prev =>
         prev.map(m =>
-          m.id === pendingId
-            ? {
-                ...m,
-                content: `⚠️ ${String(e?.message || e)}`,
-                pending: false,
-                error: String(e?.message || e)
-              }
+          m.id === analyzingId
+            ? { ...m, content: summary, pending: false }
             : m
         )
       );
-    } finally {
-      const url = previewUrlRef.current;
-      if (url) {
-        setTimeout(() => {
-          try {
-            URL.revokeObjectURL(url);
-          } catch {}
-        }, 120000);
-        previewUrlRef.current = null;
-      }
+
+      queueAbortRef.current = null;
+      setQueueActive(false);
       setBusy(false);
       setThinkingStartedAt(null);
-      setPendingFile(null);
-      setUserText('');
+
+      const urls = previewUrlsRef.current.splice(0);
+      if (urls.length > 0) {
+        setTimeout(() => {
+          urls.forEach(u => {
+            try {
+              URL.revokeObjectURL(u);
+            } catch {}
+          });
+        }, 60000);
+      }
     }
   }
 
@@ -2355,26 +2540,45 @@ ${systemCommon}` + baseSys;
     try {
       const trimmed = userText.trim();
 
-      if (pendingFile && pendingFile.type.startsWith('image/')) {
-        const url = URL.createObjectURL(pendingFile);
-        previewUrlRef.current = url;
+      const hasPendingFiles = pendingFiles.length > 0;
 
+      if (hasPendingFiles) {
+        const files = pendingFiles;
+        setPendingFiles([]);
+
+        const urlsToCleanup: string[] = [];
+        const imageMsgs = files
+          .filter(f => f.type.startsWith('image/'))
+          .map(f => {
+            const url = URL.createObjectURL(f);
+            urlsToCleanup.push(url);
+            return {
+              id: uid(),
+              role: 'user',
+              kind: 'image',
+              imageUrl: url,
+            } as any;
+          });
+
+        if (urlsToCleanup.length > 0) {
+          previewUrlsRef.current.push(...urlsToCleanup);
+        }
+
+        if (imageMsgs.length > 0) {
+          setMessages(prev => [...prev, ...imageMsgs]);
+        }
+
+        const analyzingId = uid();
         setMessages(prev => [
           ...prev,
-          {
-            id: uid(),
-            role: 'user',
-            kind: 'image',
-            imageUrl: url,
-          } as any,
+          { id: analyzingId, role: 'assistant', kind: 'analysis', content: 'Analyzing…', pending: true } as any,
         ]);
 
-        await analyzeFile(pendingFile, trimmed);
-        setPendingFile(null);
+        await runFileQueueSequential(files, analyzingId, trimmed);
         setUserText('');
         return;
       }
-      if (!pendingFile && trimmed) {
+      if (!hasPendingFiles && trimmed) {
         const summarizeMatch = /^summarize\s+(NCT\d{8})$/i.exec(trimmed);
         if (summarizeMatch) {
           const nct = summarizeMatch[1].toUpperCase();
@@ -2421,7 +2625,7 @@ ${systemCommon}` + baseSys;
         }
       }
 
-      if (!pendingFile && trimmed) {
+      if (!hasPendingFiles && trimmed) {
         if (RAW_TEXT_INTENT.test(trimmed)) {
           setMessages(prev => [
             ...prev,
@@ -2444,13 +2648,13 @@ ${systemCommon}` + baseSys;
         }
       }
 
-      if (!pendingFile && trimmed && (await tryNearbyQuickPath(trimmed))) {
+      if (!hasPendingFiles && trimmed && (await tryNearbyQuickPath(trimmed))) {
         setUserText('');
         return;
       }
 
     // --- Proactive single Q&A commit path (profile thread) ---
-    if (isProfileThread && proactive && !pendingFile && userText.trim()) {
+    if (isProfileThread && proactive && !hasPendingFiles && userText.trim()) {
       const text = userText.trim();
       const ack = (msg: string) => setMessages(prev => [...prev, { id: uid(), role:'assistant', kind:'chat', content: msg, pending:false } as any]);
       try {
@@ -2486,7 +2690,7 @@ ${systemCommon}` + baseSys;
     }
 
     // --- Medication verification (profile thread only; note-only submits) ---
-    if (isProfileThread && !pendingFile && userText.trim()) {
+    if (isProfileThread && !hasPendingFiles && userText.trim()) {
       try {
         const v = await safeJson(fetch('/api/meds/verify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text: userText }) }));
         if (v?.ok && v?.suggestion && window.confirm(`Did you mean "${v.suggestion}"?`)) {
@@ -2525,53 +2729,49 @@ ${systemCommon}` + baseSys;
     }
 
     // Regular chat flow (file or note)
-    if (!pendingFile && !userText.trim()) return;
-    if (pendingFile) {
-      await analyzeFile(pendingFile, userText);
-    } else {
-      await send(userText, researchMode);
-      if (enabled) {
-        try {
-          const res = await fetch('/api/memory/suggest', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: userText, thread_id: threadId }),
-          });
-          if (res.ok) {
-            const { suggestions } = await res.json();
-            for (const s of (suggestions || [])) {
-              if (rememberThisThread && s.scope === 'thread') s.source = 'manual';
-              if (autoSave) {
-                try {
-                  const saveRes = await fetch('/api/memory', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify(s),
-                  });
-                  if (saveRes.ok) {
-                    const json = await saveRes.json();
-                    const saved = json?.items?.[0];
-                    const label =
-                      s.key === 'allergy' && s.value?.item ? `allergy: ${s.value.item}` :
-                      s.key === 'diet_preference' && s.value?.label ? `diet: ${s.value.label}` :
-                      s.key === 'medication' && s.value?.name ? `medication: ${s.value.name}` :
-                      s.key;
-                    if (saved?.id) setLastSaved({ id: saved.id, label });
-                  } else {
-                    console.error('Auto-save failed', saveRes.status, await saveRes.text());
-                  }
-                } catch (e) {
-                  console.error('Auto-save error', e);
+    if (!hasPendingFiles && !userText.trim()) return;
+    await send(userText, researchMode);
+    if (enabled) {
+      try {
+        const res = await fetch('/api/memory/suggest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: userText, thread_id: threadId }),
+        });
+        if (res.ok) {
+          const { suggestions } = await res.json();
+          for (const s of (suggestions || [])) {
+            if (rememberThisThread && s.scope === 'thread') s.source = 'manual';
+            if (autoSave) {
+              try {
+                const saveRes = await fetch('/api/memory', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify(s),
+                });
+                if (saveRes.ok) {
+                  const json = await saveRes.json();
+                  const saved = json?.items?.[0];
+                  const label =
+                    s.key === 'allergy' && s.value?.item ? `allergy: ${s.value.item}` :
+                    s.key === 'diet_preference' && s.value?.label ? `diet: ${s.value.label}` :
+                    s.key === 'medication' && s.value?.name ? `medication: ${s.value.name}` :
+                    s.key;
+                  if (saved?.id) setLastSaved({ id: saved.id, label });
+                } else {
+                  console.error('Auto-save failed', saveRes.status, await saveRes.text());
                 }
-              } else {
-                pushSuggestion(s);
+              } catch (e) {
+                console.error('Auto-save error', e);
               }
+            } else {
+              pushSuggestion(s);
             }
           }
-        } catch (err) {
-          console.error('Memory suggest failed', err);
         }
+      } catch (err) {
+        console.error('Memory suggest failed', err);
       }
     }
     } finally {
@@ -3049,6 +3249,32 @@ ${systemCommon}` + baseSys;
                 />
               )}
 
+              {pendingFiles.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/60 bg-white/80 px-3 py-2 text-xs text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200">
+                  <span className="font-medium">
+                    {pendingFiles.length} file{pendingFiles.length === 1 ? '' : 's'} ready
+                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {pendingFiles.map((file, index) => (
+                      <span
+                        key={`${file.name}-${index}`}
+                        className="flex items-center gap-1 rounded-full bg-slate-100/70 px-2 py-0.5 dark:bg-slate-800/70"
+                      >
+                        <span className="max-w-[7rem] truncate">{file.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => removePendingFile(index)}
+                          className="text-slate-500 transition hover:text-slate-700 dark:hover:text-slate-300"
+                          aria-label={`Remove ${file.name}`}
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <form
                 onSubmit={e => {
                   e.preventDefault();
@@ -3065,34 +3291,22 @@ ${systemCommon}` + baseSys;
                   <input
                     type="file"
                     accept="application/pdf,image/*"
+                    multiple
                     className="hidden"
                     onChange={e => {
-                      const f = e.target.files?.[0];
-                      if (f) onFileSelected(f);
+                      const files = Array.from(e.target.files ?? []);
+                      if (files.length) onFilesSelected(files);
                       e.currentTarget.value = '';
                     }}
                   />
                 </label>
-                {pendingFile && (
-                  <div className="flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs text-slate-700 dark:bg-slate-900/70 dark:text-slate-200">
-                    <span className="max-w-[8rem] truncate">{pendingFile.name}</span>
-                    <button
-                      type="button"
-                      onClick={() => setPendingFile(null)}
-                      className="text-slate-500 transition hover:text-slate-700 dark:hover:text-slate-300"
-                      aria-label="Remove file"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                )}
                 <div className="relative flex-1">
                   <textarea
                     ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
                     rows={1}
                     className="w-full resize-none bg-transparent px-2 pr-12 text-sm leading-6 text-slate-900 outline-none placeholder:text-slate-500 dark:text-slate-100 dark:placeholder:text-slate-400"
                     placeholder={
-                      pendingFile
+                      pendingFiles.length > 0
                         ? 'Add a note or question for this document (optional)'
                         : 'Send a message'
                     }
@@ -3115,10 +3329,10 @@ ${systemCommon}` + baseSys;
                     }}
                   />
 
-                  {busy && (
+                  {queueActive && (
                     <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
                       <StopButton
-                        onClick={onStop}
+                        onClick={onStopQueue}
                         className="pointer-events-auto"
                         title="Stop (Esc)"
                       />
@@ -3130,7 +3344,7 @@ ${systemCommon}` + baseSys;
                   <button
                     className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50"
                     type="submit"
-                    disabled={!pendingFile && !userText.trim()}
+                    disabled={pendingFiles.length === 0 && !userText.trim()}
                     aria-label="Send"
                     title="Send"
                   >
