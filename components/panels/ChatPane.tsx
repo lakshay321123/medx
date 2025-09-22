@@ -2270,22 +2270,6 @@ ${systemCommon}` + baseSys;
   function onFileSelected(file: File) {
     setPendingFile(file);
     setTimeout(() => inputRef.current?.focus(), 0);
-
-    if (file && file.type.startsWith('image/')) {
-      const url = URL.createObjectURL(file);
-      previewUrlRef.current = url;
-
-      setMessages(prev => [
-        ...prev,
-        {
-          id: uid(),
-          role: 'user',
-          kind: 'image',
-          imageUrl: url,
-          pending: true,
-        } as any,
-      ]);
-    }
   }
 
   async function analyzeFile(file: File, noteText: string) {
@@ -2370,6 +2354,26 @@ ${systemCommon}` + baseSys;
     inFlight = true;
     try {
       const trimmed = userText.trim();
+
+      if (pendingFile && pendingFile.type.startsWith('image/')) {
+        const url = URL.createObjectURL(pendingFile);
+        previewUrlRef.current = url;
+
+        setMessages(prev => [
+          ...prev,
+          {
+            id: uid(),
+            role: 'user',
+            kind: 'image',
+            imageUrl: url,
+          } as any,
+        ]);
+
+        await analyzeFile(pendingFile, trimmed);
+        setPendingFile(null);
+        setUserText('');
+        return;
+      }
       if (!pendingFile && trimmed) {
         const summarizeMatch = /^summarize\s+(NCT\d{8})$/i.exec(trimmed);
         if (summarizeMatch) {
