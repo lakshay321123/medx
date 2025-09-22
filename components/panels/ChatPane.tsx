@@ -23,13 +23,14 @@ import ComposerFocus from "@/components/chat/ComposerFocus";
 import { normalizeSuggestions } from "@/lib/chat/normalize";
 import type { Suggestion } from "@/lib/chat/suggestions";
 import { getDefaultSuggestions, getInlineSuggestions } from "@/lib/suggestions/engine";
+import { summarizeImagingFindings } from "@/lib/imaging/summarize";
 import { safeJson } from '@/lib/safeJson';
 import { splitFollowUps } from '@/lib/splitFollowUps';
 import { getTrials } from "@/lib/hooks/useTrials";
 import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials";
 import FeedbackBar from "@/components/FeedbackBar";
 import type { ChatAttachment, ChatMessage as BaseChatMessage } from "@/types/chat";
-import type { AnalysisCategory } from '@/lib/context';
+import type { AnalysisCategory } from "@/lib/context";
 import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle, upsertThreadIndex, createNewThreadId } from '@/lib/chatThreads';
 import { useMemoryStore } from "@/lib/memory/useMemoryStore";
 import { summarizeTrials } from "@/lib/research/summarizeTrials";
@@ -363,6 +364,8 @@ const makeId = () =>
     ? crypto.randomUUID()
     : uid();
 
+type ImagingMode = "wellness" | "doctor" | "ai-doc";
+
 function isImageFile(file: File) {
   const mime = typeof file.type === "string" ? file.type : "";
   const name = typeof file.name === "string" ? file.name : "";
@@ -692,6 +695,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const isAiDocMode = useIsAiDocMode();
   const modeState = useMemo(() => fromSearchParams(sp, 'light'), [sp]);
   const mode: 'patient' | 'doctor' = modeState.base === 'doctor' ? 'doctor' : 'patient';
+  const imagingMode: ImagingMode = isAiDocMode ? 'ai-doc' : mode === 'doctor' ? 'doctor' : 'wellness';
   const researchMode = modeState.research;
   const therapyMode = modeState.therapy;
   const defaultSuggestions = useMemo(() => getDefaultSuggestions(modeState), [modeState]);
@@ -2253,7 +2257,7 @@ ${systemCommon}` + baseSys;
     if (c) c.abort();
   }
 
-  async function onFileSelected(file: File) {
+  async function onFileSelected(file: File, targetMode: ImagingMode) {
     if (!file) return;
 
     const att = await fileToAttachment(file);
@@ -2272,19 +2276,20 @@ ${systemCommon}` + baseSys;
     setPendingFile(file);
 
     requestAnimationFrame(() => {
-      setTimeout(() => analyzeFile(file, ''), 0);
+      setTimeout(() => analyzeFile(file, '', targetMode), 0);
     });
 
     setTimeout(() => inputRef.current?.focus(), 0);
 
+    const mintedUrl = att.url;
     setTimeout(() => {
       try {
-        URL.revokeObjectURL(att.url);
+        URL.revokeObjectURL(mintedUrl);
       } catch {}
     }, 60_000);
   }
 
-  async function analyzeFile(file: File, noteText: string) {
+  async function analyzeFile(file: File, noteText: string, targetMode: ImagingMode) {
     if (!file || busy) return;
     setBusy(true);
     setThinkingStartedAt(Date.now());
@@ -2294,19 +2299,62 @@ ${systemCommon}` + baseSys;
       { id: pendingId, role: 'assistant', kind: 'analysis', content: 'Analyzing…', pending: true }
     ]);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('doctorMode', String(mode === 'doctor'));
-      fd.append('country', country.code3);
-      if (noteText.trim()) fd.append('note', noteText.trim());
       const search = new URLSearchParams(window.location.search);
       const threadId = search.get('threadId');
-      if (threadId) fd.append('threadId', threadId);
       const sourceHash = `${file?.name ?? 'doc'}:${file?.size ?? ''}:${(file as any)?.lastModified ?? ''}`;
-      fd.append('sourceHash', sourceHash);
-      const data = await safeJson(
-        fetch('/api/analyze', { method: 'POST', body: fd })
-      );
+      const trimmedNote = noteText.trim();
+
+      const endpoints =
+        targetMode === 'ai-doc'
+          ? ['/api/imaging/analyze-ai-doc', '/api/imaging/analyze']
+          : ['/api/imaging/analyze'];
+
+      let data: any = null;
+      let lastError: unknown = null;
+
+      for (const endpoint of endpoints) {
+        try {
+          const fd = new FormData();
+          fd.append('files[]', file);
+          fd.append('file', file);
+          fd.append('doctorMode', String(targetMode !== 'wellness'));
+          if (trimmedNote) fd.append('note', trimmedNote);
+          if (threadId) fd.append('threadId', threadId);
+          if (sourceHash) fd.append('sourceHash', sourceHash);
+          data = await safeJson(fetch(endpoint, { method: 'POST', body: fd }));
+          break;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+
+      if (!data) {
+        throw lastError || new Error('Analysis failed');
+      }
+
+      const summaryCandidates: string[] = [];
+      if (typeof data?.report === 'string') summaryCandidates.push(data.report);
+      if (typeof data?.content === 'string') summaryCandidates.push(data.content);
+      if (typeof data?.patient === 'string') summaryCandidates.push(data.patient);
+      if (typeof data?.doctor === 'string' && targetMode !== 'wellness') summaryCandidates.push(data.doctor);
+      const imagingSummary = summarizeImagingFindings(data);
+      if (imagingSummary) summaryCandidates.push(imagingSummary);
+
+      let content =
+        summaryCandidates.find(text => typeof text === 'string' && text.trim().length > 0)?.trim() || 'Analysis complete.';
+
+      if (typeof data?.warning === 'string' && data.warning.trim()) {
+        const warning = data.warning.trim();
+        content += `${content ? '\n\n' : ''}⚠️ ${warning}`;
+      }
+
+      const nextCategory: AnalysisCategory | undefined =
+        typeof data?.category === 'string'
+          ? (data.category as AnalysisCategory)
+          : data?.type === 'image'
+            ? 'xray'
+            : undefined;
+
       setMessages(prev =>
         prev.map(m =>
           m.id === pendingId
@@ -2314,20 +2362,20 @@ ${systemCommon}` + baseSys;
                 id: pendingId,
                 role: 'assistant',
                 kind: 'analysis',
-                category: data.category,
-                content: data.report,
+                category: nextCategory,
+                content,
                 pending: false
               }
             : m
         )
       );
-      setFromAnalysis({ id: pendingId, category: data.category, content: data.report });
+      setFromAnalysis({ id: pendingId, category: nextCategory, content });
       setUi(prev => ({
         ...prev,
-        contextFrom: titleForCategory(data.category),
-        topic: inferTopicFromDoc(data.report),
+        contextFrom: titleForCategory(nextCategory),
+        topic: inferTopicFromDoc(content),
       }));
-      if (!isProfileThread && Array.isArray(data.obsIds) && data.obsIds.length) {
+      if (!isProfileThread && Array.isArray(data?.obsIds) && data.obsIds.length) {
         setPendingCommitIds(data.obsIds.map(String));
       }
     } catch (e: any) {
@@ -2510,7 +2558,7 @@ ${systemCommon}` + baseSys;
     // Regular chat flow (file or note)
     if (!pendingFile && !userText.trim()) return;
     if (pendingFile) {
-      await analyzeFile(pendingFile, userText);
+      await analyzeFile(pendingFile, userText, imagingMode);
     } else {
       await send(userText, researchMode);
       if (enabled) {
@@ -3043,7 +3091,7 @@ ${systemCommon}` + baseSys;
                     className="hidden"
                     onChange={e => {
                       const f = e.target.files?.[0];
-                      if (f) onFileSelected(f);
+                      if (f) onFileSelected(f, imagingMode);
                       e.currentTarget.value = '';
                     }}
                   />

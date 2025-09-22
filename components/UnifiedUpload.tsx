@@ -1,5 +1,6 @@
 "use client";
 import { startTransition, useEffect, useRef, useState } from "react";
+import { summarizeImagingFindings } from "@/lib/imaging/summarize";
 import { safeJson } from "@/lib/safeJson";
 import MessageList from "./chat/MessageList";
 import type { ChatAttachment, ChatMessage } from "@/types/chat";
@@ -165,7 +166,7 @@ export default function UnifiedUpload() {
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("observations-updated"));
       }
-      const summary = summarizeFindings(j);
+      const summary = summarizeImagingFindings(j);
       if (summary) {
         const assistantMsg: ChatMessage = {
           id: makeId(),
@@ -446,27 +447,4 @@ export default function UnifiedUpload() {
       )}
     </div>
   );
-}
-
-function summarizeFindings(data: any): string {
-  if (!data) return "";
-  if (data?.type !== "image") {
-    return "";
-  }
-  const findings = data?.findings || {};
-  if (findings?.fracture_present === true) {
-    const bone = findings.bone || "bone";
-    const region = findings.region ? `, ${findings.region}` : "";
-    const type = findings.suspected_type ? ` (${findings.suspected_type})` : "";
-    const conf =
-      typeof findings.confidence_0_1 === "number"
-        ? ` — ${Math.round(findings.confidence_0_1 * 100)}%`
-        : "";
-    const next = findings.need_additional_views ? "\nNext: Add a side (lateral) view." : "";
-    return `Fracture: YES${conf}\nWhere: ${bone}${region}${type}${next}`;
-  }
-  if (findings?.fracture_present === false) {
-    return "Fracture: NO";
-  }
-  return "Inconclusive — add a side (lateral) view or clearer image.";
 }
