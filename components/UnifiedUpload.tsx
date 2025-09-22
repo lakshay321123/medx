@@ -2,6 +2,16 @@
 import { useRef, useState } from "react";
 import { safeJson } from "@/lib/safeJson";
 
+function pushChatMessage(msg: any) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("medx:chat:push", { detail: msg }));
+}
+
+function markImageDone() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("medx:chat:mark-done"));
+}
+
 const MAX_VIEW_COUNT = 3;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB per image
 
@@ -62,6 +72,38 @@ export default function UnifiedUpload() {
     setErr(null);
     setOut(null);
 
+    const previewUrls: string[] = [];
+    let markedDone = false;
+    const markAllPreviewsDone = () => {
+      if (markedDone) return;
+      if (!previewUrls.length) {
+        markedDone = true;
+        return;
+      }
+      previewUrls.forEach(() => markImageDone());
+      markedDone = true;
+    };
+
+    if (!pdfFiles.length && imageFiles.length && typeof window !== "undefined") {
+      imageFiles.forEach(file => {
+        try {
+          const url = URL.createObjectURL(file);
+          previewUrls.push(url);
+          pushChatMessage({
+            id: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            role: "user",
+            kind: "image",
+            content: "",
+            imageUrl: url,
+            pending: true,
+            createdAt: Date.now(),
+          });
+        } catch (err) {
+          console.error("preview url error", err);
+        }
+      });
+    }
+
     const search = new URLSearchParams(window.location.search);
     const threadId = search.get("threadId");
     const orderedFiles = pdfFiles.length ? pdfFiles : imageFiles;
@@ -85,11 +127,13 @@ export default function UnifiedUpload() {
           body: fd,
         }),
       );
+      markAllPreviewsDone();
       setOut(j);
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("observations-updated"));
       }
     } catch (e: any) {
+      markAllPreviewsDone();
       const message = String(e?.message || e) || "Upload failed";
       if (message.includes("415")) {
         setErr("Unsupported file type. Upload DICOM/PDF/PNG/JPG.");
@@ -103,6 +147,11 @@ export default function UnifiedUpload() {
     } finally {
       setLoading(false);
       e.target.value = "";
+      if (previewUrls.length) {
+        setTimeout(() => {
+          previewUrls.forEach(url => URL.revokeObjectURL(url));
+        }, 20000);
+      }
     }
   }
 
