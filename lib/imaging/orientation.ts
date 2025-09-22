@@ -48,8 +48,14 @@ async function rotateIfNeeded(image: OrientedImage): Promise<{ buffer: Buffer; r
     ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.rotate((90 * Math.PI) / 180);
     ctx.drawImage(img, -width / 2, -height / 2);
-    const newMime = image.mime.includes("png") ? "image/png" : "image/jpeg";
-    const buffer = canvas.toBuffer(newMime === "image/png" ? "image/png" : "image/jpeg", newMime === "image/png" ? undefined : { quality: 0.92 });
+    const newMime: "image/png" | "image/jpeg" = image.mime.includes("png") ? "image/png" : "image/jpeg";
+    let buffer: Buffer;
+
+    if (newMime === "image/png") {
+      buffer = canvas.toBuffer("image/png");
+    } else {
+      buffer = canvas.toBuffer("image/jpeg", 0.92);
+    }
     return { buffer, rotated: true, width: canvas.width, height: canvas.height };
   } catch (error) {
     console.warn("[orientation] failed to rotate", { name: image.name, error });
