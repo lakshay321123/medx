@@ -563,6 +563,24 @@ function ChatCard({
 }) {
   const suggestions = normalizeSuggestions(m.followUps);
   if (m.pending) return <PendingChatCard label="Thinking…" active={pendingTimerActive} />;
+  if (typeof m.content === 'string' && m.content.startsWith('__IMG_BLOB__')) {
+    const url = m.content.slice('__IMG_BLOB__'.length);
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[65%] rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <img
+            src={url}
+            alt="Uploaded image"
+            className="block max-h-[360px] w-auto object-contain sm:max-h-[240px]"
+            loading="eager"
+          />
+          <div className="p-2 text-xs opacity-70 dark:text-gray-300 text-gray-600">
+            Analyzing…
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div
       className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl"
@@ -2260,7 +2278,7 @@ ${systemCommon}` + baseSys;
           id: uid(),
           role: 'user',
           kind: 'chat',
-          content: `![Uploaded image](${url})`
+          content: `__IMG_BLOB__${url}`
         } as any,
       ]);
     }
