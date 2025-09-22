@@ -339,6 +339,15 @@ type ChatMessage =
       error?: string | null;
     })
   | (BaseChatMessage & {
+      role: "user";
+      kind: "image";
+      imageUrl: string;
+      pending?: boolean;
+      tempId?: string;
+      parentId?: string;
+      error?: string | null;
+    })
+  | (BaseChatMessage & {
       role: "assistant";
       kind: "chat";
       tempId?: string;
@@ -575,6 +584,26 @@ function ChatCard({
   );
 }
 
+function ImageCard({ m }: { m: Extract<ChatMessage, { kind: "image" }> }) {
+  return (
+    <div className="flex justify-end">
+      <div className="max-w-[65%] rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <img
+          src={m.imageUrl}
+          alt="Uploaded image"
+          className="block max-h-[360px] w-auto object-contain sm:max-h-[240px]"
+          loading="eager"
+        />
+        {m.pending && (
+          <div className="p-2 text-xs opacity-70 dark:text-gray-300 text-gray-600">
+            Analyzing…
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AssistantMessage({
   m,
   researchOn,
@@ -602,6 +631,8 @@ function AssistantMessage({
       busy={busy}
       pendingTimerActive={pendingTimerActive}
     />
+  ) : m.kind === "image" ? (
+    <ImageCard m={m as Extract<ChatMessage, { kind: "image" }>} />
   ) : (
     <ChatCard
       m={m as Extract<ChatMessage, { kind: "chat" }>}
@@ -632,6 +663,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const inputRef =
     (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ??
     (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
+  const previewUrlRef = useRef<string | null>(null);
   const { filters } = useResearchFilters();
 
   const sp = useSearchParams();
@@ -669,6 +701,42 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    function onPush(e: Event) {
+      const ce = e as CustomEvent<any>;
+      const msg = ce.detail;
+      if (!msg) return;
+      setMessages(prev => [...prev, msg as ChatMessage]);
+      setTimeout(() => {
+        const chatContainer = document.getElementById("chat-scroll-container");
+        if (chatContainer) {
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+      }, 50);
+    }
+
+    function onMarkDone() {
+      setMessages(prev => {
+        for (let i = prev.length - 1; i >= 0; i -= 1) {
+          const candidate = prev[i];
+          if (candidate?.kind === "image" && candidate.pending) {
+            const next = [...prev];
+            next[i] = { ...candidate, pending: false } as ChatMessage;
+            return next;
+          }
+        }
+        return prev;
+      });
+    }
+
+    window.addEventListener("medx:chat:push", onPush as EventListener);
+    window.addEventListener("medx:chat:mark-done", onMarkDone as EventListener);
+    return () => {
+      window.removeEventListener("medx:chat:push", onPush as EventListener);
+      window.removeEventListener("medx:chat:mark-done", onMarkDone as EventListener);
+    };
   }, []);
 
   const fetchLabSummary = useCallback(async () => {
@@ -2265,6 +2333,15 @@ ${systemCommon}` + baseSys;
         )
       );
     } finally {
+      const url = previewUrlRef.current;
+      if (url) {
+        setTimeout(() => {
+          try {
+            URL.revokeObjectURL(url);
+          } catch {}
+        }, 120000);
+        previewUrlRef.current = null;
+      }
       setBusy(false);
       setThinkingStartedAt(null);
       setPendingFile(null);
@@ -2277,6 +2354,26 @@ ${systemCommon}` + baseSys;
     inFlight = true;
     try {
       const trimmed = userText.trim();
+
+      if (pendingFile && pendingFile.type.startsWith('image/')) {
+        const url = URL.createObjectURL(pendingFile);
+        previewUrlRef.current = url;
+
+        setMessages(prev => [
+          ...prev,
+          {
+            id: uid(),
+            role: 'user',
+            kind: 'image',
+            imageUrl: url,
+          } as any,
+        ]);
+
+        await analyzeFile(pendingFile, trimmed);
+        setPendingFile(null);
+        setUserText('');
+        return;
+      }
       if (!pendingFile && trimmed) {
         const summarizeMatch = /^summarize\s+(NCT\d{8})$/i.exec(trimmed);
         if (summarizeMatch) {
@@ -2578,9 +2675,13 @@ ${systemCommon}` + baseSys;
         return (
           <div key={derivedKey} className="space-y-2">
             {m.role === 'user' ? (
-              <div className="ml-auto max-w-3xl rounded-2xl px-4 py-3 shadow-sm bg-slate-200 text-slate-900 dark:bg-gray-700 dark:text-gray-100 text-left whitespace-normal">
-                <ChatMarkdown content={m.content} />
-              </div>
+              m.kind === 'image' ? (
+                <ImageCard m={m as Extract<ChatMessage, { kind: "image" }>} />
+              ) : (
+                <div className="ml-auto max-w-3xl whitespace-normal rounded-2xl bg-slate-200 px-4 py-3 text-left text-slate-900 shadow-sm dark:bg-gray-700 dark:text-gray-100">
+                  <ChatMarkdown content={m.content ?? ''} />
+                </div>
+              )
             ) : (
               <div className="space-y-4">
                 <AssistantMessage
@@ -2655,7 +2756,11 @@ ${systemCommon}` + baseSys;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div ref={chatRef} className="flex-1 min-h-0 overflow-y-auto">
+      <div
+        ref={chatRef}
+        id="chat-scroll-container"
+        className="flex-1 min-h-0 overflow-y-auto"
+      >
         <div className="flex min-h-full flex-col justify-end px-6 pt-6">
           {mode === "doctor" && researchMode && (
             <div className="mb-6 space-y-4">
