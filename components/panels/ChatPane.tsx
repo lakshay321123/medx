@@ -2905,14 +2905,6 @@ ${systemCommon}` + baseSys;
           );
         }
 
-        if (m.kind === 'image') {
-          return (
-            <div key={derivedKey} className="space-y-2">
-              <ImageCard m={m as Extract<ChatMessage, { kind: 'image' }> } />
-            </div>
-          );
-        }
-
         return (
           <div key={derivedKey} className="space-y-2">
             <div className="space-y-4">
