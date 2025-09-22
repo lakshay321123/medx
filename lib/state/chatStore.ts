@@ -1,15 +1,25 @@
 import { create } from "zustand";
 import { nanoid } from "nanoid";
 
-type Msg = { id: string; role: "user"|"assistant"|"system"; content: string; ts: number };
-type Thread = { id: string; title: string; createdAt: number; updatedAt: number; messages: Msg[]; isTemp?: boolean };
+export type ChatMessage = {
+  id: string;
+  role: "user" | "assistant" | "system";
+  kind?: "text" | "image";
+  content?: string;
+  imageUrl?: string;
+  pending?: boolean;
+  ts: number;
+};
+
+type Thread = { id: string; title: string; createdAt: number; updatedAt: number; messages: ChatMessage[]; isTemp?: boolean };
 
 type ChatState = {
   currentId: string | null;
   threads: Record<string, Thread>;
   startNewThread: () => string;
   upsertThread: (t: Partial<Thread> & { id: string }) => void;
-  addMessage: (m: Omit<Msg,"id"|"ts"> & { id?: string }) => void;
+  addMessage: (m: Omit<ChatMessage, "id" | "ts"> & { id?: string; ts?: number; createdAt?: number }) => void;
+  updateMessage: (id: string, updates: Partial<ChatMessage>) => void;
   resetToEmpty: () => void;
 };
 
@@ -35,16 +45,67 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   addMessage: (m) => {
     const id = m.id ?? nanoid(10);
-    const now = Date.now();
+    const timestamp =
+      typeof m.ts === "number"
+        ? m.ts
+        : typeof m.createdAt === "number"
+        ? m.createdAt
+        : Date.now();
     const { currentId, threads } = get();
     if (!currentId) return;
     const thread = threads[currentId];
-    const msg: Msg = { id, ts: now, ...m };
-    const title = thread.messages.length === 0 && m.role === "user"
-      ? m.content.split(/\s+/).slice(0, 6).join(" ")
+    const kind = m.kind ?? (typeof m.content === "string" ? "text" : undefined);
+    const msg: ChatMessage = {
+      id,
+      role: m.role,
+      kind,
+      content: m.content,
+      imageUrl: m.imageUrl,
+      pending: m.pending,
+      ts: timestamp,
+    };
+    const baseTitle =
+      thread.messages.length === 0 && m.role === "user" && typeof m.content === "string" && m.content.trim().length > 0
+        ? m.content
+        : thread.title;
+    const title = typeof baseTitle === "string"
+      ? baseTitle.split(/\s+/).slice(0, 6).join(" ")
       : thread.title;
-    const updated: Thread = { ...thread, title, messages: [...thread.messages, msg], updatedAt: now };
+    const updated: Thread = {
+      ...thread,
+      title,
+      messages: [...thread.messages, msg],
+      updatedAt: timestamp,
+    };
     set(s => ({ threads: { ...s.threads, [thread.id]: updated } }));
+  },
+
+  updateMessage: (id, updates) => {
+    if (!id) return;
+    set(s => {
+      const { currentId } = s;
+      if (!currentId) return s;
+      const thread = s.threads[currentId];
+      if (!thread) return s;
+      let changed = false;
+      const messages = thread.messages.map(msg => {
+        if (msg.id !== id) return msg;
+        changed = true;
+        return { ...msg, ...updates };
+      });
+      if (!changed) return s;
+      return {
+        ...s,
+        threads: {
+          ...s.threads,
+          [thread.id]: {
+            ...thread,
+            messages,
+            updatedAt: Date.now(),
+          },
+        },
+      };
+    });
   },
 
   resetToEmpty: () => set({ currentId: null, threads: {} }),

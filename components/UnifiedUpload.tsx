@@ -5,6 +5,16 @@ import { safeJson } from "@/lib/safeJson";
 const MAX_VIEW_COUNT = 3;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB per image
 
+function pushChatMessage(msg: any) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("medx:chat:push", { detail: msg }));
+}
+
+function updateChatMessage(id: string, updates: any) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("medx:chat:update", { detail: { id, updates } }));
+}
+
 export default function UnifiedUpload() {
   const [loading, setLoading] = useState(false);
   const [doctorMode, setDoctorMode] = useState(true);
@@ -69,6 +79,24 @@ export default function UnifiedUpload() {
       .map(file => `${file.name}:${file.size}:${(file as any).lastModified ?? ""}`)
       .join("|");
 
+    const previewEntries: { id: string; url: string }[] = [];
+    if (!pdfFiles.length && imageFiles.length) {
+      const now = Date.now();
+      imageFiles.forEach((file, idx) => {
+        const previewUrl = URL.createObjectURL(file);
+        const previewId = `local-${now}-${idx}`;
+        pushChatMessage({
+          id: previewId,
+          role: "user",
+          kind: "image",
+          imageUrl: previewUrl,
+          pending: true,
+          createdAt: now + idx,
+        });
+        previewEntries.push({ id: previewId, url: previewUrl });
+      });
+    }
+
     const fd = new FormData();
     orderedFiles.forEach(file => fd.append("files[]", file));
     if (orderedFiles[0]) {
@@ -103,6 +131,10 @@ export default function UnifiedUpload() {
     } finally {
       setLoading(false);
       e.target.value = "";
+      previewEntries.forEach(({ id, url }) => {
+        updateChatMessage(id, { pending: false });
+        setTimeout(() => URL.revokeObjectURL(url), 20000);
+      });
     }
   }
 
