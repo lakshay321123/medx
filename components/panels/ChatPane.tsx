@@ -27,7 +27,6 @@ import { safeJson } from '@/lib/safeJson';
 import { splitFollowUps } from '@/lib/splitFollowUps';
 import { getTrials } from "@/lib/hooks/useTrials";
 import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials";
-import FeedbackBar from "@/components/FeedbackBar";
 import type { ChatMessage as BaseChatMessage } from "@/types/chat";
 import type { AnalysisCategory } from '@/lib/context';
 import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle, upsertThreadIndex, createNewThreadId } from '@/lib/chatThreads';
@@ -48,6 +47,7 @@ import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
 import { getUserPosition, fetchNearby, geocodeArea, type NearbyKind, type NearbyPlace } from "@/lib/nearby";
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
 import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
+import { useFeedback } from "@/hooks/useFeedback";
 
 const ChatSuggestions = dynamic(() => import("./ChatSuggestions"), { ssr: false });
 
@@ -591,11 +591,27 @@ function ImageCard({ m }: { m: Extract<ChatMessage, { kind: "image" }> }) {
   );
 }
 
-function SlimStatusPill({ text }: { text: string }) {
+function MaterialIcon({ name }: { name: string }) {
+  return (
+    <span className="assistant-icon" aria-hidden="true">
+      {name}
+    </span>
+  );
+}
+
+function SlimStatusPill({ text, elapsed }: { text: string; elapsed?: number | null }) {
+  const showTimer = typeof elapsed === 'number' && elapsed >= 0;
   return (
     <div className="mb-3">
-      <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+      <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-300">
         <span>{text}</span>
+        {showTimer && (
+          <span className="inline-flex items-center gap-1 text-blue-600 dark:text-sky-400">
+            <span aria-hidden="true">·</span>
+            <MaterialIcon name="schedule" />
+            <span>{fmtTime(elapsed ?? 0)}</span>
+          </span>
+        )}
         <span className="animate-pulse" aria-hidden="true">
           •
         </span>
@@ -610,26 +626,113 @@ function fmtTime(s: number) {
   return `${mm}:${ss}`;
 }
 
+type FeedbackContext = ReturnType<typeof useFeedback>;
+
 function AssistantFooter({
   content,
+  conversationId,
+  messageId,
+  mode,
+  model,
+  feedback,
   onRetry,
   onRefresh,
-  onThumbUp,
-  onThumbDown,
+  canRetry,
 }: {
   content: string;
+  conversationId: string;
+  messageId: string;
+  mode: 'patient' | 'doctor' | 'research' | 'therapy';
+  model?: string;
+  feedback: FeedbackContext;
   onRetry: () => void;
   onRefresh: () => void;
-  onThumbUp: () => void;
-  onThumbDown: () => void;
+  canRetry: boolean;
 }) {
+  const key = `${conversationId}:${messageId}`;
+  const submitted = feedback.submittedFor[key];
+  const isUp = submitted === 1;
+  const isDown = submitted === -1;
+  const feedbackLoading = feedback.loading === key;
+  const hasText = typeof content === 'string' && content.trim().length > 0;
+
+  const copyDisabled = !hasText;
+
   return (
-    <div className="mt-2 flex items-center gap-3 text-xs opacity-80">
-      <button onClick={() => navigator.clipboard.writeText(content)}>Copy</button>
-      <button onClick={onThumbUp}>👍</button>
-      <button onClick={onThumbDown}>👎</button>
-      <button onClick={onRetry}>Retry</button>
-      <button onClick={onRefresh}>Refresh</button>
+    <div className="mt-2 flex items-center gap-1 text-xs">
+      <button
+        type="button"
+        aria-label="Copy message"
+        className="assistant-icon-button"
+        disabled={copyDisabled}
+        onClick={() => {
+          if (!hasText) return;
+          void navigator.clipboard.writeText(content);
+        }}
+      >
+        <MaterialIcon name="content_copy" />
+      </button>
+      <button
+        type="button"
+        aria-label="Thumbs up"
+        className="assistant-icon-button"
+        data-active={isUp}
+        aria-pressed={isUp}
+        disabled={feedbackLoading}
+        onClick={() => {
+          if (feedbackLoading) return;
+          void feedback.submit({
+            conversationId,
+            messageId,
+            mode,
+            model,
+            rating: 1,
+          });
+        }}
+      >
+        <MaterialIcon name="thumb_up" />
+      </button>
+      <button
+        type="button"
+        aria-label="Thumbs down"
+        className="assistant-icon-button"
+        data-active={isDown}
+        aria-pressed={isDown}
+        disabled={feedbackLoading}
+        onClick={() => {
+          if (feedbackLoading) return;
+          void feedback.submit({
+            conversationId,
+            messageId,
+            mode,
+            model,
+            rating: -1,
+          });
+        }}
+      >
+        <MaterialIcon name="thumb_down" />
+      </button>
+      <div className="mx-1 h-6 w-px bg-blue-200 dark:bg-sky-500/40" aria-hidden="true" />
+      <button
+        type="button"
+        aria-label="Retry analysis"
+        className="assistant-icon-button"
+        disabled={!canRetry}
+        onClick={() => {
+          if (!canRetry) return;
+          onRetry();
+        }}
+      >
+        <MaterialIcon name="replay" />
+      </button>
+      <button
+        type="button"
+        aria-label="Refresh"
+        className="assistant-icon-button"
+        onClick={onRefresh}
+      >
+        <MaterialIcon name="refresh" />
+      </button>
     </div>
   );
 }
@@ -697,6 +800,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [analyzeElapsed, setAnalyzeElapsed] = useState<number>(0);
   const lastQueueRef = useRef<{ files: File[]; nextIndex: number; analyzingId: string; noteText: string } | null>(null);
   const { filters } = useResearchFilters();
+  const feedback = useFeedback();
 
   const sp = useSearchParams();
   const isAiDocMode = useIsAiDocMode();
@@ -2616,11 +2720,6 @@ ${systemCommon}` + baseSys;
     }
   }
 
-  async function sendFeedback(messageId: string, sentiment: 'up' | 'down') {
-    void messageId;
-    void sentiment;
-  }
-
   async function onSubmit() {
     if (busy || inFlight) return;
     inFlight = true;
@@ -2956,6 +3055,10 @@ ${systemCommon}` + baseSys;
 
   const assistantBusy = loadingAction !== null;
   const simpleMode = currentMode === 'patient';
+  const canRetryQueue = !queueActive && Boolean(
+    lastQueueRef.current &&
+      (lastQueueRef.current.nextIndex ?? 0) < lastQueueRef.current.files.length
+  );
 
   const renderedMessages = useMemo(
     () =>
@@ -2992,7 +3095,7 @@ ${systemCommon}` + baseSys;
             const showTimer = typeof m.content === 'string' && m.content.startsWith('Analyzing file');
             return (
               <div key={derivedKey} className="space-y-2">
-                <SlimStatusPill text={showTimer ? `${txt} · ${fmtTime(analyzeElapsed)}` : txt} />
+                <SlimStatusPill text={txt} elapsed={showTimer ? analyzeElapsed : null} />
               </div>
             );
           }
@@ -3006,23 +3109,16 @@ ${systemCommon}` + baseSys;
                   onQuickAction={stableOnQuickAction}
                   busy={assistantBusy}
                 />
-                <FeedbackBar
+                <AssistantFooter
+                  content={typeof m.content === 'string' ? m.content : ''}
                   conversationId={conversationId}
                   messageId={m.id}
                   mode={currentMode}
                   model={undefined}
-                  hiddenInTherapy={true}
-                />
-                <AssistantFooter
-                  content={typeof m.content === 'string' ? m.content : ''}
+                  feedback={feedback}
                   onRetry={() => retryLastFailedOrResumeQueue()}
                   onRefresh={() => refreshThreadOrResume()}
-                  onThumbUp={() => {
-                    void sendFeedback(m.id, 'up');
-                  }}
-                  onThumbDown={() => {
-                    void sendFeedback(m.id, 'down');
-                  }}
+                  canRetry={canRetryQueue}
                 />
               </div>
             </div>
@@ -3042,24 +3138,17 @@ ${systemCommon}` + baseSys;
                 simple={simpleMode}
                 pendingTimerActive={showThinkingTimer}
               />
-              <FeedbackBar
-                conversationId={conversationId}
-                messageId={m.id}
-                mode={currentMode}
-                model={undefined}
-                hiddenInTherapy={true}
-              />
               {!m.pending && (
                 <AssistantFooter
                   content={typeof m.content === 'string' ? m.content : ''}
+                  conversationId={conversationId}
+                  messageId={m.id}
+                  mode={currentMode}
+                  model={undefined}
+                  feedback={feedback}
                   onRetry={() => retryLastFailedOrResumeQueue()}
                   onRefresh={() => refreshThreadOrResume()}
-                  onThumbUp={() => {
-                    void sendFeedback(m.id, 'up');
-                  }}
-                  onThumbDown={() => {
-                    void sendFeedback(m.id, 'down');
-                  }}
+                  canRetry={canRetryQueue}
                 />
               )}
             </div>
@@ -3081,7 +3170,10 @@ ${systemCommon}` + baseSys;
       analyzeElapsed,
       retryLastFailedOrResumeQueue,
       refreshThreadOrResume,
-      sendFeedback
+      canRetryQueue,
+      feedback.submittedFor,
+      feedback.loading,
+      feedback.submit
     ]
   );
 
