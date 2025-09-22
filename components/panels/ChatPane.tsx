@@ -383,7 +383,7 @@ function replaceFirstPendingWith(list: ChatMessage[], finalMsg: ChatMessage) {
   return copy;
 }
 
-function titleForCategory(c?: AnalysisCategory) {
+function titleForCategory(c?: AnalysisCategory | string | null) {
   switch (c) {
     case "xray":
       return "Imaging Report";
