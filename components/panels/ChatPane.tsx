@@ -460,17 +460,6 @@ No fabricated IDs. Provide themes, not specific trial numbers unless confident.`
   ];
 }
 
-function PendingAnalysisCard({ label, active }: { label: string; active?: boolean }) {
-  return (
-    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
-      <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
-        <span>{label}</span>
-        <AnalyzingInline active={!!active} />
-      </div>
-    </div>
-  );
-}
-
 function PendingChatCard({ label, active }: { label: string; active?: boolean }) {
   return (
     <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
@@ -484,66 +473,17 @@ function PendingChatCard({ label, active }: { label: string; active?: boolean })
 
 function AnalysisCard({
   m,
-  researchOn,
-  onQuickAction,
-  busy,
   pendingTimerActive
 }: {
   m: Extract<ChatMessage, { kind: "analysis" }>;
-  researchOn: boolean;
-  onQuickAction: (k: "simpler" | "doctor" | "next") => void;
-  busy: boolean;
   pendingTimerActive?: boolean;
 }) {
-  const header = titleForCategory(m.category);
-  if (m.pending) return <PendingAnalysisCard label="Analyzing file…" active={pendingTimerActive} />;
   return (
-    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl space-y-2">
-      <header className="flex items-center gap-2">
-        <h2 className="text-lg md:text-xl font-semibold">{header}</h2>
-        {researchOn && (
-          <span className="ml-auto text-xs rounded-full px-2 py-0.5 bg-indigo-100 text-indigo-900 border border-indigo-200/60 dark:bg-indigo-900/30 dark:text-indigo-200 dark:border-indigo-800">
-            Research Mode
-          </span>
-        )}
-      </header>
-      <ChatMarkdown content={m.content} />
-      {m.error && (
-        <div className="inline-flex items-center gap-2 text-xs rounded-lg px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-900/20 dark:text-rose-200 dark:border-rose-800">
-          ⚠️ {m.error}
-        </div>
-      )}
-      {!m.error && (
-        <div className="flex flex-wrap gap-2 pt-2">
-          <button
-            type="button"
-            className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={busy}
-            onClick={() => onQuickAction("simpler")}
-          >
-            Explain simpler
-          </button>
-          <button
-            type="button"
-            className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={busy}
-            onClick={() => onQuickAction("doctor")}
-          >
-            Doctor’s view
-          </button>
-          <button
-            type="button"
-            className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={busy}
-            onClick={() => onQuickAction("next")}
-          >
-            What next?
-          </button>
-        </div>
-      )}
-      <p className="text-xs text-amber-500/90 pt-2">
-        AI assistance only — not a medical diagnosis. Confirm with a clinician.
-      </p>
+    <div className="mb-3">
+      <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+        <span>{typeof m.content === 'string' ? m.content : 'Analyzing…'}</span>
+        {m.pending && pendingTimerActive && <span className="animate-pulse">•</span>}
+      </div>
     </div>
   );
 }
@@ -604,16 +544,7 @@ function ImageCard({ m }: { m: Extract<ChatMessage, { kind: "image" }> }) {
   );
 }
 
-function AssistantMessage({
-  m,
-  researchOn,
-  onQuickAction,
-  busy,
-  therapyMode,
-  onAction,
-  simple,
-  pendingTimerActive
-}: {
+function AssistantMessage(props: {
   m: ChatMessage;
   researchOn: boolean;
   onQuickAction: (k: "simpler" | "doctor" | "next") => void;
@@ -623,17 +554,19 @@ function AssistantMessage({
   simple: boolean;
   pendingTimerActive?: boolean;
 }) {
-  return m.kind === "analysis" ? (
-    <AnalysisCard
-      m={m}
-      researchOn={researchOn}
-      onQuickAction={onQuickAction}
-      busy={busy}
-      pendingTimerActive={pendingTimerActive}
-    />
-  ) : m.kind === "image" ? (
-    <ImageCard m={m as Extract<ChatMessage, { kind: "image" }>} />
-  ) : (
+  const { m, therapyMode, onAction, simple, pendingTimerActive } = props;
+  if (m.kind === "analysis") {
+    return (
+      <AnalysisCard
+        m={m as Extract<ChatMessage, { kind: "analysis" }>}
+        pendingTimerActive={pendingTimerActive}
+      />
+    );
+  }
+  if (m.kind === "image") {
+    return <ImageCard m={m as Extract<ChatMessage, { kind: "image" }>} />;
+  }
+  return (
     <ChatCard
       m={m as Extract<ChatMessage, { kind: "chat" }>}
       therapyMode={therapyMode}
@@ -678,13 +611,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const liveSuggestions = useMemo(() => getInlineSuggestions(userText, modeState), [userText, modeState]);
   const visibleMessages = useMemo(
     () =>
-      messages.filter(m => {
-        if (m.role !== 'user' && m.role !== 'assistant') return false;
-        if ((m as any).kind === 'summary') return false;
-        if (typeof (m as any).content === 'string' && (m as any).content.startsWith('Medical Document Summary')) {
-          return false;
-        }
-        return true;
+      messages.filter(msg => {
+        if ((msg as any).kind === 'analysis' && !msg.pending) return false;
+        if ((msg as any).kind === 'summary') return false;
+        if (typeof msg.content === 'string' && msg.content.startsWith('Medical Document Summary')) return false;
+        return msg.role === 'user' || msg.role === 'assistant';
       }),
     [messages]
   );
@@ -2511,13 +2442,7 @@ ${systemCommon}` + baseSys;
         completed++;
       }
     } finally {
-      setMessages(prev =>
-        prev.map(m =>
-          m.id === analyzingId
-            ? { ...m, pending: false }
-            : m
-        )
-      );
+      setMessages(prev => prev.filter(m => m.id !== analyzingId));
 
       queueAbortRef.current = null;
       setQueueActive(false);
