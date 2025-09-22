@@ -677,7 +677,15 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const defaultSuggestions = useMemo(() => getDefaultSuggestions(modeState), [modeState]);
   const liveSuggestions = useMemo(() => getInlineSuggestions(userText, modeState), [userText, modeState]);
   const visibleMessages = useMemo(
-    () => messages.filter(m => m.role === 'user' || m.role === 'assistant'),
+    () =>
+      messages.filter(m => {
+        if (m.role !== 'user' && m.role !== 'assistant') return false;
+        if ((m as any).kind === 'summary') return false;
+        if (typeof (m as any).content === 'string' && (m as any).content.startsWith('Medical Document Summary')) {
+          return false;
+        }
+        return true;
+      }),
     [messages]
   );
   const trimmedInput = userText.trim();
@@ -2503,15 +2511,10 @@ ${systemCommon}` + baseSys;
         completed++;
       }
     } finally {
-      const aborted = ac.signal.aborted;
-      const summary = aborted
-        ? `Stopped. Processed ${completed} of ${N} file${N === 1 ? '' : 's'}.`
-        : `Done. Processed ${N} file${N === 1 ? '' : 's'}.`;
-
       setMessages(prev =>
         prev.map(m =>
           m.id === analyzingId
-            ? { ...m, content: summary, pending: false }
+            ? { ...m, pending: false }
             : m
         )
       );
