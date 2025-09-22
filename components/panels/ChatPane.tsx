@@ -609,16 +609,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const therapyMode = modeState.therapy;
   const defaultSuggestions = useMemo(() => getDefaultSuggestions(modeState), [modeState]);
   const liveSuggestions = useMemo(() => getInlineSuggestions(userText, modeState), [userText, modeState]);
-  const visibleMessages = useMemo(
-    () =>
-      messages.filter(msg => {
-        if ((msg as any).kind === 'analysis' && !msg.pending) return false;
-        if ((msg as any).kind === 'summary') return false;
-        if (typeof msg.content === 'string' && msg.content.startsWith('Medical Document Summary')) return false;
-        return msg.role === 'user' || msg.role === 'assistant';
-      }),
-    [messages]
-  );
+  const visibleMessages = messages;
   const trimmedInput = userText.trim();
   const isTyping = trimmedInput.length > 0;
   const showDefaultSuggestions = visibleMessages.length === 0 && !isTyping;
@@ -2377,8 +2368,6 @@ ${systemCommon}` + baseSys;
 
     const N = files.length;
     const maxAttempts = 3;
-    let completed = 0;
-
     try {
       for (let i = 0; i < N; i++) {
         if (ac.signal.aborted) break;
@@ -2387,7 +2376,7 @@ ${systemCommon}` + baseSys;
         setMessages(prev =>
           prev.map(m =>
             m.id === analyzingId
-              ? { ...m, content: `Analyzing file ${i + 1}/${N}…` }
+              ? { ...m, content: `Analyzing file ${i + 1}/${N}…`, pending: true }
               : m
           )
         );
@@ -2419,7 +2408,7 @@ ${systemCommon}` + baseSys;
           setMessages(prev =>
             prev.map(m =>
               m.id === analyzingId
-                ? { ...m, content: `Analyzing file ${i + 1}/${N}… failed, continuing…` }
+                ? { ...m, content: `Analyzing file ${i + 1}/${N}… failed, continuing…`, pending: true }
                 : m
             )
           );
@@ -2438,8 +2427,6 @@ ${systemCommon}` + baseSys;
             ]);
           }
         }
-
-        completed++;
       }
     } finally {
       setMessages(prev => prev.filter(m => m.id !== analyzingId));
