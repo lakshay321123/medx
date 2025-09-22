@@ -642,6 +642,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const inputRef =
     (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ??
     (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
+  const previewUrlRef = useRef<string | null>(null);
   const { filters } = useResearchFilters();
 
   const sp = useSearchParams();
@@ -2248,6 +2249,21 @@ ${systemCommon}` + baseSys;
   function onFileSelected(file: File) {
     setPendingFile(file);
     setTimeout(() => inputRef.current?.focus(), 0);
+
+    if (file && file.type.startsWith('image/')) {
+      const url = URL.createObjectURL(file);
+      previewUrlRef.current = url;
+
+      setMessages(prev => [
+        ...prev,
+        {
+          id: uid(),
+          role: 'user',
+          kind: 'chat',
+          content: `![Uploaded image](${url})`
+        } as any,
+      ]);
+    }
   }
 
   async function analyzeFile(file: File, noteText: string) {
@@ -2311,6 +2327,15 @@ ${systemCommon}` + baseSys;
         )
       );
     } finally {
+      const url = previewUrlRef.current;
+      if (url) {
+        setTimeout(() => {
+          try {
+            URL.revokeObjectURL(url);
+          } catch {}
+        }, 120000);
+        previewUrlRef.current = null;
+      }
       setBusy(false);
       setThinkingStartedAt(null);
       setPendingFile(null);
