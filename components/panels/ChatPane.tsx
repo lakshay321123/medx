@@ -1,7 +1,6 @@
 'use client';
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, useMemo, RefObject, useCallback } from 'react';
-import type { ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fromSearchParams } from '@/lib/modes/url';
 import { useRouter } from 'next/navigation';
@@ -332,7 +331,17 @@ type NearbySessionState = {
 
 type ChatMessage =
   | (BaseChatMessage & {
-      role: "user";
+      role: "assistant";
+      kind: "analysis";
+      category?: AnalysisCategory | string | null;
+      content: string;
+      tempId?: string;
+      parentId?: string;
+      pending?: boolean;
+      error?: string | null;
+    })
+  | (BaseChatMessage & {
+      role: "assistant";
       kind: "chat";
       tempId?: string;
       parentId?: string;
@@ -340,26 +349,18 @@ type ChatMessage =
       error?: string | null;
     })
   | (BaseChatMessage & {
+      role: "user";
+      kind: "chat";
+      tempId?: string;
+      parentId?: string;
+      pending?: boolean;
+      error?: string | null;
+    })
+  | (Omit<BaseChatMessage, "content"> & {
       role: "user";
       kind: "image";
       imageUrl: string;
-      pending?: boolean;
-      tempId?: string;
-      parentId?: string;
-      error?: string | null;
-    })
-  | (BaseChatMessage & {
-      role: "assistant";
-      kind: "chat";
-      tempId?: string;
-      parentId?: string;
-      pending?: boolean;
-      error?: string | null;
-    })
-  | (BaseChatMessage & {
-      role: "assistant";
-      kind: "analysis";
-      category?: AnalysisCategory;
+      content?: string;
       tempId?: string;
       parentId?: string;
       pending?: boolean;
@@ -2486,7 +2487,8 @@ ${systemCommon}` + baseSys;
               role: 'user',
               kind: 'image',
               imageUrl: url,
-            } as any;
+              content: '',
+            } as Extract<ChatMessage, { kind: 'image' }>;
           });
 
         if (urlsToCleanup.length > 0) {
@@ -2500,7 +2502,13 @@ ${systemCommon}` + baseSys;
         const analyzingId = uid();
         setMessages(prev => [
           ...prev,
-          { id: analyzingId, role: 'assistant', kind: 'analysis', content: 'Analyzing…', pending: true } as any,
+          {
+            id: analyzingId,
+            role: 'assistant',
+            kind: 'analysis',
+            content: 'Analyzing…',
+            pending: true,
+          } as Extract<ChatMessage, { kind: 'analysis' }>,
         ]);
 
         await runFileQueueSequential(files, analyzingId, trimmed);
@@ -2792,7 +2800,7 @@ ${systemCommon}` + baseSys;
 
   const renderedMessages = useMemo(
     () =>
-      visibleMessages.map((m, index) => {
+      visibleMessages.map((m: ChatMessage, index) => {
         const derivedKey =
           m.id ??
           (typeof (m as any).localId === 'string' ? (m as any).localId : undefined) ??
@@ -2801,50 +2809,74 @@ ${systemCommon}` + baseSys;
         const isLastVisible = index === visibleMessages.length - 1;
         const showThinkingTimer = isLastVisible && m.role === 'assistant' && busy && !!thinkingStartedAt;
 
-        let rendered: ReactNode = null;
-
-        if (m.role === 'user') {
-          if (m.kind === 'image') {
-            rendered = <ImageCard m={m as Extract<ChatMessage, { kind: 'image' }>} />;
-          } else {
-            rendered = (
-              <div className="ml-auto max-w-3xl whitespace-normal rounded-2xl bg-slate-200 px-4 py-3 text-left text-slate-900 shadow-sm dark:bg-gray-700 dark:text-gray-100">
-                <ChatMarkdown content={m.content ?? ''} />
+        if (m.kind === 'analysis') {
+          if (m.pending) {
+            const pillText = typeof m.content === 'string' ? m.content : 'Analyzing…';
+            return (
+              <div key={derivedKey} className="space-y-2">
+                <SlimStatusPill text={pillText} />
               </div>
             );
           }
-        } else if (m.kind === 'analysis' && m.pending) {
-          const pillText = typeof m.content === 'string' ? m.content : 'Analyzing…';
-          rendered = <SlimStatusPill text={pillText} />;
-        } else if (m.kind === 'image') {
-          rendered = <ImageCard m={m as Extract<ChatMessage, { kind: 'image' }>} />;
-        } else {
-          rendered = (
-            <div className="space-y-4">
-              <AssistantMessage
-                m={m}
-                researchOn={researchMode}
-                onQuickAction={stableOnQuickAction}
-                busy={assistantBusy}
-                therapyMode={therapyMode}
-                onAction={stableHandleSuggestionAction}
-                simple={simpleMode}
-                pendingTimerActive={showThinkingTimer}
-              />
-              <FeedbackBar
-                conversationId={conversationId}
-                messageId={m.id}
-                mode={currentMode}
-                model={undefined}
-                hiddenInTherapy={true}
-              />
+
+          return (
+            <div key={derivedKey} className="space-y-2">
+              <div className="space-y-4">
+                <AnalysisCard
+                  m={m as Extract<ChatMessage, { kind: 'analysis' }>}
+                  pendingTimerActive={showThinkingTimer}
+                />
+                <FeedbackBar
+                  conversationId={conversationId}
+                  messageId={m.id}
+                  mode={currentMode}
+                  model={undefined}
+                  hiddenInTherapy={true}
+                />
+              </div>
+            </div>
+          );
+        }
+
+        if (m.kind === 'image') {
+          return (
+            <div key={derivedKey} className="space-y-2">
+              <ImageCard m={m as Extract<ChatMessage, { kind: 'image' }>} />
+            </div>
+          );
+        }
+
+        if (m.role === 'assistant') {
+          return (
+            <div key={derivedKey} className="space-y-2">
+              <div className="space-y-4">
+                <AssistantMessage
+                  m={m}
+                  researchOn={researchMode}
+                  onQuickAction={stableOnQuickAction}
+                  busy={assistantBusy}
+                  therapyMode={therapyMode}
+                  onAction={stableHandleSuggestionAction}
+                  simple={simpleMode}
+                  pendingTimerActive={showThinkingTimer}
+                />
+                <FeedbackBar
+                  conversationId={conversationId}
+                  messageId={m.id}
+                  mode={currentMode}
+                  model={undefined}
+                  hiddenInTherapy={true}
+                />
+              </div>
             </div>
           );
         }
 
         return (
           <div key={derivedKey} className="space-y-2">
-            {rendered}
+            <div className="ml-auto max-w-3xl whitespace-normal rounded-2xl bg-slate-200 px-4 py-3 text-left text-slate-900 shadow-sm dark:bg-gray-700 dark:text-gray-100">
+              <ChatMarkdown content={m.content ?? ''} />
+            </div>
           </div>
         );
       }),
