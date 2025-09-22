@@ -341,12 +341,11 @@ type ChatMessage =
   | (BaseChatMessage & {
       role: "user";
       kind: "image";
-      imageUrl?: string;
+      imageUrl: string;
+      pending?: boolean;
       tempId?: string;
       parentId?: string;
-      pending?: boolean;
       error?: string | null;
-      createdAt?: number;
     })
   | (BaseChatMessage & {
       role: "assistant";
@@ -563,24 +562,6 @@ function ChatCard({
 }) {
   const suggestions = normalizeSuggestions(m.followUps);
   if (m.pending) return <PendingChatCard label="Thinking…" active={pendingTimerActive} />;
-  if (typeof m.content === 'string' && m.content.startsWith('__IMG_BLOB__')) {
-    const url = m.content.slice('__IMG_BLOB__'.length);
-    return (
-      <div className="flex justify-end">
-        <div className="max-w-[65%] rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-          <img
-            src={url}
-            alt="Uploaded image"
-            className="block max-h-[360px] w-auto object-contain sm:max-h-[240px]"
-            loading="eager"
-          />
-          <div className="p-2 text-xs opacity-70 dark:text-gray-300 text-gray-600">
-            Analyzing…
-          </div>
-        </div>
-      </div>
-    );
-  }
   return (
     <div
       className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl"
@@ -599,6 +580,26 @@ function ChatCard({
       {!therapyMode && suggestions.length > 0 && (
         <SuggestionChips suggestions={suggestions} onAction={onAction} />
       )}
+    </div>
+  );
+}
+
+function ImageCard({ m }: { m: Extract<ChatMessage, { kind: "image" }> }) {
+  return (
+    <div className="flex justify-end">
+      <div className="max-w-[65%] rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <img
+          src={m.imageUrl}
+          alt="Uploaded image"
+          className="block max-h-[360px] w-auto object-contain sm:max-h-[240px]"
+          loading="eager"
+        />
+        {m.pending && (
+          <div className="p-2 text-xs opacity-70 dark:text-gray-300 text-gray-600">
+            Analyzing…
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -630,6 +631,8 @@ function AssistantMessage({
       busy={busy}
       pendingTimerActive={pendingTimerActive}
     />
+  ) : m.kind === "image" ? (
+    <ImageCard m={m as Extract<ChatMessage, { kind: "image" }>} />
   ) : (
     <ChatCard
       m={m as Extract<ChatMessage, { kind: "chat" }>}
@@ -2277,8 +2280,9 @@ ${systemCommon}` + baseSys;
         {
           id: uid(),
           role: 'user',
-          kind: 'chat',
-          content: `__IMG_BLOB__${url}`
+          kind: 'image',
+          imageUrl: url,
+          pending: true,
         } as any,
       ]);
     }
@@ -2667,19 +2671,8 @@ ${systemCommon}` + baseSys;
         return (
           <div key={derivedKey} className="space-y-2">
             {m.role === 'user' ? (
-              m.kind === 'image' && 'imageUrl' in m && m.imageUrl ? (
-                <div className="flex justify-end">
-                  <div className="max-w-[65%] overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                    <img
-                      src={m.imageUrl}
-                      alt="Uploaded"
-                      className="block max-h-[360px] w-auto object-contain sm:max-h-[240px]"
-                    />
-                    {m.pending && (
-                      <div className="p-2 text-xs text-gray-600 opacity-70 dark:text-gray-300">Analyzing…</div>
-                    )}
-                  </div>
-                </div>
+              m.kind === 'image' ? (
+                <ImageCard m={m as Extract<ChatMessage, { kind: "image" }>} />
               ) : (
                 <div className="ml-auto max-w-3xl whitespace-normal rounded-2xl bg-slate-200 px-4 py-3 text-left text-slate-900 shadow-sm dark:bg-gray-700 dark:text-gray-100">
                   <ChatMarkdown content={m.content ?? ''} />
