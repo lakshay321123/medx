@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
 
 import type { ChatAttachment, ChatMessage } from "@/types/chat";
@@ -19,19 +18,26 @@ export default function Message({ m }: { m: ChatMessage }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [viewer]);
 
-  const hasText = typeof m.content === "string" && m.content.trim().length > 0;
+  const bubbleText =
+    typeof m.text === "string" && m.text.length > 0
+      ? m.text
+      : typeof m.content === "string"
+      ? m.content
+      : "";
+  const hasText = bubbleText.trim().length > 0;
 
   return (
     <div className={`my-3 ${m.role === "user" ? "text-right" : "text-left"}`}>
       {hasText && (
-        <div className="inline-block rounded-xl bg-gray-100 px-3 py-2 text-sm">
-          {m.content}
+        <div className="inline-block rounded-xl bg-gray-100 px-3 py-2">
+          {bubbleText}
         </div>
       )}
+
       {!!m.attachments?.length && (
         <div
-          className={`mt-2 flex flex-wrap gap-3 ${
-            m.role === "user" ? "justify-end" : "justify-start"
+          className={`mt-2 flex flex-wrap gap-8 ${
+            m.role === "user" ? "justify-end" : ""
           }`}
         >
           {m.attachments.map(att =>
@@ -39,18 +45,14 @@ export default function Message({ m }: { m: ChatMessage }) {
               <button
                 key={att.id}
                 type="button"
-                className="relative h-28 w-28 overflow-hidden rounded-xl border"
+                className="h-28 w-28 overflow-hidden rounded-xl border"
                 onClick={() => setViewer(att)}
-                aria-label={`Open ${att.name}`}
                 title={att.name}
               >
-                <Image
+                <img
                   src={att.url}
                   alt={att.name}
-                  fill
-                  sizes="112px"
-                  style={{ objectFit: "cover" }}
-                  unoptimized
+                  className="h-full w-full object-cover"
                 />
               </button>
             ) : (
@@ -60,7 +62,7 @@ export default function Message({ m }: { m: ChatMessage }) {
                 title={att.name}
               >
                 <span className="i-lucide-paperclip" aria-hidden />
-                <span className="truncate max-w-[10rem]" title={att.name}>
+                <span className="max-w-[10rem] truncate" title={att.name}>
                   {att.name}
                 </span>
                 <span className="text-gray-500">({att.mime || "file"})</span>
@@ -73,24 +75,13 @@ export default function Message({ m }: { m: ChatMessage }) {
       {viewer && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
-          role="dialog"
-          aria-modal
           onClick={() => setViewer(null)}
         >
-          <button
-            type="button"
-            className="max-h-[90vh] max-w-[90vw] overflow-hidden rounded-xl"
-            onClick={event => event.stopPropagation()}
-          >
-            <Image
-              src={viewer.url}
-              alt={viewer.name}
-              width={viewer.width ?? 1200}
-              height={viewer.height ?? 1200}
-              className="h-full w-full object-contain"
-              unoptimized
-            />
-          </button>
+          <img
+            src={viewer.url}
+            alt={viewer.name}
+            className="max-h-[90vh] max-w-[90vw] rounded-xl object-contain"
+          />
         </div>
       )}
     </div>

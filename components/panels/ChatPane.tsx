@@ -358,28 +358,42 @@ type ChatMessage =
 
 const uid = () => Math.random().toString(36).slice(2);
 
+const makeId = () =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : uid();
+
+function isImageFile(file: File) {
+  const mime = typeof file.type === "string" ? file.type : "";
+  const name = typeof file.name === "string" ? file.name : "";
+  const byMime = /^image\//.test(mime);
+  const byExt = /\.(png|jpe?g|webp|bmp|gif)$/i.test(name);
+  return byMime || byExt;
+}
+
 function fileToAttachment(file: File): Promise<ChatAttachment> {
-  const id = Math.random().toString(36).slice(2);
+  const id = makeId();
   const url = URL.createObjectURL(file);
-  const isImage = /^image\//.test(file.type);
-  if (!isImage) {
+  const kind: ChatAttachment["kind"] = isImageFile(file) ? "image" : "file";
+  if (kind !== "image") {
     return Promise.resolve({
       id,
-      kind: "file",
+      kind,
       name: file.name,
       mime: file.type || "application/octet-stream",
       url,
       bytes: file.size,
     });
   }
+
   return new Promise(resolve => {
     const img = new Image();
     img.onload = () =>
       resolve({
         id,
-        kind: "image",
+        kind,
         name: file.name,
-        mime: file.type,
+        mime: file.type || "image/*",
         url,
         width: img.width,
         height: img.height,
@@ -388,7 +402,7 @@ function fileToAttachment(file: File): Promise<ChatAttachment> {
     img.onerror = () =>
       resolve({
         id,
-        kind: "image",
+        kind,
         name: file.name,
         mime: file.type || "image/*",
         url,
@@ -2244,10 +2258,11 @@ ${systemCommon}` + baseSys;
 
     const att = await fileToAttachment(file);
     const userMsg = {
-      id: uid(),
+      id: makeId(),
       role: 'user' as const,
       kind: 'chat' as const,
       content: '',
+      text: '',
       attachments: [att],
       ts: Date.now(),
       pending: false,
