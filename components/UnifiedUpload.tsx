@@ -10,7 +10,18 @@ export default function UnifiedUpload() {
   const [doctorMode, setDoctorMode] = useState(true);
   const [out, setOut] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [checklist, setChecklist] = useState({
+    openCut: false,
+    numbness: false,
+    severeSwelling: false,
+  });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const qualityPanelClass = (label?: string | null) => {
+    if (label === "Good") return "border border-emerald-200 bg-emerald-50 text-emerald-700";
+    if (label === "Fair") return "border border-amber-200 bg-amber-50 text-amber-700";
+    return "border border-rose-200 bg-rose-50 text-rose-700";
+  };
 
   async function onChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -75,6 +86,7 @@ export default function UnifiedUpload() {
       fd.append("file", orderedFiles[0]);
     }
     fd.append("doctorMode", String(doctorMode));
+    fd.append("redFlagChecklist", JSON.stringify(checklist));
     if (threadId) fd.append("threadId", threadId);
     if (sourceHash) fd.append("sourceHash", sourceHash);
 
@@ -112,12 +124,15 @@ export default function UnifiedUpload() {
     return Number.isNaN(rounded) ? null : rounded.toString();
   };
 
-  const warning = typeof out?.warning === "string" && out.warning.trim() ? out.warning : null;
+  const warnings: string[] = Array.isArray(out?.warnings)
+    ? out.warnings.filter((item: unknown) => typeof item === "string" && item.trim())
+    : typeof out?.warning === "string" && out.warning.trim()
+    ? [out.warning.trim()]
+    : [];
   const showUploadMore =
     !loading &&
     out?.type === "image" &&
-    out?.findings &&
-    out.findings.need_additional_views === true;
+    ((out?.views && out.views.missingLateral) || out?.findings?.need_additional_views === true);
 
   return (
     <div className="space-y-3">
@@ -146,6 +161,34 @@ export default function UnifiedUpload() {
         (Upload medical reports, prescriptions, discharge summaries, or hand X-rays — PDF or up to 3 image views: PA, lateral, oblique.)
       </p>
 
+      <div className="rounded border border-dashed p-3">
+        <p className="text-sm font-medium">Quick injury checklist</p>
+        <p className="text-xs text-gray-500">Helps surface red flags for urgent follow-up.</p>
+        <div className="mt-2 grid gap-1 text-xs sm:text-sm">
+          {(
+            [
+              { key: "openCut" as const, label: "Open cut over the injured area" },
+              { key: "numbness" as const, label: "Numbness or tingling in fingers" },
+              { key: "severeSwelling" as const, label: "Severe swelling or obvious deformity" },
+            ] satisfies { key: keyof typeof checklist; label: string }[]
+          ).map(item => (
+            <label key={item.key} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={checklist[item.key]}
+                onChange={e =>
+                  setChecklist(prev => ({
+                    ...prev,
+                    [item.key]: e.target.checked,
+                  }))
+                }
+              />
+              <span>{item.label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
       {loading && <p>Analyzing…</p>}
       {err && <p className="text-red-600">⚠️ {err}</p>}
 
@@ -168,18 +211,48 @@ export default function UnifiedUpload() {
           {out.type === "image" && (
             <section className="p-3 border rounded space-y-2">
               <h3 className="font-semibold">Imaging Findings</h3>
+              {out.quality && (
+                <div className={`rounded px-3 py-2 text-sm ${qualityPanelClass(out.quality.label)}`}>
+                  <p className="font-medium">Quality: {out.quality.label}</p>
+                  <p className="text-xs">{out.quality.tip}</p>
+                </div>
+              )}
+              {out.views?.detected?.length ? (
+                <div className="flex flex-wrap gap-2 text-xs">
+                  {out.views.detected.map((view: string) => (
+                    <span
+                      key={view}
+                      className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium uppercase tracking-wide"
+                    >
+                      {view}
+                    </span>
+                  ))}
+                  {out.views.duplicatesPruned > 0 && (
+                    <span className="rounded-full border border-dashed border-slate-200 px-2 py-0.5">
+                      Duplicates removed: {out.views.duplicatesPruned}
+                    </span>
+                  )}
+                </div>
+              ) : null}
               {out.findings ? (
                 (() => {
                   const findings = out.findings || {};
                   const fracturePresent =
                     typeof findings.fracture_present === "boolean" ? findings.fracture_present : null;
-                  const confidence =
-                    typeof findings.confidence_0_1 === "number"
+                  const tier =
+                    typeof findings.decision_tier === "string" && findings.decision_tier.trim()
+                      ? findings.decision_tier.trim()
+                      : fracturePresent === null
+                      ? "Unknown"
+                      : fracturePresent
+                      ? "YES"
+                      : "NO";
+                  const confidenceRaw =
+                    typeof findings.confidence_calibrated === "number"
+                      ? Math.round(findings.confidence_calibrated * 100)
+                      : typeof findings.confidence_0_1 === "number"
                       ? Math.round(findings.confidence_0_1 * 100)
                       : null;
-                  const fractureLabel =
-                    fracturePresent === null ? "Unknown" : fracturePresent ? "YES" : "NO";
-                  const confidenceLabel = confidence === null ? "" : ` (${confidence}%)`;
                   const boneSegment =
                     typeof findings.bone === "string" && findings.bone.trim()
                       ? findings.bone.trim()
@@ -196,33 +269,16 @@ export default function UnifiedUpload() {
                     typeof findings.angulation_deg === "number"
                       ? formatNumber(findings.angulation_deg)
                       : null;
-                  const displacement =
-                    typeof findings.displacement_mm === "number"
-                      ? formatNumber(findings.displacement_mm)
-                      : null;
-                  const rotation =
-                    typeof findings.rotation_suspected === "boolean"
-                      ? findings.rotation_suspected
-                      : null;
-                  const metrics: string[] = [];
-                  if (angulation) metrics.push(`Angulation: ${angulation}°`);
-                  if (displacement) metrics.push(`Displacement: ${displacement} mm`);
-                  if (rotation !== null) metrics.push(`Rotation suspected: ${rotation ? "Yes" : "No"}`);
                   const redFlags = Array.isArray(findings.red_flags)
                     ? findings.red_flags.filter((f: unknown) => typeof f === "string" && f.trim())
                     : [];
-                  const nextLine =
-                    findings.need_additional_views === true
-                      ? "Add lateral or oblique view to measure angulation."
-                      : findings.need_additional_views === false
-                      ? "No additional views requested."
-                      : "Await clinician review.";
+                  const nextLine = typeof out?.nextStep === "string" ? out.nextStep : null;
 
                   return (
-                    <div className="space-y-1 text-sm">
+                    <div className="space-y-2 text-sm">
                       <p>
-                        <span className="font-medium">Fracture:</span> {fractureLabel}
-                        {confidenceLabel}
+                        <span className="font-medium">Fracture:</span> {tier}
+                        {confidenceRaw !== null && ` — Confidence: ${confidenceRaw}%`}
                       </p>
                       <p>
                         <span className="font-medium">Bone:</span> {boneSegment}
@@ -231,13 +287,24 @@ export default function UnifiedUpload() {
                       <p>
                         <span className="font-medium">Type:</span> {suspected}
                       </p>
-                      {metrics.length > 0 && <p>{metrics.join(" • ")}</p>}
-                      <p>
-                        <span className="font-medium">Next:</span> {nextLine}
-                      </p>
-                      {redFlags.length > 0 && (
+                      {angulation && (
                         <p>
-                          <span className="font-medium">Red flags:</span> {redFlags.join(", ")}
+                          <span className="font-medium">Angle:</span> {angulation}°
+                        </p>
+                      )}
+                      {redFlags.length > 0 && (
+                        <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                          <p className="font-semibold text-red-800">Red flags</p>
+                          <ul className="list-disc space-y-1 pl-4">
+                            {redFlags.map((flag: string) => (
+                              <li key={flag}>{flag}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {nextLine && (
+                        <p>
+                          <span className="font-medium">Next:</span> {nextLine}
                         </p>
                       )}
                     </div>
@@ -246,7 +313,13 @@ export default function UnifiedUpload() {
               ) : (
                 <p className="text-sm">No findings returned.</p>
               )}
-              {warning && <p className="text-xs text-amber-600">⚠️ {warning}</p>}
+              {warnings.length > 0 && (
+                <div className="space-y-1 text-xs text-amber-600">
+                  {warnings.map(warn => (
+                    <p key={warn}>⚠️ {warn}</p>
+                  ))}
+                </div>
+              )}
               {showUploadMore && (
                 <button
                   type="button"

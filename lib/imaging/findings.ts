@@ -9,6 +9,8 @@ export type ImagingFindings = {
   need_additional_views: boolean | null;
   red_flags: string[];
   confidence_0_1: number;
+  confidence_calibrated: number | null;
+  decision_tier: "YES" | "Likely" | "Inconclusive" | null;
 };
 
 export const BASE_FINDINGS: ImagingFindings = {
@@ -22,6 +24,8 @@ export const BASE_FINDINGS: ImagingFindings = {
   need_additional_views: null,
   red_flags: [],
   confidence_0_1: 0,
+  confidence_calibrated: null,
+  decision_tier: null,
 };
 
 export const UNCLEAR_IMAGE_WARNING =
@@ -103,6 +107,19 @@ export function normalizeFindings(
     const clamped = Math.min(1, Math.max(0, data.confidence_0_1));
     findings.confidence_0_1 = clamped;
     hasSignal = true;
+  }
+
+  if (typeof data.confidence_calibrated === "number" && Number.isFinite(data.confidence_calibrated)) {
+    findings.confidence_calibrated = Math.min(1, Math.max(0, data.confidence_calibrated));
+    hasSignal = true;
+  }
+
+  if (typeof data.decision_tier === "string") {
+    const normalized = data.decision_tier.trim();
+    if (["YES", "Likely", "Inconclusive"].includes(normalized)) {
+      findings.decision_tier = normalized as ImagingFindings["decision_tier"];
+      hasSignal = true;
+    }
   }
 
   if (!hasSignal) {
