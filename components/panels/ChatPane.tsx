@@ -28,7 +28,7 @@ import { splitFollowUps } from '@/lib/splitFollowUps';
 import { getTrials } from "@/lib/hooks/useTrials";
 import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials";
 import FeedbackBar from "@/components/FeedbackBar";
-import type { ChatMessage as BaseChatMessage } from "@/types/chat";
+import type { ChatAttachment, ChatMessage as BaseChatMessage } from "@/types/chat";
 import type { AnalysisCategory } from '@/lib/context';
 import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle, upsertThreadIndex, createNewThreadId } from '@/lib/chatThreads';
 import { useMemoryStore } from "@/lib/memory/useMemoryStore";
@@ -357,6 +357,46 @@ type ChatMessage =
     });
 
 const uid = () => Math.random().toString(36).slice(2);
+
+function fileToAttachment(file: File): Promise<ChatAttachment> {
+  const id = Math.random().toString(36).slice(2);
+  const url = URL.createObjectURL(file);
+  const isImage = /^image\//.test(file.type);
+  if (!isImage) {
+    return Promise.resolve({
+      id,
+      kind: "file",
+      name: file.name,
+      mime: file.type || "application/octet-stream",
+      url,
+      bytes: file.size,
+    });
+  }
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () =>
+      resolve({
+        id,
+        kind: "image",
+        name: file.name,
+        mime: file.type,
+        url,
+        width: img.width,
+        height: img.height,
+        bytes: file.size,
+      });
+    img.onerror = () =>
+      resolve({
+        id,
+        kind: "image",
+        name: file.name,
+        mime: file.type || "image/*",
+        url,
+        bytes: file.size,
+      });
+    img.src = url;
+  });
+}
 
 function getLastAnalysis(list: ChatMessage[]) {
   for (let i = list.length - 1; i >= 0; i--) {
@@ -2199,9 +2239,34 @@ ${systemCommon}` + baseSys;
     if (c) c.abort();
   }
 
-  function onFileSelected(file: File) {
+  async function onFileSelected(file: File) {
+    if (!file) return;
+
+    const att = await fileToAttachment(file);
+    const userMsg = {
+      id: uid(),
+      role: 'user' as const,
+      kind: 'chat' as const,
+      content: '',
+      attachments: [att],
+      ts: Date.now(),
+      pending: false,
+    } satisfies ChatMessage;
+    setMessages(prev => [...prev, userMsg]);
+
     setPendingFile(file);
+
+    requestAnimationFrame(() => {
+      setTimeout(() => analyzeFile(file, ''), 0);
+    });
+
     setTimeout(() => inputRef.current?.focus(), 0);
+
+    setTimeout(() => {
+      try {
+        URL.revokeObjectURL(att.url);
+      } catch {}
+    }, 60_000);
   }
 
   async function analyzeFile(file: File, noteText: string) {
