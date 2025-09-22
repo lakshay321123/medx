@@ -1,6 +1,6 @@
 'use client';
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState, useMemo, RefObject, useCallback } from 'react';
+import { useEffect, useRef, useState, useMemo, RefObject, useCallback, type ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fromSearchParams } from '@/lib/modes/url';
 import { useRouter } from 'next/navigation';
@@ -478,16 +478,18 @@ function AnalysisCard({
   m,
   researchOn,
   onQuickAction,
-  busy
+  busy,
+  footer
 }: {
   m: Extract<ChatMessage, { kind: "analysis" }>;
   researchOn: boolean;
   onQuickAction: (k: "simpler" | "doctor" | "next") => void;
   busy: boolean;
+  footer?: ReactNode;
 }) {
   const header = titleForCategory(m.category);
   return (
-    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl space-y-2">
+    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl space-y-1.5">
       <header className="flex items-center gap-2">
         <h2 className="text-lg md:text-xl font-semibold">{header}</h2>
         {researchOn && (
@@ -502,7 +504,7 @@ function AnalysisCard({
           ⚠️ {m.error}
         </div>
       ) : (
-        <div className="flex flex-wrap gap-2 pt-2">
+        <div className="flex flex-wrap gap-2 pt-1.5">
           <button
             type="button"
             className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
@@ -529,9 +531,10 @@ function AnalysisCard({
           </button>
         </div>
       )}
-      <p className="text-xs text-amber-500/90 pt-2">
+      <p className="text-xs text-amber-500/90 pt-1.5">
         AI assistance only — not a medical diagnosis. Confirm with a clinician.
       </p>
+      {footer}
     </div>
   );
 }
@@ -540,13 +543,15 @@ function ChatCard({
   therapyMode,
   onAction,
   simple,
-  pendingTimerActive
+  pendingTimerActive,
+  footer
 }: {
   m: Extract<ChatMessage, { kind: "chat" }>;
   therapyMode: boolean;
   onAction: (s: Suggestion) => void;
   simple: boolean;
   pendingTimerActive?: boolean;
+  footer?: ReactNode;
 }) {
   const suggestions = normalizeSuggestions(m.followUps);
   if (m.pending) return <PendingChatCard label="Thinking…" active={pendingTimerActive} />;
@@ -568,6 +573,7 @@ function ChatCard({
       {!therapyMode && suggestions.length > 0 && (
         <SuggestionChips suggestions={suggestions} onAction={onAction} />
       )}
+      {footer}
     </div>
   );
 }
@@ -650,6 +656,7 @@ function AssistantFooter({
   onRefresh,
   canRetry,
   canRefresh,
+  className,
 }: {
   content: string;
   conversationId: string;
@@ -661,6 +668,7 @@ function AssistantFooter({
   onRefresh: () => void;
   canRetry: boolean;
   canRefresh: boolean;
+  className?: string;
 }) {
   const key = `${conversationId}:${messageId}`;
   const submitted = feedback.submittedFor[key];
@@ -671,9 +679,15 @@ function AssistantFooter({
 
   const copyDisabled = !hasText;
   const refreshDisabled = !canRefresh;
+  const footerClass = [
+    'flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs sm:flex-nowrap',
+    className || ''
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs sm:flex-nowrap sm:gap-1">
+    <div className={footerClass}>
       <button
         type="button"
         aria-label="Copy message"
@@ -726,7 +740,7 @@ function AssistantFooter({
       >
         <MaterialIcon name="thumb_down" />
       </button>
-      <div className="mx-1 h-4 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
+      <div className="mx-1 h-[14px] w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
       <button
         type="button"
         aria-label="Retry analysis"
@@ -764,8 +778,9 @@ function AssistantMessage(props: {
   onAction: (s: Suggestion) => void;
   simple: boolean;
   pendingTimerActive?: boolean;
+  footer?: ReactNode;
 }) {
-  const { m, therapyMode, onAction, simple, pendingTimerActive, researchOn, onQuickAction, busy } = props;
+  const { m, therapyMode, onAction, simple, pendingTimerActive, researchOn, onQuickAction, busy, footer } = props;
   if (m.kind === "analysis") {
     return (
       <AnalysisCard
@@ -773,6 +788,7 @@ function AssistantMessage(props: {
         researchOn={researchOn}
         onQuickAction={onQuickAction}
         busy={busy}
+        footer={footer}
       />
     );
   }
@@ -786,6 +802,7 @@ function AssistantMessage(props: {
       onAction={onAction}
       simple={simple}
       pendingTimerActive={pendingTimerActive}
+      footer={footer}
     />
   );
 }
@@ -3241,60 +3258,63 @@ ${systemCommon}` + baseSys;
             );
           }
 
+          const analysisFooter = (
+            <AssistantFooter
+              content={typeof m.content === 'string' ? m.content : ''}
+              conversationId={conversationId}
+              messageId={m.id}
+              mode={currentMode}
+              model={undefined}
+              feedback={feedback}
+              onRetry={() => retryLastFailedOrResumeQueue()}
+              onRefresh={() => refreshThreadOrResume()}
+              canRetry={canRetryQueue}
+              canRefresh={canRefreshQueue}
+            />
+          );
+
           return (
             <div key={derivedKey} className="space-y-2">
-              <div className="space-y-4">
-                <AnalysisCard
-                  m={m as Extract<ChatMessage, { kind: 'analysis' }>}
-                  researchOn={researchMode}
-                  onQuickAction={stableOnQuickAction}
-                  busy={assistantBusy}
-                />
-                <AssistantFooter
-                  content={typeof m.content === 'string' ? m.content : ''}
-                  conversationId={conversationId}
-                  messageId={m.id}
-                  mode={currentMode}
-                  model={undefined}
-                  feedback={feedback}
-                  onRetry={() => retryLastFailedOrResumeQueue()}
-                  onRefresh={() => refreshThreadOrResume()}
-                  canRetry={canRetryQueue}
-                  canRefresh={canRefreshQueue}
-                />
-              </div>
+              <AnalysisCard
+                m={m as Extract<ChatMessage, { kind: 'analysis' }>}
+                researchOn={researchMode}
+                onQuickAction={stableOnQuickAction}
+                busy={assistantBusy}
+                footer={analysisFooter}
+              />
             </div>
           );
         }
 
+          const footer = !m.pending ? (
+            <AssistantFooter
+              content={typeof m.content === 'string' ? m.content : ''}
+              conversationId={conversationId}
+              messageId={m.id}
+              mode={currentMode}
+              model={undefined}
+              feedback={feedback}
+              onRetry={() => retryLastFailedOrResumeQueue()}
+              onRefresh={() => refreshThreadOrResume()}
+              canRetry={canRetryQueue}
+              canRefresh={canRefreshQueue}
+              className="mt-1.5"
+            />
+          ) : null;
+
         return (
           <div key={derivedKey} className="space-y-2">
-            <div className="space-y-4">
-              <AssistantMessage
-                m={m}
-                researchOn={researchMode}
-                onQuickAction={stableOnQuickAction}
-                busy={assistantBusy}
-                therapyMode={therapyMode}
-                onAction={stableHandleSuggestionAction}
-                simple={simpleMode}
-                pendingTimerActive={showThinkingTimer}
-              />
-              {!m.pending && (
-                <AssistantFooter
-                  content={typeof m.content === 'string' ? m.content : ''}
-                  conversationId={conversationId}
-                  messageId={m.id}
-                  mode={currentMode}
-                  model={undefined}
-                  feedback={feedback}
-                  onRetry={() => retryLastFailedOrResumeQueue()}
-                  onRefresh={() => refreshThreadOrResume()}
-                  canRetry={canRetryQueue}
-                  canRefresh={canRefreshQueue}
-                />
-              )}
-            </div>
+            <AssistantMessage
+              m={m}
+              researchOn={researchMode}
+              onQuickAction={stableOnQuickAction}
+              busy={assistantBusy}
+              therapyMode={therapyMode}
+              onAction={stableHandleSuggestionAction}
+              simple={simpleMode}
+              pendingTimerActive={showThinkingTimer}
+              footer={footer}
+            />
           </div>
         );
       }),
