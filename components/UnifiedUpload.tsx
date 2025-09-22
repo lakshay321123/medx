@@ -1,17 +1,25 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { safeJson } from "@/lib/safeJson";
+import MessageList from "./chat/MessageList";
+import type { ChatAttachment, ChatMessage } from "@/types/chat";
 
 const MAX_VIEW_COUNT = 3;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB per image
+
+const makeId = () =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2);
 
 export default function UnifiedUpload() {
   const [loading, setLoading] = useState(false);
   const [doctorMode, setDoctorMode] = useState(true);
   const [out, setOut] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [previews, setPreviews] = useState<string[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const mintedUrls = useRef<Set<string>>(new Set());
 
   async function onChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -60,10 +68,61 @@ export default function UnifiedUpload() {
     }
 
     const orderedFiles = pdfFiles.length ? pdfFiles : imageFiles;
-    const previewUrls = orderedFiles
-      .filter(file => classify(file).isImage)
-      .map(file => URL.createObjectURL(file));
-    setPreviews(previewUrls);
+
+    const attachments: ChatAttachment[] = await Promise.all(
+      orderedFiles.map(async file => {
+        const url = URL.createObjectURL(file);
+        if (url.startsWith("blob:")) {
+          mintedUrls.current.add(url);
+        }
+        const { isImage } = classify(file);
+        let width: number | undefined;
+        let height: number | undefined;
+        if (isImage && typeof window !== "undefined") {
+          await new Promise<void>(resolve => {
+            const img = new window.Image();
+            img.onload = () => {
+              width = img.width;
+              height = img.height;
+              resolve();
+            };
+            img.onerror = () => resolve();
+            img.src = url;
+          });
+        }
+        return {
+          id: makeId(),
+          kind: isImage ? "image" : "file",
+          name: file.name || "Attachment",
+          mime: file.type || "application/octet-stream",
+          url,
+          width,
+          height,
+          bytes: typeof file.size === "number" ? file.size : undefined,
+        } satisfies ChatAttachment;
+      }),
+    );
+
+    if (attachments.length) {
+      const userMsg: ChatMessage = {
+        id: makeId(),
+        role: "user",
+        content: "",
+        attachments,
+        ts: Date.now(),
+      };
+      setMessages(prev => [...prev, userMsg]);
+      setTimeout(() => {
+        attachments.forEach(att => {
+          if (att.url.startsWith("blob:")) {
+            try {
+              URL.revokeObjectURL(att.url);
+            } catch {}
+            mintedUrls.current.delete(att.url);
+          }
+        });
+      }, 60_000);
+    }
 
     setLoading(true);
     setErr(null);
@@ -95,6 +154,16 @@ export default function UnifiedUpload() {
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("observations-updated"));
       }
+      const summary = summarizeFindings(j);
+      if (summary) {
+        const assistantMsg: ChatMessage = {
+          id: makeId(),
+          role: "assistant",
+          content: summary,
+          ts: Date.now(),
+        };
+        setMessages(prev => [...prev, assistantMsg]);
+      }
     } catch (e: any) {
       const message = String(e?.message || e) || "Upload failed";
       let errMsg = "Upload clearer image or side view.";
@@ -106,6 +175,15 @@ export default function UnifiedUpload() {
         errMsg = `Upload up to ${MAX_VIEW_COUNT} images (PA, lateral, oblique).`;
       }
       setErr(errMsg);
+      setMessages(prev => [
+        ...prev,
+        {
+          id: makeId(),
+          role: "assistant",
+          content: "Upload failed — add a clearer image or side (lateral) view and try again.",
+          ts: Date.now(),
+        },
+      ]);
     } finally {
       setLoading(false);
       e.target.value = "";
@@ -114,13 +192,14 @@ export default function UnifiedUpload() {
 
   useEffect(() => {
     return () => {
-      previews.forEach(url => {
+      mintedUrls.current.forEach(url => {
         try {
           URL.revokeObjectURL(url);
         } catch {}
       });
+      mintedUrls.current.clear();
     };
-  }, [previews]);
+  }, []);
 
   const formatNumber = (value: number) => {
     if (!Number.isFinite(value)) return null;
@@ -155,25 +234,8 @@ export default function UnifiedUpload() {
 
       <div className="flex flex-col overflow-hidden rounded-xl border bg-white">
         <div className="px-3 py-4">
-          {previews.length > 0 ? (
-            <div className="flex flex-wrap gap-8">
-              {previews.map((src, index) => (
-                <button
-                  key={src}
-                  type="button"
-                  className="relative h-28 w-28 overflow-hidden rounded-xl border"
-                  onClick={() => window.open(src, "_blank", "noopener,noreferrer")}
-                  title={`Image ${index + 1}`}
-                  aria-label={`Open image ${index + 1}`}
-                >
-                  <img
-                    src={src}
-                    alt={`Uploaded image ${index + 1}`}
-                    className="h-full w-full object-cover"
-                  />
-                </button>
-              ))}
-            </div>
+          {messages.length > 0 ? (
+            <MessageList items={messages} />
           ) : (
             <p className="text-center text-sm text-gray-500">
               Upload medical images or reports to see them here.
@@ -312,3 +374,27 @@ export default function UnifiedUpload() {
       )}
     </div>
   );
+}
+
+function summarizeFindings(data: any): string {
+  if (!data) return "";
+  if (data?.type !== "image") {
+    return "";
+  }
+  const findings = data?.findings || {};
+  if (findings?.fracture_present === true) {
+    const bone = findings.bone || "bone";
+    const region = findings.region ? `, ${findings.region}` : "";
+    const type = findings.suspected_type ? ` (${findings.suspected_type})` : "";
+    const conf =
+      typeof findings.confidence_0_1 === "number"
+        ? ` — ${Math.round(findings.confidence_0_1 * 100)}%`
+        : "";
+    const next = findings.need_additional_views ? "\nNext: Add a side (lateral) view." : "";
+    return `Fracture: YES${conf}\nWhere: ${bone}${region}${type}${next}`;
+  }
+  if (findings?.fracture_present === false) {
+    return "Fracture: NO";
+  }
+  return "Inconclusive — add a side (lateral) view or clearer image.";
+}
