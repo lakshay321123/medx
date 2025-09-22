@@ -1,6 +1,7 @@
 'use client';
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, useMemo, RefObject, useCallback } from 'react';
+import type { ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fromSearchParams } from '@/lib/modes/url';
 import { useRouter } from 'next/navigation';
@@ -539,6 +540,19 @@ function ImageCard({ m }: { m: Extract<ChatMessage, { kind: "image" }> }) {
             Analyzing…
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function SlimStatusPill({ text }: { text: string }) {
+  return (
+    <div className="mb-3">
+      <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+        <span>{text}</span>
+        <span className="animate-pulse" aria-hidden="true">
+          •
+        </span>
       </div>
     </div>
   );
@@ -2787,52 +2801,65 @@ ${systemCommon}` + baseSys;
         const isLastVisible = index === visibleMessages.length - 1;
         const showThinkingTimer = isLastVisible && m.role === 'assistant' && busy && !!thinkingStartedAt;
 
+        let rendered: ReactNode = null;
+
+        if (m.role === 'user') {
+          if (m.kind === 'image') {
+            rendered = <ImageCard m={m as Extract<ChatMessage, { kind: 'image' }>} />;
+          } else {
+            rendered = (
+              <div className="ml-auto max-w-3xl whitespace-normal rounded-2xl bg-slate-200 px-4 py-3 text-left text-slate-900 shadow-sm dark:bg-gray-700 dark:text-gray-100">
+                <ChatMarkdown content={m.content ?? ''} />
+              </div>
+            );
+          }
+        } else if (m.kind === 'analysis' && m.pending) {
+          const pillText = typeof m.content === 'string' ? m.content : 'Analyzing…';
+          rendered = <SlimStatusPill text={pillText} />;
+        } else if (m.kind === 'image') {
+          rendered = <ImageCard m={m as Extract<ChatMessage, { kind: 'image' }>} />;
+        } else {
+          rendered = (
+            <div className="space-y-4">
+              <AssistantMessage
+                m={m}
+                researchOn={researchMode}
+                onQuickAction={stableOnQuickAction}
+                busy={assistantBusy}
+                therapyMode={therapyMode}
+                onAction={stableHandleSuggestionAction}
+                simple={simpleMode}
+                pendingTimerActive={showThinkingTimer}
+              />
+              <FeedbackBar
+                conversationId={conversationId}
+                messageId={m.id}
+                mode={currentMode}
+                model={undefined}
+                hiddenInTherapy={true}
+              />
+            </div>
+          );
+        }
+
         return (
           <div key={derivedKey} className="space-y-2">
-            {m.role === 'user' ? (
-              m.kind === 'image' ? (
-                <ImageCard m={m as Extract<ChatMessage, { kind: "image" }>} />
-              ) : (
-                <div className="ml-auto max-w-3xl whitespace-normal rounded-2xl bg-slate-200 px-4 py-3 text-left text-slate-900 shadow-sm dark:bg-gray-700 dark:text-gray-100">
-                  <ChatMarkdown content={m.content ?? ''} />
-                </div>
-              )
-            ) : (
-              <div className="space-y-4">
-                <AssistantMessage
-                  m={m}
-                  researchOn={researchMode}
-                  onQuickAction={stableOnQuickAction}
-                  busy={assistantBusy}
-                  therapyMode={therapyMode}
-                  onAction={stableHandleSuggestionAction}
-                  simple={simpleMode}
-                  pendingTimerActive={showThinkingTimer}
-                />
-                <FeedbackBar
-                  conversationId={conversationId}
-                  messageId={m.id}
-                  mode={currentMode}
-                  model={undefined}
-                  hiddenInTherapy={true}
-                />
-              </div>
-            )}
+            {rendered}
           </div>
         );
       }),
     [
       visibleMessages,
+      busy,
+      thinkingStartedAt,
       researchMode,
+      stableOnQuickAction,
       assistantBusy,
       therapyMode,
       stableHandleSuggestionAction,
       simpleMode,
       conversationId,
-      currentMode,
-      stableOnQuickAction,
-      busy,
-      thinkingStartedAt
+      currentMode
     ]
   );
 
