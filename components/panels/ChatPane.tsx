@@ -604,6 +604,36 @@ function SlimStatusPill({ text }: { text: string }) {
   );
 }
 
+function fmtTime(s: number) {
+  const mm = String(Math.floor(s / 60)).padStart(2, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  return `${mm}:${ss}`;
+}
+
+function AssistantFooter({
+  content,
+  onRetry,
+  onRefresh,
+  onThumbUp,
+  onThumbDown,
+}: {
+  content: string;
+  onRetry: () => void;
+  onRefresh: () => void;
+  onThumbUp: () => void;
+  onThumbDown: () => void;
+}) {
+  return (
+    <div className="mt-2 flex items-center gap-3 text-xs opacity-80">
+      <button onClick={() => navigator.clipboard.writeText(content)}>Copy</button>
+      <button onClick={onThumbUp}>👍</button>
+      <button onClick={onThumbDown}>👎</button>
+      <button onClick={onRetry}>Retry</button>
+      <button onClick={onRefresh}>Refresh</button>
+    </div>
+  );
+}
+
 function AssistantMessage(props: {
   m: ChatMessage;
   researchOn: boolean;
@@ -661,6 +691,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
   const previewUrlsRef = useRef<string[]>([]);
   const queueAbortRef = useRef<AbortController | null>(null);
+  const queueTokenRef = useRef<symbol | null>(null);
+  const analyzingStartRef = useRef<number | null>(null);
+  const analyzeTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [analyzeElapsed, setAnalyzeElapsed] = useState<number>(0);
+  const lastQueueRef = useRef<{ files: File[]; nextIndex: number; analyzingId: string; noteText: string } | null>(null);
   const { filters } = useResearchFilters();
 
   const sp = useSearchParams();
@@ -696,6 +731,36 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (analyzeTickRef.current) {
+        clearInterval(analyzeTickRef.current);
+        analyzeTickRef.current = null;
+      }
+      analyzingStartRef.current = null;
+    };
+  }, []);
+
+  const ensureAnalyzeTicker = () => {
+    if (!analyzeTickRef.current) {
+      analyzeTickRef.current = setInterval(() => {
+        const t0 = analyzingStartRef.current;
+        if (t0) {
+          setAnalyzeElapsed(Math.floor((Date.now() - t0) / 1000));
+        }
+      }, 1000);
+    }
+  };
+
+  const stopAnalyzeTicker = () => {
+    if (analyzeTickRef.current) {
+      clearInterval(analyzeTickRef.current);
+      analyzeTickRef.current = null;
+    }
+    analyzingStartRef.current = null;
+    setAnalyzeElapsed(0);
+  };
 
   useEffect(() => {
     function onPush(e: Event) {
@@ -2264,6 +2329,7 @@ ${systemCommon}` + baseSys;
       } catch {}
     }
     queueAbortRef.current = null;
+    stopAnalyzeTicker();
   }
 
   function onFilesSelected(files: File[]) {
@@ -2427,6 +2493,9 @@ ${systemCommon}` + baseSys;
     setQueueActive(true);
     setBusy(true);
     setThinkingStartedAt(Date.now());
+    const queueToken = Symbol('queue');
+    queueTokenRef.current = queueToken;
+    lastQueueRef.current = { files, nextIndex: 0, analyzingId, noteText };
 
     const N = files.length;
     const maxAttempts = 3;
@@ -2442,6 +2511,11 @@ ${systemCommon}` + baseSys;
               : m
           )
         );
+
+        ensureAnalyzeTicker();
+        analyzingStartRef.current = Date.now();
+        setAnalyzeElapsed(0);
+        lastQueueRef.current = { files, nextIndex: i + 1, analyzingId, noteText };
 
         let ok = false;
         let attempt = 0;
@@ -2491,12 +2565,16 @@ ${systemCommon}` + baseSys;
         }
       }
     } finally {
-      setMessages(prev => prev.filter(m => m.id !== analyzingId));
+      if (queueTokenRef.current === queueToken) {
+        stopAnalyzeTicker();
+        setMessages(prev => prev.filter(m => m.id !== analyzingId));
 
-      queueAbortRef.current = null;
-      setQueueActive(false);
-      setBusy(false);
-      setThinkingStartedAt(null);
+        queueAbortRef.current = null;
+        queueTokenRef.current = null;
+        setQueueActive(false);
+        setBusy(false);
+        setThinkingStartedAt(null);
+      }
 
       const urls = previewUrlsRef.current.splice(0);
       if (urls.length > 0) {
@@ -2509,6 +2587,38 @@ ${systemCommon}` + baseSys;
         }, 60000);
       }
     }
+  }
+
+  function retryLastFailedOrResumeQueue() {
+    const ctx = lastQueueRef.current;
+    if (!ctx || queueAbortRef.current) return;
+    const remaining = ctx.files.slice(ctx.nextIndex ?? 0);
+    if (remaining.length === 0) return;
+
+    const { analyzingId, noteText } = ctx;
+    setMessages(prev => [
+      ...prev.filter(m => m.id !== analyzingId),
+      {
+        id: analyzingId,
+        role: 'assistant',
+        kind: 'analysis',
+        content: 'Analyzing…',
+        pending: true,
+      } as Extract<ChatMessage, { kind: 'analysis' }>,
+    ]);
+    ensureAnalyzeTicker();
+    runFileQueueSequential(remaining, analyzingId, noteText);
+  }
+
+  function refreshThreadOrResume() {
+    if (lastQueueRef.current && !queueAbortRef.current) {
+      retryLastFailedOrResumeQueue();
+    }
+  }
+
+  async function sendFeedback(messageId: string, sentiment: 'up' | 'down') {
+    void messageId;
+    void sentiment;
   }
 
   async function onSubmit() {
@@ -2557,6 +2667,8 @@ ${systemCommon}` + baseSys;
             pending: true,
           } as Extract<ChatMessage, { kind: 'analysis' }>,
         ]);
+
+        ensureAnalyzeTicker();
 
         await runFileQueueSequential(files, analyzingId, trimmed);
         setUserText('');
@@ -2876,10 +2988,11 @@ ${systemCommon}` + baseSys;
 
         if (m.kind === 'analysis') {
           if (m.pending) {
-            const pillText = typeof m.content === 'string' ? m.content : 'Analyzing…';
+            const txt = typeof m.content === 'string' ? m.content : 'Analyzing…';
+            const showTimer = typeof m.content === 'string' && m.content.startsWith('Analyzing file');
             return (
               <div key={derivedKey} className="space-y-2">
-                <SlimStatusPill text={pillText} />
+                <SlimStatusPill text={showTimer ? `${txt} · ${fmtTime(analyzeElapsed)}` : txt} />
               </div>
             );
           }
@@ -2899,6 +3012,17 @@ ${systemCommon}` + baseSys;
                   mode={currentMode}
                   model={undefined}
                   hiddenInTherapy={true}
+                />
+                <AssistantFooter
+                  content={typeof m.content === 'string' ? m.content : ''}
+                  onRetry={() => retryLastFailedOrResumeQueue()}
+                  onRefresh={() => refreshThreadOrResume()}
+                  onThumbUp={() => {
+                    void sendFeedback(m.id, 'up');
+                  }}
+                  onThumbDown={() => {
+                    void sendFeedback(m.id, 'down');
+                  }}
                 />
               </div>
             </div>
@@ -2925,6 +3049,19 @@ ${systemCommon}` + baseSys;
                 model={undefined}
                 hiddenInTherapy={true}
               />
+              {!m.pending && (
+                <AssistantFooter
+                  content={typeof m.content === 'string' ? m.content : ''}
+                  onRetry={() => retryLastFailedOrResumeQueue()}
+                  onRefresh={() => refreshThreadOrResume()}
+                  onThumbUp={() => {
+                    void sendFeedback(m.id, 'up');
+                  }}
+                  onThumbDown={() => {
+                    void sendFeedback(m.id, 'down');
+                  }}
+                />
+              )}
             </div>
           </div>
         );
@@ -2940,7 +3077,11 @@ ${systemCommon}` + baseSys;
       stableHandleSuggestionAction,
       simpleMode,
       conversationId,
-      currentMode
+      currentMode,
+      analyzeElapsed,
+      retryLastFailedOrResumeQueue,
+      refreshThreadOrResume,
+      sendFeedback
     ]
   );
 
