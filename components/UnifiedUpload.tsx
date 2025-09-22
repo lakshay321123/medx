@@ -1,8 +1,11 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 import { safeJson } from "@/lib/safeJson";
 import MessageList from "./chat/MessageList";
 import type { ChatAttachment, ChatMessage } from "@/types/chat";
+
+type Preview = { url: string; name: string; isImage: boolean };
+type QueuedFile = { file: File; preview: Preview };
 
 const MAX_VIEW_COUNT = 3;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB per image
@@ -18,8 +21,11 @@ export default function UnifiedUpload() {
   const [out, setOut] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [previews, setPreviews] = useState<Preview[]>([]);
+  const [analyzing, setAnalyzing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const mintedUrls = useRef<Set<string>>(new Set());
+  const analyzeQueue = useRef<QueuedFile[] | null>(null);
 
   async function onChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -69,39 +75,56 @@ export default function UnifiedUpload() {
 
     const orderedFiles = pdfFiles.length ? pdfFiles : imageFiles;
 
-    const attachments: ChatAttachment[] = await Promise.all(
-      orderedFiles.map(async file => {
-        const url = URL.createObjectURL(file);
-        if (url.startsWith("blob:")) {
-          mintedUrls.current.add(url);
-        }
-        const { isImage } = classify(file);
-        let width: number | undefined;
-        let height: number | undefined;
-        if (isImage && typeof window !== "undefined") {
-          await new Promise<void>(resolve => {
-            const img = new window.Image();
-            img.onload = () => {
-              width = img.width;
-              height = img.height;
-              resolve();
-            };
-            img.onerror = () => resolve();
-            img.src = url;
-          });
-        }
-        return {
-          id: makeId(),
-          kind: isImage ? "image" : "file",
-          name: file.name || "Attachment",
-          mime: file.type || "application/octet-stream",
+    const queue: QueuedFile[] = orderedFiles.map(file => {
+      const url = URL.createObjectURL(file);
+      if (url.startsWith("blob:")) {
+        mintedUrls.current.add(url);
+      }
+      const { isImage } = classify(file);
+      return {
+        file,
+        preview: {
           url,
-          width,
-          height,
-          bytes: typeof file.size === "number" ? file.size : undefined,
-        } satisfies ChatAttachment;
-      }),
-    );
+          name: file.name || "Attachment",
+          isImage,
+        },
+      };
+    });
+
+    setPreviews(queue.map(item => item.preview));
+
+    analyzeQueue.current = queue;
+    setErr(null);
+    setOut(null);
+
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        startTransition(() => {
+          void startAnalysis();
+        });
+      }, 0);
+    });
+
+    e.target.value = "";
+  }
+
+  async function startAnalysis() {
+    if (analyzing) return;
+    const queue = analyzeQueue.current;
+    if (!queue || queue.length === 0) return;
+    analyzeQueue.current = null;
+
+    setAnalyzing(true);
+    setLoading(true);
+
+    const attachments: ChatAttachment[] = queue.map(({ file, preview }) => ({
+      id: makeId(),
+      kind: preview.isImage ? "image" : "file",
+      name: preview.name,
+      mime: file.type || "application/octet-stream",
+      url: preview.url,
+      bytes: typeof file.size === "number" ? file.size : undefined,
+    }));
 
     if (attachments.length) {
       const userMsg: ChatMessage = {
@@ -112,44 +135,32 @@ export default function UnifiedUpload() {
         ts: Date.now(),
       };
       setMessages(prev => [...prev, userMsg]);
-      setTimeout(() => {
-        attachments.forEach(att => {
-          if (att.url.startsWith("blob:")) {
-            try {
-              URL.revokeObjectURL(att.url);
-            } catch {}
-            mintedUrls.current.delete(att.url);
-          }
-        });
-      }, 60_000);
     }
-
-    setLoading(true);
-    setErr(null);
-    setOut(null);
-
-    const search = new URLSearchParams(window.location.search);
-    const threadId = search.get("threadId");
-    const sourceHash = orderedFiles
-      .map(file => `${file.name}:${file.size}:${(file as any).lastModified ?? ""}`)
-      .join("|");
-
-    const fd = new FormData();
-    orderedFiles.forEach(file => fd.append("files[]", file));
-    if (orderedFiles[0]) {
-      fd.append("file", orderedFiles[0]);
-    }
-    fd.append("doctorMode", String(doctorMode));
-    if (threadId) fd.append("threadId", threadId);
-    if (sourceHash) fd.append("sourceHash", sourceHash);
 
     try {
+      const orderedFiles = queue.map(item => item.file);
+      const search = new URLSearchParams(window.location.search);
+      const threadId = search.get("threadId");
+      const sourceHash = orderedFiles
+        .map(file => `${file.name}:${file.size}:${(file as any).lastModified ?? ""}`)
+        .join("|");
+
+      const fd = new FormData();
+      orderedFiles.forEach(file => fd.append("files[]", file));
+      if (orderedFiles[0]) {
+        fd.append("file", orderedFiles[0]);
+      }
+      fd.append("doctorMode", String(doctorMode));
+      if (threadId) fd.append("threadId", threadId);
+      if (sourceHash) fd.append("sourceHash", sourceHash);
+
       const j = await safeJson(
         fetch("/api/imaging/analyze", {
           method: "POST",
           body: fd,
         }),
       );
+
       setOut(j);
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("observations-updated"));
@@ -186,7 +197,28 @@ export default function UnifiedUpload() {
       ]);
     } finally {
       setLoading(false);
-      e.target.value = "";
+      setAnalyzing(false);
+
+      setTimeout(() => {
+        attachments.forEach(att => {
+          if (att.url.startsWith("blob:")) {
+            try {
+              URL.revokeObjectURL(att.url);
+            } catch {}
+            mintedUrls.current.delete(att.url);
+          }
+        });
+      }, 60_000);
+
+      if (analyzeQueue.current && analyzeQueue.current.length > 0) {
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            startTransition(() => {
+              void startAnalysis();
+            });
+          }, 0);
+        });
+      }
     }
   }
 
@@ -200,6 +232,13 @@ export default function UnifiedUpload() {
       mintedUrls.current.clear();
     };
   }, []);
+
+  useEffect(() => {
+    const scroller = document.querySelector<HTMLElement>("[data-chat-body]");
+    if (scroller) {
+      scroller.scrollTop = scroller.scrollHeight;
+    }
+  }, [previews, messages, analyzing]);
 
   const formatNumber = (value: number) => {
     if (!Number.isFinite(value)) return null;
@@ -233,7 +272,41 @@ export default function UnifiedUpload() {
       </p>
 
       <div className="flex flex-col overflow-hidden rounded-xl border bg-white">
-        <div className="px-3 py-4">
+        <div className="flex-1 space-y-3 overflow-auto px-3 py-4" data-chat-body>
+          {previews.length > 0 && (
+            <div className="flex flex-wrap gap-3">
+              {previews.map(preview =>
+                preview.isImage ? (
+                  <button
+                    key={preview.url}
+                    type="button"
+                    className="relative h-28 w-28 overflow-hidden rounded-xl border"
+                    onClick={() => window.open(preview.url, "_blank")}
+                    title={preview.name}
+                  >
+                    <img
+                      src={preview.url}
+                      alt={preview.name}
+                      className="h-full w-full object-cover"
+                      loading="eager"
+                    />
+                  </button>
+                ) : (
+                  <span
+                    key={preview.url}
+                    className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-sm"
+                    title={preview.name}
+                  >
+                    <span className="i-lucide-paperclip" aria-hidden />
+                    <span className="max-w-[10rem] truncate" title={preview.name}>
+                      {preview.name}
+                    </span>
+                  </span>
+                ),
+              )}
+            </div>
+          )}
+
           {messages.length > 0 ? (
             <MessageList items={messages} />
           ) : (
@@ -241,9 +314,8 @@ export default function UnifiedUpload() {
               Upload medical images or reports to see them here.
             </p>
           )}
-          {loading && (
-            <p className="mt-3 text-center text-sm text-gray-500">Analyzing…</p>
-          )}
+
+          {loading && <p className="text-center text-sm text-gray-500">Analyzing…</p>}
         </div>
         <div className="border-t p-3">
           <input
