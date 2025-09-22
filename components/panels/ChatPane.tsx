@@ -475,17 +475,62 @@ function PendingChatCard({ label, active }: { label: string; active?: boolean })
 
 function AnalysisCard({
   m,
-  pendingTimerActive
+  researchOn,
+  onQuickAction,
+  busy
 }: {
   m: Extract<ChatMessage, { kind: "analysis" }>;
-  pendingTimerActive?: boolean;
+  researchOn: boolean;
+  onQuickAction: (k: "simpler" | "doctor" | "next") => void;
+  busy: boolean;
 }) {
+  const header = titleForCategory(m.category);
   return (
-    <div className="mb-3">
-      <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-        <span>{typeof m.content === 'string' ? m.content : 'Analyzing…'}</span>
-        {m.pending && pendingTimerActive && <span className="animate-pulse">•</span>}
-      </div>
+    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl space-y-2">
+      <header className="flex items-center gap-2">
+        <h2 className="text-lg md:text-xl font-semibold">{header}</h2>
+        {researchOn && (
+          <span className="ml-auto text-xs rounded-full px-2 py-0.5 bg-indigo-100 text-indigo-900 border border-indigo-200/60 dark:bg-indigo-900/30 dark:text-indigo-200 dark:border-indigo-800">
+            Research Mode
+          </span>
+        )}
+      </header>
+      <ChatMarkdown content={m.content} />
+      {m.error ? (
+        <div className="inline-flex items-center gap-2 text-xs rounded-lg px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-900/20 dark:text-rose-200 dark:border-rose-800">
+          ⚠️ {m.error}
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2 pt-2">
+          <button
+            type="button"
+            className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={busy}
+            onClick={() => onQuickAction("simpler")}
+          >
+            Explain simpler
+          </button>
+          <button
+            type="button"
+            className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={busy}
+            onClick={() => onQuickAction("doctor")}
+          >
+            Doctor’s view
+          </button>
+          <button
+            type="button"
+            className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={busy}
+            onClick={() => onQuickAction("next")}
+          >
+            What next?
+          </button>
+        </div>
+      )}
+      <p className="text-xs text-amber-500/90 pt-2">
+        AI assistance only — not a medical diagnosis. Confirm with a clinician.
+      </p>
     </div>
   );
 }
@@ -569,12 +614,14 @@ function AssistantMessage(props: {
   simple: boolean;
   pendingTimerActive?: boolean;
 }) {
-  const { m, therapyMode, onAction, simple, pendingTimerActive } = props;
+  const { m, therapyMode, onAction, simple, pendingTimerActive, researchOn, onQuickAction, busy } = props;
   if (m.kind === "analysis") {
     return (
       <AnalysisCard
         m={m as Extract<ChatMessage, { kind: "analysis" }>}
-        pendingTimerActive={pendingTimerActive}
+        researchOn={researchOn}
+        onQuickAction={onQuickAction}
+        busy={busy}
       />
     );
   }
@@ -2809,6 +2856,24 @@ ${systemCommon}` + baseSys;
         const isLastVisible = index === visibleMessages.length - 1;
         const showThinkingTimer = isLastVisible && m.role === 'assistant' && busy && !!thinkingStartedAt;
 
+        if (m.role === 'user') {
+          if (m.kind === 'image') {
+            return (
+              <div key={derivedKey} className="space-y-2">
+                <ImageCard m={m as Extract<ChatMessage, { kind: 'image' }> } />
+              </div>
+            );
+          }
+
+          return (
+            <div key={derivedKey} className="space-y-2">
+              <div className="ml-auto max-w-3xl whitespace-normal rounded-2xl bg-slate-200 px-4 py-3 text-left text-slate-900 shadow-sm dark:bg-gray-700 dark:text-gray-100">
+                <ChatMarkdown content={m.content ?? ''} />
+              </div>
+            </div>
+          );
+        }
+
         if (m.kind === 'analysis') {
           if (m.pending) {
             const pillText = typeof m.content === 'string' ? m.content : 'Analyzing…';
@@ -2824,7 +2889,9 @@ ${systemCommon}` + baseSys;
               <div className="space-y-4">
                 <AnalysisCard
                   m={m as Extract<ChatMessage, { kind: 'analysis' }>}
-                  pendingTimerActive={showThinkingTimer}
+                  researchOn={researchMode}
+                  onQuickAction={stableOnQuickAction}
+                  busy={assistantBusy}
                 />
                 <FeedbackBar
                   conversationId={conversationId}
@@ -2841,41 +2908,31 @@ ${systemCommon}` + baseSys;
         if (m.kind === 'image') {
           return (
             <div key={derivedKey} className="space-y-2">
-              <ImageCard m={m as Extract<ChatMessage, { kind: 'image' }>} />
-            </div>
-          );
-        }
-
-        if (m.role === 'assistant') {
-          return (
-            <div key={derivedKey} className="space-y-2">
-              <div className="space-y-4">
-                <AssistantMessage
-                  m={m}
-                  researchOn={researchMode}
-                  onQuickAction={stableOnQuickAction}
-                  busy={assistantBusy}
-                  therapyMode={therapyMode}
-                  onAction={stableHandleSuggestionAction}
-                  simple={simpleMode}
-                  pendingTimerActive={showThinkingTimer}
-                />
-                <FeedbackBar
-                  conversationId={conversationId}
-                  messageId={m.id}
-                  mode={currentMode}
-                  model={undefined}
-                  hiddenInTherapy={true}
-                />
-              </div>
+              <ImageCard m={m as Extract<ChatMessage, { kind: 'image' }> } />
             </div>
           );
         }
 
         return (
           <div key={derivedKey} className="space-y-2">
-            <div className="ml-auto max-w-3xl whitespace-normal rounded-2xl bg-slate-200 px-4 py-3 text-left text-slate-900 shadow-sm dark:bg-gray-700 dark:text-gray-100">
-              <ChatMarkdown content={m.content ?? ''} />
+            <div className="space-y-4">
+              <AssistantMessage
+                m={m}
+                researchOn={researchMode}
+                onQuickAction={stableOnQuickAction}
+                busy={assistantBusy}
+                therapyMode={therapyMode}
+                onAction={stableHandleSuggestionAction}
+                simple={simpleMode}
+                pendingTimerActive={showThinkingTimer}
+              />
+              <FeedbackBar
+                conversationId={conversationId}
+                messageId={m.id}
+                mode={currentMode}
+                model={undefined}
+                hiddenInTherapy={true}
+              />
             </div>
           </div>
         );
