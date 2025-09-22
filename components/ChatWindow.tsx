@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
-import type { ChatMessage } from "@/lib/state/chatStore";
+import type { ChatMessage, ChatMessageInput } from "@/lib/state/chatStore";
 import { ChatInput } from "@/components/ChatInput";
 import { persistIfTemp } from "@/lib/chat/persist";
 import { AnalyzingInline } from "@/components/chat/AnalyzingInline";
@@ -48,17 +48,17 @@ export function ChatWindow() {
 
   useEffect(() => {
     function onPush(event: Event) {
-      const ce = event as CustomEvent<Partial<ChatMessage>>;
+      const ce = event as CustomEvent<ChatMessageInput>;
       const msg = ce.detail;
       if (!msg || !msg.role) return;
       const state = useChatStore.getState();
       if (!state.currentId) {
         state.startNewThread();
       }
-      const payload = {
+      const payload: ChatMessageInput = {
         ...msg,
-        ts: typeof msg.createdAt === "number" ? msg.createdAt : msg.ts,
-      } as Omit<ChatMessage, "id" | "ts"> & { id?: string; ts?: number; createdAt?: number };
+        ts: typeof msg.ts === "number" ? msg.ts : msg.createdAt,
+      };
       state.addMessage(payload);
     }
 

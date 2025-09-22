@@ -11,6 +11,12 @@ export type ChatMessage = {
   ts: number;
 };
 
+export type ChatMessageInput = Omit<ChatMessage, "id" | "ts"> & {
+  id?: string;
+  ts?: number;
+  createdAt?: number;
+};
+
 type Thread = { id: string; title: string; createdAt: number; updatedAt: number; messages: ChatMessage[]; isTemp?: boolean };
 
 type ChatState = {
@@ -18,7 +24,7 @@ type ChatState = {
   threads: Record<string, Thread>;
   startNewThread: () => string;
   upsertThread: (t: Partial<Thread> & { id: string }) => void;
-  addMessage: (m: Omit<ChatMessage, "id" | "ts"> & { id?: string; ts?: number; createdAt?: number }) => void;
+  addMessage: (m: ChatMessageInput) => void;
   updateMessage: (id: string, updates: Partial<ChatMessage>) => void;
   resetToEmpty: () => void;
 };
@@ -43,7 +49,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
 
-  addMessage: (m) => {
+  addMessage: (m: ChatMessageInput) => {
     const id = m.id ?? nanoid(10);
     const timestamp =
       typeof m.ts === "number"

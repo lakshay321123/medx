@@ -1,16 +1,17 @@
 "use client";
 import { useRef, useState } from "react";
 import { safeJson } from "@/lib/safeJson";
+import type { ChatMessageInput, ChatMessage } from "@/lib/state/chatStore";
 
 const MAX_VIEW_COUNT = 3;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB per image
 
-function pushChatMessage(msg: any) {
+function pushChatMessage(msg: ChatMessageInput) {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent("medx:chat:push", { detail: msg }));
 }
 
-function updateChatMessage(id: string, updates: any) {
+function updateChatMessage(id: string, updates: Partial<ChatMessage>) {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent("medx:chat:update", { detail: { id, updates } }));
 }
