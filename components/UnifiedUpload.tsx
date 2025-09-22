@@ -1,24 +1,60 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { safeJson } from "@/lib/safeJson";
+
+const MAX_VIEW_COUNT = 3;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB per image
 
 export default function UnifiedUpload() {
   const [loading, setLoading] = useState(false);
   const [doctorMode, setDoctorMode] = useState(true);
   const [out, setOut] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   async function onChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
 
-    const name = file.name?.toLowerCase() || "";
-    const isPdf = file.type === "application/pdf" || name.endsWith(".pdf");
-    const isImage =
-      file.type.startsWith("image/") ||
-      /\.(png|jpe?g|webp|bmp|gif|tif?f)$/i.test(name);
-    if (!isPdf && !isImage) {
-      setErr(`Unsupported file type: ${file.type || name}. Upload a PDF or an image.`);
+    const classify = (file: File) => {
+      const name = file.name?.toLowerCase() || "";
+      const isPdf = file.type === "application/pdf" || name.endsWith(".pdf");
+      const isImage =
+        file.type.startsWith("image/") ||
+        /\.(png|jpe?g|webp|bmp|gif|tif?f)$/i.test(name);
+      return { isPdf, isImage };
+    };
+
+    const pdfFiles = files.filter(file => classify(file).isPdf);
+    const imageFiles = files.filter(file => classify(file).isImage);
+
+    if (pdfFiles.length && imageFiles.length) {
+      setErr("Upload PDFs separately from radiograph images.");
+      e.target.value = "";
+      return;
+    }
+
+    if (pdfFiles.length > 1) {
+      setErr("Upload a single PDF at a time.");
+      e.target.value = "";
+      return;
+    }
+
+    if (!pdfFiles.length && imageFiles.length > MAX_VIEW_COUNT) {
+      setErr(`Upload up to ${MAX_VIEW_COUNT} images (PA, lateral, oblique).`);
+      e.target.value = "";
+      return;
+    }
+
+    if (imageFiles.some(file => file.size > MAX_IMAGE_BYTES)) {
+      setErr("Each image must be under 5 MB.");
+      e.target.value = "";
+      return;
+    }
+
+    if (!pdfFiles.length && !imageFiles.length) {
+      setErr("Unsupported file type. Upload DICOM/PDF/PNG/JPG.");
+      e.target.value = "";
       return;
     }
 
@@ -28,33 +64,77 @@ export default function UnifiedUpload() {
 
     const search = new URLSearchParams(window.location.search);
     const threadId = search.get("threadId");
-    const sourceHash = `${file.name}:${file.size}:${(file as any).lastModified ?? ""}`;
+    const orderedFiles = pdfFiles.length ? pdfFiles : imageFiles;
+    const sourceHash = orderedFiles
+      .map(file => `${file.name}:${file.size}:${(file as any).lastModified ?? ""}`)
+      .join("|");
 
     const fd = new FormData();
-    fd.append("file", file);
+    orderedFiles.forEach(file => fd.append("files[]", file));
+    if (orderedFiles[0]) {
+      fd.append("file", orderedFiles[0]);
+    }
     fd.append("doctorMode", String(doctorMode));
     if (threadId) fd.append("threadId", threadId);
-    fd.append("sourceHash", sourceHash);
+    if (sourceHash) fd.append("sourceHash", sourceHash);
 
     try {
-      const j = await safeJson(fetch("/api/analyze", { method: "POST", body: fd }));
+      const j = await safeJson(
+        fetch("/api/imaging/analyze", {
+          method: "POST",
+          body: fd,
+        }),
+      );
       setOut(j);
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("observations-updated"));
       }
     } catch (e: any) {
-      setErr(String(e?.message || e) || "Upload failed");
+      const message = String(e?.message || e) || "Upload failed";
+      if (message.includes("415")) {
+        setErr("Unsupported file type. Upload DICOM/PDF/PNG/JPG.");
+      } else if (message.includes("413")) {
+        setErr("Each image must be under 5 MB.");
+      } else if (message.includes("Upload up to")) {
+        setErr(`Upload up to ${MAX_VIEW_COUNT} images (PA, lateral, oblique).`);
+      } else {
+        setErr("Upload clearer image or side view.");
+      }
     } finally {
       setLoading(false);
+      e.target.value = "";
     }
   }
+
+  const formatNumber = (value: number) => {
+    if (!Number.isFinite(value)) return null;
+    const rounded = parseFloat(value.toFixed(1));
+    return Number.isNaN(rounded) ? null : rounded.toString();
+  };
+
+  const warning = typeof out?.warning === "string" && out.warning.trim() ? out.warning : null;
+  const showUploadMore =
+    !loading &&
+    out?.type === "image" &&
+    out?.findings &&
+    out.findings.need_additional_views === true;
 
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
-        <label className="px-4 py-2 rounded bg-black text-white cursor-pointer">
+        <label
+          className="px-4 py-2 rounded bg-black text-white cursor-pointer"
+          onClick={() => fileInputRef.current?.click()}
+        >
           <span>Upload</span>
-          <input type="file" accept="application/pdf,image/*" onChange={onChange} className="hidden" />
+          <input
+            type="file"
+            accept="application/pdf,image/*,.dcm"
+            multiple
+            onChange={onChange}
+            className="hidden"
+            ref={fileInputRef}
+          />
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={doctorMode} onChange={e=>setDoctorMode(e.target.checked)} />
@@ -63,7 +143,7 @@ export default function UnifiedUpload() {
       </div>
 
       <p className="text-xs text-gray-500">
-        (Upload medical reports, prescriptions, discharge summaries, or X-rays — PDF or image.)
+        (Upload medical reports, prescriptions, discharge summaries, or hand X-rays — PDF or up to 3 image views: PA, lateral, oblique.)
       </p>
 
       {loading && <p>Analyzing…</p>}
@@ -86,9 +166,97 @@ export default function UnifiedUpload() {
             </>
           )}
           {out.type === "image" && (
-            <section className="p-3 border rounded">
-              <h3 className="font-semibold mb-1">Imaging Report</h3>
-              <p className="whitespace-pre-wrap text-sm">{out.report}</p>
+            <section className="p-3 border rounded space-y-2">
+              <h3 className="font-semibold">Imaging Findings</h3>
+              {out.findings ? (
+                (() => {
+                  const findings = out.findings || {};
+                  const fracturePresent =
+                    typeof findings.fracture_present === "boolean" ? findings.fracture_present : null;
+                  const confidence =
+                    typeof findings.confidence_0_1 === "number"
+                      ? Math.round(findings.confidence_0_1 * 100)
+                      : null;
+                  const fractureLabel =
+                    fracturePresent === null ? "Unknown" : fracturePresent ? "YES" : "NO";
+                  const confidenceLabel = confidence === null ? "" : ` (${confidence}%)`;
+                  const boneSegment =
+                    typeof findings.bone === "string" && findings.bone.trim()
+                      ? findings.bone.trim()
+                      : "—";
+                  const regionSegment =
+                    typeof findings.region === "string" && findings.region.trim()
+                      ? findings.region.trim()
+                      : null;
+                  const suspected =
+                    typeof findings.suspected_type === "string" && findings.suspected_type.trim()
+                      ? findings.suspected_type.trim()
+                      : "—";
+                  const angulation =
+                    typeof findings.angulation_deg === "number"
+                      ? formatNumber(findings.angulation_deg)
+                      : null;
+                  const displacement =
+                    typeof findings.displacement_mm === "number"
+                      ? formatNumber(findings.displacement_mm)
+                      : null;
+                  const rotation =
+                    typeof findings.rotation_suspected === "boolean"
+                      ? findings.rotation_suspected
+                      : null;
+                  const metrics: string[] = [];
+                  if (angulation) metrics.push(`Angulation: ${angulation}°`);
+                  if (displacement) metrics.push(`Displacement: ${displacement} mm`);
+                  if (rotation !== null) metrics.push(`Rotation suspected: ${rotation ? "Yes" : "No"}`);
+                  const redFlags = Array.isArray(findings.red_flags)
+                    ? findings.red_flags.filter((f: unknown) => typeof f === "string" && f.trim())
+                    : [];
+                  const nextLine =
+                    findings.need_additional_views === true
+                      ? "Add lateral or oblique view to measure angulation."
+                      : findings.need_additional_views === false
+                      ? "No additional views requested."
+                      : "Await clinician review.";
+
+                  return (
+                    <div className="space-y-1 text-sm">
+                      <p>
+                        <span className="font-medium">Fracture:</span> {fractureLabel}
+                        {confidenceLabel}
+                      </p>
+                      <p>
+                        <span className="font-medium">Bone:</span> {boneSegment}
+                        {regionSegment ? ` — Region: ${regionSegment}` : ""}
+                      </p>
+                      <p>
+                        <span className="font-medium">Type:</span> {suspected}
+                      </p>
+                      {metrics.length > 0 && <p>{metrics.join(" • ")}</p>}
+                      <p>
+                        <span className="font-medium">Next:</span> {nextLine}
+                      </p>
+                      {redFlags.length > 0 && (
+                        <p>
+                          <span className="font-medium">Red flags:</span> {redFlags.join(", ")}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()
+              ) : (
+                <p className="text-sm">No findings returned.</p>
+              )}
+              {warning && <p className="text-xs text-amber-600">⚠️ {warning}</p>}
+              {showUploadMore && (
+                <button
+                  type="button"
+                  className="text-xs px-3 py-1 border border-dashed rounded disabled:opacity-60"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={loading}
+                >
+                  Upload more views
+                </button>
+              )}
             </section>
           )}
           <p className="text-xs text-gray-400">{out.disclaimer}</p>

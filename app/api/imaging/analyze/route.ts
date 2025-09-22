@@ -1,8 +1,38 @@
 import { NextResponse } from "next/server";
 
-const OAI_KEY = process.env.OPENAI_API_KEY!;
+import { applyHandHeuristics } from "@/lib/imaging/handHeuristics";
+import { ImagingFindings, normalizeFindings } from "@/lib/imaging/findings";
+
+const OAI_KEY = process.env.OPENAI_API_KEY ?? "";
+if (!OAI_KEY) {
+  throw new Error("Missing OPENAI_API_KEY");
+}
 const MODEL_VISION = process.env.OPENAI_VISION_MODEL || "gpt-5"; // images
 const MODEL_TEXT   = process.env.OPENAI_TEXT_MODEL   || "gpt-5"; // PDFs
+
+const FRACTURE_SCHEMA = {
+  type: "object",
+  properties: {
+    fracture_present: { type: "boolean" },
+    suspected_type: { type: "string" },
+    bone: { type: "string" },
+    region: { type: "string" },
+    angulation_deg: { type: "number" },
+    displacement_mm: { type: "number" },
+    rotation_suspected: { type: "boolean" },
+    need_additional_views: { type: "boolean" },
+    red_flags: { type: "array", items: { type: "string" } },
+    confidence_0_1: { type: "number" },
+  },
+  required: ["fracture_present", "confidence_0_1"],
+} as const;
+
+const FRACTURE_SYSTEM_PROMPT = `You are a radiologist. Return ONLY compact JSON matching this schema: ${JSON.stringify(
+  FRACTURE_SCHEMA,
+)}. No prose. If unsure, set confidence_0_1 conservatively.`;
+
+const MAX_IMAGE_COUNT = 3;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB per image
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -142,7 +172,70 @@ export async function POST(req: Request) {
       mime = ext ? `image/${ext === "jpg" ? "jpeg" : ext}` : "image/jpeg";
     }
 
-    const dataUrl = toDataUrl(buf, mime);
+    const imageFiles = multi.length ? multi : [file];
+    if (imageFiles.length > MAX_IMAGE_COUNT) {
+      return NextResponse.json(
+        { error: `Upload up to ${MAX_IMAGE_COUNT} images (PA, lateral, oblique).` },
+        { status: 400 }
+      );
+    }
+
+    const resolvedImages: { name: string; mime: string; buffer: Buffer }[] = [];
+    for (let i = 0; i < imageFiles.length; i++) {
+      const current = imageFiles[i];
+      const displayName = (current as any).name || name || `upload-${i + 1}`;
+      const currentName = displayName.toLowerCase();
+      const currentBuf = i === 0 ? buf : Buffer.from(await current.arrayBuffer());
+      let currentMime = current.type || (i === 0 ? mime : "");
+
+      if (currentBuf.length > MAX_IMAGE_BYTES) {
+        return NextResponse.json(
+          { error: `Each image must be under 5 MB. ${displayName} is too large.` },
+          { status: 413 }
+        );
+      }
+
+      const isImage =
+        (currentMime && currentMime.startsWith("image/")) ||
+        /\.(png|jpe?g|webp|bmp|gif|tif?f)$/i.test(currentName);
+      if (!isImage) {
+        console.warn("[/api/imaging/analyze] unsupported MIME", {
+          name: displayName,
+          mime: currentMime,
+          size: currentBuf.length,
+        });
+        return NextResponse.json(
+          { error: `Unsupported MIME type for imaging: ${currentMime || "unknown"} (name: ${displayName})` },
+          { status: 415 }
+        );
+      }
+
+      if (!currentMime || currentMime === "application/octet-stream") {
+        const ext = currentName.split(".").pop() || "";
+        if (ext === "jpg" || ext === "jpeg") currentMime = "image/jpeg";
+        else if (ext === "tif" || ext === "tiff") currentMime = "image/tiff";
+        else currentMime = ext ? `image/${ext}` : "image/jpeg";
+      }
+
+      resolvedImages.push({ name: displayName, mime: currentMime, buffer: currentBuf });
+    }
+
+    const userContent = [
+      {
+        type: "text",
+        text:
+          "Multiple hand radiographs: front (PA), lateral, and/or oblique views." +
+          " Aggregate across all views before deciding on fracture presence, type, and measurements." +
+          " Return structured JSON only (no prose). If angulation is not measurable, set angulation_deg=null and need_additional_views=true." +
+          " If a 5th metacarpal neck fracture is seen, label suspected_type as \"Boxer’s fracture\".",
+      },
+      ...resolvedImages.map(image => ({
+        type: "image_url" as const,
+        image_url: { url: toDataUrl(image.buffer, image.mime) },
+      })),
+    ];
+
+    const inferenceStartedAt = Date.now();
 
     const resp = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -152,15 +245,11 @@ export async function POST(req: Request) {
         messages: [
           {
             role: "system",
-            content:
-              "You are a radiologist. Write a structured X-ray report: Technique, Findings, Impression (≤3 bullets, cautious language), Recommendations, Limitations.",
+            content: FRACTURE_SYSTEM_PROMPT,
           },
           {
             role: "user",
-            content: [
-              { type: "text", text: "Analyze this X-ray and generate a radiology-style report." },
-              { type: "image_url", image_url: { url: dataUrl } },
-            ],
+            content: userContent,
           },
         ],
       }),
@@ -168,13 +257,28 @@ export async function POST(req: Request) {
 
     const j = await resp.json();
     if (!resp.ok) throw new Error(j?.error?.message || resp.statusText);
+    const raw = j.choices?.[0]?.message?.content?.trim() || "";
+    const { findings: normalizedFindings, warning } = normalizeFindings(raw);
+    const findings = applyHandHeuristics({ ...normalizedFindings }) as ImagingFindings;
+    const durationMs = Date.now() - inferenceStartedAt;
 
-    const report = j.choices?.[0]?.message?.content || "";
+    if (warning) {
+      console.warn("[/api/imaging/analyze] structured vision output warning", { warning, raw });
+    }
+
+    console.info("[/api/imaging/analyze] completed", {
+      filename: name,
+      mime,
+      views: resolvedImages.length,
+      confidence: findings.confidence_0_1,
+      durationMs,
+    });
 
     const res = NextResponse.json({
       type: "image",
       filename: name,
-      report,
+      findings,
+      warning,
       disclaimer: "AI assistance only — not a medical diagnosis. Confirm with a clinician.",
     });
     res.headers.set("x-branch", "image");
