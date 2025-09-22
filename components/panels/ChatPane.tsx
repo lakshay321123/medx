@@ -48,6 +48,7 @@ import { getUserPosition, fetchNearby, geocodeArea, type NearbyKind, type Nearby
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
 import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
 import { useFeedback } from "@/hooks/useFeedback";
+import { pushToast } from "@/lib/ui/toast";
 
 const ChatSuggestions = dynamic(() => import("./ChatSuggestions"), { ssr: false });
 
@@ -599,6 +600,16 @@ function MaterialIcon({ name }: { name: string }) {
   );
 }
 
+function WelcomeCard({ text }: { text: string }) {
+  if (!text.trim()) return null;
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 text-sm shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
+      <ChatMarkdown content={text} />
+    </div>
+  );
+}
+
 function SlimStatusPill({ text, elapsed }: { text: string; elapsed?: number | null }) {
   const showTimer = typeof elapsed === 'number' && elapsed >= 0;
   return (
@@ -638,6 +649,7 @@ function AssistantFooter({
   onRetry,
   onRefresh,
   canRetry,
+  canRefresh,
 }: {
   content: string;
   conversationId: string;
@@ -648,6 +660,7 @@ function AssistantFooter({
   onRetry: () => void;
   onRefresh: () => void;
   canRetry: boolean;
+  canRefresh: boolean;
 }) {
   const key = `${conversationId}:${messageId}`;
   const submitted = feedback.submittedFor[key];
@@ -657,9 +670,10 @@ function AssistantFooter({
   const hasText = typeof content === 'string' && content.trim().length > 0;
 
   const copyDisabled = !hasText;
+  const refreshDisabled = !canRefresh;
 
   return (
-    <div className="mt-2 flex items-center gap-1 text-xs">
+    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs sm:flex-nowrap sm:gap-1">
       <button
         type="button"
         aria-label="Copy message"
@@ -712,7 +726,7 @@ function AssistantFooter({
       >
         <MaterialIcon name="thumb_down" />
       </button>
-      <div className="mx-1 h-6 w-px bg-blue-200 dark:bg-sky-500/40" aria-hidden="true" />
+      <div className="mx-1 h-4 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
       <button
         type="button"
         aria-label="Retry analysis"
@@ -729,7 +743,11 @@ function AssistantFooter({
         type="button"
         aria-label="Refresh"
         className="assistant-icon-button"
-        onClick={onRefresh}
+        disabled={refreshDisabled}
+        onClick={() => {
+          if (refreshDisabled) return;
+          onRefresh();
+        }}
       >
         <MaterialIcon name="refresh" />
       </button>
@@ -787,6 +805,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const [labSummary, setLabSummary] = useState<any | null>(null);
+  const [welcomeMessage, setWelcomeMessage] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef =
@@ -1637,18 +1656,79 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     return () => ro.disconnect();
   }, [scrollToBottom]);
 
+  const welcomeKeyFor = (tid: string | null) => (tid ? `chat:${tid}:welcome` : 'chat:default:welcome');
+
+  const readThreadSnapshot = useCallback(() => {
+    const tid = threadId || (isProfileThread ? 'med-profile' : null);
+    if (!tid) {
+      return null;
+    }
+
+    ensureThread(tid);
+    const saved = loadMessages(tid) as any[];
+    let welcome: string | null = null;
+    const filtered = saved.filter((msg: any) => {
+      if (
+        msg &&
+        msg.role === 'assistant' &&
+        typeof msg.id === 'string' &&
+        msg.id === 'welcome:chat' &&
+        typeof msg.content === 'string'
+      ) {
+        if (!welcome) {
+          welcome = msg.content;
+        }
+        return false;
+      }
+      return true;
+    });
+
+    if (!welcome && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(welcomeKeyFor(tid));
+        if (stored && typeof stored === 'string') {
+          welcome = stored;
+        }
+      } catch {}
+    }
+
+    return { id: tid, messages: filtered, welcome };
+  }, [threadId, isProfileThread]);
+
   useEffect(() => {
     posted.current.clear();
-    const tid = threadId || (isProfileThread ? 'med-profile' : null);
-    if (tid) {
-      ensureThread(tid);
-      const saved = loadMessages(tid) as any[];
-      setMessages(saved);
-      posted.current = new Set(saved.filter(m => m.role === 'assistant').map((m: any) => m.id));
-    } else {
+    const snapshot = readThreadSnapshot();
+    if (!snapshot) {
       setMessages([]);
+      setWelcomeMessage(prev => {
+        if (isProfileThread) return null;
+        if (typeof window !== 'undefined') {
+          try {
+            const stored = localStorage.getItem(welcomeKeyFor(null));
+            if (stored && stored.trim().length > 0) {
+              return stored;
+            }
+          } catch {}
+        }
+        return prev ?? getRandomWelcome();
+      });
+      return;
     }
-  }, [threadId, isProfileThread]);
+
+    const { messages: savedMessages, welcome } = snapshot;
+    setMessages(savedMessages);
+    posted.current = new Set(
+      savedMessages
+        .filter((m: any) => m && m.role === 'assistant' && typeof m.id === 'string')
+        .map((m: any) => m.id)
+    );
+    setWelcomeMessage(prev => {
+      if (isProfileThread) return null;
+      if (welcome) return welcome;
+      if (prev) return prev;
+      return savedMessages.length > 0 ? null : getRandomWelcome();
+    });
+  }, [readThreadSnapshot, isProfileThread]);
 
   useEffect(() => {
     if (!threadId) return;
@@ -1698,15 +1778,25 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, [isProfileThread, threadId, therapyMode]);
 
   useEffect(() => {
-    if (!isProfileThread && messages.length === 0) {
-      addOnce('welcome:chat', getRandomWelcome());
-    }
-  }, [isProfileThread, messages.length]);
-
-  useEffect(() => {
     const tid = threadId || (isProfileThread ? 'med-profile' : null);
     if (tid) saveMessages(tid, messages as any);
   }, [messages, threadId, isProfileThread]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const tid = threadId || (isProfileThread ? 'med-profile' : null);
+    const key = welcomeKeyFor(tid);
+    if (!welcomeMessage) {
+      try {
+        localStorage.removeItem(key);
+      } catch {}
+      return;
+    }
+
+    try {
+      localStorage.setItem(key, welcomeMessage);
+    } catch {}
+  }, [welcomeMessage, threadId, isProfileThread]);
 
   const draftKey = (threadId?: string|null)=> `chat:${threadId||'med-profile'}:draft`;
   // load draft and inject as past message (so it "reappears as past messages")
@@ -2715,9 +2805,59 @@ ${systemCommon}` + baseSys;
   }
 
   function refreshThreadOrResume() {
+    if (queueActive) {
+      return;
+    }
+
     if (lastQueueRef.current && !queueAbortRef.current) {
       retryLastFailedOrResumeQueue();
+      return;
     }
+
+    const snapshot = readThreadSnapshot();
+    if (!snapshot) {
+      setWelcomeMessage(prev => {
+        if (isProfileThread) return null;
+        if (typeof window !== 'undefined') {
+          try {
+            const stored = localStorage.getItem(welcomeKeyFor(null));
+            if (stored && stored.trim().length > 0) {
+              return stored;
+            }
+          } catch {}
+        }
+        return prev ?? getRandomWelcome();
+      });
+      pushToast({ title: 'No new updates' });
+      return;
+    }
+
+    const { messages: savedMessages, welcome } = snapshot;
+    const currentSerialized = JSON.stringify(messages);
+    const savedSerialized = JSON.stringify(savedMessages);
+    if (currentSerialized === savedSerialized) {
+      setWelcomeMessage(prev => {
+        if (isProfileThread) return null;
+        if (welcome) return welcome;
+        if (prev) return prev;
+        return savedMessages.length > 0 ? null : getRandomWelcome();
+      });
+      pushToast({ title: 'No new updates' });
+      return;
+    }
+
+    setMessages(savedMessages);
+    posted.current = new Set(
+      savedMessages
+        .filter((m: any) => m && m.role === 'assistant' && typeof m.id === 'string')
+        .map((m: any) => m.id)
+    );
+    setWelcomeMessage(prev => {
+      if (isProfileThread) return null;
+      if (welcome) return welcome;
+      if (prev) return prev;
+      return savedMessages.length > 0 ? null : getRandomWelcome();
+    });
   }
 
   async function onSubmit() {
@@ -3059,6 +3199,7 @@ ${systemCommon}` + baseSys;
     lastQueueRef.current &&
       (lastQueueRef.current.nextIndex ?? 0) < lastQueueRef.current.files.length
   );
+  const canRefreshQueue = !queueActive;
 
   const renderedMessages = useMemo(
     () =>
@@ -3119,6 +3260,7 @@ ${systemCommon}` + baseSys;
                   onRetry={() => retryLastFailedOrResumeQueue()}
                   onRefresh={() => refreshThreadOrResume()}
                   canRetry={canRetryQueue}
+                  canRefresh={canRefreshQueue}
                 />
               </div>
             </div>
@@ -3149,6 +3291,7 @@ ${systemCommon}` + baseSys;
                   onRetry={() => retryLastFailedOrResumeQueue()}
                   onRefresh={() => refreshThreadOrResume()}
                   canRetry={canRetryQueue}
+                  canRefresh={canRefreshQueue}
                 />
               )}
             </div>
@@ -3171,6 +3314,7 @@ ${systemCommon}` + baseSys;
       retryLastFailedOrResumeQueue,
       refreshThreadOrResume,
       canRetryQueue,
+      canRefreshQueue,
       feedback.submittedFor,
       feedback.loading,
       feedback.submit
@@ -3363,6 +3507,12 @@ ${systemCommon}` + baseSys;
                 <strong>{ui.contextFrom}</strong>
                 <button onClick={() => { clearContext(); setUi(prev => ({ ...prev, contextFrom: null })); }} className="opacity-60 hover:opacity-100">Clear</button>
               </div>
+            </div>
+          )}
+
+          {welcomeMessage && !isProfileThread && (
+            <div className="mx-auto mb-4 w-full max-w-3xl">
+              <WelcomeCard text={welcomeMessage} />
             </div>
           )}
 
