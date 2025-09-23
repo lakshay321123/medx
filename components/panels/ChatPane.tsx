@@ -652,6 +652,8 @@ function AssistantFooter({
   mode,
   model,
   feedback,
+  onRetry,
+  canRetry,
   onRefresh,
   canRefresh,
   className,
@@ -662,6 +664,8 @@ function AssistantFooter({
   mode: 'patient' | 'doctor' | 'research' | 'therapy';
   model?: string;
   feedback: FeedbackContext;
+  onRetry: () => void;
+  canRetry: boolean;
   onRefresh: () => void;
   canRefresh: boolean;
   className?: string;
@@ -675,8 +679,9 @@ function AssistantFooter({
 
   const copyDisabled = !hasText;
   const refreshDisabled = !canRefresh;
+  const retryDisabled = !canRetry;
   const footerClass = [
-    'flex flex-wrap items-center justify-start gap-x-1.5 gap-y-1 text-xs sm:flex-nowrap',
+    'flex flex-wrap items-center justify-start gap-x-1 gap-y-1 text-xs sm:flex-nowrap sm:gap-x-1.5',
     className || ''
   ]
     .filter(Boolean)
@@ -735,6 +740,22 @@ function AssistantFooter({
         }}
       >
         <MaterialIcon name="thumb_down" />
+      </button>
+      <span
+        aria-hidden="true"
+        className="mx-1 inline-flex h-4 w-px bg-slate-200 dark:bg-slate-700"
+      />
+      <button
+        type="button"
+        aria-label="Retry"
+        className="assistant-icon-button"
+        disabled={retryDisabled}
+        onClick={() => {
+          if (retryDisabled) return;
+          onRetry();
+        }}
+      >
+        <MaterialIcon name="replay" />
       </button>
       <button
         type="button"
@@ -2811,6 +2832,11 @@ ${systemCommon}` + baseSys;
         setThinkingStartedAt(null);
       }
 
+      const ctx = lastQueueRef.current;
+      if (ctx && (ctx.nextIndex ?? ctx.files.length) >= ctx.files.length) {
+        lastQueueRef.current = null;
+      }
+
       const urls = previewUrlsRef.current.splice(0);
       if (urls.length > 0) {
         setTimeout(() => {
@@ -2824,9 +2850,17 @@ ${systemCommon}` + baseSys;
     }
   }
 
-  function resumeLastFailedQueue() {
+  function hasQueueResumeContext() {
     const ctx = lastQueueRef.current;
-    if (!ctx || queueAbortRef.current) return;
+    if (!ctx) return false;
+    if (queueAbortRef.current) return false;
+    const nextIndex = ctx.nextIndex ?? 0;
+    return nextIndex < ctx.files.length;
+  }
+
+  function resumeLastFailedQueue() {
+    if (!hasQueueResumeContext()) return;
+    const ctx = lastQueueRef.current!;
     const remaining = ctx.files.slice(ctx.nextIndex ?? 0);
     if (remaining.length === 0) return;
 
@@ -2850,7 +2884,7 @@ ${systemCommon}` + baseSys;
       return;
     }
 
-    if (lastQueueRef.current && !queueAbortRef.current) {
+    if (hasQueueResumeContext()) {
       resumeLastFailedQueue();
       return;
     }
@@ -2899,6 +2933,13 @@ ${systemCommon}` + baseSys;
       if (prev) return prev;
       return savedMessages.length > 0 ? null : getRandomWelcome();
     });
+  }
+
+  function retryLastFailedOrResumeQueue() {
+    if (queueActive) return;
+    if (hasQueueResumeContext()) {
+      resumeLastFailedQueue();
+    }
   }
 
   async function onSubmit() {
@@ -3237,6 +3278,7 @@ ${systemCommon}` + baseSys;
   const assistantBusy = loadingAction !== null;
   const simpleMode = currentMode === 'patient';
   const canRefreshQueue = !queueActive;
+  const canRetryQueue = !queueActive && hasQueueResumeContext();
 
   const renderedMessages = useMemo(
     () =>
@@ -3286,6 +3328,8 @@ ${systemCommon}` + baseSys;
               mode={currentMode}
               model={undefined}
               feedback={feedback}
+              onRetry={() => retryLastFailedOrResumeQueue()}
+              canRetry={canRetryQueue}
               onRefresh={() => refreshThreadOrResume()}
               canRefresh={canRefreshQueue}
             />
@@ -3312,6 +3356,8 @@ ${systemCommon}` + baseSys;
               mode={currentMode}
               model={undefined}
               feedback={feedback}
+              onRetry={() => retryLastFailedOrResumeQueue()}
+              canRetry={canRetryQueue}
               onRefresh={() => refreshThreadOrResume()}
               canRefresh={canRefreshQueue}
               className="mt-1.5"
@@ -3348,7 +3394,9 @@ ${systemCommon}` + baseSys;
       currentMode,
       analyzeElapsed,
       refreshThreadOrResume,
+      retryLastFailedOrResumeQueue,
       canRefreshQueue,
+      canRetryQueue,
       feedback.submittedFor,
       feedback.loading,
       feedback.submit
