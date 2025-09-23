@@ -76,7 +76,7 @@ export function composeAnswer(
     ].filter(Boolean).join("\n\n");
   }
 
-  // Research or Doctor mode → keep full detail
+  // Research or Clinical mode → keep full detail
   return composeTrialsAnswer(userQuery, trials, papers, filters);
 }
 

@@ -14,7 +14,7 @@ function toLine(value: unknown, label: string): string | null {
 }
 
 export function formatTrialBriefMarkdown(nctId: string, brief: unknown): string {
-  const heading = `### ${nctId} — Doctor Brief`;
+  const heading = `### ${nctId} — Clinical Brief`;
   if (!brief || typeof brief !== 'object') {
     const fallback = String(brief ?? '').trim();
     return [heading, fallback].filter(Boolean).join('\n\n');

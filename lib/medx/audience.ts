@@ -2,7 +2,7 @@ export type Audience = "clinician" | "patient";
 
 /**
  * Map your app modes to output audience:
- * - "doctor" -> clinician
+ * - "doctor" (Clinical mode) -> clinician
  * - "doc ai"/"aidoc"/"doc_ai"/"doc-mode" -> patient explainer
  * - "patient"/"patient mode" -> patient explainer
  * Default -> patient explainer
@@ -15,7 +15,7 @@ export function detectAudience(mode?: string, hint?: string): Audience {
   if (raw === "clinician") return "clinician";
   if (raw === "patient") return "patient";
 
-  // Doctor-only, clinician-facing
+  // Clinical mode -> clinician-facing
   if (["doctor", "doctormode", "clinician", "research", "md"].includes(norm)) return "clinician";
 
   // Doc AI / Patient modes -> patient-facing explainer

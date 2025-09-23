@@ -121,6 +121,8 @@ const NEARBY_KIND_SYNONYMS: Record<NearbyKind, string[]> = {
   doctor: [
     "doctor",
     "doctors",
+    "clinician",
+    "clinicians",
     "gp",
     "g.p.",
     "physician",
@@ -185,7 +187,7 @@ const NEARBY_KIND_SYNONYMS: Record<NearbyKind, string[]> = {
 
 const NEARBY_LABELS: Record<NearbyKind, { singular: string; plural: string }> = {
   pharmacy: { singular: "pharmacy", plural: "pharmacies" },
-  doctor: { singular: "doctor", plural: "doctors" },
+  doctor: { singular: "clinician", plural: "clinicians" },
   clinic: { singular: "clinic", plural: "clinics" },
   hospital: { singular: "hospital", plural: "hospitals" },
   lab: { singular: "lab", plural: "labs" },
@@ -513,7 +515,7 @@ function AnalysisCard({
             disabled={busy}
             onClick={() => onQuickAction("doctor")}
           >
-            Doctor’s view
+            Clinical view
           </button>
           <button
             type="button"
@@ -1270,7 +1272,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       }
 
       if (NEARBY_CHANGE_CATEGORY_RE.test(lower) && inNearbyContext) {
-        pushAssistantText('Sure — tell me which category you need: pharmacy, doctor, clinic, hospital, or lab.');
+        pushAssistantText('Sure — tell me which category you need: pharmacy, clinician, clinic, hospital, or lab.');
         setNearbySession(key, { ...session, lastAction: 'nearby' });
         return true;
       }

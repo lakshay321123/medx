@@ -194,7 +194,7 @@ export async function POST(req: Request) {
           role: "system",
           content:
             mode === "doctor"
-              ? "You are a clinical evidence summarizer for doctors."
+              ? "You are a clinical evidence summarizer for clinicians."
               : "You are a health explainer for laypeople.",
         },
         { role: "user", content: prompt },
@@ -206,8 +206,8 @@ export async function POST(req: Request) {
     }
   }
 
-  // DEBUG LOG (remove later): verify we're actually in doctor path
-  console.log("[DoctorMode] mode=", mode, "thread_id=", thread_id);
+  // DEBUG LOG (remove later): verify we're actually in Clinical mode path
+  console.log("[ClinicalMode] mode=", mode, "thread_id=", thread_id);
 
   if (mode === "doctor") {
     const patient = await buildPatientSnapshot(thread_id);

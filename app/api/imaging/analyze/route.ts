@@ -149,7 +149,7 @@ export async function POST(req: Request) {
       if (!pResp.ok) throw new Error(pJson?.error?.message || pResp.statusText);
       const patient = pJson.choices?.[0]?.message?.content || "";
 
-      // Doctor summary (optional)
+      // Clinical summary (optional)
       let doctor: string | null = null;
       if (doctorMode) {
         const dResp = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -166,7 +166,7 @@ export async function POST(req: Request) {
               {
                 role: "user",
                 content: [
-                  { type: "text", text: "Summarize this report for a doctor." },
+                  { type: "text", text: "Summarize this report for a clinician." },
                   { type: "image_url", image_url: { url: dataUrl } },
                 ],
               },

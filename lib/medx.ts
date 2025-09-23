@@ -12,8 +12,8 @@ const KEY = process.env.LLM_API_KEY!;
 
 const BASE_PROMPT = `India-aware; metric units.
 Patient = simple + home care + ≥3 red flags + when_to_test.
-Doctor = DDx + tests + initial management + ICD examples.
-If research requested: fill evidence (patient/doctor voice) or Research schema.
+Clinical (Doctor mode) = DDx + tests + initial management + ICD examples.
+If research requested: fill evidence (patient/clinical voice) or Research schema.
 Prefer WHO/ICMR/MoHFW/NHP or high-quality sources.
 Output ONLY JSON matching schema; end with </END_JSON>.`;
 
