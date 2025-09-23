@@ -42,13 +42,13 @@ import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
 import { AnalyzingInline } from "@/components/chat/AnalyzingInline";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
-import { StopButton } from "@/components/ui/StopButton";
 import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
 import { getUserPosition, fetchNearby, geocodeArea, type NearbyKind, type NearbyPlace } from "@/lib/nearby";
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
 import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
 import { useFeedback } from "@/hooks/useFeedback";
 import { pushToast } from "@/lib/ui/toast";
+import { useChatRunState } from "@/stores/useChatRunState";
 
 const ChatSuggestions = dynamic(() => import("./ChatSuggestions"), { ssr: false });
 
@@ -820,6 +820,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const lastQueueRef = useRef<{ files: File[]; nextIndex: number; analyzingId: string; noteText: string } | null>(null);
   const { filters } = useResearchFilters();
   const feedback = useFeedback();
+  const setStreamActiveInStore = useChatRunState(state => state.setStreamActive);
+  const setQueueActiveInStore = useChatRunState(state => state.setQueueActive);
+  const setAbortHandler = useChatRunState(state => state.setAbortHandler);
 
   const sp = useSearchParams();
   const isAiDocMode = useIsAiDocMode();
@@ -854,6 +857,21 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    setQueueActiveInStore(queueActive);
+  }, [queueActive, setQueueActiveInStore]);
+
+  useEffect(() => {
+    setStreamActiveInStore(busy && !queueActive);
+  }, [busy, queueActive, setStreamActiveInStore]);
+
+  useEffect(() => {
+    return () => {
+      setStreamActiveInStore(false);
+      setQueueActiveInStore(false);
+    };
+  }, [setQueueActiveInStore, setStreamActiveInStore]);
 
   useEffect(() => {
     return () => {
@@ -2515,16 +2533,26 @@ ${systemCommon}` + baseSys;
     }
   }
 
-  function onStopQueue() {
-    const c = queueAbortRef.current;
-    if (c) {
+  const onStopQueue = useCallback(() => {
+    const controller = queueAbortRef.current;
+    if (controller) {
       try {
-        c.abort();
+        controller.abort();
       } catch {}
     }
     queueAbortRef.current = null;
+    queueTokenRef.current = null;
     stopAnalyzeTicker();
-  }
+    const ctx = lastQueueRef.current;
+    if (ctx?.analyzingId) {
+      setMessages(prev => prev.filter(m => m.id !== ctx.analyzingId));
+    }
+    setQueueActive(false);
+    setBusy(false);
+    setThinkingStartedAt(null);
+    setQueueActiveInStore(false);
+    setStreamActiveInStore(false);
+  }, [setMessages, setQueueActive, setBusy, setThinkingStartedAt, setQueueActiveInStore, setStreamActiveInStore, stopAnalyzeTicker]);
 
   function onFilesSelected(files: File[]) {
     if (files.length === 0) return;
@@ -2537,11 +2565,24 @@ ${systemCommon}` + baseSys;
     setPendingFiles(prev => prev.filter((_, i) => i !== index));
   }
 
-  function onStop() {
+  const onStop = useCallback(() => {
     onStopQueue();
-    const c = abortRef.current;
-    if (c) c.abort();
-  }
+    const controller = abortRef.current;
+    if (controller) {
+      try {
+        controller.abort();
+      } catch {}
+    }
+    abortRef.current = null;
+    setBusy(false);
+    setThinkingStartedAt(null);
+    setStreamActiveInStore(false);
+  }, [onStopQueue, setStreamActiveInStore]);
+
+  useEffect(() => {
+    setAbortHandler(onStop);
+    return () => setAbortHandler(null);
+  }, [onStop, setAbortHandler]);
 
   async function analyzeFile(
     file: File,
@@ -3345,7 +3386,7 @@ ${systemCommon}` + baseSys;
     }
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [busy]);
+  }, [busy, onStop]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -3727,29 +3768,19 @@ ${systemCommon}` + baseSys;
                       }
                     }}
                   />
+                  </div>
 
-                  {queueActive && (
-                    <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                      <StopButton
-                        onClick={onStopQueue}
-                        className="pointer-events-auto"
-                        title="Stop (Esc)"
-                      />
-                    </div>
+                  {!busy && (
+                    <button
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50"
+                      type="submit"
+                      disabled={pendingFiles.length === 0 && !userText.trim()}
+                      aria-label="Send"
+                      title="Send"
+                    >
+                      <Send size={16} />
+                    </button>
                   )}
-                </div>
-
-                {!busy && (
-                  <button
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50"
-                    type="submit"
-                    disabled={pendingFiles.length === 0 && !userText.trim()}
-                    aria-label="Send"
-                    title="Send"
-                  >
-                    <Send size={16} />
-                  </button>
-                )}
               </form>
             </div>
         </div>
