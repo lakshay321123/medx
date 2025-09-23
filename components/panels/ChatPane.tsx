@@ -646,6 +646,13 @@ function fmtTime(s: number) {
 
 type FeedbackContext = ReturnType<typeof useFeedback>;
 
+const ACTIONS = [
+  { id: 'copy', icon: 'content_copy', aria: 'Copy' },
+  { id: 'up', icon: 'thumb_up', aria: 'Thumbs up' },
+  { id: 'down', icon: 'thumb_down', aria: 'Thumbs down' },
+  { id: 'refresh', icon: 'refresh', aria: 'Refresh' },
+] as const;
+
 function AssistantFooter({
   content,
   conversationId,
@@ -653,10 +660,8 @@ function AssistantFooter({
   mode,
   model,
   feedback,
-  onRetry,
-  canRetry,
   onRefresh,
-  canRefresh,
+  refreshDisabled,
   className,
 }: {
   content: string;
@@ -665,10 +670,8 @@ function AssistantFooter({
   mode: 'patient' | 'doctor' | 'research' | 'therapy';
   model?: string;
   feedback: FeedbackContext;
-  onRetry: () => void;
-  canRetry: boolean;
   onRefresh: () => void;
-  canRefresh: boolean;
+  refreshDisabled: boolean;
   className?: string;
 }) {
   const key = `${conversationId}:${messageId}`;
@@ -679,97 +682,93 @@ function AssistantFooter({
   const hasText = typeof content === 'string' && content.trim().length > 0;
 
   const copyDisabled = !hasText;
-  const refreshDisabled = !canRefresh;
-  const retryDisabled = !canRetry;
   const footerClass = [
-    'flex flex-wrap items-center justify-start gap-x-1 gap-y-1 text-xs sm:flex-nowrap sm:gap-x-1.5',
+    'flex flex-wrap items-center justify-start gap-1.5 text-xs sm:flex-nowrap',
     className || ''
   ]
     .filter(Boolean)
     .join(' ');
 
+  const actionButtons = ACTIONS.map(action => {
+    const base = { id: action.id, icon: action.icon, aria: action.aria };
+    switch (action.id) {
+      case 'copy':
+        return {
+          ...base,
+          disabled: copyDisabled,
+          onClick: () => {
+            if (!hasText) return;
+            void navigator.clipboard.writeText(content);
+          },
+        };
+      case 'up':
+        return {
+          ...base,
+          disabled: feedbackLoading,
+          onClick: () => {
+            if (feedbackLoading) return;
+            void feedback.submit({
+              conversationId,
+              messageId,
+              mode,
+              model,
+              rating: 1,
+            });
+          },
+          active: isUp,
+          pressed: isUp,
+        };
+      case 'down':
+        return {
+          ...base,
+          disabled: feedbackLoading,
+          onClick: () => {
+            if (feedbackLoading) return;
+            void feedback.submit({
+              conversationId,
+              messageId,
+              mode,
+              model,
+              rating: -1,
+            });
+          },
+          active: isDown,
+          pressed: isDown,
+        };
+      case 'refresh':
+        return {
+          ...base,
+          disabled: refreshDisabled,
+          onClick: () => {
+            if (refreshDisabled) return;
+            onRefresh();
+          },
+        };
+      default:
+        return {
+          ...base,
+          disabled: true,
+          onClick: () => {},
+        };
+    }
+  });
+
   return (
     <div className={footerClass}>
-      <button
-        type="button"
-        aria-label="Copy message"
-        className="assistant-icon-button"
-        disabled={copyDisabled}
-        onClick={() => {
-          if (!hasText) return;
-          void navigator.clipboard.writeText(content);
-        }}
-      >
-        <MaterialIcon name="content_copy" />
-      </button>
-      <button
-        type="button"
-        aria-label="Thumbs up"
-        className="assistant-icon-button"
-        data-active={isUp}
-        aria-pressed={isUp}
-        disabled={feedbackLoading}
-        onClick={() => {
-          if (feedbackLoading) return;
-          void feedback.submit({
-            conversationId,
-            messageId,
-            mode,
-            model,
-            rating: 1,
-          });
-        }}
-      >
-        <MaterialIcon name="thumb_up" />
-      </button>
-      <button
-        type="button"
-        aria-label="Thumbs down"
-        className="assistant-icon-button"
-        data-active={isDown}
-        aria-pressed={isDown}
-        disabled={feedbackLoading}
-        onClick={() => {
-          if (feedbackLoading) return;
-          void feedback.submit({
-            conversationId,
-            messageId,
-            mode,
-            model,
-            rating: -1,
-          });
-        }}
-      >
-        <MaterialIcon name="thumb_down" />
-      </button>
-      <span
-        aria-hidden="true"
-        className="mx-1 inline-flex h-4 w-px bg-slate-200 dark:bg-slate-700"
-      />
-      <button
-        type="button"
-        aria-label="Retry"
-        className="assistant-icon-button"
-        disabled={retryDisabled}
-        onClick={() => {
-          if (retryDisabled) return;
-          onRetry();
-        }}
-      >
-        <MaterialIcon name="replay" />
-      </button>
-      <button
-        type="button"
-        aria-label="Refresh"
-        className="assistant-icon-button"
-        disabled={refreshDisabled}
-        onClick={() => {
-          if (refreshDisabled) return;
-          onRefresh();
-        }}
-      >
-        <MaterialIcon name="refresh" />
-      </button>
+      {actionButtons.map(({ id, icon, aria, disabled, onClick, active, pressed }) => (
+        <button
+          key={id}
+          type="button"
+          aria-label={aria}
+          className="assistant-icon-button"
+          data-active={active ? 'true' : undefined}
+          aria-pressed={typeof pressed === 'boolean' ? pressed : undefined}
+          disabled={disabled}
+          onClick={onClick}
+        >
+          <MaterialIcon name={icon} />
+        </button>
+      ))}
     </div>
   );
 }
@@ -859,7 +858,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const isTyping = trimmedInput.length > 0;
   const showDefaultSuggestions = visibleMessages.length === 0 && !isTyping;
   const showLiveSuggestions = inputFocused && isTyping && liveSuggestions.length > 0;
-  const isBusy = queueActive || busy || !!abortRef.current;
+  const isAnalyzing = queueActive || busy || !!abortRef.current;
   const showSuggestions = mounted && inputFocused && !isTyping;
 
   const lastSuggestions = useMemo(() => {
@@ -2937,13 +2936,6 @@ ${systemCommon}` + baseSys;
     });
   }
 
-  function retryLastFailedOrResumeQueue() {
-    if (queueActive) return;
-    if (hasQueueResumeContext()) {
-      resumeLastFailedQueue();
-    }
-  }
-
   async function onSubmit() {
     if (busy || inFlight) return;
     inFlight = true;
@@ -3279,8 +3271,7 @@ ${systemCommon}` + baseSys;
 
   const assistantBusy = loadingAction !== null;
   const simpleMode = currentMode === 'patient';
-  const canRefreshQueue = !queueActive;
-  const canRetryQueue = !queueActive && hasQueueResumeContext();
+  const refreshDisabled = isAnalyzing;
 
   const renderedMessages = useMemo(
     () =>
@@ -3330,10 +3321,8 @@ ${systemCommon}` + baseSys;
               mode={currentMode}
               model={undefined}
               feedback={feedback}
-              onRetry={() => retryLastFailedOrResumeQueue()}
-              canRetry={canRetryQueue}
               onRefresh={() => refreshThreadOrResume()}
-              canRefresh={canRefreshQueue}
+              refreshDisabled={refreshDisabled}
             />
           );
 
@@ -3358,10 +3347,8 @@ ${systemCommon}` + baseSys;
               mode={currentMode}
               model={undefined}
               feedback={feedback}
-              onRetry={() => retryLastFailedOrResumeQueue()}
-              canRetry={canRetryQueue}
               onRefresh={() => refreshThreadOrResume()}
-              canRefresh={canRefreshQueue}
+              refreshDisabled={refreshDisabled}
               className="mt-1.5"
             />
           ) : null;
@@ -3396,9 +3383,7 @@ ${systemCommon}` + baseSys;
       currentMode,
       analyzeElapsed,
       refreshThreadOrResume,
-      retryLastFailedOrResumeQueue,
-      canRefreshQueue,
-      canRetryQueue,
+      refreshDisabled,
       feedback.submittedFor,
       feedback.loading,
       feedback.submit
@@ -3429,14 +3414,14 @@ ${systemCommon}` + baseSys;
   }
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && isBusy) {
+      if (e.key === 'Escape' && isAnalyzing) {
         e.preventDefault();
         onStop();
       }
     }
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [isBusy, onStop]);
+  }, [isAnalyzing, onStop]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -3820,7 +3805,7 @@ ${systemCommon}` + baseSys;
                   />
                   </div>
 
-                  {!isBusy ? (
+                  {!isAnalyzing ? (
                     <button
                       className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50"
                       type="submit"
