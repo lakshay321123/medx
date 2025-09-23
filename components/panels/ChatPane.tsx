@@ -736,7 +736,6 @@ function AssistantFooter({
       >
         <MaterialIcon name="thumb_down" />
       </button>
-      <div className="mx-1 h-[14px] w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
       <button
         type="button"
         aria-label="Refresh"
