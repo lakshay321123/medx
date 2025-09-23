@@ -3352,10 +3352,10 @@ ${systemCommon}` + baseSys;
                     }}
                   />
 
-                  {queueActive && (
+                  {(queueActive || busy || abortRef.current) && (
                     <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
                       <StopButton
-                        onClick={onStopQueue}
+                        onClick={onStop}
                         className="pointer-events-auto"
                         title="Stop (Esc)"
                       />
