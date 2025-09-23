@@ -13,6 +13,14 @@ export interface OrientationResult {
   sides: Record<string, "Left" | "Right" | "Unknown">;
 }
 
+export type Rotated = {
+  buffer: Buffer;
+  mime: string;
+  rotated: boolean;
+  width: number;
+  height: number;
+};
+
 function detectSide(name: string, metadata?: Record<string, any> | null): "Left" | "Right" | "Unknown" {
   if (metadata) {
     const side = metadata.side || metadata.Side || metadata.patientSide;
@@ -29,36 +37,45 @@ function detectSide(name: string, metadata?: Record<string, any> | null): "Left"
   return "Unknown";
 }
 
-async function rotateIfNeeded(image: OrientedImage): Promise<{ buffer: Buffer; rotated: boolean; width: number; height: number } | null> {
+function normalizeMime(mime?: string): "image/png" | "image/jpeg" {
+  if (!mime) return "image/png";
+  const lower = mime.toLowerCase();
+  if (lower.includes("jpeg") || lower.includes("jpg")) return "image/jpeg";
+  if (lower.includes("png")) return "image/png";
+  return "image/png";
+}
+
+async function rotateIfNeeded(image: { buffer: Buffer; mime?: string }): Promise<Rotated | null> {
   try {
-    const dataUrl = `data:${image.mime};base64,${image.buffer.toString("base64")}`;
-    const img = await loadImage(dataUrl);
+    const img = await loadImage(image.buffer);
     const width = img.width;
     const height = img.height;
 
     if (!width || !height) return null;
 
+    const mime = normalizeMime(image.mime);
     const needsRotation = width > height * 1.1;
+
     if (!needsRotation) {
-      return { buffer: image.buffer, rotated: false, width, height };
+      const canvas = createCanvas(width, height);
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, width, height);
+      const buffer =
+        mime === "image/jpeg" ? canvas.toBuffer("image/jpeg", 0.92) : canvas.toBuffer("image/png");
+      return { buffer, mime, rotated: false, width, height };
     }
 
     const canvas = createCanvas(height, width);
     const ctx = canvas.getContext("2d");
     ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.rotate((90 * Math.PI) / 180);
-    ctx.drawImage(img, -width / 2, -height / 2);
-    const newMime: "image/png" | "image/jpeg" = image.mime.includes("png") ? "image/png" : "image/jpeg";
-    let buffer: Buffer;
-
-    if (newMime === "image/png") {
-      buffer = canvas.toBuffer("image/png");
-    } else {
-      buffer = canvas.toBuffer("image/jpeg", 0.92);
-    }
-    return { buffer, rotated: true, width: canvas.width, height: canvas.height };
+    ctx.drawImage(img, -width / 2, -height / 2, width, height);
+    const buffer =
+      mime === "image/jpeg" ? canvas.toBuffer("image/jpeg", 0.92) : canvas.toBuffer("image/png");
+    return { buffer, mime, rotated: true, width: canvas.width, height: canvas.height };
   } catch (error) {
-    console.warn("[orientation] failed to rotate", { name: image.name, error });
+    const context = "name" in image ? { name: (image as { name?: string }).name, error } : { error };
+    console.warn("[orientation] failed to rotate", context);
     return null;
   }
 }
@@ -75,9 +92,11 @@ export async function normalizeOrientation(images: OrientedImage[]): Promise<Ori
 
   for (const image of images) {
     const rotated = await rotateIfNeeded(image);
-    if (rotated && rotated.rotated) {
-      rotationApplied = true;
-      oriented.push({ ...image, buffer: rotated.buffer });
+    if (rotated) {
+      if (rotated.rotated) {
+        rotationApplied = true;
+      }
+      oriented.push({ ...image, buffer: rotated.buffer, mime: rotated.mime });
     } else {
       oriented.push(image);
     }

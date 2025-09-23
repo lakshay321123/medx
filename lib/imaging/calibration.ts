@@ -4,8 +4,8 @@ export interface CalibrationInput {
   confidenceRaw: number | null | undefined;
   qualityScore: number;
   hasLateral: boolean;
-  viewCount: number;
-  redFlagCount?: number;
+  viewCount?: number | null;
+  redFlagCount?: number | null;
 }
 
 export interface CalibrationResult {
@@ -13,19 +13,21 @@ export interface CalibrationResult {
   decision_tier: DecisionTier;
 }
 
-const YES_THRESHOLD = Number.parseFloat(process.env.DECISION_THRESHOLD_YES || "0.85");
-const LIKELY_THRESHOLD = Number.parseFloat(process.env.DECISION_THRESHOLD_LIKELY || "0.6");
+const clamp01 = (value: number) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 
-function clamp01(value: number) {
-  if (Number.isNaN(value) || !Number.isFinite(value)) return 0;
-  return Math.min(1, Math.max(0, value));
-}
-
-function tierFromConfidence(confidence: number | null): DecisionTier {
-  if (confidence === null) return "Inconclusive";
-  if (confidence >= YES_THRESHOLD) return "YES";
-  if (confidence >= LIKELY_THRESHOLD) return "Likely";
-  return "Inconclusive";
+export function getDecisionThresholds(): [number, number] {
+  const defYes = 0.85;
+  const defLikely = 0.6;
+  const envYes = Number.parseFloat(process.env.DECISION_THRESHOLD_YES ?? "");
+  const envLikely = Number.parseFloat(process.env.DECISION_THRESHOLD_LIKELY ?? "");
+  let YES = Number.isFinite(envYes) ? envYes : defYes;
+  let LIKELY = Number.isFinite(envLikely) ? envLikely : defLikely;
+  if (YES < LIKELY) {
+    [YES, LIKELY] = [LIKELY, YES];
+  }
+  YES = clamp01(YES);
+  LIKELY = clamp01(LIKELY);
+  return [YES, LIKELY];
 }
 
 export function applyCalibration(input: CalibrationInput): CalibrationResult {
@@ -34,21 +36,26 @@ export function applyCalibration(input: CalibrationInput): CalibrationResult {
     return { confidence_calibrated: null, decision_tier: "Inconclusive" };
   }
 
-  const qualityMultiplier = 0.7 + input.qualityScore * 0.3;
+  const qualityScore = clamp01(input.qualityScore);
+  const viewCount = Math.max(0, Math.floor(input.viewCount ?? 0));
+  const redFlagCount = Math.max(0, Math.floor(input.redFlagCount ?? 0));
+
+  const qualityMultiplier = 0.7 + qualityScore * 0.3;
   const lateralAdjustment = input.hasLateral ? 0.02 : -0.08;
-  const viewBonus = input.viewCount > 1 ? 0.03 : 0;
-  const redFlagPenalty = input.redFlagCount && input.redFlagCount > 0 ? -0.03 * input.redFlagCount : 0;
+  const viewBonus = viewCount > 1 ? 0.03 : 0;
+  const redFlagPenalty = redFlagCount > 0 ? -0.03 * Math.min(redFlagCount, 10) : 0;
 
-  let adjusted = raw * qualityMultiplier + lateralAdjustment + viewBonus + redFlagPenalty;
-  adjusted = clamp01(adjusted);
+  let confidence = raw * qualityMultiplier + lateralAdjustment + viewBonus + redFlagPenalty;
+  confidence = clamp01(confidence);
 
-  return {
-    confidence_calibrated: adjusted,
-    decision_tier: tierFromConfidence(adjusted),
-  };
+  const [YES_THRESHOLD, LIKELY_THRESHOLD] = getDecisionThresholds();
+  const decision_tier: DecisionTier =
+    confidence >= YES_THRESHOLD ? "YES" : confidence >= LIKELY_THRESHOLD ? "Likely" : "Inconclusive";
+
+  return { confidence_calibrated: confidence, decision_tier };
 }
 
-export const DECISION_THRESHOLDS = {
-  YES: YES_THRESHOLD,
-  LIKELY: LIKELY_THRESHOLD,
-};
+export const DECISION_THRESHOLDS = (() => {
+  const [YES, LIKELY] = getDecisionThresholds();
+  return { YES, LIKELY } as const;
+})();

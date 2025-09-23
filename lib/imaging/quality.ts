@@ -23,7 +23,9 @@ export interface QualitySummary {
   threshold: number;
 }
 
-const QUALITY_MIN = Number.parseFloat(process.env.QUALITY_MIN || "0.55");
+const DEFAULT_QUALITY_MIN = 0.55;
+const parsedQualityMin = Number.parseFloat(process.env.QUALITY_MIN ?? "");
+const QUALITY_MIN = Number.isFinite(parsedQualityMin) ? clamp01(parsedQualityMin) : DEFAULT_QUALITY_MIN;
 
 const TIP_BY_METRIC: Record<keyof QualityMetrics, string> = {
   blur: "Reduce blur: steady the camera or rest it on a surface.",
@@ -77,8 +79,7 @@ export function computeQualityScore(metrics: QualityMetrics): {
 
 async function computeMetricsFromBuffer(name: string, buffer: Buffer, mime: string): Promise<QualityAssessment> {
   try {
-    const dataUrl = `data:${mime};base64,${buffer.toString("base64")}`;
-    const image = await loadImage(dataUrl);
+    const image = await loadImage(buffer);
     const width = image.width;
     const height = image.height;
 
@@ -105,8 +106,8 @@ async function computeMetricsFromBuffer(name: string, buffer: Buffer, mime: stri
     let minY = height;
     let maxY = 0;
 
-    for (let y = 1; y < height - 1; y += sampleStep) {
-      for (let x = 1; x < width - 1; x += sampleStep) {
+    for (let y = sampleStep; y < height - sampleStep; y += sampleStep) {
+      for (let x = sampleStep; x < width - sampleStep; x += sampleStep) {
         const idx = (y * width + x) * 4;
         const r = data[idx];
         const g = data[idx + 1];

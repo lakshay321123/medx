@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const assessImageQualityMock = vi.fn();
 const detectViewsMock = vi.fn();
@@ -49,6 +49,51 @@ async function loadRoute() {
   const module = await import("../app/api/imaging/analyze/route");
   return module.POST;
 }
+
+describe("view detection hint parsing", () => {
+  it("respects word boundaries for short keys", async () => {
+    const actual = await vi.importActual<typeof import("../lib/imaging/viewDetect")>("../lib/imaging/viewDetect");
+    expect(actual.viewFromFilename("hand-pa.jpg")).toBe("PA");
+    expect(actual.viewFromFilename("lat-elbow.png")).toBe("Lateral");
+    expect(actual.viewFromFilename("scapula.jpg")).toBeNull();
+    expect(actual.viewFromFilename("plate-123.jpeg")).toBeNull();
+  });
+});
+
+describe("calibration guards", () => {
+  const originalYes = process.env.DECISION_THRESHOLD_YES;
+  const originalLikely = process.env.DECISION_THRESHOLD_LIKELY;
+
+  afterEach(() => {
+    process.env.DECISION_THRESHOLD_YES = originalYes;
+    process.env.DECISION_THRESHOLD_LIKELY = originalLikely;
+  });
+
+  it("clamps inputs and caps penalties", async () => {
+    process.env.DECISION_THRESHOLD_YES = "not-a-number";
+    process.env.DECISION_THRESHOLD_LIKELY = "0.4";
+    const actual = await vi.importActual<typeof import("../lib/imaging/calibration")>("../lib/imaging/calibration");
+    const result = actual.applyCalibration({
+      confidenceRaw: 0.8,
+      qualityScore: 1.4,
+      hasLateral: false,
+      viewCount: 3,
+      redFlagCount: 99,
+    });
+    expect(result.confidence_calibrated).toBeCloseTo(0.45, 2);
+    expect(result.decision_tier).toBe("Likely");
+  });
+
+  it("enforces YES >= Likely when envs inverted", async () => {
+    process.env.DECISION_THRESHOLD_YES = "0.4";
+    process.env.DECISION_THRESHOLD_LIKELY = "0.9";
+    const actual = await vi.importActual<typeof import("../lib/imaging/calibration")>("../lib/imaging/calibration");
+    const [yes, likely] = actual.getDecisionThresholds();
+    expect(yes).toBeGreaterThanOrEqual(likely);
+    expect(yes).toBeCloseTo(0.9, 5);
+    expect(likely).toBeCloseTo(0.4, 5);
+  });
+});
 
 function buildFile(name: string) {
   return new File([new Uint8Array([1, 2, 3])], name, { type: "image/jpeg" });

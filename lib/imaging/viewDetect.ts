@@ -28,26 +28,35 @@ const VIEW_FROM_HINT: Record<string, ViewCode> = {
   obl: "Oblique",
 };
 
+function viewFromText(text: string): ViewCode | null {
+  const lower = text.toLowerCase();
+  for (const key of Object.keys(VIEW_FROM_HINT)) {
+    const isShort = key.length <= 3;
+    const hit = isShort
+      ? new RegExp(`\\b${key}\\b`).test(lower)
+      : lower.includes(key);
+    if (hit) {
+      return VIEW_FROM_HINT[key as keyof typeof VIEW_FROM_HINT];
+    }
+  }
+  return null;
+}
+
+export function viewFromFilename(name: string): ViewCode | null {
+  return viewFromText(name);
+}
+
 function classifyView(name: string, metadata?: Record<string, any> | null): ViewCode {
   if (metadata) {
     const metaView = metadata.view || metadata.View || metadata.imageView;
     if (typeof metaView === "string") {
       const normalized = metaView.toLowerCase();
-      const found = VIEW_FROM_HINT[normalized as keyof typeof VIEW_FROM_HINT];
+      const found = viewFromText(normalized);
       if (found) return found;
-      const key = Object.keys(VIEW_FROM_HINT).find(k => normalized.includes(k));
-      if (key) return VIEW_FROM_HINT[key as keyof typeof VIEW_FROM_HINT];
     }
   }
 
-  const lower = name.toLowerCase();
-  for (const key of Object.keys(VIEW_FROM_HINT)) {
-    if (lower.includes(key)) {
-      return VIEW_FROM_HINT[key as keyof typeof VIEW_FROM_HINT];
-    }
-  }
-
-  return "PA";
+  return viewFromText(name) ?? "PA";
 }
 
 function hashBuffer(buffer: Buffer) {
