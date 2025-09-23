@@ -895,6 +895,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const showDefaultSuggestions = visibleMessages.length === 0 && !isTyping;
   const showLiveSuggestions = inputFocused && isTyping && liveSuggestions.length > 0;
   const isAnalyzing = queueActive || busy || !!abortRef.current;
+  // one source of truth for "work in progress"
+  const isBusy = isAnalyzing || queueActive || busy || !!abortRef.current;
   const showSuggestions = mounted && inputFocused && !isTyping;
 
   const lastSuggestions = useMemo(() => {
@@ -4002,25 +4004,27 @@ ${systemCommon}` + baseSys;
                   />
                   </div>
 
-                  {!isAnalyzing ? (
-                    <button
-                      className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50"
-                      type="submit"
-                      disabled={pendingFiles.length === 0 && !userText.trim()}
-                      aria-label="Send"
-                      title="Send"
-                    >
-                      <Send size={16} />
-                    </button>
-                  ) : (
-                    <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                      <StopButton
-                        onClick={onStop}
-                        className="pointer-events-auto"
-                        title="Stop (Esc)"
-                      />
-                    </div>
-                  )}
+                  <div className="relative">
+                    {!isBusy ? (
+                      <button
+                        className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-40"
+                        type="submit"
+                        disabled={pendingFiles.length === 0 && !userText.trim()}
+                        aria-label="Send"
+                        title="Send"
+                      >
+                        <Send size={16} />
+                      </button>
+                    ) : (
+                      <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+                        <StopButton
+                          onClick={onStop}
+                          className="pointer-events-auto"
+                          title="Stop (Esc)"
+                        />
+                      </div>
+                    )}
+                  </div>
               </form>
             </div>
         </div>
