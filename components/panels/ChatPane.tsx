@@ -42,6 +42,7 @@ import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
 import { AnalyzingInline } from "@/components/chat/AnalyzingInline";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
+import { StopButton } from "@/components/ui/StopButton";
 import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
 import { getUserPosition, fetchNearby, geocodeArea, type NearbyKind, type NearbyPlace } from "@/lib/nearby";
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
@@ -858,6 +859,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const isTyping = trimmedInput.length > 0;
   const showDefaultSuggestions = visibleMessages.length === 0 && !isTyping;
   const showLiveSuggestions = inputFocused && isTyping && liveSuggestions.length > 0;
+  const isBusy = queueActive || busy || !!abortRef.current;
   const showSuggestions = mounted && inputFocused && !isTyping;
 
   const lastSuggestions = useMemo(() => {
@@ -3427,14 +3429,14 @@ ${systemCommon}` + baseSys;
   }
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && busy) {
+      if (e.key === 'Escape' && isBusy) {
         e.preventDefault();
         onStop();
       }
     }
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [busy, onStop]);
+  }, [isBusy, onStop]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -3768,7 +3770,7 @@ ${systemCommon}` + baseSys;
                   e.preventDefault();
                   onSubmit();
                 }}
-                className="flex w-full items-end gap-3 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80"
+                className="relative flex w-full items-end gap-3 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80"
               >
                 <label
                   className="inline-flex cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
@@ -3818,7 +3820,7 @@ ${systemCommon}` + baseSys;
                   />
                   </div>
 
-                  {!busy && (
+                  {!isBusy ? (
                     <button
                       className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50"
                       type="submit"
@@ -3828,6 +3830,14 @@ ${systemCommon}` + baseSys;
                     >
                       <Send size={16} />
                     </button>
+                  ) : (
+                    <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+                      <StopButton
+                        onClick={onStop}
+                        className="pointer-events-auto"
+                        title="Stop (Esc)"
+                      />
+                    </div>
                   )}
               </form>
             </div>
