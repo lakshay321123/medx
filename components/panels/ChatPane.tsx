@@ -1,5 +1,4 @@
 'use client';
-import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, useMemo, RefObject, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fromSearchParams } from '@/lib/modes/url';
@@ -48,8 +47,6 @@ import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
 import { getUserPosition, fetchNearby, geocodeArea, type NearbyKind, type NearbyPlace } from "@/lib/nearby";
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
 import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
-
-const ChatSuggestions = dynamic(() => import("./ChatSuggestions"), { ssr: false });
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -3108,12 +3105,6 @@ ${systemCommon}` + baseSys;
             </div>
           )}
 
-          {showDefaultSuggestions && showSuggestions && (
-            <div className="mx-auto mb-4 max-w-3xl">
-              <ChatSuggestions suggestions={defaultSuggestions} onSelect={handleSuggestionPick} />
-            </div>
-          )}
-
           {ui.topic && (
             <div className="mx-auto mb-2 max-w-3xl">
               <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs dark:border-slate-700 dark:bg-slate-900/70">
@@ -3263,13 +3254,23 @@ ${systemCommon}` + baseSys;
                 </button>
               )}
 
-              {showLiveSuggestions && (
-                <SuggestBar
-                  title="Suggestions"
-                  suggestions={liveSuggestions}
-                  onPick={handleSuggestionPick}
-                  className="rounded-2xl border border-slate-200 bg-white/85 p-3 backdrop-blur dark:border-slate-700 dark:bg-slate-900/70"
-                />
+              {((showDefaultSuggestions && showSuggestions) || showLiveSuggestions) && (
+                <div className="w-full">
+                  {showDefaultSuggestions && showSuggestions && (
+                    <SuggestBar
+                      title="Popular questions"
+                      suggestions={defaultSuggestions}
+                      onPick={handleSuggestionPick}
+                    />
+                  )}
+                  {showLiveSuggestions && (
+                    <SuggestBar
+                      title="Suggestions"
+                      suggestions={liveSuggestions}
+                      onPick={handleSuggestionPick}
+                    />
+                  )}
+                </div>
               )}
 
               {pendingFiles.length > 0 && (
