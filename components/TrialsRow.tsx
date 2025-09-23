@@ -86,7 +86,7 @@ function formatTrialBriefMarkdown(nctId: string, brief: any) {
     .join("\n");
 
   return [
-    `### ${nctId} — Doctor Brief`,
+    `### ${nctId} — Clinical Brief`,
     brief.tldr ? `**TL;DR:** ${brief.tldr}` : "",
     bullets,
     lines,

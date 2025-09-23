@@ -162,7 +162,7 @@ export default function ModeBar() {
         className={btn(doctorActive)}
         onClick={() => apply({ type: "toggle/doctor" })}
       >
-        Doctor
+        Clinical
       </button>
 
       <div className="mx-1 h-5 w-px bg-black/10 dark:bg-white/10" />

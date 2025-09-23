@@ -71,7 +71,7 @@ export default function NearbyFinder() {
           onChange={(e) => setType(e.target.value)}
           className="border rounded px-2 py-1"
         >
-          <option value="doctor">Doctors</option>
+          <option value="doctor">Clinicians</option>
           <option value="specialist">Specialists</option>
           <option value="hospital">Hospitals</option>
           <option value="clinic">Clinics</option>

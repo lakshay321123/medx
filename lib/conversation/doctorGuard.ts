@@ -1,4 +1,4 @@
-// Doctor Mode Guard — strips research and enforces structure
+// Clinical Mode Guard — strips research and enforces structure
 export function enforceDoctorMode(output: string, template: string): string {
   let cleaned = output;
 
