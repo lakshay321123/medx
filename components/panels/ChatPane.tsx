@@ -331,6 +331,16 @@ type NearbySessionState = {
   attribution?: string;
 };
 
+type MessageOrigin = {
+  type: "text" | "files";
+  userMessageId: string;
+  text?: string;
+  fileIds?: string[];
+  note?: string | null;
+  panel: string;
+  researchOn?: boolean;
+};
+
 type ChatMessage =
   | (BaseChatMessage & {
       role: "assistant";
@@ -341,6 +351,7 @@ type ChatMessage =
       parentId?: string;
       pending?: boolean;
       error?: string | null;
+      origin?: MessageOrigin;
     })
   | (BaseChatMessage & {
       role: "assistant";
@@ -349,6 +360,7 @@ type ChatMessage =
       parentId?: string;
       pending?: boolean;
       error?: string | null;
+      origin?: MessageOrigin;
     })
   | (BaseChatMessage & {
       role: "user";
@@ -852,7 +864,17 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const analyzingStartRef = useRef<number | null>(null);
   const analyzeTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [analyzeElapsed, setAnalyzeElapsed] = useState<number>(0);
-  const lastQueueRef = useRef<{ files: File[]; nextIndex: number; analyzingId: string; noteText: string } | null>(null);
+  const fileRegistryRef = useRef<Map<string, File>>(new Map());
+  const lastQueueRef = useRef<{
+    files: File[];
+    fileIds: string[];
+    nextIndex: number;
+    analyzingId: string;
+    noteText: string;
+    userMessageId?: string;
+    panel: string;
+    researchOn?: boolean;
+  } | null>(null);
   const { filters } = useResearchFilters();
   const feedback = useFeedback();
   const setStreamActiveInStore = useChatRunState(state => state.setStreamActive);
@@ -938,6 +960,42 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     analyzingStartRef.current = null;
     setAnalyzeElapsed(0);
   };
+
+  const ensureRegisteredFileIds = useCallback(
+    (files: File[], existing?: string[]) => {
+      return files.map((file, index) => {
+        const preset = existing?.[index];
+        let id = preset;
+        if (!id) {
+          const stored = (file as any).__medxFileId as string | undefined;
+          id = stored;
+        }
+        if (!id) {
+          if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+            id = crypto.randomUUID();
+          } else {
+            id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+          }
+        }
+        (file as any).__medxFileId = id;
+        fileRegistryRef.current.set(id, file);
+        return id;
+      });
+    },
+    [],
+  );
+
+  const getFilesForIds = useCallback((ids: string[]) => {
+    const collected: File[] = [];
+    for (const id of ids) {
+      const file = fileRegistryRef.current.get(id);
+      if (!file) {
+        return null;
+      }
+      collected.push(file);
+    }
+    return collected;
+  }, []);
 
   useEffect(() => {
     function onPush(e: Event) {
@@ -1999,16 +2057,28 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     // Dedupe: avoid back-to-back identical user bubbles
     const lastUser = [...messages].reverse().find(m => m.role === 'user');
     const isDupUser = !!lastUser && lastUser.content.trim() === messageText.trim();
-    const nextMsgs: ChatMessage[] = (visualEcho && !isDupUser)
+    const userMessageId = isDupUser && lastUser ? lastUser.id : userId;
+    const pendingMessage = {
+      id: pendingId,
+      role: 'assistant',
+      kind: 'chat',
+      content: '',
+      pending: true,
+      origin: {
+        type: 'text',
+        userMessageId,
+        text: messageText,
+        panel: currentMode,
+        researchOn: researchMode,
+      },
+    } as ChatMessage;
+    const nextMsgs: ChatMessage[] = visualEcho && !isDupUser
       ? [
           ...messages,
           { id: userId, role: 'user', kind: 'chat', content: messageText } as ChatMessage,
-          { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true } as ChatMessage,
+          pendingMessage,
         ]
-      : [
-          ...messages,
-          { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true } as ChatMessage,
-        ];
+      : [...messages, pendingMessage];
     setMessages(nextMsgs);
     const maybe = maybeFixMedicalTypo(messageText);
     if (maybe && messages.filter(m => m.role === "assistant").slice(-1)[0]?.content !== maybe.ask) {
@@ -2623,10 +2693,10 @@ ${systemCommon}` + baseSys;
   async function analyzeFile(
     file: File,
     noteText: string,
-    opts: { signal?: AbortSignal; queue?: boolean } = {}
+    opts: { signal?: AbortSignal; queue?: boolean; origin?: MessageOrigin } = {}
   ) {
     if (!file) return;
-    const { signal, queue = false } = opts;
+    const { signal, queue = false, origin } = opts;
     const trimmedNote = noteText.trim();
 
     if (!queue) {
@@ -2658,13 +2728,29 @@ ${systemCommon}` + baseSys;
       const data = await safeJson(
         fetch('/api/analyze', { method: 'POST', body: fd, signal })
       );
+      const [registeredId] = ensureRegisteredFileIds([file], origin?.fileIds);
+      const normalizedFileIds = registeredId ? [registeredId] : origin?.fileIds ?? [];
+      const lastUserForOrigin = [...messages].reverse().find(m => m.role === 'user');
+      const resolvedOrigin: MessageOrigin = {
+        type: origin?.type ?? 'files',
+        userMessageId: origin?.userMessageId ?? lastUserForOrigin?.id ?? messageId,
+        panel: origin?.panel ?? currentMode,
+        researchOn: origin?.researchOn ?? researchMode,
+      };
+      if (origin?.text) resolvedOrigin.text = origin.text;
+      if (normalizedFileIds.length > 0) {
+        resolvedOrigin.fileIds = normalizedFileIds;
+      }
+      resolvedOrigin.note =
+        origin?.note !== undefined ? origin.note : (trimmedNote ? trimmedNote : null);
       const finalMessage: ChatMessage = {
         id: messageId,
         role: 'assistant',
         kind: 'analysis',
         category: data.category,
         content: data.report,
-        pending: false
+        pending: false,
+        origin: resolvedOrigin,
       } as any;
       setMessages(prev => {
         if (queue) {
@@ -2719,7 +2805,12 @@ ${systemCommon}` + baseSys;
     }
   }
 
-  async function analyzeFileWithTimeout(file: File, noteText: string, signal?: AbortSignal) {
+  async function analyzeFileWithTimeout(
+    file: File,
+    noteText: string,
+    signal?: AbortSignal,
+    origin?: MessageOrigin,
+  ) {
     const timeoutMs = 120000;
     const attemptController = new AbortController();
     const cleanups: (() => void)[] = [];
@@ -2745,14 +2836,19 @@ ${systemCommon}` + baseSys;
     }, timeoutMs);
 
     try {
-      await analyzeFile(file, noteText, { signal: attemptController.signal, queue: true });
+      await analyzeFile(file, noteText, { signal: attemptController.signal, queue: true, origin });
     } finally {
       clearTimeout(timeout);
       cleanups.forEach(fn => fn());
     }
   }
 
-  async function runFileQueueSequential(files: File[], analyzingId: string, noteText: string) {
+  async function runFileQueueSequential(
+    files: File[],
+    analyzingId: string,
+    noteText: string,
+    originMeta?: { userMessageId?: string; fileIds?: string[]; panel?: string; researchOn?: boolean },
+  ) {
     if (queueAbortRef.current) {
       try {
         queueAbortRef.current.abort();
@@ -2766,7 +2862,18 @@ ${systemCommon}` + baseSys;
     setThinkingStartedAt(Date.now());
     const queueToken = Symbol('queue');
     queueTokenRef.current = queueToken;
-    lastQueueRef.current = { files, nextIndex: 0, analyzingId, noteText };
+    const normalizedPanel = originMeta?.panel ?? currentMode;
+    const fileIds = ensureRegisteredFileIds(files, originMeta?.fileIds);
+    lastQueueRef.current = {
+      files,
+      fileIds,
+      nextIndex: 0,
+      analyzingId,
+      noteText,
+      userMessageId: originMeta?.userMessageId,
+      panel: normalizedPanel,
+      researchOn: originMeta?.researchOn,
+    };
 
     const N = files.length;
     const maxAttempts = 3;
@@ -2786,16 +2893,34 @@ ${systemCommon}` + baseSys;
         ensureAnalyzeTicker();
         analyzingStartRef.current = Date.now();
         setAnalyzeElapsed(0);
-        lastQueueRef.current = { files, nextIndex: i + 1, analyzingId, noteText };
+        lastQueueRef.current = {
+          files,
+          fileIds,
+          nextIndex: i + 1,
+          analyzingId,
+          noteText,
+          userMessageId: originMeta?.userMessageId,
+          panel: normalizedPanel,
+          researchOn: originMeta?.researchOn,
+        };
 
         let ok = false;
         let attempt = 0;
         let lastErr: any = null;
 
+        const perFileOrigin: MessageOrigin = {
+          type: 'files',
+          userMessageId: originMeta?.userMessageId ?? analyzingId,
+          fileIds: fileIds[i] ? [fileIds[i]] : [],
+          note: noteText ? noteText : null,
+          panel: normalizedPanel,
+          researchOn: originMeta?.researchOn,
+        };
+
         while (!ok && attempt < maxAttempts && !ac.signal.aborted) {
           attempt++;
           try {
-            await analyzeFileWithTimeout(f, noteText, ac.signal);
+            await analyzeFileWithTimeout(f, noteText, ac.signal, perFileOrigin);
             ok = true;
           } catch (err) {
             lastErr = err;
@@ -2880,6 +3005,15 @@ ${systemCommon}` + baseSys;
     if (remaining.length === 0) return;
 
     const { analyzingId, noteText } = ctx;
+    const remainingFileIds = ctx.fileIds.slice(ctx.nextIndex ?? 0);
+    const origin: MessageOrigin = {
+      type: 'files',
+      userMessageId: ctx.userMessageId ?? analyzingId,
+      fileIds: remainingFileIds,
+      note: noteText ? noteText : null,
+      panel: ctx.panel,
+      researchOn: ctx.researchOn,
+    };
     setMessages(prev => [
       ...prev.filter(m => m.id !== analyzingId),
       {
@@ -2888,14 +3022,20 @@ ${systemCommon}` + baseSys;
         kind: 'analysis',
         content: 'Analyzing…',
         pending: true,
+        origin,
       } as Extract<ChatMessage, { kind: 'analysis' }>,
     ]);
     ensureAnalyzeTicker();
-    runFileQueueSequential(remaining, analyzingId, noteText);
+    runFileQueueSequential(remaining, analyzingId, noteText, {
+      userMessageId: ctx.userMessageId,
+      fileIds: remainingFileIds,
+      panel: ctx.panel,
+      researchOn: ctx.researchOn,
+    });
   }
 
-  function refreshThreadOrResume() {
-    if (queueActive) {
+  function refreshAssistantMessage(target: ChatMessage) {
+    if (isAnalyzing) {
       return;
     }
 
@@ -2904,50 +3044,75 @@ ${systemCommon}` + baseSys;
       return;
     }
 
-    const snapshot = readThreadSnapshot();
-    if (!snapshot) {
-      setWelcomeMessage(prev => {
-        if (isProfileThread) return null;
-        if (typeof window !== 'undefined') {
-          try {
-            const stored = localStorage.getItem(welcomeKeyFor(null));
-            if (stored && stored.trim().length > 0) {
-              return stored;
-            }
-          } catch {}
+    if (target.role !== 'assistant') {
+      return;
+    }
+
+    const origin = target.origin;
+    if (origin?.type === 'files') {
+      const ids = origin.fileIds ?? [];
+      if (ids.length === 0) {
+        pushToast({ title: "Can't re-run—files no longer available. Please re-upload." });
+        return;
+      }
+      const files = getFilesForIds(ids);
+      if (!files || files.length === 0) {
+        pushToast({ title: "Can't re-run—files no longer available. Please re-upload." });
+        return;
+      }
+
+      const analyzingId = uid();
+      const rerunPanel = origin.panel || currentMode;
+      const rerunOrigin: MessageOrigin = {
+        type: 'files',
+        userMessageId: origin.userMessageId ?? analyzingId,
+        fileIds: ids,
+        note: origin.note ?? null,
+        panel: rerunPanel,
+        researchOn: origin.researchOn,
+      };
+      setMessages(prev => [
+        ...prev,
+        {
+          id: analyzingId,
+          role: 'assistant',
+          kind: 'analysis',
+          content: 'Analyzing…',
+          pending: true,
+          origin: rerunOrigin,
+        } as Extract<ChatMessage, { kind: 'analysis' }>,
+      ]);
+      ensureAnalyzeTicker();
+      analyzingStartRef.current = Date.now();
+      setAnalyzeElapsed(0);
+      void runFileQueueSequential(files, analyzingId, origin.note ?? '', {
+        userMessageId: rerunOrigin.userMessageId,
+        fileIds: ids,
+        panel: rerunPanel,
+        researchOn: rerunOrigin.researchOn,
+      });
+      return;
+    }
+
+    let textToResend = origin?.text;
+    if (!textToResend || !textToResend.trim()) {
+      const idx = messages.findIndex(m => m.id === target.id);
+      for (let i = idx - 1; i >= 0; i--) {
+        const prev = messages[i];
+        if (prev.role === 'user' && typeof prev.content === 'string' && prev.content.trim()) {
+          textToResend = prev.content;
+          break;
         }
-        return prev ?? getRandomWelcome();
-      });
-      pushToast({ title: 'No new updates' });
+      }
+    }
+
+    if (!textToResend || !textToResend.trim()) {
+      pushToast({ title: "Can't re-run—original prompt unavailable." });
       return;
     }
 
-    const { messages: savedMessages, welcome } = snapshot;
-    const currentSerialized = JSON.stringify(messages);
-    const savedSerialized = JSON.stringify(savedMessages);
-    if (currentSerialized === savedSerialized) {
-      setWelcomeMessage(prev => {
-        if (isProfileThread) return null;
-        if (welcome) return welcome;
-        if (prev) return prev;
-        return savedMessages.length > 0 ? null : getRandomWelcome();
-      });
-      pushToast({ title: 'No new updates' });
-      return;
-    }
-
-    setMessages(savedMessages);
-    posted.current = new Set(
-      savedMessages
-        .filter((m: any) => m && m.role === 'assistant' && typeof m.id === 'string')
-        .map((m: any) => m.id)
-    );
-    setWelcomeMessage(prev => {
-      if (isProfileThread) return null;
-      if (welcome) return welcome;
-      if (prev) return prev;
-      return savedMessages.length > 0 ? null : getRandomWelcome();
-    });
+    const researchFlag = origin?.researchOn ?? researchMode;
+    void send(textToResend, researchFlag);
   }
 
   async function onSubmit() {
@@ -2985,7 +3150,19 @@ ${systemCommon}` + baseSys;
           setMessages(prev => [...prev, ...imageMsgs]);
         }
 
+        const fileIds = ensureRegisteredFileIds(files);
         const analyzingId = uid();
+        const lastUserForFiles = [...messages].reverse().find(m => m.role === 'user');
+        const fileUserMessageId =
+          imageMsgs[imageMsgs.length - 1]?.id ?? lastUserForFiles?.id ?? uid();
+        const analysisOrigin: MessageOrigin = {
+          type: 'files',
+          userMessageId: fileUserMessageId,
+          fileIds,
+          note: trimmed ? trimmed : null,
+          panel: currentMode,
+          researchOn: researchMode,
+        };
         setMessages(prev => [
           ...prev,
           {
@@ -2994,12 +3171,18 @@ ${systemCommon}` + baseSys;
             kind: 'analysis',
             content: 'Analyzing…',
             pending: true,
+            origin: analysisOrigin,
           } as Extract<ChatMessage, { kind: 'analysis' }>,
         ]);
 
         ensureAnalyzeTicker();
 
-        await runFileQueueSequential(files, analyzingId, trimmed);
+        await runFileQueueSequential(files, analyzingId, trimmed, {
+          userMessageId: analysisOrigin.userMessageId,
+          fileIds,
+          panel: analysisOrigin.panel,
+          researchOn: analysisOrigin.researchOn,
+        });
         setUserText('');
         return;
       }
@@ -3335,7 +3518,7 @@ ${systemCommon}` + baseSys;
               mode={currentMode}
               model={undefined}
               feedback={feedback}
-              onRefresh={() => refreshThreadOrResume()}
+              onRefresh={() => refreshAssistantMessage(m)}
               refreshDisabled={refreshDisabled}
             />
           );
@@ -3361,7 +3544,7 @@ ${systemCommon}` + baseSys;
               mode={currentMode}
               model={undefined}
               feedback={feedback}
-              onRefresh={() => refreshThreadOrResume()}
+              onRefresh={() => refreshAssistantMessage(m)}
               refreshDisabled={refreshDisabled}
               className="mt-1.5"
             />
@@ -3396,7 +3579,7 @@ ${systemCommon}` + baseSys;
       conversationId,
       currentMode,
       analyzeElapsed,
-      refreshThreadOrResume,
+      refreshAssistantMessage,
       refreshDisabled,
       feedback.submittedFor,
       feedback.loading,
