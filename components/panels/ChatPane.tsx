@@ -26,7 +26,8 @@ import { safeJson } from '@/lib/safeJson';
 import { splitFollowUps } from '@/lib/splitFollowUps';
 import { getTrials } from "@/lib/hooks/useTrials";
 import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials";
-import FeedbackBar from "@/components/FeedbackBar";
+import MessageActions from "@/components/chat/MessageActions";
+import SharePanel from "@/components/chat/SharePanel";
 import type { ChatMessage as BaseChatMessage } from "@/types/chat";
 import type { AnalysisCategory } from '@/lib/context';
 import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle, upsertThreadIndex, createNewThreadId } from '@/lib/chatThreads';
@@ -47,6 +48,10 @@ import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
 import { getUserPosition, fetchNearby, geocodeArea, type NearbyKind, type NearbyPlace } from "@/lib/nearby";
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
 import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
+import { pushToast } from "@/lib/ui/toast";
+import { trackEvent } from "@/lib/analytics/events";
+import { exportMessageCardToPng } from "@/lib/share/exportImage";
+import { buildShareCaption } from "@/lib/share/caption";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -74,6 +79,50 @@ const REPORTS_LOCKED_MESSAGE = "Reports are available only in AI Doc mode.";
 // Updated LABS_TREND_INTENT: only triggers on explicit lab/report phrases
 const LABS_TREND_INTENT = /\b(pull my reports|show my reports|fetch my reports|what do my reports say|compare my reports|lab history|lab trend|report history|report trend|date\s*wise|datewise)\b/i;
 const RAW_TEXT_INTENT = /(raw text|full text|show .*report text)/i;
+
+type RefreshSnapshot = {
+  chatMessages: { role: string; content: string }[];
+  userText: string;
+  mode: 'patient' | 'doctor';
+  researchMode: boolean;
+  filters: any;
+  threadId?: string | null;
+  stableThreadId?: string | null;
+  context?: string | null;
+};
+
+type ShareTargetState = {
+  conversationId: string;
+  messageId: string;
+  domId: string;
+  plainText: string;
+  content: string;
+  mode: 'patient' | 'doctor' | 'research' | 'therapy';
+  research: boolean;
+};
+
+const cloneFilters = (value: any) => {
+  if (value == null) return null;
+  try {
+    if (typeof structuredClone === 'function') {
+      return structuredClone(value);
+    }
+  } catch {}
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return value;
+  }
+};
+
+const getMessageTextFromDom = (domId: string, fallback: string) => {
+  if (typeof document === 'undefined') return fallback;
+  const node = document.getElementById(domId);
+  if (!node) return fallback;
+  const content = node.querySelector('.message-content');
+  const text = content ? (content as HTMLElement).innerText : node.innerText;
+  return (text || fallback || '').trim();
+};
 
 const formatTrendDate = (iso?: string) => {
   if (!iso) return "—";
@@ -474,16 +523,18 @@ function AnalysisCard({
   m,
   researchOn,
   onQuickAction,
-  busy
+  busy,
+  contentId,
 }: {
   m: Extract<ChatMessage, { kind: "analysis" }>;
   researchOn: boolean;
   onQuickAction: (k: "simpler" | "doctor" | "next") => void;
   busy: boolean;
+  contentId?: string;
 }) {
   const header = titleForCategory(m.category);
   return (
-    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl space-y-2">
+    <div id={contentId} className="relative max-w-3xl space-y-2 whitespace-normal rounded-2xl bg-white/90 p-4 text-left dark:bg-zinc-900/60">
       <header className="flex items-center gap-2">
         <h2 className="text-lg md:text-xl font-semibold">{header}</h2>
         {researchOn && (
@@ -536,19 +587,22 @@ function ChatCard({
   therapyMode,
   onAction,
   simple,
-  pendingTimerActive
+  pendingTimerActive,
+  contentId,
 }: {
   m: Extract<ChatMessage, { kind: "chat" }>;
   therapyMode: boolean;
   onAction: (s: Suggestion) => void;
   simple: boolean;
   pendingTimerActive?: boolean;
+  contentId?: string;
 }) {
   const suggestions = normalizeSuggestions(m.followUps);
   if (m.pending) return <PendingChatCard label="Thinking…" active={pendingTimerActive} />;
   return (
     <div
-      className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl"
+      id={contentId}
+      className="relative max-w-3xl whitespace-normal rounded-2xl bg-white/90 p-4 text-left dark:bg-zinc-900/60"
     >
       <ChatMarkdown content={m.content} />
       {m.role === "assistant" && (m.citations?.length || 0) > 0 && (
@@ -610,8 +664,9 @@ function AssistantMessage(props: {
   onAction: (s: Suggestion) => void;
   simple: boolean;
   pendingTimerActive?: boolean;
+  contentId?: string;
 }) {
-  const { m, therapyMode, onAction, simple, pendingTimerActive, researchOn, onQuickAction, busy } = props;
+  const { m, therapyMode, onAction, simple, pendingTimerActive, researchOn, onQuickAction, busy, contentId } = props;
   if (m.kind === "analysis") {
     return (
       <AnalysisCard
@@ -619,6 +674,7 @@ function AssistantMessage(props: {
         researchOn={researchOn}
         onQuickAction={onQuickAction}
         busy={busy}
+        contentId={contentId}
       />
     );
   }
@@ -632,6 +688,7 @@ function AssistantMessage(props: {
       onAction={onAction}
       simple={simple}
       pendingTimerActive={pendingTimerActive}
+      contentId={contentId}
     />
   );
 }
@@ -651,6 +708,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const [labSummary, setLabSummary] = useState<any | null>(null);
+  const [refreshingMessages, setRefreshingMessages] = useState<Record<string, boolean>>({});
+  const [shareTarget, setShareTarget] = useState<ShareTargetState | null>(null);
+  const [shareBusy, setShareBusy] = useState<null | 'link' | 'download' | 'caption' | 'system'>(null);
   const abortRef = useRef<AbortController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef =
@@ -658,6 +718,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
   const previewUrlsRef = useRef<string[]>([]);
   const queueAbortRef = useRef<AbortController | null>(null);
+  const shareLinksRef = useRef<Map<string, string>>(new Map());
+  const shareInFlightRef = useRef<Map<string, Promise<string>>>(new Map());
   const { filters } = useResearchFilters();
 
   const sp = useSearchParams();
@@ -2141,6 +2203,24 @@ ${systemCommon}` + baseSys;
         ];
       }
 
+      const refreshSnapshot = chatMessages
+        ? {
+            chatMessages: chatMessages.map((msg) => ({ ...msg })),
+            userText: text,
+            mode,
+            researchMode,
+            filters: cloneFilters(filters),
+            threadId,
+            stableThreadId,
+            context,
+          } satisfies RefreshSnapshot
+        : null;
+      if (refreshSnapshot) {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === pendingId ? { ...m, refreshSnapshot } : m))
+        );
+      }
+
       const url = `/api/chat/stream${researchMode ? '?research=1' : ''}`;
       const res = await fetch(url, {
         method: 'POST',
@@ -2847,6 +2927,324 @@ ${systemCommon}` + baseSys;
   const assistantBusy = loadingAction !== null;
   const simpleMode = currentMode === 'patient';
 
+  const handleRefresh = useCallback(async (messageId: string) => {
+    const target = messages.find((m) => m.id === messageId) as (ChatMessage & { refreshSnapshot?: RefreshSnapshot }) | undefined;
+    const snapshot = target?.refreshSnapshot;
+    if (!snapshot || !Array.isArray(snapshot.chatMessages) || snapshot.chatMessages.length === 0) {
+      pushToast({ title: "Couldn't refresh. Please try again.", variant: 'destructive' });
+      return;
+    }
+
+    const pendingId = uid();
+    setRefreshingMessages((prev) => ({ ...prev, [messageId]: true }));
+    setMessages((prev) => {
+      const next = [...prev];
+      const idx = next.findIndex((m) => m.id === messageId);
+      if (idx === -1) return prev;
+      next.splice(idx + 1, 0, {
+        id: pendingId,
+        role: 'assistant',
+        kind: 'chat',
+        content: '',
+        pending: true,
+        refreshSnapshot: snapshot,
+      } as ChatMessage);
+      return next;
+    });
+
+    try {
+      const url = `/api/chat/stream${snapshot.researchMode ? '?research=1' : ''}`;
+      const body = {
+        mode: snapshot.mode,
+        messages: snapshot.chatMessages,
+        threadId: snapshot.threadId,
+        context: snapshot.context,
+        clientRequestId: crypto.randomUUID(),
+        research: snapshot.researchMode,
+      };
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-conversation-id': conversationId,
+          'x-new-chat': 'false',
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let acc = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n').filter((line) => line.startsWith('data: '));
+        for (const line of lines) {
+          if (line.trim() === 'data: [DONE]') continue;
+          try {
+            const payload = JSON.parse(line.replace(/^data:\s*/, ''));
+            const delta = payload?.choices?.[0]?.delta?.content;
+            if (delta) {
+              acc += delta;
+              setMessages((prev) =>
+                prev.map((msg) => (msg.id === pendingId ? { ...msg, content: acc } : msg))
+              );
+            }
+          } catch {}
+        }
+      }
+
+      const { main, followUps } = splitFollowUps(acc);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === pendingId
+            ? { ...msg, content: main, followUps, pending: false }
+            : msg
+        )
+      );
+
+      if (snapshot.researchMode) {
+        try {
+          const r = await fetch('/api/research/bundle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: snapshot.userText, filters: snapshot.filters ?? {}, audience: snapshot.mode }),
+          });
+          const data = await r.json().catch(() => null);
+          const cites = Array.isArray(data?.citations) ? data.citations : [];
+          setMessages((prev) =>
+            prev.map((msg) => (msg.id === pendingId ? { ...msg, citations: cites } : msg))
+          );
+        } catch {}
+      }
+
+      if (snapshot.threadId && main?.trim()) {
+        pushFullMem(snapshot.threadId, 'assistant', main);
+        maybeIndexStructured(snapshot.threadId, main);
+      }
+      if (snapshot.stableThreadId) {
+        try { pushFullMem(snapshot.stableThreadId, 'assistant', main); } catch {}
+      }
+      if (main && main.length > 400) {
+        setFromChat({ id: pendingId, content: main });
+        setUi((prev) => ({ ...prev, contextFrom: 'Conversation summary' }));
+      }
+
+      setMessages((prev) =>
+        prev.map((msg) => (msg.id === messageId ? { ...msg, replaced: true } : msg))
+      );
+    } catch (err) {
+      console.error(err);
+      setMessages((prev) => prev.filter((msg) => msg.id !== pendingId));
+      pushToast({ title: "Couldn't refresh. Please try again.", variant: 'destructive' });
+    } finally {
+      setRefreshingMessages((prev) => {
+        const next = { ...prev };
+        delete next[messageId];
+        return next;
+      });
+    }
+  }, [messages, conversationId, setFromChat, setUi]);
+
+  const systemShareSupported = typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function';
+
+  const ensureShareLink = useCallback(async (target: ShareTargetState) => {
+    const cached = shareLinksRef.current.get(target.messageId);
+    if (cached) return cached;
+
+    const inflight = shareInFlightRef.current.get(target.messageId);
+    if (inflight) return inflight;
+
+    const request = (async () => {
+      const res = await fetch('/api/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId: target.conversationId,
+          messageId: target.messageId,
+          content: target.content,
+          mode: target.mode,
+          research: target.research,
+        }),
+      });
+      if (!res.ok) throw new Error('share_failed');
+      const data = await res.json().catch(() => null);
+      const slug = typeof data?.slug === 'string' ? data.slug : null;
+      if (!slug) throw new Error('share_failed');
+      const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+      const url = origin ? `${origin}/s/${slug}` : `/s/${slug}`;
+      shareLinksRef.current.set(target.messageId, url);
+      return url;
+    })();
+    shareInFlightRef.current.set(target.messageId, request);
+    try {
+      return await request;
+    } finally {
+      shareInFlightRef.current.delete(target.messageId);
+    }
+  }, []);
+
+  const closeShare = useCallback(() => {
+    setShareTarget(null);
+    setShareBusy(null);
+  }, []);
+
+  const openShare = useCallback((target: ShareTargetState) => {
+    setShareTarget(target);
+    setShareBusy(null);
+    trackEvent('share_opened', {
+      conversationId: target.conversationId,
+      messageId: target.messageId,
+      mode: target.mode,
+      research: target.research,
+    });
+  }, []);
+
+  const handleCopyShareLink = useCallback(async () => {
+    if (!shareTarget) return;
+    setShareBusy('link');
+    try {
+      const url = await ensureShareLink(shareTarget);
+      if (!navigator?.clipboard?.writeText) throw new Error('clipboard');
+      await navigator.clipboard.writeText(url);
+      pushToast({ title: 'Link copied' });
+      trackEvent('share_copy_link', {
+        conversationId: shareTarget.conversationId,
+        messageId: shareTarget.messageId,
+        mode: shareTarget.mode,
+        research: shareTarget.research,
+      });
+    } catch {
+      pushToast({ title: 'Could not copy link', variant: 'destructive' });
+    } finally {
+      setShareBusy(null);
+    }
+  }, [shareTarget, ensureShareLink]);
+
+  const handleDownloadShareImage = useCallback(async () => {
+    if (!shareTarget) return;
+    setShareBusy('download');
+    try {
+      const node = document.getElementById(shareTarget.domId);
+      if (!node) throw new Error('missing_node');
+      const modeLabel =
+        shareTarget.mode === 'doctor'
+          ? 'Doctor mode'
+          : shareTarget.mode === 'research'
+          ? 'Research mode'
+          : shareTarget.mode === 'therapy'
+          ? 'Therapy mode'
+          : 'Patient mode';
+      const dataUrl = await exportMessageCardToPng(node, {
+        brand: BRAND_NAME,
+        modeLabel,
+        timestamp: new Date(),
+      });
+      const blob = await fetch(dataUrl).then((r) => r.blob());
+      const downloadUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = downloadUrl;
+      anchor.download = `${BRAND_NAME.toLowerCase().replace(/\s+/g, '-')}-answer.png`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(downloadUrl);
+      pushToast({ title: 'Image saved' });
+      trackEvent('share_download_image', {
+        conversationId: shareTarget.conversationId,
+        messageId: shareTarget.messageId,
+        mode: shareTarget.mode,
+        research: shareTarget.research,
+      });
+    } catch {
+      pushToast({ title: 'Could not save image', variant: 'destructive' });
+    } finally {
+      setShareBusy(null);
+    }
+  }, [shareTarget]);
+
+  const handleShareX = useCallback(async () => {
+    if (!shareTarget) return;
+    try {
+      const url = await ensureShareLink(shareTarget);
+      const caption = buildShareCaption(shareTarget.plainText, BRAND_NAME, url);
+      const intentUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(caption)}`;
+      window.open(intentUrl, '_blank', 'noopener,noreferrer');
+      trackEvent('share_x', {
+        conversationId: shareTarget.conversationId,
+        messageId: shareTarget.messageId,
+        mode: shareTarget.mode,
+        research: shareTarget.research,
+      });
+    } catch {
+      pushToast({ title: 'Could not open X share', variant: 'destructive' });
+    }
+  }, [shareTarget, ensureShareLink]);
+
+  const handleShareFacebook = useCallback(async () => {
+    if (!shareTarget) return;
+    try {
+      const url = await ensureShareLink(shareTarget);
+      const intentUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+      window.open(intentUrl, '_blank', 'noopener,noreferrer');
+      trackEvent('share_facebook', {
+        conversationId: shareTarget.conversationId,
+        messageId: shareTarget.messageId,
+        mode: shareTarget.mode,
+        research: shareTarget.research,
+      });
+    } catch {
+      pushToast({ title: 'Could not open Facebook share', variant: 'destructive' });
+    }
+  }, [shareTarget, ensureShareLink]);
+
+  const handleSystemShare = useCallback(async () => {
+    if (!shareTarget) return;
+    if (!systemShareSupported || !navigator?.share) {
+      pushToast({ title: 'Device sharing not available', variant: 'destructive' });
+      return;
+    }
+    setShareBusy('system');
+    try {
+      const url = await ensureShareLink(shareTarget);
+      const caption = buildShareCaption(shareTarget.plainText, BRAND_NAME, url);
+      await navigator.share({ title: BRAND_NAME, text: caption, url });
+      trackEvent('share_system', {
+        conversationId: shareTarget.conversationId,
+        messageId: shareTarget.messageId,
+        mode: shareTarget.mode,
+        research: shareTarget.research,
+      });
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        pushToast({ title: 'Share cancelled', variant: 'destructive' });
+      }
+    } finally {
+      setShareBusy(null);
+    }
+  }, [shareTarget, ensureShareLink, systemShareSupported]);
+
+  const handleCopyShareCaption = useCallback(async () => {
+    if (!shareTarget) return;
+    setShareBusy('caption');
+    try {
+      const url = await ensureShareLink(shareTarget);
+      const caption = buildShareCaption(shareTarget.plainText, BRAND_NAME, url);
+      if (!navigator?.clipboard?.writeText) throw new Error('clipboard');
+      await navigator.clipboard.writeText(caption);
+      pushToast({ title: 'Caption copied' });
+    } catch {
+      pushToast({ title: 'Could not copy caption', variant: 'destructive' });
+    } finally {
+      setShareBusy(null);
+    }
+  }, [shareTarget, ensureShareLink]);
+
+  const sharePreview = shareTarget?.plainText ?? '';
+
   const renderedMessages = useMemo(
     () =>
       visibleMessages.map((m: ChatMessage, index) => {
@@ -2886,30 +3284,106 @@ ${systemCommon}` + baseSys;
             );
           }
 
+          const messageContent = typeof m.content === 'string' ? m.content : '';
+          const domId = `assistant-${derivedKey}`;
+          const canRefresh = Boolean((m as any).refreshSnapshot);
+          const isRefreshing = !!(m.id && refreshingMessages[m.id]);
+          const showFeedback = currentMode !== 'therapy';
+          const hasId = typeof m.id === 'string' && m.id.length > 0;
+
+          const shareHandler = hasId
+            ? () => {
+                const plain = getMessageTextFromDom(domId, messageContent);
+                openShare({
+                  conversationId,
+                  messageId: m.id!,
+                  domId,
+                  plainText: plain,
+                  content: messageContent,
+                  mode: currentMode,
+                  research: researchMode,
+                });
+              }
+            : undefined;
+
           return (
             <div key={derivedKey} className="space-y-2">
-              <div className="space-y-4">
+              <div className="group/message relative">
                 <AnalysisCard
                   m={m as Extract<ChatMessage, { kind: 'analysis' }>}
                   researchOn={researchMode}
                   onQuickAction={stableOnQuickAction}
                   busy={assistantBusy}
+                  contentId={domId}
                 />
-                <FeedbackBar
-                  conversationId={conversationId}
-                  messageId={m.id}
-                  mode={currentMode}
-                  model={undefined}
-                  hiddenInTherapy={true}
-                />
+                {hasId && (
+                  <>
+                    <div className="pointer-events-none absolute right-3 top-3 hidden sm:flex gap-2 rounded-full bg-white/80 px-2 py-1 text-slate-600 opacity-0 shadow-sm backdrop-blur transition group-hover/message:opacity-80 group-focus-within/message:opacity-80 dark:bg-slate-900/70 dark:text-slate-200">
+                      <MessageActions
+                        conversationId={conversationId}
+                        messageId={m.id!}
+                        mode={currentMode}
+                        messageContent={messageContent}
+                        getMessageText={() => getMessageTextFromDom(domId, messageContent)}
+                        onRefresh={canRefresh ? () => handleRefresh(m.id!) : undefined}
+                        canRefresh={canRefresh}
+                        isRefreshing={isRefreshing}
+                        disabled={isRefreshing}
+                        onShare={shareHandler}
+                        showFeedback={showFeedback}
+                      />
+                    </div>
+                    <div className="mt-3 flex justify-end sm:hidden">
+                      <MessageActions
+                        conversationId={conversationId}
+                        messageId={m.id!}
+                        mode={currentMode}
+                        messageContent={messageContent}
+                        getMessageText={() => getMessageTextFromDom(domId, messageContent)}
+                        onRefresh={canRefresh ? () => handleRefresh(m.id!) : undefined}
+                        canRefresh={canRefresh}
+                        isRefreshing={isRefreshing}
+                        disabled={isRefreshing}
+                        onShare={shareHandler}
+                        showFeedback={showFeedback}
+                        className="rounded-full border border-slate-200/80 bg-white/80 px-3 py-1 text-slate-600 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
+              {(m as any).replaced && (
+                <div className="pl-2 text-xs italic text-slate-500">Replaced by a newer answer</div>
+              )}
             </div>
           );
         }
 
+        const messageContent = typeof m.content === 'string' ? m.content : '';
+        const domId = `assistant-${derivedKey}`;
+        const canRefresh = Boolean((m as any).refreshSnapshot);
+        const isRefreshing = !!(m.id && refreshingMessages[m.id]);
+        const showFeedback = currentMode !== 'therapy';
+        const hasId = typeof m.id === 'string' && m.id.length > 0;
+
+        const shareHandler = hasId
+          ? () => {
+              const plain = getMessageTextFromDom(domId, messageContent);
+              openShare({
+                conversationId,
+                messageId: m.id!,
+                domId,
+                plainText: plain,
+                content: messageContent,
+                mode: currentMode,
+                research: researchMode,
+              });
+            }
+          : undefined;
+
         return (
           <div key={derivedKey} className="space-y-2">
-            <div className="space-y-4">
+            <div className="group/message relative">
               <AssistantMessage
                 m={m}
                 researchOn={researchMode}
@@ -2919,15 +3393,47 @@ ${systemCommon}` + baseSys;
                 onAction={stableHandleSuggestionAction}
                 simple={simpleMode}
                 pendingTimerActive={showThinkingTimer}
+                contentId={domId}
               />
-              <FeedbackBar
-                conversationId={conversationId}
-                messageId={m.id}
-                mode={currentMode}
-                model={undefined}
-                hiddenInTherapy={true}
-              />
+              {hasId && !m.pending && (
+                <>
+                  <div className="pointer-events-none absolute right-3 top-3 hidden sm:flex gap-2 rounded-full bg-white/80 px-2 py-1 text-slate-600 opacity-0 shadow-sm backdrop-blur transition group-hover/message:opacity-80 group-focus-within/message:opacity-80 dark:bg-slate-900/70 dark:text-slate-200">
+                    <MessageActions
+                      conversationId={conversationId}
+                      messageId={m.id!}
+                      mode={currentMode}
+                      messageContent={messageContent}
+                      getMessageText={() => getMessageTextFromDom(domId, messageContent)}
+                      onRefresh={canRefresh ? () => handleRefresh(m.id!) : undefined}
+                      canRefresh={canRefresh}
+                      isRefreshing={isRefreshing}
+                      disabled={isRefreshing}
+                      onShare={shareHandler}
+                      showFeedback={showFeedback}
+                    />
+                  </div>
+                  <div className="mt-3 flex justify-end sm:hidden">
+                    <MessageActions
+                      conversationId={conversationId}
+                      messageId={m.id!}
+                      mode={currentMode}
+                      messageContent={messageContent}
+                      getMessageText={() => getMessageTextFromDom(domId, messageContent)}
+                      onRefresh={canRefresh ? () => handleRefresh(m.id!) : undefined}
+                      canRefresh={canRefresh}
+                      isRefreshing={isRefreshing}
+                      disabled={isRefreshing}
+                      onShare={shareHandler}
+                      showFeedback={showFeedback}
+                      className="rounded-full border border-slate-200/80 bg-white/80 px-3 py-1 text-slate-600 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200"
+                    />
+                  </div>
+                </>
+              )}
             </div>
+            {(m as any).replaced && (
+              <div className="pl-2 text-xs italic text-slate-500">Replaced by a newer answer</div>
+            )}
           </div>
         );
       }),
@@ -2942,7 +3448,10 @@ ${systemCommon}` + baseSys;
       stableHandleSuggestionAction,
       simpleMode,
       conversationId,
-      currentMode
+      currentMode,
+      refreshingMessages,
+      handleRefresh,
+      openShare
     ]
   );
 
@@ -3448,6 +3957,20 @@ ${systemCommon}` + baseSys;
           </div>
         </div>
       )}
+
+      <SharePanel
+        open={shareTarget !== null}
+        onClose={closeShare}
+        preview={sharePreview}
+        onCopyLink={handleCopyShareLink}
+        onDownloadImage={handleDownloadShareImage}
+        onShareX={handleShareX}
+        onShareFacebook={handleShareFacebook}
+        onSystemShare={systemShareSupported ? handleSystemShare : undefined}
+        onCopyCaption={handleCopyShareCaption}
+        canSystemShare={systemShareSupported}
+        busyAction={shareBusy}
+      />
 
       <ComposerFocus suggestions={lastSuggestions} composerRef={inputRef} />
       <ScrollToBottom targetRef={chatRef} rebindKey={threadId} />
