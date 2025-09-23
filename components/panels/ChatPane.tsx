@@ -1557,6 +1557,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, [userText, threadId]);
 
   useEffect(() => {
+    setUserText('');
+    setInputFocused(false);
+  }, [threadId]);
+
+  useEffect(() => {
     const root = document.documentElement;
     if (therapyMode) {
       root.classList.add('therapy-mode');

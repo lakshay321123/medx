@@ -1,7 +1,10 @@
 import type { ModeState } from "@/lib/modes/types";
 import {
-  DEFAULT_PATIENT,
-  DEFAULT_DOCTOR,
+  THERAPY_SUGGESTIONS,
+  WELLNESS_SUGGESTIONS,
+  DOCTOR_SUGGESTIONS,
+  WELLNESS_RESEARCH_SUGGESTIONS,
+  DOCTOR_RESEARCH_SUGGESTIONS,
   DEFAULT_AIDOC,
   TRIGGER_WHAT_IS,
   TRIGGER_MED_FOR,
@@ -11,9 +14,13 @@ import {
 } from "@/data/suggestions";
 
 export function getDefaultSuggestions(mode: ModeState): string[] {
-  if (mode.base === "doctor") return DEFAULT_DOCTOR;
+  if (mode.base === "doctor") {
+    return mode.research ? DOCTOR_RESEARCH_SUGGESTIONS : DOCTOR_SUGGESTIONS;
+  }
   if (mode.base === "aidoc") return DEFAULT_AIDOC;
-  return DEFAULT_PATIENT;
+  if (mode.therapy) return THERAPY_SUGGESTIONS;
+  if (mode.research) return WELLNESS_RESEARCH_SUGGESTIONS;
+  return WELLNESS_SUGGESTIONS;
 }
 
 export function getInlineSuggestions(query: string, mode: ModeState): string[] {
