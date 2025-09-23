@@ -14,15 +14,17 @@ export default function SuggestBar({
 }) {
   if (!suggestions?.length) return null;
   return (
-    <div className={`mb-3 ${className}`}>
-      <div className="mb-2 text-sm opacity-70">{title}</div>
-      <div className="flex flex-wrap gap-2">
+    <div className={`mt-2 ${className}`}>
+      <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        {title}
+      </div>
+      <div className="flex flex-wrap gap-1 pb-1">
         {suggestions.map((s, i) => (
           <button
             key={`${s}-${i}`}
             type="button"
             onClick={() => onPick(s)}
-            className="rounded-full border border-zinc-300 px-3 py-1.5 text-sm transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700/80"
             title={s}
             data-suggestion-button="true"
           >
