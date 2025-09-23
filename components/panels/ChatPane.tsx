@@ -677,7 +677,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const showDefaultSuggestions = visibleMessages.length === 0 && !isTyping;
   const showLiveSuggestions = inputFocused && isTyping && liveSuggestions.length > 0;
   const showSuggestions = mounted && inputFocused && !isTyping;
-  const isBusy = queueActive || busy || !!abortRef.current;
 
   const lastSuggestions = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -3354,7 +3353,7 @@ ${systemCommon}` + baseSys;
                   />
                 </div>
                 <div className="relative">
-                  {!isBusy ? (
+                  {!(queueActive || busy || abortRef.current) ? (
                     <button
                       className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-40"
                       type="submit"
