@@ -652,9 +652,7 @@ function AssistantFooter({
   mode,
   model,
   feedback,
-  onRetry,
   onRefresh,
-  canRetry,
   canRefresh,
   className,
 }: {
@@ -664,9 +662,7 @@ function AssistantFooter({
   mode: 'patient' | 'doctor' | 'research' | 'therapy';
   model?: string;
   feedback: FeedbackContext;
-  onRetry: () => void;
   onRefresh: () => void;
-  canRetry: boolean;
   canRefresh: boolean;
   className?: string;
 }) {
@@ -680,7 +676,7 @@ function AssistantFooter({
   const copyDisabled = !hasText;
   const refreshDisabled = !canRefresh;
   const footerClass = [
-    'flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs sm:flex-nowrap',
+    'mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs sm:flex-nowrap',
     className || ''
   ]
     .filter(Boolean)
@@ -741,18 +737,6 @@ function AssistantFooter({
         <MaterialIcon name="thumb_down" />
       </button>
       <div className="mx-1 h-[14px] w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
-      <button
-        type="button"
-        aria-label="Retry analysis"
-        className="assistant-icon-button"
-        disabled={!canRetry}
-        onClick={() => {
-          if (!canRetry) return;
-          onRetry();
-        }}
-      >
-        <MaterialIcon name="replay" />
-      </button>
       <button
         type="button"
         aria-label="Refresh"
@@ -2800,7 +2784,7 @@ ${systemCommon}` + baseSys;
     }
   }
 
-  function retryLastFailedOrResumeQueue() {
+  function resumeLastFailedQueue() {
     const ctx = lastQueueRef.current;
     if (!ctx || queueAbortRef.current) return;
     const remaining = ctx.files.slice(ctx.nextIndex ?? 0);
@@ -2827,7 +2811,7 @@ ${systemCommon}` + baseSys;
     }
 
     if (lastQueueRef.current && !queueAbortRef.current) {
-      retryLastFailedOrResumeQueue();
+      resumeLastFailedQueue();
       return;
     }
 
@@ -3212,10 +3196,6 @@ ${systemCommon}` + baseSys;
 
   const assistantBusy = loadingAction !== null;
   const simpleMode = currentMode === 'patient';
-  const canRetryQueue = !queueActive && Boolean(
-    lastQueueRef.current &&
-      (lastQueueRef.current.nextIndex ?? 0) < lastQueueRef.current.files.length
-  );
   const canRefreshQueue = !queueActive;
 
   const renderedMessages = useMemo(
@@ -3266,9 +3246,7 @@ ${systemCommon}` + baseSys;
               mode={currentMode}
               model={undefined}
               feedback={feedback}
-              onRetry={() => retryLastFailedOrResumeQueue()}
               onRefresh={() => refreshThreadOrResume()}
-              canRetry={canRetryQueue}
               canRefresh={canRefreshQueue}
             />
           );
@@ -3294,11 +3272,8 @@ ${systemCommon}` + baseSys;
               mode={currentMode}
               model={undefined}
               feedback={feedback}
-              onRetry={() => retryLastFailedOrResumeQueue()}
               onRefresh={() => refreshThreadOrResume()}
-              canRetry={canRetryQueue}
               canRefresh={canRefreshQueue}
-              className="mt-1.5"
             />
           ) : null;
 
@@ -3331,9 +3306,7 @@ ${systemCommon}` + baseSys;
       conversationId,
       currentMode,
       analyzeElapsed,
-      retryLastFailedOrResumeQueue,
       refreshThreadOrResume,
-      canRetryQueue,
       canRefreshQueue,
       feedback.submittedFor,
       feedback.loading,
