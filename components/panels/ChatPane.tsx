@@ -653,6 +653,16 @@ const ACTIONS = [
   { id: 'refresh', icon: 'refresh', aria: 'Refresh' },
 ] as const;
 
+type FooterAction = {
+  id: (typeof ACTIONS)[number]['id'];
+  icon: (typeof ACTIONS)[number]['icon'];
+  aria: (typeof ACTIONS)[number]['aria'];
+  disabled: boolean;
+  onClick: () => void;
+  active?: boolean;
+  pressed?: boolean;
+};
+
 function AssistantFooter({
   content,
   conversationId,
@@ -689,8 +699,12 @@ function AssistantFooter({
     .filter(Boolean)
     .join(' ');
 
-  const actionButtons = ACTIONS.map(action => {
-    const base = { id: action.id, icon: action.icon, aria: action.aria };
+  const actionButtons: FooterAction[] = ACTIONS.map(action => {
+    const base: Omit<FooterAction, 'disabled' | 'onClick'> = {
+      id: action.id,
+      icon: action.icon,
+      aria: action.aria,
+    };
     switch (action.id) {
       case 'copy':
         return {
