@@ -1,6 +1,6 @@
 'use client';
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState, useMemo, RefObject, useCallback, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useMemo, RefObject, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fromSearchParams } from '@/lib/modes/url';
 import { useRouter } from 'next/navigation';
@@ -27,6 +27,7 @@ import { safeJson } from '@/lib/safeJson';
 import { splitFollowUps } from '@/lib/splitFollowUps';
 import { getTrials } from "@/lib/hooks/useTrials";
 import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials";
+import FeedbackBar from "@/components/FeedbackBar";
 import type { ChatMessage as BaseChatMessage } from "@/types/chat";
 import type { AnalysisCategory } from '@/lib/context';
 import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle, upsertThreadIndex, createNewThreadId } from '@/lib/chatThreads';
@@ -47,9 +48,6 @@ import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
 import { getUserPosition, fetchNearby, geocodeArea, type NearbyKind, type NearbyPlace } from "@/lib/nearby";
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
 import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
-import { useFeedback } from "@/hooks/useFeedback";
-import { pushToast } from "@/lib/ui/toast";
-import { useChatRunState } from "@/stores/useChatRunState";
 
 const ChatSuggestions = dynamic(() => import("./ChatSuggestions"), { ssr: false });
 
@@ -331,16 +329,6 @@ type NearbySessionState = {
   attribution?: string;
 };
 
-type MessageOrigin = {
-  type: "text" | "files";
-  userMessageId: string;
-  text?: string;
-  fileIds?: string[];
-  note?: string | null;
-  panel: string;
-  researchOn?: boolean;
-};
-
 type ChatMessage =
   | (BaseChatMessage & {
       role: "assistant";
@@ -351,7 +339,6 @@ type ChatMessage =
       parentId?: string;
       pending?: boolean;
       error?: string | null;
-      origin?: MessageOrigin;
     })
   | (BaseChatMessage & {
       role: "assistant";
@@ -360,7 +347,6 @@ type ChatMessage =
       parentId?: string;
       pending?: boolean;
       error?: string | null;
-      origin?: MessageOrigin;
     })
   | (BaseChatMessage & {
       role: "user";
@@ -491,18 +477,16 @@ function AnalysisCard({
   m,
   researchOn,
   onQuickAction,
-  busy,
-  footer
+  busy
 }: {
   m: Extract<ChatMessage, { kind: "analysis" }>;
   researchOn: boolean;
   onQuickAction: (k: "simpler" | "doctor" | "next") => void;
   busy: boolean;
-  footer?: ReactNode;
 }) {
   const header = titleForCategory(m.category);
   return (
-    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl space-y-1.5">
+    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl space-y-2">
       <header className="flex items-center gap-2">
         <h2 className="text-lg md:text-xl font-semibold">{header}</h2>
         {researchOn && (
@@ -517,7 +501,7 @@ function AnalysisCard({
           ⚠️ {m.error}
         </div>
       ) : (
-        <div className="flex flex-wrap gap-2 pt-1.5">
+        <div className="flex flex-wrap gap-2 pt-2">
           <button
             type="button"
             className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
@@ -544,10 +528,9 @@ function AnalysisCard({
           </button>
         </div>
       )}
-      <p className="text-xs text-amber-500/90 pt-1.5">
+      <p className="text-xs text-amber-500/90 pt-2">
         AI assistance only — not a medical diagnosis. Confirm with a clinician.
       </p>
-      {footer}
     </div>
   );
 }
@@ -556,15 +539,13 @@ function ChatCard({
   therapyMode,
   onAction,
   simple,
-  pendingTimerActive,
-  footer
+  pendingTimerActive
 }: {
   m: Extract<ChatMessage, { kind: "chat" }>;
   therapyMode: boolean;
   onAction: (s: Suggestion) => void;
   simple: boolean;
   pendingTimerActive?: boolean;
-  footer?: ReactNode;
 }) {
   const suggestions = normalizeSuggestions(m.followUps);
   if (m.pending) return <PendingChatCard label="Thinking…" active={pendingTimerActive} />;
@@ -586,7 +567,6 @@ function ChatCard({
       {!therapyMode && suggestions.length > 0 && (
         <SuggestionChips suggestions={suggestions} onAction={onAction} />
       )}
-      {footer}
     </div>
   );
 }
@@ -611,190 +591,15 @@ function ImageCard({ m }: { m: Extract<ChatMessage, { kind: "image" }> }) {
   );
 }
 
-function MaterialIcon({ name }: { name: string }) {
-  return (
-    <span className="assistant-icon" aria-hidden="true">
-      {name}
-    </span>
-  );
-}
-
-function WelcomeCard({ text }: { text: string }) {
-  if (!text.trim()) return null;
-
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 text-sm shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
-      <ChatMarkdown content={text} />
-    </div>
-  );
-}
-
-function SlimStatusPill({ text, elapsed }: { text: string; elapsed?: number | null }) {
-  const showTimer = typeof elapsed === 'number' && elapsed >= 0;
+function SlimStatusPill({ text }: { text: string }) {
   return (
     <div className="mb-3">
-      <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+      <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
         <span>{text}</span>
-        {showTimer && (
-          <span className="inline-flex items-center gap-1 text-blue-600 dark:text-sky-400">
-            <span aria-hidden="true">·</span>
-            <MaterialIcon name="schedule" />
-            <span>{fmtTime(elapsed ?? 0)}</span>
-          </span>
-        )}
         <span className="animate-pulse" aria-hidden="true">
           •
         </span>
       </div>
-    </div>
-  );
-}
-
-function fmtTime(s: number) {
-  const mm = String(Math.floor(s / 60)).padStart(2, '0');
-  const ss = String(s % 60).padStart(2, '0');
-  return `${mm}:${ss}`;
-}
-
-type FeedbackContext = ReturnType<typeof useFeedback>;
-
-const ACTIONS = [
-  { id: 'copy', icon: 'content_copy', aria: 'Copy' },
-  { id: 'up', icon: 'thumb_up', aria: 'Thumbs up' },
-  { id: 'down', icon: 'thumb_down', aria: 'Thumbs down' },
-  { id: 'refresh', icon: 'refresh', aria: 'Refresh' },
-] as const;
-
-type FooterAction = {
-  id: (typeof ACTIONS)[number]['id'];
-  icon: (typeof ACTIONS)[number]['icon'];
-  aria: (typeof ACTIONS)[number]['aria'];
-  disabled: boolean;
-  onClick: () => void;
-  active?: boolean;
-  pressed?: boolean;
-};
-
-function AssistantFooter({
-  content,
-  conversationId,
-  messageId,
-  mode,
-  model,
-  feedback,
-  onRefresh,
-  refreshDisabled,
-  className,
-}: {
-  content: string;
-  conversationId: string;
-  messageId: string;
-  mode: 'patient' | 'doctor' | 'research' | 'therapy';
-  model?: string;
-  feedback: FeedbackContext;
-  onRefresh: () => void;
-  refreshDisabled: boolean;
-  className?: string;
-}) {
-  const key = `${conversationId}:${messageId}`;
-  const submitted = feedback.submittedFor[key];
-  const isUp = submitted === 1;
-  const isDown = submitted === -1;
-  const feedbackLoading = feedback.loading === key;
-  const hasText = typeof content === 'string' && content.trim().length > 0;
-
-  const copyDisabled = !hasText;
-  const footerClass = [
-    'flex flex-wrap items-center justify-start gap-1.5 text-xs sm:flex-nowrap',
-    className || ''
-  ]
-    .filter(Boolean)
-    .join(' ');
-
-  const actionButtons: FooterAction[] = ACTIONS.map(action => {
-    const base: Omit<FooterAction, 'disabled' | 'onClick'> = {
-      id: action.id,
-      icon: action.icon,
-      aria: action.aria,
-    };
-    switch (action.id) {
-      case 'copy':
-        return {
-          ...base,
-          disabled: copyDisabled,
-          onClick: () => {
-            if (!hasText) return;
-            void navigator.clipboard.writeText(content);
-          },
-        };
-      case 'up':
-        return {
-          ...base,
-          disabled: feedbackLoading,
-          onClick: () => {
-            if (feedbackLoading) return;
-            void feedback.submit({
-              conversationId,
-              messageId,
-              mode,
-              model,
-              rating: 1,
-            });
-          },
-          active: isUp,
-          pressed: isUp,
-        };
-      case 'down':
-        return {
-          ...base,
-          disabled: feedbackLoading,
-          onClick: () => {
-            if (feedbackLoading) return;
-            void feedback.submit({
-              conversationId,
-              messageId,
-              mode,
-              model,
-              rating: -1,
-            });
-          },
-          active: isDown,
-          pressed: isDown,
-        };
-      case 'refresh':
-        return {
-          ...base,
-          disabled: refreshDisabled,
-          onClick: () => {
-            if (refreshDisabled) return;
-            onRefresh();
-          },
-        };
-      default:
-        return {
-          ...base,
-          disabled: true,
-          onClick: () => {},
-        };
-    }
-  });
-
-  return (
-    <div className={footerClass}>
-      {actionButtons.map(({ id, icon, aria, disabled, onClick, active, pressed }) => (
-        <button
-          key={id}
-          type="button"
-          aria-label={aria}
-          className="assistant-icon-button"
-          data-active={active ? 'true' : undefined}
-          aria-pressed={typeof pressed === 'boolean' ? pressed : undefined}
-          disabled={disabled}
-          onClick={onClick}
-        >
-          <MaterialIcon name={icon} />
-        </button>
-      ))}
     </div>
   );
 }
@@ -808,9 +613,8 @@ function AssistantMessage(props: {
   onAction: (s: Suggestion) => void;
   simple: boolean;
   pendingTimerActive?: boolean;
-  footer?: ReactNode;
 }) {
-  const { m, therapyMode, onAction, simple, pendingTimerActive, researchOn, onQuickAction, busy, footer } = props;
+  const { m, therapyMode, onAction, simple, pendingTimerActive, researchOn, onQuickAction, busy } = props;
   if (m.kind === "analysis") {
     return (
       <AnalysisCard
@@ -818,7 +622,6 @@ function AssistantMessage(props: {
         researchOn={researchOn}
         onQuickAction={onQuickAction}
         busy={busy}
-        footer={footer}
       />
     );
   }
@@ -832,7 +635,6 @@ function AssistantMessage(props: {
       onAction={onAction}
       simple={simple}
       pendingTimerActive={pendingTimerActive}
-      footer={footer}
     />
   );
 }
@@ -852,7 +654,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const [labSummary, setLabSummary] = useState<any | null>(null);
-  const [welcomeMessage, setWelcomeMessage] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef =
@@ -860,26 +661,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
   const previewUrlsRef = useRef<string[]>([]);
   const queueAbortRef = useRef<AbortController | null>(null);
-  const queueTokenRef = useRef<symbol | null>(null);
-  const analyzingStartRef = useRef<number | null>(null);
-  const analyzeTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [analyzeElapsed, setAnalyzeElapsed] = useState<number>(0);
-  const fileRegistryRef = useRef<Map<string, File>>(new Map());
-  const lastQueueRef = useRef<{
-    files: File[];
-    fileIds: string[];
-    nextIndex: number;
-    analyzingId: string;
-    noteText: string;
-    userMessageId?: string;
-    panel: string;
-    researchOn?: boolean;
-  } | null>(null);
   const { filters } = useResearchFilters();
-  const feedback = useFeedback();
-  const setStreamActiveInStore = useChatRunState(state => state.setStreamActive);
-  const setQueueActiveInStore = useChatRunState(state => state.setQueueActive);
-  const setAbortHandler = useChatRunState(state => state.setAbortHandler);
 
   const sp = useSearchParams();
   const isAiDocMode = useIsAiDocMode();
@@ -894,10 +676,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const isTyping = trimmedInput.length > 0;
   const showDefaultSuggestions = visibleMessages.length === 0 && !isTyping;
   const showLiveSuggestions = inputFocused && isTyping && liveSuggestions.length > 0;
-  const isAnalyzing = queueActive || busy || !!abortRef.current;
-  // one source of truth for "work in progress"
-  const isBusy = isAnalyzing || queueActive || busy || !!abortRef.current;
   const showSuggestions = mounted && inputFocused && !isTyping;
+  const isBusy = queueActive || busy || !!abortRef.current;
 
   const lastSuggestions = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -916,87 +696,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   useEffect(() => {
     setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    setQueueActiveInStore(queueActive);
-  }, [queueActive, setQueueActiveInStore]);
-
-  useEffect(() => {
-    setStreamActiveInStore(busy && !queueActive);
-  }, [busy, queueActive, setStreamActiveInStore]);
-
-  useEffect(() => {
-    return () => {
-      setStreamActiveInStore(false);
-      setQueueActiveInStore(false);
-    };
-  }, [setQueueActiveInStore, setStreamActiveInStore]);
-
-  useEffect(() => {
-    return () => {
-      if (analyzeTickRef.current) {
-        clearInterval(analyzeTickRef.current);
-        analyzeTickRef.current = null;
-      }
-      analyzingStartRef.current = null;
-    };
-  }, []);
-
-  const ensureAnalyzeTicker = () => {
-    if (!analyzeTickRef.current) {
-      analyzeTickRef.current = setInterval(() => {
-        const t0 = analyzingStartRef.current;
-        if (t0) {
-          setAnalyzeElapsed(Math.floor((Date.now() - t0) / 1000));
-        }
-      }, 1000);
-    }
-  };
-
-  const stopAnalyzeTicker = () => {
-    if (analyzeTickRef.current) {
-      clearInterval(analyzeTickRef.current);
-      analyzeTickRef.current = null;
-    }
-    analyzingStartRef.current = null;
-    setAnalyzeElapsed(0);
-  };
-
-  const ensureRegisteredFileIds = useCallback(
-    (files: File[], existing?: string[]) => {
-      return files.map((file, index) => {
-        const preset = existing?.[index];
-        let id = preset;
-        if (!id) {
-          const stored = (file as any).__medxFileId as string | undefined;
-          id = stored;
-        }
-        if (!id) {
-          if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-            id = crypto.randomUUID();
-          } else {
-            id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-          }
-        }
-        (file as any).__medxFileId = id;
-        fileRegistryRef.current.set(id, file);
-        return id;
-      });
-    },
-    [],
-  );
-
-  const getFilesForIds = useCallback((ids: string[]) => {
-    const collected: File[] = [];
-    for (const id of ids) {
-      const file = fileRegistryRef.current.get(id);
-      if (!file) {
-        return null;
-      }
-      collected.push(file);
-    }
-    return collected;
   }, []);
 
   useEffect(() => {
@@ -1770,79 +1469,18 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     return () => ro.disconnect();
   }, [scrollToBottom]);
 
-  const welcomeKeyFor = (tid: string | null) => (tid ? `chat:${tid}:welcome` : 'chat:default:welcome');
-
-  const readThreadSnapshot = useCallback(() => {
-    const tid = threadId || (isProfileThread ? 'med-profile' : null);
-    if (!tid) {
-      return null;
-    }
-
-    ensureThread(tid);
-    const saved = loadMessages(tid) as any[];
-    let welcome: string | null = null;
-    const filtered = saved.filter((msg: any) => {
-      if (
-        msg &&
-        msg.role === 'assistant' &&
-        typeof msg.id === 'string' &&
-        msg.id === 'welcome:chat' &&
-        typeof msg.content === 'string'
-      ) {
-        if (!welcome) {
-          welcome = msg.content;
-        }
-        return false;
-      }
-      return true;
-    });
-
-    if (!welcome && typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem(welcomeKeyFor(tid));
-        if (stored && typeof stored === 'string') {
-          welcome = stored;
-        }
-      } catch {}
-    }
-
-    return { id: tid, messages: filtered, welcome };
-  }, [threadId, isProfileThread]);
-
   useEffect(() => {
     posted.current.clear();
-    const snapshot = readThreadSnapshot();
-    if (!snapshot) {
+    const tid = threadId || (isProfileThread ? 'med-profile' : null);
+    if (tid) {
+      ensureThread(tid);
+      const saved = loadMessages(tid) as any[];
+      setMessages(saved);
+      posted.current = new Set(saved.filter(m => m.role === 'assistant').map((m: any) => m.id));
+    } else {
       setMessages([]);
-      setWelcomeMessage(prev => {
-        if (isProfileThread) return null;
-        if (typeof window !== 'undefined') {
-          try {
-            const stored = localStorage.getItem(welcomeKeyFor(null));
-            if (stored && stored.trim().length > 0) {
-              return stored;
-            }
-          } catch {}
-        }
-        return prev ?? getRandomWelcome();
-      });
-      return;
     }
-
-    const { messages: savedMessages, welcome } = snapshot;
-    setMessages(savedMessages);
-    posted.current = new Set(
-      savedMessages
-        .filter((m: any) => m && m.role === 'assistant' && typeof m.id === 'string')
-        .map((m: any) => m.id)
-    );
-    setWelcomeMessage(prev => {
-      if (isProfileThread) return null;
-      if (welcome) return welcome;
-      if (prev) return prev;
-      return savedMessages.length > 0 ? null : getRandomWelcome();
-    });
-  }, [readThreadSnapshot, isProfileThread]);
+  }, [threadId, isProfileThread]);
 
   useEffect(() => {
     if (!threadId) return;
@@ -1892,25 +1530,15 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, [isProfileThread, threadId, therapyMode]);
 
   useEffect(() => {
+    if (!isProfileThread && messages.length === 0) {
+      addOnce('welcome:chat', getRandomWelcome());
+    }
+  }, [isProfileThread, messages.length]);
+
+  useEffect(() => {
     const tid = threadId || (isProfileThread ? 'med-profile' : null);
     if (tid) saveMessages(tid, messages as any);
   }, [messages, threadId, isProfileThread]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const tid = threadId || (isProfileThread ? 'med-profile' : null);
-    const key = welcomeKeyFor(tid);
-    if (!welcomeMessage) {
-      try {
-        localStorage.removeItem(key);
-      } catch {}
-      return;
-    }
-
-    try {
-      localStorage.setItem(key, welcomeMessage);
-    } catch {}
-  }, [welcomeMessage, threadId, isProfileThread]);
 
   const draftKey = (threadId?: string|null)=> `chat:${threadId||'med-profile'}:draft`;
   // load draft and inject as past message (so it "reappears as past messages")
@@ -2059,28 +1687,16 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     // Dedupe: avoid back-to-back identical user bubbles
     const lastUser = [...messages].reverse().find(m => m.role === 'user');
     const isDupUser = !!lastUser && lastUser.content.trim() === messageText.trim();
-    const userMessageId = isDupUser && lastUser ? lastUser.id : userId;
-    const pendingMessage = {
-      id: pendingId,
-      role: 'assistant',
-      kind: 'chat',
-      content: '',
-      pending: true,
-      origin: {
-        type: 'text',
-        userMessageId,
-        text: messageText,
-        panel: currentMode,
-        researchOn: researchMode,
-      },
-    } as ChatMessage;
-    const nextMsgs: ChatMessage[] = visualEcho && !isDupUser
+    const nextMsgs: ChatMessage[] = (visualEcho && !isDupUser)
       ? [
           ...messages,
           { id: userId, role: 'user', kind: 'chat', content: messageText } as ChatMessage,
-          pendingMessage,
+          { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true } as ChatMessage,
         ]
-      : [...messages, pendingMessage];
+      : [
+          ...messages,
+          { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true } as ChatMessage,
+        ];
     setMessages(nextMsgs);
     const maybe = maybeFixMedicalTypo(messageText);
     if (maybe && messages.filter(m => m.role === "assistant").slice(-1)[0]?.content !== maybe.ask) {
@@ -2641,26 +2257,15 @@ ${systemCommon}` + baseSys;
     }
   }
 
-  const onStopQueue = useCallback(() => {
-    const controller = queueAbortRef.current;
-    if (controller) {
+  function onStopQueue() {
+    const c = queueAbortRef.current;
+    if (c) {
       try {
-        controller.abort();
+        c.abort();
       } catch {}
     }
     queueAbortRef.current = null;
-    queueTokenRef.current = null;
-    stopAnalyzeTicker();
-    const ctx = lastQueueRef.current;
-    if (ctx?.analyzingId) {
-      setMessages(prev => prev.filter(m => m.id !== ctx.analyzingId));
-    }
-    setQueueActive(false);
-    setBusy(false);
-    setThinkingStartedAt(null);
-    setQueueActiveInStore(false);
-    setStreamActiveInStore(false);
-  }, [setMessages, setQueueActive, setBusy, setThinkingStartedAt, setQueueActiveInStore, setStreamActiveInStore, stopAnalyzeTicker]);
+  }
 
   function onFilesSelected(files: File[]) {
     if (files.length === 0) return;
@@ -2673,32 +2278,19 @@ ${systemCommon}` + baseSys;
     setPendingFiles(prev => prev.filter((_, i) => i !== index));
   }
 
-  const onStop = useCallback(() => {
+  function onStop() {
     onStopQueue();
-    const controller = abortRef.current;
-    if (controller) {
-      try {
-        controller.abort();
-      } catch {}
-    }
-    abortRef.current = null;
-    setBusy(false);
-    setThinkingStartedAt(null);
-    setStreamActiveInStore(false);
-  }, [onStopQueue, setStreamActiveInStore]);
-
-  useEffect(() => {
-    setAbortHandler(onStop);
-    return () => setAbortHandler(null);
-  }, [onStop, setAbortHandler]);
+    const c = abortRef.current;
+    if (c) c.abort();
+  }
 
   async function analyzeFile(
     file: File,
     noteText: string,
-    opts: { signal?: AbortSignal; queue?: boolean; origin?: MessageOrigin } = {}
+    opts: { signal?: AbortSignal; queue?: boolean } = {}
   ) {
     if (!file) return;
-    const { signal, queue = false, origin } = opts;
+    const { signal, queue = false } = opts;
     const trimmedNote = noteText.trim();
 
     if (!queue) {
@@ -2730,29 +2322,13 @@ ${systemCommon}` + baseSys;
       const data = await safeJson(
         fetch('/api/analyze', { method: 'POST', body: fd, signal })
       );
-      const [registeredId] = ensureRegisteredFileIds([file], origin?.fileIds);
-      const normalizedFileIds = registeredId ? [registeredId] : origin?.fileIds ?? [];
-      const lastUserForOrigin = [...messages].reverse().find(m => m.role === 'user');
-      const resolvedOrigin: MessageOrigin = {
-        type: origin?.type ?? 'files',
-        userMessageId: origin?.userMessageId ?? lastUserForOrigin?.id ?? messageId,
-        panel: origin?.panel ?? currentMode,
-        researchOn: origin?.researchOn ?? researchMode,
-      };
-      if (origin?.text) resolvedOrigin.text = origin.text;
-      if (normalizedFileIds.length > 0) {
-        resolvedOrigin.fileIds = normalizedFileIds;
-      }
-      resolvedOrigin.note =
-        origin?.note !== undefined ? origin.note : (trimmedNote ? trimmedNote : null);
       const finalMessage: ChatMessage = {
         id: messageId,
         role: 'assistant',
         kind: 'analysis',
         category: data.category,
         content: data.report,
-        pending: false,
-        origin: resolvedOrigin,
+        pending: false
       } as any;
       setMessages(prev => {
         if (queue) {
@@ -2807,12 +2383,7 @@ ${systemCommon}` + baseSys;
     }
   }
 
-  async function analyzeFileWithTimeout(
-    file: File,
-    noteText: string,
-    signal?: AbortSignal,
-    origin?: MessageOrigin,
-  ) {
+  async function analyzeFileWithTimeout(file: File, noteText: string, signal?: AbortSignal) {
     const timeoutMs = 120000;
     const attemptController = new AbortController();
     const cleanups: (() => void)[] = [];
@@ -2838,19 +2409,14 @@ ${systemCommon}` + baseSys;
     }, timeoutMs);
 
     try {
-      await analyzeFile(file, noteText, { signal: attemptController.signal, queue: true, origin });
+      await analyzeFile(file, noteText, { signal: attemptController.signal, queue: true });
     } finally {
       clearTimeout(timeout);
       cleanups.forEach(fn => fn());
     }
   }
 
-  async function runFileQueueSequential(
-    files: File[],
-    analyzingId: string,
-    noteText: string,
-    originMeta?: { userMessageId?: string; fileIds?: string[]; panel?: string; researchOn?: boolean },
-  ) {
+  async function runFileQueueSequential(files: File[], analyzingId: string, noteText: string) {
     if (queueAbortRef.current) {
       try {
         queueAbortRef.current.abort();
@@ -2862,20 +2428,6 @@ ${systemCommon}` + baseSys;
     setQueueActive(true);
     setBusy(true);
     setThinkingStartedAt(Date.now());
-    const queueToken = Symbol('queue');
-    queueTokenRef.current = queueToken;
-    const normalizedPanel = originMeta?.panel ?? currentMode;
-    const fileIds = ensureRegisteredFileIds(files, originMeta?.fileIds);
-    lastQueueRef.current = {
-      files,
-      fileIds,
-      nextIndex: 0,
-      analyzingId,
-      noteText,
-      userMessageId: originMeta?.userMessageId,
-      panel: normalizedPanel,
-      researchOn: originMeta?.researchOn,
-    };
 
     const N = files.length;
     const maxAttempts = 3;
@@ -2892,37 +2444,14 @@ ${systemCommon}` + baseSys;
           )
         );
 
-        ensureAnalyzeTicker();
-        analyzingStartRef.current = Date.now();
-        setAnalyzeElapsed(0);
-        lastQueueRef.current = {
-          files,
-          fileIds,
-          nextIndex: i + 1,
-          analyzingId,
-          noteText,
-          userMessageId: originMeta?.userMessageId,
-          panel: normalizedPanel,
-          researchOn: originMeta?.researchOn,
-        };
-
         let ok = false;
         let attempt = 0;
         let lastErr: any = null;
 
-        const perFileOrigin: MessageOrigin = {
-          type: 'files',
-          userMessageId: originMeta?.userMessageId ?? analyzingId,
-          fileIds: fileIds[i] ? [fileIds[i]] : [],
-          note: noteText ? noteText : null,
-          panel: normalizedPanel,
-          researchOn: originMeta?.researchOn,
-        };
-
         while (!ok && attempt < maxAttempts && !ac.signal.aborted) {
           attempt++;
           try {
-            await analyzeFileWithTimeout(f, noteText, ac.signal, perFileOrigin);
+            await analyzeFileWithTimeout(f, noteText, ac.signal);
             ok = true;
           } catch (err) {
             lastErr = err;
@@ -2963,21 +2492,12 @@ ${systemCommon}` + baseSys;
         }
       }
     } finally {
-      if (queueTokenRef.current === queueToken) {
-        stopAnalyzeTicker();
-        setMessages(prev => prev.filter(m => m.id !== analyzingId));
+      setMessages(prev => prev.filter(m => m.id !== analyzingId));
 
-        queueAbortRef.current = null;
-        queueTokenRef.current = null;
-        setQueueActive(false);
-        setBusy(false);
-        setThinkingStartedAt(null);
-      }
-
-      const ctx = lastQueueRef.current;
-      if (ctx && (ctx.nextIndex ?? ctx.files.length) >= ctx.files.length) {
-        lastQueueRef.current = null;
-      }
+      queueAbortRef.current = null;
+      setQueueActive(false);
+      setBusy(false);
+      setThinkingStartedAt(null);
 
       const urls = previewUrlsRef.current.splice(0);
       if (urls.length > 0) {
@@ -2990,131 +2510,6 @@ ${systemCommon}` + baseSys;
         }, 60000);
       }
     }
-  }
-
-  function hasQueueResumeContext() {
-    const ctx = lastQueueRef.current;
-    if (!ctx) return false;
-    if (queueAbortRef.current) return false;
-    const nextIndex = ctx.nextIndex ?? 0;
-    return nextIndex < ctx.files.length;
-  }
-
-  function resumeLastFailedQueue() {
-    if (!hasQueueResumeContext()) return;
-    const ctx = lastQueueRef.current!;
-    const remaining = ctx.files.slice(ctx.nextIndex ?? 0);
-    if (remaining.length === 0) return;
-
-    const { analyzingId, noteText } = ctx;
-    const remainingFileIds = ctx.fileIds.slice(ctx.nextIndex ?? 0);
-    const origin: MessageOrigin = {
-      type: 'files',
-      userMessageId: ctx.userMessageId ?? analyzingId,
-      fileIds: remainingFileIds,
-      note: noteText ? noteText : null,
-      panel: ctx.panel,
-      researchOn: ctx.researchOn,
-    };
-    setMessages(prev => [
-      ...prev.filter(m => m.id !== analyzingId),
-      {
-        id: analyzingId,
-        role: 'assistant',
-        kind: 'analysis',
-        content: 'Analyzing…',
-        pending: true,
-        origin,
-      } as Extract<ChatMessage, { kind: 'analysis' }>,
-    ]);
-    ensureAnalyzeTicker();
-    runFileQueueSequential(remaining, analyzingId, noteText, {
-      userMessageId: ctx.userMessageId,
-      fileIds: remainingFileIds,
-      panel: ctx.panel,
-      researchOn: ctx.researchOn,
-    });
-  }
-
-  function refreshAssistantMessage(target: ChatMessage) {
-    if (isAnalyzing) {
-      return;
-    }
-
-    if (hasQueueResumeContext()) {
-      resumeLastFailedQueue();
-      return;
-    }
-
-    if (target.role !== 'assistant') {
-      return;
-    }
-
-    const origin = target.origin;
-    if (origin?.type === 'files') {
-      const ids = origin.fileIds ?? [];
-      if (ids.length === 0) {
-        pushToast({ title: "Can't re-run—files no longer available. Please re-upload." });
-        return;
-      }
-      const files = getFilesForIds(ids);
-      if (!files || files.length === 0) {
-        pushToast({ title: "Can't re-run—files no longer available. Please re-upload." });
-        return;
-      }
-
-      const analyzingId = uid();
-      const rerunPanel = origin.panel || currentMode;
-      const rerunOrigin: MessageOrigin = {
-        type: 'files',
-        userMessageId: origin.userMessageId ?? analyzingId,
-        fileIds: ids,
-        note: origin.note ?? null,
-        panel: rerunPanel,
-        researchOn: origin.researchOn,
-      };
-      setMessages(prev => [
-        ...prev,
-        {
-          id: analyzingId,
-          role: 'assistant',
-          kind: 'analysis',
-          content: 'Analyzing…',
-          pending: true,
-          origin: rerunOrigin,
-        } as Extract<ChatMessage, { kind: 'analysis' }>,
-      ]);
-      ensureAnalyzeTicker();
-      analyzingStartRef.current = Date.now();
-      setAnalyzeElapsed(0);
-      void runFileQueueSequential(files, analyzingId, origin.note ?? '', {
-        userMessageId: rerunOrigin.userMessageId,
-        fileIds: ids,
-        panel: rerunPanel,
-        researchOn: rerunOrigin.researchOn,
-      });
-      return;
-    }
-
-    let textToResend = origin?.text;
-    if (!textToResend || !textToResend.trim()) {
-      const idx = messages.findIndex(m => m.id === target.id);
-      for (let i = idx - 1; i >= 0; i--) {
-        const prev = messages[i];
-        if (prev.role === 'user' && typeof prev.content === 'string' && prev.content.trim()) {
-          textToResend = prev.content;
-          break;
-        }
-      }
-    }
-
-    if (!textToResend || !textToResend.trim()) {
-      pushToast({ title: "Can't re-run—original prompt unavailable." });
-      return;
-    }
-
-    const researchFlag = origin?.researchOn ?? researchMode;
-    void send(textToResend, researchFlag);
   }
 
   async function onSubmit() {
@@ -3152,19 +2547,7 @@ ${systemCommon}` + baseSys;
           setMessages(prev => [...prev, ...imageMsgs]);
         }
 
-        const fileIds = ensureRegisteredFileIds(files);
         const analyzingId = uid();
-        const lastUserForFiles = [...messages].reverse().find(m => m.role === 'user');
-        const fileUserMessageId =
-          imageMsgs[imageMsgs.length - 1]?.id ?? lastUserForFiles?.id ?? uid();
-        const analysisOrigin: MessageOrigin = {
-          type: 'files',
-          userMessageId: fileUserMessageId,
-          fileIds,
-          note: trimmed ? trimmed : null,
-          panel: currentMode,
-          researchOn: researchMode,
-        };
         setMessages(prev => [
           ...prev,
           {
@@ -3173,18 +2556,10 @@ ${systemCommon}` + baseSys;
             kind: 'analysis',
             content: 'Analyzing…',
             pending: true,
-            origin: analysisOrigin,
           } as Extract<ChatMessage, { kind: 'analysis' }>,
         ]);
 
-        ensureAnalyzeTicker();
-
-        await runFileQueueSequential(files, analyzingId, trimmed, {
-          userMessageId: analysisOrigin.userMessageId,
-          fileIds,
-          panel: analysisOrigin.panel,
-          researchOn: analysisOrigin.researchOn,
-        });
+        await runFileQueueSequential(files, analyzingId, trimmed);
         setUserText('');
         return;
       }
@@ -3470,7 +2845,6 @@ ${systemCommon}` + baseSys;
 
   const assistantBusy = loadingAction !== null;
   const simpleMode = currentMode === 'patient';
-  const refreshDisabled = isAnalyzing;
 
   const renderedMessages = useMemo(
     () =>
@@ -3503,68 +2877,56 @@ ${systemCommon}` + baseSys;
 
         if (m.kind === 'analysis') {
           if (m.pending) {
-            const txt = typeof m.content === 'string' ? m.content : 'Analyzing…';
-            const showTimer = typeof m.content === 'string' && m.content.startsWith('Analyzing file');
+            const pillText = typeof m.content === 'string' ? m.content : 'Analyzing…';
             return (
               <div key={derivedKey} className="space-y-2">
-                <SlimStatusPill text={txt} elapsed={showTimer ? analyzeElapsed : null} />
+                <SlimStatusPill text={pillText} />
               </div>
             );
           }
 
-          const analysisFooter = (
-            <AssistantFooter
-              content={typeof m.content === 'string' ? m.content : ''}
-              conversationId={conversationId}
-              messageId={m.id}
-              mode={currentMode}
-              model={undefined}
-              feedback={feedback}
-              onRefresh={() => refreshAssistantMessage(m)}
-              refreshDisabled={refreshDisabled}
-            />
-          );
-
           return (
             <div key={derivedKey} className="space-y-2">
-              <AnalysisCard
-                m={m as Extract<ChatMessage, { kind: 'analysis' }>}
-                researchOn={researchMode}
-                onQuickAction={stableOnQuickAction}
-                busy={assistantBusy}
-                footer={analysisFooter}
-              />
+              <div className="space-y-4">
+                <AnalysisCard
+                  m={m as Extract<ChatMessage, { kind: 'analysis' }>}
+                  researchOn={researchMode}
+                  onQuickAction={stableOnQuickAction}
+                  busy={assistantBusy}
+                />
+                <FeedbackBar
+                  conversationId={conversationId}
+                  messageId={m.id}
+                  mode={currentMode}
+                  model={undefined}
+                  hiddenInTherapy={true}
+                />
+              </div>
             </div>
           );
         }
 
-          const footer = !m.pending ? (
-            <AssistantFooter
-              content={typeof m.content === 'string' ? m.content : ''}
-              conversationId={conversationId}
-              messageId={m.id}
-              mode={currentMode}
-              model={undefined}
-              feedback={feedback}
-              onRefresh={() => refreshAssistantMessage(m)}
-              refreshDisabled={refreshDisabled}
-              className="mt-1.5"
-            />
-          ) : null;
-
         return (
           <div key={derivedKey} className="space-y-2">
-            <AssistantMessage
-              m={m}
-              researchOn={researchMode}
-              onQuickAction={stableOnQuickAction}
-              busy={assistantBusy}
-              therapyMode={therapyMode}
-              onAction={stableHandleSuggestionAction}
-              simple={simpleMode}
-              pendingTimerActive={showThinkingTimer}
-              footer={footer}
-            />
+            <div className="space-y-4">
+              <AssistantMessage
+                m={m}
+                researchOn={researchMode}
+                onQuickAction={stableOnQuickAction}
+                busy={assistantBusy}
+                therapyMode={therapyMode}
+                onAction={stableHandleSuggestionAction}
+                simple={simpleMode}
+                pendingTimerActive={showThinkingTimer}
+              />
+              <FeedbackBar
+                conversationId={conversationId}
+                messageId={m.id}
+                mode={currentMode}
+                model={undefined}
+                hiddenInTherapy={true}
+              />
+            </div>
           </div>
         );
       }),
@@ -3579,13 +2941,7 @@ ${systemCommon}` + baseSys;
       stableHandleSuggestionAction,
       simpleMode,
       conversationId,
-      currentMode,
-      analyzeElapsed,
-      refreshAssistantMessage,
-      refreshDisabled,
-      feedback.submittedFor,
-      feedback.loading,
-      feedback.submit
+      currentMode
     ]
   );
 
@@ -3613,14 +2969,14 @@ ${systemCommon}` + baseSys;
   }
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && isAnalyzing) {
+      if (e.key === 'Escape' && busy) {
         e.preventDefault();
         onStop();
       }
     }
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [isAnalyzing, onStop]);
+  }, [busy]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -3775,12 +3131,6 @@ ${systemCommon}` + baseSys;
                 <strong>{ui.contextFrom}</strong>
                 <button onClick={() => { clearContext(); setUi(prev => ({ ...prev, contextFrom: null })); }} className="opacity-60 hover:opacity-100">Clear</button>
               </div>
-            </div>
-          )}
-
-          {welcomeMessage && !isProfileThread && (
-            <div className="mx-auto mb-4 w-full max-w-3xl">
-              <WelcomeCard text={welcomeMessage} />
             </div>
           )}
 
@@ -3954,7 +3304,7 @@ ${systemCommon}` + baseSys;
                   e.preventDefault();
                   onSubmit();
                 }}
-                className="relative flex w-full items-end gap-3 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80"
+                className="flex w-full items-end gap-3 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80"
               >
                 <label
                   className="inline-flex cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
@@ -4002,29 +3352,28 @@ ${systemCommon}` + baseSys;
                       }
                     }}
                   />
-                  </div>
-
-                  <div className="relative">
-                    {!isBusy ? (
-                      <button
-                        className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-40"
-                        type="submit"
-                        disabled={pendingFiles.length === 0 && !userText.trim()}
-                        aria-label="Send"
-                        title="Send"
-                      >
-                        <Send size={16} />
-                      </button>
-                    ) : (
-                      <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                        <StopButton
-                          onClick={onStop}
-                          className="pointer-events-auto"
-                          title="Stop (Esc)"
-                        />
-                      </div>
-                    )}
-                  </div>
+                </div>
+                <div className="relative">
+                  {!isBusy ? (
+                    <button
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-40"
+                      type="submit"
+                      disabled={pendingFiles.length === 0 && !userText.trim()}
+                      aria-label="Send"
+                      title="Send"
+                    >
+                      <Send size={16} />
+                    </button>
+                  ) : (
+                    <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+                      <StopButton
+                        onClick={onStop}
+                        className="pointer-events-auto"
+                        title="Stop (Esc)"
+                      />
+                    </div>
+                  )}
+                </div>
               </form>
             </div>
         </div>

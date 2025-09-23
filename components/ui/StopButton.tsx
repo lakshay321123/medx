@@ -8,12 +8,12 @@ type Props = {
   title?: string;
 };
 
-export function StopButton({ onClick, className, title = "Stop (Esc)" }: Props) {
+export function StopButton({ onClick, className, title = "Stop generating (Esc)" }: Props) {
   return (
     <motion.button
       type="button"
       onClick={onClick}
-      aria-label="Stop current analysis"
+      aria-label="Stop generating"
       title={title}
       initial={{ scale: 0.9, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
