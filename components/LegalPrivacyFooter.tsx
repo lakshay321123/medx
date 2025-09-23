@@ -218,7 +218,7 @@ export default function LegalPrivacyFooter() {
     <>
       <footer className="flex-shrink-0 border-t border-black/10 bg-white/80 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/60">
         <div className="mx-auto flex w-full max-w-screen-2xl flex-col items-center justify-center gap-1.5 px-6 py-1.5 text-center text-[11px] text-slate-600 dark:text-slate-300 sm:flex-row sm:gap-3 sm:text-xs">
-          <p className="leading-4 sm:ml-[17.5rem] sm:max-w-3xl">
+          <p className="leading-4 sm:ml-[17rem] sm:max-w-3xl">
             {BRAND} can make mistakes. This is not medical advice. Always consult a clinician.
           </p>
           <button
