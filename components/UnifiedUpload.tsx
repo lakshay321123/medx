@@ -64,7 +64,7 @@ export default function UnifiedUpload() {
     }
 
     if (!pdfFiles.length && !imageFiles.length) {
-      setErr("Unsupported file type. Upload DICOM/PDF/PNG/JPG.");
+      setErr("Unsupported file type. Upload PDF/PNG/JPG.");
       e.target.value = "";
       return;
     }
@@ -104,7 +104,7 @@ export default function UnifiedUpload() {
     } catch (e: any) {
       const message = String(e?.message || e) || "Upload failed";
       if (message.includes("415")) {
-        setErr("Unsupported file type. Upload DICOM/PDF/PNG/JPG.");
+        setErr("Unsupported file type. Upload PDF/PNG/JPG.");
       } else if (message.includes("413")) {
         setErr("Each image must be under 5 MB.");
       } else if (message.includes("Upload up to")) {
@@ -144,7 +144,7 @@ export default function UnifiedUpload() {
           <span>Upload</span>
           <input
             type="file"
-            accept="application/pdf,image/*,.dcm"
+            accept="application/pdf,image/*"
             multiple
             onChange={onChange}
             className="hidden"

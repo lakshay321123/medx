@@ -53,7 +53,7 @@ async function rotateIfNeeded(image: { buffer: Buffer; mime?: string }): Promise
 
     if (!width || !height) return null;
 
-    const mime = normalizeMime(image.mime);
+    const outMime = normalizeMime(image.mime);
     const needsRotation = width > height * 1.1;
 
     if (!needsRotation) {
@@ -61,8 +61,8 @@ async function rotateIfNeeded(image: { buffer: Buffer; mime?: string }): Promise
       const ctx = canvas.getContext("2d");
       ctx.drawImage(img, 0, 0, width, height);
       const buffer =
-        mime === "image/jpeg" ? canvas.toBuffer("image/jpeg", 0.92) : canvas.toBuffer("image/png");
-      return { buffer, mime, rotated: false, width, height };
+        outMime === "image/jpeg" ? canvas.toBuffer("image/jpeg", 0.92) : canvas.toBuffer("image/png");
+      return { buffer, mime: outMime, rotated: false, width: canvas.width, height: canvas.height };
     }
 
     const canvas = createCanvas(height, width);
@@ -71,8 +71,8 @@ async function rotateIfNeeded(image: { buffer: Buffer; mime?: string }): Promise
     ctx.rotate((90 * Math.PI) / 180);
     ctx.drawImage(img, -width / 2, -height / 2, width, height);
     const buffer =
-      mime === "image/jpeg" ? canvas.toBuffer("image/jpeg", 0.92) : canvas.toBuffer("image/png");
-    return { buffer, mime, rotated: true, width: canvas.width, height: canvas.height };
+      outMime === "image/jpeg" ? canvas.toBuffer("image/jpeg", 0.92) : canvas.toBuffer("image/png");
+    return { buffer, mime: outMime, rotated: true, width: canvas.width, height: canvas.height };
   } catch (error) {
     const context = "name" in image ? { name: (image as { name?: string }).name, error } : { error };
     console.warn("[orientation] failed to rotate", context);

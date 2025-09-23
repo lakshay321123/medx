@@ -38,6 +38,9 @@ This project includes:
 - OpenAI models power the `/api/analyze` endpoint for PDF and image summaries.
 - Images for banner should follow source licenses; this demo just returns text/meta.
 
+### Imaging
+- Supported: PDF, PNG, JPG
+
 ### Diagnostics
 - /api/health -> { ok: true }
 - /api/diag   -> env presence flags

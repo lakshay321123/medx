@@ -335,4 +335,51 @@ describe("imaging pipeline orchestration", () => {
     expect(Array.isArray(data.warnings)).toBe(true);
     expect(data.warnings[0]).toMatch(/left\/right/i);
   });
+
+  it("reports duplicatesPruned when duplicate images are provided", async () => {
+    assessImageQualityMock.mockResolvedValue({
+      perImage: [
+        { name: "a.jpg", quality_score: 0.9, label: "Good", tip: "", metrics: { blur: 0.9, exposure: 0.9, crop: 0.9, noise: 0.9 } },
+        { name: "b.jpg", quality_score: 0.9, label: "Good", tip: "", metrics: { blur: 0.9, exposure: 0.9, crop: 0.9, noise: 0.9 } },
+      ],
+      overall: { name: "overall", quality_score: 0.9, label: "Good", tip: "", metrics: { blur: 0.9, exposure: 0.9, crop: 0.9, noise: 0.9 } },
+      threshold: 0.55,
+    });
+
+    detectViewsMock.mockReturnValue({
+      images: [
+        { name: "a.jpg", mime: "image/jpeg", buffer: Buffer.from("x"), metadata: null, view: "PA" },
+        { name: "b.jpg", mime: "image/jpeg", buffer: Buffer.from("x"), metadata: null, view: "PA" },
+      ],
+      viewsDetected: ["PA"],
+      duplicatesPruned: 1,
+      missingLateral: true,
+    });
+
+    normalizeOrientationMock.mockResolvedValue({
+      images: [{ name: "a.jpg", mime: "image/jpeg", buffer: Buffer.from("x"), metadata: null, view: "PA" }],
+      rotationApplied: false,
+      warnings: [],
+      sides: { "a.jpg": "Right" },
+    });
+
+    estimateAngulationMock.mockResolvedValue({ angulation_deg: null, method: "none" });
+    deriveRedFlagsMock.mockReturnValue({ merged: [], checklistFlags: [] });
+    applyCalibrationMock.mockReturnValue({ confidence_calibrated: 0.65, decision_tier: "Likely" });
+
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: JSON.stringify({ fracture_present: true, confidence_0_1: 0.65 }) } }],
+      }),
+    } as any);
+
+    const form = makeForm([buildFile("a.jpg"), buildFile("b.jpg")]);
+    const POST = await loadRoute();
+    const res = await POST(new Request("http://localhost/api/imaging/analyze", { method: "POST", body: form }));
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.views.duplicatesPruned).toBeGreaterThan(0);
+  });
 });
