@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Clipboard, Download, Link as LinkIcon, Share2, Twitter, Facebook } from 'lucide-react';
+import { Clipboard, Download, Link as LinkIcon, Share2, Twitter, Facebook, Loader2 } from 'lucide-react';
 
 type SharePanelProps = {
   open: boolean;
@@ -9,12 +9,12 @@ type SharePanelProps = {
   preview: string;
   onCopyLink: () => Promise<void>;
   onDownloadImage: () => Promise<void>;
-  onShareX: () => void;
-  onShareFacebook: () => void;
+  onShareX: () => void | Promise<void>;
+  onShareFacebook: () => void | Promise<void>;
   onSystemShare?: () => Promise<void>;
   onCopyCaption: () => Promise<void>;
   canSystemShare: boolean;
-  busyAction: null | 'link' | 'download' | 'caption' | 'system';
+  busyAction: null | 'link' | 'download' | 'caption' | 'system' | 'x' | 'facebook';
 };
 
 export default function SharePanel(props: SharePanelProps) {
@@ -31,6 +31,9 @@ export default function SharePanel(props: SharePanelProps) {
     canSystemShare,
     busyAction,
   } = props;
+
+  const actionsDisabled = !!busyAction;
+  const showSystemShare = canSystemShare && typeof navigator !== 'undefined' && 'share' in navigator;
 
   useEffect(() => {
     if (!open) return;
@@ -73,59 +76,81 @@ export default function SharePanel(props: SharePanelProps) {
         <div className="mt-5 grid gap-2 text-sm">
           <button
             type="button"
-            onClick={onCopyLink}
+            onClick={() => {
+              void onCopyLink();
+            }}
             className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            disabled={busyAction === 'link'}
+            disabled={actionsDisabled}
           >
             <span className="inline-flex items-center gap-2"><LinkIcon size={16} /> Copy link</span>
-            {busyAction === 'link' && <span className="text-xs text-slate-500">Working…</span>}
+            {busyAction === 'link' && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
           </button>
           <button
             type="button"
-            onClick={onDownloadImage}
+            onClick={() => {
+              void onDownloadImage();
+            }}
             className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            disabled={busyAction === 'download'}
+            disabled={actionsDisabled}
           >
             <span className="inline-flex items-center gap-2"><Download size={16} /> Download image</span>
-            {busyAction === 'download' && <span className="text-xs text-slate-500">Working…</span>}
+            {busyAction === 'download' && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
           </button>
           <div className="grid gap-2 sm:grid-cols-2">
             <button
               type="button"
-              onClick={onShareX}
-              className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 font-medium text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              onClick={() => {
+                void onShareX();
+              }}
+              className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              disabled={actionsDisabled}
             >
               <span className="inline-flex items-center gap-2"><Twitter size={16} /> Share to X</span>
-              <Share2 size={14} />
+              {busyAction === 'x' ? (
+                <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+              ) : (
+                <Share2 size={14} />
+              )}
             </button>
             <button
               type="button"
-              onClick={onShareFacebook}
-              className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 font-medium text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              onClick={() => {
+                void onShareFacebook();
+              }}
+              className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              disabled={actionsDisabled}
             >
               <span className="inline-flex items-center gap-2"><Facebook size={16} /> Share to Facebook</span>
-              <Share2 size={14} />
+              {busyAction === 'facebook' ? (
+                <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+              ) : (
+                <Share2 size={14} />
+              )}
             </button>
           </div>
-          {canSystemShare && onSystemShare && (
+          {showSystemShare && onSystemShare && (
             <button
               type="button"
-              onClick={onSystemShare}
+              onClick={() => {
+                void onSystemShare();
+              }}
               className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-              disabled={busyAction === 'system'}
+              disabled={actionsDisabled}
             >
               <span className="inline-flex items-center gap-2"><Share2 size={16} /> Share via device</span>
-              {busyAction === 'system' && <span className="text-xs text-slate-500">Working…</span>}
+              {busyAction === 'system' && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
             </button>
           )}
           <button
             type="button"
-            onClick={onCopyCaption}
+            onClick={() => {
+              void onCopyCaption();
+            }}
             className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            disabled={busyAction === 'caption'}
+            disabled={actionsDisabled}
           >
             <span className="inline-flex items-center gap-2"><Clipboard size={16} /> Copy caption</span>
-            {busyAction === 'caption' && <span className="text-xs text-slate-500">Copied</span>}
+            {busyAction === 'caption' && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
           </button>
         </div>
       </div>

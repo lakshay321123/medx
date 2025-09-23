@@ -51,10 +51,15 @@ import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
 import { pushToast } from "@/lib/ui/toast";
 import { trackEvent } from "@/lib/analytics/events";
 import { exportMessageCardToPng } from "@/lib/share/exportImage";
-import { buildShareCaption } from "@/lib/share/caption";
+import { buildShareCaption, buildShareIntentCaption } from "@/lib/share/caption";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
+
+const rawAppUrl =
+  process.env.NEXT_PUBLIC_APP_URL ??
+  (typeof window !== 'undefined' ? window.location.origin : '');
+const APP_URL = rawAppUrl ? rawAppUrl.replace(/\/$/, '') : '';
 
 const NEARBY_DEFAULT_RADIUS_KM = 2;
 const NEARBY_RADIUS_CHOICES = [1, 2, 3, 5, 8, 10] as const;
@@ -122,6 +127,24 @@ const getMessageTextFromDom = (domId: string, fallback: string) => {
   const content = node.querySelector('.message-content');
   const text = content ? (content as HTMLElement).innerText : node.innerText;
   return (text || fallback || '').trim();
+};
+
+const fallbackCopyToClipboard = (text: string) => {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', 'true');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  textarea.style.pointerEvents = 'none';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  const successful = document.execCommand('copy');
+  document.body.removeChild(textarea);
+  if (!successful) {
+    throw new Error('copy_failed');
+  }
 };
 
 const formatTrendDate = (iso?: string) => {
@@ -710,7 +733,16 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [labSummary, setLabSummary] = useState<any | null>(null);
   const [refreshingMessages, setRefreshingMessages] = useState<Record<string, boolean>>({});
   const [shareTarget, setShareTarget] = useState<ShareTargetState | null>(null);
-  const [shareBusy, setShareBusy] = useState<null | 'link' | 'download' | 'caption' | 'system'>(null);
+  const [shareBusy, setShareBusy] = useState<
+    | null
+    | 'link'
+    | 'download'
+    | 'caption'
+    | 'system'
+    | 'x'
+    | 'facebook'
+  >(null);
+  const [shareLinks, setShareLinks] = useState<Record<string, string>>({});
   const abortRef = useRef<AbortController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef =
@@ -718,9 +750,13 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
   const previewUrlsRef = useRef<string[]>([]);
   const queueAbortRef = useRef<AbortController | null>(null);
-  const shareLinksRef = useRef<Map<string, string>>(new Map());
+  const shareLinksRef = useRef<Record<string, string>>({});
   const shareInFlightRef = useRef<Map<string, Promise<string>>>(new Map());
   const { filters } = useResearchFilters();
+
+  useEffect(() => {
+    shareLinksRef.current = shareLinks;
+  }, [shareLinks]);
 
   const sp = useSearchParams();
   const isAiDocMode = useIsAiDocMode();
@@ -3049,43 +3085,52 @@ ${systemCommon}` + baseSys;
     }
   }, [messages, conversationId, setFromChat, setUi]);
 
-  const systemShareSupported = typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function';
+  const systemShareSupported =
+    typeof navigator !== 'undefined' && 'share' in navigator && typeof (navigator as any).share === 'function';
 
-  const ensureShareLink = useCallback(async (target: ShareTargetState) => {
-    const cached = shareLinksRef.current.get(target.messageId);
-    if (cached) return cached;
+  const ensureShareLink = useCallback(
+    async (target: ShareTargetState) => {
+      const cached = shareLinksRef.current[target.messageId];
+      if (cached) return cached;
 
-    const inflight = shareInFlightRef.current.get(target.messageId);
-    if (inflight) return inflight;
+      const inflight = shareInFlightRef.current.get(target.messageId);
+      if (inflight) return inflight;
 
-    const request = (async () => {
-      const res = await fetch('/api/share', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          conversationId: target.conversationId,
-          messageId: target.messageId,
-          content: target.content,
-          mode: target.mode,
-          research: target.research,
-        }),
-      });
-      if (!res.ok) throw new Error('share_failed');
-      const data = await res.json().catch(() => null);
-      const slug = typeof data?.slug === 'string' ? data.slug : null;
-      if (!slug) throw new Error('share_failed');
-      const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
-      const url = origin ? `${origin}/s/${slug}` : `/s/${slug}`;
-      shareLinksRef.current.set(target.messageId, url);
-      return url;
-    })();
-    shareInFlightRef.current.set(target.messageId, request);
-    try {
-      return await request;
-    } finally {
-      shareInFlightRef.current.delete(target.messageId);
-    }
-  }, []);
+      const request = (async () => {
+        const res = await fetch('/api/share', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conversationId: target.conversationId,
+            messageId: target.messageId,
+            content: target.content,
+            mode: target.mode,
+            research: target.research,
+          }),
+        });
+        if (!res.ok) throw new Error('share_failed');
+        const data = await res.json().catch(() => null);
+        const slug = typeof data?.slug === 'string' ? data.slug : null;
+        if (!slug) throw new Error('share_failed');
+        const base = APP_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+        if (!base) throw new Error('share_failed');
+        const shareUrl = `${base.replace(/\/$/, '')}/s/${slug}`;
+        shareLinksRef.current[target.messageId] = shareUrl;
+        setShareLinks((prev) => {
+          if (prev[target.messageId]) return prev;
+          return { ...prev, [target.messageId]: shareUrl };
+        });
+        return shareUrl;
+      })();
+      shareInFlightRef.current.set(target.messageId, request);
+      try {
+        return await request;
+      } finally {
+        shareInFlightRef.current.delete(target.messageId);
+      }
+    },
+    [setShareLinks]
+  );
 
   const closeShare = useCallback(() => {
     setShareTarget(null);
@@ -3108,8 +3153,12 @@ ${systemCommon}` + baseSys;
     setShareBusy('link');
     try {
       const url = await ensureShareLink(shareTarget);
-      if (!navigator?.clipboard?.writeText) throw new Error('clipboard');
-      await navigator.clipboard.writeText(url);
+      try {
+        if (!navigator?.clipboard?.writeText) throw new Error('clipboard_unsupported');
+        await navigator.clipboard.writeText(url);
+      } catch {
+        fallbackCopyToClipboard(url);
+      }
       pushToast({ title: 'Link copied' });
       trackEvent('share_copy_link', {
         conversationId: shareTarget.conversationId,
@@ -3143,15 +3192,12 @@ ${systemCommon}` + baseSys;
         modeLabel,
         timestamp: new Date(),
       });
-      const blob = await fetch(dataUrl).then((r) => r.blob());
-      const downloadUrl = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
-      anchor.href = downloadUrl;
-      anchor.download = `${BRAND_NAME.toLowerCase().replace(/\s+/g, '-')}-answer.png`;
+      anchor.href = dataUrl;
+      anchor.download = 'medx-answer.png';
       document.body.appendChild(anchor);
       anchor.click();
       document.body.removeChild(anchor);
-      URL.revokeObjectURL(downloadUrl);
       pushToast({ title: 'Image saved' });
       trackEvent('share_download_image', {
         conversationId: shareTarget.conversationId,
@@ -3168,11 +3214,17 @@ ${systemCommon}` + baseSys;
 
   const handleShareX = useCallback(async () => {
     if (!shareTarget) return;
+    const win = window.open('about:blank', '_blank', 'noopener,noreferrer');
+    setShareBusy('x');
     try {
       const url = await ensureShareLink(shareTarget);
-      const caption = buildShareCaption(shareTarget.plainText, BRAND_NAME, url);
-      const intentUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(caption)}`;
-      window.open(intentUrl, '_blank', 'noopener,noreferrer');
+      const caption = buildShareIntentCaption(shareTarget.plainText, BRAND_NAME);
+      const intentUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(caption)}&url=${encodeURIComponent(url)}`;
+      if (win) {
+        win.location.href = intentUrl;
+      } else {
+        window.open(intentUrl, '_blank', 'noopener,noreferrer');
+      }
       trackEvent('share_x', {
         conversationId: shareTarget.conversationId,
         messageId: shareTarget.messageId,
@@ -3180,16 +3232,27 @@ ${systemCommon}` + baseSys;
         research: shareTarget.research,
       });
     } catch {
+      if (win) {
+        win.close();
+      }
       pushToast({ title: 'Could not open X share', variant: 'destructive' });
+    } finally {
+      setShareBusy(null);
     }
   }, [shareTarget, ensureShareLink]);
 
   const handleShareFacebook = useCallback(async () => {
     if (!shareTarget) return;
+    const win = window.open('about:blank', '_blank', 'noopener,noreferrer');
+    setShareBusy('facebook');
     try {
       const url = await ensureShareLink(shareTarget);
       const intentUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
-      window.open(intentUrl, '_blank', 'noopener,noreferrer');
+      if (win) {
+        win.location.href = intentUrl;
+      } else {
+        window.open(intentUrl, '_blank', 'noopener,noreferrer');
+      }
       trackEvent('share_facebook', {
         conversationId: shareTarget.conversationId,
         messageId: shareTarget.messageId,
@@ -3197,7 +3260,12 @@ ${systemCommon}` + baseSys;
         research: shareTarget.research,
       });
     } catch {
+      if (win) {
+        win.close();
+      }
       pushToast({ title: 'Could not open Facebook share', variant: 'destructive' });
+    } finally {
+      setShareBusy(null);
     }
   }, [shareTarget, ensureShareLink]);
 
@@ -3211,7 +3279,7 @@ ${systemCommon}` + baseSys;
     try {
       const url = await ensureShareLink(shareTarget);
       const caption = buildShareCaption(shareTarget.plainText, BRAND_NAME, url);
-      await navigator.share({ title: BRAND_NAME, text: caption, url });
+      await navigator.share({ title: 'MedX Answer', text: caption, url });
       trackEvent('share_system', {
         conversationId: shareTarget.conversationId,
         messageId: shareTarget.messageId,
@@ -3233,8 +3301,12 @@ ${systemCommon}` + baseSys;
     try {
       const url = await ensureShareLink(shareTarget);
       const caption = buildShareCaption(shareTarget.plainText, BRAND_NAME, url);
-      if (!navigator?.clipboard?.writeText) throw new Error('clipboard');
-      await navigator.clipboard.writeText(caption);
+      try {
+        if (!navigator?.clipboard?.writeText) throw new Error('clipboard_unsupported');
+        await navigator.clipboard.writeText(caption);
+      } catch {
+        fallbackCopyToClipboard(caption);
+      }
       pushToast({ title: 'Caption copied' });
     } catch {
       pushToast({ title: 'Could not copy caption', variant: 'destructive' });

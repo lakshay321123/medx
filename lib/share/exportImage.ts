@@ -8,10 +8,15 @@ type ExportOptions = {
   timestamp?: Date;
 };
 
-function ensureClone(node: HTMLElement) {
-  const clone = node.cloneNode(true) as HTMLElement;
+export async function exportMessageCardToPng(node: HTMLElement, options: ExportOptions) {
+  const target = node;
+  if (!target) throw new Error('message_node_missing');
+
+  const dark = document.documentElement.classList.contains('dark');
+  const clone = target.cloneNode(true) as HTMLElement;
   clone.removeAttribute('id');
   clone.querySelectorAll('[data-message-actions]').forEach((el) => el.remove());
+  clone.querySelectorAll('img').forEach((img) => img.remove());
   clone.style.width = '100%';
   clone.style.maxWidth = '100%';
   clone.style.background = 'transparent';
@@ -19,27 +24,18 @@ function ensureClone(node: HTMLElement) {
   clone.style.border = 'none';
   clone.style.margin = '0';
   clone.style.padding = '0';
-  return clone;
-}
 
-export async function exportMessageCardToPng(node: HTMLElement, options: ExportOptions) {
-  const target = node;
-  if (!target) throw new Error('message_node_missing');
-
-  const dark = document.documentElement.classList.contains('dark');
-  const clone = ensureClone(target);
-
-  const width = Math.min(target.offsetWidth || 600, 640);
   const wrapper = document.createElement('div');
   wrapper.style.position = 'fixed';
   wrapper.style.left = '-10000px';
   wrapper.style.top = '0';
-  wrapper.style.padding = '32px';
-  wrapper.style.width = `${width}px`;
+  wrapper.style.padding = '24px';
+  wrapper.style.width = '1200px';
+  wrapper.style.maxWidth = '1200px';
   wrapper.style.boxSizing = 'border-box';
   wrapper.style.borderRadius = '28px';
   wrapper.style.border = dark ? '1px solid rgba(148, 163, 184, 0.3)' : '1px solid rgba(15, 23, 42, 0.08)';
-  wrapper.style.background = dark ? '#0f172a' : '#ffffff';
+  wrapper.style.background = dark ? '#0b0f14' : '#ffffff';
   wrapper.style.color = dark ? '#e2e8f0' : '#0f172a';
   wrapper.style.boxShadow = '0 30px 80px rgba(15, 23, 42, 0.18)';
   wrapper.style.fontFamily = '"Inter", "SF Pro Text", system-ui, sans-serif';
@@ -87,10 +83,13 @@ export async function exportMessageCardToPng(node: HTMLElement, options: ExportO
   document.body.appendChild(wrapper);
 
   try {
+    await document.fonts?.ready?.catch(() => {});
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
     const dataUrl = await toPng(wrapper, {
       pixelRatio: 2,
       cacheBust: true,
-      backgroundColor: dark ? '#0f172a' : '#ffffff',
+      backgroundColor: dark ? '#0b0f14' : '#ffffff',
     });
     return dataUrl;
   } finally {
