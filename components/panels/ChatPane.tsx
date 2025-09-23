@@ -676,7 +676,7 @@ function AssistantFooter({
   const copyDisabled = !hasText;
   const refreshDisabled = !canRefresh;
   const footerClass = [
-    'mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs sm:flex-nowrap',
+    'flex flex-wrap items-center justify-start gap-x-1.5 gap-y-1 text-xs sm:flex-nowrap',
     className || ''
   ]
     .filter(Boolean)
@@ -3273,6 +3273,7 @@ ${systemCommon}` + baseSys;
               feedback={feedback}
               onRefresh={() => refreshThreadOrResume()}
               canRefresh={canRefreshQueue}
+              className="mt-1.5"
             />
           ) : null;
 

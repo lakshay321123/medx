@@ -9,7 +9,7 @@ export default function SuggestionChips({ suggestions, onAction }: Props) {
   const safe = suggestions.map((s) => (s.actionId ? s : { ...s, actionId: undefined as never }));
 
   return (
-    <div className="mt-3 flex flex-wrap gap-2">
+    <div className="mt-1.5 flex flex-wrap gap-2">
       {safe.map((s) =>
         isAction(s) ? (
           <button
