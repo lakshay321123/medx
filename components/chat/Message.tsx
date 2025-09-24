@@ -19,9 +19,9 @@ interface MessageProps {
 }
 
 const userBubble =
-  "ml-auto my-2 max-w-[88vw] rounded-2xl bg-[#2563EB] px-3 py-2 text-[15px] leading-[1.6] text-white md:my-3 md:max-w-[720px] md:px-4 md:py-3 md:text-base";
+  "ml-auto my-2 max-w-[88vw] rounded-2xl bg-[#2563EB] px-3 py-2 text-[15px] leading-[1.6] text-white md:my-2 md:ml-0 md:max-w-none md:rounded-none md:bg-transparent md:px-0 md:py-0 md:text-base md:text-inherit";
 const assistantBubble =
-  "mr-auto my-2 max-w-[88vw] rounded-2xl bg-[#13233D] px-3 pb-6 pt-2 text-[15px] leading-[1.6] text-[#E6EDF7] shadow-sm md:my-3 md:max-w-[720px] md:px-4 md:pb-4 md:pt-3 md:text-base";
+  "mr-auto my-2 max-w-[88vw] rounded-2xl bg-[#13233D] px-3 pb-6 pt-2 text-[15px] leading-[1.6] text-[#E6EDF7] shadow-sm md:my-2 md:mr-0 md:max-w-none md:rounded-none md:bg-transparent md:px-0 md:pb-0 md:pt-0 md:text-base md:text-inherit md:shadow-none";
 
 export default function Message({ message }: MessageProps) {
   const safeMessage: ChatMessage = {
@@ -51,7 +51,7 @@ export default function Message({ message }: MessageProps) {
   const content = typeof safeMessage.content === "string" ? safeMessage.content : "";
 
   return (
-    <div className={`relative flex ${isUser ? "justify-end" : "justify-start"} px-1`}>
+    <div className={`relative flex ${isUser ? "justify-end" : "justify-start"} px-1 md:block md:px-0`}>
       <div className={`relative ${isUser ? userBubble : assistantBubble}`}>
         {attachments.length > 0 && (
           <div
@@ -75,7 +75,7 @@ export default function Message({ message }: MessageProps) {
           <FeedbackControls
             messageId={safeMessage.id}
             compact
-            className="absolute -bottom-5 right-2 flex md:static md:mt-1"
+            className="absolute -bottom-5 right-2 flex md:static md:mt-2"
           />
         )}
       </div>

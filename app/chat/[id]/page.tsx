@@ -135,37 +135,29 @@ export default function ThreadPage() {
           </div>
         )}
 
-        <SidebarDrawer open={sidebarOpen} onClose={() => setSidebarOpen(false)}>
-          <div className="flex h-full flex-col gap-4 text-sm text-[#0F172A] dark:text-[#E6EDF7]">
-            <div className="flex items-center justify-between pt-1 text-xs uppercase tracking-wide text-[#334155] dark:text-[#94A3B8]">
-              <span>Conversations</span>
-              <button
-                type="button"
-                onClick={handleStartNewChat}
-                className="rounded-full bg-[#2563EB] px-3 py-1 text-xs font-semibold text-white transition hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
-              >
-                New
-              </button>
+        <div className="md:hidden">
+          <SidebarDrawer open={sidebarOpen} onClose={() => setSidebarOpen(false)}>
+            <div className="flex h-full flex-col gap-4 text-sm text-[#0F172A] dark:text-[#E6EDF7]">
+              <div className="flex items-center justify-between pt-1 text-xs uppercase tracking-wide text-[#334155] dark:text-[#94A3B8]">
+                <span>Conversations</span>
+                <button
+                  type="button"
+                  onClick={handleStartNewChat}
+                  className="rounded-full bg-[#2563EB] px-3 py-1 text-xs font-semibold text-white transition hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
+                >
+                  New
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto pr-1">
+                <SidebarThreads />
+              </div>
             </div>
-            <div className="flex-1 overflow-y-auto pr-1">
-              <SidebarThreads />
-            </div>
-          </div>
-        </SidebarDrawer>
+          </SidebarDrawer>
+        </div>
 
         <div className="flex flex-1 md:grid md:grid-cols-[280px_1fr]">
-          <aside className="hidden border-r border-[#E2E8F0] bg-[#F8FAFC] text-[#0F172A] dark:border-[#1E3A5F] dark:bg-[#0F1B2D] dark:text-[#E6EDF7] md:flex md:flex-col">
-            <div className="flex items-center justify-between px-4 pb-2 pt-4 text-xs font-semibold uppercase tracking-wide text-[#334155] dark:text-[#94A3B8]">
-              <span>Conversations</span>
-              <button
-                type="button"
-                onClick={handleStartNewChat}
-                className="rounded-full bg-[#2563EB] px-3 py-1 text-xs font-semibold text-white transition hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
-              >
-                New
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-2 pb-4">
+          <aside className="hidden border-r border-[#E2E8F0] bg-[#F8FAFC] text-[#0F172A] dark:border-[#1E3A5F] dark:bg-[#0F1B2D] dark:text-[#E6EDF7] md:flex md:flex-col md:border-black/10 md:bg-transparent md:text-inherit md:dark:border-white/10 md:dark:bg-transparent">
+            <div className="flex-1 overflow-y-auto px-2 pb-4 md:px-0 md:pb-0">
               <SidebarThreads />
             </div>
           </aside>

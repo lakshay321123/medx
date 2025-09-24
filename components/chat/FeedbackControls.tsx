@@ -14,7 +14,7 @@ export default function FeedbackControls({ messageId, compact = false, className
   const size = compact ? 16 : 20;
   const spacing = compact ? "gap-2" : "gap-3";
   const dataMessage = messageId ?? "";
-  const classes = ["flex", spacing, "text-[#94A3B8]", "dark:text-[#CBD5F5]"];
+  const classes = ["flex", spacing, "text-[#94A3B8]", "dark:text-[#CBD5F5]", "md:text-slate-500", "md:dark:text-slate-400"];
   if (className) classes.push(className);
 
   const onLikeSafe = onLike ?? (() => {});

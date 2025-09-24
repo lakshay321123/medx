@@ -135,49 +135,70 @@ export default function ModeBar() {
   const doctorActive = state.base === "doctor";
 
   return (
-    <div className="sticky top-14 z-30 -mx-3 px-3 py-2 bg-[#F8FAFC]/90 backdrop-blur md:static md:m-0 md:bg-transparent md:px-0 md:py-0 dark:bg-[#0F1B2D]/90">
-      <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] md:flex-wrap [&::-webkit-scrollbar]:hidden">
-        <div className="inline-flex flex-nowrap items-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-2 py-1 backdrop-blur dark:border-[#1E3A5F] dark:bg-[#0F1B2D]">
-          <button
-            className={btn(wellnessActive)}
-            onClick={() => apply({ type: "toggle/patient" })}
-          >
-            Wellness
-          </button>
-          <button
-            className={btn(state.therapy, aidocOn || state.base !== "patient" || therapyBusy)}
-            disabled={aidocOn || state.base !== "patient" || therapyBusy}
-            onClick={() => apply({ type: "toggle/therapy" })}
-            aria-busy={therapyBusy}
-          >
-            <span>Therapy</span>
-            {therapyBusy && !state.therapy ? (
-              <span className="ml-2 inline-flex h-3 w-3 items-center" aria-hidden="true">
-                <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              </span>
-            ) : null}
-          </button>
-          <button
-            className={btn(state.research, aidocOn)}
-            disabled={aidocOn}
-            onClick={() => apply({ type: "toggle/research" })}
-          >
-            Research
-          </button>
-          <button
-            className={btn(doctorActive)}
-            onClick={() => apply({ type: "toggle/doctor" })}
-          >
-            Clinical
-          </button>
+    <>
+      <div className="sticky top-14 z-30 -mx-3 px-3 py-2 bg-[#F8FAFC]/90 backdrop-blur dark:bg-[#0F1B2D]/90 md:hidden">
+        <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          <div className="inline-flex flex-nowrap items-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-2 py-1 backdrop-blur dark:border-[#1E3A5F] dark:bg-[#0F1B2D]">
+            <button className={btn(wellnessActive)} onClick={() => apply({ type: "toggle/patient" })}>
+              Wellness
+            </button>
+            <button
+              className={btn(state.therapy, aidocOn || state.base !== "patient" || therapyBusy)}
+              disabled={aidocOn || state.base !== "patient" || therapyBusy}
+              onClick={() => apply({ type: "toggle/therapy" })}
+              aria-busy={therapyBusy}
+            >
+              <span>Therapy</span>
+              {therapyBusy && !state.therapy ? (
+                <span className="ml-2 inline-flex h-3 w-3 items-center" aria-hidden="true">
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                </span>
+              ) : null}
+            </button>
+            <button className={btn(state.research, aidocOn)} disabled={aidocOn} onClick={() => apply({ type: "toggle/research" })}>
+              Research
+            </button>
+            <button className={btn(doctorActive)} onClick={() => apply({ type: "toggle/doctor" })}>
+              Clinical
+            </button>
 
-          <div className="mx-1 hidden h-5 w-px bg-black/10 dark:bg-white/10 md:block" />
-
-          <button className={btn(aidocOn)} onClick={() => apply({ type: "toggle/aidoc" })}>
-            AI Doc
-          </button>
+            <button className={btn(aidocOn)} onClick={() => apply({ type: "toggle/aidoc" })}>
+              AI Doc
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+
+      <div className="hidden md:inline-flex md:flex-wrap md:items-center md:gap-2 md:rounded-full md:border md:border-black/10 md:bg-white/60 md:px-2 md:py-1 md:backdrop-blur dark:md:border-white/10 dark:md:bg-slate-900/40">
+        <button className={btn(wellnessActive)} onClick={() => apply({ type: "toggle/patient" })}>
+          Wellness
+        </button>
+        <button
+          className={btn(state.therapy, aidocOn || state.base !== "patient" || therapyBusy)}
+          disabled={aidocOn || state.base !== "patient" || therapyBusy}
+          onClick={() => apply({ type: "toggle/therapy" })}
+          aria-busy={therapyBusy}
+        >
+          <span>Therapy</span>
+          {therapyBusy && !state.therapy ? (
+            <span className="ml-2 inline-flex h-3 w-3 items-center" aria-hidden="true">
+              <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            </span>
+          ) : null}
+        </button>
+        <button className={btn(state.research, aidocOn)} disabled={aidocOn} onClick={() => apply({ type: "toggle/research" })}>
+          Research
+        </button>
+        <button className={btn(doctorActive)} onClick={() => apply({ type: "toggle/doctor" })}>
+          Clinical
+        </button>
+
+        <div className="mx-1 hidden h-5 w-px bg-black/10 dark:bg-white/10 md:block" />
+
+        <button className={btn(aidocOn)} onClick={() => apply({ type: "toggle/aidoc" })}>
+          AI Doc
+        </button>
+      </div>
+    </>
   );
 }

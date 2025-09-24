@@ -31,11 +31,11 @@ export function SidebarDrawer({ open, onClose, children }: SidebarDrawerProps) {
         aria-hidden={!open}
       />
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-[86vw] max-w-[320px] transform border-r border-[#E2E8F0] bg-[#F8FAFC] text-[#0F172A] shadow-xl transition-transform duration-200 ease-out dark:border-[#1E3A5F] dark:bg-[#0F1B2D] dark:text-[#E6EDF7] md:static md:block md:translate-x-0 md:w-72 md:border-r md:border-[#E2E8F0] md:bg-[#F8FAFC] md:text-[#0F172A] md:shadow-none ${
+        className={`fixed inset-y-0 left-0 z-50 w-[86vw] max-w-[320px] transform border-r border-[#E2E8F0] bg-[#F8FAFC] text-[#0F172A] shadow-xl transition-transform duration-200 ease-out dark:border-[#1E3A5F] dark:bg-[#0F1B2D] dark:text-[#E6EDF7] md:static md:block md:translate-x-0 md:w-72 md:border-r md:border-black/10 md:bg-white/80 md:text-medx md:shadow-none md:backdrop-blur ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex h-full flex-col overflow-y-auto px-4 pb-6 pt-4 md:h-auto md:overflow-visible md:px-0 md:pt-0">
+        <div className="flex h-full flex-col overflow-y-auto px-4 pb-6 pt-4 md:h-auto md:overflow-visible md:px-4 md:pb-0 md:pt-6">
           {children}
         </div>
       </aside>
@@ -80,11 +80,11 @@ export default function Sidebar() {
   };
   const filtered = threads.filter(t => (t.title ?? '').toLowerCase().includes(q.toLowerCase()));
   return (
-    <div className="sidebar-click-guard flex h-full w-full flex-col gap-4 px-4 pt-6 pb-0 text-sm text-[#0F172A] dark:text-[#E6EDF7]">
+    <div className="sidebar-click-guard flex h-full w-full flex-col gap-4 px-4 pt-6 pb-0 text-sm text-[#0F172A] dark:text-[#E6EDF7] md:text-medx">
       <button
         type="button"
         onClick={handleNew}
-        className="w-full rounded-full bg-[#2563EB] px-4 py-2.5 text-left font-semibold text-white shadow-sm transition hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
+        className="w-full rounded-full bg-[#2563EB] px-4 py-2.5 text-left font-semibold text-white shadow-sm transition hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB] md:bg-blue-600 md:hover:bg-blue-500"
       >
         + New Chat
       </button>
@@ -92,11 +92,11 @@ export default function Sidebar() {
       <div>
         <div className="relative">
           <input
-            className="h-10 w-full rounded-full border border-[#E2E8F0] bg-white pl-3 pr-8 text-sm text-[#0F172A] placeholder:text-[#64748B] transition focus:border-[#2563EB] focus:outline-none dark:border-[#1E3A5F] dark:bg-[#0F1B2D] dark:text-[#E6EDF7] dark:placeholder:text-[#94A3B8] dark:focus:border-[#3B82F6]"
+            className="h-10 w-full rounded-full border border-[#E2E8F0] bg-white pl-3 pr-8 text-sm text-[#0F172A] placeholder:text-[#64748B] transition focus:border-[#2563EB] focus:outline-none dark:border-[#1E3A5F] dark:bg-[#0F1B2D] dark:text-[#E6EDF7] dark:placeholder:text-[#94A3B8] dark:focus:border-[#3B82F6] md:border-black/10 md:bg-white/70 md:text-slate-700 md:placeholder:text-slate-500 md:backdrop-blur"
             placeholder="Search chats"
             onChange={e => handleSearch(e.target.value)}
           />
-          <Search size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#64748B] dark:text-[#94A3B8]" />
+          <Search size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#64748B] dark:text-[#94A3B8] md:text-slate-500" />
         </div>
         <Tabs />
       </div>
@@ -105,11 +105,11 @@ export default function Sidebar() {
         {filtered.map(t => (
           <div
             key={t.id}
-            className="flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2.5 text-sm shadow-sm transition hover:border-[#2563EB] hover:shadow-md dark:border-[#1E3A5F] dark:bg-[#13233D] dark:hover:border-[#3B82F6]"
+            className="flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2.5 text-sm shadow-sm transition hover:border-[#2563EB] hover:shadow-md dark:border-[#1E3A5F] dark:bg-[#13233D] dark:hover:border-[#3B82F6] md:border-black/5 md:bg-white/70 md:shadow-sm md:hover:border-black/5 md:hover:bg-white/80 md:hover:shadow-sm"
           >
             <button
               onClick={() => router.push(`/?panel=chat&threadId=${t.id}`)}
-              className="flex-1 truncate text-left font-medium text-[#0F172A] transition hover:text-[#2563EB] dark:text-[#E6EDF7] dark:hover:text-[#3B82F6]"
+              className="flex-1 truncate text-left font-medium text-[#0F172A] transition hover:text-[#2563EB] dark:text-[#E6EDF7] dark:hover:text-[#3B82F6] md:text-slate-700 md:hover:text-blue-600"
               title={t.title}
             >
               {t.title}
@@ -131,15 +131,15 @@ export default function Sidebar() {
 
         {aidocThreads.length > 0 && (
           <div className="mt-4">
-            <div className="px-2 text-xs font-semibold uppercase tracking-wide text-[#334155] dark:text-[#94A3B8]">AI Doc</div>
+            <div className="px-2 text-xs font-semibold uppercase tracking-wide text-[#334155] dark:text-[#94A3B8] md:text-slate-500">AI Doc</div>
             {aidocThreads.map(t => (
               <div
                 key={t.id}
-                className="mt-2 flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2.5 text-sm shadow-sm transition hover:border-[#2563EB] hover:shadow-md dark:border-[#1E3A5F] dark:bg-[#13233D] dark:hover:border-[#3B82F6]"
+                className="mt-2 flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2.5 text-sm shadow-sm transition hover:border-[#2563EB] hover:shadow-md dark:border-[#1E3A5F] dark:bg-[#13233D] dark:hover:border-[#3B82F6] md:border-black/5 md:bg-white/70 md:hover:border-black/5 md:hover:bg-white/80"
               >
                 <button
                   onClick={() => router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`)}
-                  className="flex-1 truncate text-left font-medium text-[#0F172A] transition hover:text-[#2563EB] dark:text-[#E6EDF7] dark:hover:text-[#3B82F6]"
+                  className="flex-1 truncate text-left font-medium text-[#0F172A] transition hover:text-[#2563EB] dark:text-[#E6EDF7] dark:hover:text-[#3B82F6] md:text-slate-700 md:hover:text-blue-600"
                   title={t.title ?? ''}
                 >
                   {t.title ?? 'AI Doc — New Case'}
@@ -151,10 +151,10 @@ export default function Sidebar() {
       </div>
 
       <div className="mt-auto">
-        <div className="sticky bottom-0 left-0 -mx-4 border-t border-[#E2E8F0] bg-[#F8FAFC]/95 px-4 py-3 backdrop-blur-sm dark:border-[#1E3A5F] dark:bg-[#0F1B2D]/95">
+        <div className="sticky bottom-0 left-0 -mx-4 border-t border-[#E2E8F0] bg-[#F8FAFC]/95 px-4 py-3 backdrop-blur-sm dark:border-[#1E3A5F] dark:bg-[#0F1B2D]/95 md:border-black/5 md:bg-white/80">
           <button
             type="button"
-            className="flex items-center gap-1.5 rounded-md border border-[#E2E8F0] bg-white px-3 py-1.5 text-xs font-medium text-[#0F172A] shadow-sm transition hover:border-[#2563EB] hover:text-[#2563EB] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563EB] dark:border-[#1E3A5F] dark:bg-[#13233D] dark:text-[#E6EDF7] dark:hover:border-[#3B82F6] dark:hover:text-[#3B82F6] dark:focus-visible:outline-[#3B82F6]"
+            className="flex items-center gap-1.5 rounded-md border border-[#E2E8F0] bg-white px-3 py-1.5 text-xs font-medium text-[#0F172A] shadow-sm transition hover:border-[#2563EB] hover:text-[#2563EB] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563EB] dark:border-[#1E3A5F] dark:bg-[#13233D] dark:text-[#E6EDF7] dark:hover:border-[#3B82F6] dark:hover:text-[#3B82F6] dark:focus-visible:outline-[#3B82F6] md:border-black/10 md:bg-white md:text-slate-700 md:hover:text-blue-600"
           >
             <Settings size={14} /> Preferences
           </button>

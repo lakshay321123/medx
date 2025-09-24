@@ -55,9 +55,9 @@ function NavLink({
       onClick={(e) => e.stopPropagation()}
       className={`block w-full rounded-lg px-3 py-2 text-sm font-medium transition ${
         active
-          ? "bg-[#2563EB] text-white shadow-sm dark:bg-[#3B82F6]"
-          : "text-[#334155] hover:bg-[#2563EB]/10 dark:text-[#94A3B8] dark:hover:bg-[#3B82F6]/10"
-      }`}
+          ? "bg-[#2563EB] text-white shadow-sm dark:bg-[#3B82F6] md:bg-muted md:text-inherit md:font-medium"
+          : "text-[#334155] hover:bg-[#2563EB]/10 dark:text-[#94A3B8] dark:hover:bg-[#3B82F6]/10 md:text-inherit md:hover:bg-muted"
+      } md:rounded-md`}
       data-testid={`nav-${panel}`}
       aria-current={active ? "page" : undefined}
     >

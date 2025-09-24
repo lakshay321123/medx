@@ -23,6 +23,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
   const addMessage = useChatStore(s => s.addMessage);
   const openPass = useOpenPass();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const desktopTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const files = Array.isArray(previews) ? previews : [];
   const previewsLength = files.length;
@@ -120,97 +121,128 @@ export function ChatInput({ onSend }: ChatInputProps) {
 
   return (
     <>
-      {previewsLength > 0 && (
-        <div className="fixed bottom-[76px] left-0 right-0 z-30 md:hidden">
-          <div className="mx-auto max-w-screen-md px-3">
-            <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-              {files.map(preview => (
-                <div
-                  key={preview.id}
-                  className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] text-[#0F172A] shadow-sm dark:border-[#1E3A5F] dark:bg-[#0F1B2D] dark:text-[#E6EDF7]"
-                >
-                  {preview.file.type.startsWith("image/") ? (
-                    <img
-                      src={preview.url}
-                      alt={preview.file.name}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center px-2 text-center text-[11px] font-medium">
-                      {preview.file.name}
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => removePreview(preview.id)}
-                    className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#0F172A]/80 text-white dark:bg-white/30"
-                    aria-label="Remove file"
+      <div className="md:hidden">
+        {previewsLength > 0 && (
+          <div className="fixed bottom-[76px] left-0 right-0 z-30">
+            <div className="mx-auto max-w-screen-md px-3">
+              <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                {files.map(preview => (
+                  <div
+                    key={preview.id}
+                    className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] text-[#0F172A] shadow-sm dark:border-[#1E3A5F] dark:bg-[#0F1B2D] dark:text-[#E6EDF7]"
                   >
-                    ×
-                  </button>
-                </div>
-              ))}
+                    {preview.file.type.startsWith("image/") ? (
+                      <img
+                        src={preview.url}
+                        alt={preview.file.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center px-2 text-center text-[11px] font-medium">
+                        {preview.file.name}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removePreview(preview.id)}
+                      className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#0F172A]/80 text-white dark:bg-white/30"
+                      aria-label="Remove file"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="fixed inset-x-0 bottom-0 z-30 bg-[#F8FAFC]/95 backdrop-blur dark:bg-[#0F1B2D]/95">
+          <div className="mx-auto max-w-screen-md px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-2">
+            <div className="flex items-end gap-2 rounded-2xl border border-[#E2E8F0] bg-[#FFFFFF] px-3 py-2 shadow-sm transition dark:border-[#1E3A5F] dark:bg-[#0F1B2D]">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-transparent bg-[#F1F5F9] text-[#0F172A] transition hover:border-[#2563EB] hover:text-[#2563EB] dark:bg-[#13233D] dark:text-[#E6EDF7] dark:hover:border-[#3B82F6] dark:hover:text-[#3B82F6]"
+                aria-label="Upload file"
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V17a3.5 3.5 0 1 1-7 0V6.5a2.5 2.5 0 0 1 5 0v9a1.5 1.5 0 1 1-3 0V7" />
+                </svg>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,application/pdf"
+                className="hidden"
+                onChange={event => {
+                  const files = Array.from(event.target.files ?? []);
+                  handleFilesSelected(files);
+                  if (event.currentTarget) event.currentTarget.value = "";
+                }}
+              />
+
+              <div className="relative flex-1">
+                <textarea
+                  ref={textareaRef}
+                  rows={1}
+                  value={text}
+                  onChange={event => {
+                    setText(event.target.value);
+                    adjustTextareaHeight();
+                  }}
+                  placeholder="Type a message…"
+                  className="max-h-[168px] w-full resize-none bg-transparent px-1 text-[15px] leading-[1.6] text-[#0F172A] placeholder:text-[#94A3B8] outline-none dark:text-[#E6EDF7] dark:placeholder:text-[#64748B]"
+                  onKeyDown={event => {
+                    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                      event.preventDefault();
+                      void handleSend();
+                    }
+                  }}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void handleSend()}
+                disabled={!text.trim() && previewsLength === 0}
+                className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#2563EB] text-white shadow-sm transition hover:bg-[#1D4ED8] disabled:opacity-40 dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
+                aria-label="Send message"
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 12l14-7-4 7 4 7-14-7z" />
+                </svg>
+              </button>
             </div>
           </div>
         </div>
-      )}
+      </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 bg-[#F8FAFC]/95 backdrop-blur md:static md:bg-transparent md:backdrop-blur-none dark:bg-[#0F1B2D]/95">
-        <div className="mx-auto max-w-screen-md px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-2 md:max-w-none md:px-0 md:pb-0 md:pt-0">
-          <div className="flex items-end gap-2 rounded-2xl border border-[#E2E8F0] bg-[#FFFFFF] px-3 py-2 shadow-sm transition md:border-[#E2E8F0] md:bg-[#FFFFFF] dark:border-[#1E3A5F] dark:bg-[#0F1B2D]">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-transparent bg-[#F1F5F9] text-[#0F172A] transition hover:border-[#2563EB] hover:text-[#2563EB] dark:bg-[#13233D] dark:text-[#E6EDF7] dark:hover:border-[#3B82F6] dark:hover:text-[#3B82F6]"
-              aria-label="Upload file"
-            >
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V17a3.5 3.5 0 1 1-7 0V6.5a2.5 2.5 0 0 1 5 0v9a1.5 1.5 0 1 1-3 0V7" />
-              </svg>
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept="image/*,application/pdf"
-              className="hidden"
-              onChange={event => {
-                const files = Array.from(event.target.files ?? []);
-                handleFilesSelected(files);
-                if (event.currentTarget) event.currentTarget.value = "";
+      <div className="hidden md:block">
+        <div className="border-t border-black/5 bg-white/80 px-6 py-4 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/50">
+          <div className="mx-auto flex max-w-screen-md items-center gap-3">
+            <textarea
+              ref={desktopTextareaRef}
+              rows={2}
+              value={text}
+              onChange={event => setText(event.target.value)}
+              placeholder="Type a message…"
+              className="h-24 flex-1 resize-none rounded-xl border border-black/10 bg-white/80 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-600 dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-100"
+              onKeyDown={event => {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  void handleSend();
+                }
               }}
             />
-
-            <div className="relative flex-1">
-              <textarea
-                ref={textareaRef}
-                rows={1}
-                value={text}
-                onChange={event => {
-                  setText(event.target.value);
-                  adjustTextareaHeight();
-                }}
-                placeholder="Type a message…"
-                className="max-h-[168px] w-full resize-none bg-transparent px-1 text-[15px] leading-[1.6] text-[#0F172A] placeholder:text-[#94A3B8] outline-none md:text-base dark:text-[#E6EDF7] dark:placeholder:text-[#64748B]"
-                onKeyDown={event => {
-                  if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-                    event.preventDefault();
-                    void handleSend();
-                  }
-                }}
-              />
-            </div>
-
             <button
               type="button"
               onClick={() => void handleSend()}
-              disabled={!text.trim() && previewsLength === 0}
-              className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#2563EB] text-white shadow-sm transition hover:bg-[#1D4ED8] disabled:opacity-40 dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
-              aria-label="Send message"
+              disabled={!text.trim()}
+              className="inline-flex items-center rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500 disabled:opacity-40"
             >
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 12l14-7-4 7 4 7-14-7z" />
-              </svg>
+              Send
             </button>
           </div>
         </div>
