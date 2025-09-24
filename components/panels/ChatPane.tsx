@@ -11,7 +11,8 @@ import type { TrialRow } from "@/types/trials";
 import { useResearchFilters } from '@/store/researchFilters';
 import { Send, Paperclip, Clipboard, Stethoscope, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { useCountry } from '@/lib/country';
-import { getRandomWelcome } from '@/lib/welcomeMessages';
+import WelcomeCard from '@/components/ui/WelcomeCard';
+import { getWelcomeOptions, pickWelcome, type AppMode, type WelcomeMessage } from '@/lib/welcomeMessages';
 import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
 import { detectFollowupIntent } from '@/lib/intents';
@@ -653,6 +654,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const [labSummary, setLabSummary] = useState<any | null>(null);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [welcomeContent, setWelcomeContent] = useState<WelcomeMessage | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef =
@@ -668,6 +671,14 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const mode: 'patient' | 'doctor' = modeState.base === 'doctor' ? 'doctor' : 'patient';
   const researchMode = modeState.research;
   const therapyMode = modeState.therapy;
+  const researchOn = Boolean(researchMode);
+  const uiMode: AppMode = isAiDocMode
+    ? 'aidoc'
+    : therapyMode
+      ? 'therapy'
+      : mode === 'doctor'
+        ? 'clinical'
+        : 'wellness';
   const defaultSuggestions = useMemo(() => getDefaultSuggestions(modeState), [modeState]);
   const liveSuggestions = useMemo(() => getInlineSuggestions(userText, modeState), [userText, modeState]);
   const visibleMessages = messages;
@@ -1528,15 +1539,79 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, [isProfileThread, threadId, therapyMode]);
 
   useEffect(() => {
-    if (!isProfileThread && messages.length === 0) {
-      addOnce('welcome:chat', getRandomWelcome());
+    if (typeof window === 'undefined') return;
+
+    const supportedModes: AppMode[] = ['wellness', 'therapy', 'clinical', 'aidoc'];
+    if (!supportedModes.includes(uiMode)) {
+      setShowWelcome(false);
+      setWelcomeContent(null);
+      return;
     }
-  }, [isProfileThread, messages.length]);
+
+    const seenKey = `welcome_seen_v2_${uiMode}`;
+    const pickKey = `welcome_pick_v2_${uiMode}`;
+    const options = getWelcomeOptions(uiMode, { researchOn });
+    if (options.length === 0) {
+      setShowWelcome(false);
+      setWelcomeContent(null);
+      return;
+    }
+
+    let storage: Storage | null = null;
+    try {
+      storage = window.localStorage;
+    } catch {
+      storage = null;
+    }
+
+    if (storage?.getItem(seenKey)) {
+      setShowWelcome(false);
+      setWelcomeContent(null);
+      return;
+    }
+
+    try {
+      const selection = pickWelcome(uiMode, { researchOn });
+      if (selection) {
+        setWelcomeContent(selection);
+        setShowWelcome(true);
+        return;
+      }
+    } catch {
+      // If pickWelcome fails we fall back to the first option below.
+    }
+
+    const fallback = options[0] ?? null;
+    if (fallback) {
+      try {
+        storage?.setItem(pickKey, '0');
+      } catch {
+        /* ignore */
+      }
+      setWelcomeContent(fallback);
+      setShowWelcome(true);
+    } else {
+      setWelcomeContent(null);
+      setShowWelcome(false);
+    }
+  }, [uiMode, researchOn]);
 
   useEffect(() => {
     const tid = threadId || (isProfileThread ? 'med-profile' : null);
     if (tid) saveMessages(tid, messages as any);
   }, [messages, threadId, isProfileThread]);
+
+  const dismissWelcome = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage?.setItem(`welcome_seen_v2_${uiMode}`, '1');
+      } catch {
+        /* ignore */
+      }
+    }
+    setShowWelcome(false);
+    setWelcomeContent(null);
+  }, [uiMode]);
 
   const draftKey = (threadId?: string|null)=> `chat:${threadId||'med-profile'}:draft`;
   // load draft and inject as past message (so it "reappears as past messages")
@@ -2848,6 +2923,7 @@ ${systemCommon}` + baseSys;
 
   const assistantBusy = loadingAction !== null;
   const simpleMode = currentMode === 'patient';
+  const showWelcomeCard = showWelcome && !!welcomeContent;
 
   const renderedMessages = useMemo(
     () =>
@@ -2983,12 +3059,24 @@ ${systemCommon}` + baseSys;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {showWelcomeCard && welcomeContent ? (
+        <div className="px-6 pt-6">
+          <div className="mx-auto w-full max-w-3xl">
+            <WelcomeCard
+              header={welcomeContent.header}
+              body={welcomeContent.body}
+              status={welcomeContent.status}
+              onDismiss={dismissWelcome}
+            />
+          </div>
+        </div>
+      ) : null}
       <div
         ref={chatRef}
         id="chat-scroll-container"
-        className="flex-1 min-h-0 overflow-y-auto"
+        className={`flex-1 min-h-0 overflow-y-auto${showWelcomeCard ? ' mt-4' : ''}`}
       >
-        <div className="flex min-h-full flex-col justify-end px-6 pt-6">
+        <div className={`flex min-h-full flex-col justify-end px-6${showWelcomeCard ? '' : ' pt-6'}`}>
           {mode === "doctor" && researchMode && (
             <div className="mb-6 space-y-4">
               <ResearchFilters mode="research" onResults={handleTrials} />
