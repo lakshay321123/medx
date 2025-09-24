@@ -1549,6 +1549,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     }
 
     const seenKey = `welcome_seen_v2_${uiMode}`;
+    const pickKey = `welcome_pick_v2_${uiMode}`;
     const options = getWelcomeOptions(uiMode, { researchOn });
     if (options.length === 0) {
       setShowWelcome(false);
@@ -1556,39 +1557,42 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       return;
     }
 
+    let storage: Storage | null = null;
     try {
-      const storage = window.localStorage;
-      if (storage?.getItem(seenKey)) {
-        setShowWelcome(false);
-        setWelcomeContent(null);
-        return;
-      }
+      storage = window.localStorage;
+    } catch {
+      storage = null;
+    }
 
+    if (storage?.getItem(seenKey)) {
+      setShowWelcome(false);
+      setWelcomeContent(null);
+      return;
+    }
+
+    try {
       const selection = pickWelcome(uiMode, { researchOn });
       if (selection) {
         setWelcomeContent(selection);
         setShowWelcome(true);
         return;
       }
-
-      // Fallback to the first option if pickWelcome returns an empty value.
-      const fallback = options[0];
-      if (fallback) {
-        setWelcomeContent(fallback);
-        setShowWelcome(true);
-      } else {
-        setWelcomeContent(null);
-        setShowWelcome(false);
-      }
     } catch {
-      const fallback = options[0];
-      if (fallback) {
-        setWelcomeContent(fallback);
-        setShowWelcome(true);
-      } else {
-        setWelcomeContent(null);
-        setShowWelcome(false);
+      // If pickWelcome fails we fall back to the first option below.
+    }
+
+    const fallback = options[0] ?? null;
+    if (fallback) {
+      try {
+        storage?.setItem(pickKey, '0');
+      } catch {
+        /* ignore */
       }
+      setWelcomeContent(fallback);
+      setShowWelcome(true);
+    } else {
+      setWelcomeContent(null);
+      setShowWelcome(false);
     }
   }, [uiMode, researchOn]);
 
