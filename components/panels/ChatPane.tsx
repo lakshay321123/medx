@@ -2923,6 +2923,7 @@ ${systemCommon}` + baseSys;
 
   const assistantBusy = loadingAction !== null;
   const simpleMode = currentMode === 'patient';
+  const showWelcomeCard = showWelcome && !!welcomeContent;
 
   const renderedMessages = useMemo(
     () =>
@@ -3058,12 +3059,24 @@ ${systemCommon}` + baseSys;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {showWelcomeCard && welcomeContent ? (
+        <div className="px-6 pt-6">
+          <div className="mx-auto w-full max-w-3xl">
+            <WelcomeCard
+              header={welcomeContent.header}
+              body={welcomeContent.body}
+              status={welcomeContent.status}
+              onDismiss={dismissWelcome}
+            />
+          </div>
+        </div>
+      ) : null}
       <div
         ref={chatRef}
         id="chat-scroll-container"
-        className="flex-1 min-h-0 overflow-y-auto"
+        className={`flex-1 min-h-0 overflow-y-auto${showWelcomeCard ? ' mt-4' : ''}`}
       >
-        <div className="flex min-h-full flex-col justify-end px-6 pt-6">
+        <div className={`flex min-h-full flex-col justify-end px-6${showWelcomeCard ? '' : ' pt-6'}`}>
           {mode === "doctor" && researchMode && (
             <div className="mb-6 space-y-4">
               <ResearchFilters mode="research" onResults={handleTrials} />
@@ -3207,14 +3220,6 @@ ${systemCommon}` + baseSys;
           )}
 
           <div className="mx-auto w-full max-w-3xl space-y-4">
-            {showWelcome && welcomeContent ? (
-              <WelcomeCard
-                header={welcomeContent.header}
-                body={welcomeContent.body}
-                status={welcomeContent.status}
-                onDismiss={dismissWelcome}
-              />
-            ) : null}
             {renderedMessages}
           </div>
 

@@ -25,8 +25,8 @@ export default function WelcomeCard({
       aria-label="Welcome"
       className={joinClassNames(
         "relative rounded-lg border p-3 shadow-sm text-sm",
-        "bg-blue-50 border-blue-100 text-slate-700",
-        "dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100",
+        "bg-blue-600 text-white border-blue-500",
+        "dark:bg-blue-700 dark:border-blue-600",
         "break-words",
         className,
       )}
@@ -36,14 +36,14 @@ export default function WelcomeCard({
         aria-label="Dismiss welcome"
         onClick={onDismiss}
         tabIndex={0}
-        className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full text-slate-500 transition hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-300"
+        className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full text-white/80 transition hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-white/70"
       >
         <X className="h-4 w-4" aria-hidden="true" />
       </button>
       <div className="pr-6">
         <div className="text-[0.95rem] font-semibold">{header}</div>
-        <div className="mt-1 leading-snug">{body}</div>
-        {status ? <div className="mt-1 text-xs opacity-80">{status}</div> : null}
+        <div className="mt-1 leading-snug text-blue-50 dark:text-blue-100">{body}</div>
+        {status ? <div className="mt-1 text-xs opacity-90">{status}</div> : null}
       </div>
     </div>
   );
