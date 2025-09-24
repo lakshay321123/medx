@@ -9,15 +9,24 @@ type ExportOptions = {
   fallbackText?: string;
 };
 
-export async function exportMessageCardToPng(node: HTMLElement, options: ExportOptions) {
-  if (!node) throw new Error('message_node_missing');
+export async function exportMessageCardToPng(node: HTMLElement | null, options: ExportOptions) {
+  const dark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+  const fallbackContent = options.fallbackText?.trim() || node?.textContent?.trim();
+  if (!node) {
+    return renderFallbackImage(fallbackContent || 'Shared response unavailable.', options, dark);
+  }
 
   const nodeMatches = typeof node.matches === 'function' && node.matches('[data-shareable-message]');
   const source = nodeMatches ? node : node.closest<HTMLElement>('[data-shareable-message]');
 
   const target = source ?? node;
 
-  const dark = document.documentElement.classList.contains('dark');
+  const rect = typeof target.getBoundingClientRect === 'function' ? target.getBoundingClientRect() : null;
+  if (!rect || rect.height <= 0 || rect.width <= 0) {
+    const content = fallbackContent || target.textContent?.trim() || 'Shared response unavailable.';
+    return renderFallbackImage(content, options, dark);
+  }
+
   const clone = target.cloneNode(true) as HTMLElement;
   clone.removeAttribute('id');
   clone.removeAttribute('data-shareable-message');
@@ -118,9 +127,9 @@ export async function exportMessageCardToPng(node: HTMLElement, options: ExportO
     }
   }
 
-  const fallbackContent =
-    options.fallbackText?.trim() || target.textContent?.trim() || 'Shared response unavailable.';
-  return renderFallbackImage(fallbackContent, options, dark);
+  const finalFallbackContent =
+    fallbackContent || target.textContent?.trim() || 'Shared response unavailable.';
+  return renderFallbackImage(finalFallbackContent, options, dark);
 }
 
 async function imageLooksBlank(dataUrl: string) {

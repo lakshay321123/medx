@@ -75,7 +75,13 @@ export async function POST(req: Request) {
       }
       if (error.code !== "23505") {
         console.error("Share insert failed", error);
-        return NextResponse.json({ ok: false, error: "db_error" }, { status: 500 });
+        const diagEnabled = process.env.SHOW_SHARE_DIAG === "1";
+        const payload: Record<string, unknown> = { ok: false, error: "db_error" };
+        if (diagEnabled) {
+          payload.dbCode = error.code ?? null;
+          payload.dbMessage = error.message ?? null;
+        }
+        return NextResponse.json(payload, { status: 500 });
       }
       attempts += 1;
     }
@@ -83,6 +89,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "slug_conflict" }, { status: 500 });
   } catch (err) {
     console.error("Share route error", err);
-    return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
+    const diagEnabled = process.env.SHOW_SHARE_DIAG === "1";
+    const payload: Record<string, unknown> = { ok: false, error: "server_error" };
+    if (diagEnabled && err && typeof err === "object") {
+      payload.dbMessage = (err as Error).message ?? null;
+    }
+    return NextResponse.json(payload, { status: 500 });
   }
 }
