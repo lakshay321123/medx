@@ -1,3 +1,4 @@
+'use client';
 import { useEffect, useRef, useState } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
 import { useOpenPass } from "@/hooks/useOpenPass";
@@ -23,17 +24,24 @@ export function ChatInput({ onSend }: ChatInputProps) {
   const openPass = useOpenPass();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const previewList = Array.isArray(previews) ? previews : [];
+  const previewsLength = previewList.length;
 
   // auto-create a new thread when the user starts typing in a fresh session
   useEffect(() => {
-    if (!currentId && (text.trim().length > 0 || previews.length > 0)) {
+    if (!currentId && (text.trim().length > 0 || previewsLength > 0)) {
       startNewThread();
     }
-  }, [text, previews.length, currentId, startNewThread]);
+  }, [text, previewsLength, currentId, startNewThread]);
 
   useEffect(() => {
+    const list = Array.isArray(previews) ? previews : [];
     return () => {
-      previews.forEach(p => URL.revokeObjectURL(p.url));
+      list.forEach(p => {
+        if (p?.url) {
+          URL.revokeObjectURL(p.url);
+        }
+      });
     };
   }, [previews]);
 
@@ -50,54 +58,73 @@ export function ChatInput({ onSend }: ChatInputProps) {
   }, [text]);
 
   const handleFilesSelected = (files: File[]) => {
-    if (!files.length) return;
+    if (!Array.isArray(files) || files.length === 0) return;
     const next = files.map(file => ({
-      id: crypto.randomUUID(),
+      id:
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `file-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       file,
       url: URL.createObjectURL(file),
     }));
-    setPreviews(prev => [...prev, ...next]);
+    setPreviews(prev => [...(Array.isArray(prev) ? prev : []), ...next]);
   };
 
   const removePreview = (id: string) => {
     setPreviews(prev => {
-      const target = prev.find(p => p.id === id);
-      if (target) URL.revokeObjectURL(target.url);
-      return prev.filter(p => p.id !== id);
+      const list = Array.isArray(prev) ? prev : [];
+      const target = list.find(p => p.id === id);
+      if (target?.url) URL.revokeObjectURL(target.url);
+      return list.filter(p => p.id !== id);
     });
   };
 
   const handleSend = async () => {
     const content = text.trim();
-    if (!content && previews.length === 0) return;
+    if (!content && previewsLength === 0) return;
     // ensure a thread exists
     if (!currentId) startNewThread();
     // add user message locally (this also sets the title from first words)
-    const messageId = crypto.randomUUID();
+    const messageId =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     addMessage({ id: messageId, role: "user", content });
 
-    const files = previews.map(p => p.file);
-    const urlsToFlush = previews.map(p => p.url);
+    const files = previewList.map(p => p.file);
+    const urlsToFlush = previewList.map(p => p.url);
     setText("");
     setPreviews([]);
 
     let locationToken: string | undefined;
-    if (/near me/i.test(content)) {
-      locationToken = await openPass.getLocationToken() || undefined;
+    if (/near me/i.test(content) && typeof openPass?.getLocationToken === 'function') {
+      try {
+        locationToken = (await openPass.getLocationToken()) || undefined;
+      } catch (error) {
+        console.error('Failed to acquire location token', error);
+      }
     }
 
-    await onSend(content, locationToken, files, messageId); // existing streaming/send logic
-
-    urlsToFlush.forEach(url => URL.revokeObjectURL(url));
+    try {
+      await onSend(content, locationToken, files, messageId); // existing streaming/send logic
+    } catch (error) {
+      console.error('ChatInput send error', error);
+    } finally {
+      urlsToFlush.forEach(url => {
+        if (url) {
+          URL.revokeObjectURL(url);
+        }
+      });
+    }
   };
 
   return (
     <>
-      {previews.length > 0 && (
+      {previewsLength > 0 && (
         <div className="fixed bottom-[76px] left-0 right-0 z-30 md:hidden">
           <div className="mx-auto max-w-screen-md px-3">
             <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-              {previews.map(preview => (
+              {previewList.map(preview => (
                 <div
                   key={preview.id}
                   className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl border border-[#E2E8F0] bg-white text-[#0F172A] shadow-sm dark:border-[#1E3A5F] dark:bg-[#0F1B2D] dark:text-[#E6EDF7]"
@@ -177,7 +204,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
             <button
               type="button"
               onClick={() => void handleSend()}
-              disabled={!text.trim() && previews.length === 0}
+              disabled={!text.trim() && previewsLength === 0}
               className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#2563EB] text-white shadow-sm transition hover:bg-[#1D4ED8] disabled:opacity-40 dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
               aria-label="Send message"
             >

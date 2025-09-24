@@ -1,4 +1,4 @@
-"use client";
+'use client';
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { reduce } from "@/lib/modes/modeMachine";
@@ -13,15 +13,17 @@ export default function ModeBar() {
   const sp = useSearchParams();
   const { theme } = useTheme();
 
+  const effectiveTheme: "light" | "dark" = theme === "dark" ? "dark" : "light";
+
   const state = useMemo(
-    () => fromSearchParams(sp, (theme as "light" | "dark") ?? "light"),
-    [sp, theme],
+    () => fromSearchParams(sp, effectiveTheme),
+    [sp, effectiveTheme],
   );
 
   const [therapyBusy, setTherapyBusy] = useState(false);
 
   // remember last non-aidoc base to exit aidoc gracefully
-  const lastNonAidoc = useRef<"patient"|"doctor">("patient");
+  const lastNonAidoc = useRef<"patient" | "doctor">("patient");
   useEffect(() => {
     if (state.base !== "aidoc") lastNonAidoc.current = state.base;
   }, [state.base]);

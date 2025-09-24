@@ -13,13 +13,21 @@ type SidebarDrawerProps = {
 };
 
 export function SidebarDrawer({ open, onClose, children }: SidebarDrawerProps) {
+  const handleClose = () => {
+    try {
+      onClose?.();
+    } catch (error) {
+      console.error('SidebarDrawer close error', error);
+    }
+  };
+
   return (
     <>
       <div
         className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-200 ease-out md:hidden ${
           open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
         }`}
-        onClick={onClose}
+        onClick={handleClose}
         aria-hidden={!open}
       />
       <aside
@@ -44,6 +52,7 @@ export default function Sidebar() {
   useEffect(() => {
     const load = () => setThreads(listThreads());
     load();
+    if (typeof window === 'undefined') return;
     window.addEventListener('storage', load);
     window.addEventListener('chat-threads-updated', load);
     return () => {
@@ -65,9 +74,11 @@ export default function Sidebar() {
   };
   const handleSearch = (q: string) => {
     setQ(q);
-    window.dispatchEvent(new CustomEvent('search-chats', { detail: q }));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('search-chats', { detail: q }));
+    }
   };
-  const filtered = threads.filter(t => t.title.toLowerCase().includes(q.toLowerCase()));
+  const filtered = threads.filter(t => (t.title ?? '').toLowerCase().includes(q.toLowerCase()));
   return (
     <div className="sidebar-click-guard flex h-full w-full flex-col gap-4 px-4 pt-6 pb-0 text-sm text-[#0F172A] dark:text-[#E6EDF7]">
       <button
@@ -118,25 +129,25 @@ export default function Sidebar() {
           </div>
         ))}
 
-      {aidocThreads.length > 0 && (
-        <div className="mt-4">
-          <div className="px-2 text-xs font-semibold uppercase tracking-wide text-[#334155] dark:text-[#94A3B8]">AI Doc</div>
-          {aidocThreads.map(t => (
-            <div
-              key={t.id}
-              className="mt-2 flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2.5 text-sm shadow-sm transition hover:border-[#2563EB] hover:shadow-md dark:border-[#1E3A5F] dark:bg-[#13233D] dark:hover:border-[#3B82F6]"
-            >
-              <button
-                onClick={() => router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`)}
-                className="flex-1 truncate text-left font-medium text-[#0F172A] transition hover:text-[#2563EB] dark:text-[#E6EDF7] dark:hover:text-[#3B82F6]"
-                title={t.title ?? ''}
+        {aidocThreads.length > 0 && (
+          <div className="mt-4">
+            <div className="px-2 text-xs font-semibold uppercase tracking-wide text-[#334155] dark:text-[#94A3B8]">AI Doc</div>
+            {aidocThreads.map(t => (
+              <div
+                key={t.id}
+                className="mt-2 flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2.5 text-sm shadow-sm transition hover:border-[#2563EB] hover:shadow-md dark:border-[#1E3A5F] dark:bg-[#13233D] dark:hover:border-[#3B82F6]"
               >
-                {t.title ?? 'AI Doc — New Case'}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+                <button
+                  onClick={() => router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`)}
+                  className="flex-1 truncate text-left font-medium text-[#0F172A] transition hover:text-[#2563EB] dark:text-[#E6EDF7] dark:hover:text-[#3B82F6]"
+                  title={t.title ?? ''}
+                >
+                  {t.title ?? 'AI Doc — New Case'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="mt-auto">

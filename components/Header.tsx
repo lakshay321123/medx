@@ -1,4 +1,5 @@
 'use client';
+import type { MouseEvent } from 'react';
 import CountryGlobe from '@/components/CountryGlobe';
 import Brand from '@/components/nav/Brand';
 import ModeBar from '@/components/modes/ModeBar';
@@ -38,12 +39,40 @@ export function HeaderMobile({
   onStartNewChat,
   onOpenOverflow,
 }: HeaderMobileProps) {
+  const logError = (error: unknown) => {
+    console.error('HeaderMobile handler error', error);
+  };
+
+  const handleToggleSidebar = () => {
+    try {
+      onToggleSidebar?.();
+    } catch (error) {
+      logError(error);
+    }
+  };
+
+  const handleStartNewChat = () => {
+    try {
+      onStartNewChat?.();
+    } catch (error) {
+      logError(error);
+    }
+  };
+
+  const handleOpenOverflow = (event: MouseEvent<HTMLButtonElement>) => {
+    try {
+      onOpenOverflow?.(event.currentTarget);
+    } catch (error) {
+      logError(error);
+    }
+  };
+
   return (
     <header className="sticky top-0 z-40 bg-[#F8FAFC]/95 text-[#0F172A] backdrop-blur md:hidden dark:bg-[#0F1B2D]/95 dark:text-[#E6EDF7]">
       <div className="flex items-center justify-between gap-2 px-3 pb-2 pt-[max(env(safe-area-inset-top),12px)]">
         <button
           type="button"
-          onClick={onToggleSidebar}
+          onClick={handleToggleSidebar}
           className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#0F172A] shadow-sm transition hover:bg-[#F1F5F9] dark:border-[#1E3A5F] dark:bg-[#13233D] dark:text-[#E6EDF7] dark:hover:bg-[#172A46]"
           aria-label="Open navigation"
         >
@@ -59,7 +88,7 @@ export function HeaderMobile({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={onStartNewChat}
+            onClick={handleStartNewChat}
             className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#2563EB] text-white shadow-sm transition hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
             aria-label="Start new chat"
           >
@@ -70,11 +99,7 @@ export function HeaderMobile({
 
           <button
             type="button"
-            onClick={event => {
-              if (onOpenOverflow) {
-                onOpenOverflow(event.currentTarget);
-              }
-            }}
+            onClick={handleOpenOverflow}
             data-overflow-trigger
             className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#0F172A] shadow-sm transition hover:bg-[#F1F5F9] dark:border-[#1E3A5F] dark:bg-[#13233D] dark:text-[#E6EDF7] dark:hover:bg-[#172A46]"
             aria-label="More options"
