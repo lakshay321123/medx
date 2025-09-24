@@ -63,6 +63,12 @@ export default async function SharedAnswerPage({ params }: PageParams) {
     return notFound();
   }
 
+  const plainText = data.plain_text ?? "";
+  const markdownText = data.md_text ?? "";
+  const hasPlainText = plainText.trim().length > 0;
+  const hasMarkdownText = markdownText.trim().length > 0;
+  const hasContent = hasPlainText || hasMarkdownText;
+
   const createdAt = data.created_at ? new Date(data.created_at) : null;
   const modeLabel = labelForMode(data.mode);
   const showResearch = Boolean(data.research);
@@ -90,7 +96,13 @@ export default async function SharedAnswerPage({ params }: PageParams) {
           ) : null}
         </header>
 
-        <ShareViewer plainText={data.plain_text} mdText={data.md_text} />
+        {hasContent ? (
+          <ShareViewer plainText={plainText} mdText={markdownText} />
+        ) : (
+          <div className="rounded-3xl border border-dashed border-slate-200 bg-white/80 p-6 text-center text-sm text-slate-500 shadow-inner dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">
+            No content stored for this link.
+          </div>
+        )}
 
         <footer className="text-center text-xs text-slate-500 dark:text-slate-400">
           Not medical advice. For personal guidance, consult a clinician.

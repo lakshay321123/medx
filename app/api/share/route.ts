@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -15,6 +16,25 @@ function randomSlug() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 10);
 }
 
+const FALLBACK_MESSAGE = "Shared response unavailable.";
+
+function buildAbsoluteUrl(slug: string) {
+  const headerStore = headers();
+  const proto = headerStore.get("x-forwarded-proto") ?? "https";
+  const host =
+    headerStore.get("x-forwarded-host") ??
+    headerStore.get("host") ??
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/^https?:\/\//, "") ??
+    null;
+
+  if (!host) {
+    return `/s/${slug}`;
+  }
+
+  const normalizedHost = host.replace(/\/$/, "");
+  return `${proto}://${normalizedHost}/s/${slug}`;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -29,23 +49,29 @@ export async function POST(req: Request) {
 
     while (attempts < 5) {
       const slug = randomSlug();
+
+      const safePlain = payload.plainText.trim();
+      const safeMd = payload.mdText?.trim() ?? "";
+      const hasPlain = safePlain.length > 0;
+      const hasMd = safeMd.length > 0;
+
+      const plainTextValue = hasPlain ? safePlain : hasMd ? safeMd : FALLBACK_MESSAGE;
+      const markdownValue = hasMd ? safeMd : plainTextValue;
+
       const insertPayload: Record<string, unknown> = {
         slug,
         conversation_id: payload.conversationId,
         message_id: payload.messageId,
-        plain_text: payload.plainText.trim(),
+        plain_text: plainTextValue,
+        md_text: markdownValue,
         mode: payload.mode,
         research: payload.research ?? false,
       };
 
-      const mdText = payload.mdText?.trim();
-      if (mdText && mdText.length > 0) {
-        insertPayload.md_text = mdText;
-      }
-
       const { error } = await supabase.from("shared_answers").insert(insertPayload);
       if (!error) {
-        return NextResponse.json({ ok: true, slug });
+        const absoluteUrl = buildAbsoluteUrl(slug);
+        return NextResponse.json({ slug, absoluteUrl }, { status: 201 });
       }
       if (error.code !== "23505") {
         console.error("Share insert failed", error);

@@ -3111,12 +3111,21 @@ ${systemCommon}` + baseSys;
         });
         if (!res.ok) throw new Error('share_failed');
         const data = await res.json().catch(() => null);
-        const slug = typeof data?.slug === 'string' ? data.slug : null;
-        if (!slug) throw new Error('share_failed');
-        const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
-        const normalizedAppUrl = APP_URL ? APP_URL.replace(/\/$/, '') : '';
-        if (!normalizedAppUrl) throw new Error('share_failed');
-        const shareUrl = `${normalizedAppUrl}/s/${slug}`;
+        const absoluteUrl = typeof data?.absoluteUrl === 'string' ? data.absoluteUrl.trim() : '';
+        const slug = typeof data?.slug === 'string' ? data.slug : '';
+
+        let shareUrl = '';
+        if (absoluteUrl) {
+          shareUrl = absoluteUrl;
+        } else if (slug) {
+          const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+          const normalizedAppUrl = APP_URL ? APP_URL.replace(/\/$/, '') : '';
+          if (!normalizedAppUrl) throw new Error('share_failed');
+          shareUrl = `${normalizedAppUrl}/s/${slug}`;
+        } else {
+          throw new Error('share_failed');
+        }
+
         shareLinksRef.current[target.messageId] = shareUrl;
         setShareLinks((prev) => {
           if (prev[target.messageId]) return prev;
@@ -3193,6 +3202,7 @@ ${systemCommon}` + baseSys;
         brand: BRAND_NAME,
         modeLabel,
         timestamp: new Date(),
+        fallbackText: shareTarget.plainText,
       });
       const anchor = document.createElement('a');
       anchor.href = dataUrl;
