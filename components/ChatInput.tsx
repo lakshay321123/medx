@@ -2,7 +2,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
 import { useOpenPass } from "@/hooks/useOpenPass";
-import { ENABLE_MOBILE_UI } from "@/env";
 
 type ChatInputProps = {
   onSend: (text: string, locationToken?: string, files?: File[], messageId?: string) => Promise<void>;
@@ -121,7 +120,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
 
   return (
     <>
-      {ENABLE_MOBILE_UI && previewsLength > 0 && (
+      {previewsLength > 0 && (
         <div className="fixed bottom-[76px] left-0 right-0 z-30 md:hidden">
           <div className="mx-auto max-w-screen-md px-3">
             <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">

@@ -10,7 +10,6 @@ import ModeBar from "@/components/modes/ModeBar";
 import ThemeToggle from "@/components/ThemeToggle";
 import CountryGlobe from "@/components/CountryGlobe";
 import ChatErrorBoundary from "@/components/ChatErrorBoundary";
-import { ENABLE_MOBILE_UI } from "@/env";
 import FeatureDebug from "@/components/FeatureDebug";
 
 export default function ChatPage() {
@@ -176,15 +175,9 @@ export default function ChatPage() {
           </aside>
 
           <main className="relative flex flex-1 flex-col">
-            {ENABLE_MOBILE_UI ? (
-              <div className="md:hidden">
-                <ModeBar />
-              </div>
-            ) : (
-              <div className="md:hidden px-3 pt-2">
-                <ModeBar />
-              </div>
-            )}
+            <div className="md:hidden">
+              <ModeBar />
+            </div>
             <ChatWindow />
           </main>
         </div>

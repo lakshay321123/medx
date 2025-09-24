@@ -8,7 +8,6 @@ import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { getResearchFlagFromUrl } from "@/utils/researchFlag";
 import { LinkBadge } from "@/components/SafeLink";
 import Message from "@/components/chat/Message";
-import { ENABLE_MOBILE_UI } from "@/env";
 
 const EMPTY_MESSAGES: ReadonlyArray<any> = [];
 
@@ -140,13 +139,11 @@ export function ChatWindow() {
         </div>
       </div>
 
-      {ENABLE_MOBILE_UI && (
-        <div className="lg:hidden">
-          <div className="pointer-events-none fixed inset-x-0 bottom-[64px] z-10 h-12 bg-gradient-to-t from-[#FFFFFF]/95 to-transparent dark:from-[#0B1220]/95" />
-        </div>
-      )}
+      <div className="lg:hidden">
+        <div className="pointer-events-none fixed inset-x-0 bottom-[64px] z-10 h-12 bg-gradient-to-t from-[#FFFFFF]/95 to-transparent dark:from-[#0B1220]/95" />
+      </div>
 
-      {ENABLE_MOBILE_UI && showJump && (
+      {showJump && (
         <button
           type="button"
           onClick={() => {

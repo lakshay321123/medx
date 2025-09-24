@@ -47,7 +47,6 @@ import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
 import { getUserPosition, fetchNearby, geocodeArea, type NearbyKind, type NearbyPlace } from "@/lib/nearby";
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
 import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
-import { ENABLE_MOBILE_UI } from "@/env";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -3468,11 +3467,9 @@ ${systemCommon}` + baseSys;
         </div>
       )}
 
-      {ENABLE_MOBILE_UI && (
-        <div className="lg:hidden">
-          <div className="pointer-events-none fixed inset-x-0 bottom-[64px] z-10 h-12 bg-gradient-to-t from-[#FFFFFF]/95 to-transparent dark:from-[#0B1220]/95" />
-        </div>
-      )}
+      <div className="lg:hidden">
+        <div className="pointer-events-none fixed inset-x-0 bottom-[64px] z-10 h-12 bg-gradient-to-t from-[#FFFFFF]/95 to-transparent dark:from-[#0B1220]/95" />
+      </div>
 
       {showJump && (
         <button
