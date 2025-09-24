@@ -9,13 +9,22 @@ type ExportOptions = {
 };
 
 export async function exportMessageCardToPng(node: HTMLElement, options: ExportOptions) {
-  const target = node;
-  if (!target) throw new Error('message_node_missing');
+  if (!node) throw new Error('message_node_missing');
+
+  const nodeMatches = typeof node.matches === 'function' && node.matches('[data-shareable-message]');
+  const source = nodeMatches ? node : node.closest<HTMLElement>('[data-shareable-message]');
+
+  const target = source ?? node;
 
   const dark = document.documentElement.classList.contains('dark');
   const clone = target.cloneNode(true) as HTMLElement;
   clone.removeAttribute('id');
+  clone.removeAttribute('data-shareable-message');
+  clone
+    .querySelectorAll('[data-shareable-message]')
+    .forEach((el) => el.removeAttribute('data-shareable-message'));
   clone.querySelectorAll('[data-message-actions]').forEach((el) => el.remove());
+  clone.querySelectorAll('button').forEach((el) => el.remove());
   clone.querySelectorAll('img').forEach((img) => img.remove());
   clone.style.width = '100%';
   clone.style.maxWidth = '100%';
@@ -24,6 +33,7 @@ export async function exportMessageCardToPng(node: HTMLElement, options: ExportO
   clone.style.border = 'none';
   clone.style.margin = '0';
   clone.style.padding = '0';
+  clone.style.display = 'block';
 
   const wrapper = document.createElement('div');
   wrapper.style.position = 'fixed';

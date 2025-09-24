@@ -101,7 +101,7 @@ type ShareTargetState = {
   messageId: string;
   domId: string;
   plainText: string;
-  content: string;
+  mdText?: string | null;
   mode: 'patient' | 'doctor' | 'research' | 'therapy';
   research: boolean;
 };
@@ -557,7 +557,11 @@ function AnalysisCard({
 }) {
   const header = titleForCategory(m.category);
   return (
-    <div id={contentId} className="relative max-w-3xl space-y-2 whitespace-normal rounded-2xl bg-white/90 p-4 text-left dark:bg-zinc-900/60">
+    <div
+      id={contentId}
+      data-shareable-message="assistant"
+      className="relative max-w-3xl space-y-2 whitespace-normal rounded-2xl bg-white/90 p-4 text-left dark:bg-zinc-900/60"
+    >
       <header className="flex items-center gap-2">
         <h2 className="text-lg md:text-xl font-semibold">{header}</h2>
         {researchOn && (
@@ -625,6 +629,7 @@ function ChatCard({
   return (
     <div
       id={contentId}
+      data-shareable-message={m.role === 'assistant' ? 'assistant' : undefined}
       className="relative max-w-3xl whitespace-normal rounded-2xl bg-white/90 p-4 text-left dark:bg-zinc-900/60"
     >
       <ChatMarkdown content={m.content} />
@@ -3103,7 +3108,8 @@ ${systemCommon}` + baseSys;
           body: JSON.stringify({
             conversationId: target.conversationId,
             messageId: target.messageId,
-            content: target.content,
+            plainText: target.plainText,
+            mdText: target.mdText,
             mode: target.mode,
             research: target.research,
           }),
@@ -3371,7 +3377,7 @@ ${systemCommon}` + baseSys;
                   messageId: m.id!,
                   domId,
                   plainText: plain,
-                  content: messageContent,
+                  mdText: messageContent,
                   mode: currentMode,
                   research: researchMode,
                 });
@@ -3445,13 +3451,13 @@ ${systemCommon}` + baseSys;
                 conversationId,
                 messageId: m.id!,
                 domId,
-                plainText: plain,
-                content: messageContent,
-                mode: currentMode,
-                research: researchMode,
-              });
-            }
-          : undefined;
+              plainText: plain,
+              mdText: messageContent,
+              mode: currentMode,
+              research: researchMode,
+            });
+          }
+        : undefined;
 
         return (
           <div key={derivedKey} className="space-y-2">

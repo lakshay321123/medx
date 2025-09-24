@@ -5,7 +5,8 @@ create table if not exists shared_answers (
   message_id text not null,
   mode text not null,
   research boolean default false,
-  content text not null,
+  plain_text text not null,
+  md_text text,
   created_at timestamptz default now()
 );
 
