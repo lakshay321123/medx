@@ -3474,16 +3474,16 @@ ${systemCommon}` + baseSys;
         </div>
       )}
 
-      {ENABLE_MOBILE_UI && showJump && (
+      {showJump && (
         <button
           type="button"
           onClick={() => {
             const el = chatRef.current;
             if (!el) return;
-            el.scrollTo?.({ top: el.scrollHeight, behavior: "smooth" });
+            scrollToBottom(el);
             setShowJump(false);
           }}
-          className="fixed bottom-20 right-4 z-20 md:hidden rounded-full p-2 bg-[#2563EB] text-white shadow-lg transition hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
+          className="fixed bottom-20 right-4 md:hidden z-20 rounded-full p-2 bg-[#2563EB] text-white shadow"
           aria-label="Jump to latest"
         >
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">

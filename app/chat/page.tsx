@@ -89,13 +89,11 @@ export default function ChatPage() {
   return (
     <ChatErrorBoundary>
       <div className="h-dvh flex flex-col overscroll-none bg-[#FFFFFF] text-[#0F172A] dark:bg-[#0B1220] dark:text-[#E6EDF7]">
-        {ENABLE_MOBILE_UI && (
-          <HeaderMobile
-            onToggleSidebar={() => setSidebarOpen(true)}
-            onStartNewChat={handleStartNewChat}
-            onOpenOverflow={openOverflow}
-          />
-        )}
+        <HeaderMobile
+          onToggleSidebar={() => setSidebarOpen(true)}
+          onStartNewChat={handleStartNewChat}
+          onOpenOverflow={openOverflow}
+        />
 
         {overflowMenu && (
           <div
