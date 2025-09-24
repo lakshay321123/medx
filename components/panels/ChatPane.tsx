@@ -648,6 +648,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [inputFocused, setInputFocused] = useState(false);
   const [proactive, setProactive] = useState<null | { kind: 'predispositions'|'medications'|'weight' }>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [showJump, setShowJump] = useState(false);
   const [queueActive, setQueueActive] = useState(false);
   const [busy, setBusy] = useState(false);
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
@@ -1448,12 +1449,24 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     }, 90);
   }, []);
 
+  const updateJumpButton = useCallback(() => {
+    const el = chatRef.current;
+    if (!el) return;
+    const distance = el.scrollHeight - (el.scrollTop + el.clientHeight);
+    setShowJump(distance > 200);
+  }, []);
+
   useEffect(() => {
     const el = chatRef.current;
     if (!el) return;
     if (isNearBottom(el)) scrollToBottom(el);
+    updateJumpButton();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
+
+  useEffect(() => {
+    updateJumpButton();
+  }, [messages.length, updateJumpButton]);
 
   useEffect(() => {
     const el = chatRef.current;
@@ -2986,9 +2999,10 @@ ${systemCommon}` + baseSys;
       <div
         ref={chatRef}
         id="chat-scroll-container"
-        className="flex-1 min-h-0 overflow-y-auto"
+        className="flex-1 overflow-y-auto px-3 pt-3 pb-32 md:px-6 md:pt-6 md:pb-6"
+        onScroll={updateJumpButton}
       >
-        <div className="flex min-h-full flex-col justify-end px-6 pt-6">
+        <div className="mx-auto flex min-h-full w-full max-w-screen-md flex-col justify-end gap-4">
           {mode === "doctor" && researchMode && (
             <div className="mb-6 space-y-4">
               <ResearchFilters mode="research" onResults={handleTrials} />
@@ -3449,6 +3463,30 @@ ${systemCommon}` + baseSys;
             </div>
           </div>
         </div>
+      )}
+
+      <div className="md:hidden">
+        <div className="pointer-events-none fixed inset-x-0 bottom-[64px] z-10 h-12 bg-gradient-to-t from-slate-950/95 to-transparent" />
+      </div>
+
+      {showJump && (
+        <button
+          type="button"
+          onClick={() => {
+            const el = chatRef.current;
+            if (!el) return;
+            scrollToBottom(el);
+            setShowJump(false);
+          }}
+          className="fixed bottom-24 left-1/2 z-20 -translate-x-1/2 rounded-full bg-blue-600 px-3 py-2 text-xs font-medium text-white shadow-lg md:hidden"
+        >
+          <span className="inline-flex items-center gap-1">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 12l6 6 6-6" />
+            </svg>
+            Jump to latest
+          </span>
+        </button>
       )}
 
       <ComposerFocus suggestions={lastSuggestions} composerRef={inputRef} />

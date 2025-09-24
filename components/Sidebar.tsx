@@ -6,6 +6,35 @@ import { useEffect, useState } from 'react';
 import { createNewThreadId, listThreads, Thread } from '@/lib/chatThreads';
 import ThreadKebab from '@/components/chat/ThreadKebab';
 
+type SidebarDrawerProps = {
+  open: boolean;
+  onClose?: () => void;
+  children: React.ReactNode;
+};
+
+export function SidebarDrawer({ open, onClose, children }: SidebarDrawerProps) {
+  return (
+    <>
+      <div
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ease-out md:hidden ${
+          open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+        onClick={onClose}
+        aria-hidden={!open}
+      />
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-[86vw] max-w-[320px] transform bg-slate-950 border-r border-slate-800 transition-transform duration-200 ease-out md:static md:translate-x-0 md:w-72 md:border-r md:border-slate-200/60 md:bg-transparent md:shadow-none ${
+          open ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex h-full flex-col overflow-y-auto px-4 pb-6 pt-4 md:h-auto md:overflow-visible md:px-0 md:pt-0">
+          {children}
+        </div>
+      </aside>
+    </>
+  );
+}
+
 export default function Sidebar() {
   const router = useRouter();
   const [threads, setThreads] = useState<Thread[]>([]);
