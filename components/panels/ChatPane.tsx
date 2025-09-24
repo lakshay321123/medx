@@ -56,11 +56,6 @@ import { buildShareCaption, buildShareIntentCaption } from "@/lib/share/caption"
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
 
-const rawAppUrl =
-  process.env.NEXT_PUBLIC_APP_URL ??
-  (typeof window !== 'undefined' ? window.location.origin : '');
-const APP_URL = rawAppUrl ? rawAppUrl.replace(/\/$/, '') : '';
-
 const NEARBY_DEFAULT_RADIUS_KM = 2;
 const NEARBY_RADIUS_CHOICES = [1, 2, 3, 5, 8, 10] as const;
 const NEARBY_EXPAND_SEQUENCE = [2, 5, 8, 10];
@@ -3118,9 +3113,10 @@ ${systemCommon}` + baseSys;
         const data = await res.json().catch(() => null);
         const slug = typeof data?.slug === 'string' ? data.slug : null;
         if (!slug) throw new Error('share_failed');
-        const base = APP_URL || (typeof window !== 'undefined' ? window.location.origin : '');
-        if (!base) throw new Error('share_failed');
-        const shareUrl = `${base.replace(/\/$/, '')}/s/${slug}`;
+        const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+        const normalizedAppUrl = APP_URL ? APP_URL.replace(/\/$/, '') : '';
+        if (!normalizedAppUrl) throw new Error('share_failed');
+        const shareUrl = `${normalizedAppUrl}/s/${slug}`;
         shareLinksRef.current[target.messageId] = shareUrl;
         setShareLinks((prev) => {
           if (prev[target.messageId]) return prev;

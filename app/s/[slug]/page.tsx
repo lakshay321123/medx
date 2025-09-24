@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import ShareViewer from "@/components/share/ShareViewer";
@@ -56,7 +59,7 @@ export default async function SharedAnswerPage({ params }: PageParams) {
     .maybeSingle<ShareRecord>();
 
   if (error || !data) {
-    notFound();
+    return notFound();
   }
 
   const createdAt = data.created_at ? new Date(data.created_at) : null;
