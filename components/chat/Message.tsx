@@ -17,8 +17,8 @@ interface MessageProps {
   message: ChatMessage;
 }
 
-const userBubble = "ml-auto max-w-[88vw] md:max-w-[720px] rounded-2xl bg-blue-600/90 px-3 py-2 leading-6 md:leading-7 my-2 md:my-3 text-white";
-const assistantBubble = "mr-auto max-w-[88vw] md:max-w-[720px] rounded-2xl bg-slate-800/70 px-3 pt-2 pb-6 leading-6 md:leading-7 my-2 md:my-3 text-slate-100 md:pb-3";
+const userBubble = "ml-auto my-2 max-w-[88vw] rounded-2xl bg-[#2563EB] px-3 py-2 text-[15px] leading-[1.6] text-white md:my-3 md:max-w-[720px] md:px-4 md:py-3 md:text-base";
+const assistantBubble = "mr-auto my-2 max-w-[88vw] rounded-2xl bg-[#13233D] px-3 pb-6 pt-2 text-[15px] leading-[1.6] text-[#E6EDF7] shadow-sm md:my-3 md:max-w-[720px] md:px-4 md:pb-4 md:pt-3 md:text-base";
 
 export default function Message({ message }: MessageProps) {
   if (message.kind === "image" && message.imageUrl) {
@@ -51,7 +51,7 @@ export default function Message({ message }: MessageProps) {
                 key={`${message.id}-att-${idx}`}
                 src={src}
                 alt="Attachment"
-                className="h-24 w-24 flex-shrink-0 rounded-xl object-cover"
+                className="h-24 w-24 flex-shrink-0 rounded-xl border border-[#E2E8F0] object-cover dark:border-[#1E3A5F]"
               />
             ))}
           </div>

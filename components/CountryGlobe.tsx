@@ -25,7 +25,7 @@ export default function CountryGlobe() {
         aria-label="Choose country"
         title={`Country: ${country.name} (${country.code3}) — click to change`}
         onClick={() => setOpen(v => !v)}
-        className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/70 pl-3 pr-6 py-1.5 text-sm font-medium text-slate-900 shadow-sm transition hover:bg-white dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-100 dark:hover:bg-slate-900"
+        className="inline-flex items-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-3 py-1.5 text-sm font-medium text-[#0F172A] shadow-sm transition hover:border-[#2563EB] hover:text-[#2563EB] dark:border-[#1E3A5F] dark:bg-[#13233D] dark:text-[#E6EDF7] dark:hover:border-[#3B82F6] dark:hover:text-[#3B82F6]"
       >
         <Globe2 className="h-4 w-4" />
         <span className="tabular-nums">{country.code3}</span>
@@ -35,16 +35,16 @@ export default function CountryGlobe() {
         <div
           role="dialog"
           aria-label="Select country"
-          className="absolute right-0 top-[110%] z-50 mt-2 w-72 rounded-xl border border-black/10 bg-white/95 p-3 shadow-xl backdrop-blur dark:border-white/10 dark:bg-slate-950/90"
+          className="absolute right-0 top-[110%] z-50 mt-2 w-72 rounded-xl border border-[#E2E8F0] bg-white/95 p-3 shadow-xl backdrop-blur dark:border-[#1E3A5F] dark:bg-[#0F1B2D]/95"
         >
-          <div className="mb-2 flex items-center gap-2 rounded-lg border border-black/10 bg-white/80 px-3 py-1.5 dark:border-white/10 dark:bg-slate-900/60">
-            <Search className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-1.5 dark:border-[#1E3A5F] dark:bg-[#13233D]">
+            <Search className="h-4 w-4 text-[#64748B] dark:text-[#94A3B8]" />
             <input
               autoFocus
               value={q}
               onChange={e => setQ(e.target.value)}
               placeholder="Search country or code…"
-              className="w-full bg-transparent text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none dark:text-slate-100 dark:placeholder:text-slate-500"
+              className="w-full bg-transparent text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none dark:text-[#E6EDF7] dark:placeholder:text-[#64748B]"
             />
           </div>
 
@@ -56,15 +56,15 @@ export default function CountryGlobe() {
                   setCountry(c.code3);
                   setOpen(false);
                 }}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition hover:bg-[#E2E8F0]/60 dark:hover:bg-[#13233D]"
               >
                 <span className="text-lg">{c.flag}</span>
                 <div className="flex flex-1 items-center justify-between gap-3">
-                  <span className="truncate text-sm">{c.name}</span>
-                  <span className="text-xs font-semibold tabular-nums text-slate-500 dark:text-slate-400">{c.code3}</span>
+                  <span className="truncate text-sm text-[#0F172A] dark:text-[#E6EDF7]">{c.name}</span>
+                  <span className="text-xs font-semibold tabular-nums text-[#64748B] dark:text-[#94A3B8]">{c.code3}</span>
                 </div>
                 {country.code3 === c.code3 && (
-                  <Check className="h-4 w-4 text-blue-500" />
+                  <Check className="h-4 w-4 text-[#2563EB] dark:text-[#3B82F6]" />
                 )}
               </button>
             ))}

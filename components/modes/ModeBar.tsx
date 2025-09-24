@@ -121,19 +121,21 @@ export default function ModeBar() {
     [
       "h-9 rounded-full border px-4 text-sm font-medium transition",
       active
-        ? "bg-blue-600 border-blue-600 text-white shadow-sm"
-        : "bg-white/70 text-slate-900 border-slate-200 hover:bg-slate-100 dark:bg-slate-800/70 dark:text-white dark:border-slate-700 dark:hover:bg-slate-800",
-      disabled ? "opacity-60 cursor-not-allowed" : "",
-    ].filter(Boolean).join(" ");
+        ? "bg-[#2563EB] border-[#2563EB] text-white shadow-sm dark:bg-[#3B82F6] dark:border-[#3B82F6]"
+        : "bg-white text-[#334155] border-[#E2E8F0] hover:border-[#2563EB] hover:text-[#2563EB] dark:bg-[#0F1B2D] dark:text-[#94A3B8] dark:border-[#1E3A5F] dark:hover:border-[#3B82F6] dark:hover:text-[#3B82F6]",
+      disabled ? "cursor-not-allowed opacity-60" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
 
   const aidocOn = state.base === "aidoc";
   const wellnessActive = state.base === "patient" && !state.therapy;
   const doctorActive = state.base === "doctor";
 
   return (
-    <div className="sticky top-[48px] z-30 -mx-3 px-3 py-2 bg-slate-950/85 backdrop-blur md:static md:bg-transparent md:px-0 md:py-0">
+    <div className="sticky top-[60px] z-30 -mx-3 px-3 py-2 bg-[#F8FAFC]/90 backdrop-blur md:static md:m-0 md:bg-transparent md:px-0 md:py-0 dark:bg-[#0F1B2D]/90">
       <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] md:flex-wrap [&::-webkit-scrollbar]:hidden">
-        <div className="inline-flex flex-nowrap items-center gap-2 rounded-full border border-black/10 bg-white/60 px-2 py-1 backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
+        <div className="inline-flex flex-nowrap items-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-2 py-1 backdrop-blur dark:border-[#1E3A5F] dark:bg-[#0F1B2D]">
           <button
             className={btn(wellnessActive)}
             onClick={() => apply({ type: "toggle/patient" })}

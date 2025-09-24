@@ -53,10 +53,10 @@ function NavLink({
       prefetch={false}
       scroll={false}
       onClick={(e) => e.stopPropagation()}
-      className={`block w-full rounded-lg px-3 py-2 text-sm transition ${
+      className={`block w-full rounded-lg px-3 py-2 text-sm font-medium transition ${
         active
-          ? "bg-slate-800/80 text-white shadow-sm md:bg-muted md:text-slate-900"
-          : "text-slate-300 hover:bg-slate-800/50 md:text-slate-600 md:hover:bg-muted"
+          ? "bg-[#2563EB] text-white shadow-sm dark:bg-[#3B82F6]"
+          : "text-[#334155] hover:bg-[#2563EB]/10 dark:text-[#94A3B8] dark:hover:bg-[#3B82F6]/10"
       }`}
       data-testid={`nav-${panel}`}
       aria-current={active ? "page" : undefined}

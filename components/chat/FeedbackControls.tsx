@@ -6,14 +6,14 @@ type FeedbackControlsProps = {
   className?: string;
 };
 
-const iconClasses = "transition hover:text-white md:hover:text-blue-600";
+const iconClasses = "transition hover:text-[#2563EB] dark:hover:text-[#3B82F6]";
 
 export default function FeedbackControls({ messageId, compact = false, className }: FeedbackControlsProps) {
   const size = compact ? 16 : 20;
   const spacing = compact ? "gap-2" : "gap-3";
 
   return (
-    <div className={`flex ${spacing} text-slate-300 ${className ?? ""}`}>
+    <div className={`flex ${spacing} text-[#94A3B8] dark:text-[#CBD5F5] ${className ?? ""}`}>
       <button
         type="button"
         className={`inline-flex items-center justify-center ${iconClasses}`}

@@ -6,7 +6,7 @@ import ThemeToggle from '@/components/ThemeToggle';
 
 export default function Header() {
   return (
-    <header className="sticky top-0 z-40 hidden border-b border-black/10 bg-white/80 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/40 md:block">
+    <header className="sticky top-0 z-40 hidden border-b border-[#E2E8F0] bg-[#F8FAFC]/90 text-[#0F172A] backdrop-blur-md dark:border-[#1E3A5F] dark:bg-[#0F1B2D]/90 dark:text-[#E6EDF7] md:block">
       <div className="mx-auto flex h-[62px] w-full max-w-screen-2xl items-center gap-4 px-6">
         <div className="flex shrink-0 items-center gap-3 text-base font-semibold md:text-lg">
           <Brand />
@@ -39,12 +39,12 @@ export function HeaderMobile({
   onOpenOverflow,
 }: HeaderMobileProps) {
   return (
-    <header className="md:hidden sticky top-0 z-40 bg-slate-950/90 backdrop-blur">
+    <header className="sticky top-0 z-40 bg-[#F8FAFC]/95 text-[#0F172A] backdrop-blur md:hidden dark:bg-[#0F1B2D]/95 dark:text-[#E6EDF7]">
       <div className="flex items-center justify-between gap-2 px-3 pb-2 pt-[max(env(safe-area-inset-top),12px)]">
         <button
           type="button"
           onClick={onToggleSidebar}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-900/70 text-slate-200 shadow-sm ring-1 ring-white/5"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#0F172A] shadow-sm transition hover:bg-[#F1F5F9] dark:border-[#1E3A5F] dark:bg-[#13233D] dark:text-[#E6EDF7] dark:hover:bg-[#172A46]"
           aria-label="Open navigation"
         >
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -52,7 +52,7 @@ export function HeaderMobile({
           </svg>
         </button>
 
-        <div className="flex-1 px-1 text-center text-sm font-semibold tracking-wide text-slate-100">
+        <div className="flex-1 px-1 text-center text-sm font-semibold tracking-wide">
           {title}
         </div>
 
@@ -60,7 +60,7 @@ export function HeaderMobile({
           <button
             type="button"
             onClick={onStartNewChat}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-blue-600/90 text-white shadow-sm ring-1 ring-blue-400/40"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#2563EB] text-white shadow-sm transition hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
             aria-label="Start new chat"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -76,7 +76,7 @@ export function HeaderMobile({
               }
             }}
             data-overflow-trigger
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-900/70 text-slate-200 shadow-sm ring-1 ring-white/5"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#0F172A] shadow-sm transition hover:bg-[#F1F5F9] dark:border-[#1E3A5F] dark:bg-[#13233D] dark:text-[#E6EDF7] dark:hover:bg-[#172A46]"
             aria-label="More options"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">

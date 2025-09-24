@@ -100,7 +100,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
               {previews.map(preview => (
                 <div
                   key={preview.id}
-                  className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl border border-slate-700 bg-slate-900"
+                  className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl border border-[#E2E8F0] bg-white text-[#0F172A] shadow-sm dark:border-[#1E3A5F] dark:bg-[#0F1B2D] dark:text-[#E6EDF7]"
                 >
                   {preview.file.type.startsWith("image/") ? (
                     <img
@@ -109,14 +109,14 @@ export function ChatInput({ onSend }: ChatInputProps) {
                       className="h-full w-full object-cover"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center px-2 text-center text-[11px] text-slate-200">
+                    <div className="flex h-full w-full items-center justify-center px-2 text-center text-[11px] font-medium">
                       {preview.file.name}
                     </div>
                   )}
                   <button
                     type="button"
                     onClick={() => removePreview(preview.id)}
-                    className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white"
+                    className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#0F172A]/80 text-white dark:bg-white/30"
                     aria-label="Remove file"
                   >
                     ×
@@ -128,13 +128,13 @@ export function ChatInput({ onSend }: ChatInputProps) {
         </div>
       )}
 
-      <div className="fixed inset-x-0 bottom-0 z-30 bg-slate-950/90 backdrop-blur md:static md:bg-transparent md:backdrop-blur-none">
+      <div className="fixed inset-x-0 bottom-0 z-30 bg-white/95 backdrop-blur md:static md:bg-transparent md:backdrop-blur-none dark:bg-[#0F1B2D]/95">
         <div className="mx-auto max-w-screen-md px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-2 md:max-w-none md:px-0 md:pb-0 md:pt-0">
-          <div className="flex items-end gap-2 rounded-2xl border border-slate-700 bg-slate-900 px-3 py-2 md:border-slate-200/60 md:bg-white/90 md:shadow-sm">
+          <div className="flex items-end gap-2 rounded-2xl border border-[#E2E8F0] bg-white px-3 py-2 shadow-sm transition md:border-[#E2E8F0] md:bg-white dark:border-[#1E3A5F] dark:bg-[#0F1B2D]">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-slate-800/80 text-slate-200 transition hover:bg-slate-800"
+              className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-transparent bg-[#F1F5F9] text-[#0F172A] transition hover:border-[#2563EB] hover:text-[#2563EB] dark:bg-[#13233D] dark:text-[#E6EDF7] dark:hover:border-[#3B82F6] dark:hover:text-[#3B82F6]"
               aria-label="Upload file"
             >
               <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -164,7 +164,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
                   adjustTextareaHeight();
                 }}
                 placeholder="Type a message…"
-                className="max-h-[168px] w-full resize-none bg-transparent px-1 text-sm leading-6 text-white placeholder:text-slate-400 outline-none md:text-slate-900"
+                className="max-h-[168px] w-full resize-none bg-transparent px-1 text-[15px] leading-[1.6] text-[#0F172A] placeholder:text-[#94A3B8] outline-none md:text-base dark:text-[#E6EDF7] dark:placeholder:text-[#64748B]"
                 onKeyDown={event => {
                   if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                     event.preventDefault();
@@ -178,7 +178,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
               type="button"
               onClick={() => void handleSend()}
               disabled={!text.trim() && previews.length === 0}
-              className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm transition hover:bg-blue-500 disabled:opacity-40"
+              className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#2563EB] text-white shadow-sm transition hover:bg-[#1D4ED8] disabled:opacity-40 dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
               aria-label="Send message"
             >
               <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">

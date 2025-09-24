@@ -81,7 +81,7 @@ export function ChatWindow() {
     <div className="flex h-full min-h-0 flex-col">
       <div
         ref={chatRef}
-        className="flex-1 overflow-y-auto px-3 pt-3 pb-32 md:px-6 md:pt-6 md:pb-6"
+        className="flex-1 overflow-y-auto px-3 pt-4 pb-32 md:px-8 md:pt-8 md:pb-10"
         onScroll={handleScroll}
       >
         <div className="mx-auto flex w-full max-w-screen-md flex-col gap-2">
@@ -94,7 +94,7 @@ export function ChatWindow() {
               <div key={m.id} className="relative">
                 <Message message={{ ...(m as any), attachments: attachmentUrls }} />
                 {showThinkingTimer ? (
-                  <div className="mt-1 flex justify-start px-2 text-sm text-slate-400">
+                  <div className="mt-1 flex justify-start px-2 text-sm text-[#64748B] dark:text-[#CBD5F5]">
                     <AnalyzingInline active={showThinkingTimer} />
                   </div>
                 ) : null}
@@ -103,16 +103,16 @@ export function ChatWindow() {
           })}
 
           {results.length > 0 && (
-            <div className="rounded-2xl border border-slate-700/60 bg-slate-900/70 p-3 text-sm text-slate-200 md:border-slate-200/70 md:bg-white/80 md:text-slate-900">
+            <div className="rounded-2xl border border-[#1E3A5F] bg-[#13233D] p-4 text-sm text-[#E6EDF7] md:border-[#E2E8F0] md:bg-[#F8FAFC] md:text-[#0F172A]">
               <div className="mb-2 font-semibold">Nearby places</div>
               <div className="space-y-3">
                 {results.map((place) => (
-                  <div key={place.id} className="rounded-xl border border-white/5 bg-slate-950/40 p-3 md:border-slate-200/60 md:bg-white/70">
-                    <p className="font-medium">{place.name}</p>
+                  <div key={place.id} className="rounded-xl border border-[#1E3A5F] bg-[#0F1B2D] p-3 text-[#E6EDF7] md:border-[#E2E8F0] md:bg-white md:text-[#0F172A]">
+                    <p className="font-medium leading-6">{place.name}</p>
                     <p className="text-xs opacity-80">{place.address}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
                       {place.phone && (
-                        <a href={`tel:${place.phone}`} className="text-blue-300 underline md:text-blue-600">
+                        <a href={`tel:${place.phone}`} className="text-[#3B82F6] underline md:text-[#2563EB]">
                           Call
                         </a>
                       )}
@@ -132,7 +132,7 @@ export function ChatWindow() {
       </div>
 
       <div className="md:hidden">
-        <div className="pointer-events-none fixed inset-x-0 bottom-[64px] z-10 h-12 bg-gradient-to-t from-slate-950/95 to-transparent" />
+        <div className="pointer-events-none fixed inset-x-0 bottom-[64px] z-10 h-12 bg-gradient-to-t from-white/95 via-white/40 to-transparent dark:from-[#0B1220]/95 dark:via-[#0B1220]/40" />
       </div>
 
       {showJump && (
@@ -144,14 +144,12 @@ export function ChatWindow() {
             el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
             setShowJump(false);
           }}
-          className="fixed bottom-24 left-1/2 z-20 -translate-x-1/2 rounded-full bg-blue-600 px-3 py-2 text-xs font-medium text-white shadow-lg md:hidden"
+          className="fixed bottom-28 right-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#2563EB] text-white shadow-lg transition hover:bg-[#1D4ED8] md:hidden dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
+          aria-label="Jump to latest"
         >
-          <span className="inline-flex items-center gap-1">
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 12l6 6 6-6" />
-            </svg>
-            Jump to latest
-          </span>
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 10l6 6 6-6" />
+          </svg>
         </button>
       )}
 

@@ -8,6 +8,8 @@ import { SidebarDrawer } from "@/components/Sidebar";
 import { SidebarThreads } from "@/components/SidebarThreads";
 import ModeBar from "@/components/modes/ModeBar";
 import { useChatStore } from "@/lib/state/chatStore";
+import ThemeToggle from "@/components/ThemeToggle";
+import CountryGlobe from "@/components/CountryGlobe";
 
 export default function ThreadPage() {
   const { id } = useParams<{ id: string }>();
@@ -39,7 +41,7 @@ export default function ThreadPage() {
     if (!overflowMenu) return;
     const handleClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (!target.closest("[data-overflow-menu]") && !target.closest("[data-overflow-trigger]") ) {
+      if (!target.closest("[data-overflow-menu]") && !target.closest("[data-overflow-trigger]")) {
         setOverflowMenu(null);
       }
     };
@@ -63,12 +65,12 @@ export default function ThreadPage() {
   };
 
   const overflowActions = useMemo(
-    () => ["Rename", "Duplicate", "Share", "Delete", "Settings"],
+    () => ["Rename", "Duplicate", "Share", "Delete", "Settings", "Dark Mode", "Country"],
     [],
   );
 
   return (
-    <div className="h-dvh flex flex-col overscroll-none bg-slate-950 text-slate-100 md:bg-transparent md:text-inherit">
+    <div className="h-dvh flex flex-col overscroll-none bg-[#FFFFFF] text-[#0F172A] dark:bg-[#0B1220] dark:text-[#E6EDF7]">
       <HeaderMobile
         onToggleSidebar={() => setSidebarOpen(true)}
         onStartNewChat={handleStartNewChat}
@@ -78,24 +80,39 @@ export default function ThreadPage() {
       {overflowMenu && (
         <div
           data-overflow-menu
-          className="fixed z-50 w-44 overflow-hidden rounded-xl border border-slate-700/60 bg-slate-900/95 text-sm shadow-xl backdrop-blur"
+          className="fixed z-50 w-48 overflow-hidden rounded-xl border border-[#E2E8F0] bg-[#F8FAFC]/95 text-sm text-[#0F172A] shadow-2xl backdrop-blur dark:border-[#1E3A5F] dark:bg-[#0F1B2D]/95 dark:text-[#E6EDF7]"
           style={{ top: overflowMenu.top, right: overflowMenu.right }}
         >
-          <ul className="py-1">
+          <ul className="divide-y divide-[#E2E8F0]/70 dark:divide-[#1E3A5F]/80">
             {overflowActions.map(action => (
-              <li key={action}>
-                <button
-                  type="button"
-                  className="flex w-full items-center px-4 py-2 text-left text-slate-200 transition hover:bg-slate-800"
-                  onClick={() => {
-                    setOverflowMenu(null);
-                    if (action === "Settings") {
-                      router.push("/?panel=settings");
-                    }
-                  }}
-                >
-                  {action}
-                </button>
+              <li key={action} className="px-3 py-2">
+                {action === "Dark Mode" ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-medium">Dark mode</span>
+                    <ThemeToggle className="h-8 px-3 text-xs" />
+                  </div>
+                ) : action === "Country" ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-medium">Country</span>
+                    <CountryGlobe />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-left text-sm font-medium transition hover:bg-[#E2E8F0]/60 dark:hover:bg-[#13233D]"
+                    onClick={() => {
+                      setOverflowMenu(null);
+                      if (action === "Settings") {
+                        router.push("/?panel=settings");
+                      }
+                    }}
+                  >
+                    <span>{action}</span>
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 text-[#334155] dark:text-[#94A3B8]" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6" />
+                    </svg>
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -103,13 +120,13 @@ export default function ThreadPage() {
       )}
 
       <SidebarDrawer open={sidebarOpen} onClose={() => setSidebarOpen(false)}>
-        <div className="flex h-full flex-col gap-4 text-sm">
-          <div className="flex items-center justify-between pt-1 text-xs uppercase tracking-wide text-slate-400">
+        <div className="flex h-full flex-col gap-4 text-sm text-[#0F172A] dark:text-[#E6EDF7]">
+          <div className="flex items-center justify-between pt-1 text-xs uppercase tracking-wide text-[#334155] dark:text-[#94A3B8]">
             <span>Conversations</span>
             <button
               type="button"
               onClick={handleStartNewChat}
-              className="rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold text-white"
+              className="rounded-full bg-[#2563EB] px-3 py-1 text-xs font-semibold text-white transition hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
             >
               New
             </button>
@@ -121,13 +138,13 @@ export default function ThreadPage() {
       </SidebarDrawer>
 
       <div className="flex flex-1 md:grid md:grid-cols-[280px_1fr]">
-        <aside className="hidden border-r border-slate-200/60 bg-slate-900/10 md:flex md:flex-col">
-          <div className="flex items-center justify-between px-4 pb-2 pt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <aside className="hidden border-r border-[#E2E8F0] bg-[#F8FAFC] text-[#0F172A] dark:border-[#1E3A5F] dark:bg-[#0F1B2D] dark:text-[#E6EDF7] md:flex md:flex-col">
+          <div className="flex items-center justify-between px-4 pb-2 pt-4 text-xs font-semibold uppercase tracking-wide text-[#334155] dark:text-[#94A3B8]">
             <span>Conversations</span>
             <button
               type="button"
               onClick={handleStartNewChat}
-              className="rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold text-white"
+              className="rounded-full bg-[#2563EB] px-3 py-1 text-xs font-semibold text-white transition hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
             >
               New
             </button>

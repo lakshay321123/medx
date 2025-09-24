@@ -5,17 +5,17 @@ export function SidebarThreads() {
     .sort((a,b)=>b.updatedAt - a.updatedAt));
 
   return (
-    <div className="flex flex-1 flex-col gap-1 text-sm text-slate-100 md:text-slate-900">
+    <div className="flex flex-1 flex-col gap-1 text-sm text-[#0F172A] dark:text-[#E6EDF7]">
       {threads.map(t => (
         <a
           key={t.id}
           href={`/chat/${t.id}`}
-          className="rounded-xl px-3 py-2 transition hover:bg-slate-800/60 md:hover:bg-muted"
+          className="rounded-xl border border-transparent px-3 py-2 transition hover:border-[#2563EB] hover:bg-[#2563EB]/10 dark:hover:border-[#3B82F6] dark:hover:bg-[#3B82F6]/10"
         >
-          <div className="truncate font-medium text-slate-50 md:text-slate-900">
+          <div className="truncate font-medium">
             {t.title || "New chat"}
           </div>
-          {t.isTemp && <div className="text-xs text-slate-300 md:text-slate-500">saving…</div>}
+          {t.isTemp && <div className="text-xs text-[#64748B] dark:text-[#94A3B8]">saving…</div>}
         </a>
       ))}
     </div>

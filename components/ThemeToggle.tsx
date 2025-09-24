@@ -1,19 +1,35 @@
 "use client";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-export default function ThemeToggle() {
+type ThemeToggleProps = {
+  className?: string;
+};
+
+export default function ThemeToggle({ className }: ThemeToggleProps = {}) {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!mounted) return null;
 
   const next = theme === "dark" ? "light" : "dark";
+  const baseClass = useMemo(
+    () =>
+      [
+        "inline-flex h-9 items-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-4 text-sm font-medium text-[#0F172A] shadow-sm transition",
+        "hover:border-[#2563EB] hover:text-[#2563EB]",
+        "dark:border-[#1E3A5F] dark:bg-[#13233D] dark:text-[#E6EDF7] dark:hover:border-[#3B82F6] dark:hover:text-[#3B82F6]",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    [className],
+  );
   return (
     <button
       aria-label="Toggle theme"
       onClick={() => setTheme(next)}
-      className="inline-flex h-10 items-center gap-2 rounded-full border border-black/10 bg-white/70 px-4 text-sm font-medium text-slate-900 transition hover:bg-white dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-100 dark:hover:bg-slate-900"
+      className={baseClass}
     >
       {theme === "dark" ? "Light" : "Dark"}
     </button>
