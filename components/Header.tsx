@@ -68,7 +68,7 @@ export function HeaderMobile({
   };
 
   return (
-    <header className="lg:hidden sticky top-0 z-40 bg-[#F8FAFC]/95 text-[#0F172A] backdrop-blur dark:bg-[#0F1B2D]/95 dark:text-[#E6EDF7]">
+    <header className="lg:hidden sticky top-0 z-50 bg-[#F8FAFC]/95 text-[#0F172A] backdrop-blur dark:bg-[#0F1B2D]/95 dark:text-[#E6EDF7]">
       <div className="flex items-center justify-between gap-2 px-3 pb-2 pt-[max(env(safe-area-inset-top),12px)]">
         <button
           type="button"

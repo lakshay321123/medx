@@ -3483,7 +3483,7 @@ ${systemCommon}` + baseSys;
             scrollToBottom(el);
             setShowJump(false);
           }}
-          className="fixed bottom-20 right-4 lg:hidden z-20 rounded-full p-2 bg-[#2563EB] text-white shadow"
+          className="fixed bottom-20 right-4 lg:hidden z-50 rounded-full p-2 bg-[#2563EB] text-white shadow"
           aria-label="Jump to latest"
         >
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
