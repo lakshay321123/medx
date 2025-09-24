@@ -10,8 +10,16 @@ import { LinkBadge } from "@/components/SafeLink";
 import Message from "@/components/chat/Message";
 import { ENABLE_MOBILE_UI } from "@/env";
 
+const EMPTY_MESSAGES: ReadonlyArray<any> = [];
+
 export function ChatWindow() {
-  const messages = useChatStore(s => s.currentId ? s.threads[s.currentId]?.messages ?? [] : []);
+  const messages = useChatStore(state => {
+    const id = state.currentId;
+    if (!id) return EMPTY_MESSAGES;
+    const thread = state.threads[id];
+    const list = thread?.messages;
+    return Array.isArray(list) ? list : EMPTY_MESSAGES;
+  });
   const addMessage = useChatStore(s => s.addMessage);
   const currentId = useChatStore(s => s.currentId);
   const [results, setResults] = useState<any[]>([]);

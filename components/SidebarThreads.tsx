@@ -1,8 +1,15 @@
+"use client";
+import { useMemo } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
 
 export function SidebarThreads() {
-  const threads = useChatStore(s => Object.values(s.threads)
-    .sort((a,b)=>b.updatedAt - a.updatedAt));
+  const threadsMap = useChatStore(s => s.threads);
+  const threads = useMemo(() => {
+    const list = Object.values(threadsMap ?? {});
+    return list
+      .slice()
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  }, [threadsMap]);
 
   return (
     <div className="flex flex-1 flex-col gap-1 text-sm text-[#0F172A] dark:text-[#E6EDF7]">

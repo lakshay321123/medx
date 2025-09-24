@@ -10,9 +10,6 @@ export default function ThemeToggle({ className }: ThemeToggleProps = {}) {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  if (!mounted) return null;
-
-  const next = theme === "dark" ? "light" : "dark";
   const baseClass = useMemo(
     () =>
       [
@@ -25,6 +22,9 @@ export default function ThemeToggle({ className }: ThemeToggleProps = {}) {
         .join(" "),
     [className],
   );
+  if (!mounted) return null;
+
+  const next = theme === "dark" ? "light" : "dark";
   return (
     <button
       aria-label="Toggle theme"
