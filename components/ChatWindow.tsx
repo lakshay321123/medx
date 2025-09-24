@@ -8,6 +8,7 @@ import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { getResearchFlagFromUrl } from "@/utils/researchFlag";
 import { LinkBadge } from "@/components/SafeLink";
 import Message from "@/components/chat/Message";
+import { ENABLE_MOBILE_UI } from "@/env";
 
 export function ChatWindow() {
   const messages = useChatStore(s => s.currentId ? s.threads[s.currentId]?.messages ?? [] : []);
@@ -131,17 +132,19 @@ export function ChatWindow() {
         </div>
       </div>
 
-      <div className="md:hidden">
-        <div className="pointer-events-none fixed inset-x-0 bottom-[64px] z-10 h-12 bg-gradient-to-t from-white/95 via-white/40 to-transparent dark:from-[#0B1220]/95 dark:via-[#0B1220]/40" />
-      </div>
+      {ENABLE_MOBILE_UI ? (
+        <div className="md:hidden">
+          <div className="pointer-events-none fixed inset-x-0 bottom-[64px] z-10 h-12 bg-gradient-to-t from-white/95 via-white/40 to-transparent dark:from-[#0B1220]/95 dark:via-[#0B1220]/40" />
+        </div>
+      ) : null}
 
-      {showJump && (
+      {ENABLE_MOBILE_UI && showJump && (
         <button
           type="button"
           onClick={() => {
             const el = chatRef.current;
             if (!el) return;
-            el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+            el.scrollTo?.({ top: el.scrollHeight, behavior: "smooth" });
             setShowJump(false);
           }}
           className="fixed bottom-28 right-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#2563EB] text-white shadow-lg transition hover:bg-[#1D4ED8] md:hidden dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"

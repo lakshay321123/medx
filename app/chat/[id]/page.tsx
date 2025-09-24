@@ -11,6 +11,7 @@ import { useChatStore } from "@/lib/state/chatStore";
 import ThemeToggle from "@/components/ThemeToggle";
 import CountryGlobe from "@/components/CountryGlobe";
 import ChatErrorBoundary from "@/components/ChatErrorBoundary";
+import { ENABLE_MOBILE_UI } from "@/env";
 
 export default function ThreadPage() {
   const { id } = useParams<{ id: string }>();
@@ -84,11 +85,13 @@ export default function ThreadPage() {
   return (
     <ChatErrorBoundary>
       <div className="h-dvh flex flex-col overscroll-none bg-[#FFFFFF] text-[#0F172A] dark:bg-[#0B1220] dark:text-[#E6EDF7]">
-        <HeaderMobile
-          onToggleSidebar={() => setSidebarOpen(true)}
-          onStartNewChat={handleStartNewChat}
-          onOpenOverflow={openOverflow}
-        />
+        {ENABLE_MOBILE_UI ? (
+          <HeaderMobile
+            onToggleSidebar={() => setSidebarOpen(true)}
+            onStartNewChat={handleStartNewChat}
+            onOpenOverflow={openOverflow}
+          />
+        ) : null}
 
         {overflowMenu && (
           <div

@@ -648,6 +648,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [inputFocused, setInputFocused] = useState(false);
   const [proactive, setProactive] = useState<null | { kind: 'predispositions'|'medications'|'weight' }>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const pendingFilesSafe = Array.isArray(pendingFiles) ? pendingFiles : [];
+  const pendingFilesCount = pendingFilesSafe.length;
   const [showJump, setShowJump] = useState(false);
   const [queueActive, setQueueActive] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -2285,7 +2287,7 @@ ${systemCommon}` + baseSys;
 
   function onFilesSelected(files: File[]) {
     if (files.length === 0) return;
-    const next = [...pendingFiles, ...files].slice(0, 10);
+    const next = [...pendingFilesSafe, ...files].slice(0, 10);
     setPendingFiles(next);
     setTimeout(() => inputRef.current?.focus(), 0);
   }
@@ -2534,10 +2536,10 @@ ${systemCommon}` + baseSys;
     try {
       const trimmed = userText.trim();
 
-      const hasPendingFiles = pendingFiles.length > 0;
+      const hasPendingFiles = pendingFilesCount > 0;
 
       if (hasPendingFiles) {
-        const files = pendingFiles;
+        const files = pendingFilesSafe;
         setPendingFiles([]);
 
         const urlsToCleanup: string[] = [];
@@ -3294,13 +3296,13 @@ ${systemCommon}` + baseSys;
                 </div>
               )}
 
-              {pendingFiles.length > 0 && (
+              {pendingFilesCount > 0 && (
                 <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/60 bg-white/80 px-3 py-2 text-xs text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200">
                   <span className="font-medium">
-                    {pendingFiles.length} file{pendingFiles.length === 1 ? '' : 's'} ready
+                    {pendingFilesCount} file{pendingFilesCount === 1 ? '' : 's'} ready
                   </span>
                   <div className="flex flex-wrap items-center gap-2">
-                    {pendingFiles.map((file, index) => (
+                    {pendingFilesSafe.map((file, index) => (
                       <span
                         key={`${file.name}-${index}`}
                         className="flex items-center gap-1 rounded-full bg-slate-100/70 px-2 py-0.5 dark:bg-slate-800/70"
@@ -3351,7 +3353,7 @@ ${systemCommon}` + baseSys;
                     rows={1}
                     className="w-full resize-none bg-transparent px-2 pr-12 text-sm leading-6 text-slate-900 outline-none placeholder:text-slate-500 dark:text-slate-100 dark:placeholder:text-slate-400"
                     placeholder={
-                      pendingFiles.length > 0
+                      pendingFilesCount > 0
                         ? 'Add a note or question for this document (optional)'
                         : 'Send a message'
                     }
@@ -3389,7 +3391,7 @@ ${systemCommon}` + baseSys;
                   <button
                     className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50"
                     type="submit"
-                    disabled={pendingFiles.length === 0 && !userText.trim()}
+                    disabled={pendingFilesCount === 0 && !userText.trim()}
                     aria-label="Send"
                     title="Send"
                   >

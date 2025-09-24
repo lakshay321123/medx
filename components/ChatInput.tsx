@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
 import { useOpenPass } from "@/hooks/useOpenPass";
+import { ENABLE_MOBILE_UI } from "@/env";
 
 type ChatInputProps = {
   onSend: (text: string, locationToken?: string, files?: File[], messageId?: string) => Promise<void>;
@@ -24,8 +25,8 @@ export function ChatInput({ onSend }: ChatInputProps) {
   const openPass = useOpenPass();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const previewList = Array.isArray(previews) ? previews : [];
-  const previewsLength = previewList.length;
+  const files = Array.isArray(previews) ? previews : [];
+  const previewsLength = files.length;
 
   // auto-create a new thread when the user starts typing in a fresh session
   useEffect(() => {
@@ -57,9 +58,9 @@ export function ChatInput({ onSend }: ChatInputProps) {
     adjustTextareaHeight();
   }, [text]);
 
-  const handleFilesSelected = (files: File[]) => {
-    if (!Array.isArray(files) || files.length === 0) return;
-    const next = files.map(file => ({
+  const handleFilesSelected = (selectedFiles: File[]) => {
+    if (!Array.isArray(selectedFiles) || selectedFiles.length === 0) return;
+    const next = selectedFiles.map(file => ({
       id:
         typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
           ? crypto.randomUUID()
@@ -91,8 +92,8 @@ export function ChatInput({ onSend }: ChatInputProps) {
         : `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     addMessage({ id: messageId, role: "user", content });
 
-    const files = previewList.map(p => p.file);
-    const urlsToFlush = previewList.map(p => p.url);
+    const filesToSend = files.map(p => p.file);
+    const urlsToFlush = files.map(p => p.url);
     setText("");
     setPreviews([]);
 
@@ -106,7 +107,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
     }
 
     try {
-      await onSend(content, locationToken, files, messageId); // existing streaming/send logic
+      await onSend(content, locationToken, filesToSend, messageId); // existing streaming/send logic
     } catch (error) {
       console.error('ChatInput send error', error);
     } finally {
@@ -120,11 +121,11 @@ export function ChatInput({ onSend }: ChatInputProps) {
 
   return (
     <>
-      {previewsLength > 0 && (
+      {ENABLE_MOBILE_UI && previewsLength > 0 && (
         <div className="fixed bottom-[76px] left-0 right-0 z-30 md:hidden">
           <div className="mx-auto max-w-screen-md px-3">
             <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-              {previewList.map(preview => (
+              {files.map(preview => (
                 <div
                   key={preview.id}
                   className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl border border-[#E2E8F0] bg-white text-[#0F172A] shadow-sm dark:border-[#1E3A5F] dark:bg-[#0F1B2D] dark:text-[#E6EDF7]"
