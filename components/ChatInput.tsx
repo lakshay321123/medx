@@ -128,7 +128,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
               {files.map(preview => (
                 <div
                   key={preview.id}
-                  className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl border border-[#E2E8F0] bg-white text-[#0F172A] shadow-sm dark:border-[#1E3A5F] dark:bg-[#0F1B2D] dark:text-[#E6EDF7]"
+                  className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] text-[#0F172A] shadow-sm dark:border-[#1E3A5F] dark:bg-[#0F1B2D] dark:text-[#E6EDF7]"
                 >
                   {preview.file.type.startsWith("image/") ? (
                     <img
@@ -156,9 +156,9 @@ export function ChatInput({ onSend }: ChatInputProps) {
         </div>
       )}
 
-      <div className="fixed inset-x-0 bottom-0 z-30 bg-white/95 backdrop-blur md:static md:bg-transparent md:backdrop-blur-none dark:bg-[#0F1B2D]/95">
+      <div className="fixed inset-x-0 bottom-0 z-30 bg-[#F8FAFC]/95 backdrop-blur md:static md:bg-transparent md:backdrop-blur-none dark:bg-[#0F1B2D]/95">
         <div className="mx-auto max-w-screen-md px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-2 md:max-w-none md:px-0 md:pb-0 md:pt-0">
-          <div className="flex items-end gap-2 rounded-2xl border border-[#E2E8F0] bg-white px-3 py-2 shadow-sm transition md:border-[#E2E8F0] md:bg-white dark:border-[#1E3A5F] dark:bg-[#0F1B2D]">
+          <div className="flex items-end gap-2 rounded-2xl border border-[#E2E8F0] bg-[#FFFFFF] px-3 py-2 shadow-sm transition md:border-[#E2E8F0] md:bg-[#FFFFFF] dark:border-[#1E3A5F] dark:bg-[#0F1B2D]">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}

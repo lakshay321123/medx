@@ -47,6 +47,7 @@ import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
 import { getUserPosition, fetchNearby, geocodeArea, type NearbyKind, type NearbyPlace } from "@/lib/nearby";
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
 import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
+import { ENABLE_MOBILE_UI } from "@/env";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -3467,27 +3468,27 @@ ${systemCommon}` + baseSys;
         </div>
       )}
 
-      <div className="md:hidden">
-        <div className="pointer-events-none fixed inset-x-0 bottom-[64px] z-10 h-12 bg-gradient-to-t from-slate-950/95 to-transparent" />
-      </div>
+      {ENABLE_MOBILE_UI && (
+        <div className="md:hidden">
+          <div className="pointer-events-none fixed inset-x-0 bottom-[64px] z-10 h-12 bg-gradient-to-t from-[#FFFFFF]/95 to-transparent dark:from-[#0B1220]/95" />
+        </div>
+      )}
 
-      {showJump && (
+      {ENABLE_MOBILE_UI && showJump && (
         <button
           type="button"
           onClick={() => {
             const el = chatRef.current;
             if (!el) return;
-            scrollToBottom(el);
+            el.scrollTo?.({ top: el.scrollHeight, behavior: "smooth" });
             setShowJump(false);
           }}
-          className="fixed bottom-24 left-1/2 z-20 -translate-x-1/2 rounded-full bg-blue-600 px-3 py-2 text-xs font-medium text-white shadow-lg md:hidden"
+          className="fixed bottom-20 right-4 z-20 md:hidden rounded-full p-2 bg-[#2563EB] text-white shadow-lg transition hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
+          aria-label="Jump to latest"
         >
-          <span className="inline-flex items-center gap-1">
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 12l6 6 6-6" />
-            </svg>
-            Jump to latest
-          </span>
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 10l6 6 6-6" />
+          </svg>
         </button>
       )}
 

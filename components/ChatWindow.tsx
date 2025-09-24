@@ -90,7 +90,7 @@ export function ChatWindow() {
     <div className="flex h-full min-h-0 flex-col">
       <div
         ref={chatRef}
-        className="flex-1 overflow-y-auto px-3 pt-4 pb-32 md:px-8 md:pt-8 md:pb-10"
+        className="flex-1 overflow-y-auto px-3 pt-3 pb-24 md:px-6 md:pt-6 md:pb-6"
         onScroll={handleScroll}
       >
         <div className="mx-auto flex w-full max-w-screen-md flex-col gap-2">
@@ -140,11 +140,11 @@ export function ChatWindow() {
         </div>
       </div>
 
-      {ENABLE_MOBILE_UI ? (
+      {ENABLE_MOBILE_UI && (
         <div className="md:hidden">
-          <div className="pointer-events-none fixed inset-x-0 bottom-[64px] z-10 h-12 bg-gradient-to-t from-white/95 via-white/40 to-transparent dark:from-[#0B1220]/95 dark:via-[#0B1220]/40" />
+          <div className="pointer-events-none fixed inset-x-0 bottom-[64px] z-10 h-12 bg-gradient-to-t from-[#FFFFFF]/95 to-transparent dark:from-[#0B1220]/95" />
         </div>
-      ) : null}
+      )}
 
       {ENABLE_MOBILE_UI && showJump && (
         <button
@@ -155,7 +155,7 @@ export function ChatWindow() {
             el.scrollTo?.({ top: el.scrollHeight, behavior: "smooth" });
             setShowJump(false);
           }}
-          className="fixed bottom-28 right-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#2563EB] text-white shadow-lg transition hover:bg-[#1D4ED8] md:hidden dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
+          className="fixed bottom-20 right-4 z-20 md:hidden rounded-full p-2 bg-[#2563EB] text-white shadow-lg transition hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
           aria-label="Jump to latest"
         >
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">

@@ -24,14 +24,14 @@ export function SidebarDrawer({ open, onClose, children }: SidebarDrawerProps) {
   return (
     <>
       <div
-        className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-200 ease-out md:hidden ${
+        className={`fixed inset-0 z-40 bg-black/40 transition-opacity duration-200 ease-out md:hidden ${
           open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
         }`}
         onClick={handleClose}
         aria-hidden={!open}
       />
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-[86vw] max-w-[320px] transform border-r border-[#E2E8F0] bg-[#F8FAFC] text-[#0F172A] transition-transform duration-200 ease-out dark:border-[#1E3A5F] dark:bg-[#0F1B2D] dark:text-[#E6EDF7] md:static md:translate-x-0 md:w-72 md:border-r md:border-[#E2E8F0] md:bg-[#F8FAFC] md:text-[#0F172A] md:shadow-none ${
+        className={`fixed inset-y-0 left-0 z-50 w-[86vw] max-w-[320px] transform border-r border-[#E2E8F0] bg-[#F8FAFC] text-[#0F172A] shadow-xl transition-transform duration-200 ease-out dark:border-[#1E3A5F] dark:bg-[#0F1B2D] dark:text-[#E6EDF7] md:static md:block md:translate-x-0 md:w-72 md:border-r md:border-[#E2E8F0] md:bg-[#F8FAFC] md:text-[#0F172A] md:shadow-none ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

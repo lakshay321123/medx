@@ -89,13 +89,13 @@ export default function ChatPage() {
   return (
     <ChatErrorBoundary>
       <div className="h-dvh flex flex-col overscroll-none bg-[#FFFFFF] text-[#0F172A] dark:bg-[#0B1220] dark:text-[#E6EDF7]">
-        {ENABLE_MOBILE_UI ? (
+        {ENABLE_MOBILE_UI && (
           <HeaderMobile
             onToggleSidebar={() => setSidebarOpen(true)}
             onStartNewChat={handleStartNewChat}
             onOpenOverflow={openOverflow}
           />
-        ) : null}
+        )}
 
         {overflowMenu && (
           <div
@@ -175,9 +175,15 @@ export default function ChatPage() {
           </aside>
 
           <main className="relative flex flex-1 flex-col">
-            <div className="md:hidden px-3 pt-2">
-              <ModeBar />
-            </div>
+            {ENABLE_MOBILE_UI ? (
+              <div className="md:hidden">
+                <ModeBar />
+              </div>
+            ) : (
+              <div className="md:hidden px-3 pt-2">
+                <ModeBar />
+              </div>
+            )}
             <ChatWindow />
           </main>
         </div>
