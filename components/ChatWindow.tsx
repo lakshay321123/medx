@@ -141,7 +141,7 @@ export function ChatWindow() {
       </div>
 
       {ENABLE_MOBILE_UI && (
-        <div className="md:hidden">
+        <div className="lg:hidden">
           <div className="pointer-events-none fixed inset-x-0 bottom-[64px] z-10 h-12 bg-gradient-to-t from-[#FFFFFF]/95 to-transparent dark:from-[#0B1220]/95" />
         </div>
       )}
@@ -155,7 +155,7 @@ export function ChatWindow() {
             el.scrollTo?.({ top: el.scrollHeight, behavior: "smooth" });
             setShowJump(false);
           }}
-          className="fixed bottom-20 right-4 z-20 md:hidden rounded-full p-2 bg-[#2563EB] text-white shadow-lg transition hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
+          className="fixed bottom-20 right-4 z-20 lg:hidden rounded-full p-2 bg-[#2563EB] text-white shadow-lg transition hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]"
           aria-label="Jump to latest"
         >
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">

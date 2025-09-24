@@ -135,7 +135,7 @@ export default function ModeBar() {
   const doctorActive = state.base === "doctor";
 
   return (
-    <div className="sticky top-[48px] z-30 -mx-3 px-3 py-2 bg-[#F8FAFC]/90 backdrop-blur md:static md:m-0 md:bg-transparent md:px-0 md:py-0 dark:bg-[#0F1B2D]/90">
+    <div className="sticky top-14 z-30 -mx-3 px-3 py-2 bg-[#F8FAFC]/90 backdrop-blur md:static md:m-0 md:bg-transparent md:px-0 md:py-0 dark:bg-[#0F1B2D]/90">
       <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] md:flex-wrap [&::-webkit-scrollbar]:hidden">
         <div className="inline-flex flex-nowrap items-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-2 py-1 backdrop-blur dark:border-[#1E3A5F] dark:bg-[#0F1B2D]">
           <button

@@ -12,6 +12,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import CountryGlobe from "@/components/CountryGlobe";
 import ChatErrorBoundary from "@/components/ChatErrorBoundary";
 import { ENABLE_MOBILE_UI } from "@/env";
+import FeatureDebug from "@/components/FeatureDebug";
 
 export default function ThreadPage() {
   const { id } = useParams<{ id: string }>();
@@ -90,6 +91,8 @@ export default function ThreadPage() {
           onStartNewChat={handleStartNewChat}
           onOpenOverflow={openOverflow}
         />
+
+        {process.env.NODE_ENV === "development" ? <FeatureDebug /> : null}
 
         {overflowMenu && (
           <div
