@@ -49,8 +49,11 @@ export function ChatWindow() {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div ref={chatRef} className="flex-1 overflow-auto">
+    <div className="flex h-full flex-col">
+      <div
+        ref={chatRef}
+        className="flex-1 overflow-y-auto px-4 pb-32 pt-4 md:px-0 md:pb-0 md:pt-0"
+      >
         {messages.map((m, idx) => {
           const isLastMessage = idx === messages.length - 1;
           const showThinkingTimer = isLastMessage && isThinking;
@@ -92,7 +95,9 @@ export function ChatWindow() {
           </div>
         )}
       </div>
-      <ChatInput onSend={handleSend} />
+      <div className="mobile-composer md:static md:bg-transparent md:p-0 md:shadow-none">
+        <ChatInput onSend={handleSend} />
+      </div>
       <ScrollToBottom targetRef={chatRef} rebindKey={currentId} />
     </div>
   );

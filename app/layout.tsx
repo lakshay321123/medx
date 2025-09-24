@@ -12,6 +12,11 @@ import MemorySnackbar from "@/components/memory/Snackbar";
 import UndoToast from "@/components/memory/UndoToast";
 import AppToastHost from "@/components/ui/AppToastHost";
 import { Roboto } from "next/font/google";
+import dynamic from "next/dynamic";
+
+const MobileHeader = dynamic(() => import("@/components/mobile/MobileHeader"), { ssr: false });
+const MobileSidebarOverlay = dynamic(() => import("@/components/mobile/MobileSidebarOverlay"), { ssr: false });
+const MobileActionsSheet = dynamic(() => import("@/components/mobile/MobileActionsSheet"), { ssr: false });
 
 export const metadata = { title: BRAND_NAME, description: "Global medical AI" };
 
@@ -32,9 +37,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <TopicProvider>
                 <div className="flex h-full min-h-screen flex-col medx-gradient">
                   <Suspense fallback={<div className="h-[62px]" />}>
-                    <Header />
+                    <div className="hidden md:block">
+                      <Header />
+                    </div>
                   </Suspense>
-                  <div className="grid grow min-h-0 grid-cols-12">
+                  <MobileHeader />
+                  <div className="grid grow min-h-0 grid-cols-12 mobile-content-offset md:pt-0">
                     <aside className="hidden min-h-0 overflow-y-auto border-r border-black/5 bg-white/70 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/40 md:col-span-3 md:flex lg:col-span-2">
                       <Suspense fallback={null}>
                         <Sidebar />
@@ -52,6 +60,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <MemorySnackbar />
                   <UndoToast />
                   <AppToastHost />
+                  <MobileSidebarOverlay />
+                  <MobileActionsSheet />
                 </div>
               </TopicProvider>
             </ContextProvider>
