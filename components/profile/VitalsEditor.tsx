@@ -2,89 +2,170 @@
 
 import { useState } from "react";
 
-export type VitalsEditorValues = {
-  systolic?: number | null;
-  diastolic?: number | null;
-  heartRate?: number | null;
-};
+import { pushToast } from "@/lib/ui/toast";
+
+type NumericLike = number | string | null | undefined;
 
 export type VitalsEditorProps = {
-  initialValues: VitalsEditorValues;
-  onSave: (values: VitalsEditorValues) => Promise<void> | void;
+  initialSystolic: NumericLike;
+  initialDiastolic: NumericLike;
+  initialHeartRate: NumericLike;
+  heightCm: number | null;
+  weightKg: number | null;
   onCancel: () => void;
-  isSaving?: boolean;
+  onSaved: () => void | Promise<void>;
 };
 
 export default function VitalsEditor({
-  initialValues,
-  onSave,
+  initialSystolic,
+  initialDiastolic,
+  initialHeartRate,
+  heightCm,
+  weightKg,
   onCancel,
-  isSaving = false,
+  onSaved,
 }: VitalsEditorProps) {
-  const [systolic, setSystolic] = useState(valueToString(initialValues.systolic));
-  const [diastolic, setDiastolic] = useState(valueToString(initialValues.diastolic));
-  const [heartRate, setHeartRate] = useState(valueToString(initialValues.heartRate));
+  const [systolic, setSystolic] = useState(toInputValue(initialSystolic));
+  const [diastolic, setDiastolic] = useState(toInputValue(initialDiastolic));
+  const [heartRate, setHeartRate] = useState(toInputValue(initialHeartRate));
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const bmi = computeBmi(heightCm, weightKg);
+
   const handleSave = async () => {
-    setError(null);
-    const next = {
-      systolic: stringToNumber(systolic),
-      diastolic: stringToNumber(diastolic),
-      heartRate: stringToNumber(heartRate),
-    } satisfies VitalsEditorValues;
-    if (Object.values(next).every(v => v == null)) {
+    const systolicValue = toNumber(systolic);
+    const diastolicValue = toNumber(diastolic);
+    const heartRateValue = toNumber(heartRate);
+
+    if (
+      systolicValue == null &&
+      diastolicValue == null &&
+      heartRateValue == null
+    ) {
       setError("Enter at least one vital to save.");
       return;
     }
+
+    const observedAt = new Date().toISOString();
+
+    const observations = [
+      systolicValue != null
+        ? {
+            kind: "bp_systolic",
+            value: systolicValue,
+            unit: "mmHg",
+            observedAt,
+          }
+        : null,
+      diastolicValue != null
+        ? {
+            kind: "bp_diastolic",
+            value: diastolicValue,
+            unit: "mmHg",
+            observedAt,
+          }
+        : null,
+      heartRateValue != null
+        ? {
+            kind: "heart_rate",
+            value: heartRateValue,
+            unit: "bpm",
+            observedAt,
+          }
+        : null,
+      bmi != null
+        ? {
+            kind: "bmi",
+            value: bmi,
+            unit: "kg/m2",
+            observedAt,
+          }
+        : null,
+    ].filter(Boolean);
+
+    setIsSaving(true);
+    setError(null);
     try {
-      await onSave(next);
+      const res = await fetch("/api/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ observations }),
+      });
+
+      if (!res.ok) {
+        const message = await res.text();
+        throw new Error(message || "Failed to save vitals.");
+      }
+
+      pushToast({ title: "Vitals updated" });
+      await onSaved();
     } catch (err: any) {
-      setError(err?.message || "Couldn’t save vitals.");
+      const message = err?.message || "Couldn't save vitals.";
+      setError(message);
+      pushToast({
+        title: "Couldn't save vitals",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
     }
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">Systolic (mmHg)</span>
+          <span className="text-xs font-medium text-muted-foreground">
+            Systolic (mmHg)
+          </span>
           <input
             type="number"
-            min={0}
             inputMode="numeric"
             className="rounded-md border px-3 py-2"
             placeholder="120"
             value={systolic}
-            onChange={e => setSystolic(e.target.value)}
+            onChange={event => setSystolic(event.target.value)}
+            disabled={isSaving}
           />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">Diastolic (mmHg)</span>
+          <span className="text-xs font-medium text-muted-foreground">
+            Diastolic (mmHg)
+          </span>
           <input
             type="number"
-            min={0}
             inputMode="numeric"
             className="rounded-md border px-3 py-2"
             placeholder="80"
             value={diastolic}
-            onChange={e => setDiastolic(e.target.value)}
+            onChange={event => setDiastolic(event.target.value)}
+            disabled={isSaving}
           />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">Heart rate (BPM)</span>
+          <span className="text-xs font-medium text-muted-foreground">
+            Heart rate (BPM)
+          </span>
           <input
             type="number"
-            min={0}
             inputMode="numeric"
             className="rounded-md border px-3 py-2"
             placeholder="72"
             value={heartRate}
-            onChange={e => setHeartRate(e.target.value)}
+            onChange={event => setHeartRate(event.target.value)}
+            disabled={isSaving}
           />
         </label>
       </div>
+
+      <div className="text-sm text-muted-foreground">
+        BMI: <span className="font-medium">{bmi ?? "—"}</span>
+      </div>
+
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
+
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -107,14 +188,24 @@ export default function VitalsEditor({
   );
 }
 
-function valueToString(value?: number | null) {
-  return value == null || Number.isNaN(value) ? "" : String(value);
+function toInputValue(value: NumericLike) {
+  if (value == null) return "";
+  const str = String(value).trim();
+  return Number.isFinite(Number(str)) ? str : "";
 }
 
-function stringToNumber(value: string) {
+function toNumber(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return null;
   const parsed = Number(trimmed);
-  if (!Number.isFinite(parsed)) return null;
-  return parsed;
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function computeBmi(heightCm: number | null, weightKg: number | null) {
+  if (!heightCm || !weightKg) return null;
+  const heightMeters = heightCm / 100;
+  if (!heightMeters) return null;
+  const bmi = weightKg / (heightMeters * heightMeters);
+  if (!Number.isFinite(bmi)) return null;
+  return Number(bmi.toFixed(1));
 }

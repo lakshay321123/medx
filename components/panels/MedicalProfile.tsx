@@ -5,12 +5,13 @@ import { useRouter, useSearchParams, type ReadonlyURLSearchParams } from "next/n
 import { useTheme } from "next-themes";
 import PanelLoader from "@/components/mobile/PanelLoader";
 import ProfileSection from "@/components/profile/ProfileSection";
-import VitalsEditor, { type VitalsEditorValues } from "@/components/profile/VitalsEditor";
+import VitalsEditor from "@/components/profile/VitalsEditor";
 import MedicationInput from "@/components/meds/MedicationInput";
 import MedicationTag from "@/components/meds/MedicationTag";
 import { useProfile } from "@/lib/hooks/useAppData";
 import { pushToast } from "@/lib/ui/toast";
 import { fromSearchParams } from "@/lib/modes/url";
+import { useSWRConfig } from "swr";
 
 const SEXES = ["male", "female", "other"] as const;
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -115,7 +116,8 @@ export default function MedicalProfile() {
   const { theme } = useTheme();
   const panelMode = useMemo(() => derivePanelMode(params, theme), [params, theme]);
 
-  const { data, error, isLoading, mutate } = useProfile();
+  const { mutate: mutateGlobal } = useSWRConfig();
+  const { data, error, isLoading, mutate: mutateProfile } = useProfile();
 
   const [fullName, setFullName] = useState("");
   const [dob, setDob] = useState("");
@@ -132,7 +134,6 @@ export default function MedicalProfile() {
   const [bootstrapped, setBootstrapped] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [editingVitals, setEditingVitals] = useState(false);
-  const [savingVitals, setSavingVitals] = useState(false);
   const [recomputeBusy, setRecomputeBusy] = useState(false);
   const [notesEditing, setNotesEditing] = useState(false);
   const [notesDraft, setNotesDraft] = useState("");
@@ -152,18 +153,14 @@ export default function MedicalProfile() {
     setBloodGroup(prof.blood_group || "");
     setPredis(Array.isArray(prof.conditions_predisposition) ? prof.conditions_predisposition : []);
     setChronic(Array.isArray(prof.chronic_conditions) ? prof.chronic_conditions : []);
-    if (Array.isArray((prof as any).medications)) {
-      setMedications((prof as any).medications as MedicationEntry[]);
-    }
+    setMedications(extractedMedications);
     setBootstrapped(true);
-  }, [bootstrapped, data?.profile]);
+  }, [bootstrapped, data?.profile, extractedMedications]);
 
   useEffect(() => {
-    if (!data?.profile) return;
-    if (Array.isArray((data.profile as any).medications)) {
-      setMedications((data.profile as any).medications as MedicationEntry[]);
-    }
-  }, [data?.profile]);
+    if (!bootstrapped) return;
+    setMedications(extractedMedications);
+  }, [bootstrapped, extractedMedications]);
 
   const parseSummary = useCallback((text: string) => {
     const lines = text
@@ -245,6 +242,7 @@ export default function MedicalProfile() {
     },
   ];
 
+  const extractedMedications = useMemo(() => extractMedicationEntries(data), [data]);
   const labs = data?.groups?.labs ?? [];
   const medsEmpty = medications.length === 0;
 
@@ -268,7 +266,8 @@ export default function MedicalProfile() {
         throw new Error(await res.text());
       }
       pushToast({ title: "Profile saved" });
-      await mutate();
+      await mutateProfile();
+      await mutateGlobal("/api/profile");
       await loadSummary();
     } catch (err: any) {
       pushToast({
@@ -281,47 +280,6 @@ export default function MedicalProfile() {
     }
   };
 
-  const saveVitals = async (values: VitalsEditorValues) => {
-    setSavingVitals(true);
-    try {
-      const observations = [
-        values.systolic != null
-          ? { kind: "bp_systolic", value_num: values.systolic, unit: "mmHg" }
-          : null,
-        values.diastolic != null
-          ? { kind: "bp_diastolic", value_num: values.diastolic, unit: "mmHg" }
-          : null,
-        values.heartRate != null
-          ? { kind: "heart_rate", value_num: values.heartRate, unit: "bpm" }
-          : null,
-      ].filter(Boolean);
-      if (!observations.length) {
-        throw new Error("Enter at least one vital to save.");
-      }
-      const res = await fetch("/api/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ observations }),
-      });
-      if (!res.ok) {
-        throw new Error(await res.text());
-      }
-      pushToast({ title: "Vitals updated" });
-      setEditingVitals(false);
-      await mutate();
-      await loadSummary();
-    } catch (err: any) {
-      pushToast({
-        title: "Couldn’t update vitals",
-        description: err?.message || "Please try again.",
-        variant: "destructive",
-      });
-      throw err;
-    } finally {
-      setSavingVitals(false);
-    }
-  };
-
   const saveMedications = async (next: MedicationEntry[]) => {
     const payload = { medications: next } as Record<string, unknown>;
     const res = await fetch("/api/profile", {
@@ -331,7 +289,8 @@ export default function MedicalProfile() {
     });
     if (!res.ok) throw new Error(await res.text());
     setMedications(next);
-    await mutate();
+    await mutateProfile();
+    await mutateGlobal("/api/profile");
     await loadSummary();
   };
 
@@ -609,14 +568,34 @@ export default function MedicalProfile() {
         >
           {editingVitals ? (
             <VitalsEditor
-              initialValues={{
-                systolic: profileVitals.systolic ?? null,
-                diastolic: profileVitals.diastolic ?? null,
-                heartRate: profileVitals.heartRate ?? null,
-              }}
-              onSave={saveVitals}
+              initialSystolic={
+                (data?.profile as any)?.vitals?.bp_systolic ?? profileVitals.systolic ?? ""
+              }
+              initialDiastolic={
+                (data?.profile as any)?.vitals?.bp_diastolic ?? profileVitals.diastolic ?? ""
+              }
+              initialHeartRate={
+                (data?.profile as any)?.vitals?.heart_rate ?? profileVitals.heartRate ?? ""
+              }
+              heightCm={
+                parseNumber((data?.profile as any)?.vitals?.height_cm) ??
+                (profileVitals.heightMeters != null
+                  ? Number((profileVitals.heightMeters * 100).toFixed(1))
+                  : null)
+              }
+              weightKg={
+                parseNumber((data?.profile as any)?.vitals?.weight_kg) ??
+                (profileVitals.weightKg != null
+                  ? Number(profileVitals.weightKg.toFixed(1))
+                  : null)
+              }
               onCancel={() => setEditingVitals(false)}
-              isSaving={savingVitals}
+              onSaved={async () => {
+                setEditingVitals(false);
+                await mutateProfile();
+                await mutateGlobal("/api/profile");
+                await loadSummary();
+              }}
             />
           ) : (
             <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
@@ -854,6 +833,87 @@ export default function MedicalProfile() {
         </ProfileSection>
       ) : null}
     </div>
+  );
+}
+
+function extractMedicationEntries(data: any): MedicationEntry[] {
+  if (!data) return [];
+
+  const entries: MedicationEntry[] = [];
+  const groups = (data as any)?.groups;
+  const groupMeds = Array.isArray(groups?.medications) ? groups.medications : [];
+
+  if (groupMeds.length) {
+    for (const item of groupMeds) {
+      const med = normalizeMedicationItem(item);
+      if (med) entries.push(med);
+    }
+    return dedupeMedicationList(entries);
+  }
+
+  const profileMeds = Array.isArray((data?.profile as any)?.medications)
+    ? (data.profile as any).medications
+    : [];
+
+  if (profileMeds.length) {
+    for (const item of profileMeds) {
+      const med = normalizeMedicationItem(item);
+      if (med) entries.push(med);
+    }
+    return dedupeMedicationList(entries);
+  }
+
+  const flatItems = Array.isArray((data as any)?.items) ? (data as any).items : [];
+  for (const item of flatItems) {
+    if (!isMedicationLike(item)) continue;
+    const med = normalizeMedicationItem(item);
+    if (med) entries.push(med);
+  }
+
+  return dedupeMedicationList(entries);
+}
+
+function normalizeMedicationItem(raw: any): MedicationEntry | null {
+  if (!raw) return null;
+
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    return trimmed ? { name: trimmed } : null;
+  }
+
+  const nameCandidate = [
+    raw.name,
+    raw.label,
+    raw.title,
+    raw.value,
+    raw.medication,
+  ].find(value => typeof value === "string" && value.trim());
+
+  if (!nameCandidate) return null;
+
+  const doseCandidate = [raw.dose, raw.meta?.dose, raw.metadata?.dose, raw.sig].find(
+    value => typeof value === "string" && value.trim(),
+  ) as string | undefined;
+
+  return {
+    name: (nameCandidate as string).trim(),
+    dose: doseCandidate ? doseCandidate.trim() : null,
+  };
+}
+
+function isMedicationLike(item: any) {
+  if (!item || typeof item !== "object") return false;
+  const kind = typeof item.kind === "string" ? item.kind.toLowerCase() : "";
+  const group = typeof item.group === "string" ? item.group.toLowerCase() : "";
+  const key = typeof item.key === "string" ? item.key.toLowerCase() : "";
+  const category = typeof item.category === "string" ? item.category.toLowerCase() : "";
+
+  return (
+    group === "medications" ||
+    kind === "medication" ||
+    kind.includes("med") ||
+    category.includes("med") ||
+    key.startsWith("med_")
   );
 }
 
