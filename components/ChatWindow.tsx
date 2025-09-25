@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
 import { ChatInput } from "@/components/ChatInput";
 import { persistIfTemp } from "@/lib/chat/persist";
@@ -24,7 +24,56 @@ export function ChatWindow() {
   const currentId = useChatStore(s => s.currentId);
   const [results, setResults] = useState<any[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
   const [isThinking, setIsThinking] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const composer = composerRef.current;
+    if (!composer) return;
+    const root = document.documentElement;
+    const previousHeight = root.style.getPropertyValue("--mobile-composer-height");
+    const previousGap = root.style.getPropertyValue("--mobile-composer-gap");
+
+    const minGap = 104; // ensures space for footer and last message on first load
+
+    const restore = () => {
+      if (previousHeight) {
+        root.style.setProperty("--mobile-composer-height", previousHeight);
+      } else {
+        root.style.removeProperty("--mobile-composer-height");
+      }
+      if (previousGap) {
+        root.style.setProperty("--mobile-composer-gap", previousGap);
+      } else {
+        root.style.removeProperty("--mobile-composer-gap");
+      }
+    };
+
+    const updateMetrics = () => {
+      const rect = composer.getBoundingClientRect();
+      const height = rect.height;
+      const gap = Math.max(height + 24, minGap);
+      root.style.setProperty("--mobile-composer-height", `${height}px`);
+      root.style.setProperty("--mobile-composer-gap", `${gap}px`);
+    };
+
+    updateMetrics();
+
+    if (typeof ResizeObserver === "undefined") {
+      return restore;
+    }
+
+    const observer = new ResizeObserver(() => {
+      updateMetrics();
+    });
+    observer.observe(composer);
+
+    return () => {
+      observer.disconnect();
+      restore();
+    };
+  }, []);
 
   const handleSend = async (content: string, locationToken?: string) => {
     // after sending user message, persist thread if needed
@@ -52,7 +101,7 @@ export function ChatWindow() {
     <div className="flex h-full flex-col">
       <div
         ref={chatRef}
-        className="flex-1 overflow-y-auto px-4 pb-32 pt-4 md:px-0 md:pb-0 md:pt-0"
+        className="flex-1 overflow-y-auto px-4 pb-32 pt-4 md:px-0 md:pb-0 md:pt-0 mobile-chat-scroll"
       >
         {messages.map((m, idx) => {
           const isLastMessage = idx === messages.length - 1;
@@ -95,7 +144,7 @@ export function ChatWindow() {
           </div>
         )}
       </div>
-      <div className="mobile-composer md:static md:bg-transparent md:p-0 md:shadow-none">
+      <div ref={composerRef} className="mobile-composer md:static md:bg-transparent md:p-0 md:shadow-none">
         <ChatInput onSend={handleSend} />
       </div>
       <ScrollToBottom targetRef={chatRef} rebindKey={currentId} />

@@ -1,22 +1,27 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
 import { useOpenPass } from "@/hooks/useOpenPass";
 import { Paperclip, SendHorizontal } from "lucide-react";
 
 export function ChatInput({ onSend }: { onSend: (text: string, locationToken?: string)=>Promise<void> }) {
   const [text, setText] = useState("");
-  const startNewThread = useChatStore(s => s.startNewThread);
   const currentId = useChatStore(s => s.currentId);
   const addMessage = useChatStore(s => s.addMessage);
   const openPass = useOpenPass();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const ensureThread = useCallback(() => {
+    const state = useChatStore.getState();
+    return state.currentId ?? state.startNewThread();
+  }, []);
 
   // auto-create a new thread when the user starts typing in a fresh session
   useEffect(() => {
     if (!currentId && text.trim().length > 0) {
-      startNewThread();
+      ensureThread();
     }
-  }, [text, currentId, startNewThread]);
+  }, [text, currentId, ensureThread]);
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -29,8 +34,7 @@ export function ChatInput({ onSend }: { onSend: (text: string, locationToken?: s
   const handleSend = async () => {
     const content = text.trim();
     if (!content) return;
-    // ensure a thread exists
-    if (!currentId) startNewThread();
+    ensureThread();
     // add user message locally (this also sets the title from first words)
     addMessage({ role: "user", content });
     setText("");
@@ -57,9 +61,27 @@ export function ChatInput({ onSend }: { onSend: (text: string, locationToken?: s
         type="button"
         aria-label="Upload"
         className="flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--medx-text)] transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-[color:var(--medx-text)] dark:hover:bg-white/10"
+        onClick={() => {
+          ensureThread();
+          fileInputRef.current?.click();
+        }}
       >
         <Paperclip className="h-5 w-5" />
       </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf,image/*"
+        multiple
+        className="hidden"
+        onChange={event => {
+          const files = Array.from(event.target.files ?? []);
+          if (files.length === 0) return;
+          ensureThread();
+          // Placeholder for future upload handling: reset immediately so repeat selections work.
+          event.target.value = "";
+        }}
+      />
       <textarea
         ref={textareaRef}
         value={text}

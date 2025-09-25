@@ -1,6 +1,6 @@
 "use client";
 
-import { Menu, MoreHorizontal, Sparkles } from "lucide-react";
+import { Menu, MoreHorizontal, PlusCircle } from "lucide-react";
 import Logo from "@/components/brand/Logo";
 import { useMobileUiStore } from "@/lib/state/mobileUiStore";
 import { useRouter } from "next/navigation";
@@ -29,7 +29,7 @@ export default function MobileHeader() {
       </button>
 
       <div className="flex flex-1 items-center overflow-hidden">
-        <Logo width={120} height={32} className="mobile-header-logo" />
+        <Logo width={116} height={32} className="mobile-header-logo" variant="white" />
       </div>
 
       <div className="ml-auto flex items-center gap-1.5">
@@ -39,7 +39,7 @@ export default function MobileHeader() {
           className="mobile-icon-btn"
           onClick={handleNewChat}
         >
-          <Sparkles className="h-5 w-5" />
+          <PlusCircle className="h-5 w-5" />
         </button>
         <button
           type="button"

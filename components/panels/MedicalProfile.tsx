@@ -165,15 +165,15 @@ export default function MedicalProfile() {
   };
 
   return (
-    <div className="p-4 space-y-4 relative z-0">
+    <div className="p-4 space-y-4 relative z-0 mobile-medical-profile">
       <section className="rounded-xl border p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-semibold">Wellness Info</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Reset (sidebar-safe) */}
             <button
               type="button"
-              className="text-sm rounded-md border px-3 py-1.5 hover:bg-muted"
+              className="text-sm rounded-md border px-3 py-1.5 hover:bg-muted mobile-tappable md:min-h-0"
               onClick={async () => {
                 const pick = window.prompt(
                   "Reset:\n1 = Clear observations\n2 = Clear everything (obs+pred+alerts)\n3 = Zero demo values\n\nEnter 1/2/3 or Cancel"
@@ -210,7 +210,7 @@ export default function MedicalProfile() {
             {/* Save (sidebar-safe) */}
             <button
               type="button"
-              className="text-sm rounded-md border px-3 py-1.5 hover:bg-muted disabled:opacity-50"
+              className="text-sm rounded-md border px-3 py-1.5 hover:bg-muted disabled:opacity-50 mobile-tappable md:min-h-0"
               disabled={saving}
               onClick={async () => {
                 setSaving(true);
@@ -402,17 +402,17 @@ export default function MedicalProfile() {
               return (
                 <div key={key}>
                   <div className="mb-2 text-sm font-medium">{TITLES[key]}</div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-sm">
                     {items.slice(0, 6).map(it => (
                       <div key={it.key} className="flex items-start justify-between rounded-md bg-muted/40 px-3 py-2">
-                        <div className="pr-2">
-                          <div>{it.label}</div>
-                          <div className="text-xs text-muted-foreground">
+                        <div className="pr-2 mobile-truncate-2">
+                          <div className="font-medium">{it.label}</div>
+                          <div className="text-xs text-muted-foreground mobile-truncate-2">
                             {new Date(it.observedAt).toLocaleDateString()}
                             {it.source ? ` • ${it.source}` : ""}
                           </div>
                         </div>
-                        <div className="font-medium text-right">
+                        <div className="font-medium text-right mobile-truncate-2">
                           {it.value ?? "—"}{it.unit ? ` ${it.unit}` : ""}
                         </div>
                       </div>
@@ -430,9 +430,9 @@ export default function MedicalProfile() {
 
       {/* --- AI Summary & Reasons --- */}
       <div className="mt-6 rounded-xl border p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="font-semibold">AI Summary</h3>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={async () => {
                 try {
@@ -463,12 +463,12 @@ export default function MedicalProfile() {
                   );
                 }
               }}
-              className="text-xs px-2 py-1 rounded-md border"
+              className="text-xs px-2 py-1 rounded-md border mobile-tappable md:min-h-0"
             >Discuss & Correct in Chat</button>
             <button
               id="recompute-risk-btn"
               onClick={onRecomputeRisk}
-              className="text-xs px-2 py-1 rounded-md border"
+              className="text-xs px-2 py-1 rounded-md border mobile-tappable md:min-h-0"
             >Recompute Risk</button>
           </div>
         </div>
