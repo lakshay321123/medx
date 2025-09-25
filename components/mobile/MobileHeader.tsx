@@ -1,42 +1,62 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Menu, MoreHorizontal, PlusCircle } from "lucide-react";
 import Logo from "@/components/brand/Logo";
 import { useMobileUiStore } from "@/lib/state/mobileUiStore";
-import { useRouter } from "next/navigation";
-import { useChatStore } from "@/lib/state/chatStore";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useModeController } from "@/hooks/useModeController";
+import { createNewThreadId } from "@/lib/chatThreads";
+import WwwGlobeIcon from "@/components/icons/WwwGlobe";
 
 export default function MobileHeader() {
   const openSidebar = useMobileUiStore(state => state.openSidebar);
   const openSheet = useMobileUiStore(state => state.openSheet);
-  const startNewThread = useChatStore(state => state.startNewThread);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { state, selectMode, toggleResearch, researchEnabled, therapyBusy } = useModeController();
   const [modeOpen, setModeOpen] = useState(false);
   const modeRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!modeOpen) return;
-    const handlePointer = (event: MouseEvent | TouchEvent) => {
+    const handlePointer = (event: Event) => {
       if (!modeRef.current) return;
       const target = event.target as Node | null;
       if (target && modeRef.current.contains(target)) return;
       setModeOpen(false);
     };
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setModeOpen(false);
+      }
+    };
     document.addEventListener("pointerdown", handlePointer);
-    return () => document.removeEventListener("pointerdown", handlePointer);
+    document.addEventListener("mousedown", handlePointer);
+    document.addEventListener("touchstart", handlePointer);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointer);
+      document.removeEventListener("mousedown", handlePointer);
+      document.removeEventListener("touchstart", handlePointer);
+      document.removeEventListener("keydown", handleKey);
+    };
   }, [modeOpen]);
 
   useEffect(() => {
     setModeOpen(false);
   }, [state.base, state.therapy]);
 
-  const handleNewChat = () => {
-    const id = startNewThread();
-    router.push(`/chat/${id}`);
-  };
+  const handleNewChat = useCallback(() => {
+    const id = createNewThreadId();
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    params.set("panel", "chat");
+    params.set("threadId", id);
+    router.push(`/?${params.toString()}`);
+    window.setTimeout(() => {
+      window.dispatchEvent(new Event("focus-chat-input"));
+    }, 150);
+  }, [router, searchParams]);
 
   const modeLabel = useMemo(() => {
     if (state.base === "aidoc") return "AI Doc";
@@ -82,7 +102,9 @@ export default function MobileHeader() {
           <button
             type="button"
             aria-label={researchActive ? "Disable research mode" : "Enable research mode"}
-            className={`mobile-www-toggle${researchActive ? " mobile-www-toggle-active" : ""}`}
+            className="mobile-icon-btn mobile-www-btn"
+            data-state={researchActive ? "on" : "off"}
+            data-enabled={researchEnabled ? "true" : "false"}
             onClick={() => {
               if (researchEnabled) toggleResearch();
             }}
@@ -96,7 +118,7 @@ export default function MobileHeader() {
                 : "Research mode unavailable"
             }
           >
-            <span>WWW</span>
+            <WwwGlobeIcon className="h-5 w-5" />
           </button>
           {modeOpen ? (
             <div className="mobile-mode-dropdown" role="menu">
