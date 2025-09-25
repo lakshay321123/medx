@@ -14,7 +14,14 @@ module.exports = {
       },
       fontFamily: {
         // Use with className="font-sans"
-        sans: ["var(--font-roboto)", "system-ui", "sans-serif"],
+        sans: [
+          "Proxima Nova",
+          "Proxima Nova Rg",
+          "ProximaNova",
+          "Helvetica Neue",
+          "Arial",
+          "sans-serif",
+        ],
       },
     },
   },
