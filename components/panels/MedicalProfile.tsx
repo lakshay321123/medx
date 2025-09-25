@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { safeJson } from "@/lib/safeJson";
 import { useProfile } from "@/lib/hooks/useAppData";
+import PanelLoader from "@/components/mobile/PanelLoader";
 
 const SEXES = ["male", "female", "other"] as const;
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -143,7 +144,7 @@ export default function MedicalProfile() {
     setBootstrapped(true);
   }, [prof, bootstrapped]);
 
-  if (isLoading) return <div className="p-6 text-sm text-muted-foreground">Loading profile…</div>;
+  if (isLoading) return <PanelLoader label="Medical Profile" />;
   if (error)     return <div className="p-6 text-sm text-red-500">Couldn’t load profile. Retrying in background…</div>;
   if (!data)     return <div className="p-6 text-sm text-muted-foreground">No profile yet.</div>;
 
@@ -165,15 +166,15 @@ export default function MedicalProfile() {
   };
 
   return (
-    <div className="p-4 space-y-4 relative z-0">
+    <div className="relative z-0 space-y-4 p-4 mobile-medical-profile md:p-6">
       <section className="rounded-xl border p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-semibold">Wellness Info</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Reset (sidebar-safe) */}
             <button
               type="button"
-              className="text-sm rounded-md border px-3 py-1.5 hover:bg-muted"
+              className="text-sm rounded-md border px-3 py-1.5 hover:bg-muted mobile-tappable md:min-h-0"
               onClick={async () => {
                 const pick = window.prompt(
                   "Reset:\n1 = Clear observations\n2 = Clear everything (obs+pred+alerts)\n3 = Zero demo values\n\nEnter 1/2/3 or Cancel"
@@ -210,7 +211,7 @@ export default function MedicalProfile() {
             {/* Save (sidebar-safe) */}
             <button
               type="button"
-              className="text-sm rounded-md border px-3 py-1.5 hover:bg-muted disabled:opacity-50"
+              className="text-sm rounded-md border px-3 py-1.5 hover:bg-muted disabled:opacity-50 mobile-tappable md:min-h-0"
               disabled={saving}
               onClick={async () => {
                 setSaving(true);
@@ -245,7 +246,7 @@ export default function MedicalProfile() {
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+        <div className="mt-3 grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
           <label className="flex flex-col gap-1">
             <span>Name</span>
             <input
@@ -320,14 +321,18 @@ export default function MedicalProfile() {
                 <option key={c} value={c} />
               ))}
             </datalist>
-            <div className="flex flex-wrap gap-2 mt-1">
+            <div className="mt-1 flex flex-wrap gap-2">
               {predis.map(c => (
-                <span key={c} className="text-xs border rounded-full px-2 py-0.5">
-                  {c}
-                  <button type="button" className="ml-1" onClick={() => setPredis(predis.filter(x => x !== c))}>
-                    ×
-                  </button>
-                </span>
+                <button
+                  key={c}
+                  type="button"
+                  className="mobile-tappable inline-flex max-w-full items-center gap-1.5 truncate rounded-full border px-3 py-1 text-xs transition hover:bg-muted md:min-h-0 md:px-2.5 md:py-1"
+                  onClick={() => setPredis(predis.filter(x => x !== c))}
+                  aria-label={`Remove ${c} predisposition`}
+                >
+                  <span className="truncate">{c}</span>
+                  <span aria-hidden="true">×</span>
+                </button>
               ))}
             </div>
           </label>
@@ -347,14 +352,18 @@ export default function MedicalProfile() {
               }}
               list="condlist"
             />
-            <div className="flex flex-wrap gap-2 mt-1">
+            <div className="mt-1 flex flex-wrap gap-2">
               {chronic.map(c => (
-                <span key={c} className="text-xs border rounded-full px-2 py-0.5">
-                  {c}
-                  <button type="button" className="ml-1" onClick={() => setChronic(chronic.filter(x => x !== c))}>
-                    ×
-                  </button>
-                </span>
+                <button
+                  key={c}
+                  type="button"
+                  className="mobile-tappable inline-flex max-w-full items-center gap-1.5 truncate rounded-full border px-3 py-1 text-xs transition hover:bg-muted md:min-h-0 md:px-2.5 md:py-1"
+                  onClick={() => setChronic(chronic.filter(x => x !== c))}
+                  aria-label={`Remove ${c} chronic condition`}
+                >
+                  <span className="truncate">{c}</span>
+                  <span aria-hidden="true">×</span>
+                </button>
               ))}
             </div>
           </label>
@@ -402,18 +411,24 @@ export default function MedicalProfile() {
               return (
                 <div key={key}>
                   <div className="mb-2 text-sm font-medium">{TITLES[key]}</div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                  <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 md:grid-cols-3">
                     {items.slice(0, 6).map(it => (
-                      <div key={it.key} className="flex items-start justify-between rounded-md bg-muted/40 px-3 py-2">
-                        <div className="pr-2">
-                          <div>{it.label}</div>
-                          <div className="text-xs text-muted-foreground">
+                      <div
+                        key={it.key}
+                        className="flex min-w-0 flex-col gap-2 rounded-lg bg-muted/40 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="min-w-0 pr-2">
+                          <div className="truncate font-medium">{it.label}</div>
+                          <div className="text-xs text-muted-foreground mobile-truncate-2">
                             {new Date(it.observedAt).toLocaleDateString()}
                             {it.source ? ` • ${it.source}` : ""}
                           </div>
                         </div>
-                        <div className="font-medium text-right">
-                          {it.value ?? "—"}{it.unit ? ` ${it.unit}` : ""}
+                        <div className="min-w-0 text-sm font-medium sm:text-right">
+                          <span className="block truncate">
+                            {it.value ?? "—"}
+                            {it.unit ? ` ${it.unit}` : ""}
+                          </span>
                         </div>
                       </div>
                     ))}
@@ -430,9 +445,9 @@ export default function MedicalProfile() {
 
       {/* --- AI Summary & Reasons --- */}
       <div className="mt-6 rounded-xl border p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="font-semibold">AI Summary</h3>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={async () => {
                 try {
@@ -463,12 +478,12 @@ export default function MedicalProfile() {
                   );
                 }
               }}
-              className="text-xs px-2 py-1 rounded-md border"
+              className="text-xs px-2 py-1 rounded-md border mobile-tappable md:min-h-0"
             >Discuss & Correct in Chat</button>
             <button
               id="recompute-risk-btn"
               onClick={onRecomputeRisk}
-              className="text-xs px-2 py-1 rounded-md border"
+              className="text-xs px-2 py-1 rounded-md border mobile-tappable md:min-h-0"
             >Recompute Risk</button>
           </div>
         </div>
