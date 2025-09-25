@@ -1,11 +1,20 @@
-@import url("https://fonts.cdnfonts.com/css/proxima-nova-2");
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* smooth theme transitions */
 * { transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
+
+/* Prevent any fallback face from flashing before Proxima Nova is ready */
+body.font-loading {
+  opacity: 0;
+}
+
+body.font-loading *,
+body.font-loading *::before,
+body.font-loading *::after {
+  transition: none !important;
+}
 
 /* === Base font: single source of truth via CSS variable with sensible fallbacks === */
 @layer base {
