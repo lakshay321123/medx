@@ -11,20 +11,17 @@ import { Suspense } from "react";
 import MemorySnackbar from "@/components/memory/Snackbar";
 import UndoToast from "@/components/memory/UndoToast";
 import AppToastHost from "@/components/ui/AppToastHost";
-import { Roboto } from "next/font/google";
-
 export const metadata = { title: BRAND_NAME, description: "Global medical AI" };
-
-const roboto = Roboto({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "700", "900"],
-  variable: "--font-roboto",
-  display: "swap",
-});
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={roboto.variable} suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://fonts.cdnfonts.com/css/proxima-nova-2"
+        />
+      </head>
       <body className="h-full bg-slate-100 text-slate-900 dark:bg-transparent dark:text-slate-100 font-sans antialiased">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <CountryProvider>
