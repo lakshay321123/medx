@@ -828,10 +828,15 @@ body {
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    padding: 1.25rem 1rem 1.5rem;
+    padding: 1.25rem 1rem 2.75rem;
     overflow-y: auto;
     overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
     max-height: calc(100vh - var(--mobile-header-height) - var(--mobile-composer-gap, 120px));
+    padding-bottom: calc(
+      2.75rem + var(--mobile-footer-height, 0px) + var(--mobile-composer-offset, 0px)
+    );
   }
 
   .mobile-medical-profile section,
