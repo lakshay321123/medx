@@ -1,3 +1,5 @@
+@import url("https://fonts.cdnfonts.com/css/proxima-nova-2");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,10 +7,11 @@
 /* smooth theme transitions */
 * { transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
 
+/* === Base font: single source of truth via CSS variable with sensible fallbacks === */
 @layer base {
   html,
   body {
-    font-family: "Proxima Nova", "proxima-nova", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-family: var(--font-proxima-nova, "Proxima Nova", "proxima-nova", "Helvetica Neue", Helvetica, Arial, sans-serif);
   }
 }
 
@@ -106,6 +109,7 @@
 
 /* === MedX Theme Tokens (Light & Dark) === */
 :root {
+  --font-proxima-nova: "Proxima Nova", "Proxima Nova Rg", "ProximaNova", "Helvetica Neue", "Arial", sans-serif;
   --medx-bg-a: #e9efff;   /* light indigo */
   --medx-bg-b: #d0f3ff;   /* light cyan */
   --medx-bg-c: #ffffff;   /* fallback third stop */
@@ -844,4 +848,3 @@ body {
     width: 100%;
   }
 }
-
