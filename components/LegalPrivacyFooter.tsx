@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Scale } from "lucide-react";
 
 type CookiePrefs = {
   essential: true;
@@ -126,6 +127,44 @@ export default function LegalPrivacyFooter() {
   const [consentValue, setConsentValue] = useState<"true" | "false" | null>(null);
   const [agreeChecked, setAgreeChecked] = useState(false);
   const [cookiePrefs, setCookiePrefs] = useState<CookiePrefs>(DEFAULT_PREFS);
+  const footerRef = useRef<HTMLElement | null>(null);
+
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") return;
+    const footer = footerRef.current;
+    if (!footer) return;
+    const root = document.documentElement;
+    const previous = root.style.getPropertyValue("--mobile-footer-height");
+    const hadPrevious = previous.trim().length > 0;
+
+    const updateHeight = () => {
+      const rect = footer.getBoundingClientRect();
+      root.style.setProperty("--mobile-footer-height", `${Math.round(rect.height)}px`);
+    };
+
+    updateHeight();
+
+    let frame = 0;
+    const schedule = () => {
+      cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(updateHeight);
+    };
+
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(schedule);
+      observer.observe(footer);
+    }
+    window.addEventListener("resize", schedule);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", schedule);
+      if (observer) observer.disconnect();
+      if (hadPrevious) root.style.setProperty("--mobile-footer-height", previous);
+      else root.style.removeProperty("--mobile-footer-height");
+    };
+  }, []);
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -210,24 +249,26 @@ export default function LegalPrivacyFooter() {
     setCookiePrefs({ ...DEFAULT_PREFS });
     setConsentValue("false");
     setAgreeChecked(false);
-      setIsOpen(false);
+    setIsOpen(false);
   };
 
   return (
     <>
       <footer
+        ref={footerRef}
         className="mobile-footer flex-shrink-0 border-t border-black/10 bg-white/80 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/60"
       >
         <div className="mobile-footer-inner mx-auto flex w-full max-w-screen-2xl items-center justify-center gap-1.5 px-6 text-center text-[11px] text-slate-600 dark:text-slate-300 md:gap-3 md:py-1.5 md:text-xs">
-          <p className="mobile-footer-text leading-5">
-            {BRAND} can make mistakes. This is not medical advice. Always consult a clinician.
+          <p className="mobile-footer-text leading-5 text-center">
+            Second Opinion can make mistakes… Always consult a clinician.
           </p>
           <button
             type="button"
             onClick={openModal}
-            className="mobile-footer-action rounded-md px-2.5 py-1 text-xs font-medium text-primary transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900"
+            className="mobile-icon-btn mobile-footer-icon"
+            aria-label="View legal & privacy"
           >
-            Legal &amp; Privacy
+            <Scale className="h-4 w-4" />
           </button>
         </div>
       </footer>

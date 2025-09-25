@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useTimeline } from "@/lib/hooks/useAppData";
 import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
+import PanelLoader from "@/components/mobile/PanelLoader";
 
 type Cat = "ALL"|"LABS"|"VITALS"|"IMAGING"|"AI"|"NOTES";
 const catOf = (it:any):Cat => {
@@ -71,7 +72,7 @@ export default function Timeline(){
 
   if (!isAiDoc) return null;
 
-  if (isLoading) return <div className="p-6 text-sm text-muted-foreground">Loading timeline…</div>;
+  if (isLoading) return <PanelLoader label="Timeline" />;
   if (error)     return <div className="p-6 text-sm text-red-500">Couldn’t load timeline. Retrying in background…</div>;
 
   if (!items.length) return <div className="p-6 text-sm text-muted-foreground">No events yet.</div>;

@@ -539,11 +539,12 @@ body {
     background: var(--medx-panel);
     backdrop-filter: saturate(140%) blur(16px);
     border-top: 1px solid var(--medx-outline);
-    box-shadow: 0 -12px 30px rgba(15, 23, 42, 0.12);
   }
 
   .mobile-footer {
-    position: sticky;
+    position: fixed;
+    left: 0;
+    right: 0;
     bottom: 0;
     z-index: 35;
     display: flex;
@@ -571,6 +572,7 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    text-align: center;
   }
 
   .mobile-footer-action {
@@ -581,6 +583,156 @@ body {
     padding: 0 0.85rem;
     border-radius: 0.75rem;
     white-space: nowrap;
+  }
+
+  .mobile-footer-icon {
+    width: 2.75rem;
+    height: 2.75rem;
+    flex-shrink: 0;
+  }
+
+  .mobile-mode-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 0.25rem;
+    position: relative;
+    min-width: 0;
+  }
+
+  .mobile-mode-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+    border-radius: 9999px;
+    border: 1px solid var(--medx-outline);
+    background: var(--medx-surface);
+    padding: 0.35rem 0.75rem;
+    height: 2.5rem;
+    font-size: 0.9rem;
+    color: var(--medx-text);
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+
+  .mobile-mode-trigger:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+  }
+
+  .mobile-mode-trigger:hover {
+    background: rgba(255, 255, 255, 0.6);
+    border-color: rgba(15, 23, 42, 0.15);
+  }
+
+  .dark .mobile-mode-trigger:hover {
+    background: rgba(8, 25, 57, 0.85);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .mobile-mode-label {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 7.5rem;
+  }
+
+  .mobile-mode-dropdown {
+    position: absolute;
+    top: calc(100% + 0.45rem);
+    left: 0;
+    right: auto;
+    min-width: 11rem;
+    max-width: calc(100vw - 2rem);
+    padding: 0.35rem;
+    border-radius: 0.85rem;
+    background: var(--medx-panel);
+    border: 1px solid var(--medx-outline);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.25);
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    z-index: 80;
+  }
+
+  .mobile-mode-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    border-radius: 0.75rem;
+    padding: 0.6rem 0.85rem;
+    background: transparent;
+    color: var(--medx-text);
+    font-size: 0.9rem;
+    transition: background-color 0.2s ease;
+  }
+
+  .mobile-mode-option:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .mobile-mode-option-active {
+    background: rgba(59, 130, 246, 0.12);
+    font-weight: 600;
+  }
+
+  .mobile-mode-option:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+  }
+
+  .mobile-mode-option:not(.mobile-mode-option-active):hover {
+    background: rgba(255, 255, 255, 0.45);
+  }
+
+  .dark .mobile-mode-option:not(.mobile-mode-option-active):hover {
+    background: rgba(8, 25, 57, 0.75);
+  }
+
+  .mobile-www-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 9999px;
+    border: 1px solid var(--medx-outline);
+    background: transparent;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--medx-text);
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  }
+
+  .mobile-www-toggle span {
+    pointer-events: none;
+  }
+
+  .mobile-www-toggle:hover,
+  .mobile-www-toggle:focus-visible {
+    background: rgba(255, 255, 255, 0.55);
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .dark .mobile-www-toggle:hover,
+  .dark .mobile-www-toggle:focus-visible {
+    background: rgba(8, 25, 57, 0.85);
+    border-color: rgba(255, 255, 255, 0.16);
+  }
+
+  .mobile-www-toggle-active {
+    background: var(--medx-accent);
+    border-color: transparent;
+    color: #fff;
+  }
+
+  .mobile-www-toggle:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 
   .mobile-chat-scroll {

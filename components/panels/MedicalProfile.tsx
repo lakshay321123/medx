@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { safeJson } from "@/lib/safeJson";
 import { useProfile } from "@/lib/hooks/useAppData";
+import PanelLoader from "@/components/mobile/PanelLoader";
 
 const SEXES = ["male", "female", "other"] as const;
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -143,7 +144,7 @@ export default function MedicalProfile() {
     setBootstrapped(true);
   }, [prof, bootstrapped]);
 
-  if (isLoading) return <div className="p-6 text-sm text-muted-foreground">Loading profile…</div>;
+  if (isLoading) return <PanelLoader label="Medical Profile" />;
   if (error)     return <div className="p-6 text-sm text-red-500">Couldn’t load profile. Retrying in background…</div>;
   if (!data)     return <div className="p-6 text-sm text-muted-foreground">No profile yet.</div>;
 
