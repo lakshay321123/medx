@@ -23,12 +23,15 @@ type GroupKey =
   | "other";
 
 type Item = {
-  key: string;                 // observation kind (e.g., "alt", "mri_report")
-  label: string;               // human-friendly label
+  id?: string | null;
+  key: string; // observation kind (e.g., "alt", "mri_report")
+  label: string; // human-friendly label
   value: string | number | null;
   unit: string | null;
   observedAt: string;
-  source?: string | null;      // modality/source (e.g., "MRI", "PDF", "Rx")
+  source?: string | null; // modality/source (e.g., "MRI", "PDF", "Rx")
+  name?: string | null;
+  meta?: any;
 };
 
 type Groups = Record<GroupKey, Item[]>;
@@ -188,16 +191,52 @@ export async function GET(_req: NextRequest) {
 
   const sb = supabaseAdmin();
 
-  const { data: profile, error: perr } = await sb
-    .from("profiles")
-    .select(
-      "id, full_name, dob, sex, blood_group, conditions_predisposition, chronic_conditions"
-    )
-    .eq("id", userId)
-    .maybeSingle();
-  if (perr) {
-    return NextResponse.json({ error: perr.message }, { status: 500, headers: noStoreHeaders() });
+  const [profileRes, observationsRes, predictionRes] = await Promise.all([
+    sb
+      .from("profiles")
+      .select(
+        "id, full_name, dob, sex, blood_group, conditions_predisposition, chronic_conditions"
+      )
+      .eq("id", userId)
+      .maybeSingle(),
+    sb
+      .from("observations")
+      .select(
+        "id, kind, name, value_num, value_text, unit, observed_at, meta, details, thread_id"
+      )
+      .eq("user_id", userId)
+      .order("observed_at", { ascending: false })
+      .limit(600),
+    sb
+      .from("predictions")
+      .select("id, created_at, name, summary, details, risk_score, probability, band")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(1),
+  ]);
+
+  if (profileRes.error) {
+    return NextResponse.json(
+      { error: profileRes.error.message },
+      { status: 500, headers: noStoreHeaders() }
+    );
   }
+  if (observationsRes.error) {
+    return NextResponse.json(
+      { error: observationsRes.error.message },
+      { status: 500, headers: noStoreHeaders() }
+    );
+  }
+  if (predictionRes.error) {
+    return NextResponse.json(
+      { error: predictionRes.error.message },
+      { status: 500, headers: noStoreHeaders() }
+    );
+  }
+
+  const profile = profileRes.data;
+  const rows = observationsRes.data;
+  const predictionRow = predictionRes.data?.[0] ?? null;
 
   // --- normalize arrays: accept text[] or JSON-stringified arrays ---
   const asArray = (x: any) => {
@@ -217,28 +256,29 @@ export async function GET(_req: NextRequest) {
     (profile as any).chronic_conditions = asArray((profile as any).chronic_conditions);
   }
 
-  const { data: rows, error: oerr } = await sb
-    .from("observations")
-    .select("kind, value_num, value_text, unit, observed_at, meta")
-    .eq("user_id", userId)
-    .order("observed_at", { ascending: false })
-    .limit(600);
-  if (oerr) {
-    return NextResponse.json({ error: oerr.message }, { status: 500, headers: noStoreHeaders() });
-  }
-
   // Keep only latest per kind
   const latestByKind = new Map<
     string,
-    { value: string | number | null; unit: string | null; observedAt: string; meta: any }
+    {
+      id: string | null;
+      value: string | number | null;
+      unit: string | null;
+      observedAt: string;
+      meta: any;
+      name: string | null;
+      raw: any;
+    }
   >();
   for (const r of rows ?? []) {
     if (latestByKind.has(r.kind)) continue; // first seen = latest
     latestByKind.set(r.kind, {
+      id: r.id ?? null,
       value: r.value_num ?? r.value_text ?? null,
       unit: r.unit ?? null,
       observedAt: r.observed_at,
-      meta: r.meta ?? null,
+      meta: r.meta ?? r.details ?? null,
+      name: r.name ?? null,
+      raw: r,
     });
   }
 
@@ -258,20 +298,38 @@ export async function GET(_req: NextRequest) {
   for (const [rawKind, info] of latestByKind.entries()) {
     const kind = normalizeKind(rawKind);
     const group = classify(kind, info.meta);
-    const label = LABELS[kind] ?? startCase(kind);
+
+    const preferredLabel =
+      info.meta?.label ||
+      info.meta?.name ||
+      info.meta?.medication ||
+      info.meta?.title ||
+      info.name ||
+      LABELS[kind] ||
+      startCase(kind);
 
     let val: string | number | null = info.value;
+    if (val && typeof val === "object") {
+      try {
+        val = JSON.stringify(val);
+      } catch {
+        val = String(val);
+      }
+    }
     if (typeof val === "string" && val.length > 160) {
       val = val.slice(0, 155).trimEnd() + "…";
     }
 
     groups[group].push({
+      id: info.id,
       key: kind,
-      label,
+      label: preferredLabel,
       value: val,
       unit: info.unit,
       observedAt: info.observedAt,
-      source: info.meta?.modality || info.meta?.source_type || null,
+      source: info.meta?.modality || info.meta?.source_type || info.meta?.source || null,
+      name: info.name,
+      meta: info.meta,
     });
   }
 
@@ -286,7 +344,58 @@ export async function GET(_req: NextRequest) {
     latest[k] = { value: v.value, unit: v.unit, observedAt: v.observedAt };
   }
 
-  return NextResponse.json({ profile: profile ?? null, groups, latest }, { headers: noStoreHeaders() });
+  const predictionDetails = (() => {
+    if (!predictionRow) return null;
+    const raw = (predictionRow as any).details ?? null;
+    if (!raw) return null;
+    if (typeof raw === "object") return raw;
+    if (typeof raw === "string") {
+      try {
+        const parsed = JSON.parse(raw);
+        return parsed ?? null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  })();
+
+  const prediction = predictionRow
+    ? {
+        id: predictionRow.id,
+        createdAt: predictionRow.created_at,
+        name: predictionRow.name || predictionDetails?.label || null,
+        summary:
+          predictionRow.summary ||
+          predictionDetails?.summary ||
+          predictionDetails?.structured?.summary ||
+          null,
+        band:
+          predictionRow.band ||
+          predictionDetails?.band ||
+          predictionDetails?.structured?.band ||
+          predictionDetails?.structured?.risk?.band ||
+          null,
+        riskScore:
+          predictionRow.risk_score ??
+          predictionDetails?.risk_score ??
+          predictionDetails?.structured?.risk_score ??
+          predictionDetails?.structured?.risk?.score ??
+          null,
+        probability:
+          predictionRow.probability ??
+          predictionDetails?.probability ??
+          predictionDetails?.structured?.probability ??
+          predictionDetails?.structured?.risk?.probability ??
+          null,
+        structured: predictionDetails?.structured ?? null,
+      }
+    : null;
+
+  return NextResponse.json(
+    { profile: profile ?? null, groups, latest, prediction },
+    { headers: noStoreHeaders() }
+  );
 }
 
 export async function PUT(req: NextRequest) {

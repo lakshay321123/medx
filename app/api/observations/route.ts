@@ -22,10 +22,14 @@ export async function GET(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const out = (data ?? []).map(r => ({
+    id: r.id,
     kind: r.kind,
+    name: r.name ?? null,
     value: r.value_num ?? r.value_text ?? null,
     unit: r.unit ?? null,
     observedAt: r.observed_at,
+    threadId: r.thread_id ?? null,
+    meta: r.meta ?? null,
   }));
   return NextResponse.json(out);
 }
