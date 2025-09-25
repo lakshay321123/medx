@@ -440,8 +440,8 @@ export default function MedicalProfile() {
     }
   };
 
-  const showWellnessSections = panelMode !== "clinical" || panelMode === "ai-doc";
-  const showClinicalSections = panelMode !== "wellness" || panelMode === "ai-doc";
+  const showWellnessSections = panelMode !== "clinical";
+  const showClinicalSections = panelMode !== "wellness";
 
   if (isLoading) return <PanelLoader label="Medical Profile" />;
   if (error) {
