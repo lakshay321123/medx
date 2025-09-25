@@ -27,7 +27,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <CountryProvider>
             <ContextProvider>
               <TopicProvider>
-                <div className="flex h-full min-h-screen flex-col medx-gradient">
+                <div
+                  className="flex h-full min-h-screen flex-col medx-gradient"
+                  style={{ paddingBottom: "var(--mobile-legal-footer-height, 0px)" }}
+                >
                   <Suspense fallback={<div className="h-[62px]" />}>
                     <Header />
                   </Suspense>

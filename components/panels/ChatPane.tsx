@@ -3330,7 +3330,13 @@ ${systemCommon}` + baseSys;
       </div>
 
       <div className="mt-auto">
-        <div className="px-6 pb-[max(16px,env(safe-area-inset-bottom))]">
+        <div
+          className="px-6"
+          style={{
+            paddingBottom:
+              "calc(var(--mobile-legal-footer-height, 0px) + max(16px, env(safe-area-inset-bottom)))",
+          }}
+        >
           <div className="mx-auto max-w-3xl space-y-3 px-4 py-4">
               {mode === 'doctor' && AIDOC_UI && (
                 <button

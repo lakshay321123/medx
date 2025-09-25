@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+  type TouchEvent,
+} from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   Menu,
@@ -21,6 +28,7 @@ import { COUNTRIES } from "@/data/countries";
 
 const DRAWER_WIDTH = 320;
 const SHEET_HEIGHT = 460;
+const TRANSITION_DURATION = 260;
 
 const MODES = [
   { key: "wellness", label: "Wellness" },
@@ -50,13 +58,31 @@ export default function MobileHeader() {
   const { country, setCountry } = useCountry();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const [drawerWidth, setDrawerWidth] = useState(DRAWER_WIDTH);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetVisible, setSheetVisible] = useState(false);
   const [countryOpen, setCountryOpen] = useState(false);
   const [countryQuery, setCountryQuery] = useState("");
   const [drawerDrag, setDrawerDrag] = useState(0);
   const [sheetDrag, setSheetDrag] = useState(0);
   const drawerTouch = useRef<number | null>(null);
   const sheetTouch = useRef<number | null>(null);
+  const drawerHideTimer = useRef<number | null>(null);
+  const sheetHideTimer = useRef<number | null>(null);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
+  const sheetScrollRef = useRef<HTMLDivElement | null>(null);
+  const modeSectionRef = useRef<HTMLDivElement | null>(null);
+  const [sheetHeight, setSheetHeight] = useState(SHEET_HEIGHT);
+  const [sheetSection, setSheetSection] = useState<"root" | "mode">("root");
+
+  const runNextFrame = useCallback((cb: () => void) => {
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(cb);
+    } else {
+      cb();
+    }
+  }, []);
 
   const currentMode = useMemo(() => modeFromState(state), [state]);
   const modeName = useMemo(() => modeLabel(currentMode), [currentMode]);
@@ -66,6 +92,8 @@ export default function MobileHeader() {
     setSheetOpen(false);
     setDrawerDrag(0);
     setSheetDrag(0);
+    setDrawerVisible(false);
+    setSheetVisible(false);
   }, [pathname, searchParams]);
 
   useEffect(() => {
@@ -73,8 +101,59 @@ export default function MobileHeader() {
       setCountryOpen(false);
       setCountryQuery("");
       setSheetDrag(0);
+      setSheetSection("root");
     }
   }, [sheetOpen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const updateWidth = () => {
+      setDrawerWidth(Math.min(window.innerWidth, DRAWER_WIDTH));
+    };
+
+    updateWidth();
+    window.addEventListener("resize", updateWidth);
+    return () => window.removeEventListener("resize", updateWidth);
+  }, []);
+
+  useEffect(() => {
+    if (!sheetVisible) return;
+    const node = sheetRef.current;
+    if (!node) return;
+
+    const measure = () => {
+      const rect = node.getBoundingClientRect();
+      setSheetHeight(Math.max(rect.height, SHEET_HEIGHT));
+    };
+
+    measure();
+
+    if (typeof window !== "undefined" && "ResizeObserver" in window) {
+      const observer = new ResizeObserver(() => {
+        measure();
+      });
+      observer.observe(node);
+      return () => {
+        observer.disconnect();
+      };
+    }
+
+    return undefined;
+  }, [sheetVisible]);
+
+  useEffect(() => {
+    if (!sheetOpen || sheetSection !== "mode") return;
+    const scroller = sheetScrollRef.current;
+    const target = modeSectionRef.current;
+    if (!scroller || !target) return;
+    const offset = target.offsetTop - scroller.offsetTop;
+    if (typeof scroller.scrollTo === "function") {
+      scroller.scrollTo({ top: offset, behavior: "smooth" });
+    } else {
+      scroller.scrollTop = offset;
+    }
+  }, [sheetOpen, sheetSection]);
 
   const filteredCountries = useMemo(() => {
     const q = countryQuery.trim().toLowerCase();
@@ -85,15 +164,70 @@ export default function MobileHeader() {
     );
   }, [countryQuery]);
 
-  const closeDrawer = () => {
+  const closeDrawer = useCallback(() => {
     setDrawerOpen(false);
     setDrawerDrag(0);
-  };
+    if (drawerHideTimer.current) {
+      window.clearTimeout(drawerHideTimer.current);
+      drawerHideTimer.current = null;
+    }
+    drawerHideTimer.current = window.setTimeout(() => {
+      setDrawerVisible(false);
+      drawerHideTimer.current = null;
+    }, TRANSITION_DURATION);
+  }, []);
 
-  const closeSheet = () => {
+  const closeSheet = useCallback(() => {
     setSheetOpen(false);
     setSheetDrag(0);
-  };
+    if (sheetHideTimer.current) {
+      window.clearTimeout(sheetHideTimer.current);
+      sheetHideTimer.current = null;
+    }
+    sheetHideTimer.current = window.setTimeout(() => {
+      setSheetVisible(false);
+      sheetHideTimer.current = null;
+    }, TRANSITION_DURATION);
+  }, []);
+
+  const openDrawer = useCallback(() => {
+    if (drawerHideTimer.current) {
+      window.clearTimeout(drawerHideTimer.current);
+      drawerHideTimer.current = null;
+    }
+    setDrawerDrag(0);
+    setDrawerVisible(true);
+    runNextFrame(() => {
+      setDrawerOpen(true);
+    });
+  }, [runNextFrame]);
+
+  const openSheet = useCallback(
+    (section: "root" | "mode") => {
+      if (sheetHideTimer.current) {
+        window.clearTimeout(sheetHideTimer.current);
+        sheetHideTimer.current = null;
+      }
+      setSheetSection(section);
+      setSheetDrag(0);
+      setSheetVisible(true);
+      runNextFrame(() => {
+        setSheetOpen(true);
+      });
+    },
+    [runNextFrame],
+  );
+
+  useEffect(() => () => {
+    if (drawerHideTimer.current) {
+      window.clearTimeout(drawerHideTimer.current);
+      drawerHideTimer.current = null;
+    }
+    if (sheetHideTimer.current) {
+      window.clearTimeout(sheetHideTimer.current);
+      sheetHideTimer.current = null;
+    }
+  }, []);
 
   const handleDrawerTouchStart = (event: TouchEvent<HTMLDivElement>) => {
     drawerTouch.current = event.touches[0]?.clientX ?? null;
@@ -104,14 +238,14 @@ export default function MobileHeader() {
     const delta = event.touches[0]?.clientX ?? 0;
     const diff = delta - drawerTouch.current;
     if (diff < 0) {
-      setDrawerDrag(Math.max(diff, -DRAWER_WIDTH));
+      setDrawerDrag(Math.max(diff, -drawerWidth));
     } else {
       setDrawerDrag(0);
     }
   };
 
   const handleDrawerTouchEnd = () => {
-    if (Math.abs(drawerDrag) > DRAWER_WIDTH * 0.4) {
+    if (Math.abs(drawerDrag) > drawerWidth * 0.4) {
       closeDrawer();
     } else {
       setDrawerDrag(0);
@@ -127,15 +261,17 @@ export default function MobileHeader() {
     if (sheetTouch.current === null) return;
     const delta = event.touches[0]?.clientY ?? 0;
     const diff = delta - sheetTouch.current;
+    const limit = Math.max(sheetHeight, SHEET_HEIGHT);
     if (diff > 0) {
-      setSheetDrag(Math.min(diff, SHEET_HEIGHT));
+      setSheetDrag(Math.min(diff, limit));
     } else {
       setSheetDrag(0);
     }
   };
 
   const handleSheetTouchEnd = () => {
-    if (sheetDrag > SHEET_HEIGHT * 0.35) {
+    const limit = Math.max(sheetHeight, SHEET_HEIGHT);
+    if (sheetDrag > limit * 0.35) {
       closeSheet();
     } else {
       setSheetDrag(0);
@@ -183,8 +319,12 @@ export default function MobileHeader() {
     params.delete("threadId");
     params.delete("context");
     router.push(`/?${params.toString()}`);
-    closeDrawer();
-    closeSheet();
+    if (drawerVisible || drawerOpen) {
+      closeDrawer();
+    }
+    if (sheetVisible || sheetOpen) {
+      closeSheet();
+    }
     window.dispatchEvent(new CustomEvent("focus-chat-input"));
   };
 
@@ -205,7 +345,7 @@ export default function MobileHeader() {
   const sheetThemeLabel = themeName === "dark" ? "Light mode" : "Dark mode";
 
   useEffect(() => {
-    if (drawerOpen || sheetOpen) {
+    if (drawerVisible || sheetVisible) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
@@ -213,14 +353,14 @@ export default function MobileHeader() {
     return () => {
       document.body.style.overflow = "";
     };
-  }, [drawerOpen, sheetOpen]);
+  }, [drawerVisible, sheetVisible]);
 
   return (
     <div className="md:hidden">
       <div className="flex items-center gap-3 px-4 pb-3 pt-[max(12px,env(safe-area-inset-top))]">
         <button
           type="button"
-          onClick={() => setDrawerOpen(true)}
+          onClick={openDrawer}
           className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white/80 text-slate-700 shadow-sm transition hover:bg-white dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-900"
           aria-label="Open menu"
         >
@@ -229,9 +369,16 @@ export default function MobileHeader() {
 
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <Logo width={128} height={32} className="text-white [&>img]:h-8 [&>img]:w-auto" />
-          <span className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-            {modeName}
-          </span>
+          <button
+            type="button"
+            onClick={() => openSheet("mode")}
+            className="inline-flex min-w-0 items-center gap-1 rounded-full border border-transparent px-2 py-1 text-sm font-semibold text-slate-900 transition hover:bg-white/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 dark:text-slate-100 dark:hover:bg-slate-900/60"
+            aria-haspopup="menu"
+            aria-expanded={sheetOpen && sheetSection === "mode"}
+          >
+            <span className="truncate">{modeName}</span>
+            <ChevronDown className="h-4 w-4 text-slate-500 dark:text-slate-300" />
+          </button>
         </div>
 
         <button
@@ -268,52 +415,78 @@ export default function MobileHeader() {
 
         <button
           type="button"
-          onClick={() => setSheetOpen(true)}
+          onClick={() => openSheet("root")}
           className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white/90 text-slate-700 shadow-sm transition hover:bg-white dark:border-white/10 dark:bg-slate-900/70 dark:text-slate-100 dark:hover:bg-slate-900"
           aria-label="More options"
+          aria-expanded={sheetOpen}
         >
           <MoreVertical className="h-5 w-5" />
         </button>
       </div>
 
-      {drawerOpen ? (
-        <div className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm">
+      {drawerVisible ? (
+        <div className="fixed inset-0 z-50">
           <button
             type="button"
             aria-label="Close menu"
-            className="absolute inset-0"
+            className={`absolute inset-0 bg-black/20 backdrop-blur-sm transition-opacity duration-300 ease-out ${
+              drawerOpen ? "opacity-100" : "opacity-0"
+            }`}
             onClick={closeDrawer}
           />
           <div
-            className="absolute inset-y-0 left-0 w-[min(92vw,320px)] max-w-full bg-white/95 shadow-xl ring-1 ring-black/10 transition-transform dark:bg-slate-950/90 dark:ring-white/10"
-            style={{ transform: `translateX(${drawerDrag}px)` }}
+            className="absolute inset-y-0 left-0 flex max-w-full transition-transform duration-300 ease-out"
+            style={{
+              width: drawerWidth,
+              transform: `translateX(${drawerDrag + (drawerOpen ? 0 : -drawerWidth)}px)`,
+            }}
             onTouchStart={handleDrawerTouchStart}
             onTouchMove={handleDrawerTouchMove}
             onTouchEnd={handleDrawerTouchEnd}
           >
-            <Sidebar onNavigate={closeDrawer} />
+            <div
+              className="flex w-full flex-col overflow-hidden rounded-r-3xl border border-black/10 bg-white/95 shadow-xl ring-1 ring-black/10 dark:border-white/10 dark:bg-slate-950/90 dark:ring-white/10"
+            >
+              <div
+                className="flex-1 overflow-y-auto"
+                style={{
+                  paddingTop: "max(16px, env(safe-area-inset-top, 16px))",
+                  paddingBottom: "max(24px, env(safe-area-inset-bottom, 24px))",
+                }}
+              >
+                <Sidebar onNavigate={closeDrawer} />
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
 
-      {sheetOpen ? (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/20 backdrop-blur-sm">
+      {sheetVisible ? (
+        <div className="fixed inset-0 z-50">
           <button
             type="button"
             aria-label="Close menu"
-            className="absolute inset-0"
+            className={`absolute inset-0 bg-black/20 backdrop-blur-sm transition-opacity duration-300 ease-out ${
+              sheetOpen ? "opacity-100" : "opacity-0"
+            }`}
             onClick={closeSheet}
           />
           <div
-            className="relative z-10 rounded-t-3xl border-t border-black/10 bg-white/95 shadow-2xl transition-transform dark:border-white/10 dark:bg-slate-950/95"
-            style={{ transform: `translateY(${sheetDrag}px)` }}
+            ref={sheetRef}
+            className="absolute inset-x-0 bottom-0 z-10 rounded-t-3xl border-t border-black/10 bg-white/95 shadow-2xl transition-transform duration-300 ease-out dark:border-white/10 dark:bg-slate-950/95"
+            style={{
+              transform: `translateY(${sheetOpen ? sheetDrag : Math.max(sheetHeight, SHEET_HEIGHT) + 40}px)`,
+            }}
             onTouchStart={handleSheetTouchStart}
             onTouchMove={handleSheetTouchMove}
             onTouchEnd={handleSheetTouchEnd}
           >
             <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-black/10 dark:bg-white/20" aria-hidden="true" />
-            <div className="max-h-[75vh] overflow-y-auto px-5 pb-[max(20px,env(safe-area-inset-bottom,24px))] pt-4 text-slate-800 dark:text-slate-100">
-              <section className="mb-5">
+            <div
+              ref={sheetScrollRef}
+              className="max-h-[75vh] overflow-y-auto px-5 pb-[max(20px,env(safe-area-inset-bottom,24px))] pt-4 text-slate-800 dark:text-slate-100"
+            >
+              <section ref={modeSectionRef} className="mb-5">
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Mode</div>
                 <div className="mt-3 space-y-2">
                   {MODES.map(option => {

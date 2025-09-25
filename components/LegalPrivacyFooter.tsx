@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { ShieldCheck } from "lucide-react";
 
 type CookiePrefs = {
   essential: true;
@@ -126,6 +127,10 @@ export default function LegalPrivacyFooter() {
   const [consentValue, setConsentValue] = useState<"true" | "false" | null>(null);
   const [agreeChecked, setAgreeChecked] = useState(false);
   const [cookiePrefs, setCookiePrefs] = useState<CookiePrefs>(DEFAULT_PREFS);
+  const marqueeContainerRef = useRef<HTMLDivElement | null>(null);
+  const marqueeContentRef = useRef<HTMLDivElement | null>(null);
+  const footerBarRef = useRef<HTMLDivElement | null>(null);
+  const [marqueeOverflow, setMarqueeOverflow] = useState(0);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -200,6 +205,59 @@ export default function LegalPrivacyFooter() {
     [cookiePrefs]
   );
 
+  const legalCopy = `${BRAND} can make mistakes… Always consult a clinician.`;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const update = () => {
+      const containerWidth = marqueeContainerRef.current?.offsetWidth ?? 0;
+      const contentWidth = marqueeContentRef.current?.scrollWidth ?? 0;
+      setMarqueeOverflow(Math.max(0, contentWidth - containerWidth));
+
+      const height = footerBarRef.current?.offsetHeight ?? 0;
+      document.documentElement.style.setProperty(
+        "--mobile-legal-footer-height",
+        height > 0 ? `${height}px` : "0px",
+      );
+    };
+
+    update();
+
+    let observer: ResizeObserver | null = null;
+    if ("ResizeObserver" in window) {
+      observer = new ResizeObserver(() => {
+        update();
+      });
+
+      if (footerBarRef.current) {
+        observer.observe(footerBarRef.current);
+      }
+      if (marqueeContainerRef.current) {
+        observer.observe(marqueeContainerRef.current);
+      }
+      if (marqueeContentRef.current) {
+        observer.observe(marqueeContentRef.current);
+      }
+    }
+
+    window.addEventListener("resize", update);
+
+    return () => {
+      window.removeEventListener("resize", update);
+      observer?.disconnect();
+      document.documentElement.style.setProperty("--mobile-legal-footer-height", "0px");
+    };
+  }, [legalCopy]);
+
+  const marqueeActive = marqueeOverflow > 0;
+  const marqueeStyles: CSSProperties | undefined = marqueeActive
+    ? ({
+        "--marquee-offset": `${marqueeOverflow}px`,
+        "--marquee-duration": `${Math.min(Math.max(marqueeOverflow / 24, 12), 28)}s`,
+      } as CSSProperties)
+    : undefined;
+
   const handleReject = () => {
     if (typeof window !== "undefined") {
       const essentialOnly: CookiePrefs = {
@@ -216,17 +274,40 @@ export default function LegalPrivacyFooter() {
 
   return (
     <>
-      <footer className="flex-shrink-0 border-t border-black/10 bg-white/80 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/60">
-        <div className="mx-auto flex w-full max-w-screen-2xl flex-col items-center justify-center gap-1.5 px-6 py-1.5 text-center text-[11px] text-slate-600 dark:text-slate-300 sm:flex-row sm:gap-3 sm:text-xs">
-          <p className="leading-4 sm:ml-[17rem] sm:max-w-3xl">
-            {BRAND} can make mistakes. This is not medical advice. Always consult a clinician.
-          </p>
+      <footer
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white/90 backdrop-blur-md dark:border-white/10 dark:bg-slate-950/80 md:static"
+        style={{ paddingBottom: "max(8px, env(safe-area-inset-bottom, 8px))" }}
+      >
+        <div
+          ref={footerBarRef}
+          className="mx-auto flex w-full max-w-screen-2xl items-center gap-3 px-4 py-2 text-[11px] leading-4 text-slate-600 dark:text-slate-300 sm:px-6 sm:text-xs"
+          style={{
+            paddingLeft: "max(16px, env(safe-area-inset-left, 16px))",
+            paddingRight: "max(16px, env(safe-area-inset-right, 16px))",
+          }}
+        >
+          <div
+            ref={marqueeContainerRef}
+            className="relative flex-1 overflow-hidden text-center sm:text-left"
+          >
+            <div
+              ref={marqueeContentRef}
+              className={`inline-flex min-w-full items-center justify-center whitespace-nowrap ${
+                marqueeActive ? "legal-footer-marquee" : ""
+              }`}
+              style={marqueeStyles}
+            >
+              <span>{legalCopy}</span>
+            </div>
+          </div>
           <button
             type="button"
             onClick={openModal}
-            className="rounded-md px-2.5 py-1 text-xs font-medium text-primary transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white sm:ml-2 sm:text-xs dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900"
+            className="ml-2 inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-black/10 bg-white/80 text-primary shadow-sm transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 dark:border-white/10 dark:bg-slate-900/70 dark:text-sky-400 dark:hover:bg-slate-900"
+            aria-label="Legal & Privacy"
           >
-            Legal &amp; Privacy
+            <ShieldCheck className="h-5 w-5" />
+            <span className="sr-only">Legal &amp; Privacy</span>
           </button>
         </div>
       </footer>

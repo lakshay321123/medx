@@ -123,6 +123,7 @@ html, body {
   --medx-surface: rgba(255,255,255,0.80);
   --medx-panel:   rgba(255,255,255,0.90);
   --medx-outline: rgba(15, 23, 42, 0.10);
+  --mobile-legal-footer-height: 0px;
 }
 .dark {
   --medx-bg-a: #06122E;   /* deep navy */
@@ -178,6 +179,26 @@ html, body {
 }
 .animate-caret {
   animation: caret 1s steps(1, end) infinite;
+}
+
+@keyframes legal-footer-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-1 * var(--marquee-offset, 0px)));
+  }
+}
+
+.legal-footer-marquee {
+  animation: legal-footer-marquee var(--marquee-duration, 16s) ease-in-out infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .legal-footer-marquee {
+    animation-duration: 0.001ms;
+    animation-iteration-count: 1;
+  }
 }
 
 /* Ensure message content is always clickable */
