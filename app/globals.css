@@ -219,9 +219,9 @@ body {
     --mobile-header-height: calc(var(--mobile-header-base-height) + var(--mobile-header-safe-area));
     --mobile-footer-base-height: 48px;
     --mobile-footer-safe-area: env(safe-area-inset-bottom);
-    --mobile-footer-height: calc(var(--mobile-footer-base-height) + var(--mobile-footer-safe-area));
+    --mobile-footer-height: var(--mobile-footer-base-height);
     --mobile-composer-height: 88px;
-    --mobile-composer-offset: max(0.75rem, var(--mobile-footer-safe-area));
+    --mobile-composer-offset: 0.75rem;
     --mobile-composer-gap: calc(var(--mobile-composer-height) + var(--mobile-composer-offset));
   }
 

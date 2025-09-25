@@ -146,12 +146,30 @@ export default function LegalPrivacyFooter() {
     const fallbackBase = Number.isFinite(parsedBase) ? parsedBase : 48;
     const previous = root.style.getPropertyValue("--mobile-footer-height");
     const hadPrevious = previous.trim().length > 0;
+    const previousOffset = root.style.getPropertyValue("--mobile-composer-offset");
+    const hadPreviousOffset = previousOffset.trim().length > 0;
+    const previousSafeArea = root.style.getPropertyValue("--mobile-footer-safe-area");
+    const hadPreviousSafeArea = previousSafeArea.trim().length > 0;
 
     const updateHeight = () => {
       const rect = footer.getBoundingClientRect();
       const measured = Math.max(Math.round(rect.height), 0);
       const next = Math.max(fallbackBase, measured);
+      const rootStyles = window.getComputedStyle(root);
+      const fontSizeRaw = rootStyles.fontSize;
+      const fontSize = Number.parseFloat(fontSizeRaw || "") || 16;
+      const footerStyles = window.getComputedStyle(footer);
+      const safeInsetRaw = footerStyles.paddingBottom;
+      const safeInset = Number.parseFloat(safeInsetRaw || "") || 0;
+      const offset = Math.max(fontSize * 0.75, safeInset);
       root.style.setProperty("--mobile-footer-height", `${next}px`);
+      root.style.setProperty("--mobile-footer-safe-area", `${safeInset}px`);
+      root.style.setProperty("--mobile-composer-offset", `${offset}px`);
+      window.dispatchEvent(
+        new CustomEvent("mobile-footer-height-change", {
+          detail: { height: next, offset },
+        }),
+      );
     };
 
     updateHeight();
@@ -175,6 +193,10 @@ export default function LegalPrivacyFooter() {
       if (observer) observer.disconnect();
       if (hadPrevious) root.style.setProperty("--mobile-footer-height", previous);
       else root.style.removeProperty("--mobile-footer-height");
+      if (hadPreviousSafeArea) root.style.setProperty("--mobile-footer-safe-area", previousSafeArea);
+      else root.style.removeProperty("--mobile-footer-safe-area");
+      if (hadPreviousOffset) root.style.setProperty("--mobile-composer-offset", previousOffset);
+      else root.style.removeProperty("--mobile-composer-offset");
     };
   }, []);
   useEffect(() => {

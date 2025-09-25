@@ -51,8 +51,19 @@ export function ChatWindow() {
 
     updateMetrics();
 
+    const handleFooterMetrics = () => {
+      updateMetrics();
+    };
+
+    window.addEventListener("mobile-footer-height-change", handleFooterMetrics);
+    window.addEventListener("resize", updateMetrics);
+
     if (typeof ResizeObserver === "undefined") {
-      return restore;
+      return () => {
+        window.removeEventListener("mobile-footer-height-change", handleFooterMetrics);
+        window.removeEventListener("resize", updateMetrics);
+        restore();
+      };
     }
 
     const observer = new ResizeObserver(() => {
@@ -62,6 +73,8 @@ export function ChatWindow() {
 
     return () => {
       observer.disconnect();
+      window.removeEventListener("mobile-footer-height-change", handleFooterMetrics);
+      window.removeEventListener("resize", updateMetrics);
       restore();
     };
   }, []);
