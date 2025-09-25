@@ -106,52 +106,54 @@ export function ChatWindow() {
     <div className="flex h-full flex-col">
       <div
         ref={chatRef}
-        className={`flex-1 px-4 pt-4 md:px-0 md:pt-0 ${
+        className={`flex-1 pt-4 md:px-0 md:pt-0 ${
           hasScrollableContent
             ? "overflow-y-auto mobile-chat-scroll"
             : "overflow-hidden mobile-chat-scroll-empty"
         } md:pb-0 md:overflow-y-auto`}
       >
-        {messages.map((m, idx) => {
-          const isLastMessage = idx === messages.length - 1;
-          const showThinkingTimer = isLastMessage && isThinking;
-          return (
-            <div key={m.id} className="space-y-2">
-              <MessageRow m={m} />
-              {showThinkingTimer ? (
-                <div className="px-2">
-                  <div className="mt-1 inline-flex items-center gap-3 text-sm text-slate-500">
-                    <span>Thinking…</span>
-                    <AnalyzingInline active={showThinkingTimer} />
+        <div className="px-4">
+          {messages.map((m, idx) => {
+            const isLastMessage = idx === messages.length - 1;
+            const showThinkingTimer = isLastMessage && isThinking;
+            return (
+              <div key={m.id} className="space-y-2">
+                <MessageRow m={m} />
+                {showThinkingTimer ? (
+                  <div className="px-2">
+                    <div className="mt-1 inline-flex items-center gap-3 text-sm text-slate-500">
+                      <span>Thinking…</span>
+                      <AnalyzingInline active={showThinkingTimer} />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+          {results.length > 0 && (
+            <div className="p-2 space-y-2">
+              {results.map((place) => (
+                <div key={place.id} className="result-card border p-2 rounded">
+                  <p>{place.name}</p>
+                  <p className="text-sm opacity-80">{place.address}</p>
+                  <div className="flex flex-wrap items-center gap-3 text-sm">
+                    {place.phone && (
+                      <a href={`tel:${place.phone}`} className="underline">
+                        Call
+                      </a>
+                    )}
+                    {place.mapLink && (
+                      <LinkBadge href={place.mapLink}>
+                        Directions
+                      </LinkBadge>
+                    )}
+                    <span className="opacity-70">{place.distance_km} km</span>
                   </div>
                 </div>
-              ) : null}
+              ))}
             </div>
-          );
-        })}
-        {results.length > 0 && (
-          <div className="p-2 space-y-2">
-            {results.map((place) => (
-              <div key={place.id} className="result-card border p-2 rounded">
-                <p>{place.name}</p>
-                <p className="text-sm opacity-80">{place.address}</p>
-                <div className="flex flex-wrap items-center gap-3 text-sm">
-                  {place.phone && (
-                    <a href={`tel:${place.phone}`} className="underline">
-                      Call
-                    </a>
-                  )}
-                  {place.mapLink && (
-                    <LinkBadge href={place.mapLink}>
-                      Directions
-                    </LinkBadge>
-                  )}
-                  <span className="opacity-70">{place.distance_km} km</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+          )}
+        </div>
       </div>
       <div ref={composerRef} className="mobile-composer md:static md:bg-transparent md:p-0 md:shadow-none">
         <ChatInput onSend={handleSend} />
