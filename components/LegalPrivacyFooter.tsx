@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 type CookiePrefs = {
   essential: true;
@@ -144,7 +144,7 @@ export default function LegalPrivacyFooter() {
     }
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (typeof window === "undefined") return;
     const footer = footerRef.current;
     if (!footer) return;

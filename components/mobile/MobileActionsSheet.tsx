@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import type { ReactNode, TouchEvent as ReactTouchEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Check, Globe2, Moon, Search, Settings, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -19,7 +20,7 @@ const MODE_OPTIONS = [
   { key: "aidoc", label: "AI Doc" },
 ] as const;
 
-type ModeKey = typeof MODE_OPTIONS[number]["key"];
+type ModeKey = (typeof MODE_OPTIONS)[number]["key"];
 
 function deriveModeLabel(state: ModeState): string {
   if (state.base === "aidoc") return "AI Doc";
@@ -57,6 +58,14 @@ export default function MobileActionsSheet() {
   const [query, setQuery] = useState("");
   const titleId = useId();
 
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const startYRef = useRef<number | null>(null);
+  const startScrollRef = useRef(0);
+  const draggingRef = useRef(false);
+  const dragOffsetRef = useRef(0);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+
   useEffect(() => {
     if (sheetOpen) {
       const prev = document.body.style.overflow;
@@ -71,8 +80,18 @@ export default function MobileActionsSheet() {
   useEffect(() => {
     if (!sheetOpen) {
       setQuery("");
+      dragOffsetRef.current = 0;
+      setDragOffset(0);
+      setIsDragging(false);
+      return;
     }
-  }, [sheetOpen]);
+
+    requestAnimationFrame(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = 0;
+      }
+    });
+  }, [sheetOpen, sheetView]);
 
   const modeState = useMemo(() => {
     const currentTheme = (theme as "light" | "dark") ?? "light";
@@ -103,7 +122,7 @@ export default function MobileActionsSheet() {
     closeSheet();
   };
 
-  const renderHeader = (title: string, onBack?: () => void) => (
+  const buildHeader = (title: string, onBack?: () => void): JSX.Element => (
     <div className="mobile-sheet-header">
       {onBack ? (
         <button type="button" className="mobile-icon-btn" onClick={onBack} aria-label="Back">
@@ -112,137 +131,204 @@ export default function MobileActionsSheet() {
       ) : (
         <span className="mobile-sheet-handle" aria-hidden="true" />
       )}
-      <div className="mobile-sheet-title" id={titleId}>{title}</div>
+      <div className="mobile-sheet-title" id={titleId}>
+        {title}
+      </div>
       <button type="button" className="mobile-icon-btn" onClick={closeSheet} aria-label="Close sheet">
         <XIcon />
       </button>
     </div>
   );
 
-  const sheetLabel = sheetView === "mode"
-    ? "Mode options"
-    : sheetView === "country"
-      ? "Country selector"
-      : "Menu";
+  let header: JSX.Element;
+  let body: ReactNode;
+
+  switch (sheetView) {
+    case "mode":
+      header = buildHeader("Mode", () => setSheetView("main"));
+      body = (
+        <div className="mobile-sheet-section">
+          {MODE_OPTIONS.map(option => {
+            const next = nextStateForMode(modeState, option.key);
+            const isActive = deriveModeLabel(modeState) === option.label;
+            return (
+              <button
+                key={option.key}
+                type="button"
+                className="mobile-sheet-item"
+                onClick={() => {
+                  router.push(toQuery(next, searchParams));
+                  closeSheet();
+                }}
+              >
+                <div className="mobile-sheet-item-label">{option.label}</div>
+                <div className="mobile-sheet-item-icon">{isActive ? <Check className="h-4 w-4" /> : null}</div>
+              </button>
+            );
+          })}
+        </div>
+      );
+      break;
+    case "country":
+      header = buildHeader("Country", () => setSheetView("main"));
+      body = (
+        <div className="mobile-sheet-section">
+          <div className="mobile-sheet-search">
+            <Search className="h-4 w-4" />
+            <input
+              value={query}
+              onChange={event => setQuery(event.target.value)}
+              placeholder="Search country or code"
+            />
+          </div>
+          <div className="mobile-sheet-list">
+            {filteredCountries.map(c => (
+              <button
+                key={c.code3}
+                type="button"
+                className="mobile-sheet-item"
+                onClick={() => {
+                  setCountry(c.code3);
+                  closeSheet();
+                }}
+              >
+                <div className="mobile-sheet-country">
+                  <span className="text-xl">{c.flag}</span>
+                  <span className="truncate">{c.name}</span>
+                </div>
+                <div className="mobile-sheet-item-icon">
+                  {country.code3 === c.code3 ? <Check className="h-4 w-4" /> : null}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+      break;
+    default:
+      header = buildHeader("Menu");
+      body = (
+        <div className="mobile-sheet-section">
+          <button type="button" className="mobile-sheet-item" onClick={() => setSheetView("mode")}>
+            <div className="mobile-sheet-item-label">Mode</div>
+            <div className="mobile-sheet-item-value">{modeLabel}</div>
+          </button>
+          <button type="button" className="mobile-sheet-item" onClick={goToSettings}>
+            <div className="mobile-sheet-item-label">Settings</div>
+            <div className="mobile-sheet-item-icon">
+              <Settings className="h-4 w-4" />
+            </div>
+          </button>
+          <button
+            type="button"
+            className="mobile-sheet-item"
+            onClick={() => {
+              toggleTheme();
+              closeSheet();
+            }}
+          >
+            <div className="mobile-sheet-item-label">{theme === "dark" ? "Light Mode" : "Dark Mode"}</div>
+            <div className="mobile-sheet-item-icon">
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </div>
+          </button>
+          <button type="button" className="mobile-sheet-item" onClick={() => setSheetView("country")}>
+            <div className="mobile-sheet-item-label">Country</div>
+            <div className="mobile-sheet-item-value inline-flex items-center gap-2">
+              <Globe2 className="h-4 w-4" />
+              <span className="font-medium">{country.code3}</span>
+            </div>
+          </button>
+        </div>
+      );
+  }
+
+  const sheetLabel =
+    sheetView === "mode"
+      ? "Mode options"
+      : sheetView === "country"
+        ? "Country selector"
+        : "Menu";
+
+  const handleTouchStart = (event: ReactTouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    startYRef.current = touch?.clientY ?? null;
+    startScrollRef.current = scrollRef.current?.scrollTop ?? 0;
+    draggingRef.current = false;
+  };
+
+  const handleTouchMove = (event: ReactTouchEvent<HTMLDivElement>) => {
+    if (startYRef.current === null) return;
+    const touch = event.touches[0];
+    if (!touch) return;
+
+    const deltaY = touch.clientY - startYRef.current;
+    if (deltaY <= 0) {
+      if (draggingRef.current) {
+        draggingRef.current = false;
+        dragOffsetRef.current = 0;
+        setDragOffset(0);
+        setIsDragging(false);
+      }
+      return;
+    }
+
+    const currentScroll = scrollRef.current?.scrollTop ?? 0;
+    if (!draggingRef.current) {
+      if (startScrollRef.current > 0 || currentScroll > 0 || deltaY < 8) {
+        return;
+      }
+      draggingRef.current = true;
+      setIsDragging(true);
+    }
+
+    const eased = Math.min(Math.pow(deltaY, 0.92), 260);
+    dragOffsetRef.current = eased;
+    setDragOffset(eased);
+    event.preventDefault();
+  };
+
+  const handleTouchEnd = () => {
+    const shouldClose = draggingRef.current && dragOffsetRef.current > 96;
+
+    draggingRef.current = false;
+    startYRef.current = null;
+    startScrollRef.current = 0;
+
+    if (shouldClose) {
+      dragOffsetRef.current = 0;
+      setDragOffset(0);
+      setIsDragging(false);
+      closeSheet();
+      return;
+    }
+
+    if (dragOffsetRef.current !== 0) {
+      dragOffsetRef.current = 0;
+      setDragOffset(0);
+    }
+    setIsDragging(false);
+  };
 
   return (
     <div className="mobile-sheet-root md:hidden">
       <div className="mobile-sheet-backdrop" aria-hidden="true" onClick={closeSheet} />
-      <div className="mobile-sheet-panel" role="dialog" aria-modal="true" aria-label={sheetLabel} aria-labelledby={titleId}>
-        {sheetView === "main" ? (
-          <>
-            {renderHeader("Menu")}
-            <div className="mobile-sheet-section">
-              <button
-                type="button"
-                className="mobile-sheet-item"
-                onClick={() => setSheetView("mode")}
-              >
-                <div className="mobile-sheet-item-label">Mode</div>
-                <div className="mobile-sheet-item-value">{modeLabel}</div>
-              </button>
-              <button
-                type="button"
-                className="mobile-sheet-item"
-                onClick={goToSettings}
-              >
-                <div className="mobile-sheet-item-label">Settings</div>
-                <div className="mobile-sheet-item-icon"><Settings className="h-4 w-4" /></div>
-              </button>
-              <button
-                type="button"
-                className="mobile-sheet-item"
-                onClick={() => {
-                  toggleTheme();
-                  closeSheet();
-                }}
-              >
-                <div className="mobile-sheet-item-label">{theme === "dark" ? "Light Mode" : "Dark Mode"}</div>
-                <div className="mobile-sheet-item-icon">
-                  {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                </div>
-              </button>
-              <button
-                type="button"
-                className="mobile-sheet-item"
-                onClick={() => setSheetView("country")}
-              >
-                <div className="mobile-sheet-item-label">Country</div>
-                <div className="mobile-sheet-item-value inline-flex items-center gap-2">
-                  <Globe2 className="h-4 w-4" />
-                  <span className="font-medium">{country.code3}</span>
-                </div>
-              </button>
-            </div>
-          </>
-        ) : null}
-
-        {sheetView === "mode" ? (
-          <>
-            {renderHeader("Mode", () => setSheetView("main"))}
-            <div className="mobile-sheet-section">
-              {MODE_OPTIONS.map(option => {
-                const next = nextStateForMode(modeState, option.key);
-                const isActive = deriveModeLabel(modeState) === option.label;
-                return (
-                  <button
-                    key={option.key}
-                    type="button"
-                    className="mobile-sheet-item"
-                    onClick={() => {
-                      router.push(toQuery(next, searchParams));
-                      closeSheet();
-                    }}
-                  >
-                    <div className="mobile-sheet-item-label">{option.label}</div>
-                    <div className="mobile-sheet-item-icon">
-                      {isActive ? (
-                        <Check className="h-4 w-4" />
-                      ) : null}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        ) : null}
-
-        {sheetView === "country" ? (
-          <>
-            {renderHeader("Country", () => setSheetView("main"))}
-            <div className="mobile-sheet-section">
-              <div className="mobile-sheet-search">
-                <Search className="h-4 w-4" />
-                <input
-                  value={query}
-                  onChange={event => setQuery(event.target.value)}
-                  placeholder="Search country or code"
-                />
-              </div>
-              <div className="mobile-sheet-list">
-                {filteredCountries.map(c => (
-                  <button
-                    key={c.code3}
-                    type="button"
-                    className="mobile-sheet-item"
-                    onClick={() => {
-                      setCountry(c.code3);
-                      closeSheet();
-                    }}
-                  >
-                    <div className="mobile-sheet-country">
-                      <span className="text-xl">{c.flag}</span>
-                      <span className="truncate">{c.name}</span>
-                    </div>
-                    <div className="mobile-sheet-item-icon">
-                      {country.code3 === c.code3 ? <Check className="h-4 w-4" /> : null}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </>
-        ) : null}
+      <div
+        className="mobile-sheet-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label={sheetLabel}
+        aria-labelledby={titleId}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        style={{ transform: `translateY(${dragOffset}px)`, transition: isDragging ? "none" : undefined }}
+      >
+        {header}
+        <div ref={scrollRef} className="mobile-sheet-content">
+          {body}
+        </div>
       </div>
     </div>
   );

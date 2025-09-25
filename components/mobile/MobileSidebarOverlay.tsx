@@ -40,7 +40,7 @@ export default function MobileSidebarOverlay() {
     const touch = event.touches[0];
     const deltaX = touch.clientX - swipeOrigin.current.x;
     const deltaY = touch.clientY - swipeOrigin.current.y;
-    if (Math.abs(deltaX) > Math.abs(deltaY) && deltaX < -40) {
+    if (Math.abs(deltaX) > Math.abs(deltaY) && deltaX < -80) {
       swipeOrigin.current = null;
       close();
     }
