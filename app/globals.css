@@ -233,28 +233,6 @@ body {
     box-sizing: border-box;
   }
 
-  .mobile-header-brand {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    overflow: hidden;
-  }
-
-  .mobile-header-logo {
-    display: block;
-    flex-shrink: 0;
-    max-height: 1.5rem;
-    width: auto;
-  }
-
-  .mobile-header-logo img {
-    max-height: 1.5rem;
-    width: auto;
-    height: auto;
-  }
-
   .mobile-header-actions {
     display: flex;
     align-items: center;
@@ -530,10 +508,10 @@ body {
   }
 
   .mobile-composer {
-    position: sticky;
-    bottom: calc(var(--mobile-footer-height, 0px) + var(--mobile-composer-offset, 0px));
+    position: fixed;
     left: 0;
     right: 0;
+    bottom: calc(var(--mobile-footer-height, 0px) + var(--mobile-composer-offset, 0px));
     z-index: 45;
     padding: 0.75rem 1rem;
     background: var(--medx-panel);
@@ -625,19 +603,22 @@ body {
   }
 
   .mobile-mode-controls {
+    flex: 1;
+    min-width: 0;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
-    margin-left: 0.25rem;
     position: relative;
-    min-width: 0;
   }
 
   .mobile-mode-trigger {
-    display: inline-flex;
+    display: flex;
     align-items: center;
+    justify-content: center;
     gap: 0.35rem;
     min-width: 0;
+    max-width: 100%;
     border-radius: 9999px;
     border: 1px solid var(--medx-outline);
     background: var(--medx-surface);
@@ -664,11 +645,14 @@ body {
   }
 
   .mobile-mode-label {
+    flex: 1;
+    min-width: 0;
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 7.5rem;
+    max-width: 100%;
+    text-align: center;
   }
 
   .mobile-mode-dropdown {
