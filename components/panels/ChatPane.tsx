@@ -3087,132 +3087,195 @@ ${systemCommon}` + baseSys;
             : 'overflow-hidden mobile-chat-scroll-empty'
         }${showWelcomeCard ? ' mt-4' : ''} md:overflow-y-auto`}
       >
-        <div className={`flex min-h-full flex-col justify-end px-6${showWelcomeCard ? '' : ' pt-6'}`}>
+        <div className={`flex min-h-full flex-col justify-end px-3 md:px-6${showWelcomeCard ? '' : ' pt-6'}`}>
           {mode === "doctor" && researchMode && (
-            <div className="mb-6 space-y-4">
-              <ResearchFilters mode="research" onResults={handleTrials} />
-              {searched && trialRows.length === 0 && (
-                <div className="rounded-xl border border-slate-200 bg-white/80 p-3 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">
-                  No trials found. Try removing a filter, switching country, or using broader keywords.
+            <div className="mb-6">
+              <div className="mx-auto w-full max-w-[420px] space-y-3 px-3 pb-[110px] md:max-w-3xl md:space-y-4 md:px-0 md:pb-0">
+                <div className="rounded-2xl bg-white/5 p-4 text-white shadow-sm dark:bg-white/5">
+                  <h2 className="text-base font-bold">Clinical Mode: ON</h2>
+                  <p className="text-sm opacity-80">
+                    Evidence-ready, clinician-first.
+                    <br />
+                    Research: On — web evidence
+                  </p>
                 </div>
-              )}
-              {summary && (
-                <div className="space-y-4 rounded-xl border border-slate-200 bg-white/85 p-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex items-start gap-2">
-                      <div className="mt-0.5 shrink-0">
-                        {mode === "doctor" ? <Stethoscope size={16} /> : <Users size={16} />}
+
+                <div className="md:hidden">
+                  <ResearchFilters mode="research" onResults={handleTrials} variant="mobileCard" />
+                </div>
+                <div className="hidden md:block">
+                  <ResearchFilters mode="research" onResults={handleTrials} />
+                </div>
+
+                {searched && trialRows.length === 0 && (
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/80 shadow-sm backdrop-blur-sm md:rounded-xl md:border-slate-200 md:bg-white/80 md:text-slate-600">
+                    No trials found. Try removing a filter, switching country, or using broader keywords.
+                  </div>
+                )}
+
+                {summary && (
+                  <div className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white shadow-sm backdrop-blur-sm md:rounded-xl md:border-slate-200 md:bg-white/85 md:text-slate-900">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="flex items-start gap-2">
+                        <div className="mt-0.5 shrink-0 text-white md:text-slate-700">
+                          {mode === "doctor" ? <Stethoscope size={16} /> : <Users size={16} />}
+                        </div>
+                        <div className="flex-1 whitespace-pre-wrap">{summary}</div>
                       </div>
-                      <div className="flex-1 whitespace-pre-wrap">{summary}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {stats?.recruitingCount ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800 dark:bg-green-900/40 dark:text-green-200">
-                          • Recruiting: {stats.recruitingCount}
-                        </span>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={() => navigator.clipboard.writeText(summary!)}
-                        className="rounded-full border border-slate-200 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-                        title="Copy summary"
-                      >
-                        <span className="inline-flex items-center gap-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {stats?.recruitingCount ? (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-xs text-white md:border-0 md:bg-green-100 md:text-green-800">
+                            • Recruiting: {stats.recruitingCount}
+                          </span>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => navigator.clipboard.writeText(summary!)}
+                          className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1 text-xs font-medium text-white transition hover:bg-white/10 md:border-slate-200 md:text-slate-700 md:hover:bg-slate-100"
+                          title="Copy summary"
+                        >
                           <Clipboard size={14} /> Copy
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowDetails(s => !s)}
-                        className="rounded-full border border-slate-200 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-                        title="View details"
-                      >
-                        <span className="inline-flex items-center gap-1">
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowDetails(s => !s)}
+                          className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1 text-xs font-medium text-white transition hover:bg-white/10 md:border-slate-200 md:text-slate-700 md:hover:bg-slate-100"
+                          title="View details"
+                        >
                           {showDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                           {showDetails ? "Hide details" : "View details"}
-                        </span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {showDetails && stats && (
+                      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-white shadow-sm backdrop-blur-sm md:rounded-lg md:border-slate-200 md:bg-white md:text-slate-900">
+                          <div className="border-b border-white/20 pb-2 font-medium text-white md:border-slate-200 md:text-slate-900">
+                            Phases
+                          </div>
+                          <ul className="space-y-1 px-3 py-2 text-sm">
+                            {Object.entries(stats.byPhase).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
+                              <li key={k} className="flex justify-between text-white md:text-slate-700">
+                                <span>Phase {k}</span>
+                                <span>{v}</span>
+                              </li>
+                            ))}
+                            {Object.keys(stats.byPhase).length === 0 && (
+                              <li className="text-white/70 md:text-slate-500">—</li>
+                            )}
+                          </ul>
+                        </div>
+
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-white shadow-sm backdrop-blur-sm md:rounded-lg md:border-slate-200 md:bg-white md:text-slate-900">
+                          <div className="border-b border-white/20 pb-2 font-medium text-white md:border-slate-200 md:text-slate-900">
+                            Statuses
+                          </div>
+                          <ul className="space-y-1 px-3 py-2 text-sm">
+                            {Object.entries(stats.byStatus).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
+                              <li key={k} className="flex justify-between text-white md:text-slate-700">
+                                <span>{k}</span>
+                                <span>{v}</span>
+                              </li>
+                            ))}
+                            {Object.keys(stats.byStatus).length === 0 && (
+                              <li className="text-white/70 md:text-slate-500">—</li>
+                            )}
+                          </ul>
+                        </div>
+
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-white shadow-sm backdrop-blur-sm md:rounded-lg md:border-slate-200 md:bg-white md:text-slate-900">
+                          <div className="border-b border-white/20 pb-2 font-medium text-white md:border-slate-200 md:text-slate-900">
+                            Top countries
+                          </div>
+                          <ul className="space-y-1 px-3 py-2 text-sm">
+                            {Object.entries(stats.byCountry)
+                              .sort((a, b) => b[1] - a[1])
+                              .slice(0, 5)
+                              .map(([k, v]) => (
+                                <li key={k} className="flex justify-between text-white md:text-slate-700">
+                                  <span>{k}</span>
+                                  <span>{v}</span>
+                                </li>
+                              ))}
+                            {Object.keys(stats.byCountry).length === 0 && (
+                              <li className="text-white/70 md:text-slate-500">—</li>
+                            )}
+                          </ul>
+                        </div>
+
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-white shadow-sm backdrop-blur-sm md:rounded-lg md:border-slate-200 md:bg-white md:text-slate-900">
+                          <div className="border-b border-white/20 pb-2 font-medium text-white md:border-slate-200 md:text-slate-900">
+                            Top genes
+                          </div>
+                          <ul className="space-y-1 px-3 py-2 text-sm">
+                            {stats.genesTop.length ? (
+                              stats.genesTop.map(([g, c]) => (
+                                <li key={g} className="flex justify-between text-white md:text-slate-700">
+                                  <span>{g}</span>
+                                  <span>{c}</span>
+                                </li>
+                              ))
+                            ) : (
+                              <li className="text-white/70 md:text-slate-500">—</li>
+                            )}
+                          </ul>
+                        </div>
+
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-white shadow-sm backdrop-blur-sm md:rounded-lg md:border-slate-200 md:bg-white md:text-slate-900">
+                          <div className="border-b border-white/20 pb-2 font-medium text-white md:border-slate-200 md:text-slate-900">
+                            Top conditions
+                          </div>
+                          <ul className="space-y-1 px-3 py-2 text-sm">
+                            {stats.conditionsTop.length ? (
+                              stats.conditionsTop.map(([k, c]) => (
+                                <li key={k} className="flex justify-between capitalize text-white md:text-slate-700">
+                                  <span>{k}</span>
+                                  <span>{c}</span>
+                                </li>
+                              ))
+                            ) : (
+                              <li className="text-white/70 md:text-slate-500">—</li>
+                            )}
+                          </ul>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {trialRows.length > 0 && (
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-white shadow-sm backdrop-blur-sm md:rounded-xl md:border-slate-200 md:bg-white/85 md:text-slate-900">
+                    <div className="mb-2 flex justify-end">
+                      <button
+                        onClick={async () => {
+                          const res = await fetch("/api/trials/export", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ rows: trialRows }),
+                          });
+                          const blob = await res.blob();
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = "trials.csv";
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        }}
+                        className="rounded-full border border-white/20 px-3 py-1 text-xs text-white transition hover:bg-white/10 md:border-slate-200 md:text-slate-700 md:hover:bg-slate-100"
+                      >
+                        Export CSV
                       </button>
                     </div>
+                    <TrialsTable rows={trialRows} />
                   </div>
-
-                  {showDetails && stats && (
-                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                      <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                        <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Phases</div>
-                        <ul className="px-3 py-2 space-y-1">
-                          {Object.entries(stats.byPhase).sort((a,b)=>b[1]-a[1]).map(([k,v])=>(
-                            <li key={k} className="flex justify-between"><span>Phase {k}</span><span>{v}</span></li>
-                          ))}
-                          {Object.keys(stats.byPhase).length===0 && <li className="text-slate-500">—</li>}
-                        </ul>
-                      </div>
-
-                      <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                        <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Statuses</div>
-                        <ul className="px-3 py-2 space-y-1">
-                          {Object.entries(stats.byStatus).sort((a,b)=>b[1]-a[1]).map(([k,v])=>(
-                            <li key={k} className="flex justify-between"><span>{k}</span><span>{v}</span></li>
-                          ))}
-                          {Object.keys(stats.byStatus).length===0 && <li className="text-slate-500">—</li>}
-                        </ul>
-                      </div>
-
-                      <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                        <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Top countries</div>
-                        <ul className="px-3 py-2 space-y-1">
-                          {Object.entries(stats.byCountry).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>(
-                            <li key={k} className="flex justify-between"><span>{k}</span><span>{v}</span></li>
-                          ))}
-                          {Object.keys(stats.byCountry).length===0 && <li className="text-slate-500">—</li>}
-                        </ul>
-                      </div>
-
-                      <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                        <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Top genes</div>
-                        <ul className="px-3 py-2 space-y-1">
-                          {stats.genesTop.length ? stats.genesTop.map(([g,c])=>(
-                            <li key={g} className="flex justify-between"><span>{g}</span><span>{c}</span></li>
-                          )) : <li className="text-slate-500">—</li>}
-                        </ul>
-                      </div>
-
-                      <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                        <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Top conditions</div>
-                        <ul className="px-3 py-2 space-y-1">
-                          {stats.conditionsTop.length ? stats.conditionsTop.map(([k,c])=>(
-                            <li key={k} className="flex justify-between capitalize"><span>{k}</span><span>{c}</span></li>
-                          )) : <li className="text-slate-500">—</li>}
-                        </ul>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-              {trialRows.length > 0 && (
-                <div className="rounded-xl border border-slate-200 bg-white/85 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
-                  <div className="mb-2 flex justify-end">
-                    <button
-                      onClick={async ()=>{
-                        const res = await fetch("/api/trials/export", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ rows: trialRows }) });
-                        const blob = await res.blob();
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url; a.download = "trials.csv"; a.click();
-                        URL.revokeObjectURL(url);
-                      }}
-                      className="rounded-full border border-slate-200 px-3 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-                    >
-                      Export CSV
-                    </button>
-                  </div>
-                  <TrialsTable rows={trialRows} />
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )}
 
           {ui.topic && (
-            <div className="mx-auto mb-2 max-w-3xl">
+            <div className="mx-auto mb-2 w-full max-w-[420px] px-3 md:max-w-3xl md:px-0">
               <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs dark:border-slate-700 dark:bg-slate-900/70">
                 <span className="opacity-70">Topic:</span>
                 <strong className="truncate max-w-[16rem]">{ui.topic}</strong>
@@ -3221,7 +3284,7 @@ ${systemCommon}` + baseSys;
             </div>
           )}
           {ui.contextFrom && (
-            <div className="mx-auto mb-2 max-w-3xl">
+            <div className="mx-auto mb-2 w-full max-w-[420px] px-3 md:max-w-3xl md:px-0">
               <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs dark:border-slate-700 dark:bg-slate-900/70">
                 <span className="opacity-70">Using context from:</span>
                 <strong>{ui.contextFrom}</strong>
@@ -3230,12 +3293,12 @@ ${systemCommon}` + baseSys;
             </div>
           )}
 
-          <div className="mx-auto w-full max-w-3xl space-y-4">
+          <div className="mx-auto w-full max-w-[420px] space-y-4 px-3 md:max-w-3xl md:px-0">
             {renderedMessages}
           </div>
 
           {AIDOC_UI && aidoc && (
-            <div className="mx-auto mt-6 w-full max-w-3xl">
+            <div className="mx-auto mt-6 w-full max-w-[420px] px-3 md:max-w-3xl md:px-0">
               <div className="space-y-2 rounded-xl border border-slate-200 bg-white/85 p-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
                 <div className="font-medium">Observations</div>
                 <div className="text-sm opacity-90">

@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
-import { ArrowDown } from "lucide-react";
+import { useCallback, useEffect, useState, type RefObject } from "react";
 
 type Props = {
   /** Ref to the scrollable chat container (div) */
@@ -14,7 +13,7 @@ type Props = {
   unread?: number;
   /** Callback fired when user jumps to bottom */
   onJump?: () => void;
-  /** Auto hide timeout */
+  /** Auto hide timeout — unused in new FAB but kept for API compatibility */
   autohideMs?: number;
   /** Distance from the bottom of the viewport */
   offsetBottom?: number;
@@ -26,28 +25,24 @@ export default function ScrollToBottom({
   rebindKey,
   unread = 0,
   onJump,
-  autohideMs = 2500,
-  offsetBottom = 132,
+  autohideMs = 2500, // eslint-disable-line @typescript-eslint/no-unused-vars
+  offsetBottom = 88,
 }: Props) {
   const [container, setContainer] = useState<HTMLElement | null>(containerProp ?? targetRef?.current ?? null);
-  const [visible, setVisible] = useState(false);
-  const lastScrollTop = useRef(0);
-  const hideTimer = useRef<number | null>(null);
+  const [showFab, setShowFab] = useState(false);
 
-  const isNearBottom = useCallback((el: HTMLElement) => {
-    return el.scrollHeight - (el.scrollTop + el.clientHeight) < 24;
+  const distanceFromBottom = useCallback((el: HTMLElement) => {
+    return el.scrollHeight - (el.scrollTop + el.clientHeight);
   }, []);
 
-  const show = useCallback(() => {
-    setVisible(true);
-    if (hideTimer.current) window.clearTimeout(hideTimer.current);
-    hideTimer.current = window.setTimeout(() => setVisible(false), autohideMs);
-  }, [autohideMs]);
+  const isNearBottom = useCallback(
+    (el: HTMLElement) => distanceFromBottom(el) < 24,
+    [distanceFromBottom]
+  );
 
   useEffect(() => {
     if (containerProp !== undefined) {
       setContainer(containerProp);
-      lastScrollTop.current = containerProp?.scrollTop ?? 0;
       return;
     }
 
@@ -58,7 +53,6 @@ export default function ScrollToBottom({
 
     if (targetRef.current) {
       setContainer(targetRef.current);
-      lastScrollTop.current = targetRef.current.scrollTop;
       return;
     }
 
@@ -66,7 +60,6 @@ export default function ScrollToBottom({
     const tick = () => {
       if (targetRef.current) {
         setContainer(targetRef.current);
-        lastScrollTop.current = targetRef.current.scrollTop;
       } else {
         raf = window.requestAnimationFrame(tick);
       }
@@ -80,32 +73,14 @@ export default function ScrollToBottom({
   }, [containerProp, targetRef, rebindKey]);
 
   useEffect(() => {
-    return () => {
-      if (hideTimer.current) {
-        window.clearTimeout(hideTimer.current);
-        hideTimer.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
     if (!container) return;
 
     const el = container;
     const onScroll = () => {
-      const curr = el.scrollTop;
-      const goingUp = curr < lastScrollTop.current;
-      lastScrollTop.current = curr;
-
-      if (!isNearBottom(el)) {
-        if (goingUp) show();
-        else setVisible(true);
+      if (!isNearBottom(el) && distanceFromBottom(el) > 200) {
+        setShowFab(true);
       } else {
-        setVisible(false);
-        if (hideTimer.current) {
-          window.clearTimeout(hideTimer.current);
-          hideTimer.current = null;
-        }
+        setShowFab(false);
         onJump?.();
       }
     };
@@ -115,42 +90,37 @@ export default function ScrollToBottom({
     return () => {
       el.removeEventListener("scroll", onScroll);
     };
-  }, [container, isNearBottom, onJump, show]);
+  }, [container, distanceFromBottom, isNearBottom, onJump]);
 
   useEffect(() => {
     if (!container) return;
-    if (unread > 0 && !isNearBottom(container)) show();
-  }, [unread, container, isNearBottom, show]);
+    if (unread > 0 && !isNearBottom(container) && distanceFromBottom(container) > 200) {
+      setShowFab(true);
+    }
+  }, [unread, container, distanceFromBottom, isNearBottom]);
 
   const scrollToBottom = () => {
     if (!container) return;
     container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
     onJump?.();
-    setVisible(false);
-    if (hideTimer.current) {
-      window.clearTimeout(hideTimer.current);
-      hideTimer.current = null;
-    }
+    setShowFab(false);
   };
 
   if (!container) return null;
 
   return (
     <div
-      className={[
-        "pointer-events-none fixed left-1/2 z-[60] -translate-x-1/2 transition-all",
-        visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2",
-      ].join(" ")}
+      className={`pointer-events-none fixed left-1/2 z-[60] -translate-x-1/2 transition-all duration-200 ${showFab ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"}`}
       style={{ bottom: offsetBottom }}
-      aria-hidden={!visible}
+      aria-hidden={!showFab}
     >
       <button
         type="button"
-        className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition hover:opacity-90"
+        className="pointer-events-auto rounded-full bg-blue-600 p-3 text-white shadow-md transition hover:bg-blue-500"
         aria-label="Jump to newest messages"
         onClick={scrollToBottom}
       >
-        <ArrowDown className="h-4 w-4" />
+        ↓
       </button>
     </div>
   );
