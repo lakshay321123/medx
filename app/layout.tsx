@@ -13,6 +13,7 @@ import MemorySnackbar from "@/components/memory/Snackbar";
 import UndoToast from "@/components/memory/UndoToast";
 import AppToastHost from "@/components/ui/AppToastHost";
 import dynamic from "next/dynamic";
+import Script from "next/script";
 
 // Mobile-only UI (loaded client-side)
 const MobileHeader = dynamic(() => import("@/components/mobile/MobileHeader"), { ssr: false });
@@ -25,14 +26,54 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <link rel="dns-prefetch" href="https://fonts.cdnfonts.com" />
+        <link rel="preconnect" href="https://fonts.cdnfonts.com" crossOrigin="anonymous" />
         {/* Keep this ONLY if you still rely on the CDN font.
            If you've migrated to a local/next-font, remove this link. */}
         <link
           rel="stylesheet"
           href="https://fonts.cdnfonts.com/css/proxima-nova-2"
         />
+        <noscript>
+          <style>{"body.font-loading{opacity:1 !important}"}</style>
+        </noscript>
       </head>
-      <body className="h-full bg-slate-100 text-slate-900 dark:bg-transparent dark:text-slate-100 font-sans antialiased">
+      <body className="font-loading h-full bg-slate-100 text-slate-900 dark:bg-transparent dark:text-slate-100 font-sans antialiased">
+        <Script id="ensure-proxima-first" strategy="beforeInteractive">
+          {`
+            (function() {
+              var className = "font-loading";
+              var removeClass = function() {
+                var body = document.body;
+                if (!body || !body.classList.contains(className)) return;
+                body.classList.remove(className);
+                try {
+                  window.sessionStorage.setItem("proxima-font-loaded", "1");
+                } catch (e) {
+                  // ignore
+                }
+              };
+
+              try {
+                if (window.sessionStorage.getItem("proxima-font-loaded")) {
+                  removeClass();
+                  return;
+                }
+              } catch (e) {
+                // ignore
+              }
+
+              if (document.fonts && document.fonts.ready) {
+                document.fonts.ready.then(removeClass);
+                if (document.fonts.status === "loaded") {
+                  removeClass();
+                }
+              } else {
+                window.addEventListener("load", removeClass, { once: true });
+              }
+            })();
+          `}
+        </Script>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <CountryProvider>
             <ContextProvider>

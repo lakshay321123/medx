@@ -17,13 +17,9 @@ module.exports = {
         // Used by className="font-sans"
         sans: [
           "Proxima Nova",
-          "proxima-nova",
           "Proxima Nova Rg",
           "ProximaNova",
-          "Helvetica Neue",
-          "Helvetica",
-          "Arial",
-          "sans-serif",
+          "proxima-nova",
         ],
       },
     },
