@@ -59,10 +59,14 @@ export default function MobileActionsSheet() {
   const titleId = useId();
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const startYRef = useRef<number | null>(null);
   const startScrollRef = useRef(0);
   const draggingRef = useRef(false);
   const dragOffsetRef = useRef(0);
+  const velocityRef = useRef(0);
+  const lastMoveRef = useRef<{ y: number; time: number } | null>(null);
+  const closeTimeoutRef = useRef<number | null>(null);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -83,12 +87,19 @@ export default function MobileActionsSheet() {
       dragOffsetRef.current = 0;
       setDragOffset(0);
       setIsDragging(false);
+      if (closeTimeoutRef.current !== null) {
+        window.clearTimeout(closeTimeoutRef.current);
+        closeTimeoutRef.current = null;
+      }
       return;
     }
 
     requestAnimationFrame(() => {
       if (scrollRef.current) {
         scrollRef.current.scrollTop = 0;
+      }
+      if (panelRef.current) {
+        panelRef.current.style.transform = "translateY(0px)";
       }
     });
   }, [sheetOpen, sheetView]);
@@ -255,6 +266,8 @@ export default function MobileActionsSheet() {
     startYRef.current = touch?.clientY ?? null;
     startScrollRef.current = scrollRef.current?.scrollTop ?? 0;
     draggingRef.current = false;
+    velocityRef.current = 0;
+    lastMoveRef.current = { y: touch?.clientY ?? 0, time: event.timeStamp };
   };
 
   const handleTouchMove = (event: ReactTouchEvent<HTMLDivElement>) => {
@@ -275,31 +288,50 @@ export default function MobileActionsSheet() {
 
     const currentScroll = scrollRef.current?.scrollTop ?? 0;
     if (!draggingRef.current) {
-      if (startScrollRef.current > 0 || currentScroll > 0 || deltaY < 8) {
+      if (startScrollRef.current > 0 || currentScroll > 0 || deltaY < 24) {
         return;
       }
       draggingRef.current = true;
       setIsDragging(true);
     }
 
-    const eased = Math.min(Math.pow(deltaY, 0.92), 260);
-    dragOffsetRef.current = eased;
-    setDragOffset(eased);
+    const panelHeight = panelRef.current?.offsetHeight ?? 640;
+    const offset = Math.min(deltaY, panelHeight);
+    dragOffsetRef.current = offset;
+    setDragOffset(offset);
     event.preventDefault();
+
+    const last = lastMoveRef.current;
+    if (last && event.timeStamp > last.time) {
+      const dy = touch.clientY - last.y;
+      const dt = event.timeStamp - last.time;
+      velocityRef.current = (dy / dt) * 1000;
+    }
+    lastMoveRef.current = { y: touch.clientY, time: event.timeStamp };
   };
 
   const handleTouchEnd = () => {
-    const shouldClose = draggingRef.current && dragOffsetRef.current > 96;
+    const panelHeight = panelRef.current?.offsetHeight ?? 640;
+    const travelled = dragOffsetRef.current;
+    const velocity = velocityRef.current;
+    const shouldClose =
+      draggingRef.current && (travelled > panelHeight * 0.5 || velocity > 850);
 
     draggingRef.current = false;
     startYRef.current = null;
     startScrollRef.current = 0;
 
     if (shouldClose) {
-      dragOffsetRef.current = 0;
-      setDragOffset(0);
+      const exitOffset = panelHeight;
+      dragOffsetRef.current = exitOffset;
       setIsDragging(false);
-      closeSheet();
+      setDragOffset(exitOffset);
+      if (closeTimeoutRef.current !== null) {
+        window.clearTimeout(closeTimeoutRef.current);
+      }
+      closeTimeoutRef.current = window.setTimeout(() => {
+        closeSheet();
+      }, 200);
       return;
     }
 
@@ -314,6 +346,7 @@ export default function MobileActionsSheet() {
     <div className="mobile-sheet-root md:hidden">
       <div className="mobile-sheet-backdrop" aria-hidden="true" onClick={closeSheet} />
       <div
+        ref={panelRef}
         className="mobile-sheet-panel"
         role="dialog"
         aria-modal="true"

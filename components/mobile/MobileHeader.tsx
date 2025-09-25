@@ -28,11 +28,11 @@ export default function MobileHeader() {
         <Menu className="h-5 w-5" />
       </button>
 
-      <div className="flex flex-1 items-center overflow-hidden">
+      <div className="mobile-header-brand">
         <Logo width={132} height={36} className="mobile-header-logo" variant="white" />
       </div>
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="mobile-header-actions">
         <button
           type="button"
           aria-label="New chat"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type CookiePrefs = {
   essential: true;
@@ -126,8 +126,6 @@ export default function LegalPrivacyFooter() {
   const [consentValue, setConsentValue] = useState<"true" | "false" | null>(null);
   const [agreeChecked, setAgreeChecked] = useState(false);
   const [cookiePrefs, setCookiePrefs] = useState<CookiePrefs>(DEFAULT_PREFS);
-  const footerRef = useRef<HTMLElement | null>(null);
-
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -142,47 +140,6 @@ export default function LegalPrivacyFooter() {
     if (parsedConsent === null) {
       setIsOpen(true);
     }
-  }, []);
-
-  useLayoutEffect(() => {
-    if (typeof window === "undefined") return;
-    const footer = footerRef.current;
-    if (!footer) return;
-
-    const root = document.documentElement;
-    const previous = root.style.getPropertyValue("--mobile-footer-height");
-    const hadPrevious = previous.trim().length > 0;
-
-    const update = () => {
-      const rect = footer.getBoundingClientRect();
-      if (rect.height > 0) {
-        root.style.setProperty("--mobile-footer-height", `${Math.round(rect.height)}px`);
-      }
-    };
-
-    update();
-
-    if (typeof ResizeObserver === "undefined") {
-      return () => {
-        if (hadPrevious) {
-          root.style.setProperty("--mobile-footer-height", previous);
-        } else {
-          root.style.removeProperty("--mobile-footer-height");
-        }
-      };
-    }
-
-    const observer = new ResizeObserver(() => update());
-    observer.observe(footer);
-
-    return () => {
-      observer.disconnect();
-      if (hadPrevious) {
-        root.style.setProperty("--mobile-footer-height", previous);
-      } else {
-        root.style.removeProperty("--mobile-footer-height");
-      }
-    };
   }, []);
 
   useEffect(() => {
@@ -253,23 +210,22 @@ export default function LegalPrivacyFooter() {
     setCookiePrefs({ ...DEFAULT_PREFS });
     setConsentValue("false");
     setAgreeChecked(false);
-    setIsOpen(false);
+      setIsOpen(false);
   };
 
   return (
     <>
       <footer
-        ref={footerRef}
         className="mobile-footer flex-shrink-0 border-t border-black/10 bg-white/80 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/60"
       >
-        <div className="mx-auto flex w-full max-w-screen-2xl flex-col items-center justify-center gap-1.5 px-6 py-1.5 text-center text-[11px] text-slate-600 dark:text-slate-300 sm:flex-row sm:gap-3 sm:text-xs">
-          <p className="leading-4 sm:ml-[17rem] sm:max-w-3xl">
+        <div className="mobile-footer-inner mx-auto flex w-full max-w-screen-2xl items-center justify-center gap-1.5 px-6 text-center text-[11px] text-slate-600 dark:text-slate-300 md:gap-3 md:py-1.5 md:text-xs">
+          <p className="mobile-footer-text leading-5">
             {BRAND} can make mistakes. This is not medical advice. Always consult a clinician.
           </p>
           <button
             type="button"
             onClick={openModal}
-            className="rounded-md px-2.5 py-1 text-xs font-medium text-primary transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white sm:ml-2 sm:text-xs dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900"
+            className="mobile-footer-action rounded-md px-2.5 py-1 text-xs font-medium text-primary transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900"
           >
             Legal &amp; Privacy
           </button>

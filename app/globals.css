@@ -202,15 +202,20 @@ body {
     overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: auto;
+    overscroll-behavior-y: none;
+    touch-action: pan-y;
   }
 
   :root {
-    --mobile-header-height: calc(3.5rem + env(safe-area-inset-top));
+    --mobile-header-base-height: 52px;
+    --mobile-header-safe-area: env(safe-area-inset-top);
+    --mobile-header-height: calc(var(--mobile-header-base-height) + var(--mobile-header-safe-area));
+    --mobile-footer-base-height: 48px;
+    --mobile-footer-safe-area: env(safe-area-inset-bottom);
+    --mobile-footer-height: calc(var(--mobile-footer-base-height) + var(--mobile-footer-safe-area));
     --mobile-composer-height: 88px;
-    --mobile-composer-offset: max(0.75rem, env(safe-area-inset-bottom) * 0.6);
+    --mobile-composer-offset: max(0.75rem, var(--mobile-footer-safe-area));
     --mobile-composer-gap: calc(var(--mobile-composer-height) + var(--mobile-composer-offset));
-    --mobile-footer-height: 48px;
   }
 
   .mobile-header {
@@ -221,22 +226,40 @@ body {
     align-items: center;
     gap: 0.75rem;
     height: var(--mobile-header-height);
-    padding: calc(env(safe-area-inset-top) + 0.25rem) 0.75rem 0.4rem;
+    padding: var(--mobile-header-safe-area) 0.75rem 0;
     background: var(--medx-panel);
     backdrop-filter: saturate(140%) blur(16px);
     border-bottom: 1px solid var(--medx-outline);
+    box-sizing: border-box;
+  }
+
+  .mobile-header-brand {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    overflow: hidden;
   }
 
   .mobile-header-logo {
     display: block;
-    max-height: 1.75rem;
+    flex-shrink: 0;
+    max-height: 1.5rem;
     width: auto;
   }
 
   .mobile-header-logo img {
-    max-height: 1.75rem;
+    max-height: 1.5rem;
     width: auto;
     height: auto;
+  }
+
+  .mobile-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
   }
 
   .mobile-icon-btn {
@@ -523,15 +546,49 @@ body {
     position: sticky;
     bottom: 0;
     z-index: 35;
-    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--mobile-footer-base-height);
+    padding: 0 1rem;
+    padding-bottom: var(--mobile-footer-safe-area);
+    background: var(--medx-panel);
+    border-top: 1px solid var(--medx-outline);
     backdrop-filter: saturate(140%) blur(16px);
+  }
+
+  .mobile-footer-inner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    max-width: 64rem;
+  }
+
+  .mobile-footer-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-footer-action {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.85rem;
+    border-radius: 0.75rem;
+    white-space: nowrap;
   }
 
   .mobile-chat-scroll {
     padding-bottom: calc(var(--mobile-composer-gap, 120px) + var(--mobile-footer-height, 0px));
     scroll-padding-bottom: calc(var(--mobile-composer-gap, 120px) + var(--mobile-footer-height, 0px));
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: auto;
+    overscroll-behavior-y: contain;
+    overscroll-behavior-x: none;
     touch-action: pan-y;
   }
 
