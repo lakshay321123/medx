@@ -24,6 +24,24 @@ type MessageActionsProps = {
 const baseButtonClasses =
   'pointer-events-auto inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent text-slate-500 transition hover:bg-slate-200/60 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:text-slate-300 dark:hover:bg-slate-700/60 dark:focus-visible:ring-offset-slate-900 disabled:cursor-not-allowed disabled:opacity-40';
 
+const fallbackCopyToClipboard = (text: string) => {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', 'true');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  textarea.style.pointerEvents = 'none';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  const successful = document.execCommand('copy');
+  document.body.removeChild(textarea);
+  if (!successful) {
+    throw new Error('copy_failed');
+  }
+};
+
 export default function MessageActions(props: MessageActionsProps) {
   const {
     conversationId,
@@ -67,10 +85,15 @@ export default function MessageActions(props: MessageActionsProps) {
     try {
       const text = (getMessageText() || messageContent || '').trim();
       if (!text) throw new Error('empty');
-      if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
+      const clipboard = navigator?.clipboard;
+      if (clipboard?.writeText) {
+        try {
+          await clipboard.writeText(text);
+        } catch {
+          fallbackCopyToClipboard(text);
+        }
       } else {
-        throw new Error('clipboard_unavailable');
+        fallbackCopyToClipboard(text);
       }
       pushToast({ title: 'Copied' });
       trackEvent('copy_clicked', { conversationId, messageId, mode });

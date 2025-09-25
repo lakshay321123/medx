@@ -45,6 +45,12 @@ export async function exportMessageCardToPng(node: HTMLElement | null, options: 
   clone.style.padding = '0';
   clone.style.display = 'block';
 
+  const cloneText = clone.textContent?.trim() ?? '';
+  if (!cloneText) {
+    const content = fallbackContent || 'Shared response unavailable.';
+    return renderFallbackImage(content, options, dark);
+  }
+
   const wrapper = document.createElement('div');
   wrapper.style.position = 'fixed';
   wrapper.style.left = '-10000px';

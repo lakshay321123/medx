@@ -101,6 +101,8 @@ type ShareTargetState = {
   research: boolean;
 };
 
+const SHARE_FALLBACK_MESSAGE = 'Shared response unavailable.';
+
 const cloneFilters = (value: any) => {
   if (value == null) return null;
   try {
@@ -3097,14 +3099,20 @@ ${systemCommon}` + baseSys;
       if (inflight) return inflight;
 
       const request = (async () => {
+        const fallbackMessage = SHARE_FALLBACK_MESSAGE;
+        const safePlainText = (target.plainText || '').trim();
+        const safeMdText = (target.mdText || '').trim();
+        const plainTextPayload = safePlainText || safeMdText || fallbackMessage;
+        const mdTextPayload = safeMdText || undefined;
+
         const res = await fetch('/api/share', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             conversationId: target.conversationId,
             messageId: target.messageId,
-            plainText: target.plainText,
-            mdText: target.mdText,
+            plainText: plainTextPayload,
+            mdText: mdTextPayload,
             mode: target.mode,
             research: target.research,
           }),
@@ -3149,13 +3157,21 @@ ${systemCommon}` + baseSys;
   }, []);
 
   const openShare = useCallback((target: ShareTargetState) => {
-    setShareTarget(target);
+    const fallbackMessage = SHARE_FALLBACK_MESSAGE;
+    const normalizedPlain = target.plainText.trim();
+    const normalizedMd = target.mdText?.trim() ?? '';
+    const normalizedTarget: ShareTargetState = {
+      ...target,
+      plainText: normalizedPlain || normalizedMd || fallbackMessage,
+      mdText: normalizedMd || undefined,
+    };
+    setShareTarget(normalizedTarget);
     setShareBusy(null);
     trackEvent('share_opened', {
-      conversationId: target.conversationId,
-      messageId: target.messageId,
-      mode: target.mode,
-      research: target.research,
+      conversationId: normalizedTarget.conversationId,
+      messageId: normalizedTarget.messageId,
+      mode: normalizedTarget.mode,
+      research: normalizedTarget.research,
     });
   }, []);
 
