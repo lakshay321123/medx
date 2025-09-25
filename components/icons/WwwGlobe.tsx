@@ -9,32 +9,56 @@ export default function WwwGlobeIcon(props: SVGProps<SVGSVGElement>) {
       focusable="false"
       {...props}
     >
-      <circle cx="12" cy="12" r="8.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
-      <path
-        d="M6.75 9.5a8.7 8.7 0 0 1 10.5 0"
+      <circle
+        cx="12"
+        cy="12"
+        r="8.25"
         fill="none"
         stroke="currentColor"
-        strokeWidth="1.25"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        opacity="0.65"
+        strokeWidth="1.5"
       />
       <path
-        d="M5.5 12h13"
+        d="M12 3.75c-2.34 2.18-3.78 5.62-3.78 8.25s1.44 6.07 3.78 8.25"
         fill="none"
         stroke="currentColor"
-        strokeWidth="1.1"
+        strokeWidth="1.35"
         strokeLinecap="round"
         strokeLinejoin="round"
-        opacity="0.65"
       />
       <path
-        d="M7.4 14.7l1.02-3.1h.86l.97 2.65.95-2.65h.86l.98 2.67.95-2.67h.86l1.02 3.1"
+        d="M12 3.75c2.34 2.18 3.78 5.62 3.78 8.25s-1.44 6.07-3.78 8.25"
         fill="none"
         stroke="currentColor"
-        strokeWidth="1.3"
+        strokeWidth="1.35"
         strokeLinecap="round"
         strokeLinejoin="round"
+      />
+      <path
+        d="M4.75 9.2c2.2-1.72 4.98-2.7 7.25-2.7s5.05.98 7.25 2.7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeOpacity="0.7"
+      />
+      <path
+        d="M4.75 14.8c2.2 1.72 4.98 2.7 7.25 2.7s5.05-.98 7.25-2.7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeOpacity="0.7"
+      />
+      <path
+        d="M3.75 12h16.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeOpacity="0.7"
       />
     </svg>
   );

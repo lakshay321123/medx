@@ -118,7 +118,7 @@ export default function MobileHeader() {
                 : "Research mode unavailable"
             }
           >
-            <WwwGlobeIcon className="h-5 w-5" />
+            <WwwGlobeIcon className="h-[21px] w-[21px]" />
           </button>
           {modeOpen ? (
             <div className="mobile-mode-dropdown" role="menu">
