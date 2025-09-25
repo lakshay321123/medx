@@ -201,9 +201,7 @@ export async function GET(_req: NextRequest) {
       .maybeSingle(),
     sb
       .from("observations")
-      .select(
-        "id, kind, name, value_num, value_text, unit, observed_at, meta, details, thread_id"
-      )
+      .select("*")
       .eq("user_id", userId)
       .order("observed_at", { ascending: false })
       .limit(600),
@@ -276,8 +274,8 @@ export async function GET(_req: NextRequest) {
       value: r.value_num ?? r.value_text ?? null,
       unit: r.unit ?? null,
       observedAt: r.observed_at,
-      meta: r.meta ?? r.details ?? null,
-      name: r.name ?? null,
+      meta: r.meta ?? (r as any).details ?? null,
+      name: (r as any).name ?? null,
       raw: r,
     });
   }
