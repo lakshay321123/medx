@@ -142,6 +142,8 @@ export default function MedicalProfile() {
   const [nextStepsDraft, setNextStepsDraft] = useState("");
   const [savingNextSteps, setSavingNextSteps] = useState(false);
 
+  const extractedMedications = useMemo(() => extractMedicationEntries(data), [data]);
+
   const latestMap: ObservationMap = (data?.latest as ObservationMap) || {};
 
   useEffect(() => {
@@ -242,7 +244,6 @@ export default function MedicalProfile() {
     },
   ];
 
-  const extractedMedications = useMemo(() => extractMedicationEntries(data), [data]);
   const labs = data?.groups?.labs ?? [];
   const medsEmpty = medications.length === 0;
 
