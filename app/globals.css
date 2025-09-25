@@ -5,6 +5,13 @@
 /* smooth theme transitions */
 * { transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
 
+@layer base {
+  html,
+  body {
+    font-family: "Proxima Nova", "proxima-nova", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+}
+
 .btn-secondary{
   @apply inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm transition
          bg-white text-slate-700 border-slate-200 hover:bg-slate-50

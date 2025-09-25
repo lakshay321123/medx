@@ -140,12 +140,18 @@ export default function LegalPrivacyFooter() {
     const footer = footerRef.current;
     if (!footer) return;
     const root = document.documentElement;
+    const computed = window.getComputedStyle(root);
+    const baseHeightRaw = computed.getPropertyValue("--mobile-footer-base-height");
+    const parsedBase = Number.parseFloat(baseHeightRaw || "");
+    const fallbackBase = Number.isFinite(parsedBase) ? parsedBase : 48;
     const previous = root.style.getPropertyValue("--mobile-footer-height");
     const hadPrevious = previous.trim().length > 0;
 
     const updateHeight = () => {
       const rect = footer.getBoundingClientRect();
-      root.style.setProperty("--mobile-footer-height", `${Math.round(rect.height)}px`);
+      const measured = Math.max(Math.round(rect.height), 0);
+      const next = Math.max(fallbackBase, measured);
+      root.style.setProperty("--mobile-footer-height", `${next}px`);
     };
 
     updateHeight();

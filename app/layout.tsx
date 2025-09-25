@@ -11,7 +11,6 @@ import { Suspense } from "react";
 import MemorySnackbar from "@/components/memory/Snackbar";
 import UndoToast from "@/components/memory/UndoToast";
 import AppToastHost from "@/components/ui/AppToastHost";
-import { Inter } from "next/font/google";
 import dynamic from "next/dynamic";
 
 const MobileHeader = dynamic(() => import("@/components/mobile/MobileHeader"), { ssr: false });
@@ -20,16 +19,9 @@ const MobileActionsSheet = dynamic(() => import("@/components/mobile/MobileActio
 
 export const metadata = { title: BRAND_NAME, description: "Global medical AI" };
 
-const inter = Inter({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800", "900"],
-  variable: "--font-inter",
-  display: "swap",
-});
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body className="h-full bg-slate-100 text-slate-900 dark:bg-transparent dark:text-slate-100 font-sans antialiased">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <CountryProvider>
