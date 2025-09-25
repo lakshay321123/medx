@@ -8,46 +8,7 @@ import { useTheme } from "next-themes";
 import { useMobileUiStore } from "@/lib/state/mobileUiStore";
 import { useCountry } from "@/lib/country";
 import { COUNTRIES } from "@/data/countries";
-import { fromSearchParams, toQuery } from "@/lib/modes/url";
-import { canonicalize } from "@/lib/modes/modeMachine";
-import type { ModeState } from "@/lib/modes/types";
-
-const MODE_OPTIONS = [
-  { key: "wellness", label: "Wellness" },
-  { key: "wellness-research", label: "Wellness + Research" },
-  { key: "doctor", label: "Doctor" },
-  { key: "doctor-research", label: "Doctor + Research" },
-  { key: "aidoc", label: "AI Doc" },
-] as const;
-
-type ModeKey = (typeof MODE_OPTIONS)[number]["key"];
-
-function deriveModeLabel(state: ModeState): string {
-  if (state.base === "aidoc") return "AI Doc";
-  if (state.base === "doctor") {
-    return state.research ? "Doctor + Research" : "Doctor";
-  }
-  if (state.research) return "Wellness + Research";
-  return "Wellness";
-}
-
-function nextStateForMode(current: ModeState, mode: ModeKey): ModeState {
-  const base: ModeState = { ...current };
-  switch (mode) {
-    case "wellness":
-      return canonicalize({ ...base, base: "patient", therapy: false, research: false });
-    case "wellness-research":
-      return canonicalize({ ...base, base: "patient", therapy: false, research: true });
-    case "doctor":
-      return canonicalize({ ...base, base: "doctor", therapy: false, research: false });
-    case "doctor-research":
-      return canonicalize({ ...base, base: "doctor", therapy: false, research: true });
-    case "aidoc":
-      return canonicalize({ ...base, base: "aidoc", therapy: false, research: false });
-    default:
-      return base;
-  }
-}
+import { useModeController } from "@/hooks/useModeController";
 
 export default function MobileActionsSheet() {
   const { sheetOpen, sheetView, closeSheet, setSheetView } = useMobileUiStore();
@@ -57,6 +18,7 @@ export default function MobileActionsSheet() {
   const { country, setCountry } = useCountry();
   const [query, setQuery] = useState("");
   const titleId = useId();
+  const { state, selectMode, therapyBusy } = useModeController();
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -104,12 +66,14 @@ export default function MobileActionsSheet() {
     });
   }, [sheetOpen, sheetView]);
 
-  const modeState = useMemo(() => {
-    const currentTheme = (theme as "light" | "dark") ?? "light";
-    return fromSearchParams(searchParams, currentTheme);
-  }, [searchParams, theme]);
-
-  const modeLabel = deriveModeLabel(modeState);
+  const modeSummary = useMemo(() => {
+    if (state.therapy) return "Therapy";
+    const base = state.base === "aidoc" ? "AI Doc" : state.base === "doctor" ? "Clinical" : "Wellness";
+    if (state.research && (state.base === "patient" || state.base === "doctor")) {
+      return `${base} · Research`;
+    }
+    return base;
+  }, [state.base, state.research, state.therapy]);
 
   const filteredCountries = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -155,31 +119,44 @@ export default function MobileActionsSheet() {
   let body: ReactNode;
 
   switch (sheetView) {
-    case "mode":
+    case "mode": {
+      const options = [
+        { key: "wellness" as const, label: "Wellness", active: !state.therapy && state.base === "patient" },
+        { key: "therapy" as const, label: "Therapy", active: state.therapy, disabled: therapyBusy },
+        { key: "doctor" as const, label: "Clinical", active: !state.therapy && state.base === "doctor" },
+        { key: "aidoc" as const, label: "AI Doc", active: state.base === "aidoc" },
+      ];
+
       header = buildHeader("Mode", () => setSheetView("main"));
       body = (
         <div className="mobile-sheet-section">
-          {MODE_OPTIONS.map(option => {
-            const next = nextStateForMode(modeState, option.key);
-            const isActive = deriveModeLabel(modeState) === option.label;
-            return (
-              <button
-                key={option.key}
-                type="button"
-                className="mobile-sheet-item"
-                onClick={() => {
-                  router.push(toQuery(next, searchParams));
-                  closeSheet();
-                }}
-              >
-                <div className="mobile-sheet-item-label">{option.label}</div>
-                <div className="mobile-sheet-item-icon">{isActive ? <Check className="h-4 w-4" /> : null}</div>
-              </button>
-            );
-          })}
+          {options.map(option => (
+            <button
+              key={option.key}
+              type="button"
+              className="mobile-sheet-item"
+              onClick={() => {
+                if (option.disabled) return;
+                selectMode(option.key);
+                closeSheet();
+              }}
+              disabled={option.disabled}
+            >
+              <div className="mobile-sheet-item-label">{option.label}</div>
+              <div className="mobile-sheet-item-icon">
+                {option.active ? <Check className="h-4 w-4" /> : null}
+                {option.key === "therapy" && therapyBusy && !state.therapy ? (
+                  <span className="ml-2 inline-flex h-3 w-3 items-center" aria-hidden="true">
+                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  </span>
+                ) : null}
+              </div>
+            </button>
+          ))}
         </div>
       );
       break;
+    }
     case "country":
       header = buildHeader("Country", () => setSheetView("main"));
       body = (
@@ -222,7 +199,7 @@ export default function MobileActionsSheet() {
         <div className="mobile-sheet-section">
           <button type="button" className="mobile-sheet-item" onClick={() => setSheetView("mode")}>
             <div className="mobile-sheet-item-label">Mode</div>
-            <div className="mobile-sheet-item-value">{modeLabel}</div>
+            <div className="mobile-sheet-item-value">{modeSummary}</div>
           </button>
           <button type="button" className="mobile-sheet-item" onClick={goToSettings}>
             <div className="mobile-sheet-item-label">Settings</div>

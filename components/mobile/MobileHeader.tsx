@@ -61,14 +61,14 @@ export default function MobileHeader() {
   const modeLabel = useMemo(() => {
     if (state.base === "aidoc") return "AI Doc";
     if (state.therapy) return "Therapy";
-    if (state.base === "doctor") return "Doctor";
+    if (state.base === "doctor") return "Clinical";
     return "Wellness";
   }, [state.base, state.therapy]);
 
   const modeOptions = [
     { key: "wellness" as const, label: "Wellness" },
     { key: "therapy" as const, label: "Therapy", disabled: therapyBusy },
-    { key: "doctor" as const, label: "Doctor" },
+    { key: "doctor" as const, label: "Clinical" },
     { key: "aidoc" as const, label: "AI Doc" },
   ];
 
