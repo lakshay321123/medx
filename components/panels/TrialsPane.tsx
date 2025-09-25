@@ -53,16 +53,16 @@ export default function TrialsPane() {
   }
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2">
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <input
-          className="border rounded p-2"
+          className="w-full rounded border p-2 text-sm"
           placeholder="Condition (e.g., Type 2 Diabetes)"
           value={form.condition}
           onChange={(e) => setForm({ ...form, condition: e.target.value })}
         />
         <select
-          className="border rounded px-2 py-1 text-sm"
+          className="w-full rounded border px-2 py-2 text-sm"
           value={country}
           onChange={(e) => setCountry(e.target.value)}
         >
@@ -72,52 +72,78 @@ export default function TrialsPane() {
           <option value="EU">EU</option>
         </select>
         <input
-          className="border rounded p-2"
+          className="w-full rounded border p-2 text-sm"
           placeholder="Status (e.g., Recruiting,Active)"
           value={form.status || ""}
           onChange={(e) => setForm({ ...form, status: e.target.value || undefined })}
         />
         <input
-          className="border rounded p-2"
+          className="w-full rounded border p-2 text-sm"
           placeholder="Phase (e.g., Phase 2,Phase 3)"
           value={form.phase || ""}
           onChange={(e) => setForm({ ...form, phase: e.target.value || undefined })}
         />
       </div>
 
-      <div className="flex gap-2">
-        <button className="px-3 py-2 rounded bg-black text-white" onClick={onSearch} disabled={loading}>Search trials</button>
-        <button className="px-3 py-2 rounded border" onClick={()=>summarize("patient")} disabled={!rows.length}>Summarize (Wellness)</button>
-        <button className="px-3 py-2 rounded border" onClick={()=>summarize("doctor")} disabled={!rows.length}>Summarize (Clinical)</button>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <button
+          className="w-full rounded bg-black px-4 py-2 text-sm font-medium text-white sm:w-auto"
+          onClick={onSearch}
+          disabled={loading}
+        >
+          Search trials
+        </button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
+          <button
+            className="w-full rounded border px-4 py-2 text-sm font-medium sm:w-auto"
+            onClick={() => summarize("patient")}
+            disabled={!rows.length}
+          >
+            Summarize (Wellness)
+          </button>
+          <button
+            className="w-full rounded border px-4 py-2 text-sm font-medium sm:w-auto"
+            onClick={() => summarize("doctor")}
+            disabled={!rows.length}
+          >
+            Summarize (Clinical)
+          </button>
+        </div>
       </div>
 
-      <div className="text-sm text-gray-500">Informational only; not medical advice. Confirm eligibility with the sponsor.</div>
+      <div className="text-xs text-gray-500 sm:text-sm">
+        Informational only; not medical advice. Confirm eligibility with the sponsor.
+      </div>
 
       {rows.length > 0 && (
-        <ul className="space-y-2">
+        <ul className="space-y-3 sm:space-y-2">
           {rows.map((t: any) => (
-            <li key={`${t.registry}:${t.registry_id}`} className="rounded border p-3">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] px-1.5 py-0.5 rounded border">{t.registry}</span>
+            <li key={`${t.registry}:${t.registry_id}`} className="rounded-lg border p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded border px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-gray-600">
+                  {t.registry}
+                </span>
                 <a
                   href={t.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-semibold hover:underline"
+                  className="text-sm font-semibold hover:underline"
                 >
                   {t.registry_id}
                 </a>
               </div>
-              <div className="text-sm mt-1">{t.title}</div>
-              <div className="flex flex-wrap gap-2 mt-2">
+              <div className="mt-1 text-sm leading-snug text-gray-700 dark:text-gray-200">
+                {t.title}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2 text-[11px] uppercase tracking-wide text-gray-600">
                 {t.phase && (
-                  <span className="text-[11px] px-1.5 py-0.5 rounded border">{t.phase}</span>
+                  <span className="rounded border px-1.5 py-0.5">{t.phase}</span>
                 )}
                 {t.status && (
-                  <span className="text-[11px] px-1.5 py-0.5 rounded border">{t.status}</span>
+                  <span className="rounded border px-1.5 py-0.5">{t.status}</span>
                 )}
                 {t.when?.updated && (
-                  <span className="text-[11px] px-1.5 py-0.5 rounded border">
+                  <span className="rounded border px-1.5 py-0.5">
                     Updated: {t.when.updated.slice(0, 10)}
                   </span>
                 )}
