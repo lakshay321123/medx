@@ -6,7 +6,11 @@ import { useEffect, useState } from 'react';
 import { createNewThreadId, listThreads, Thread } from '@/lib/chatThreads';
 import ThreadKebab from '@/components/chat/ThreadKebab';
 
-export default function Sidebar() {
+type SidebarProps = {
+  onNavigate?: () => void;
+};
+
+export default function Sidebar({ onNavigate }: SidebarProps = {}) {
   const router = useRouter();
   const [threads, setThreads] = useState<Thread[]>([]);
   const [aidocThreads, setAidocThreads] = useState<{ id: string; title: string | null }[]>([]);
@@ -33,6 +37,7 @@ export default function Sidebar() {
   const handleNew = () => {
     const id = createNewThreadId();
     router.push(`/?panel=chat&threadId=${id}`);
+    onNavigate?.();
   };
   const handleSearch = (q: string) => {
     setQ(q);
@@ -68,7 +73,10 @@ export default function Sidebar() {
             className="flex items-center gap-2 rounded-xl border border-black/5 bg-white/70 px-4 py-2.5 text-sm shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/60"
           >
             <button
-              onClick={() => router.push(`/?panel=chat&threadId=${t.id}`)}
+              onClick={() => {
+                router.push(`/?panel=chat&threadId=${t.id}`);
+                onNavigate?.();
+              }}
               className="flex-1 text-left truncate text-sm"
               title={t.title}
             >
@@ -98,7 +106,10 @@ export default function Sidebar() {
                 className="mt-2 flex items-center gap-2 rounded-xl border border-black/5 bg-white/70 px-4 py-2.5 text-sm shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/60"
               >
                 <button
-                  onClick={() => router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`)}
+                  onClick={() => {
+                    router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`);
+                    onNavigate?.();
+                  }}
                   className="flex-1 text-left truncate text-sm"
                   title={t.title ?? ''}
                 >
@@ -114,6 +125,10 @@ export default function Sidebar() {
         <div className="sticky bottom-0 left-0 -mx-4 border-t border-black/5 bg-white/80 px-4 py-3 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/50">
           <button
             type="button"
+            onClick={() => {
+              router.push("/?panel=settings");
+              onNavigate?.();
+            }}
             className="flex items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-white/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900"
           >
             <Settings size={14} /> Preferences
