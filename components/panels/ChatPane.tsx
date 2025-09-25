@@ -3057,6 +3057,13 @@ ${systemCommon}` + baseSys;
     return () => window.removeEventListener('keydown', handleKey);
   }, [busy]);
 
+  const hasScrollableContent =
+    visibleMessages.length > 0 ||
+    showWelcomeCard ||
+    summary != null ||
+    trialRows.length > 0 ||
+    Boolean(aidoc);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {showWelcomeCard && welcomeContent ? (
@@ -3074,7 +3081,11 @@ ${systemCommon}` + baseSys;
       <div
         ref={chatRef}
         id="chat-scroll-container"
-        className={`flex-1 min-h-0 overflow-y-auto${showWelcomeCard ? ' mt-4' : ''}`}
+        className={`flex-1 min-h-0 ${
+          hasScrollableContent
+            ? 'overflow-y-auto mobile-chat-scroll'
+            : 'overflow-hidden mobile-chat-scroll-empty'
+        }${showWelcomeCard ? ' mt-4' : ''} md:overflow-y-auto`}
       >
         <div className={`flex min-h-full flex-col justify-end px-6${showWelcomeCard ? '' : ' pt-6'}`}>
           {mode === "doctor" && researchMode && (
@@ -3329,8 +3340,8 @@ ${systemCommon}` + baseSys;
         </div>
       </div>
 
-      <div className="mt-auto">
-        <div className="px-6 pb-[max(16px,env(safe-area-inset-bottom))]">
+      <div className="mt-auto mobile-composer-region">
+        <div className="px-6 pb-4 md:pb-6">
           <div className="mx-auto max-w-3xl space-y-3 px-4 py-4">
               {mode === 'doctor' && AIDOC_UI && (
                 <button

@@ -526,6 +526,10 @@ body {
     border-top: 1px solid var(--medx-outline);
   }
 
+  .mobile-composer-region {
+    padding-bottom: calc(var(--mobile-footer-height, 0px) + var(--mobile-composer-offset, 0px));
+  }
+
   .mobile-footer {
     position: fixed;
     left: 0;
