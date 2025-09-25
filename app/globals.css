@@ -200,7 +200,9 @@ body {
   :root {
     --mobile-header-height: calc(3.5rem + env(safe-area-inset-top));
     --mobile-composer-height: 88px;
-    --mobile-composer-gap: 120px;
+    --mobile-composer-spacer: max(1.5rem, env(safe-area-inset-bottom) + 1rem);
+    --mobile-composer-gap: calc(var(--mobile-composer-height) + var(--mobile-composer-spacer));
+    --mobile-footer-height: 72px;
   }
 
   .mobile-header {
@@ -208,10 +210,10 @@ body {
     top: 0;
     z-index: 50;
     display: flex;
-    align-items: flex-end;
-    gap: 0.5rem;
+    align-items: center;
+    gap: 0.75rem;
     height: var(--mobile-header-height);
-    padding: calc(env(safe-area-inset-top) + 0.25rem) 0.75rem 0.5rem;
+    padding: calc(env(safe-area-inset-top) + 0.25rem) 0.75rem 0.4rem;
     background: var(--medx-panel);
     backdrop-filter: saturate(140%) blur(16px);
     border-bottom: 1px solid var(--medx-outline);
@@ -219,12 +221,12 @@ body {
 
   .mobile-header-logo {
     display: block;
-    max-height: 1.5rem;
+    max-height: 1.75rem;
     width: auto;
   }
 
   .mobile-header-logo img {
-    max-height: 1.5rem;
+    max-height: 1.75rem;
     width: auto;
     height: auto;
   }
@@ -303,7 +305,7 @@ body {
 
   .mobile-content-offset {
     padding-top: var(--mobile-header-height);
-    padding-bottom: calc(var(--mobile-composer-gap, 120px) + 0.75rem);
+    padding-bottom: calc(var(--mobile-composer-gap, 120px) + var(--mobile-footer-height, 72px));
   }
 
   .mobile-sheet-root {
@@ -466,16 +468,23 @@ body {
     right: 0;
     z-index: 40;
     padding: 0.75rem 1rem;
-    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
     background: var(--medx-panel);
     backdrop-filter: saturate(140%) blur(16px);
     border-top: 1px solid var(--medx-outline);
     box-shadow: 0 -12px 30px rgba(15, 23, 42, 0.12);
   }
 
+  .mobile-footer {
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  }
+
   .mobile-chat-scroll {
-    padding-bottom: calc(var(--mobile-composer-gap, 120px));
-    scroll-padding-bottom: calc(var(--mobile-composer-gap, 120px));
+    padding-bottom: var(--mobile-composer-gap, 120px);
+    scroll-padding-bottom: var(--mobile-composer-gap, 120px);
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: auto;
+    touch-action: pan-y;
   }
 
   .mobile-tappable {

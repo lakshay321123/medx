@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type CookiePrefs = {
   essential: true;
@@ -126,6 +126,7 @@ export default function LegalPrivacyFooter() {
   const [consentValue, setConsentValue] = useState<"true" | "false" | null>(null);
   const [agreeChecked, setAgreeChecked] = useState(false);
   const [cookiePrefs, setCookiePrefs] = useState<CookiePrefs>(DEFAULT_PREFS);
+  const footerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -141,6 +142,47 @@ export default function LegalPrivacyFooter() {
     if (parsedConsent === null) {
       setIsOpen(true);
     }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const footer = footerRef.current;
+    if (!footer) return;
+
+    const root = document.documentElement;
+    const previous = root.style.getPropertyValue("--mobile-footer-height");
+    const hadPrevious = previous.trim().length > 0;
+
+    const update = () => {
+      const rect = footer.getBoundingClientRect();
+      if (rect.height > 0) {
+        root.style.setProperty("--mobile-footer-height", `${Math.round(rect.height)}px`);
+      }
+    };
+
+    update();
+
+    if (typeof ResizeObserver === "undefined") {
+      return () => {
+        if (hadPrevious) {
+          root.style.setProperty("--mobile-footer-height", previous);
+        } else {
+          root.style.removeProperty("--mobile-footer-height");
+        }
+      };
+    }
+
+    const observer = new ResizeObserver(() => update());
+    observer.observe(footer);
+
+    return () => {
+      observer.disconnect();
+      if (hadPrevious) {
+        root.style.setProperty("--mobile-footer-height", previous);
+      } else {
+        root.style.removeProperty("--mobile-footer-height");
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -216,7 +258,10 @@ export default function LegalPrivacyFooter() {
 
   return (
     <>
-      <footer className="flex-shrink-0 border-t border-black/10 bg-white/80 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/60">
+      <footer
+        ref={footerRef}
+        className="mobile-footer flex-shrink-0 border-t border-black/10 bg-white/80 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/60"
+      >
         <div className="mx-auto flex w-full max-w-screen-2xl flex-col items-center justify-center gap-1.5 px-6 py-1.5 text-center text-[11px] text-slate-600 dark:text-slate-300 sm:flex-row sm:gap-3 sm:text-xs">
           <p className="leading-4 sm:ml-[17rem] sm:max-w-3xl">
             {BRAND} can make mistakes. This is not medical advice. Always consult a clinician.

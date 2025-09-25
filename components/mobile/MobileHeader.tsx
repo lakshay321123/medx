@@ -29,10 +29,10 @@ export default function MobileHeader() {
       </button>
 
       <div className="flex flex-1 items-center overflow-hidden">
-        <Logo width={116} height={32} className="mobile-header-logo" variant="white" />
+        <Logo width={132} height={36} className="mobile-header-logo" variant="white" />
       </div>
 
-      <div className="ml-auto flex items-center gap-1.5">
+      <div className="ml-auto flex items-center gap-2">
         <button
           type="button"
           aria-label="New chat"

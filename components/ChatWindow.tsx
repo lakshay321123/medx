@@ -33,29 +33,20 @@ export function ChatWindow() {
     if (!composer) return;
     const root = document.documentElement;
     const previousHeight = root.style.getPropertyValue("--mobile-composer-height");
-    const previousGap = root.style.getPropertyValue("--mobile-composer-gap");
-
-    const minGap = 104; // ensures space for footer and last message on first load
+    const hadPreviousHeight = previousHeight.trim().length > 0;
 
     const restore = () => {
-      if (previousHeight) {
+      if (hadPreviousHeight) {
         root.style.setProperty("--mobile-composer-height", previousHeight);
       } else {
         root.style.removeProperty("--mobile-composer-height");
-      }
-      if (previousGap) {
-        root.style.setProperty("--mobile-composer-gap", previousGap);
-      } else {
-        root.style.removeProperty("--mobile-composer-gap");
       }
     };
 
     const updateMetrics = () => {
       const rect = composer.getBoundingClientRect();
-      const height = rect.height;
-      const gap = Math.max(height + 24, minGap);
+      const height = Math.max(64, Math.round(rect.height));
       root.style.setProperty("--mobile-composer-height", `${height}px`);
-      root.style.setProperty("--mobile-composer-gap", `${gap}px`);
     };
 
     updateMetrics();
