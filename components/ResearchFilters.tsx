@@ -123,53 +123,51 @@ export default function ResearchFilters({ mode, onResults, variant = 'default' }
   const open = mode !== 'patient'; // keep previous behavior
 
   if (variant === 'mobileCard') {
-    const chipBase = 'mr-2 inline-block rounded-full border px-3 py-1 text-xs font-medium transition last:mr-0';
-    const selectedChip = 'border-white/60 bg-white/10 text-white shadow-sm';
-    const unselectedChip = 'border-white/20 bg-white/5 text-white/80 hover:bg-white/10';
+    const chipBase = 'rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs transition';
+    const chipSelected = 'text-white shadow-sm';
+    const chipUnselected = 'text-white/80 hover:bg-white/10';
+    const chipDesktopSelected = 'md:border-blue-600 md:bg-blue-600 md:text-white';
+    const chipDesktopUnselected = 'md:border-slate-300 md:bg-white md:text-slate-700 md:hover:bg-slate-100';
 
-    const desktopSelectedChip = 'md:border-blue-600 md:bg-blue-600 md:text-white';
-    const desktopUnselectedChip = 'md:border-slate-300 md:bg-white md:text-slate-700 md:hover:bg-slate-100';
-
-    const selectClass = 'w-full rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white/30 md:border md:border-slate-300 md:bg-white md:text-slate-900 md:focus:ring-0';
-    const buttonPrimary = 'w-24 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto md:px-4';
-    const buttonSecondary = 'w-24 rounded-xl border border-white/20 px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 md:w-auto md:border-slate-300 md:text-slate-700 md:hover:bg-slate-100';
+    const fieldClass = 'w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-white/30 md:border-slate-300 md:bg-white md:text-slate-900 md:placeholder:text-slate-400 md:focus:ring-0';
+    const primaryButton = 'w-24 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto md:px-4';
+    const secondaryButton = 'w-24 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto md:border-slate-300 md:bg-white md:text-slate-700 md:hover:bg-slate-100';
 
     return (
-      <form
-        onSubmit={onSubmit}
-        className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-white shadow-sm backdrop-blur-sm md:rounded-xl md:border-slate-200 md:bg-white md:text-slate-900"
-      >
+      <form onSubmit={onSubmit} className="space-y-2 text-white md:text-slate-900">
         <div className="grid grid-cols-[1fr,96px] gap-2 md:grid-cols-[minmax(0,1fr),auto]">
           <input
             value={local.query}
             onChange={e => setLocal(s => ({ ...s, query: e.target.value }))}
             onKeyDown={e => e.key === 'Enter' && (e.currentTarget as any).form?.requestSubmit()}
-            placeholder="Search trials (e.g., condition, gene, topic)…"
-            className="w-full rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-white/30 md:border md:border-slate-300 md:bg-white md:text-slate-900 md:placeholder:text-slate-400 md:focus:ring-0"
+            placeholder="Search trials…"
+            className={fieldClass}
           />
-          <button type="submit" className={buttonPrimary} disabled={busy}>
+          <button type="submit" className={primaryButton} disabled={busy}>
             {busy ? 'Searching…' : 'Search'}
           </button>
         </div>
 
-        <div className="overflow-x-auto no-scrollbar whitespace-nowrap">
-          {phaseOptions.map(p => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => togglePhase(p)}
-              className={`${chipBase} ${local.phase === p ? `${selectedChip} ${desktopSelectedChip}` : `${unselectedChip} ${desktopUnselectedChip}`}`}
-            >
-              Phase {p}
-            </button>
-          ))}
+        <div className="no-scrollbar overflow-x-auto">
+          <div className="flex gap-2 whitespace-nowrap">
+            {phaseOptions.map(p => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => togglePhase(p)}
+                className={`${chipBase} ${local.phase === p ? `${chipSelected} ${chipDesktopSelected}` : `${chipUnselected} ${chipDesktopUnselected}`}`}
+              >
+                Phase {p}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid grid-cols-2 gap-2">
           <select
             value={local.status}
             onChange={e => setLocal(s => ({ ...s, status: e.target.value as any }))}
-            className={selectClass}
+            className={fieldClass}
           >
             {statusLabels.map(o => (
               <option key={o.key} value={o.key}>
@@ -180,7 +178,7 @@ export default function ResearchFilters({ mode, onResults, variant = 'default' }
           <select
             value={source}
             onChange={e => setSource(e.target.value)}
-            className={selectClass}
+            className={fieldClass}
           >
             <option>All</option>
             <option>CTgov</option>
@@ -190,34 +188,35 @@ export default function ResearchFilters({ mode, onResults, variant = 'default' }
           </select>
         </div>
 
-        <div className="overflow-x-auto no-scrollbar whitespace-nowrap">
-          {countryOptions.map(name => (
-            <button
-              key={name}
-              type="button"
-              onClick={() => toggleCountry(name)}
-              className={`${chipBase} ${local.countries.includes(name) ? `${selectedChip} ${desktopSelectedChip}` : `${unselectedChip} ${desktopUnselectedChip}`}`}
-            >
-              {name}
-            </button>
-          ))}
+        <div className="no-scrollbar overflow-x-auto">
+          <div className="flex gap-2 whitespace-nowrap">
+            {countryOptions.map(name => (
+              <button
+                key={name}
+                type="button"
+                onClick={() => toggleCountry(name)}
+                className={`${chipBase} ${local.countries.includes(name) ? `${chipSelected} ${chipDesktopSelected}` : `${chipUnselected} ${chipDesktopUnselected}`}`}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="grid grid-cols-[1fr,96px] gap-2 md:grid-cols-[minmax(0,1fr),auto,auto]">
+        <div className="grid grid-cols-[1fr,96px] gap-2 md:grid-cols-[minmax(0,1fr),auto]">
           <input
             placeholder="Genes (comma separated)"
             value={local.genes}
             onChange={e => setLocal(s => ({ ...s, genes: e.target.value }))}
-            className="w-full rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-white/30 md:border md:border-slate-300 md:bg-white md:text-slate-900 md:placeholder:text-slate-400 md:focus:ring-0"
+            className={fieldClass}
           />
-          <button type="submit" className={buttonPrimary} disabled={busy}>
+          <button type="submit" className={primaryButton} disabled={busy}>
             {busy ? 'Searching…' : 'Apply'}
           </button>
-          <button
-            type="button"
-            onClick={onReset}
-            className={`${buttonSecondary} col-span-2 md:col-span-1 md:justify-self-end`}
-          >
+        </div>
+
+        <div className="flex justify-end">
+          <button type="button" onClick={onReset} className={secondaryButton}>
             Reset
           </button>
         </div>

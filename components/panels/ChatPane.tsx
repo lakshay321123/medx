@@ -7,6 +7,7 @@ import ChatMarkdown from '@/components/ChatMarkdown';
 import ResearchFilters from '@/components/ResearchFilters';
 import { LinkBadge } from '@/components/SafeLink';
 import TrialsTable from "@/components/TrialsTable";
+import { TrialsMobileCards, type Trial as MobileTrial } from "@/components/TrialsMobileCards";
 import type { TrialRow } from "@/types/trials";
 import { useResearchFilters } from '@/store/researchFilters';
 import { Send, Paperclip, Clipboard, Stethoscope, Users, ChevronDown, ChevronUp } from 'lucide-react';
@@ -879,6 +880,241 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     setStats(computeTrialStats(rows as any));
     setShowDetails(false); // collapse on new search
   }
+
+  const mobileTrials = useMemo<MobileTrial[]>(() => {
+    return trialRows.map((row, index) => {
+      const locationCountries = Array.isArray(row.locations)
+        ? row.locations
+            .map(location => location?.country)
+            .filter((country): country is string => Boolean(country))
+        : [];
+      const baseCountries = row.country ? [row.country] : [];
+      const countries = Array.from(new Set([...locationCountries, ...baseCountries]));
+      const registryLabel = row.source ? row.source.toUpperCase() : undefined;
+
+      return {
+        id: row.id || row.url || `trial-${index}`,
+        title: row.title,
+        status: row.status,
+        phase: row.phase,
+        countries,
+        nctId: row.id,
+        registry: registryLabel,
+        registryUrl: row.url,
+      } satisfies MobileTrial;
+    });
+  }, [trialRows]);
+
+  const handleSummarizeTrial = useCallback(async (trial: MobileTrial) => {
+    const rawId = (trial.nctId || trial.id || "").toUpperCase();
+    const match = rawId.match(/NCT\d{8}/);
+    if (!match) {
+      pushAssistantToChat({ content: "⚠️ Could not summarize: invalid Registry ID" });
+      return;
+    }
+
+    const nct = match[0];
+    pushAssistantToChat({ content: "_Summarizing trial…_" });
+
+    try {
+      const response = await fetch(`/api/trials/${nct}/summary`, { cache: "no-store" });
+      const raw = await response.text();
+      let payload: unknown = null;
+      if (raw) {
+        try {
+          payload = JSON.parse(raw);
+        } catch {
+          payload = raw;
+        }
+      }
+
+      if (!response.ok) {
+        const message =
+          typeof payload === "object" &&
+          payload !== null &&
+          "error" in (payload as Record<string, unknown>) &&
+          typeof (payload as any).error === "string"
+            ? (payload as any).error
+            : typeof payload === "string" && payload
+              ? payload
+              : `Request failed (${response.status})`;
+        throw new Error(message);
+      }
+
+      pushAssistantToChat({ content: formatTrialBriefMarkdown(nct, payload ?? {}) });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err ?? "");
+      const detail = message.trim() || "unknown error";
+      pushAssistantToChat({ content: `⚠️ Could not summarize **${nct}**: ${detail}` });
+    }
+  }, []);
+
+  const noTrialsMessage = searched && trialRows.length === 0 ? (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/80 shadow-sm backdrop-blur-sm md:rounded-xl md:border-slate-200 md:bg-white/80 md:text-slate-600">
+      No trials found. Try removing a filter, switching country, or using broader keywords.
+    </div>
+  ) : null;
+
+  const summaryCard = summary ? (
+    <div className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white shadow-sm backdrop-blur-sm md:rounded-xl md:border-slate-200 md:bg-white/85 md:text-slate-900">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-2">
+          <div className="mt-0.5 shrink-0 text-white md:text-slate-700">
+            {mode === "doctor" ? <Stethoscope size={16} /> : <Users size={16} />}
+          </div>
+          <div className="flex-1 whitespace-pre-wrap">{summary}</div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {stats?.recruitingCount ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white md:border-0 md:bg-green-100 md:text-green-800">
+              • Recruiting: {stats.recruitingCount}
+            </span>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => navigator.clipboard?.writeText(summary)}
+            className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1 text-xs font-medium text-white transition hover:bg-white/10 md:border-slate-200 md:text-slate-700 md:hover:bg-slate-100"
+            title="Copy summary"
+          >
+            <Clipboard size={14} /> Copy
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowDetails(s => !s)}
+            className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1 text-xs font-medium text-white transition hover:bg-white/10 md:border-slate-200 md:text-slate-700 md:hover:bg-slate-100"
+            title="View details"
+          >
+            {showDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            {showDetails ? "Hide details" : "View details"}
+          </button>
+        </div>
+      </div>
+
+      {showDetails && stats && (
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-white shadow-sm backdrop-blur-sm md:rounded-lg md:border-slate-200 md:bg-white md:text-slate-900">
+            <div className="border-b border-white/20 pb-2 font-medium text-white md:border-slate-200 md:text-slate-900">
+              Phases
+            </div>
+            <ul className="space-y-1 px-3 py-2 text-sm">
+              {Object.entries(stats.byPhase).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
+                <li key={k} className="flex justify-between text-white md:text-slate-700">
+                  <span>Phase {k}</span>
+                  <span>{v}</span>
+                </li>
+              ))}
+              {Object.keys(stats.byPhase).length === 0 && (
+                <li className="text-white/70 md:text-slate-500">—</li>
+              )}
+            </ul>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-white shadow-sm backdrop-blur-sm md:rounded-lg md:border-slate-200 md:bg-white md:text-slate-900">
+            <div className="border-b border-white/20 pb-2 font-medium text-white md:border-slate-200 md:text-slate-900">
+              Statuses
+            </div>
+            <ul className="space-y-1 px-3 py-2 text-sm">
+              {Object.entries(stats.byStatus).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
+                <li key={k} className="flex justify-between text-white md:text-slate-700">
+                  <span>{k}</span>
+                  <span>{v}</span>
+                </li>
+              ))}
+              {Object.keys(stats.byStatus).length === 0 && (
+                <li className="text-white/70 md:text-slate-500">—</li>
+              )}
+            </ul>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-white shadow-sm backdrop-blur-sm md:rounded-lg md:border-slate-200 md:bg-white md:text-slate-900">
+            <div className="border-b border-white/20 pb-2 font-medium text-white md:border-slate-200 md:text-slate-900">
+              Top countries
+            </div>
+            <ul className="space-y-1 px-3 py-2 text-sm">
+              {Object.entries(stats.byCountry)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5)
+                .map(([k, v]) => (
+                  <li key={k} className="flex justify-between text-white md:text-slate-700">
+                    <span>{k}</span>
+                    <span>{v}</span>
+                  </li>
+                ))}
+              {Object.keys(stats.byCountry).length === 0 && (
+                <li className="text-white/70 md:text-slate-500">—</li>
+              )}
+            </ul>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-white shadow-sm backdrop-blur-sm md:rounded-lg md:border-slate-200 md:bg-white md:text-slate-900">
+            <div className="border-b border-white/20 pb-2 font-medium text-white md:border-slate-200 md:text-slate-900">
+              Top genes
+            </div>
+            <ul className="space-y-1 px-3 py-2 text-sm">
+              {stats.genesTop.length ? (
+                stats.genesTop.map(([g, c]) => (
+                  <li key={g} className="flex justify-between text-white md:text-slate-700">
+                    <span>{g}</span>
+                    <span>{c}</span>
+                  </li>
+                ))
+              ) : (
+                <li className="text-white/70 md:text-slate-500">—</li>
+              )}
+            </ul>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-white shadow-sm backdrop-blur-sm md:rounded-lg md:border-slate-200 md:bg-white md:text-slate-900">
+            <div className="border-b border-white/20 pb-2 font-medium text-white md:border-slate-200 md:text-slate-900">
+              Top conditions
+            </div>
+            <ul className="space-y-1 px-3 py-2 text-sm">
+              {stats.conditionsTop.length ? (
+                stats.conditionsTop.map(([k, c]) => (
+                  <li key={k} className="flex justify-between capitalize text-white md:text-slate-700">
+                    <span>{k}</span>
+                    <span>{c}</span>
+                  </li>
+                ))
+              ) : (
+                <li className="text-white/70 md:text-slate-500">—</li>
+              )}
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  const trialsSection = trialRows.length > 0 ? (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-white shadow-sm backdrop-blur-sm md:rounded-xl md:border-slate-200 md:bg-white/85 md:text-slate-900">
+      <div className="mb-3 flex justify-end md:mb-2">
+        <button
+          onClick={async () => {
+            const res = await fetch("/api/trials/export", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ rows: trialRows }),
+            });
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "trials.csv";
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+          className="rounded-full border border-white/20 px-3 py-1 text-xs text-white transition hover:bg-white/10 md:border-slate-200 md:text-slate-700 md:hover:bg-slate-100"
+        >
+          Export CSV
+        </button>
+      </div>
+      <TrialsMobileCards trials={mobileTrials} onSummarize={handleSummarizeTrial} />
+      <div className="hidden md:block">
+        <TrialsTable rows={trialRows} />
+      </div>
+    </div>
+  ) : null;
 
   const router = useRouter(); // auto-new-thread
   const threadId = sp.get('threadId');
@@ -3090,186 +3326,40 @@ ${systemCommon}` + baseSys;
         <div className={`flex min-h-full flex-col justify-end px-3 md:px-6${showWelcomeCard ? '' : ' pt-6'}`}>
           {mode === "doctor" && researchMode && (
             <div className="mb-6">
-              <div className="mx-auto w-full max-w-[420px] space-y-3 px-3 pb-[110px] md:max-w-3xl md:space-y-4 md:px-0 md:pb-0">
-                <div className="rounded-2xl bg-white/5 p-4 text-white shadow-sm dark:bg-white/5">
-                  <h2 className="text-base font-bold">Clinical Mode: ON</h2>
-                  <p className="text-sm opacity-80">
-                    Evidence-ready, clinician-first.
-                    <br />
-                    Research: On — web evidence
-                  </p>
-                </div>
+              <div className="md:hidden">
+                <div className="mx-auto w-full max-w-[420px] space-y-3 px-3 pb-[110px]">
+                  <div className="rounded-2xl bg-blue-700 p-4 text-white">
+                    <h2 className="text-base font-bold">Clinical Mode: ON</h2>
+                    <p className="text-xs opacity-90">
+                      Evidence-ready, clinician-first. Research: On — web evidence
+                    </p>
+                  </div>
 
-                <div className="md:hidden">
                   <ResearchFilters mode="research" onResults={handleTrials} variant="mobileCard" />
+
+                  {noTrialsMessage}
+                  {summaryCard}
+                  {trialsSection}
                 </div>
-                <div className="hidden md:block">
+              </div>
+
+              <div className="hidden md:block">
+                <div className="mx-auto w-full max-w-3xl space-y-4 px-0">
+                  <div className="rounded-2xl bg-white/5 p-4 text-white shadow-sm dark:bg-white/5">
+                    <h2 className="text-base font-bold">Clinical Mode: ON</h2>
+                    <p className="text-sm opacity-80">
+                      Evidence-ready, clinician-first.
+                      <br />
+                      Research: On — web evidence
+                    </p>
+                  </div>
+
                   <ResearchFilters mode="research" onResults={handleTrials} />
+
+                  {noTrialsMessage}
+                  {summaryCard}
+                  {trialsSection}
                 </div>
-
-                {searched && trialRows.length === 0 && (
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/80 shadow-sm backdrop-blur-sm md:rounded-xl md:border-slate-200 md:bg-white/80 md:text-slate-600">
-                    No trials found. Try removing a filter, switching country, or using broader keywords.
-                  </div>
-                )}
-
-                {summary && (
-                  <div className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white shadow-sm backdrop-blur-sm md:rounded-xl md:border-slate-200 md:bg-white/85 md:text-slate-900">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="flex items-start gap-2">
-                        <div className="mt-0.5 shrink-0 text-white md:text-slate-700">
-                          {mode === "doctor" ? <Stethoscope size={16} /> : <Users size={16} />}
-                        </div>
-                        <div className="flex-1 whitespace-pre-wrap">{summary}</div>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {stats?.recruitingCount ? (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-xs text-white md:border-0 md:bg-green-100 md:text-green-800">
-                            • Recruiting: {stats.recruitingCount}
-                          </span>
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={() => navigator.clipboard.writeText(summary!)}
-                          className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1 text-xs font-medium text-white transition hover:bg-white/10 md:border-slate-200 md:text-slate-700 md:hover:bg-slate-100"
-                          title="Copy summary"
-                        >
-                          <Clipboard size={14} /> Copy
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowDetails(s => !s)}
-                          className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1 text-xs font-medium text-white transition hover:bg-white/10 md:border-slate-200 md:text-slate-700 md:hover:bg-slate-100"
-                          title="View details"
-                        >
-                          {showDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                          {showDetails ? "Hide details" : "View details"}
-                        </button>
-                      </div>
-                    </div>
-
-                    {showDetails && stats && (
-                      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-white shadow-sm backdrop-blur-sm md:rounded-lg md:border-slate-200 md:bg-white md:text-slate-900">
-                          <div className="border-b border-white/20 pb-2 font-medium text-white md:border-slate-200 md:text-slate-900">
-                            Phases
-                          </div>
-                          <ul className="space-y-1 px-3 py-2 text-sm">
-                            {Object.entries(stats.byPhase).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
-                              <li key={k} className="flex justify-between text-white md:text-slate-700">
-                                <span>Phase {k}</span>
-                                <span>{v}</span>
-                              </li>
-                            ))}
-                            {Object.keys(stats.byPhase).length === 0 && (
-                              <li className="text-white/70 md:text-slate-500">—</li>
-                            )}
-                          </ul>
-                        </div>
-
-                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-white shadow-sm backdrop-blur-sm md:rounded-lg md:border-slate-200 md:bg-white md:text-slate-900">
-                          <div className="border-b border-white/20 pb-2 font-medium text-white md:border-slate-200 md:text-slate-900">
-                            Statuses
-                          </div>
-                          <ul className="space-y-1 px-3 py-2 text-sm">
-                            {Object.entries(stats.byStatus).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
-                              <li key={k} className="flex justify-between text-white md:text-slate-700">
-                                <span>{k}</span>
-                                <span>{v}</span>
-                              </li>
-                            ))}
-                            {Object.keys(stats.byStatus).length === 0 && (
-                              <li className="text-white/70 md:text-slate-500">—</li>
-                            )}
-                          </ul>
-                        </div>
-
-                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-white shadow-sm backdrop-blur-sm md:rounded-lg md:border-slate-200 md:bg-white md:text-slate-900">
-                          <div className="border-b border-white/20 pb-2 font-medium text-white md:border-slate-200 md:text-slate-900">
-                            Top countries
-                          </div>
-                          <ul className="space-y-1 px-3 py-2 text-sm">
-                            {Object.entries(stats.byCountry)
-                              .sort((a, b) => b[1] - a[1])
-                              .slice(0, 5)
-                              .map(([k, v]) => (
-                                <li key={k} className="flex justify-between text-white md:text-slate-700">
-                                  <span>{k}</span>
-                                  <span>{v}</span>
-                                </li>
-                              ))}
-                            {Object.keys(stats.byCountry).length === 0 && (
-                              <li className="text-white/70 md:text-slate-500">—</li>
-                            )}
-                          </ul>
-                        </div>
-
-                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-white shadow-sm backdrop-blur-sm md:rounded-lg md:border-slate-200 md:bg-white md:text-slate-900">
-                          <div className="border-b border-white/20 pb-2 font-medium text-white md:border-slate-200 md:text-slate-900">
-                            Top genes
-                          </div>
-                          <ul className="space-y-1 px-3 py-2 text-sm">
-                            {stats.genesTop.length ? (
-                              stats.genesTop.map(([g, c]) => (
-                                <li key={g} className="flex justify-between text-white md:text-slate-700">
-                                  <span>{g}</span>
-                                  <span>{c}</span>
-                                </li>
-                              ))
-                            ) : (
-                              <li className="text-white/70 md:text-slate-500">—</li>
-                            )}
-                          </ul>
-                        </div>
-
-                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-white shadow-sm backdrop-blur-sm md:rounded-lg md:border-slate-200 md:bg-white md:text-slate-900">
-                          <div className="border-b border-white/20 pb-2 font-medium text-white md:border-slate-200 md:text-slate-900">
-                            Top conditions
-                          </div>
-                          <ul className="space-y-1 px-3 py-2 text-sm">
-                            {stats.conditionsTop.length ? (
-                              stats.conditionsTop.map(([k, c]) => (
-                                <li key={k} className="flex justify-between capitalize text-white md:text-slate-700">
-                                  <span>{k}</span>
-                                  <span>{c}</span>
-                                </li>
-                              ))
-                            ) : (
-                              <li className="text-white/70 md:text-slate-500">—</li>
-                            )}
-                          </ul>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {trialRows.length > 0 && (
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-white shadow-sm backdrop-blur-sm md:rounded-xl md:border-slate-200 md:bg-white/85 md:text-slate-900">
-                    <div className="mb-2 flex justify-end">
-                      <button
-                        onClick={async () => {
-                          const res = await fetch("/api/trials/export", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ rows: trialRows }),
-                          });
-                          const blob = await res.blob();
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement("a");
-                          a.href = url;
-                          a.download = "trials.csv";
-                          a.click();
-                          URL.revokeObjectURL(url);
-                        }}
-                        className="rounded-full border border-white/20 px-3 py-1 text-xs text-white transition hover:bg-white/10 md:border-slate-200 md:text-slate-700 md:hover:bg-slate-100"
-                      >
-                        Export CSV
-                      </button>
-                    </div>
-                    <TrialsTable rows={trialRows} />
-                  </div>
-                )}
               </div>
             </div>
           )}

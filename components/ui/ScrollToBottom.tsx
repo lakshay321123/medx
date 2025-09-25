@@ -35,11 +35,6 @@ export default function ScrollToBottom({
     return el.scrollHeight - (el.scrollTop + el.clientHeight);
   }, []);
 
-  const isNearBottom = useCallback(
-    (el: HTMLElement) => distanceFromBottom(el) < 24,
-    [distanceFromBottom]
-  );
-
   useEffect(() => {
     if (containerProp !== undefined) {
       setContainer(containerProp);
@@ -77,11 +72,15 @@ export default function ScrollToBottom({
 
     const el = container;
     const onScroll = () => {
-      if (!isNearBottom(el) && distanceFromBottom(el) > 200) {
+      const distance = distanceFromBottom(el);
+      const nearBottom = distance < 140;
+      if (el.scrollTop > 220 && !nearBottom) {
         setShowFab(true);
       } else {
         setShowFab(false);
-        onJump?.();
+        if (nearBottom) {
+          onJump?.();
+        }
       }
     };
 
@@ -90,14 +89,16 @@ export default function ScrollToBottom({
     return () => {
       el.removeEventListener("scroll", onScroll);
     };
-  }, [container, distanceFromBottom, isNearBottom, onJump]);
+  }, [container, distanceFromBottom, onJump]);
 
   useEffect(() => {
     if (!container) return;
-    if (unread > 0 && !isNearBottom(container) && distanceFromBottom(container) > 200) {
+    const distance = distanceFromBottom(container);
+    const nearBottom = distance < 140;
+    if (unread > 0 && distance > 220 && !nearBottom) {
       setShowFab(true);
     }
-  }, [unread, container, distanceFromBottom, isNearBottom]);
+  }, [unread, container, distanceFromBottom]);
 
   const scrollToBottom = () => {
     if (!container) return;
@@ -116,7 +117,7 @@ export default function ScrollToBottom({
     >
       <button
         type="button"
-        className="pointer-events-auto rounded-full bg-blue-600 p-3 text-white shadow-md transition hover:bg-blue-500"
+        className="pointer-events-auto h-11 w-11 rounded-full bg-blue-600 text-white shadow-md transition hover:bg-blue-500"
         aria-label="Jump to newest messages"
         onClick={scrollToBottom}
       >

@@ -2,6 +2,43 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent any horizontal page drift on mobile */
+html,
+body {
+  overflow-x: hidden;
+}
+
+/* Contained scrolling only inside specific elements if ever needed */
+* {
+  overscroll-behavior-x: none;
+  touch-action: manipulation;
+}
+
+/* Hide horizontal scrollbar for any chip rails we make scrollable */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Bulletproof long-text wrapping inside cards */
+.wrap-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+/* Images/iframes never cause drift */
+img,
+video,
+iframe {
+  max-width: 100%;
+  height: auto;
+}
+
 /* smooth theme transitions */
 * { transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
 
@@ -858,11 +895,3 @@ body {
   }
 }
 
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
