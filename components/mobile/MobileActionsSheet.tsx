@@ -68,11 +68,9 @@ export default function MobileActionsSheet() {
 
   const modeSummary = useMemo(() => {
     if (state.therapy) return "Therapy";
-    const base = state.base === "aidoc" ? "AI Doc" : state.base === "doctor" ? "Clinical" : "Wellness";
-    if (state.research && (state.base === "patient" || state.base === "doctor")) {
-      return `${base} · Research`;
-    }
-    return base;
+    if (state.base === "aidoc") return "AI Doc";
+    const baseLabel = state.base === "doctor" ? "Clinical" : "Wellness";
+    return state.research ? `${baseLabel} + Research` : baseLabel;
   }, [state.base, state.research, state.therapy]);
 
   const filteredCountries = useMemo(() => {
@@ -121,10 +119,37 @@ export default function MobileActionsSheet() {
   switch (sheetView) {
     case "mode": {
       const options = [
-        { key: "wellness" as const, label: "Wellness", active: !state.therapy && state.base === "patient" },
-        { key: "therapy" as const, label: "Therapy", active: state.therapy, disabled: therapyBusy },
-        { key: "doctor" as const, label: "Clinical", active: !state.therapy && state.base === "doctor" },
-        { key: "aidoc" as const, label: "AI Doc", active: state.base === "aidoc" },
+        {
+          key: "wellness" as const,
+          label: "Wellness",
+          active: state.base === "patient" && !state.therapy && !state.research,
+        },
+        {
+          key: "wellness-research" as const,
+          label: "Wellness + Research",
+          active: state.base === "patient" && state.research,
+        },
+        {
+          key: "therapy" as const,
+          label: "Therapy",
+          active: state.therapy,
+          disabled: therapyBusy,
+        },
+        {
+          key: "doctor" as const,
+          label: "Clinical",
+          active: state.base === "doctor" && !state.research,
+        },
+        {
+          key: "doctor-research" as const,
+          label: "Clinical + Research",
+          active: state.base === "doctor" && state.research,
+        },
+        {
+          key: "aidoc" as const,
+          label: "AI Doc",
+          active: state.base === "aidoc",
+        },
       ];
 
       header = buildHeader("Mode", () => setSheetView("main"));

@@ -9,7 +9,13 @@ import type { ModeState } from "@/lib/modes/types";
 import { createThread } from "@/lib/chatThreads";
 import { pushToast } from "@/lib/ui/toast";
 
-type ModeChoice = "wellness" | "doctor" | "aidoc" | "therapy";
+type ModeChoice =
+  | "wellness"
+  | "wellness-research"
+  | "doctor"
+  | "doctor-research"
+  | "aidoc"
+  | "therapy";
 
 type Controller = {
   state: ModeState;
@@ -140,26 +146,53 @@ export function useModeController(): Controller {
   const toggleResearch = useCallback(() => applyAction({ type: "toggle/research" }), [applyAction]);
   const toggleTheme = useCallback(() => applyAction({ type: "toggle/theme" }), [applyAction]);
 
+  const commitState = useCallback(
+    (next: ModeState) => {
+      const cleaned: ModeState = {
+        base: next.base,
+        therapy: next.base === "patient" ? next.therapy : false,
+        research:
+          next.base === "patient" || next.base === "doctor"
+            ? next.research
+            : false,
+        theme: next.theme,
+      };
+      router.push(toQuery(cleaned, searchParams));
+    },
+    [router, searchParams],
+  );
+
   const selectMode = useCallback(
     (choice: ModeChoice) => {
-      switch (choice) {
-        case "wellness":
-          togglePatient();
-          break;
-        case "doctor":
-          toggleDoctor();
-          break;
-        case "aidoc":
-          toggleAidoc();
-          break;
-        case "therapy":
-          if (!state.therapy) toggleTherapy();
-          break;
-        default:
-          break;
+      if (choice === "therapy") {
+        toggleTherapy();
+        return;
       }
+
+      if (choice === "aidoc") {
+        toggleAidoc();
+        return;
+      }
+
+      const wantsResearch =
+        choice === "wellness-research" || choice === "doctor-research";
+      const targetBase = choice.startsWith("doctor") ? "doctor" : "patient";
+
+      const next: ModeState = {
+        base: targetBase,
+        therapy: false,
+        research: wantsResearch,
+        theme: state.theme,
+      };
+
+      if (state.therapy) {
+        void exitTherapy(next);
+        return;
+      }
+
+      commitState(next);
     },
-    [state.therapy, toggleAidoc, toggleDoctor, togglePatient, toggleTherapy],
+    [commitState, exitTherapy, state.theme, state.therapy, toggleAidoc, toggleTherapy],
   );
 
   const researchEnabled = !state.therapy && (state.base === "patient" || state.base === "doctor");

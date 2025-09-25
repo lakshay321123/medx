@@ -231,6 +231,7 @@ body {
     z-index: 55;
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 0.75rem;
     height: var(--mobile-header-height);
     padding: var(--mobile-header-safe-area) 0.75rem 0;
@@ -238,6 +239,32 @@ body {
     backdrop-filter: saturate(140%) blur(16px);
     border-bottom: 1px solid var(--medx-outline);
     box-sizing: border-box;
+  }
+
+  .mobile-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .mobile-header-logo {
+    display: inline-flex;
+    align-items: center;
+    max-height: 24px;
+    color: var(--medx-text);
+  }
+
+  .mobile-header-logo img {
+    height: 24px;
+    width: auto;
+  }
+
+  .mobile-header-logo span {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--medx-text);
   }
 
   .mobile-header-actions {
