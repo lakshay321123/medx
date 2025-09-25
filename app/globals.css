@@ -221,7 +221,7 @@ body {
     --mobile-footer-safe-area: env(safe-area-inset-bottom);
     --mobile-footer-height: var(--mobile-footer-base-height);
     --mobile-composer-height: 88px;
-    --mobile-composer-offset: 0.75rem;
+    --mobile-composer-offset: 1rem;
     --mobile-composer-gap: calc(var(--mobile-composer-height) + var(--mobile-composer-offset));
   }
 
@@ -750,6 +750,23 @@ body {
   .dark .mobile-www-btn:not([data-state="on"]):hover,
   .dark .mobile-www-btn:not([data-state="on"]):focus-visible {
     background: rgba(15, 23, 42, 0.35);
+  }
+
+  .mobile-chat-scroll-empty {
+    padding-bottom: calc(
+      var(--mobile-footer-height, 0px) +
+        var(--mobile-footer-safe-area, 0px) +
+        var(--mobile-composer-offset, 0px)
+    );
+    scroll-padding-bottom: calc(
+      var(--mobile-footer-height, 0px) +
+        var(--mobile-footer-safe-area, 0px) +
+        var(--mobile-composer-offset, 0px)
+    );
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    overscroll-behavior-x: none;
+    touch-action: pan-y;
   }
 
   .mobile-chat-scroll {

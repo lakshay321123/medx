@@ -26,6 +26,7 @@ export function ChatWindow() {
   const chatRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const [isThinking, setIsThinking] = useState(false);
+  const hasScrollableContent = messages.length > 0 || results.length > 0;
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
@@ -105,7 +106,11 @@ export function ChatWindow() {
     <div className="flex h-full flex-col">
       <div
         ref={chatRef}
-        className="flex-1 overflow-y-auto px-4 pb-32 pt-4 md:px-0 md:pb-0 md:pt-0 mobile-chat-scroll"
+        className={`flex-1 px-4 pt-4 md:px-0 md:pt-0 ${
+          hasScrollableContent
+            ? "overflow-y-auto mobile-chat-scroll"
+            : "overflow-hidden mobile-chat-scroll-empty"
+        } md:pb-0 md:overflow-y-auto`}
       >
         {messages.map((m, idx) => {
           const isLastMessage = idx === messages.length - 1;
