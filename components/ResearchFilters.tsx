@@ -123,24 +123,20 @@ export default function ResearchFilters({ mode, onResults, variant = 'default' }
   const open = mode !== 'patient'; // keep previous behavior
 
   if (variant === 'mobileCard') {
-    const chipBase = 'rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs transition';
-    const chipSelected = 'text-white shadow-sm';
-    const chipUnselected = 'text-white/80 hover:bg-white/10';
-    const chipDesktopSelected = 'md:border-blue-600 md:bg-blue-600 md:text-white';
-    const chipDesktopUnselected = 'md:border-slate-300 md:bg-white md:text-slate-700 md:hover:bg-slate-100';
-
-    const fieldClass = 'w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-white/30 md:border-slate-300 md:bg-white md:text-slate-900 md:placeholder:text-slate-400 md:focus:ring-0';
-    const primaryButton = 'w-24 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto md:px-4';
-    const secondaryButton = 'w-24 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto md:border-slate-300 md:bg-white md:text-slate-700 md:hover:bg-slate-100';
+    const chipBase = 'rounded-full border border-white/15 bg-white/[.06] px-3 py-1 text-xs text-white whitespace-nowrap transition';
+    const chipActive = 'bg-white/[.18] text-white';
+    const chipIdle = 'text-white/80 hover:bg-white/20';
+    const fieldClass = 'w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-white/30';
+    const primaryButton = 'w-24 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60';
 
     return (
-      <form onSubmit={onSubmit} className="space-y-2 text-white md:text-slate-900">
-        <div className="grid grid-cols-[1fr,96px] gap-2 md:grid-cols-[minmax(0,1fr),auto]">
+      <form onSubmit={onSubmit} className="md:hidden space-y-2 px-3 text-white">
+        <div className="grid grid-cols-[1fr,96px] gap-2">
           <input
             value={local.query}
             onChange={e => setLocal(s => ({ ...s, query: e.target.value }))}
             onKeyDown={e => e.key === 'Enter' && (e.currentTarget as any).form?.requestSubmit()}
-            placeholder="Search trials…"
+            placeholder="Search trials (e.g., condition, gene, topic)…"
             className={fieldClass}
           />
           <button type="submit" className={primaryButton} disabled={busy}>
@@ -148,14 +144,14 @@ export default function ResearchFilters({ mode, onResults, variant = 'default' }
           </button>
         </div>
 
-        <div className="no-scrollbar overflow-x-auto">
-          <div className="flex gap-2 whitespace-nowrap">
+        <div className="overflow-x-auto no-scrollbar -mx-3 px-3">
+          <div className="flex gap-2">
             {phaseOptions.map(p => (
               <button
                 key={p}
                 type="button"
                 onClick={() => togglePhase(p)}
-                className={`${chipBase} ${local.phase === p ? `${chipSelected} ${chipDesktopSelected}` : `${chipUnselected} ${chipDesktopUnselected}`}`}
+                className={`${chipBase} ${local.phase === p ? chipActive : chipIdle}`}
               >
                 Phase {p}
               </button>
@@ -167,7 +163,7 @@ export default function ResearchFilters({ mode, onResults, variant = 'default' }
           <select
             value={local.status}
             onChange={e => setLocal(s => ({ ...s, status: e.target.value as any }))}
-            className={fieldClass}
+            className={`${fieldClass} appearance-none`}
           >
             {statusLabels.map(o => (
               <option key={o.key} value={o.key}>
@@ -178,7 +174,7 @@ export default function ResearchFilters({ mode, onResults, variant = 'default' }
           <select
             value={source}
             onChange={e => setSource(e.target.value)}
-            className={fieldClass}
+            className={`${fieldClass} appearance-none`}
           >
             <option>All</option>
             <option>CTgov</option>
@@ -188,14 +184,14 @@ export default function ResearchFilters({ mode, onResults, variant = 'default' }
           </select>
         </div>
 
-        <div className="no-scrollbar overflow-x-auto">
-          <div className="flex gap-2 whitespace-nowrap">
+        <div className="overflow-x-auto no-scrollbar -mx-3 px-3">
+          <div className="flex gap-2">
             {countryOptions.map(name => (
               <button
                 key={name}
                 type="button"
                 onClick={() => toggleCountry(name)}
-                className={`${chipBase} ${local.countries.includes(name) ? `${chipSelected} ${chipDesktopSelected}` : `${chipUnselected} ${chipDesktopUnselected}`}`}
+                className={`${chipBase} ${local.countries.includes(name) ? chipActive : chipIdle}`}
               >
                 {name}
               </button>
@@ -203,25 +199,19 @@ export default function ResearchFilters({ mode, onResults, variant = 'default' }
           </div>
         </div>
 
-        <div className="grid grid-cols-[1fr,96px] gap-2 md:grid-cols-[minmax(0,1fr),auto]">
+        <div className="grid grid-cols-[1fr,96px] gap-2">
           <input
-            placeholder="Genes (comma separated)"
             value={local.genes}
             onChange={e => setLocal(s => ({ ...s, genes: e.target.value }))}
+            placeholder="Genes (comma separated)"
             className={fieldClass}
           />
           <button type="submit" className={primaryButton} disabled={busy}>
-            {busy ? 'Searching…' : 'Apply'}
+            Apply
           </button>
         </div>
 
-        <div className="flex justify-end">
-          <button type="button" onClick={onReset} className={secondaryButton}>
-            Reset
-          </button>
-        </div>
-
-        {error ? <div className="text-xs text-red-200 md:text-red-600">{error}</div> : null}
+        {error ? <p className="text-xs text-red-200">{error}</p> : null}
       </form>
     );
   }

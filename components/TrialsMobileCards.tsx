@@ -36,7 +36,7 @@ export function TrialsMobileCards({
   }
 
   return (
-    <div className="grid gap-3 md:hidden">
+    <section className="md:hidden grid gap-3 px-3">
       {trials.map((trial) => {
         const registryMeta = [trial.nctId, trial.registry].filter(Boolean).join(" • ");
         const secondaryMeta = [
@@ -50,58 +50,62 @@ export function TrialsMobileCards({
         return (
           <article
             key={trial.id}
-            className="space-y-2 rounded-2xl border border-white/10 bg-white/5 p-4"
+            className="space-y-2 rounded-2xl border border-white/10 bg-white/[.06] p-4 text-white"
           >
             {registryMeta ? (
-              <div className="text-[11px] opacity-70">{registryMeta}</div>
+              <p className="text-[11px] text-white/60">{registryMeta}</p>
             ) : null}
 
-            <h3 className="text-sm font-semibold leading-5 wrap-anywhere">{trial.title}</h3>
+            <h3 className="text-sm font-semibold leading-5 text-white break-words hyphens-auto">
+              {trial.title}
+            </h3>
 
             {secondaryMeta ? (
-              <p className="text-xs opacity-80">{secondaryMeta}</p>
+              <p className="text-xs text-white/80">{secondaryMeta}</p>
             ) : null}
 
-            <div className="mt-1 flex flex-wrap gap-8">
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs"
-                >
-                  Status: {trial.status || "—"}
-                </button>
-                <button
-                  type="button"
-                  className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs"
-                  onClick={() => copyTrialId(trial)}
-                  aria-label="Copy trial ID"
-                >
-                  Copy
-                </button>
-                <button
-                  type="button"
-                  className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs"
-                  onClick={() => onSummarize(trial)}
-                >
-                  View details
-                </button>
-              </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="rounded-lg border border-white/15 bg-white/[.08] px-3 py-1 text-xs text-white"
+              >
+                Recruiting: {trial.recruitingCount ?? "—"}
+              </button>
 
-              {trial.registryUrl ? (
+              <button
+                type="button"
+                className="rounded-lg border border-white/15 bg-white/[.08] px-3 py-1 text-xs text-white"
+                onClick={() => copyTrialId(trial)}
+                aria-label="Copy trial ID"
+              >
+                Copy
+              </button>
+
+              <button
+                type="button"
+                className="rounded-lg border border-white/15 bg-white/[.08] px-3 py-1 text-xs text-white"
+                onClick={() => onSummarize(trial)}
+              >
+                View details
+              </button>
+            </div>
+
+            {trial.registryUrl ? (
+              <div className="pt-1">
                 <a
                   href={trial.registryUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs underline opacity-90"
+                  className="text-xs text-white underline"
                   aria-label="Open on registry website"
                 >
                   Open on registry ↗
                 </a>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
           </article>
         );
       })}
-    </div>
+    </section>
   );
 }
