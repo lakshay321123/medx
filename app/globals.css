@@ -221,7 +221,7 @@ body {
     --mobile-footer-safe-area: env(safe-area-inset-bottom);
     --mobile-footer-height: var(--mobile-footer-base-height);
     --mobile-composer-height: 88px;
-    --mobile-composer-offset: 1rem;
+    --mobile-composer-offset: 1.75rem;
     --mobile-composer-gap: calc(var(--mobile-composer-height) + var(--mobile-composer-offset));
   }
 

@@ -161,7 +161,7 @@ export default function LegalPrivacyFooter() {
       const footerStyles = window.getComputedStyle(footer);
       const safeInsetRaw = footerStyles.paddingBottom;
       const safeInset = Number.parseFloat(safeInsetRaw || "") || 0;
-      const offset = Math.max(fontSize, safeInset + 8);
+      const offset = Math.max(Math.round(fontSize * 1.5), safeInset + 24);
       root.style.setProperty("--mobile-footer-height", `${next}px`);
       root.style.setProperty("--mobile-footer-safe-area", `${safeInset}px`);
       root.style.setProperty("--mobile-composer-offset", `${offset}px`);
