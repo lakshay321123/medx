@@ -3119,15 +3119,36 @@ ${systemCommon}` + baseSys;
         });
         if (!res.ok) throw new Error('share_failed');
         const data = await res.json().catch(() => null);
-        const absoluteUrl = typeof data?.absoluteUrl === 'string' ? data.absoluteUrl.trim() : '';
+        const absoluteUrlRaw = typeof data?.absoluteUrl === 'string' ? data.absoluteUrl.trim() : '';
         const slug = typeof data?.slug === 'string' ? data.slug : '';
+
+        const normalizedAppUrl = (() => {
+          const envUrl = (process.env.NEXT_PUBLIC_APP_URL ?? '').trim();
+          if (envUrl) return envUrl.replace(/\/$/, '');
+          if (typeof window !== 'undefined' && window.location?.origin) {
+            return window.location.origin.replace(/\/$/, '');
+          }
+          return '';
+        })();
+
+        const resolveAbsoluteUrl = (value: string) => {
+          if (!value) return '';
+          if (/^https?:\/\//i.test(value)) return value;
+          if (value.startsWith('//')) {
+            return `https:${value}`;
+          }
+          if (value.startsWith('/')) {
+            return normalizedAppUrl ? `${normalizedAppUrl}${value}` : '';
+          }
+          return normalizedAppUrl ? `${normalizedAppUrl}/${value.replace(/^\/+/, '')}` : '';
+        };
+
+        const absoluteUrl = resolveAbsoluteUrl(absoluteUrlRaw);
 
         let shareUrl = '';
         if (absoluteUrl) {
           shareUrl = absoluteUrl;
         } else if (slug) {
-          const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
-          const normalizedAppUrl = APP_URL ? APP_URL.replace(/\/$/, '') : '';
           if (!normalizedAppUrl) throw new Error('share_failed');
           shareUrl = `${normalizedAppUrl}/s/${slug}`;
         } else {

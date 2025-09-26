@@ -157,29 +157,29 @@ async function imageLooksBlank(dataUrl: string) {
       }
       ctx.drawImage(img, 0, 0);
 
-      const center = ctx.getImageData(
-        Math.floor(img.naturalWidth / 2),
-        Math.floor(img.naturalHeight / 2),
-        1,
-        1
-      ).data;
-      if (center[3] > 0) {
-        resolve(false);
-        return;
-      }
+      const baseline = ctx.getImageData(0, 0, 1, 1).data;
+      const threshold = 8;
+      let hasVariation = false;
 
-      const stepX = Math.max(1, Math.floor(img.naturalWidth / 12));
-      const stepY = Math.max(1, Math.floor(img.naturalHeight / 12));
-      for (let y = 0; y < img.naturalHeight; y += stepY) {
+      const stepX = Math.max(1, Math.floor(img.naturalWidth / 18));
+      const stepY = Math.max(1, Math.floor(img.naturalHeight / 18));
+
+      for (let y = 0; y < img.naturalHeight && !hasVariation; y += stepY) {
         for (let x = 0; x < img.naturalWidth; x += stepX) {
           const pixel = ctx.getImageData(x, y, 1, 1).data;
-          if (pixel[3] > 0) {
-            resolve(false);
-            return;
+          if (
+            Math.abs(pixel[0] - baseline[0]) > threshold ||
+            Math.abs(pixel[1] - baseline[1]) > threshold ||
+            Math.abs(pixel[2] - baseline[2]) > threshold ||
+            Math.abs(pixel[3] - baseline[3]) > threshold
+          ) {
+            hasVariation = true;
+            break;
           }
         }
       }
-      resolve(true);
+
+      resolve(!hasVariation);
     };
     img.onerror = () => resolve(true);
     img.src = dataUrl;
