@@ -32,9 +32,10 @@ type Props = {
   mode: "patient" | "doctor" | "research" | "therapy";
   onResults?: (rows: Trial[]) => void;
   showBanner?: boolean;
+  className?: string;
 };
 
-export default function ResearchFilters({ mode, onResults, showBanner = true }: Props) {
+export default function ResearchFilters({ mode, onResults, showBanner = true, className }: Props) {
   const { filters, setFilters, reset } = useResearchFilters();
 
   const [local, setLocal] = useState({
@@ -122,8 +123,11 @@ export default function ResearchFilters({ mode, onResults, showBanner = true }: 
 
   const open = mode !== "patient";
 
+  const baseClass = "mx-auto w-full max-w-[420px] space-y-3 md:max-w-none md:px-6";
+  const formClassName = [baseClass, className].filter(Boolean).join(" ");
+
   return (
-    <form onSubmit={handleSubmit} className="mx-auto w-full max-w-[420px] space-y-3 md:max-w-none md:px-6">
+    <form onSubmit={handleSubmit} className={formClassName}>
       {showBanner && (
         <div className="md:hidden rounded-2xl bg-blue-700 p-4 text-white">
           <h2 className="text-base font-bold">Clinical Mode: ON</h2>

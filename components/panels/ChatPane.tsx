@@ -3123,8 +3123,8 @@ ${systemCommon}` + baseSys;
     Boolean(aidoc);
 
   const isClinicalResearchMobile = mode === "doctor" && researchMode;
-  const chatInnerPaddingClass = isClinicalResearchMobile ? "px-3 md:px-6" : "px-6";
-  const composerPaddingClass = isClinicalResearchMobile ? "px-3 md:px-6" : "px-6";
+  const chatInnerPaddingClass = isClinicalResearchMobile ? "px-0 md:px-6" : "px-6";
+  const composerPaddingClass = isClinicalResearchMobile ? "px-0 md:px-6" : "px-6";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -3152,331 +3152,336 @@ ${systemCommon}` + baseSys;
         <div className={`flex min-h-full flex-col justify-end ${chatInnerPaddingClass}${showWelcomeCard ? '' : ' pt-6'}`}>
           {mode === "doctor" && researchMode && (
             <div className="mb-6 space-y-4">
-              <div className="md:hidden mx-auto w-full max-w-[420px] px-3">
-                <div className="rounded-2xl bg-blue-700 p-4 text-white">
-                  <h2 className="text-base font-bold">Clinical Mode: ON</h2>
-                  <p className="text-xs opacity-90">Evidence-ready, clinician-first. Research: On — web evidence</p>
+              <div className="md:hidden">
+                <div className="mx-auto w-full max-w-[420px] space-y-3 px-3">
+                  <div className="rounded-2xl bg-blue-700 p-4 text-white">
+                    <h2 className="text-base font-bold">Clinical Mode: ON</h2>
+                    <p className="text-xs opacity-90">Evidence-ready, clinician-first. Research: On — web evidence</p>
+                  </div>
                 </div>
               </div>
 
-              <ResearchFilters mode="research" onResults={handleTrials} showBanner={false} />
+              <ResearchFilters
+                mode="research"
+                onResults={handleTrials}
+                showBanner={false}
+                className="px-3"
+              />
 
-              {searched && trialRows.length === 0 && (
-                <>
-                  <div className="md:hidden mx-auto w-full max-w-[420px] px-3">
-                    <div className="rounded-2xl border border-white/10 bg-white/6 p-3 text-xs text-white/80">
-                      No trials found. Try removing a filter, switching country, or using broader keywords.
-                    </div>
-                  </div>
-                  <div className="hidden md:block rounded-xl border border-slate-200 bg-white/80 p-3 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">
-                    No trials found. Try removing a filter, switching country, or using broader keywords.
-                  </div>
-                </>
-              )}
-
-              {summary && (
-                <>
-                  <div className="md:hidden mx-auto w-full max-w-[420px] px-3">
-                    <div className="space-y-3 rounded-2xl border border-white/10 bg-white/6 p-4 text-xs text-white/80">
-                      <p className="whitespace-pre-wrap text-white/80">{summary}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {stats?.recruitingCount ? (
-                          <span className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white">
-                            Recruiting: {stats.recruitingCount}
-                          </span>
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={() => navigator.clipboard.writeText(summary!)}
-                          className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white"
-                          aria-label="Copy summary"
-                        >
-                          Copy
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowDetails(s => !s)}
-                          className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white"
-                          aria-label={showDetails ? "Hide details" : "View details"}
-                        >
-                          {showDetails ? "Hide details" : "View details"}
-                        </button>
-                      </div>
-                      {showDetails && stats && (
-                        <div className="grid gap-2 text-[11px] text-white/70">
-                          <div>
-                            <div className="font-semibold text-white/80">Phases</div>
-                            <ul className="mt-1 space-y-1">
-                              {Object.entries(stats.byPhase).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
-                                <li key={k} className="flex justify-between"><span>Phase {k}</span><span>{v}</span></li>
-                              ))}
-                              {Object.keys(stats.byPhase).length === 0 && <li>—</li>}
-                            </ul>
-                          </div>
-                          <div>
-                            <div className="font-semibold text-white/80">Statuses</div>
-                            <ul className="mt-1 space-y-1">
-                              {Object.entries(stats.byStatus).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
-                                <li key={k} className="flex justify-between"><span>{k}</span><span>{v}</span></li>
-                              ))}
-                              {Object.keys(stats.byStatus).length === 0 && <li>—</li>}
-                            </ul>
-                          </div>
-                          <div>
-                            <div className="font-semibold text-white/80">Top countries</div>
-                            <ul className="mt-1 space-y-1">
-                              {Object.entries(stats.byCountry).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => (
-                                <li key={k} className="flex justify-between"><span>{k}</span><span>{v}</span></li>
-                              ))}
-                              {Object.keys(stats.byCountry).length === 0 && <li>—</li>}
-                            </ul>
-                          </div>
-                          <div>
-                            <div className="font-semibold text-white/80">Top genes</div>
-                            <ul className="mt-1 space-y-1">
-                              {stats.genesTop.length ? (
-                                stats.genesTop.map(([g, c]) => (
-                                  <li key={g} className="flex justify-between"><span>{g}</span><span>{c}</span></li>
-                                ))
-                              ) : (
-                                <li>—</li>
-                              )}
-                            </ul>
-                          </div>
-                          <div>
-                            <div className="font-semibold text-white/80">Top conditions</div>
-                            <ul className="mt-1 space-y-1">
-                              {stats.conditionsTop.length ? (
-                                stats.conditionsTop.map(([k, c]) => (
-                                  <li key={k} className="flex justify-between capitalize"><span>{k}</span><span>{c}</span></li>
-                                ))
-                              ) : (
-                                <li>—</li>
-                              )}
-                            </ul>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="hidden md:block space-y-4 rounded-xl border border-slate-200 bg-white/85 p-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="flex items-start gap-2">
-                        <div className="mt-0.5 shrink-0">
-                          {mode === "doctor" ? <Stethoscope size={16} /> : <Users size={16} />}
-                        </div>
-                        <div className="flex-1 whitespace-pre-wrap">{summary}</div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {stats?.recruitingCount ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800 dark:bg-green-900/40 dark:text-green-200">
-                            • Recruiting: {stats.recruitingCount}
-                          </span>
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={() => navigator.clipboard.writeText(summary!)}
-                          className="rounded-full border border-slate-200 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-                          title="Copy summary"
-                        >
-                          <span className="inline-flex items-center gap-1">
-                            <Clipboard size={14} /> Copy
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowDetails(s => !s)}
-                          className="rounded-full border border-slate-200 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-                          title="View details"
-                        >
-                          <span className="inline-flex items-center gap-1">
-                            {showDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                            {showDetails ? "Hide details" : "View details"}
-                          </span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {showDetails && stats && (
-                      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                        <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                          <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Phases</div>
-                          <ul className="px-3 py-2 space-y-1">
-                            {Object.entries(stats.byPhase).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
-                              <li key={k} className="flex justify-between"><span>Phase {k}</span><span>{v}</span></li>
-                            ))}
-                            {Object.keys(stats.byPhase).length === 0 && <li className="text-slate-500">—</li>}
-                          </ul>
-                        </div>
-
-                        <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                          <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Statuses</div>
-                          <ul className="px-3 py-2 space-y-1">
-                            {Object.entries(stats.byStatus).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
-                              <li key={k} className="flex justify-between"><span>{k}</span><span>{v}</span></li>
-                            ))}
-                            {Object.keys(stats.byStatus).length === 0 && <li className="text-slate-500">—</li>}
-                          </ul>
-                        </div>
-
-                        <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                          <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Top countries</div>
-                          <ul className="px-3 py-2 space-y-1">
-                            {Object.entries(stats.byCountry).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => (
-                              <li key={k} className="flex justify-between"><span>{k}</span><span>{v}</span></li>
-                            ))}
-                            {Object.keys(stats.byCountry).length === 0 && <li className="text-slate-500">—</li>}
-                          </ul>
-                        </div>
-
-                        <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                          <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Top genes</div>
-                          <ul className="px-3 py-2 space-y-1">
-                            {stats.genesTop.length ? stats.genesTop.map(([g, c]) => (
-                              <li key={g} className="flex justify-between"><span>{g}</span><span>{c}</span></li>
-                            )) : <li className="text-slate-500">—</li>}
-                          </ul>
-                        </div>
-
-                        <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                          <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Top conditions</div>
-                          <ul className="px-3 py-2 space-y-1">
-                            {stats.conditionsTop.length ? stats.conditionsTop.map(([k, c]) => (
-                              <li key={k} className="flex justify-between capitalize"><span>{k}</span><span>{c}</span></li>
-                            )) : <li className="text-slate-500">—</li>}
-                          </ul>
-                        </div>
+              {(summary || trialRows.length > 0 || (searched && trialRows.length === 0)) && (
+                <div className="md:hidden">
+                  <div className="mx-auto w-full max-w-[420px] space-y-3 px-3 pb-[110px]">
+                    {searched && trialRows.length === 0 && (
+                      <div className="rounded-2xl border border-white/10 bg-white/6 p-3 text-xs text-white/80">
+                        No trials found. Try removing a filter, switching country, or using broader keywords.
                       </div>
                     )}
-                  </div>
-                </>
-              )}
 
-              {trialRows.length > 0 && (
-                <>
-                  <section className="md:hidden mx-auto w-full max-w-[420px] px-3 pb-[110px]">
-                    <div className="grid gap-3">
-                      {trialRows.map((t, index) => {
-                        const status = t.status || "Status unknown";
-                        const phaseLabel = t.phase
-                          ? t.phase.toLowerCase().includes("phase")
-                            ? t.phase
-                            : `Phase ${t.phase}`
-                          : "Phase N/A";
-                        const countryLabel = t.country || "Location TBD";
-                        const registryLabel = t.source
-                          ? (t.source === "CTgov"
-                              ? "ClinicalTrials.gov"
-                              : t.source === "EUCTR"
-                                ? "EU Clinical Trials Register"
+                    {summary && (
+                      <div className="space-y-3 rounded-2xl border border-white/10 bg-white/6 p-4 text-xs text-white/80">
+                        <p className="whitespace-pre-wrap text-white/80">{summary}</p>
+                        <div className="flex flex-wrap gap-2">
+                          {stats?.recruitingCount ? (
+                            <span className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white">
+                              Recruiting: {stats.recruitingCount}
+                            </span>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => navigator.clipboard.writeText(summary!)}
+                            className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white"
+                            aria-label="Copy summary"
+                          >
+                            Copy
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowDetails(s => !s)}
+                            className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white"
+                            aria-label={showDetails ? "Hide details" : "View details"}
+                          >
+                            {showDetails ? "Hide details" : "View details"}
+                          </button>
+                        </div>
+                        {showDetails && stats && (
+                          <div className="grid gap-2 text-[11px] text-white/70">
+                            <div>
+                              <div className="font-semibold text-white/80">Phases</div>
+                              <ul className="mt-1 space-y-1">
+                                {Object.entries(stats.byPhase).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
+                                  <li key={k} className="flex justify-between"><span>Phase {k}</span><span>{v}</span></li>
+                                ))}
+                                {Object.keys(stats.byPhase).length === 0 && <li>—</li>}
+                              </ul>
+                            </div>
+                            <div>
+                              <div className="font-semibold text-white/80">Statuses</div>
+                              <ul className="mt-1 space-y-1">
+                                {Object.entries(stats.byStatus).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
+                                  <li key={k} className="flex justify-between"><span>{k}</span><span>{v}</span></li>
+                                ))}
+                                {Object.keys(stats.byStatus).length === 0 && <li>—</li>}
+                              </ul>
+                            </div>
+                            <div>
+                              <div className="font-semibold text-white/80">Top countries</div>
+                              <ul className="mt-1 space-y-1">
+                                {Object.entries(stats.byCountry).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => (
+                                  <li key={k} className="flex justify-between"><span>{k}</span><span>{v}</span></li>
+                                ))}
+                                {Object.keys(stats.byCountry).length === 0 && <li>—</li>}
+                              </ul>
+                            </div>
+                            <div>
+                              <div className="font-semibold text-white/80">Top genes</div>
+                              <ul className="mt-1 space-y-1">
+                                {stats.genesTop.length ? (
+                                  stats.genesTop.map(([g, c]) => (
+                                    <li key={g} className="flex justify-between"><span>{g}</span><span>{c}</span></li>
+                                  ))
+                                ) : (
+                                  <li>—</li>
+                                )}
+                              </ul>
+                            </div>
+                            <div>
+                              <div className="font-semibold text-white/80">Top conditions</div>
+                              <ul className="mt-1 space-y-1">
+                                {stats.conditionsTop.length ? (
+                                  stats.conditionsTop.map(([k, c]) => (
+                                    <li key={k} className="flex justify-between capitalize"><span>{k}</span><span>{c}</span></li>
+                                  ))
+                                ) : (
+                                  <li>—</li>
+                                )}
+                              </ul>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {trialRows.length > 0 && (
+                      <div className="grid gap-3">
+                        {trialRows.map((t, index) => {
+                          const status = t.status || "Status unknown";
+                          const phaseLabel = t.phase
+                            ? t.phase.toLowerCase().includes("phase")
+                              ? t.phase
+                              : `Phase ${t.phase}`
+                            : "Phase N/A";
+                          const countryLabel = t.country || "Location TBD";
+                          const registryLabel = t.source
+                            ? (t.source === "CTgov"
+                                ? "ClinicalTrials.gov"
+                                : t.source === "EUCTR"
+                                  ? "EU Clinical Trials Register"
                                   : t.source === "CTRI"
                                     ? "CTRI"
                                     : t.source)
-                          : "Registry";
-                        const recruitingLabel = t.status?.toLowerCase().startsWith("recruit") ? "Yes" : "No";
-                        const copyPayload = `${t.title} — ${t.url || t.id}`;
-                        const cardKey = `${t.source || "src"}:${t.id || index}`;
-                        const linkHref = t.url || (t.id ? `https://clinicaltrials.gov/study/${t.id}` : null);
+                            : "Registry";
+                          const recruitingLabel = t.status?.toLowerCase().startsWith("recruit") ? "Yes" : "No";
+                          const copyPayload = `${t.title} — ${t.url || t.id}`;
+                          const cardKey = `${t.source || "src"}:${t.id || index}`;
+                          const linkHref = t.url || (t.id ? `https://clinicaltrials.gov/study/${t.id}` : null);
 
-                        const handleCopy = () => {
-                          if (typeof navigator !== "undefined" && navigator.clipboard) {
-                            navigator.clipboard.writeText(copyPayload).catch(() => {});
-                          }
-                        };
+                          const handleCopy = () => {
+                            if (typeof navigator !== "undefined" && navigator.clipboard) {
+                              navigator.clipboard.writeText(copyPayload).catch(() => {});
+                            }
+                          };
 
-                        const handleViewDetails = () => {
-                          summarizeTrialFromCard(t, {
-                            status,
-                            phase: phaseLabel,
-                            country: countryLabel,
-                            registry: registryLabel,
-                            url: linkHref,
-                          });
-                        };
+                          const handleViewDetails = () => {
+                            summarizeTrialFromCard(t, {
+                              status,
+                              phase: phaseLabel,
+                              country: countryLabel,
+                              registry: registryLabel,
+                              url: linkHref,
+                            });
+                          };
 
-                        const handleOpenSource = () => {
-                          if (linkHref) {
-                            window.open(linkHref, "_blank", "noopener");
-                          }
-                        };
+                          const handleOpenSource = () => {
+                            if (linkHref) {
+                              window.open(linkHref, "_blank", "noopener");
+                            }
+                          };
 
-                        return (
-                          <article key={cardKey} className="rounded-2xl border border-white/10 bg-white/6 p-4">
-                            <h3 className="text-sm font-semibold leading-5 text-white break-words hyphens-auto">{t.title}</h3>
-                            <p className="mt-1 text-xs text-white/80">
-                              {status} • {phaseLabel} • {countryLabel}
-                            </p>
-                            <p className="text-[11px] text-white/60">{t.id || '—'} • {registryLabel}</p>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              <button
-                                type="button"
-                                className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white"
-                                aria-label={`Recruiting status for ${t.id || 'trial'}`}
-                              >
-                                Recruiting: {recruitingLabel}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={handleCopy}
-                                className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white"
-                                aria-label={`Copy ${t.id || 'trial'} details`}
-                              >
-                                Copy
-                              </button>
-                              <button
-                                type="button"
-                                onClick={handleOpenSource}
-                                disabled={!linkHref}
-                                className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white disabled:cursor-not-allowed disabled:opacity-50"
-                                aria-label={linkHref ? `Open source link for ${t.id || 'trial'}` : 'Source link unavailable'}
-                              >
-                                Links
-                              </button>
-                              <button
-                                type="button"
-                                onClick={handleViewDetails}
-                                className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white"
-                                aria-label={`Summarize ${t.id || 'trial'} details`}
-                              >
-                                View details
-                              </button>
-                            </div>
-                          </article>
-                        );
-                      })}
+                          return (
+                            <article key={cardKey} className="rounded-2xl border border-white/10 bg-white/6 p-4">
+                              <h3 className="text-sm font-semibold leading-5 text-white break-words hyphens-auto">{t.title}</h3>
+                              <p className="mt-1 text-xs text-white/80">
+                                {status} • {phaseLabel} • {countryLabel}
+                              </p>
+                              <p className="text-[11px] text-white/60">{t.id || "—"} • {registryLabel}</p>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white"
+                                  aria-label={`Recruiting status for ${t.id || "trial"}`}
+                                >
+                                  Recruiting: {recruitingLabel}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleCopy}
+                                  className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white"
+                                  aria-label={`Copy ${t.id || "trial"} details`}
+                                >
+                                  Copy
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleOpenSource}
+                                  disabled={!linkHref}
+                                  className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                  aria-label={linkHref ? `Open source link for ${t.id || "trial"}` : "Source link unavailable"}
+                                >
+                                  Links
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleViewDetails}
+                                  className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white"
+                                  aria-label={`Summarize ${t.id || "trial"} details`}
+                                >
+                                  View details
+                                </button>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {searched && trialRows.length === 0 && (
+                <div className="hidden md:block rounded-xl border border-slate-200 bg-white/80 p-3 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">
+                  No trials found. Try removing a filter, switching country, or using broader keywords.
+                </div>
+              )}
+
+              {summary && (
+                <div className="hidden md:block rounded-xl border border-slate-200 bg-white/80 p-4 text-sm text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="font-semibold text-slate-900 dark:text-white">Trial overview</div>
+                      <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-300">{summary}</p>
                     </div>
-                  </section>
-
-                  <div className="hidden md:block rounded-xl border border-slate-200 bg-white/85 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
-                    <div className="mb-2 flex justify-end">
+                    <div className="flex shrink-0 flex-col gap-2">
+                      {stats?.recruitingCount ? (
+                        <span className="inline-flex items-center justify-center rounded-full border border-slate-200 px-3 py-1 text-xs font-medium dark:border-slate-700">
+                          Recruiting: {stats.recruitingCount}
+                        </span>
+                      ) : null}
                       <button
-                        onClick={async () => {
-                          const res = await fetch("/api/trials/export", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ rows: trialRows }),
-                          });
-                          const blob = await res.blob();
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement("a");
-                          a.href = url;
-                          a.download = "trials.csv";
-                          a.click();
-                          URL.revokeObjectURL(url);
-                        }}
-                        className="rounded-full border border-slate-200 px-3 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                        type="button"
+                        onClick={() => navigator.clipboard.writeText(summary!)}
+                        className="rounded-full border border-slate-200 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                        title="Copy summary"
                       >
-                        Export CSV
+                        <span className="inline-flex items-center gap-1">
+                          <Clipboard size={14} /> Copy
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowDetails(s => !s)}
+                        className="rounded-full border border-slate-200 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                        title="View details"
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          {showDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                          {showDetails ? "Hide details" : "View details"}
+                        </span>
                       </button>
                     </div>
-                    <TrialsTable rows={trialRows} />
                   </div>
-                </>
+                </div>
+              )}
+
+              {showDetails && stats && (
+                <div className="hidden md:grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                    <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Phases</div>
+                    <ul className="px-3 py-2 space-y-1">
+                      {Object.entries(stats.byPhase).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
+                        <li key={k} className="flex justify-between"><span>Phase {k}</span><span>{v}</span></li>
+                      ))}
+                      {Object.keys(stats.byPhase).length === 0 && <li className="text-slate-500">—</li>}
+                    </ul>
+                  </div>
+
+                  <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                    <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Statuses</div>
+                    <ul className="px-3 py-2 space-y-1">
+                      {Object.entries(stats.byStatus).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
+                        <li key={k} className="flex justify-between"><span>{k}</span><span>{v}</span></li>
+                      ))}
+                      {Object.keys(stats.byStatus).length === 0 && <li className="text-slate-500">—</li>}
+                    </ul>
+                  </div>
+
+                  <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                    <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Top countries</div>
+                    <ul className="px-3 py-2 space-y-1">
+                      {Object.entries(stats.byCountry).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => (
+                        <li key={k} className="flex justify-between"><span>{k}</span><span>{v}</span></li>
+                      ))}
+                      {Object.keys(stats.byCountry).length === 0 && <li className="text-slate-500">—</li>}
+                    </ul>
+                  </div>
+
+                  <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                    <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Top genes</div>
+                    <ul className="px-3 py-2 space-y-1">
+                      {stats.genesTop.length ? stats.genesTop.map(([g, c]) => (
+                        <li key={g} className="flex justify-between"><span>{g}</span><span>{c}</span></li>
+                      )) : <li className="text-slate-500">—</li>}
+                    </ul>
+                  </div>
+
+                  <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                    <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Top conditions</div>
+                    <ul className="px-3 py-2 space-y-1">
+                      {stats.conditionsTop.length ? stats.conditionsTop.map(([k, c]) => (
+                        <li key={k} className="flex justify-between capitalize"><span>{k}</span><span>{c}</span></li>
+                      )) : <li className="text-slate-500">—</li>}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {trialRows.length > 0 && (
+                <div className="hidden md:block rounded-xl border border-slate-200 bg-white/85 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
+                  <div className="mb-2 flex justify-end">
+                    <button
+                      onClick={async () => {
+                        const res = await fetch("/api/trials/export", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ rows: trialRows }),
+                        });
+                        const blob = await res.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = "trials.csv";
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="rounded-full border border-slate-200 px-3 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                    >
+                      Export CSV
+                    </button>
+                  </div>
+                  <TrialsTable rows={trialRows} />
+                </div>
               )}
             </div>
           )}
-
           {ui.topic && (
             <div className="mx-auto mb-2 max-w-3xl">
               <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs dark:border-slate-700 dark:bg-slate-900/70">
