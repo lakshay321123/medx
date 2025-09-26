@@ -68,6 +68,8 @@ export default function VitalsEditor({
 
     const observedAt = new Date().toISOString();
 
+    const metaBase = { source: "manual", category: "vital", committed: true } as const;
+
     const observations = [
       systolicValue != null
         ? {
@@ -76,7 +78,7 @@ export default function VitalsEditor({
             value_text: String(systolicValue),
             unit: "mmHg",
             observed_at: observedAt,
-            meta: { source: "manual", category: "vital" },
+            meta: metaBase,
           }
         : null,
       diastolicValue != null
@@ -86,7 +88,7 @@ export default function VitalsEditor({
             value_text: String(diastolicValue),
             unit: "mmHg",
             observed_at: observedAt,
-            meta: { source: "manual", category: "vital" },
+            meta: metaBase,
           }
         : null,
       heartRateValue != null
@@ -96,7 +98,7 @@ export default function VitalsEditor({
             value_text: String(heartRateValue),
             unit: "bpm",
             observed_at: observedAt,
-            meta: { source: "manual", category: "vital" },
+            meta: metaBase,
           }
         : null,
       bmiValue != null
@@ -106,7 +108,7 @@ export default function VitalsEditor({
             value_text: String(bmiValue),
             unit: "kg/m2",
             observed_at: observedAt,
-            meta: { source: "manual", category: "vital" },
+            meta: metaBase,
           }
         : null,
     ].filter(Boolean);

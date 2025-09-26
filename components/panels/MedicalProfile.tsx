@@ -32,6 +32,9 @@ const PRESET_CONDITIONS = [
   "Dyslipidemia",
 ];
 
+const MANUAL_NOTES_KIND = "summary_notes_manual";
+const MANUAL_NEXT_STEPS_KIND = "summary_next_steps_manual";
+
 type MedicationEntry = {
   key: string;
   name: string;
@@ -132,6 +135,8 @@ export default function MedicalProfile() {
   const [predictionText, setPredictionText] = useState("—");
   const [summaryNotes, setSummaryNotes] = useState("—");
   const [summaryNextSteps, setSummaryNextSteps] = useState("—");
+  const [manualNotes, setManualNotes] = useState<string | null>(null);
+  const [manualNextSteps, setManualNextSteps] = useState<string | null>(null);
 
   const [bootstrapped, setBootstrapped] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -147,6 +152,20 @@ export default function MedicalProfile() {
   const extractedMedications = useMemo(() => extractMedicationEntries(data), [data]);
 
   const latestMap: ObservationMap = (data?.latest as ObservationMap) || {};
+
+  const manualNotesFromObservations = useMemo(() => {
+    const entry = pickObservation(latestMap, [MANUAL_NOTES_KIND]);
+    if (!entry || entry.value == null) return null;
+    const text = String(entry.value).trim();
+    return text || null;
+  }, [latestMap]);
+
+  const manualNextStepsFromObservations = useMemo(() => {
+    const entry = pickObservation(latestMap, [MANUAL_NEXT_STEPS_KIND]);
+    if (!entry || entry.value == null) return null;
+    const text = String(entry.value).trim();
+    return text || null;
+  }, [latestMap]);
 
   useEffect(() => {
     const prof = data?.profile ?? null;
@@ -165,6 +184,14 @@ export default function MedicalProfile() {
     if (!bootstrapped) return;
     setMedications(extractedMedications);
   }, [bootstrapped, extractedMedications]);
+
+  useEffect(() => {
+    setManualNotes(manualNotesFromObservations);
+  }, [manualNotesFromObservations]);
+
+  useEffect(() => {
+    setManualNextSteps(manualNextStepsFromObservations);
+  }, [manualNextStepsFromObservations]);
 
   const parseSummary = useCallback((text: string) => {
     const lines = text
@@ -257,6 +284,8 @@ export default function MedicalProfile() {
 
   const labs = data?.groups?.labs ?? [];
   const medsEmpty = medications.length === 0;
+  const displayedNotes = manualNotes ?? (summaryNotes !== "—" ? summaryNotes : null);
+  const displayedNextSteps = manualNextSteps ?? (summaryNextSteps !== "—" ? summaryNextSteps : null);
 
   const handleProfileSave = async () => {
     setSavingProfile(true);
@@ -303,6 +332,7 @@ export default function MedicalProfile() {
     const { doseLabel, doseUnit, doseValue } = parseDoseString(med.dose ?? null);
     const kind = buildMedicationKind(normalizedName, doseLabel);
     const observedAt = new Date().toISOString();
+    const summaryLabel = buildMedicationSummaryLabel(normalizedName, doseLabel);
 
     const res = await fetch("/api/observations", {
       method: "POST",
@@ -319,6 +349,9 @@ export default function MedicalProfile() {
           normalizedName,
           doseLabel,
           rxnormId: med.rxnormId ?? null,
+          committed: true,
+          label: summaryLabel,
+          medications: summaryLabel ? [summaryLabel] : [],
         },
       }),
     });
@@ -343,6 +376,8 @@ export default function MedicalProfile() {
 
   const handleRemoveMedication = async (med: MedicationEntry) => {
     try {
+      const summaryLabel = buildMedicationSummaryLabel(med.name, med.doseLabel || null);
+
       const res = await fetch("/api/observations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -356,6 +391,9 @@ export default function MedicalProfile() {
             source: "manual",
             category: "medication",
             normalizedName: med.name,
+            doseLabel: med.doseLabel ?? null,
+            committed: true,
+            label: summaryLabel,
             deleted: true,
           },
         }),
@@ -380,14 +418,34 @@ export default function MedicalProfile() {
   const handleSaveNotes = async () => {
     setSavingNotes(true);
     try {
-      const res = await fetch("/api/profile", {
-        method: "PUT",
+      const trimmed = notesDraft.trim();
+      const observedAt = new Date().toISOString();
+      const res = await fetch("/api/observations", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes: notesDraft.trim() || null }),
+        body: JSON.stringify({
+          kind: MANUAL_NOTES_KIND,
+          value_text: trimmed || null,
+          value_num: null,
+          unit: trimmed ? null : "__cleared__",
+          observed_at: observedAt,
+          meta: {
+            source: "manual",
+            category: "note",
+            committed: true,
+            label: "Symptoms / notes",
+            cleared: !trimmed,
+          },
+        }),
       });
       if (!res.ok) throw new Error(await res.text());
+      const stored = trimmed || null;
+      setManualNotes(stored);
+      setSummaryNotes(stored || "—");
       pushToast({ title: "Notes saved" });
       setNotesEditing(false);
+      await mutateProfile();
+      await mutateGlobal("/api/profile");
       await loadSummary();
     } catch (err: any) {
       pushToast({
@@ -403,14 +461,34 @@ export default function MedicalProfile() {
   const handleSaveNextSteps = async () => {
     setSavingNextSteps(true);
     try {
-      const res = await fetch("/api/profile", {
-        method: "PUT",
+      const trimmed = nextStepsDraft.trim();
+      const observedAt = new Date().toISOString();
+      const res = await fetch("/api/observations", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ next_steps: nextStepsDraft.trim() || null }),
+        body: JSON.stringify({
+          kind: MANUAL_NEXT_STEPS_KIND,
+          value_text: trimmed || null,
+          value_num: null,
+          unit: trimmed ? null : "__cleared__",
+          observed_at: observedAt,
+          meta: {
+            source: "manual",
+            category: "note",
+            committed: true,
+            label: "Next steps",
+            cleared: !trimmed,
+          },
+        }),
       });
       if (!res.ok) throw new Error(await res.text());
+      const stored = trimmed || null;
+      setManualNextSteps(stored);
+      setSummaryNextSteps(stored || "—");
       pushToast({ title: "Next steps saved" });
       setNextStepsEditing(false);
+      await mutateProfile();
+      await mutateGlobal("/api/profile");
       await loadSummary();
     } catch (err: any) {
       pushToast({
@@ -743,8 +821,8 @@ export default function MedicalProfile() {
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Symptoms / notes
                 </h4>
-                {summaryNotes !== "—" && !notesEditing ? (
-                  <p className="mt-1 text-sm whitespace-pre-wrap">{summaryNotes}</p>
+                {displayedNotes && !notesEditing ? (
+                  <p className="mt-1 text-sm whitespace-pre-wrap">{displayedNotes}</p>
                 ) : null}
                 {notesEditing ? (
                   <div className="mt-2 space-y-2">
@@ -773,7 +851,18 @@ export default function MedicalProfile() {
                       </button>
                     </div>
                   </div>
-                ) : summaryNotes === "—" ? (
+                ) : displayedNotes ? (
+                  <button
+                    type="button"
+                    className="mt-2 rounded-md border px-3 py-1.5 text-xs"
+                    onClick={() => {
+                      setNotesDraft(displayedNotes ?? "");
+                      setNotesEditing(true);
+                    }}
+                  >
+                    Edit
+                  </button>
+                ) : (
                   <button
                     type="button"
                     className="mt-2 rounded-md border px-3 py-1.5 text-sm"
@@ -784,25 +873,14 @@ export default function MedicalProfile() {
                   >
                     Add notes
                   </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="mt-2 rounded-md border px-3 py-1.5 text-xs"
-                    onClick={() => {
-                      setNotesDraft(summaryNotes === "—" ? "" : summaryNotes);
-                      setNotesEditing(true);
-                    }}
-                  >
-                    Edit
-                  </button>
                 )}
               </div>
               <div>
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Next steps
                 </h4>
-                {summaryNextSteps !== "—" && !nextStepsEditing ? (
-                  <p className="mt-1 text-sm whitespace-pre-wrap">{summaryNextSteps}</p>
+                {displayedNextSteps && !nextStepsEditing ? (
+                  <p className="mt-1 text-sm whitespace-pre-wrap">{displayedNextSteps}</p>
                 ) : null}
                 {nextStepsEditing ? (
                   <div className="mt-2 space-y-2">
@@ -831,7 +909,18 @@ export default function MedicalProfile() {
                       </button>
                     </div>
                   </div>
-                ) : summaryNextSteps === "—" ? (
+                ) : displayedNextSteps ? (
+                  <button
+                    type="button"
+                    className="mt-2 rounded-md border px-3 py-1.5 text-xs"
+                    onClick={() => {
+                      setNextStepsDraft(displayedNextSteps ?? "");
+                      setNextStepsEditing(true);
+                    }}
+                  >
+                    Edit
+                  </button>
+                ) : (
                   <button
                     type="button"
                     className="mt-2 rounded-md border px-3 py-1.5 text-sm"
@@ -841,17 +930,6 @@ export default function MedicalProfile() {
                     }}
                   >
                     Add next steps
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="mt-2 rounded-md border px-3 py-1.5 text-xs"
-                    onClick={() => {
-                      setNextStepsDraft(summaryNextSteps === "—" ? "" : summaryNextSteps);
-                      setNextStepsEditing(true);
-                    }}
-                  >
-                    Edit
                   </button>
                 )}
               </div>
@@ -1017,6 +1095,12 @@ function dedupeMedicationList(input: MedicationEntry[]): MedicationEntry[] {
 function formatMedicationLabel(med: MedicationEntry) {
   const doseLabel = med.doseLabel || buildDoseLabelFromParts(med.doseValue ?? null, med.doseUnit);
   return doseLabel ? `${med.name} ${doseLabel}` : med.name;
+}
+
+function buildMedicationSummaryLabel(name: string, doseLabel: string | null) {
+  const trimmedName = name.trim();
+  if (!trimmedName) return "";
+  return doseLabel ? `${trimmedName} ${doseLabel}` : trimmedName;
 }
 
 function parseDoseString(raw: string | null) {
