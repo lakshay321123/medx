@@ -3130,6 +3130,158 @@ ${systemCommon}` + baseSys;
     ? `${clinicalMobileShell} md:max-w-3xl md:px-0`
     : "mx-auto w-full max-w-3xl";
 
+  const composerContent = (
+    <div className={`${composerPaddingClass} pb-4 md:pb-6`}>
+      <div
+        className={
+          isClinicalResearchMobile
+            ? `${clinicalMobileShell} space-y-3 py-4 md:max-w-3xl md:px-4`
+            : "mx-auto max-w-3xl space-y-3 px-4 py-4"
+        }
+      >
+        {mode === 'doctor' && AIDOC_UI && (
+          <button
+            className="rounded-full border border-slate-200 px-3 py-1 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+            onClick={async () => {
+              if (AIDOC_PREFLIGHT) {
+                setShowPatientChooser(true);
+              } else {
+                runAiDocWith('current');
+              }
+            }}
+            aria-label="AI Doc Next Steps"
+            disabled={loadingAidoc}
+          >
+            {loadingAidoc ? 'Analyzing…' : 'Next steps (AI Doc)'}
+          </button>
+        )}
+
+        {((showDefaultSuggestions && showSuggestions) || showLiveSuggestions) && (
+          <div className="w-full">
+            {showDefaultSuggestions && showSuggestions && (
+              <SuggestBar
+                title="Popular questions"
+                suggestions={defaultSuggestions}
+                onPick={handleSuggestionPick}
+              />
+            )}
+            {showLiveSuggestions && (
+              <SuggestBar
+                title="Suggestions"
+                suggestions={liveSuggestions}
+                onPick={handleSuggestionPick}
+              />
+            )}
+          </div>
+        )}
+
+        {pendingFiles.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/60 bg-white/80 px-3 py-2 text-xs text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200">
+            <span className="font-medium">
+              {pendingFiles.length} file{pendingFiles.length === 1 ? '' : 's'} ready
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              {pendingFiles.map((file, index) => (
+                <span
+                  key={`${file.name}-${index}`}
+                  className="flex items-center gap-1 rounded-full bg-slate-100/70 px-2 py-0.5 dark:bg-slate-800/70"
+                >
+                  <span className="max-w-[7rem] truncate">{file.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => removePendingFile(index)}
+                    className="text-slate-500 transition hover:text-slate-700 dark:hover:text-slate-300"
+                    aria-label={`Remove ${file.name}`}
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <form
+          onSubmit={e => {
+            e.preventDefault();
+            onSubmit();
+          }}
+          className="flex w-full items-end gap-3 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80"
+        >
+          <label
+            className="inline-flex cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
+            title="Upload PDF or image"
+          >
+            <Paperclip size={16} aria-hidden="true" />
+            <span className="hidden sm:inline">Upload</span>
+            <input
+              type="file"
+              accept="application/pdf,image/*"
+              multiple
+              className="hidden"
+              onChange={e => {
+                const files = Array.from(e.target.files ?? []);
+                if (files.length) onFilesSelected(files);
+                e.currentTarget.value = '';
+              }}
+            />
+          </label>
+          <div className="relative flex-1">
+            <textarea
+              ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
+              rows={1}
+              className="w-full resize-none bg-transparent px-2 pr-12 text-sm leading-6 text-slate-900 outline-none placeholder:text-slate-500 dark:text-slate-100 dark:placeholder:text-slate-400"
+              placeholder={
+                pendingFiles.length > 0
+                  ? 'Add a note or question for this document (optional)'
+                  : 'Send a message'
+              }
+              value={userText}
+              onChange={(e) => setUserText(e.target.value)}
+              onFocus={() => setInputFocused(true)}
+              onBlur={(e) => {
+                const next = e.relatedTarget as HTMLElement | null;
+                if (next?.dataset?.suggestionButton === 'true') {
+                  return;
+                }
+                setInputFocused(false);
+              }}
+              onKeyDown={(e) => {
+                const isComposing = (e.nativeEvent as any).isComposing;
+                if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
+                  e.preventDefault();
+                  onSubmit();
+                }
+              }}
+            />
+
+            {(queueActive || busy || abortRef.current) && (
+              <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+                <StopButton
+                  onClick={onStop}
+                  className="pointer-events-auto"
+                  title="Stop (Esc)"
+                />
+              </div>
+            )}
+          </div>
+
+          {!busy && (
+            <button
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50"
+              type="submit"
+              disabled={pendingFiles.length === 0 && !userText.trim()}
+              aria-label="Send"
+              title="Send"
+            >
+              <Send size={16} />
+            </button>
+          )}
+        </form>
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {showWelcomeCard && welcomeContent ? (
@@ -3327,7 +3479,7 @@ ${systemCommon}` + baseSys;
                               <div className="mt-3 flex flex-wrap gap-1.5">
                                 <button
                                   type="button"
-                                  className="inline-flex h-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 text-xs font-medium text-white"
+                                  className="flex min-h-[40px] items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white"
                                   aria-label={`Recruiting status for ${t.id || "trial"}`}
                                 >
                                   Recruiting: {recruitingLabel}
@@ -3335,7 +3487,7 @@ ${systemCommon}` + baseSys;
                                 <button
                                   type="button"
                                   onClick={handleCopy}
-                                  className="inline-flex h-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 text-xs font-medium text-white"
+                                  className="flex min-h-[40px] items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white"
                                   aria-label={`Copy ${t.id || "trial"} details`}
                                 >
                                   Copy
@@ -3344,7 +3496,7 @@ ${systemCommon}` + baseSys;
                                   type="button"
                                   onClick={handleOpenSource}
                                   disabled={!linkHref}
-                                  className="inline-flex h-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="flex min-h-[40px] items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
                                   aria-label={linkHref ? `Open source link for ${t.id || "trial"}` : "Source link unavailable"}
                                 >
                                   Links
@@ -3352,7 +3504,7 @@ ${systemCommon}` + baseSys;
                                 <button
                                   type="button"
                                   onClick={handleViewDetails}
-                                  className="inline-flex h-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 text-xs font-medium text-white"
+                                  className="flex min-h-[40px] items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white"
                                   aria-label={`Summarize ${t.id || "trial"} details`}
                                 >
                                   View details
@@ -3646,155 +3798,163 @@ ${systemCommon}` + baseSys;
       </div>
 
       <div className="mt-auto mobile-composer-region">
-        <div className={`${composerPaddingClass} pb-4 md:pb-6`}>
-          <div
-            className={
-              isClinicalResearchMobile
-                ? `${clinicalMobileShell} space-y-3 py-4 md:max-w-3xl md:px-4`
-                : "mx-auto max-w-3xl space-y-3 px-4 py-4"
-            }
-          >
-              {mode === 'doctor' && AIDOC_UI && (
-                <button
-                  className="rounded-full border border-slate-200 px-3 py-1 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-                  onClick={async () => {
-                    if (AIDOC_PREFLIGHT) {
-                      setShowPatientChooser(true);
-                    } else {
-                      runAiDocWith('current');
-                    }
-                  }}
-                  aria-label="AI Doc Next Steps"
-                  disabled={loadingAidoc}
-                >
-                  {loadingAidoc ? 'Analyzing…' : 'Next steps (AI Doc)'}
-                </button>
-              )}
-
-              {((showDefaultSuggestions && showSuggestions) || showLiveSuggestions) && (
-                <div className="w-full">
-                  {showDefaultSuggestions && showSuggestions && (
-                    <SuggestBar
-                      title="Popular questions"
-                      suggestions={defaultSuggestions}
-                      onPick={handleSuggestionPick}
-                    />
+        {isClinicalResearchMobile ? (
+          <>
+            {(mode === 'doctor' && AIDOC_UI) || ((showDefaultSuggestions && showSuggestions) || showLiveSuggestions) || pendingFiles.length > 0 ? (
+              <div className="md:hidden">
+                <div className={`${clinicalMobileShell} space-y-3 px-3 pb-4`}>
+                  {mode === 'doctor' && AIDOC_UI && (
+                    <button
+                      className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm font-medium text-white"
+                      onClick={async () => {
+                        if (AIDOC_PREFLIGHT) {
+                          setShowPatientChooser(true);
+                        } else {
+                          runAiDocWith('current');
+                        }
+                      }}
+                      aria-label="AI Doc Next Steps"
+                      disabled={loadingAidoc}
+                    >
+                      {loadingAidoc ? 'Analyzing…' : 'Next steps (AI Doc)'}
+                    </button>
                   )}
-                  {showLiveSuggestions && (
-                    <SuggestBar
-                      title="Suggestions"
-                      suggestions={liveSuggestions}
-                      onPick={handleSuggestionPick}
-                    />
-                  )}
-                </div>
-              )}
 
-              {pendingFiles.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/60 bg-white/80 px-3 py-2 text-xs text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200">
-                  <span className="font-medium">
-                    {pendingFiles.length} file{pendingFiles.length === 1 ? '' : 's'} ready
-                  </span>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {pendingFiles.map((file, index) => (
-                      <span
-                        key={`${file.name}-${index}`}
-                        className="flex items-center gap-1 rounded-full bg-slate-100/70 px-2 py-0.5 dark:bg-slate-800/70"
-                      >
-                        <span className="max-w-[7rem] truncate">{file.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => removePendingFile(index)}
-                          className="text-slate-500 transition hover:text-slate-700 dark:hover:text-slate-300"
-                          aria-label={`Remove ${file.name}`}
-                        >
-                          ✕
-                        </button>
+                  {((showDefaultSuggestions && showSuggestions) || showLiveSuggestions) && (
+                    <div className="space-y-2">
+                      {showDefaultSuggestions && showSuggestions && (
+                        <SuggestBar
+                          title="Popular questions"
+                          suggestions={defaultSuggestions}
+                          onPick={handleSuggestionPick}
+                        />
+                      )}
+                      {showLiveSuggestions && (
+                        <SuggestBar
+                          title="Suggestions"
+                          suggestions={liveSuggestions}
+                          onPick={handleSuggestionPick}
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {pendingFiles.length > 0 && (
+                    <div className="space-y-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-xs text-white">
+                      <span className="font-medium text-white">
+                        {pendingFiles.length} file{pendingFiles.length === 1 ? '' : 's'} ready
                       </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <form
-                onSubmit={e => {
-                  e.preventDefault();
-                  onSubmit();
-                }}
-                className="flex w-full items-end gap-3 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80"
-              >
-                <label
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
-                  title="Upload PDF or image"
-                >
-                  <Paperclip size={16} aria-hidden="true" />
-                  <span className="hidden sm:inline">Upload</span>
-                  <input
-                    type="file"
-                    accept="application/pdf,image/*"
-                    multiple
-                    className="hidden"
-                    onChange={e => {
-                      const files = Array.from(e.target.files ?? []);
-                      if (files.length) onFilesSelected(files);
-                      e.currentTarget.value = '';
-                    }}
-                  />
-                </label>
-                <div className="relative flex-1">
-                  <textarea
-                    ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
-                    rows={1}
-                    className="w-full resize-none bg-transparent px-2 pr-12 text-sm leading-6 text-slate-900 outline-none placeholder:text-slate-500 dark:text-slate-100 dark:placeholder:text-slate-400"
-                    placeholder={
-                      pendingFiles.length > 0
-                        ? 'Add a note or question for this document (optional)'
-                        : 'Send a message'
-                    }
-                    value={userText}
-                    onChange={(e) => setUserText(e.target.value)}
-                    onFocus={() => setInputFocused(true)}
-                    onBlur={(e) => {
-                      const next = e.relatedTarget as HTMLElement | null;
-                      if (next?.dataset?.suggestionButton === 'true') {
-                        return;
-                      }
-                      setInputFocused(false);
-                    }}
-                    onKeyDown={(e) => {
-                      const isComposing = (e.nativeEvent as any).isComposing;
-                      if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
-                        e.preventDefault();
-                        onSubmit();
-                      }
-                    }}
-                  />
-
-                  {(queueActive || busy || abortRef.current) && (
-                    <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                      <StopButton
-                        onClick={onStop}
-                        className="pointer-events-auto"
-                        title="Stop (Esc)"
-                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        {pendingFiles.map((file, index) => (
+                          <span
+                            key={`${file.name}-${index}`}
+                            className="flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-white/80"
+                          >
+                            <span className="max-w-[7rem] truncate">{file.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => removePendingFile(index)}
+                              className="text-white/70 transition hover:text-white"
+                              aria-label={`Remove ${file.name}`}
+                            >
+                              ✕
+                            </button>
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
+              </div>
+            ) : null}
 
-                {!busy && (
-                  <button
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50"
-                    type="submit"
-                    disabled={pendingFiles.length === 0 && !userText.trim()}
-                    aria-label="Send"
-                    title="Send"
+            <div className="md:hidden fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#0d1a36] p-3">
+              <div className="mx-auto w-full max-w-[420px]">
+                <form
+                  onSubmit={e => {
+                    e.preventDefault();
+                    onSubmit();
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <label
+                    className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white"
+                    title="Upload PDF or image"
                   >
-                    <Send size={16} />
-                  </button>
-                )}
-              </form>
+                    <Paperclip size={18} aria-hidden="true" />
+                    <span className="sr-only">Upload</span>
+                    <input
+                      type="file"
+                      accept="application/pdf,image/*"
+                      multiple
+                      className="hidden"
+                      onChange={e => {
+                        const files = Array.from(e.target.files ?? []);
+                        if (files.length) onFilesSelected(files);
+                        e.currentTarget.value = '';
+                      }}
+                    />
+                  </label>
+                  <div className="relative flex-1">
+                    <textarea
+                      ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
+                      rows={1}
+                      className="h-11 w-full resize-none rounded-xl border border-white/10 bg-[#0f1f42] px-3 pr-12 text-sm leading-6 text-white placeholder:text-white/60 focus:outline-none"
+                      placeholder={
+                        pendingFiles.length > 0
+                          ? 'Add a note or question for this document (optional)'
+                          : 'Send a message'
+                      }
+                      value={userText}
+                      onChange={(e) => setUserText(e.target.value)}
+                      onFocus={() => setInputFocused(true)}
+                      onBlur={(e) => {
+                        const next = e.relatedTarget as HTMLElement | null;
+                        if (next?.dataset?.suggestionButton === 'true') {
+                          return;
+                        }
+                        setInputFocused(false);
+                      }}
+                      onKeyDown={(e) => {
+                        const isComposing = (e.nativeEvent as any).isComposing;
+                        if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
+                          e.preventDefault();
+                          onSubmit();
+                        }
+                      }}
+                    />
+
+                    {(queueActive || busy || abortRef.current) && (
+                      <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+                        <StopButton
+                          onClick={onStop}
+                          className="pointer-events-auto"
+                          title="Stop (Esc)"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {!busy && (
+                    <button
+                      className="flex min-h-[44px] items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:opacity-50"
+                      type="submit"
+                      disabled={pendingFiles.length === 0 && !userText.trim()}
+                      aria-label="Send"
+                      title="Send"
+                    >
+                      Send
+                    </button>
+                  )}
+                </form>
+              </div>
             </div>
-        </div>
+
+            <div className="hidden md:block">{composerContent}</div>
+          </>
+        ) : (
+          composerContent
+        )}
       </div>
       {/* Preflight chooser (flagged) */}
       {AIDOC_UI && AIDOC_PREFLIGHT && showPatientChooser && (

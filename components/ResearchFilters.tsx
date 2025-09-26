@@ -136,18 +136,18 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
       )}
 
       <section className="md:hidden space-y-2 px-3">
-        <div className="grid grid-cols-[1fr,88px] gap-2">
+        <div className="grid grid-cols-[1fr,96px] gap-2">
           <input
             value={local.query}
             onChange={(e) => setLocal(s => ({ ...s, query: e.target.value }))}
             onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as any).form?.requestSubmit()}
             placeholder="Search trials (e.g., condition, gene, topic)…"
-            className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/60"
+            className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/60 min-h-[44px]"
             aria-label="Search trials"
           />
           <button
             type="submit"
-            className="inline-flex h-10 items-center justify-center rounded-xl bg-blue-600 px-2 text-xs font-medium text-white disabled:opacity-50"
+            className="flex min-h-[44px] items-center justify-center rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
             disabled={busy}
           >
             {busy ? "Searching…" : "Search"}
@@ -162,8 +162,8 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
                 key={p}
                 type="button"
                 onClick={() => togglePhase(p)}
-                className={`rounded-full border px-3 py-1 text-xs whitespace-nowrap ${
-                  active ? "border-white/60 bg-white/20 text-white" : "border-white/15 bg-white/10 text-white"
+                className={`inline-flex h-10 items-center justify-center rounded-full border px-3 text-xs text-white whitespace-nowrap ${
+                  active ? "border-white/60 bg-white/20" : "border-white/15 bg-white/10"
                 }`}
                 aria-pressed={active}
               >
@@ -177,7 +177,7 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
           <select
             value={local.status}
             onChange={(e) => setLocal(s => ({ ...s, status: e.target.value as any }))}
-            className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white"
+            className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white min-h-[44px]"
             aria-label="Filter by status"
           >
             {statusLabels.map(o => (
@@ -189,7 +189,7 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
           <select
             value={source}
             onChange={(e) => setSource(e.target.value)}
-            className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white"
+            className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white min-h-[44px]"
             aria-label="Filter by source"
           >
             <option className="text-slate-900">All</option>
@@ -208,7 +208,7 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
                 key={name}
                 type="button"
                 onClick={() => toggleCountry(name)}
-                className={`rounded-full border px-3 py-1 text-xs text-white whitespace-nowrap ${
+                className={`inline-flex h-10 items-center justify-center rounded-full border px-3 text-xs text-white whitespace-nowrap ${
                   active ? "border-white/60 bg-white/20" : "border-white/15 bg-white/10"
                 }`}
                 aria-pressed={active}
@@ -219,17 +219,17 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
           })}
         </div>
 
-        <div className="grid grid-cols-[1fr,88px] gap-2">
+        <div className="grid grid-cols-[1fr,96px] gap-2">
           <input
             placeholder="Genes (comma separated)"
             value={local.genes}
             onChange={(e) => setLocal(s => ({ ...s, genes: e.target.value }))}
-            className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/60"
+            className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/60 min-h-[44px]"
             aria-label="Filter by genes"
           />
           <button
             type="button"
-            className="inline-flex h-10 items-center justify-center rounded-xl bg-blue-600 px-2 text-xs font-medium text-white disabled:opacity-50"
+            className="flex min-h-[44px] items-center justify-center rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
             onClick={() => {
               void handleSubmit();
             }}
