@@ -3125,12 +3125,22 @@ ${systemCommon}` + baseSys;
   const isClinicalResearchMobile = mode === "doctor" && researchMode;
   const chatInnerPaddingClass = isClinicalResearchMobile ? "px-0 md:px-6" : "px-6";
   const composerPaddingClass = isClinicalResearchMobile ? "px-0 md:px-6" : "px-6";
+  const clinicalMobileShell = "mx-auto w-full max-w-[420px] px-3";
+  const messageShellClass = isClinicalResearchMobile
+    ? `${clinicalMobileShell} md:max-w-3xl md:px-0`
+    : "mx-auto w-full max-w-3xl";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {showWelcomeCard && welcomeContent ? (
         <div className={`${isClinicalResearchMobile ? 'px-3' : 'px-6'} pt-6`}>
-          <div className="mx-auto w-full max-w-3xl">
+          <div
+            className={
+              isClinicalResearchMobile
+                ? `${clinicalMobileShell} md:max-w-3xl md:px-0`
+                : "mx-auto w-full max-w-3xl"
+            }
+          >
             <WelcomeCard
               header={welcomeContent.header}
               body={welcomeContent.body}
@@ -3483,7 +3493,13 @@ ${systemCommon}` + baseSys;
             </div>
           )}
           {ui.topic && (
-            <div className="mx-auto mb-2 max-w-3xl">
+            <div
+              className={
+                isClinicalResearchMobile
+                  ? `${clinicalMobileShell} mb-2 md:max-w-3xl md:px-0`
+                  : "mx-auto mb-2 max-w-3xl"
+              }
+            >
               <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs dark:border-slate-700 dark:bg-slate-900/70">
                 <span className="opacity-70">Topic:</span>
                 <strong className="truncate max-w-[16rem]">{ui.topic}</strong>
@@ -3492,7 +3508,13 @@ ${systemCommon}` + baseSys;
             </div>
           )}
           {ui.contextFrom && (
-            <div className="mx-auto mb-2 max-w-3xl">
+            <div
+              className={
+                isClinicalResearchMobile
+                  ? `${clinicalMobileShell} mb-2 md:max-w-3xl md:px-0`
+                  : "mx-auto mb-2 max-w-3xl"
+              }
+            >
               <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs dark:border-slate-700 dark:bg-slate-900/70">
                 <span className="opacity-70">Using context from:</span>
                 <strong>{ui.contextFrom}</strong>
@@ -3501,12 +3523,18 @@ ${systemCommon}` + baseSys;
             </div>
           )}
 
-          <div className="mx-auto w-full max-w-3xl space-y-4">
+          <div className={`${messageShellClass} space-y-4`}>
             {renderedMessages}
           </div>
 
           {AIDOC_UI && aidoc && (
-            <div className="mx-auto mt-6 w-full max-w-3xl">
+            <div
+              className={
+                isClinicalResearchMobile
+                  ? `${clinicalMobileShell} mt-6 md:max-w-3xl md:px-0`
+                  : "mx-auto mt-6 w-full max-w-3xl"
+              }
+            >
               <div className="space-y-2 rounded-xl border border-slate-200 bg-white/85 p-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
                 <div className="font-medium">Observations</div>
                 <div className="text-sm opacity-90">
@@ -3554,7 +3582,13 @@ ${systemCommon}` + baseSys;
           )}
 
           {pendingCommitIds.length > 0 && (
-            <div className="mx-auto my-4 w-full max-w-3xl">
+            <div
+              className={
+                isClinicalResearchMobile
+                  ? `${clinicalMobileShell} my-4 md:max-w-3xl md:px-0`
+                  : "mx-auto my-4 w-full max-w-3xl"
+              }
+            >
               <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/85 p-3 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
                 <span>Add this to your Medical Profile?</span>
                 {commitError && <span className="text-xs text-rose-600">{commitError}</span>}
@@ -3613,7 +3647,13 @@ ${systemCommon}` + baseSys;
 
       <div className="mt-auto mobile-composer-region">
         <div className={`${composerPaddingClass} pb-4 md:pb-6`}>
-          <div className="mx-auto max-w-3xl space-y-3 px-4 py-4">
+          <div
+            className={
+              isClinicalResearchMobile
+                ? `${clinicalMobileShell} space-y-3 py-4 md:max-w-3xl md:px-4`
+                : "mx-auto max-w-3xl space-y-3 px-4 py-4"
+            }
+          >
               {mode === 'doctor' && AIDOC_UI && (
                 <button
                   className="rounded-full border border-slate-200 px-3 py-1 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
