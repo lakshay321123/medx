@@ -1,13 +1,15 @@
 "use client";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
 import { ChatInput } from "@/components/ChatInput";
 import { persistIfTemp } from "@/lib/chat/persist";
-import { AnalyzingInline } from "@/components/chat/AnalyzingInline";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { getResearchFlagFromUrl } from "@/utils/researchFlag";
 import ChatMarkdown from "@/components/ChatMarkdown";
 import { LinkBadge } from "@/components/SafeLink";
+import ThinkingDots from "@/components/ui/ThinkingDots";
+import { buildAnalyzingSequence } from "@/lib/ui/queryParser";
+import { createTypewriter, type TypewriterController } from "@/lib/ui/typewriter";
 
 function MessageRow({ m }: { m: { id: string; role: string; content: string } }) {
   return (
@@ -26,7 +28,16 @@ export function ChatWindow() {
   const chatRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const [isThinking, setIsThinking] = useState(false);
-  const hasScrollableContent = messages.length > 0 || results.length > 0;
+  const [pendingAssistant, setPendingAssistant] = useState<{ id: string; content: string } | null>(null);
+  const [pendingThinking, setPendingThinking] = useState<{
+    id: string;
+    steps: string[];
+    index: number;
+    showDots: boolean;
+    showAnalyzing: boolean;
+  } | null>(null);
+  const typewriterRef = useRef<TypewriterController | null>(null);
+  const hasScrollableContent = messages.length > 0 || results.length > 0 || !!pendingAssistant;
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
@@ -80,26 +91,131 @@ export function ChatWindow() {
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!pendingThinking || !pendingThinking.showAnalyzing) return;
+    if (pendingThinking.steps.length <= 1) return;
+    const { id, index, steps } = pendingThinking;
+    if (index >= steps.length - 1) return;
+    const timeout = window.setTimeout(() => {
+      setPendingThinking(prev => {
+        if (!prev || prev.id !== id || !prev.showAnalyzing) return prev;
+        const nextIndex = Math.min(prev.index + 1, prev.steps.length - 1);
+        if (nextIndex === prev.index) return prev;
+        return { ...prev, index: nextIndex };
+      });
+    }, 500 + Math.random() * 500);
+    return () => window.clearTimeout(timeout);
+  }, [pendingThinking]);
+
   const handleSend = async (content: string, locationToken?: string) => {
-    // after sending user message, persist thread if needed
+    if (isThinking) return;
     await persistIfTemp();
     setIsThinking(true);
-    if (locationToken) {
-      const research = getResearchFlagFromUrl();
-      const res = await fetch("/api/chat", {
+
+    const research = getResearchFlagFromUrl();
+    const pendingId = `assistant_${Date.now()}`;
+    const analyzingSteps = buildAnalyzingSequence(content, { mode: "wellness", research });
+    setPendingAssistant({ id: pendingId, content: "" });
+    setPendingThinking({
+      id: pendingId,
+      steps: analyzingSteps,
+      index: 0,
+      showDots: true,
+      showAnalyzing: analyzingSteps.length > 0,
+    });
+
+    const ensureTypewriter = () => {
+      if (!typewriterRef.current) {
+        typewriterRef.current = createTypewriter(value => {
+          setPendingAssistant(prev =>
+            prev && prev.id === pendingId ? { ...prev, content: value } : prev,
+          );
+        });
+      }
+      return typewriterRef.current!;
+    };
+
+    const cleanup = () => {
+      typewriterRef.current?.cancel();
+      typewriterRef.current = null;
+      setPendingAssistant(null);
+      setPendingThinking(null);
+      setIsThinking(false);
+    };
+
+    try {
+      if (locationToken) {
+        const controller = ensureTypewriter();
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: content, locationToken, research }),
+        });
+        const data = await res.json();
+        setResults(data.results || []);
+        const message = data.results ? "Here are some places nearby:" : "";
+        if (message) {
+          controller.enqueue(message);
+          await controller.flush().catch(() => {});
+        }
+        setPendingThinking(prev => (prev && prev.id === pendingId ? null : prev));
+        addMessage({ role: "assistant", content: message });
+        cleanup();
+        return;
+      }
+
+      setResults([]);
+
+      const history = messages.map(m => ({ role: m.role, content: m.content }));
+      history.push({ role: "user", content });
+
+      const response = await fetch("/api/chat/stream-final", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: content, locationToken, research }),
+        body: JSON.stringify({ mode: research ? "clinical" : "wellness", messages: history }),
       });
-      const data = await res.json();
-      setResults(data.results || []);
-      addMessage({ role: "assistant", content: data.results ? "Here are some places nearby:" : "" });
-    } else {
-      // For now, echo the user's message as the assistant reply
-      // In a real implementation, replace this with a call to your backend/AI service
-      addMessage({ role: "assistant", content: `You said: ${content}` });
+      if (!response.ok || !response.body) {
+        throw new Error(`Chat API error ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      const controller = ensureTypewriter();
+      let acc = "";
+      let sawFirstDelta = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n").filter(line => line.startsWith("data: "));
+        for (const line of lines) {
+          if (line.trim() === "data: [DONE]") continue;
+          try {
+            const payload = JSON.parse(line.replace(/^data:\s*/, ""));
+            const delta = payload?.choices?.[0]?.delta?.content;
+            if (delta) {
+              acc += delta;
+              if (!sawFirstDelta) {
+                sawFirstDelta = true;
+                setPendingThinking(prev => (prev && prev.id === pendingId ? null : prev));
+              }
+              controller.enqueue(delta);
+            }
+          } catch {}
+        }
+      }
+
+      await controller.flush().catch(() => {});
+      setPendingThinking(prev => (prev && prev.id === pendingId ? null : prev));
+      addMessage({ role: "assistant", content: acc });
+      cleanup();
+    } catch (err: any) {
+      const message = `⚠️ ${String(err?.message || err)}`;
+      addMessage({ role: "assistant", content: message });
+      cleanup();
     }
-    setIsThinking(false);
   };
 
   return (
@@ -113,23 +229,32 @@ export function ChatWindow() {
         } md:pb-0 md:overflow-y-auto`}
       >
         <div className="px-4">
-          {messages.map((m, idx) => {
-            const isLastMessage = idx === messages.length - 1;
-            const showThinkingTimer = isLastMessage && isThinking;
-            return (
-              <div key={m.id} className="space-y-2">
-                <MessageRow m={m} />
-                {showThinkingTimer ? (
-                  <div className="px-2">
-                    <div className="mt-1 inline-flex items-center gap-3 text-sm text-slate-500">
-                      <span>Thinking…</span>
-                      <AnalyzingInline active={showThinkingTimer} />
+          {messages.map((m) => (
+            <div key={m.id} className="space-y-2">
+              <MessageRow m={m} />
+            </div>
+          ))}
+          {pendingAssistant ? (
+            <div className="space-y-2">
+              <div className="p-2 space-y-1">
+                <div className="text-xs uppercase tracking-wide text-slate-500">assistant</div>
+                {pendingAssistant.content ? (
+                  <ChatMarkdown content={pendingAssistant.content} />
+                ) : (
+                  <div className="rounded border border-slate-200 bg-white p-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900">
+                    <div className="flex items-center gap-3">
+                      {pendingThinking?.showDots ? <ThinkingDots /> : null}
+                      <span>
+                        {pendingThinking?.showAnalyzing
+                          ? pendingThinking.steps[pendingThinking.index] ?? pendingThinking.steps[pendingThinking.steps.length - 1]
+                          : "Analyzing…"}
+                      </span>
                     </div>
                   </div>
-                ) : null}
+                )}
               </div>
-            );
-          })}
+            </div>
+          ) : null}
           {results.length > 0 && (
             <div className="p-2 space-y-2">
               {results.map((place) => (

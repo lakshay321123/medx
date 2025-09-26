@@ -45,6 +45,7 @@ import * as DomainStyles from "@/lib/prompts/domains";
 import { AnalyzingInline } from "@/components/chat/AnalyzingInline";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { StopButton } from "@/components/ui/StopButton";
+import ThinkingDots from "@/components/ui/ThinkingDots";
 import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
 import { getUserPosition, fetchNearby, geocodeArea, type NearbyKind, type NearbyPlace } from "@/lib/nearby";
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
@@ -52,6 +53,8 @@ import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
 import { exportMessageToPng } from "@/lib/share/snapshot";
 import { trackAnalyticsEvent } from "@/lib/analytics";
 import { pushToast } from "@/lib/ui/toast";
+import { buildAnalyzingSequence } from "@/lib/ui/queryParser";
+import { createTypewriter, type TypewriterController } from "@/lib/ui/typewriter";
 import { useFeedback } from "@/hooks/useFeedback";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
@@ -477,12 +480,24 @@ No fabricated IDs. Provide themes, not specific trial numbers unless confident.`
   ];
 }
 
-function PendingChatCard({ label, active }: { label: string; active?: boolean }) {
+function PendingChatCard({
+  label,
+  active,
+  thinkingLine,
+  showDots,
+}: {
+  label: string;
+  active?: boolean;
+  thinkingLine?: string;
+  showDots?: boolean;
+}) {
+  const text = thinkingLine || label;
   return (
     <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
       <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
-        <span>{label}</span>
-        <AnalyzingInline active={!!active} />
+        {showDots ? <ThinkingDots /> : null}
+        <span>{text}</span>
+        {!showDots ? <AnalyzingInline active={!!active} /> : null}
       </div>
     </div>
   );
@@ -554,16 +569,29 @@ function ChatCard({
   therapyMode,
   onAction,
   simple,
-  pendingTimerActive
+  pendingTimerActive,
+  thinkingLine,
+  showThinkingDots,
 }: {
   m: Extract<ChatMessage, { kind: "chat" }>;
   therapyMode: boolean;
   onAction: (s: Suggestion) => void;
   simple: boolean;
   pendingTimerActive?: boolean;
+  thinkingLine?: string;
+  showThinkingDots?: boolean;
 }) {
   const suggestions = normalizeSuggestions(m.followUps);
-  if (m.pending) return <PendingChatCard label="Thinking…" active={pendingTimerActive} />;
+  if (m.pending && !m.content) {
+    return (
+      <PendingChatCard
+        label="Thinking…"
+        active={pendingTimerActive}
+        thinkingLine={thinkingLine}
+        showDots={showThinkingDots}
+      />
+    );
+  }
   return (
     <div
       className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl"
@@ -633,8 +661,21 @@ function AssistantMessage(props: {
   onAction: (s: Suggestion) => void;
   simple: boolean;
   pendingTimerActive?: boolean;
+  thinkingLine?: string;
+  showThinkingDots?: boolean;
 }) {
-  const { m, therapyMode, onAction, simple, pendingTimerActive, researchOn, onQuickAction, busy } = props;
+  const {
+    m,
+    therapyMode,
+    onAction,
+    simple,
+    pendingTimerActive,
+    researchOn,
+    onQuickAction,
+    busy,
+    thinkingLine,
+    showThinkingDots,
+  } = props;
   if (m.kind === "analysis") {
     return (
       <AnalysisCard
@@ -655,6 +696,8 @@ function AssistantMessage(props: {
       onAction={onAction}
       simple={simple}
       pendingTimerActive={pendingTimerActive}
+      thinkingLine={thinkingLine}
+      showThinkingDots={showThinkingDots}
     />
   );
 }
@@ -672,6 +715,13 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [queueActive, setQueueActive] = useState(false);
   const [busy, setBusy] = useState(false);
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
+  const [pendingThinking, setPendingThinking] = useState<{
+    id: string;
+    steps: string[];
+    index: number;
+    showDots: boolean;
+    showAnalyzing: boolean;
+  } | null>(null);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const [labSummary, setLabSummary] = useState<any | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
@@ -686,6 +736,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [canCopyLink, setCanCopyLink] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
+  const typewriterRef = useRef<TypewriterController | null>(null);
+  const typewriterMessageRef = useRef<string | null>(null);
   const inputRef =
     (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ??
     (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
@@ -737,6 +789,26 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!pendingThinking || !pendingThinking.showAnalyzing) return;
+    if (pendingThinking.steps.length <= 1) return;
+
+    const { id, index, steps } = pendingThinking;
+    if (index >= steps.length - 1) return;
+
+    const timeout = window.setTimeout(() => {
+      setPendingThinking(prev => {
+        if (!prev || prev.id !== id || !prev.showAnalyzing) return prev;
+        const nextIndex = Math.min(prev.index + 1, prev.steps.length - 1);
+        if (nextIndex === prev.index) return prev;
+        return { ...prev, index: nextIndex };
+      });
+    }, 500 + Math.random() * 500);
+
+    return () => window.clearTimeout(timeout);
+  }, [pendingThinking]);
 
   useEffect(() => {
     const hasShare = typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function';
@@ -2094,6 +2166,16 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       refreshOf: opts.replacesId,
     } as ChatMessage;
 
+    const analyzingMode: 'aidoc' | 'clinical' | 'wellness' = isAiDocMode
+      ? 'aidoc'
+      : mode === 'doctor'
+        ? 'clinical'
+        : 'wellness';
+    const analyzingSteps = buildAnalyzingSequence(messageText, {
+      mode: analyzingMode,
+      research: researchMode,
+    });
+
     let nextMsgs: ChatMessage[];
     if (opts.replacesId) {
       const insertAt = baseMessages.findIndex(m => m.id === opts.replacesId);
@@ -2117,6 +2199,13 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     }
     setMessages(nextMsgs);
     opts.onPending?.(pendingId);
+    setPendingThinking({
+      id: pendingId,
+      steps: analyzingSteps,
+      index: 0,
+      showDots: true,
+      showAnalyzing: analyzingSteps.length > 0,
+    });
     const maybe = maybeFixMedicalTypo(messageText);
     if (maybe && messages.filter(m => m.role === "assistant").slice(-1)[0]?.content !== maybe.ask) {
       // Ask once, keep pending bubble as the question (no LLM call)
@@ -2130,6 +2219,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       }
       setBusy(false);
       setThinkingStartedAt(null);
+      cancelActiveTypewriter();
+      setPendingThinking(null);
       return; // wait for user Yes/No
     }
     setUserText('');
@@ -2146,6 +2237,26 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     let acc = '';
+    const ensureTypewriter = () => {
+      if (!typewriterRef.current || typewriterMessageRef.current !== pendingId) {
+        typewriterRef.current?.cancel();
+        const controller = createTypewriter(value => {
+          setMessages(prev =>
+            prev.map(m => (m.id === pendingId ? { ...m, content: value } : m)),
+          );
+        });
+        typewriterRef.current = controller;
+        typewriterMessageRef.current = pendingId;
+      }
+      return typewriterRef.current!;
+    };
+    const cancelActiveTypewriter = () => {
+      if (typewriterMessageRef.current === pendingId) {
+        typewriterRef.current?.cancel();
+        typewriterRef.current = null;
+        typewriterMessageRef.current = null;
+      }
+    };
     try {
       const fullContext = buildFullContext(stableThreadId);
       const contextBlock = fullContext ? `\n\nCONTEXT (recent conversation):\n${fullContext}` : "";
@@ -2164,6 +2275,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             );
             setBusy(false);
             setThinkingStartedAt(null);
+            cancelActiveTypewriter();
+            setPendingThinking(null);
             return;
           }
           try {
@@ -2183,6 +2296,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               }
               setBusy(false);
               setThinkingStartedAt(null);
+              cancelActiveTypewriter();
+              setPendingThinking(null);
               return;
             }
           } catch {}
@@ -2213,12 +2328,16 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           setMessages(prev => prev.filter(m => m.id !== pendingId));
           setBusy(false);
           setThinkingStartedAt(null);
+          cancelActiveTypewriter();
+          setPendingThinking(null);
           return;
         }
         if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         acc = '';
+        const typewriter = ensureTypewriter();
+        let sawFirstDelta = false;
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -2231,17 +2350,24 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               const delta = payload?.choices?.[0]?.delta?.content;
               if (delta) {
                 acc += delta;
-                setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m)));
+                if (!sawFirstDelta) {
+                  sawFirstDelta = true;
+                  setPendingThinking(prev => (prev && prev.id === pendingId ? null : prev));
+                }
+                typewriter.enqueue(delta);
               }
             } catch {}
           }
         }
+        await typewriter.flush().catch(() => {});
+        setPendingThinking(prev => (prev && prev.id === pendingId ? null : prev));
         const { main, followUps } = splitFollowUps(acc);
         setMessages(prev =>
           prev.map(m =>
             m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
           )
         );
+        cancelActiveTypewriter();
         if (threadId && main && main.trim()) {
           pushFullMem(threadId, "assistant", main);
           maybeIndexStructured(threadId, main);
@@ -2584,6 +2710,8 @@ ${systemCommon}` + baseSys;
         setMessages(prev => prev.filter(m => m.id !== pendingId));
         setBusy(false);
         setThinkingStartedAt(null);
+        cancelActiveTypewriter();
+        setPendingThinking(null);
         return;
       }
       if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
@@ -2591,6 +2719,8 @@ ${systemCommon}` + baseSys;
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       acc = '';
+      const typewriter = ensureTypewriter();
+      let sawFirstDelta = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -2605,19 +2735,24 @@ ${systemCommon}` + baseSys;
             const delta = payload?.choices?.[0]?.delta?.content;
             if (delta) {
               acc += delta;
-              setMessages(prev =>
-                prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m))
-              );
+              if (!sawFirstDelta) {
+                sawFirstDelta = true;
+                setPendingThinking(prev => (prev && prev.id === pendingId ? null : prev));
+              }
+              typewriter.enqueue(delta);
             }
           } catch {}
         }
       }
+      await typewriter.flush().catch(() => {});
+      setPendingThinking(prev => (prev && prev.id === pendingId ? null : prev));
       const { main, followUps } = splitFollowUps(acc);
       setMessages(prev =>
         prev.map(m =>
           m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
         )
       );
+      cancelActiveTypewriter();
       opts.onSuccess?.(pendingId);
       if (researchMode) {
         const lastUserMsg = text;
@@ -2647,6 +2782,11 @@ ${systemCommon}` + baseSys;
         setUi(prev => ({ ...prev, contextFrom: 'Conversation summary' }));
       }
     } catch (e: any) {
+      if (typewriterMessageRef.current === pendingId && typewriterRef.current) {
+        await typewriterRef.current.flush().catch(() => {});
+      }
+      cancelActiveTypewriter();
+      setPendingThinking(prev => (prev && prev.id === pendingId ? null : prev));
       if (e?.name === 'AbortError') {
         setMessages(prev =>
           prev.map(m =>
@@ -2678,6 +2818,8 @@ ${systemCommon}` + baseSys;
     } finally {
       setBusy(false);
       setThinkingStartedAt(null);
+      setPendingThinking(null);
+      cancelActiveTypewriter();
       abortRef.current = null;
       opts.onFinish?.();
     }
@@ -3287,6 +3429,11 @@ ${systemCommon}` + baseSys;
           `message-${index}`;
         const isLastVisible = index === visibleMessages.length - 1;
         const showThinkingTimer = isLastVisible && m.role === 'assistant' && busy && !!thinkingStartedAt;
+        const thinkingState = pendingThinking && pendingThinking.id === m.id ? pendingThinking : null;
+        const thinkingLine = thinkingState && thinkingState.showAnalyzing
+          ? thinkingState.steps[thinkingState.index] ?? thinkingState.steps[thinkingState.steps.length - 1]
+          : undefined;
+        const showThinkingDots = Boolean(thinkingState?.showDots);
 
         if (m.role === 'user') {
           if (m.kind === 'image') {
@@ -3362,6 +3509,8 @@ ${systemCommon}` + baseSys;
                     onAction={stableHandleSuggestionAction}
                     simple={simpleMode}
                     pendingTimerActive={showThinkingTimer}
+                    thinkingLine={thinkingLine}
+                    showThinkingDots={showThinkingDots}
                   />
                 </div>
                 <MessageActions

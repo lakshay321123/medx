@@ -1,4 +1,3 @@
-import { ensureMinDelay, minDelayMs } from "@/lib/utils/ensureMinDelay";
 import { callOpenAIChat } from "@/lib/medx/providers";
 
 // Optional calculator prelude (safe if engine absent)
@@ -29,14 +28,9 @@ export async function POST(req: Request) {
     } catch {}
   }
 
-  const minMs = minDelayMs();
-  const upstream = await ensureMinDelay<Response>(
-    callOpenAIChat([{ role: "system", content: system }, ...messages], { stream: true }),
-    minMs
-  );
-
-  if (!upstream?.ok) {
-    const err = upstream ? await upstream.text() : "Upstream error";
+  const upstream = await callOpenAIChat([{ role: "system", content: system }, ...messages], { stream: true });
+  if (!upstream?.ok || !upstream.body) {
+    const err = upstream ? await upstream.text().catch(() => "Upstream error") : "Upstream error";
     return new Response(`OpenAI stream error: ${err}`, { status: 500 });
   }
   return new Response(upstream.body, {
