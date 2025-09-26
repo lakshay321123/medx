@@ -173,4 +173,3 @@ export function createTypewriter(
   };
 }
 
-export type { TypewriterController };
