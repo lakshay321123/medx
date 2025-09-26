@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { pushToast } from "@/lib/ui/toast";
 
@@ -10,6 +10,7 @@ export type VitalsEditorProps = {
   initialSystolic: NumericLike;
   initialDiastolic: NumericLike;
   initialHeartRate: NumericLike;
+  initialBmi?: NumericLike;
   heightCm: number | null;
   weightKg: number | null;
   onCancel: () => void;
@@ -20,6 +21,7 @@ export default function VitalsEditor({
   initialSystolic,
   initialDiastolic,
   initialHeartRate,
+  initialBmi,
   heightCm,
   weightKg,
   onCancel,
@@ -28,20 +30,37 @@ export default function VitalsEditor({
   const [systolic, setSystolic] = useState(toInputValue(initialSystolic));
   const [diastolic, setDiastolic] = useState(toInputValue(initialDiastolic));
   const [heartRate, setHeartRate] = useState(toInputValue(initialHeartRate));
+  const computedBmi = computeBmi(heightCm, weightKg);
+  const [manualBmi, setManualBmi] = useState(
+    computedBmi != null ? String(computedBmi) : toInputValue(initialBmi),
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const bmi = computeBmi(heightCm, weightKg);
+  useEffect(() => {
+    if (computedBmi != null) {
+      setManualBmi(String(computedBmi));
+    } else {
+      setManualBmi(toInputValue(initialBmi));
+    }
+  }, [computedBmi, initialBmi]);
 
   const handleSave = async () => {
     const systolicValue = toNumber(systolic);
     const diastolicValue = toNumber(diastolic);
     const heartRateValue = toNumber(heartRate);
+    const bmiValue =
+      computedBmi != null
+        ? computedBmi
+        : manualBmi.trim()
+        ? toNumber(manualBmi)
+        : null;
 
     if (
       systolicValue == null &&
       diastolicValue == null &&
-      heartRateValue == null
+      heartRateValue == null &&
+      bmiValue == null
     ) {
       setError("Enter at least one vital to save.");
       return;
@@ -53,44 +72,57 @@ export default function VitalsEditor({
       systolicValue != null
         ? {
             kind: "bp_systolic",
-            value: systolicValue,
+            value_num: systolicValue,
+            value_text: String(systolicValue),
             unit: "mmHg",
-            observedAt,
+            observed_at: observedAt,
+            meta: { source: "manual", category: "vital" },
           }
         : null,
       diastolicValue != null
         ? {
             kind: "bp_diastolic",
-            value: diastolicValue,
+            value_num: diastolicValue,
+            value_text: String(diastolicValue),
             unit: "mmHg",
-            observedAt,
+            observed_at: observedAt,
+            meta: { source: "manual", category: "vital" },
           }
         : null,
       heartRateValue != null
         ? {
             kind: "heart_rate",
-            value: heartRateValue,
+            value_num: heartRateValue,
+            value_text: String(heartRateValue),
             unit: "bpm",
-            observedAt,
+            observed_at: observedAt,
+            meta: { source: "manual", category: "vital" },
           }
         : null,
-      bmi != null
+      bmiValue != null
         ? {
             kind: "bmi",
-            value: bmi,
+            value_num: bmiValue,
+            value_text: String(bmiValue),
             unit: "kg/m2",
-            observedAt,
+            observed_at: observedAt,
+            meta: { source: "manual", category: "vital" },
           }
         : null,
     ].filter(Boolean);
 
+    if (observations.length === 0) {
+      setError("Enter at least one vital to save.");
+      return;
+    }
+
     setIsSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/profile", {
-        method: "PUT",
+      const res = await fetch("/api/observations/bulk", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ observations }),
+        body: JSON.stringify({ items: observations }),
       });
 
       if (!res.ok) {
@@ -160,8 +192,24 @@ export default function VitalsEditor({
         </label>
       </div>
 
-      <div className="text-sm text-muted-foreground">
-        BMI: <span className="font-medium">{bmi ?? "—"}</span>
+      <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-muted-foreground">BMI (kg/m²)</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            className="rounded-md border px-3 py-2"
+            value={computedBmi != null ? String(computedBmi) : manualBmi}
+            onChange={event => setManualBmi(event.target.value)}
+            placeholder="e.g. 24.6"
+            disabled={computedBmi != null || isSaving}
+          />
+          {computedBmi != null ? (
+            <span className="text-xs text-muted-foreground">
+              Calculated automatically from recorded height and weight.
+            </span>
+          ) : null}
+        </label>
       </div>
 
       {error ? <p className="text-xs text-destructive">{error}</p> : null}

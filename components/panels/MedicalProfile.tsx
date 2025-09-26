@@ -33,9 +33,11 @@ const PRESET_CONDITIONS = [
 ];
 
 type MedicationEntry = {
+  key: string;
   name: string;
-  dose?: string | null;
-  since?: string | null;
+  doseLabel?: string | null;
+  doseValue?: number | null;
+  doseUnit?: string | null;
 };
 
 type ObservationMap = Record<string, { value: any; unit: string | null; observedAt: string } | undefined>;
@@ -211,6 +213,7 @@ export default function MedicalProfile() {
     const heartEntry = pickObservation(latestMap, ["heart_rate", "hr", "pulse", "heart_rate_bpm"]);
     const heightEntry = pickObservation(latestMap, ["height", "height_cm", "height_m"]);
     const weightEntry = pickObservation(latestMap, ["weight", "weight_kg", "body_weight"]);
+    const bmiEntry = pickObservation(latestMap, ["bmi"]);
 
     const bpPair = bpEntry ? parseBp(bpEntry.value) : {};
 
@@ -220,10 +223,18 @@ export default function MedicalProfile() {
 
     const heightMeters = heightToMeters(heightEntry?.value, heightEntry?.unit);
     const weightKg = weightToKg(weightEntry?.value, weightEntry?.unit);
-    const bmi =
+    const computedBmi =
       heightMeters && weightKg ? Number((weightKg / (heightMeters * heightMeters)).toFixed(1)) : null;
+    const observedBmi = parseNumber(bmiEntry?.value);
 
-    return { systolic, diastolic, heartRate, bmi, weightKg, heightMeters };
+    return {
+      systolic,
+      diastolic,
+      heartRate,
+      bmi: observedBmi ?? computedBmi,
+      weightKg,
+      heightMeters,
+    };
   }, [latestMap]);
 
   const vitalsDisplay = [
@@ -281,34 +292,81 @@ export default function MedicalProfile() {
     }
   };
 
-  const saveMedications = async (next: MedicationEntry[]) => {
-    const payload = { medications: next } as Record<string, unknown>;
-    const res = await fetch("/api/profile", {
-      method: "PUT",
+  const handleAddMedication = async (med: {
+    name: string;
+    dose?: string | null;
+    rxnormId?: string | null;
+  }) => {
+    const normalizedName = med.name.trim();
+    if (!normalizedName) throw new Error("Medication name required");
+
+    const { doseLabel, doseUnit, doseValue } = parseDoseString(med.dose ?? null);
+    const kind = buildMedicationKind(normalizedName, doseLabel);
+    const observedAt = new Date().toISOString();
+
+    const res = await fetch("/api/observations", {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        kind,
+        value_text: normalizedName,
+        value_num: doseValue ?? null,
+        unit: doseUnit ?? null,
+        observed_at: observedAt,
+        meta: {
+          source: "manual",
+          category: "medication",
+          normalizedName,
+          doseLabel,
+          rxnormId: med.rxnormId ?? null,
+        },
+      }),
     });
-    if (!res.ok) throw new Error(await res.text());
-    setMedications(next);
+
+    if (!res.ok) {
+      throw new Error((await res.text()) || "Failed to save medication");
+    }
+
+    const nextEntry: MedicationEntry = {
+      key: kind,
+      name: normalizedName,
+      doseLabel,
+      doseUnit: doseUnit ?? null,
+      doseValue: doseValue ?? null,
+    };
+
+    setMedications(prev => dedupeMedicationList([...prev, nextEntry]));
     await mutateProfile();
     await mutateGlobal("/api/profile");
     await loadSummary();
   };
 
-  const handleAddMedication = async (med: { name: string; dose?: string | null }) => {
-    const name = med.name.trim();
-    if (!name) throw new Error("Medication name required");
-    const dose = med.dose ? med.dose.trim() : null;
-    const next = dedupeMedicationList([...medications, { name, dose }]);
-    await saveMedications(next);
-  };
-
   const handleRemoveMedication = async (med: MedicationEntry) => {
-    const next = medications.filter(
-      item => item.name !== med.name || (item.dose || "") !== (med.dose || ""),
-    );
     try {
-      await saveMedications(next);
+      const res = await fetch("/api/observations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: med.key,
+          value_text: null,
+          value_num: null,
+          unit: "__deleted__",
+          observed_at: new Date().toISOString(),
+          meta: {
+            source: "manual",
+            category: "medication",
+            normalizedName: med.name,
+            deleted: true,
+          },
+        }),
+      });
+
+      if (!res.ok) throw new Error(await res.text());
+
+      setMedications(prev => prev.filter(item => item.key !== med.key));
+      await mutateProfile();
+      await mutateGlobal("/api/profile");
+      await loadSummary();
       pushToast({ title: "Medication removed" });
     } catch (err: any) {
       pushToast({
@@ -578,6 +636,7 @@ export default function MedicalProfile() {
               initialHeartRate={
                 (data?.profile as any)?.vitals?.heart_rate ?? profileVitals.heartRate ?? ""
               }
+              initialBmi={profileVitals.bmi ?? null}
               heightCm={
                 parseNumber((data?.profile as any)?.vitals?.height_cm) ??
                 (profileVitals.heightMeters != null
@@ -821,8 +880,8 @@ export default function MedicalProfile() {
             <div className="flex flex-wrap gap-2">
               {medications.map(med => (
                 <MedicationTag
-                  key={`${med.name}-${med.dose || ""}`}
-                  label={`${med.name}${med.dose ? ` ${med.dose}` : ""}`}
+                  key={med.key}
+                  label={formatMedicationLabel(med)}
                   onRemove={() => handleRemoveMedication(med)}
                 />
               ))}
@@ -879,26 +938,51 @@ function normalizeMedicationItem(raw: any): MedicationEntry | null {
 
   if (typeof raw === "string") {
     const trimmed = raw.trim();
-    return trimmed ? { name: trimmed } : null;
+    if (!trimmed) return null;
+    return {
+      key: buildMedicationKind(trimmed, null),
+      name: trimmed,
+    };
   }
+
+  const rawUnit = typeof raw.unit === "string" ? raw.unit.trim() : null;
+  if (rawUnit && rawUnit.toLowerCase() === "__deleted__") return null;
+
+  const keyCandidate = [raw.key, raw.kind]
+    .map(value => (typeof value === "string" ? value.trim() : ""))
+    .find(Boolean);
 
   const nameCandidate = [
     raw.name,
     raw.label,
     raw.title,
-    raw.value,
     raw.medication,
+    raw.value_text,
   ].find(value => typeof value === "string" && value.trim());
 
-  if (!nameCandidate) return null;
+  const derivedName = keyCandidate ? deriveMedicationNameFromKey(keyCandidate) : null;
+  const name = (nameCandidate || derivedName || "").toString().trim();
+  if (!name) return null;
 
-  const doseCandidate = [raw.dose, raw.meta?.dose, raw.metadata?.dose, raw.sig].find(
-    value => typeof value === "string" && value.trim(),
-  ) as string | undefined;
+  const doseTextCandidate = [raw.dose, raw.meta?.dose, raw.metadata?.dose, raw.sig]
+    .map(value => (typeof value === "string" ? value.trim() : ""))
+    .find(Boolean);
+
+  let doseValue: number | null = null;
+  if (typeof raw.value === "number") {
+    doseValue = Number.isFinite(raw.value) ? raw.value : null;
+  } else if (typeof raw.value === "string") {
+    doseValue = parseNumber(raw.value);
+  }
+
+  const doseLabel = doseTextCandidate || buildDoseLabelFromParts(doseValue, rawUnit);
 
   return {
-    name: (nameCandidate as string).trim(),
-    dose: doseCandidate ? doseCandidate.trim() : null,
+    key: (keyCandidate && keyCandidate.toLowerCase()) || buildMedicationKind(name, doseLabel),
+    name,
+    doseLabel: doseLabel || null,
+    doseValue: doseValue ?? null,
+    doseUnit: rawUnit,
   };
 }
 
@@ -921,11 +1005,76 @@ function isMedicationLike(item: any) {
 function dedupeMedicationList(input: MedicationEntry[]): MedicationEntry[] {
   const map = new Map<string, MedicationEntry>();
   for (const med of input) {
-    if (!med.name) continue;
-    const key = `${med.name.toLowerCase()}::${(med.dose || "").toLowerCase()}`;
+    const key = med.key?.toLowerCase();
+    if (!key) continue;
     if (!map.has(key)) {
       map.set(key, med);
     }
   }
   return Array.from(map.values());
+}
+
+function formatMedicationLabel(med: MedicationEntry) {
+  const doseLabel = med.doseLabel || buildDoseLabelFromParts(med.doseValue ?? null, med.doseUnit);
+  return doseLabel ? `${med.name} ${doseLabel}` : med.name;
+}
+
+function parseDoseString(raw: string | null) {
+  if (!raw) {
+    return { doseLabel: null, doseUnit: null, doseValue: null };
+  }
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return { doseLabel: null, doseUnit: null, doseValue: null };
+  }
+
+  const match = trimmed.match(/([\d.,]+)\s*([\p{L}%µμ\/]+)?/u);
+  let doseValue: number | null = null;
+  let doseUnit: string | null = null;
+  if (match) {
+    const numeric = Number(match[1].replace(/,/g, ""));
+    doseValue = Number.isFinite(numeric) ? Number(numeric.toFixed(2)) : null;
+    doseUnit = match[2] ? match[2].toLowerCase() : null;
+  }
+
+  return {
+    doseLabel: trimmed,
+    doseUnit,
+    doseValue,
+  };
+}
+
+function buildMedicationKind(name: string, doseLabel: string | null) {
+  const base = slugifyToken(name);
+  const dose = slugifyToken(doseLabel || "");
+  const suffix = dose ? `_${dose}` : "";
+  return `medication_${base || "entry"}${suffix}`;
+}
+
+function slugifyToken(value: string | null | undefined) {
+  if (!value) return "";
+  return value
+    .toString()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function deriveMedicationNameFromKey(key: string) {
+  const cleaned = key.replace(/^medication[_:]+/i, "");
+  if (!cleaned) return "";
+  return cleaned
+    .split(/[_:]+/)
+    .filter(Boolean)
+    .map(part => part.replace(/\b\w/g, c => c.toUpperCase()))
+    .join(" ");
+}
+
+function buildDoseLabelFromParts(value: number | null, unit: string | null) {
+  if (value == null && !unit) return null;
+  const numeric = value != null ? Number(value.toFixed(value % 1 ? 1 : 0)) : null;
+  const parts = [] as string[];
+  if (numeric != null) parts.push(String(numeric));
+  if (unit) parts.push(unit);
+  return parts.length ? parts.join(" ") : null;
 }

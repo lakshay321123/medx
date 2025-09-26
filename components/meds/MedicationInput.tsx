@@ -10,13 +10,14 @@ type Suggestion = {
 };
 
 export type MedicationInputProps = {
-  onSave: (med: { name: string; dose?: string | null }) => Promise<void> | void;
+  onSave: (med: { name: string; dose?: string | null; rxnormId?: string | null }) => Promise<void> | void;
   placeholder?: string;
 };
 
 export default function MedicationInput({ onSave, placeholder = "Add a medication" }: MedicationInputProps) {
   const [query, setQuery] = useState("");
   const [lockedName, setLockedName] = useState<string | null>(null);
+  const [lockedSuggestion, setLockedSuggestion] = useState<Suggestion | null>(null);
   const [dose, setDose] = useState("");
   const [needsDose, setNeedsDose] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -68,9 +69,10 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
       return;
     }
     try {
-      await onSave({ name, dose: finalDose || null });
+      await onSave({ name, dose: finalDose || null, rxnormId: lockedSuggestion?.rxnormId ?? null });
       setQuery("");
       setLockedName(null);
+      setLockedSuggestion(null);
       setDose("");
       setNeedsDose(false);
       setSuggestions([]);
@@ -98,6 +100,7 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
               value={lockedName ?? query}
               onChange={e => {
                 setLockedName(null);
+                setLockedSuggestion(null);
                 setQuery(e.target.value);
               }}
             />
@@ -118,7 +121,11 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
                     <button
                       type="button"
                       className="rounded-full border px-3 py-1 hover:bg-muted"
-                      onClick={() => setLockedName(s.name)}
+                      onClick={() => {
+                        setLockedName(s.name);
+                        setLockedSuggestion(s);
+                        setQuery(s.name);
+                      }}
                     >
                       {s.name}
                     </button>
