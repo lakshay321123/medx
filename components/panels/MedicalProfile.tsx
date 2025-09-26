@@ -162,6 +162,42 @@ export default function MedicalProfile() {
 
   const latestMap: ObservationMap = (data?.latest as ObservationMap) || {};
 
+  const profileVitals = useMemo(() => {
+    const bpEntry = pickObservation(latestMap, [
+      "bp_systolic",
+      "sbp",
+      "bp",
+      "systolic_bp",
+      "blood_pressure",
+    ]);
+    const dpEntry = pickObservation(latestMap, ["bp_diastolic", "dbp", "diastolic_bp"]);
+    const heartEntry = pickObservation(latestMap, ["heart_rate", "hr", "pulse", "heart_rate_bpm"]);
+    const heightEntry = pickObservation(latestMap, ["height", "height_cm", "height_m"]);
+    const weightEntry = pickObservation(latestMap, ["weight", "weight_kg", "body_weight"]);
+    const bmiEntry = pickObservation(latestMap, ["bmi"]);
+
+    const bpPair = bpEntry ? parseBp(bpEntry.value) : {};
+
+    const systolic = bpPair.systolic ?? parseNumber(bpEntry?.value);
+    const diastolic = bpPair.diastolic ?? parseNumber(dpEntry?.value);
+    const heartRate = parseNumber(heartEntry?.value);
+
+    const heightMeters = heightToMeters(heightEntry?.value, heightEntry?.unit);
+    const weightKg = weightToKg(weightEntry?.value, weightEntry?.unit);
+    const computedBmi =
+      heightMeters && weightKg ? Number((weightKg / (heightMeters * heightMeters)).toFixed(1)) : null;
+    const observedBmi = parseNumber(bmiEntry?.value);
+
+    return {
+      systolic,
+      diastolic,
+      heartRate,
+      bmi: observedBmi ?? computedBmi,
+      weightKg,
+      heightMeters,
+    };
+  }, [latestMap]);
+
   const manualNotesFromObservations = useMemo(() => {
     const entry = pickObservation(latestMap, [MANUAL_NOTES_KIND]);
     if (!entry || entry.value == null) return null;
@@ -266,42 +302,6 @@ export default function MedicalProfile() {
   useEffect(() => {
     void loadSummary();
   }, [loadSummary]);
-
-  const profileVitals = useMemo(() => {
-    const bpEntry = pickObservation(latestMap, [
-      "bp_systolic",
-      "sbp",
-      "bp",
-      "systolic_bp",
-      "blood_pressure",
-    ]);
-    const dpEntry = pickObservation(latestMap, ["bp_diastolic", "dbp", "diastolic_bp"]);
-    const heartEntry = pickObservation(latestMap, ["heart_rate", "hr", "pulse", "heart_rate_bpm"]);
-    const heightEntry = pickObservation(latestMap, ["height", "height_cm", "height_m"]);
-    const weightEntry = pickObservation(latestMap, ["weight", "weight_kg", "body_weight"]);
-    const bmiEntry = pickObservation(latestMap, ["bmi"]);
-
-    const bpPair = bpEntry ? parseBp(bpEntry.value) : {};
-
-    const systolic = bpPair.systolic ?? parseNumber(bpEntry?.value);
-    const diastolic = bpPair.diastolic ?? parseNumber(dpEntry?.value);
-    const heartRate = parseNumber(heartEntry?.value);
-
-    const heightMeters = heightToMeters(heightEntry?.value, heightEntry?.unit);
-    const weightKg = weightToKg(weightEntry?.value, weightEntry?.unit);
-    const computedBmi =
-      heightMeters && weightKg ? Number((weightKg / (heightMeters * heightMeters)).toFixed(1)) : null;
-    const observedBmi = parseNumber(bmiEntry?.value);
-
-    return {
-      systolic,
-      diastolic,
-      heartRate,
-      bmi: observedBmi ?? computedBmi,
-      weightKg,
-      heightMeters,
-    };
-  }, [latestMap]);
 
   const vitalsDisplay = [
     {
