@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
 import { ChatInput } from "@/components/ChatInput";
 import { persistIfTemp } from "@/lib/chat/persist";
@@ -24,7 +24,61 @@ export function ChatWindow() {
   const currentId = useChatStore(s => s.currentId);
   const [results, setResults] = useState<any[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
   const [isThinking, setIsThinking] = useState(false);
+  const hasScrollableContent = messages.length > 0 || results.length > 0;
+
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") return;
+    const composer = composerRef.current;
+    if (!composer) return;
+    const root = document.documentElement;
+    const previousHeight = root.style.getPropertyValue("--mobile-composer-height");
+    const hadPreviousHeight = previousHeight.trim().length > 0;
+
+    const restore = () => {
+      if (hadPreviousHeight) {
+        root.style.setProperty("--mobile-composer-height", previousHeight);
+      } else {
+        root.style.removeProperty("--mobile-composer-height");
+      }
+    };
+
+    const updateMetrics = () => {
+      const rect = composer.getBoundingClientRect();
+      const height = Math.max(64, Math.round(rect.height));
+      root.style.setProperty("--mobile-composer-height", `${height}px`);
+    };
+
+    updateMetrics();
+
+    const handleFooterMetrics = () => {
+      updateMetrics();
+    };
+
+    window.addEventListener("mobile-footer-height-change", handleFooterMetrics);
+    window.addEventListener("resize", updateMetrics);
+
+    if (typeof ResizeObserver === "undefined") {
+      return () => {
+        window.removeEventListener("mobile-footer-height-change", handleFooterMetrics);
+        window.removeEventListener("resize", updateMetrics);
+        restore();
+      };
+    }
+
+    const observer = new ResizeObserver(() => {
+      updateMetrics();
+    });
+    observer.observe(composer);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("mobile-footer-height-change", handleFooterMetrics);
+      window.removeEventListener("resize", updateMetrics);
+      restore();
+    };
+  }, []);
 
   const handleSend = async (content: string, locationToken?: string) => {
     // after sending user message, persist thread if needed
@@ -49,50 +103,61 @@ export function ChatWindow() {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div ref={chatRef} className="flex-1 overflow-auto">
-        {messages.map((m, idx) => {
-          const isLastMessage = idx === messages.length - 1;
-          const showThinkingTimer = isLastMessage && isThinking;
-          return (
-            <div key={m.id} className="space-y-2">
-              <MessageRow m={m} />
-              {showThinkingTimer ? (
-                <div className="px-2">
-                  <div className="mt-1 inline-flex items-center gap-3 text-sm text-slate-500">
-                    <span>Thinking…</span>
-                    <AnalyzingInline active={showThinkingTimer} />
+    <div className="flex h-full flex-col">
+      <div
+        ref={chatRef}
+        className={`flex-1 pt-4 md:px-0 md:pt-0 ${
+          hasScrollableContent
+            ? "overflow-y-auto mobile-chat-scroll"
+            : "overflow-hidden mobile-chat-scroll-empty"
+        } md:pb-0 md:overflow-y-auto`}
+      >
+        <div className="px-4">
+          {messages.map((m, idx) => {
+            const isLastMessage = idx === messages.length - 1;
+            const showThinkingTimer = isLastMessage && isThinking;
+            return (
+              <div key={m.id} className="space-y-2">
+                <MessageRow m={m} />
+                {showThinkingTimer ? (
+                  <div className="px-2">
+                    <div className="mt-1 inline-flex items-center gap-3 text-sm text-slate-500">
+                      <span>Thinking…</span>
+                      <AnalyzingInline active={showThinkingTimer} />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+          {results.length > 0 && (
+            <div className="p-2 space-y-2">
+              {results.map((place) => (
+                <div key={place.id} className="result-card border p-2 rounded">
+                  <p>{place.name}</p>
+                  <p className="text-sm opacity-80">{place.address}</p>
+                  <div className="flex flex-wrap items-center gap-3 text-sm">
+                    {place.phone && (
+                      <a href={`tel:${place.phone}`} className="underline">
+                        Call
+                      </a>
+                    )}
+                    {place.mapLink && (
+                      <LinkBadge href={place.mapLink}>
+                        Directions
+                      </LinkBadge>
+                    )}
+                    <span className="opacity-70">{place.distance_km} km</span>
                   </div>
                 </div>
-              ) : null}
+              ))}
             </div>
-          );
-        })}
-        {results.length > 0 && (
-          <div className="p-2 space-y-2">
-            {results.map((place) => (
-              <div key={place.id} className="result-card border p-2 rounded">
-                <p>{place.name}</p>
-                <p className="text-sm opacity-80">{place.address}</p>
-                <div className="flex flex-wrap items-center gap-3 text-sm">
-                  {place.phone && (
-                    <a href={`tel:${place.phone}`} className="underline">
-                      Call
-                    </a>
-                  )}
-                  {place.mapLink && (
-                    <LinkBadge href={place.mapLink}>
-                      Directions
-                    </LinkBadge>
-                  )}
-                  <span className="opacity-70">{place.distance_km} km</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+          )}
+        </div>
       </div>
-      <ChatInput onSend={handleSend} />
+      <div ref={composerRef} className="mobile-composer md:static md:bg-transparent md:p-0 md:shadow-none">
+        <ChatInput onSend={handleSend} />
+      </div>
       <ScrollToBottom targetRef={chatRef} rebindKey={currentId} />
     </div>
   );

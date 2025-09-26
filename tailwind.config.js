@@ -1,3 +1,4 @@
+// tailwind.config.js
 module.exports = {
   darkMode: "class",
   content: [
@@ -8,13 +9,18 @@ module.exports = {
   theme: {
     extend: {
       fontSize: {
-        'chat-base': ['15px', { lineHeight: '22px' }],
-        'chat-sm': ['13px', { lineHeight: '20px' }],
-        'chat-lg': ['17px', { lineHeight: '24px' }],
+        "chat-base": ["15px", { lineHeight: "22px" }],
+        "chat-sm": ["13px", { lineHeight: "20px" }],
+        "chat-lg": ["17px", { lineHeight: "24px" }],
       },
       fontFamily: {
-        // Use with className="font-sans"
-        sans: ["var(--font-roboto)", "system-ui", "sans-serif"],
+        // Used by className="font-sans"
+        sans: [
+          "Proxima Nova",
+          "Proxima Nova Rg",
+          "ProximaNova",
+          "proxima-nova",
+        ],
       },
     },
   },

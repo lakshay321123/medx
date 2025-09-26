@@ -5,12 +5,14 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createNewThreadId, listThreads, Thread } from '@/lib/chatThreads';
 import ThreadKebab from '@/components/chat/ThreadKebab';
+import { useMobileUiStore } from '@/lib/state/mobileUiStore';
 
 export default function Sidebar() {
   const router = useRouter();
   const [threads, setThreads] = useState<Thread[]>([]);
   const [aidocThreads, setAidocThreads] = useState<{ id: string; title: string | null }[]>([]);
   const [q, setQ] = useState('');
+  const closeSidebar = useMobileUiStore(state => state.closeSidebar);
 
   useEffect(() => {
     const load = () => setThreads(listThreads());
@@ -32,6 +34,7 @@ export default function Sidebar() {
 
   const handleNew = () => {
     const id = createNewThreadId();
+    closeSidebar();
     router.push(`/?panel=chat&threadId=${id}`);
   };
   const handleSearch = (q: string) => {
@@ -68,7 +71,10 @@ export default function Sidebar() {
             className="flex items-center gap-2 rounded-xl border border-black/5 bg-white/70 px-4 py-2.5 text-sm shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/60"
           >
             <button
-              onClick={() => router.push(`/?panel=chat&threadId=${t.id}`)}
+              onClick={() => {
+                closeSidebar();
+                router.push(`/?panel=chat&threadId=${t.id}`);
+              }}
               className="flex-1 text-left truncate text-sm"
               title={t.title}
             >
@@ -98,7 +104,10 @@ export default function Sidebar() {
                 className="mt-2 flex items-center gap-2 rounded-xl border border-black/5 bg-white/70 px-4 py-2.5 text-sm shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/60"
               >
                 <button
-                  onClick={() => router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`)}
+                  onClick={() => {
+                    closeSidebar();
+                    router.push(`/?panel=ai-doc&threadId=${t.id}&context=profile`);
+                  }}
                   className="flex-1 text-left truncate text-sm"
                   title={t.title ?? ''}
                 >

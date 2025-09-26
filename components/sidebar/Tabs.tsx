@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useMobileUiStore } from "@/lib/state/mobileUiStore";
 
 type Tab = {
   key: string;
@@ -37,6 +38,7 @@ function NavLink({
   context?: string;
 }) {
   const params = useSearchParams();
+  const closeSidebar = useMobileUiStore(state => state.closeSidebar);
 
   const threadId = threadIdProp;
   const href = `/?panel=${panel}${threadId ? `&threadId=${encodeURIComponent(threadId)}` : ""}${
@@ -52,7 +54,10 @@ function NavLink({
       href={href}
       prefetch={false}
       scroll={false}
-      onClick={(e) => e.stopPropagation()}
+      onClick={event => {
+        closeSidebar();
+        event.stopPropagation();
+      }}
       className={`block w-full text-left rounded-md px-3 py-2 hover:bg-muted text-sm ${active ? "bg-muted font-medium" : ""}`}
       data-testid={`nav-${panel}`}
       aria-current={active ? "page" : undefined}

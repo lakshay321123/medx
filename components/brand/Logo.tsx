@@ -4,7 +4,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import * as React from "react";
-import { BRAND_NAME, LOGO_SRC, LOGO_FALLBACKS } from "@/lib/brand";
+import {
+  BRAND_NAME,
+  LOGO_SRC,
+  LOGO_FALLBACKS,
+  LOGO_WHITE_SRC,
+  LOGO_WHITE_FALLBACKS,
+} from "@/lib/brand";
 
 /**
  * Robust Logo component:
@@ -12,18 +18,32 @@ import { BRAND_NAME, LOGO_SRC, LOGO_FALLBACKS } from "@/lib/brand";
  * - On 404/error, walks through LOGO_FALLBACKS automatically
  * - If all fail, shows brand name text (so you never see a broken image)
  */
+type LogoVariant = "default" | "white";
+
 export default function Logo({
   width = 160,
   height = 48,
   className = "",
+  variant = "default",
 }: {
   width?: number;
   height?: number;
   className?: string;
+  variant?: LogoVariant;
 }) {
-  const sources = React.useMemo(() => [LOGO_SRC, ...LOGO_FALLBACKS], []);
+  const defaultSources = React.useMemo(() => [LOGO_SRC, ...LOGO_FALLBACKS], []);
+  const whiteSources = React.useMemo(
+    () => [LOGO_WHITE_SRC, ...LOGO_WHITE_FALLBACKS, ...defaultSources],
+    [defaultSources],
+  );
+  const sources = variant === "white" ? whiteSources : defaultSources;
   const [idx, setIdx] = React.useState(0);
   const [showText, setShowText] = React.useState(false);
+
+  React.useEffect(() => {
+    setIdx(0);
+    setShowText(false);
+  }, [sources]);
 
   const src = sources[idx] ?? null;
 

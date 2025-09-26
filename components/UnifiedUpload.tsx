@@ -202,7 +202,7 @@ export default function UnifiedUpload() {
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={doctorMode} onChange={e=>setDoctorMode(e.target.checked)} />
-          <span>Doctor Mode</span>
+          <span>Clinical Mode</span>
         </label>
       </div>
 
@@ -251,7 +251,7 @@ export default function UnifiedUpload() {
               </section>
               {out.doctor && (
                 <section className="p-3 border rounded">
-                  <h3 className="font-semibold mb-1">Doctor Summary</h3>
+                  <h3 className="font-semibold mb-1">Clinical Summary</h3>
                   <p className="whitespace-pre-wrap text-sm">{out.doctor}</p>
                 </section>
               )}

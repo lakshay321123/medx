@@ -47,7 +47,7 @@ const LONG_TEXT = Array(10)
   )
   .join(' ');
 
-test('doctor mode uploads skip ingest and return empty obsIds', async () => {
+test('Clinical mode uploads skip ingest and return empty obsIds', async () => {
   const file = await buildPdfFile(LONG_TEXT);
   const req = createRequest(true, file);
   const originalFetch = globalThis.fetch;
@@ -63,7 +63,7 @@ test('doctor mode uploads skip ingest and return empty obsIds', async () => {
       });
     }
     if (url.includes('api.openai.com')) {
-      const content = 'Doctor oriented summary';
+      const content = 'Clinical oriented summary';
       return new Response(JSON.stringify({ choices: [{ message: { content } }] }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },

@@ -1,7 +1,7 @@
 import { BRAND_NAME } from "@/lib/brand";
 
 export const DOCTOR_JSON_SYSTEM = `
-You are ${BRAND_NAME} Doctor Mode.
+You are ${BRAND_NAME} Clinical Mode.
 Return ONLY valid JSON matching this TypeScript type:
 {
   "clinical_implications": string[],

@@ -6,12 +6,13 @@ import { useRouter } from 'next/navigation';
 import ChatMarkdown from '@/components/ChatMarkdown';
 import ResearchFilters from '@/components/ResearchFilters';
 import { LinkBadge } from '@/components/SafeLink';
-import TrialsTable from "@/components/TrialsTable";
+import TrialsResults from "@/components/TrialsResults";
 import type { TrialRow } from "@/types/trials";
 import { useResearchFilters } from '@/store/researchFilters';
 import { Send, Paperclip, Clipboard, Stethoscope, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { useCountry } from '@/lib/country';
-import { getRandomWelcome } from '@/lib/welcomeMessages';
+import WelcomeCard from '@/components/ui/WelcomeCard';
+import { getWelcomeOptions, pickWelcome, type AppMode, type WelcomeMessage } from '@/lib/welcomeMessages';
 import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
 import { detectFollowupIntent } from '@/lib/intents';
@@ -222,6 +223,8 @@ const NEARBY_KIND_SYNONYMS: Record<NearbyKind, string[]> = {
   doctor: [
     "doctor",
     "doctors",
+    "clinician",
+    "clinicians",
     "gp",
     "g.p.",
     "physician",
@@ -286,7 +289,7 @@ const NEARBY_KIND_SYNONYMS: Record<NearbyKind, string[]> = {
 
 const NEARBY_LABELS: Record<NearbyKind, { singular: string; plural: string }> = {
   pharmacy: { singular: "pharmacy", plural: "pharmacies" },
-  doctor: { singular: "doctor", plural: "doctors" },
+  doctor: { singular: "clinician", plural: "clinicians" },
   clinic: { singular: "clinic", plural: "clinics" },
   hospital: { singular: "hospital", plural: "hospitals" },
   lab: { singular: "lab", plural: "labs" },
@@ -620,7 +623,7 @@ function AnalysisCard({
             disabled={busy}
             onClick={() => onQuickAction("doctor")}
           >
-            Doctor’s view
+            Clinical view
           </button>
           <button
             type="button"
@@ -765,13 +768,20 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const [labSummary, setLabSummary] = useState<any | null>(null);
+codex/add-copy,-refresh,-share-actions-to-messages
   const [refreshingMessages, setRefreshingMessages] = useState<Record<string, boolean>>({});
+
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [welcomeContent, setWelcomeContent] = useState<WelcomeMessage | null>(null);
+ main
   const abortRef = useRef<AbortController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef =
     (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ??
     (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
   const previewUrlsRef = useRef<string[]>([]);
+  const sendRef = useRef<(text: string, researchMode: boolean, opts?: SendOpts) => void>();
+  const researchModeRef = useRef<boolean>(false);
   const queueAbortRef = useRef<AbortController | null>(null);
   const { filters } = useResearchFilters();
 
@@ -781,6 +791,14 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const mode: 'patient' | 'doctor' = modeState.base === 'doctor' ? 'doctor' : 'patient';
   const researchMode = modeState.research;
   const therapyMode = modeState.therapy;
+  const researchOn = Boolean(researchMode);
+  const uiMode: AppMode = isAiDocMode
+    ? 'aidoc'
+    : therapyMode
+      ? 'therapy'
+      : mode === 'doctor'
+        ? 'clinical'
+        : 'wellness';
   const defaultSuggestions = useMemo(() => getDefaultSuggestions(modeState), [modeState]);
   const liveSuggestions = useMemo(() => getInlineSuggestions(userText, modeState), [userText, modeState]);
   const visibleMessages = messages;
@@ -808,6 +826,14 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    sendRef.current = send;
+  });
+
+  useEffect(() => {
+    researchModeRef.current = Boolean(researchMode);
+  }, [researchMode]);
 
   useEffect(() => {
     function onPush(e: Event) {
@@ -842,6 +868,21 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     return () => {
       window.removeEventListener("medx:chat:push", onPush as EventListener);
       window.removeEventListener("medx:chat:mark-done", onMarkDone as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    function onSend(event: Event) {
+      const detail = (event as CustomEvent<{ text?: string; opts?: SendOpts }>).detail;
+      if (!detail || typeof detail.text !== 'string') return;
+      const fn = sendRef.current;
+      if (!fn) return;
+      fn(detail.text, researchModeRef.current ?? false, detail.opts || {});
+    }
+
+    window.addEventListener('medx:chat:send', onSend as EventListener);
+    return () => {
+      window.removeEventListener('medx:chat:send', onSend as EventListener);
     };
   }, []);
 
@@ -1422,7 +1463,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       }
 
       if (NEARBY_CHANGE_CATEGORY_RE.test(lower) && inNearbyContext) {
-        pushAssistantText('Sure — tell me which category you need: pharmacy, doctor, clinic, hospital, or lab.');
+        pushAssistantText('Sure — tell me which category you need: pharmacy, clinician, clinic, hospital, or lab.');
         setNearbySession(key, { ...session, lastAction: 'nearby' });
         return true;
       }
@@ -1678,15 +1719,79 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, [isProfileThread, threadId, therapyMode]);
 
   useEffect(() => {
-    if (!isProfileThread && messages.length === 0) {
-      addOnce('welcome:chat', getRandomWelcome());
+    if (typeof window === 'undefined') return;
+
+    const supportedModes: AppMode[] = ['wellness', 'therapy', 'clinical', 'aidoc'];
+    if (!supportedModes.includes(uiMode)) {
+      setShowWelcome(false);
+      setWelcomeContent(null);
+      return;
     }
-  }, [isProfileThread, messages.length]);
+
+    const seenKey = `welcome_seen_v2_${uiMode}`;
+    const pickKey = `welcome_pick_v2_${uiMode}`;
+    const options = getWelcomeOptions(uiMode, { researchOn });
+    if (options.length === 0) {
+      setShowWelcome(false);
+      setWelcomeContent(null);
+      return;
+    }
+
+    let storage: Storage | null = null;
+    try {
+      storage = window.localStorage;
+    } catch {
+      storage = null;
+    }
+
+    if (storage?.getItem(seenKey)) {
+      setShowWelcome(false);
+      setWelcomeContent(null);
+      return;
+    }
+
+    try {
+      const selection = pickWelcome(uiMode, { researchOn });
+      if (selection) {
+        setWelcomeContent(selection);
+        setShowWelcome(true);
+        return;
+      }
+    } catch {
+      // If pickWelcome fails we fall back to the first option below.
+    }
+
+    const fallback = options[0] ?? null;
+    if (fallback) {
+      try {
+        storage?.setItem(pickKey, '0');
+      } catch {
+        /* ignore */
+      }
+      setWelcomeContent(fallback);
+      setShowWelcome(true);
+    } else {
+      setWelcomeContent(null);
+      setShowWelcome(false);
+    }
+  }, [uiMode, researchOn]);
 
   useEffect(() => {
     const tid = threadId || (isProfileThread ? 'med-profile' : null);
     if (tid) saveMessages(tid, messages as any);
   }, [messages, threadId, isProfileThread]);
+
+  const dismissWelcome = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage?.setItem(`welcome_seen_v2_${uiMode}`, '1');
+      } catch {
+        /* ignore */
+      }
+    }
+    setShowWelcome(false);
+    setWelcomeContent(null);
+  }, [uiMode]);
 
   const draftKey = (threadId?: string|null)=> `chat:${threadId||'med-profile'}:draft`;
   // load draft and inject as past message (so it "reappears as past messages")
@@ -3016,6 +3121,7 @@ ${systemCommon}` + baseSys;
 
   const assistantBusy = loadingAction !== null;
   const simpleMode = currentMode === 'patient';
+  const showWelcomeCard = showWelcome && !!welcomeContent;
 
   const handleRefresh = useCallback(async (messageId: string) => {
     const target = messages.find((m) => m.id === messageId) as (ChatMessage & { refreshSnapshot?: RefreshSnapshot }) | undefined;
@@ -3317,14 +3423,37 @@ ${systemCommon}` + baseSys;
     return () => window.removeEventListener('keydown', handleKey);
   }, [busy]);
 
+  const hasScrollableContent =
+    visibleMessages.length > 0 ||
+    showWelcomeCard ||
+    summary != null ||
+    trialRows.length > 0 ||
+    Boolean(aidoc);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {showWelcomeCard && welcomeContent ? (
+        <div className="px-6 pt-6">
+          <div className="mx-auto w-full max-w-3xl">
+            <WelcomeCard
+              header={welcomeContent.header}
+              body={welcomeContent.body}
+              status={welcomeContent.status}
+              onDismiss={dismissWelcome}
+            />
+          </div>
+        </div>
+      ) : null}
       <div
         ref={chatRef}
         id="chat-scroll-container"
-        className="flex-1 min-h-0 overflow-y-auto"
+        className={`flex-1 min-h-0 ${
+          hasScrollableContent
+            ? 'overflow-y-auto mobile-chat-scroll'
+            : 'overflow-hidden mobile-chat-scroll-empty'
+        }${showWelcomeCard ? ' mt-4' : ''} md:overflow-y-auto`}
       >
-        <div className="flex min-h-full flex-col justify-end px-6 pt-6">
+        <div className={`flex min-h-full flex-col justify-end px-6${showWelcomeCard ? '' : ' pt-6'}`}>
           {mode === "doctor" && researchMode && (
             <div className="mb-6 space-y-4">
               <ResearchFilters mode="research" onResults={handleTrials} />
@@ -3425,26 +3554,7 @@ ${systemCommon}` + baseSys;
                   )}
                 </div>
               )}
-              {trialRows.length > 0 && (
-                <div className="rounded-xl border border-slate-200 bg-white/85 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
-                  <div className="mb-2 flex justify-end">
-                    <button
-                      onClick={async ()=>{
-                        const res = await fetch("/api/trials/export", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ rows: trialRows }) });
-                        const blob = await res.blob();
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url; a.download = "trials.csv"; a.click();
-                        URL.revokeObjectURL(url);
-                      }}
-                      className="rounded-full border border-slate-200 px-3 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-                    >
-                      Export CSV
-                    </button>
-                  </div>
-                  <TrialsTable rows={trialRows} />
-                </div>
-              )}
+              {trialRows.length > 0 && <TrialsResults trials={trialRows} />}
             </div>
           )}
 
@@ -3577,8 +3687,8 @@ ${systemCommon}` + baseSys;
         </div>
       </div>
 
-      <div className="mt-auto">
-        <div className="px-6 pb-[max(16px,env(safe-area-inset-bottom))]">
+      <div className="mt-auto mobile-composer-region">
+        <div className="px-6 pb-4 md:pb-6">
           <div className="mx-auto max-w-3xl space-y-3 px-4 py-4">
               {mode === 'doctor' && AIDOC_UI && (
                 <button
