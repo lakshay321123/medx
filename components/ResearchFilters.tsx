@@ -142,25 +142,25 @@ export default function ResearchFilters({ mode, onResults, className }: Props) {
   return (
     <form onSubmit={handleSubmit} className={formClassName}>
       <section className="md:hidden space-y-2 px-3">
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-[1fr,96px] gap-2">
           <input
             value={local.query}
             onChange={(e) => setLocal(s => ({ ...s, query: e.target.value }))}
             onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as any).form?.requestSubmit()}
             placeholder="Search trials (e.g., condition, gene, topic)…"
-            className="input-sm w-[68%] min-w-[210px]"
+            className="input-sm w-full min-w-[210px]"
             aria-label="Search trials"
           />
           <button
             type="submit"
-            className="btn-sm w-[80px] shrink-0 flex items-center justify-center disabled:opacity-50"
+            className="btn-sm flex w-full items-center justify-center disabled:opacity-50"
             disabled={busy}
           >
             {busy ? "Searching…" : "Search"}
           </button>
         </div>
 
-        <div className="overflow-x-auto no-scrollbar -mx-3 flex gap-1.5 px-3 md:hidden">
+        <div className="no-scrollbar -mx-3 flex gap-1.5 overflow-x-auto px-3">
           {phaseOptions.map(p => {
             const active = local.phase === p;
             return (
@@ -179,11 +179,11 @@ export default function ResearchFilters({ mode, onResults, className }: Props) {
           })}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-[160px,120px] gap-2">
           <select
             value={local.status}
             onChange={(e) => setLocal(s => ({ ...s, status: e.target.value as any }))}
-            className="select-sm w-[160px]"
+            className="select-sm w-full"
             aria-label="Filter by status"
           >
             {statusLabels.map(o => (
@@ -195,7 +195,7 @@ export default function ResearchFilters({ mode, onResults, className }: Props) {
           <select
             value={source}
             onChange={(e) => setSource(e.target.value)}
-            className="select-sm w-[120px]"
+            className="select-sm w-full"
             aria-label="Filter by source"
           >
             <option className="text-slate-900">All</option>
@@ -226,17 +226,17 @@ export default function ResearchFilters({ mode, onResults, className }: Props) {
           <span className="text-[11px] text-white/70">{selectedCountriesCount} selected</span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-[1fr,96px] gap-2">
           <input
             placeholder="Genes (comma separated)"
             value={local.genes}
             onChange={(e) => setLocal(s => ({ ...s, genes: e.target.value }))}
-            className="input-sm w-[68%] min-w-[210px]"
+            className="input-sm w-full min-w-[210px]"
             aria-label="Filter by genes"
           />
           <button
             type="button"
-            className="btn-sm w-[80px] shrink-0 flex items-center justify-center disabled:opacity-50"
+            className="btn-sm flex w-full items-center justify-center disabled:opacity-50"
             onClick={() => {
               void handleSubmit();
             }}

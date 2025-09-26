@@ -3124,19 +3124,23 @@ ${systemCommon}` + baseSys;
     Boolean(aidoc);
 
   const isClinicalResearchMobile = mode === "doctor" && researchMode;
-  const chatInnerPaddingClass = isClinicalResearchMobile ? "px-0 md:px-6" : "px-6";
-  const composerPaddingClass = isClinicalResearchMobile ? "px-0 md:px-6" : "px-6";
-  const clinicalMobileShell = "mx-auto w-full max-w-[420px] px-3";
+  const clinicalMobileShell = "mx-auto w-full max-w-[420px] md:max-w-none md:px-6";
+  const chatInnerPaddingClass = isClinicalResearchMobile
+    ? "px-3 pb-[120px] md:px-6 md:pb-0"
+    : "px-6";
+  const composerOuterClass = isClinicalResearchMobile
+    ? "fixed inset-x-0 bottom-0 z-40 px-3 pb-3 pt-3 backdrop-blur md:static md:px-6 md:pb-6 md:pt-0 border-t border-slate-200/60 bg-white/90 dark:border-slate-700/60 dark:bg-slate-900/85"
+    : "px-6 pb-4 md:pb-6";
   const messageShellClass = isClinicalResearchMobile
-    ? `${clinicalMobileShell} md:max-w-3xl md:px-0`
+    ? `${clinicalMobileShell} px-3 md:max-w-3xl md:px-0`
     : "mx-auto w-full max-w-3xl";
 
   const composerContent = (
-    <div className={`${composerPaddingClass} pb-4 md:pb-6`}>
+    <div className={composerOuterClass}>
       <div
         className={
           isClinicalResearchMobile
-            ? `${clinicalMobileShell} space-y-3 py-4 md:max-w-3xl md:px-4`
+            ? `${clinicalMobileShell} space-y-3 px-3 py-4 md:max-w-3xl md:px-4`
             : "mx-auto max-w-3xl space-y-3 px-4 py-4"
         }
       >
@@ -3316,8 +3320,8 @@ ${systemCommon}` + baseSys;
           {mode === "doctor" && researchMode && (
             <div className="mb-6 space-y-4">
               <div className="md:hidden">
-                <div className="mx-auto w-full max-w-[420px] px-3">
-                  <ClinicalBanner />
+                <div className={`${clinicalMobileShell} px-3`}>
+                  <ClinicalBanner className="mb-2" />
                 </div>
               </div>
 
@@ -3329,7 +3333,7 @@ ${systemCommon}` + baseSys;
 
               {(summary || trialRows.length > 0 || (searched && trialRows.length === 0)) && (
                 <div className="md:hidden">
-                  <div className="mx-auto w-full max-w-[420px] space-y-3 px-3 pb-[110px]">
+                  <div className={`${clinicalMobileShell} space-y-3 px-3 pb-[110px]`}>
                     {searched && trialRows.length === 0 && (
                       <div className="rounded-2xl border border-white/10 bg-white/6 p-3 text-xs text-white/80">
                         No trials found. Try removing a filter, switching country, or using broader keywords.
@@ -3864,88 +3868,6 @@ ${systemCommon}` + baseSys;
                 </div>
               </div>
             ) : null}
-
-            <div className="md:hidden fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#0d1a36] p-3">
-              <div className="mx-auto w-full max-w-[420px]">
-                <form
-                  onSubmit={e => {
-                    e.preventDefault();
-                    onSubmit();
-                  }}
-                  className="flex items-center gap-2"
-                >
-                  <label
-                    className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white"
-                    title="Upload PDF or image"
-                  >
-                    <Paperclip size={18} aria-hidden="true" />
-                    <span className="sr-only">Upload</span>
-                    <input
-                      type="file"
-                      accept="application/pdf,image/*"
-                      multiple
-                      className="hidden"
-                      onChange={e => {
-                        const files = Array.from(e.target.files ?? []);
-                        if (files.length) onFilesSelected(files);
-                        e.currentTarget.value = '';
-                      }}
-                    />
-                  </label>
-                  <div className="relative flex-1">
-                    <textarea
-                      ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
-                      rows={1}
-                      className="h-11 w-full resize-none rounded-xl border border-white/10 bg-[#0f1f42] px-3 pr-12 text-sm leading-6 text-white placeholder:text-white/60 focus:outline-none"
-                      placeholder={
-                        pendingFiles.length > 0
-                          ? 'Add a note or question for this document (optional)'
-                          : 'Send a message'
-                      }
-                      value={userText}
-                      onChange={(e) => setUserText(e.target.value)}
-                      onFocus={() => setInputFocused(true)}
-                      onBlur={(e) => {
-                        const next = e.relatedTarget as HTMLElement | null;
-                        if (next?.dataset?.suggestionButton === 'true') {
-                          return;
-                        }
-                        setInputFocused(false);
-                      }}
-                      onKeyDown={(e) => {
-                        const isComposing = (e.nativeEvent as any).isComposing;
-                        if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
-                          e.preventDefault();
-                          onSubmit();
-                        }
-                      }}
-                    />
-
-                    {(queueActive || busy || abortRef.current) && (
-                      <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                        <StopButton
-                          onClick={onStop}
-                          className="pointer-events-auto"
-                          title="Stop (Esc)"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {!busy && (
-                    <button
-                      className="flex min-h-[44px] items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:opacity-50"
-                      type="submit"
-                      disabled={pendingFiles.length === 0 && !userText.trim()}
-                      aria-label="Send"
-                      title="Send"
-                    >
-                      Send
-                    </button>
-                  )}
-                </form>
-              </div>
-            </div>
 
             <div className="hidden md:block">{composerContent}</div>
           </>
