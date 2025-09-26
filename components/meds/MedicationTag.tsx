@@ -18,12 +18,12 @@ export default function MedicationTag({ label, onRemove, disabled = false }: Med
       {onRemove ? (
         <button
           type="button"
-          className="ml-1 flex h-6 w-6 items-center justify-center rounded-full transition hover:bg-muted"
+          className="ml-1 flex h-8 w-8 items-center justify-center rounded-full transition hover:bg-muted"
           onClick={onRemove}
           disabled={disabled}
           aria-label="Remove medication"
         >
-          <X className="h-3.5 w-3.5" aria-hidden="true" />
+          <X className="h-4 w-4" aria-hidden="true" />
         </button>
       ) : null}
     </span>

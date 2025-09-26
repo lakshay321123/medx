@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { pushToast } from "@/lib/ui/toast";
 
 type Suggestion = {
   name: string;
   rxnormId?: string | null;
+};
+
+type SuggestionResult = {
+  suggestions: Suggestion[];
+  normalized: Suggestion | null;
 };
 
 export type MedicationInputProps = {
@@ -21,28 +26,58 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
   const [dose, setDose] = useState("");
   const [needsDose, setNeedsDose] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [normalizedSuggestion, setNormalizedSuggestion] = useState<Suggestion | null>(null);
+  const [highlightIndex, setHighlightIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const name = lockedName ?? query.trim();
-  const showSave = name.length >= 2;
+  const trimmedQuery = query.trim();
+  const name = lockedName ?? trimmedQuery;
   const trimmedDose = dose.trim();
+  const confirmedSuggestion =
+    lockedSuggestion ??
+    (normalizedSuggestion && normalizedSuggestion.name.toLowerCase() === name.toLowerCase()
+      ? normalizedSuggestion
+      : null);
+  const showSave = Boolean(confirmedSuggestion);
   const shouldShowDoseInput = needsDose || !!lockedName || trimmedDose.length > 0 || showSave;
+  const listOpen = useMemo(() => !lockedName && suggestions.length > 0, [lockedName, suggestions.length]);
+  const displaySuggestions = useMemo(() => suggestions.slice(0, 5), [suggestions]);
+  useEffect(() => {
+    if (!listOpen) {
+      setHighlightIndex(0);
+    } else if (highlightIndex >= displaySuggestions.length) {
+      setHighlightIndex(0);
+    }
+  }, [displaySuggestions.length, highlightIndex, listOpen]);
 
   useEffect(() => {
-    if (!query.trim() || lockedName) {
-      setSuggestions([]);
-      setError(null);
+    const trimmed = query.trim();
+    if (lockedName) {
       abortRef.current?.abort();
+      setSuggestions([]);
+      setNormalizedSuggestion(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    if (trimmed.length < 2) {
+      abortRef.current?.abort();
+      setSuggestions([]);
+      setNormalizedSuggestion(null);
+      setError(null);
+      setLoading(false);
       return;
     }
     const controller = new AbortController();
     abortRef.current = controller;
     const handle = window.setTimeout(() => {
-      void fetchSuggestions(query.trim(), controller.signal)
-        .then(list => {
-          setSuggestions(list);
+      void fetchSuggestions(trimmed, controller.signal)
+        .then(result => {
+          setSuggestions(result.suggestions);
+          setNormalizedSuggestion(result.normalized);
+          setHighlightIndex(0);
           setError(null);
         })
         .catch(err => {
@@ -50,6 +85,7 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
           console.warn("Medication search failed", err);
           setError("Couldn’t fetch suggestions.");
           setSuggestions([]);
+          setNormalizedSuggestion(null);
         })
         .finally(() => setLoading(false));
     }, 300);
@@ -60,9 +96,23 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
     };
   }, [lockedName, query]);
 
+  const selectSuggestion = (suggestion: Suggestion) => {
+    setLockedName(suggestion.name);
+    setLockedSuggestion(suggestion);
+    setQuery(suggestion.name);
+    setSuggestions([]);
+    setNormalizedSuggestion(null);
+    setHighlightIndex(0);
+  };
+
   const handleSave = async () => {
     if (!name) {
       setError("Enter a medication name.");
+      return;
+    }
+    const source = confirmedSuggestion;
+    if (!source) {
+      setError("Select a suggestion to confirm the medication name.");
       return;
     }
     const finalDose = trimmedDose;
@@ -71,10 +121,11 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
       return;
     }
     try {
-      await onSave({ name, dose: finalDose || null, rxnormId: lockedSuggestion?.rxnormId ?? null });
+      await onSave({ name: source.name, dose: finalDose || null, rxnormId: source.rxnormId ?? null });
       setQuery("");
       setLockedName(null);
       setLockedSuggestion(null);
+      setNormalizedSuggestion(null);
       setDose("");
       setNeedsDose(false);
       setSuggestions([]);
@@ -103,7 +154,39 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
               onChange={e => {
                 setLockedName(null);
                 setLockedSuggestion(null);
+                setNormalizedSuggestion(null);
                 setQuery(e.target.value);
+              }}
+              onKeyDown={event => {
+                if (!listOpen || displaySuggestions.length === 0) {
+                  if (event.key === "Enter" && showSave) {
+                    event.preventDefault();
+                    void handleSave();
+                  }
+                  return;
+                }
+                if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  setHighlightIndex(index => (index + 1) % displaySuggestions.length);
+                  return;
+                }
+                if (event.key === "ArrowUp") {
+                  event.preventDefault();
+                  setHighlightIndex(index => (index - 1 + displaySuggestions.length) % displaySuggestions.length);
+                  return;
+                }
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  const suggestion = displaySuggestions[highlightIndex];
+                  if (suggestion) {
+                    selectSuggestion(suggestion);
+                  }
+                  return;
+                }
+                if (event.key === "Escape") {
+                  setSuggestions([]);
+                  setHighlightIndex(0);
+                }
               }}
             />
           </label>
@@ -114,20 +197,17 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
             </p>
           ) : null}
           {error ? <p className="mt-1 text-xs text-destructive">{error}</p> : null}
-          {!loading && !lockedName && suggestions.length > 0 ? (
+          {!loading && listOpen && displaySuggestions.length > 0 ? (
             <div className="mt-2 space-y-1 text-xs">
               <p className="font-medium text-muted-foreground">Did you mean…</p>
               <ul className="flex flex-wrap gap-1">
-                {suggestions.slice(0, 5).map(s => (
+                {displaySuggestions.map((s, index) => (
                   <li key={`${s.rxnormId || s.name}`}>
                     <button
                       type="button"
-                      className="rounded-full border px-3 py-1 hover:bg-muted"
-                      onClick={() => {
-                        setLockedName(s.name);
-                        setLockedSuggestion(s);
-                        setQuery(s.name);
-                      }}
+                      className={`rounded-full border px-3 py-1 hover:bg-muted ${highlightIndex === index ? "bg-muted" : ""}`}
+                      onMouseEnter={() => setHighlightIndex(index)}
+                      onClick={() => selectSuggestion(s)}
                     >
                       {s.name}
                     </button>
@@ -135,6 +215,9 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
                 ))}
               </ul>
             </div>
+          ) : null}
+          {!loading && !lockedName && !listOpen && confirmedSuggestion ? (
+            <p className="mt-1 text-xs text-muted-foreground">{`Confirmed as ${confirmedSuggestion.name}.`}</p>
           ) : null}
         </div>
         {shouldShowDoseInput ? (
@@ -153,7 +236,7 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
             type="button"
             className="inline-flex items-center justify-center self-start rounded-md border bg-primary px-3 py-2 text-sm text-primary-foreground shadow disabled:opacity-60"
             onClick={handleSave}
-            disabled={loading}
+            disabled={loading || !showSave}
           >
             Save
           </button>
@@ -166,8 +249,9 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
   );
 }
 
-async function fetchSuggestions(term: string, signal: AbortSignal): Promise<Suggestion[]> {
+async function fetchSuggestions(term: string, signal: AbortSignal): Promise<SuggestionResult> {
   const suggestions: Suggestion[] = [];
+  let normalized: Suggestion | null = null;
   try {
     const searchRes = await fetch(`/api/meds/search?q=${encodeURIComponent(term)}`, { signal });
     if (searchRes.ok) {
@@ -175,9 +259,17 @@ async function fetchSuggestions(term: string, signal: AbortSignal): Promise<Sugg
       const meds = Array.isArray(json?.meds) ? json.meds : [];
       for (const med of meds) {
         if (!med?.name) continue;
-        suggestions.push({ name: String(med.name), rxnormId: med.rxnormId ?? null });
+        const suggestion: Suggestion = { name: String(med.name), rxnormId: med.rxnormId ?? null };
+        suggestions.push(suggestion);
+        if (!normalized && suggestion.name.toLowerCase() === term.toLowerCase()) {
+          normalized = suggestion;
+        }
       }
-      return dedupeSuggestions(suggestions);
+      const deduped = dedupeSuggestions(suggestions);
+      if (!normalized) {
+        normalized = deduped.find(item => item.name.toLowerCase() === term.toLowerCase()) ?? null;
+      }
+      return { suggestions: deduped, normalized };
     }
     if (searchRes.status !== 404) {
       throw new Error(`HTTP ${searchRes.status}`);
@@ -198,7 +290,7 @@ async function fetchSuggestions(term: string, signal: AbortSignal): Promise<Sugg
         signal,
       });
     }
-    if (!normalizeRes.ok) return [];
+    if (!normalizeRes.ok) return { suggestions: [], normalized: null };
     const json = await normalizeRes.json();
     const meds = Array.isArray(json?.meds)
       ? json.meds
@@ -207,17 +299,39 @@ async function fetchSuggestions(term: string, signal: AbortSignal): Promise<Sugg
       : [];
     for (const med of meds) {
       if (typeof med === "string") {
-        suggestions.push({ name: med });
+        const suggestion: Suggestion = { name: med };
+        suggestions.push(suggestion);
+        if (!normalized && med.toLowerCase() === term.toLowerCase()) {
+          normalized = suggestion;
+        }
       } else if (med?.name) {
-        suggestions.push({ name: String(med.name), rxnormId: med.rxnormId ?? med.rxcui ?? null });
+        const suggestion: Suggestion = {
+          name: String(med.name),
+          rxnormId: med.rxnormId ?? med.rxcui ?? null,
+        };
+        suggestions.push(suggestion);
+        if (!normalized && suggestion.name.toLowerCase() === term.toLowerCase()) {
+          normalized = suggestion;
+        }
       } else if (med?.token) {
-        suggestions.push({ name: String(med.token), rxnormId: med.rxcui ?? null });
+        const suggestion: Suggestion = {
+          name: String(med.token),
+          rxnormId: med.rxcui ?? null,
+        };
+        suggestions.push(suggestion);
+        if (!normalized && suggestion.name.toLowerCase() === term.toLowerCase()) {
+          normalized = suggestion;
+        }
       }
     }
-    return dedupeSuggestions(suggestions);
+    const deduped = dedupeSuggestions(suggestions);
+    if (!normalized) {
+      normalized = deduped.find(item => item.name.toLowerCase() === term.toLowerCase()) ?? null;
+    }
+    return { suggestions: deduped, normalized };
   } catch (err) {
     if ((err as any)?.name === "AbortError") throw err;
-    return [];
+    return { suggestions: [], normalized: null };
   }
 }
 

@@ -41,6 +41,8 @@ type MedicationEntry = {
   doseLabel?: string | null;
   doseValue?: number | null;
   doseUnit?: string | null;
+  observationId?: string | number | null;
+  rxnormId?: string | null;
 };
 
 type ObservationMap = Record<string, { value: any; unit: string | null; observedAt: string } | undefined>;
@@ -411,33 +413,27 @@ export default function MedicalProfile() {
     if (!normalizedName) throw new Error("Medication name required");
 
     const { doseLabel, doseUnit, doseValue } = parseDoseString(med.dose ?? null);
-    const kind = buildMedicationKind(normalizedName, doseLabel);
     const observedAt = new Date().toISOString();
-    const summaryLabel = buildMedicationSummaryLabel(normalizedName, doseLabel);
+    const payload: Record<string, any> = {
+      kind: "medication",
+      value_text: normalizedName,
+      value_num: doseValue ?? null,
+      unit: doseUnit ?? null,
+      observed_at: observedAt,
+      thread_id: null,
+      meta: {
+        normalizedName,
+        doseLabel: doseLabel ?? null,
+        rxnormId: med.rxnormId ?? null,
+        source: "manual",
+      },
+    };
 
     const res = await fetch("/api/profile", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        observations: [
-          {
-            kind,
-            value_text: normalizedName,
-            value_num: doseValue ?? null,
-            unit: doseUnit ?? null,
-            observed_at: observedAt,
-            meta: {
-              source: "manual",
-              category: "medication",
-              normalizedName,
-              doseLabel,
-              rxnormId: med.rxnormId ?? null,
-              committed: true,
-              label: summaryLabel,
-              medications: summaryLabel ? [summaryLabel] : [],
-            },
-          },
-        ],
+        observations: [payload],
       }),
     });
 
@@ -446,11 +442,12 @@ export default function MedicalProfile() {
     }
 
     const nextEntry: MedicationEntry = {
-      key: kind,
+      key: buildMedicationKey(normalizedName, doseLabel ?? null, { fallbackId: Date.now() }),
       name: normalizedName,
       doseLabel,
       doseUnit: doseUnit ?? null,
       doseValue: doseValue ?? null,
+      rxnormId: med.rxnormId ?? null,
     };
 
     setMedications(prev => dedupeMedicationList([...prev, nextEntry]));
@@ -461,30 +458,29 @@ export default function MedicalProfile() {
 
   const handleRemoveMedication = async (med: MedicationEntry) => {
     try {
-      const summaryLabel = buildMedicationSummaryLabel(med.name, med.doseLabel || null);
+      const removalObservation: Record<string, any> = {
+        kind: "medication",
+        value_text: med.name,
+        value_num: null,
+        unit: "__deleted__",
+        observed_at: new Date().toISOString(),
+        meta: {
+          normalizedName: med.name,
+          doseLabel: med.doseLabel ?? null,
+          rxnormId: med.rxnormId ?? null,
+          deleted: true,
+        },
+        thread_id: null,
+      };
+      if (med.observationId != null) {
+        removalObservation.observation_id = med.observationId;
+      }
 
       const res = await fetch("/api/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          observations: [
-            {
-              kind: med.key,
-              value_text: null,
-              value_num: null,
-              unit: "__deleted__",
-              observed_at: new Date().toISOString(),
-              meta: {
-                source: "manual",
-                category: "medication",
-                normalizedName: med.name,
-                doseLabel: med.doseLabel ?? null,
-                committed: true,
-                label: summaryLabel,
-                deleted: true,
-              },
-            },
-          ],
+          observations: [removalObservation],
         }),
       });
 
@@ -1127,7 +1123,7 @@ function extractMedicationEntries(data: any): MedicationEntry[] {
   if (!data) return [];
 
   const entries: MedicationEntry[] = [];
-  const groups = (data as any)?.groups;
+  const groups = (data as any)?.groups ?? (data?.profile as any)?.groups;
   const groupMeds = Array.isArray(groups?.medications) ? groups.medications : [];
   for (const item of groupMeds) {
     const med = normalizeMedicationItem(item);
@@ -1142,6 +1138,23 @@ function extractMedicationEntries(data: any): MedicationEntry[] {
     if (med) entries.push(med);
   }
 
+  const observationMeds = Array.isArray((data?.profile as any)?.observations)
+    ? (data.profile as any).observations
+    : [];
+  for (const item of observationMeds) {
+    if (typeof item?.kind === "string" && item.kind.toLowerCase() !== "medication") {
+      continue;
+    }
+    const med = normalizeMedicationItem(item);
+    if (med) entries.push(med);
+  }
+
+  const summaryMeds = Array.isArray((data?.summary as any)?.medications) ? data.summary.medications : [];
+  for (const item of summaryMeds) {
+    const med = normalizeMedicationItem(item);
+    if (med) entries.push(med);
+  }
+
   return dedupeMedicationList(entries);
 }
 
@@ -1152,59 +1165,105 @@ function normalizeMedicationItem(raw: any): MedicationEntry | null {
     const trimmed = raw.trim();
     if (!trimmed) return null;
     return {
-      key: buildMedicationKind(trimmed, null),
+      key: buildMedicationKey(trimmed, null),
       name: trimmed,
     };
   }
 
+  if (Array.isArray(raw)) return null;
+
   const rawUnit = typeof raw.unit === "string" ? raw.unit.trim() : null;
   if (rawUnit && rawUnit.toLowerCase() === "__deleted__") return null;
+  if (raw?.meta?.deleted) return null;
+
+  const normalizedKind = typeof raw.kind === "string" ? raw.kind.toLowerCase() : "";
+  const normalizedGroup = typeof raw.group === "string" ? raw.group.toLowerCase() : "";
+  const normalizedCategory = typeof raw.category === "string" ? raw.category.toLowerCase() : "";
+  if (
+    normalizedKind &&
+    normalizedKind !== "medication" &&
+    !normalizedKind.startsWith("medication") &&
+    normalizedGroup !== "medications" &&
+    normalizedCategory !== "medication"
+  ) {
+    return null;
+  }
+
+  const observationId =
+    raw.observation_id ?? raw.observationId ?? raw.id ?? raw.meta?.observation_id ?? raw.meta?.observationId ?? null;
 
   const keyCandidate = [raw.key, raw.kind]
     .map(value => (typeof value === "string" ? value.trim() : ""))
     .find(Boolean);
 
-  const nameCandidate = [
+  const possibleNames = [
     raw.name,
     raw.label,
     raw.title,
     raw.medication,
     raw.value_text,
-  ].find(value => typeof value === "string" && value.trim());
+    raw.valueText,
+    raw.meta?.normalizedName,
+    raw.meta?.label,
+  ];
 
   const derivedName = keyCandidate ? deriveMedicationNameFromKey(keyCandidate) : null;
+  const nameCandidate = possibleNames.find(value => typeof value === "string" && value.trim());
   const name = (nameCandidate || derivedName || "").toString().trim();
   if (!name) return null;
 
-  const doseTextCandidate = [raw.dose, raw.meta?.dose, raw.metadata?.dose, raw.sig]
+  const doseTextCandidate = [
+    raw.meta?.doseLabel,
+    raw.meta?.dose,
+    raw.metadata?.dose,
+    raw.dose,
+    raw.sig,
+  ]
     .map(value => (typeof value === "string" ? value.trim() : ""))
     .find(Boolean);
 
+  const numericCandidates = [raw.value_num, raw.valueNum, raw.value, raw.meta?.doseValue, raw.meta?.value_num];
   let doseValue: number | null = null;
-  if (typeof raw.value === "number") {
-    doseValue = Number.isFinite(raw.value) ? raw.value : null;
-  } else if (typeof raw.value === "string") {
-    doseValue = parseNumber(raw.value);
+  for (const candidate of numericCandidates) {
+    const parsed = parseNumber(candidate);
+    if (parsed != null) {
+      doseValue = parsed;
+      break;
+    }
   }
 
-  const doseLabel = doseTextCandidate || buildDoseLabelFromParts(doseValue, rawUnit);
+  const unitCandidate = rawUnit || (typeof raw.meta?.unit === "string" ? raw.meta.unit.trim() : null);
+  const doseLabel = doseTextCandidate || buildDoseLabelFromParts(doseValue, unitCandidate);
 
   return {
-    key: (keyCandidate && keyCandidate.toLowerCase()) || buildMedicationKind(name, doseLabel),
+    key: buildMedicationKey(name, doseLabel || null, {
+      observationId,
+      rawKey: typeof raw.key === "string" ? raw.key : null,
+    }),
     name,
     doseLabel: doseLabel || null,
     doseValue: doseValue ?? null,
-    doseUnit: rawUnit,
+    doseUnit: unitCandidate ?? null,
+    observationId,
+    rxnormId:
+      raw.rxnormId ??
+      raw.rxnorm_id ??
+      raw.rxcui ??
+      raw.meta?.rxnormId ??
+      raw.meta?.rxcui ??
+      null,
   };
 }
 
 function dedupeMedicationList(input: MedicationEntry[]): MedicationEntry[] {
   const map = new Map<string, MedicationEntry>();
   for (const med of input) {
-    const key = med.key?.toLowerCase();
-    if (!key) continue;
-    if (!map.has(key)) {
-      map.set(key, med);
+    const dedupeKey =
+      med.observationId != null
+        ? `id-${med.observationId}`
+        : `${med.name.toLowerCase()}|${(med.doseLabel ?? "").toLowerCase()}`;
+    if (!map.has(dedupeKey)) {
+      map.set(dedupeKey, med);
     }
   }
   return Array.from(map.values());
@@ -1213,12 +1272,6 @@ function dedupeMedicationList(input: MedicationEntry[]): MedicationEntry[] {
 function formatMedicationLabel(med: MedicationEntry) {
   const doseLabel = med.doseLabel || buildDoseLabelFromParts(med.doseValue ?? null, med.doseUnit);
   return doseLabel ? `${med.name} ${doseLabel}` : med.name;
-}
-
-function buildMedicationSummaryLabel(name: string, doseLabel: string | null) {
-  const trimmedName = name.trim();
-  if (!trimmedName) return "";
-  return doseLabel ? `${trimmedName} ${doseLabel}` : trimmedName;
 }
 
 function parseDoseString(raw: string | null) {
@@ -1246,11 +1299,23 @@ function parseDoseString(raw: string | null) {
   };
 }
 
-function buildMedicationKind(name: string, doseLabel: string | null) {
+function buildMedicationKey(
+  name: string,
+  doseLabel: string | null,
+  opts: { observationId?: string | number | null; rawKey?: string | null; fallbackId?: string | number } = {}
+) {
+  if (opts.observationId != null) {
+    return `obs-${opts.observationId}`;
+  }
+  if (opts.rawKey) {
+    return `raw-${opts.rawKey}`;
+  }
+  if (opts.fallbackId != null) {
+    return `tmp-${opts.fallbackId}`;
+  }
   const base = slugifyToken(name);
   const dose = slugifyToken(doseLabel || "");
-  const suffix = dose ? `_${dose}` : "";
-  return `medication_${base || "entry"}${suffix}`;
+  return `med-${base || "entry"}-${dose || "none"}`;
 }
 
 function slugifyToken(value: string | null | undefined) {
