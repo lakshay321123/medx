@@ -1,7 +1,7 @@
-'use client';
-import { useState } from 'react';
-import { useResearchFilters } from '@/store/researchFilters';
-import type { TrialRow } from '@/types/trials';
+"use client";
+import { useState } from "react";
+import { useResearchFilters } from "@/store/researchFilters";
+import type { Trial } from "@/lib/trials/search";
 
 const phaseOptions = ['1','2','3','4'] as const;
 const statusLabels = [
@@ -29,11 +29,12 @@ function mapStatusKeyToApi(key?: string) {
 }
 
 type Props = {
-  mode: 'patient'|'doctor'|'research'|'therapy';
-  onResults?: (rows: TrialRow[]) => void; // ✅ parent (ChatPane) receives rows
+  mode: "patient" | "doctor" | "research" | "therapy";
+  onResults?: (rows: Trial[]) => void;
+  showBanner?: boolean;
 };
 
-export default function ResearchFilters({ mode, onResults }: Props) {
+export default function ResearchFilters({ mode, onResults, showBanner = true }: Props) {
   const { filters, setFilters, reset } = useResearchFilters();
 
   const [local, setLocal] = useState({
@@ -100,8 +101,8 @@ export default function ResearchFilters({ mode, onResults }: Props) {
     }
   }
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit(e?: React.FormEvent) {
+    if (e) e.preventDefault();
     applyLocalToStore();
     await runSearch();
   }
@@ -119,107 +120,240 @@ export default function ResearchFilters({ mode, onResults }: Props) {
     onResults?.([]); // clear table
   }
 
-  const open = mode !== 'patient'; // keep previous behavior
+  const open = mode !== "patient";
 
   return (
-    <form onSubmit={onSubmit} className="px-4 pt-3 pb-2">
-      {/* Top-style search input + button */}
-      <div className="flex items-center gap-2">
-        <input
-          value={local.query}
-          onChange={(e)=>setLocal(s=>({ ...s, query: e.target.value }))}
-          onKeyDown={(e)=> e.key === 'Enter' && (e.currentTarget as any).form?.requestSubmit()}
-          placeholder="Search trials (e.g., condition, gene, topic)…"
-          className="w-full rounded-lg border px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700"
-        />
-        <button
-          type="submit"
-          className="px-3 py-2 rounded-lg text-sm border bg-blue-600 text-white dark:border-blue-600 disabled:opacity-50"
-          disabled={busy}
-        >
-          {busy ? 'Searching…' : 'Search'}
-        </button>
-      </div>
+    <form onSubmit={handleSubmit} className="mx-auto w-full max-w-[420px] space-y-3 md:max-w-none md:px-6">
+      {showBanner && (
+        <div className="md:hidden rounded-2xl bg-blue-700 p-4 text-white">
+          <h2 className="text-base font-bold">Clinical Mode: ON</h2>
+          <p className="text-xs opacity-90">Evidence-ready, clinician-first. Research: On — web evidence</p>
+        </div>
+      )}
 
-      {/* Phase chips */}
-      <div className="mt-3 flex flex-wrap gap-2">
-        {phaseOptions.map(p=>(
+      <section className="md:hidden space-y-2 px-3">
+        <div className="grid grid-cols-[1fr,96px] gap-2">
+          <input
+            value={local.query}
+            onChange={(e) => setLocal(s => ({ ...s, query: e.target.value }))}
+            onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as any).form?.requestSubmit()}
+            placeholder="Search trials (e.g., condition, gene, topic)…"
+            className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/60"
+            aria-label="Search trials"
+          />
           <button
-            key={p}
-            type="button"
-            onClick={()=>togglePhase(p)}
-            className={`px-2 py-1 rounded border text-xs ${
-              local.phase === p ? 'bg-blue-600 text-white border-blue-600' :
-              'bg-white dark:bg-slate-800 dark:border-slate-700'
-            }`}
+            type="submit"
+            className="rounded-xl bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50"
+            disabled={busy}
           >
-            Phase {p}
+            {busy ? "Searching…" : "Search"}
           </button>
-        ))}
-      </div>
+        </div>
 
-      {/* Status select */}
-      <div className="mt-2">
-        <select
-          value={local.status}
-          onChange={(e)=>setLocal(s=>({ ...s, status: e.target.value as any }))}
-          className="rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
-        >
-          {statusLabels.map(o=>(
-            <option key={o.key} value={o.key}>{o.label}</option>
-          ))}
-        </select>
-      </div>
+        <div className="overflow-x-auto no-scrollbar -mx-3 flex gap-2 px-3">
+          {phaseOptions.map(p => {
+            const active = local.phase === p;
+            return (
+              <button
+                key={p}
+                type="button"
+                onClick={() => togglePhase(p)}
+                className={`rounded-full border px-3 py-1 text-xs whitespace-nowrap ${
+                  active ? "border-white/60 bg-white/20 text-white" : "border-white/15 bg-white/10 text-white"
+                }`}
+                aria-pressed={active}
+              >
+                Phase {p}
+              </button>
+            );
+          })}
+        </div>
 
-      {/* Source select */}
-      <div className="mt-2">
-        <select
-          value={source}
-          onChange={(e)=>setSource(e.target.value)}
-          className="rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
-        >
-          <option>All</option>
-          <option>CTgov</option>
-          <option>EUCTR</option>
-          <option>CTRI</option>
-          <option>ISRCTN</option>
-        </select>
-      </div>
+        <div className="grid grid-cols-2 gap-2">
+          <select
+            value={local.status}
+            onChange={(e) => setLocal(s => ({ ...s, status: e.target.value as any }))}
+            className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white"
+            aria-label="Filter by status"
+          >
+            {statusLabels.map(o => (
+              <option key={o.key} value={o.key} className="text-slate-900">
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white"
+            aria-label="Filter by source"
+          >
+            <option className="text-slate-900">All</option>
+            <option className="text-slate-900">CTgov</option>
+            <option className="text-slate-900">EUCTR</option>
+            <option className="text-slate-900">CTRI</option>
+            <option className="text-slate-900">ISRCTN</option>
+          </select>
+        </div>
 
-      {/* Country chips */}
-      <div className="mt-2 flex flex-wrap gap-2">
-        {countryOptions.map(name=>(
+        <div className="overflow-x-auto no-scrollbar -mx-3 flex gap-2 px-3">
+          {countryOptions.map(name => {
+            const active = local.countries.includes(name);
+            return (
+              <button
+                key={name}
+                type="button"
+                onClick={() => toggleCountry(name)}
+                className={`rounded-full border px-3 py-1 text-xs text-white whitespace-nowrap ${
+                  active ? "border-white/60 bg-white/20" : "border-white/15 bg-white/10"
+                }`}
+                aria-pressed={active}
+              >
+                {name}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="grid grid-cols-[1fr,96px] gap-2">
+          <input
+            placeholder="Genes (comma separated)"
+            value={local.genes}
+            onChange={(e) => setLocal(s => ({ ...s, genes: e.target.value }))}
+            className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/60"
+            aria-label="Filter by genes"
+          />
           <button
-            key={name}
             type="button"
-            onClick={()=>toggleCountry(name)}
-            className={`px-2 py-1 rounded border text-xs ${
-              local.countries.includes(name) ? 'bg-blue-600 text-white border-blue-600' :
-              'bg-white dark:bg-slate-800 dark:border-slate-700'
-            }`}
+            className="rounded-xl bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50"
+            onClick={() => {
+              void handleSubmit();
+            }}
+            disabled={busy}
           >
-            {name}
+            {busy ? "Searching…" : "Apply"}
           </button>
-        ))}
-      </div>
+        </div>
 
-      {/* Genes + Apply / Reset */}
-      <div className="mt-3 flex items-center gap-2">
-        <input
-          placeholder="Genes (comma separated)"
-          value={local.genes}
-          onChange={(e)=>setLocal(s=>({ ...s, genes: e.target.value }))}
-          className="flex-1 rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
-        />
-        <button type="submit" className="px-3 py-1.5 rounded-lg text-sm border bg-blue-600 text-white dark:border-blue-600 disabled:opacity-50" disabled={busy}>
-          {busy ? 'Searching…' : 'Apply'}
-        </button>
-        <button type="button" onClick={onReset} className="px-3 py-1.5 rounded-lg text-sm border">
-          Reset
-        </button>
-      </div>
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={onReset}
+            className="text-xs text-white/70 underline decoration-dotted underline-offset-2"
+          >
+            Reset filters
+          </button>
+        </div>
 
-      {error && <div className="text-red-600 text-sm mt-2">{error}</div>}
+        {error && <div className="text-xs text-rose-200">{error}</div>}
+      </section>
+
+      <div className="hidden md:block rounded-2xl border border-slate-200 bg-white/85 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <input
+              value={local.query}
+              onChange={(e) => setLocal(s => ({ ...s, query: e.target.value }))}
+              onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as any).form?.requestSubmit()}
+              placeholder="Search trials (e.g., condition, gene, topic)…"
+              className="w-full rounded-lg border px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+            />
+            <button
+              type="submit"
+              className="rounded-lg border bg-blue-600 px-3 py-2 text-sm text-white dark:border-blue-600 disabled:opacity-50"
+              disabled={busy}
+            >
+              {busy ? "Searching…" : "Search"}
+            </button>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {phaseOptions.map(p => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => togglePhase(p)}
+                className={`rounded border px-2 py-1 text-xs ${
+                  local.phase === p
+                    ? "border-blue-600 bg-blue-600 text-white"
+                    : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
+                }`}
+              >
+                Phase {p}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <select
+              value={local.status}
+              onChange={(e) => setLocal(s => ({ ...s, status: e.target.value as any }))}
+              className="rounded border px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800"
+            >
+              {statusLabels.map(o => (
+                <option key={o.key} value={o.key}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={source}
+              onChange={(e) => setSource(e.target.value)}
+              className="rounded border px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800"
+            >
+              <option>All</option>
+              <option>CTgov</option>
+              <option>EUCTR</option>
+              <option>CTRI</option>
+              <option>ISRCTN</option>
+            </select>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {countryOptions.map(name => (
+              <button
+                key={name}
+                type="button"
+                onClick={() => toggleCountry(name)}
+                className={`rounded border px-2 py-1 text-xs ${
+                  local.countries.includes(name)
+                    ? "border-blue-600 bg-blue-600 text-white"
+                    : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
+                }`}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              placeholder="Genes (comma separated)"
+              value={local.genes}
+              onChange={(e) => setLocal(s => ({ ...s, genes: e.target.value }))}
+              className="flex-1 rounded border px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800"
+            />
+            <button
+              type="submit"
+              className="rounded-lg border bg-blue-600 px-3 py-1.5 text-sm text-white dark:border-blue-600 disabled:opacity-50"
+              disabled={busy}
+            >
+              {busy ? "Searching…" : "Apply"}
+            </button>
+            <button type="button" onClick={onReset} className="rounded-lg border px-3 py-1.5 text-sm">
+              Reset
+            </button>
+          </div>
+
+          {open && (
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              Informational only; not medical advice. Confirm eligibility with the sponsor.
+            </div>
+          )}
+
+          {error && <div className="text-sm text-rose-600 dark:text-rose-400">{error}</div>}
+        </div>
+      </div>
     </form>
   );
 }

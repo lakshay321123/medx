@@ -40,6 +40,15 @@ body.font-loading *::after {
   }
 }
 
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Ensures sidebar sits above content and accepts clicks */
 .sidebar-click-guard {
   position: relative;
@@ -212,8 +221,9 @@ body,
 }
 
 html,
-body { 
-  overflow: hidden;
+body {
+  overflow-x: hidden;
+  overflow-y: hidden;
 }
 
 @media (max-width: 768px) {

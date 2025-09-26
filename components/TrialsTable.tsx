@@ -1,10 +1,10 @@
 "use client";
 
 import React from "react";
-import type { TrialRow } from "@/types/trials";
+import type { Trial } from "@/lib/trials/search";
 import { TrialsRow } from "./TrialsRow";
 
-export default function TrialsTable({ rows }: { rows: TrialRow[] }) {
+export default function TrialsTable({ rows }: { rows: Trial[] }) {
   if (!rows || rows.length === 0) return null;
 
   return (
@@ -36,18 +36,7 @@ export default function TrialsTable({ rows }: { rows: TrialRow[] }) {
         <tbody>
           {rows.map((row, i) => {
             const key = `${row.source || "src"}:${row.id || row.url || i}`;
-            return (
-              <TrialsRow
-                key={key}
-                row={{
-                  nctId: row.id || row.url || "",
-                  title: row.title,
-                  phase: row.phase,
-                  status: row.status,
-                  country: row.country,
-                }}
-              />
-            );
+            return <TrialsRow key={key} row={row} />;
           })}
         </tbody>
       </table>

@@ -35,7 +35,7 @@ export default function ScrollToBottom({
   const hideTimer = useRef<number | null>(null);
 
   const isNearBottom = useCallback((el: HTMLElement) => {
-    return el.scrollHeight - (el.scrollTop + el.clientHeight) < 24;
+    return el.scrollHeight - (el.scrollTop + el.clientHeight) < 120;
   }, []);
 
   const show = useCallback(() => {
@@ -97,7 +97,10 @@ export default function ScrollToBottom({
       const goingUp = curr < lastScrollTop.current;
       lastScrollTop.current = curr;
 
-      if (!isNearBottom(el)) {
+      const nearBottom = isNearBottom(el);
+      const farEnough = curr > 220;
+
+      if (!nearBottom && farEnough) {
         if (goingUp) show();
         else setVisible(true);
       } else {
@@ -135,23 +138,38 @@ export default function ScrollToBottom({
 
   if (!container) return null;
 
+  const visibilityClass = visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2";
+
   return (
-    <div
-      className={[
-        "pointer-events-none fixed left-1/2 z-[60] -translate-x-1/2 transition-all",
-        visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2",
-      ].join(" ")}
-      style={{ bottom: offsetBottom }}
-      aria-hidden={!visible}
-    >
-      <button
-        type="button"
-        className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition hover:opacity-90"
-        aria-label="Jump to newest messages"
-        onClick={scrollToBottom}
+    <>
+      <div
+        className={`pointer-events-none fixed left-1/2 z-[60] -translate-x-1/2 transition-all md:hidden ${visibilityClass}`}
+        style={{ bottom: 88 }}
+        aria-hidden={!visible}
       >
-        <ArrowDown className="h-4 w-4" />
-      </button>
-    </div>
+        <button
+          type="button"
+          className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-white shadow-md"
+          aria-label="Jump to newest messages"
+          onClick={scrollToBottom}
+        >
+          <ArrowDown className="h-5 w-5" />
+        </button>
+      </div>
+      <div
+        className={`pointer-events-none fixed right-6 z-[60] transition-all ${visibilityClass} hidden md:block`}
+        style={{ bottom: offsetBottom }}
+        aria-hidden={!visible}
+      >
+        <button
+          type="button"
+          className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition hover:opacity-90"
+          aria-label="Jump to newest messages"
+          onClick={scrollToBottom}
+        >
+          <ArrowDown className="h-4 w-4" />
+        </button>
+      </div>
+    </>
   );
 }

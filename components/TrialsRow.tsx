@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import type { Trial } from "@/lib/trials/search";
 
 function useIsDoctor() {
   if (typeof window === "undefined") return false;
@@ -15,11 +16,7 @@ function extractNctId(s: string) {
   return (s || "").toUpperCase().match(/NCT\d{8}/)?.[0] || "";
 }
 
-export function TrialsRow({
-  row,
-}: {
-  row: { nctId: string; title: string; phase?: string; status?: string; country?: string };
-}) {
+export function TrialsRow({ row }: { row: Trial }) {
   const isDoctor = useIsDoctor();
 
   const onSummarize = async (e: React.MouseEvent) => {
@@ -27,7 +24,7 @@ export function TrialsRow({
     if (!isDoctor) return; // non-doctors keep default navigation
     e.preventDefault();
 
-    const nct = extractNctId(row.nctId);
+    const nct = extractNctId(row.id || row.url || "");
     if (!nct) {
       pushAssistantToChat(`⚠️ Could not summarize: invalid Registry ID`);
       return;
@@ -48,15 +45,17 @@ export function TrialsRow({
     }
   };
 
+  const targetUrl = row.url || (row.id ? `https://clinicaltrials.gov/study/${row.id}` : "#");
+
   return (
     <tr>
       <td className="whitespace-nowrap">
         <a
-          href={`https://clinicaltrials.gov/study/${row.nctId}`}
+          href={targetUrl}
           onClick={onSummarize}
           className={isDoctor ? "underline decoration-dotted hover:decoration-solid" : "underline"}
         >
-          {row.nctId}
+          {row.id || row.url || "—"}
         </a>
       </td>
       <td>{row.title}</td>
