@@ -775,43 +775,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const queueAbortRef = useRef<AbortController | null>(null);
   const { filters } = useResearchFilters();
 
-  const {
-    shareTarget,
-    shareBusy,
-    sharePreview,
-    systemShareSupported,
-    openShare,
-    closeShare,
-    handleCopyShareLink,
-    handleDownloadShareImage,
-    handleShareX,
-    handleShareFacebook,
-    handleSystemShare,
-    handleCopyShareCaption,
-  } = useShareActions();
-
-  const buildShareHandler = useCallback(
-    (message: ChatMessage, domId: string, messageContent: string) => {
-      const messageId = typeof message.id === 'string' ? message.id : '';
-      const isPending = Boolean((message as any)?.pending);
-      if (!messageId || isPending) return undefined;
-
-      return () => {
-        const plain = getMessageTextFromDom(domId, messageContent);
-        openShare({
-          conversationId,
-          messageId,
-          domId,
-          plainText: plain,
-          mdText: messageContent,
-          mode: currentMode,
-          research: researchMode,
-        });
-      };
-    },
-    [conversationId, currentMode, openShare, researchMode]
-  );
-
   const sp = useSearchParams();
   const isAiDocMode = useIsAiDocMode();
   const modeState = useMemo(() => fromSearchParams(sp, 'light'), [sp]);
@@ -1044,6 +1007,43 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     }
   }, [threadId, isProfileThread, router, sp]);
   const currentMode: 'patient'|'doctor'|'research'|'therapy' = therapyMode ? 'therapy' : (researchMode ? 'research' : mode);
+
+  const {
+    shareTarget,
+    shareBusy,
+    sharePreview,
+    systemShareSupported,
+    openShare,
+    closeShare,
+    handleCopyShareLink,
+    handleDownloadShareImage,
+    handleShareX,
+    handleShareFacebook,
+    handleSystemShare,
+    handleCopyShareCaption,
+  } = useShareActions();
+
+  const buildShareHandler = useCallback(
+    (message: ChatMessage, domId: string, messageContent: string) => {
+      const messageId = typeof message.id === 'string' ? message.id : '';
+      const isPending = Boolean((message as any)?.pending);
+      if (!messageId || isPending) return undefined;
+
+      return () => {
+        const plain = getMessageTextFromDom(domId, messageContent);
+        openShare({
+          conversationId,
+          messageId,
+          domId,
+          plainText: plain,
+          mdText: messageContent,
+          mode: currentMode,
+          research: researchMode,
+        });
+      };
+    },
+    [conversationId, currentMode, openShare, researchMode]
+  );
   const [pendingCommitIds, setPendingCommitIds] = useState<string[]>([]);
   const [commitBusy, setCommitBusy] = useState<null | 'save' | 'discard'>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
