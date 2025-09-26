@@ -49,6 +49,7 @@ import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
 import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
 import { pushToast } from "@/lib/ui/toast";
 import { useShareActions } from "@/lib/share/useShareActions";
+import { BRAND_NAME } from "@/lib/brand";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
