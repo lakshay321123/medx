@@ -30,6 +30,17 @@ body.font-loading *::after {
          dark:bg-gray-800 dark:text-slate-100 dark:border-gray-600 dark:hover:bg-gray-700;
 }
 
+/* Compact action buttons for mobile trial cards */
+.chip-sm {
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.25rem 0.625rem;
+  font-size: 11px;
+  color: #fff;
+  line-height: 1.2;
+}
+
 @layer utilities {
   .text-primary {
     @apply text-blue-600 dark:text-sky-400;
