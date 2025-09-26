@@ -2206,6 +2206,26 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       showDots: true,
       showAnalyzing: analyzingSteps.length > 0,
     });
+    const ensureTypewriter = () => {
+      if (!typewriterRef.current || typewriterMessageRef.current !== pendingId) {
+        typewriterRef.current?.cancel();
+        const controller = createTypewriter(value => {
+          setMessages(prev =>
+            prev.map(m => (m.id === pendingId ? { ...m, content: value } : m)),
+          );
+        });
+        typewriterRef.current = controller;
+        typewriterMessageRef.current = pendingId;
+      }
+      return typewriterRef.current!;
+    };
+    const cancelActiveTypewriter = () => {
+      if (typewriterMessageRef.current === pendingId) {
+        typewriterRef.current?.cancel();
+        typewriterRef.current = null;
+        typewriterMessageRef.current = null;
+      }
+    };
     const maybe = maybeFixMedicalTypo(messageText);
     if (maybe && messages.filter(m => m.role === "assistant").slice(-1)[0]?.content !== maybe.ask) {
       // Ask once, keep pending bubble as the question (no LLM call)
@@ -2237,26 +2257,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     let acc = '';
-    const ensureTypewriter = () => {
-      if (!typewriterRef.current || typewriterMessageRef.current !== pendingId) {
-        typewriterRef.current?.cancel();
-        const controller = createTypewriter(value => {
-          setMessages(prev =>
-            prev.map(m => (m.id === pendingId ? { ...m, content: value } : m)),
-          );
-        });
-        typewriterRef.current = controller;
-        typewriterMessageRef.current = pendingId;
-      }
-      return typewriterRef.current!;
-    };
-    const cancelActiveTypewriter = () => {
-      if (typewriterMessageRef.current === pendingId) {
-        typewriterRef.current?.cancel();
-        typewriterRef.current = null;
-        typewriterMessageRef.current = null;
-      }
-    };
     try {
       const fullContext = buildFullContext(stableThreadId);
       const contextBlock = fullContext ? `\n\nCONTEXT (recent conversation):\n${fullContext}` : "";
