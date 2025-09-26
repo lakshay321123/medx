@@ -42,13 +42,24 @@ function getRecruitingLabel(trial: TrialRow) {
   if (Array.isArray(trial.locations) && trial.locations.length > 0) {
     return String(trial.locations.length);
   }
-  if (trial.status && /recruit/i.test(trial.status)) {
-    return "Yes";
-  }
   if (trial.status) {
-    return "No";
+    const status = trial.status.toLowerCase().trim();
+
+    if (
+      status.includes("not recruiting") ||
+      status.includes("no longer recruiting") ||
+      status.includes("active, not recruiting")
+    ) {
+      return "No";
+    }
+
+    if (status.startsWith("recruit") || status === "recruiting") {
+      return "Yes";
+    }
+
+    return trial.status;
   }
-  return "—";
+  return "Unknown";
 }
 
 function copyTrial(trial: TrialRow) {
