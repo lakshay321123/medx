@@ -49,6 +49,11 @@ body.font-loading *::after {
   scrollbar-width: none;
 }
 
+html,
+body {
+  overflow-x: hidden;
+}
+
 /* Ensures sidebar sits above content and accepts clicks */
 .sidebar-click-guard {
   position: relative;

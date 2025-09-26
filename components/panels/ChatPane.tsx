@@ -880,6 +880,64 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     setShowDetails(false); // collapse on new search
   }
 
+  const summarizeTrialFromCard = useCallback(
+    async (
+      trial: Trial,
+      meta: { status: string; phase: string; country: string; registry: string; url?: string | null }
+    ) => {
+      const title = trial.title?.trim() || trial.id || "Trial";
+      const nctId = trial.id && /^NCT\d{8}$/i.test(trial.id) ? trial.id.toUpperCase() : null;
+
+      if (!nctId) {
+        const fallbackLines = [
+          `**${title}**`,
+          "",
+          `- Status: ${meta.status}`,
+          `- Phase: ${meta.phase}`,
+          `- Location: ${meta.country}`,
+          `- Registry: ${meta.registry}`,
+          meta.url ? `- Source: ${meta.url}` : null,
+        ].filter(Boolean);
+        if (fallbackLines.length > 0) {
+          pushAssistantToChat({ content: fallbackLines.join("\n") });
+        }
+        return;
+      }
+
+      pushAssistantToChat({ content: `_Summarizing **${title}**…_` });
+      try {
+        const response = await fetch(`/api/trials/${nctId}/summary`, { cache: "no-store" });
+        const raw = await response.text();
+        let payload: unknown = null;
+        if (raw) {
+          try {
+            payload = JSON.parse(raw);
+          } catch {
+            payload = raw;
+          }
+        }
+
+        if (!response.ok) {
+          const message =
+            typeof payload === "object" && payload !== null && "error" in (payload as Record<string, unknown>) &&
+            typeof (payload as any).error === "string"
+              ? (payload as any).error
+              : typeof payload === "string" && payload
+                ? payload
+                : `Request failed (${response.status})`;
+          throw new Error(message);
+        }
+
+        pushAssistantToChat({ content: formatTrialBriefMarkdown(nctId, payload ?? {}) });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err ?? "");
+        const detail = message.trim() || "unknown error";
+        pushAssistantToChat({ content: `⚠️ Could not summarize **${nctId}**: ${detail}` });
+      }
+    },
+    [pushAssistantToChat, formatTrialBriefMarkdown]
+  );
+
   const router = useRouter(); // auto-new-thread
   const threadId = sp.get('threadId');
   const context = sp.get('context');
@@ -3064,10 +3122,14 @@ ${systemCommon}` + baseSys;
     trialRows.length > 0 ||
     Boolean(aidoc);
 
+  const isClinicalResearchMobile = mode === "doctor" && researchMode;
+  const chatInnerPaddingClass = isClinicalResearchMobile ? "px-3 md:px-6" : "px-6";
+  const composerPaddingClass = isClinicalResearchMobile ? "px-3 md:px-6" : "px-6";
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {showWelcomeCard && welcomeContent ? (
-        <div className="px-6 pt-6">
+        <div className={`${isClinicalResearchMobile ? 'px-3' : 'px-6'} pt-6`}>
           <div className="mx-auto w-full max-w-3xl">
             <WelcomeCard
               header={welcomeContent.header}
@@ -3087,7 +3149,7 @@ ${systemCommon}` + baseSys;
             : 'overflow-hidden mobile-chat-scroll-empty'
         }${showWelcomeCard ? ' mt-4' : ''} md:overflow-y-auto`}
       >
-        <div className={`flex min-h-full flex-col justify-end px-6${showWelcomeCard ? '' : ' pt-6'}`}>
+        <div className={`flex min-h-full flex-col justify-end ${chatInnerPaddingClass}${showWelcomeCard ? '' : ' pt-6'}`}>
           {mode === "doctor" && researchMode && (
             <div className="mb-6 space-y-4">
               <div className="md:hidden mx-auto w-full max-w-[420px] px-3">
@@ -3308,13 +3370,14 @@ ${systemCommon}` + baseSys;
                               ? "ClinicalTrials.gov"
                               : t.source === "EUCTR"
                                 ? "EU Clinical Trials Register"
-                                : t.source === "CTRI"
-                                  ? "CTRI"
-                                  : t.source)
+                                  : t.source === "CTRI"
+                                    ? "CTRI"
+                                    : t.source)
                           : "Registry";
                         const recruitingLabel = t.status?.toLowerCase().startsWith("recruit") ? "Yes" : "No";
                         const copyPayload = `${t.title} — ${t.url || t.id}`;
                         const cardKey = `${t.source || "src"}:${t.id || index}`;
+                        const linkHref = t.url || (t.id ? `https://clinicaltrials.gov/study/${t.id}` : null);
 
                         const handleCopy = () => {
                           if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -3323,9 +3386,18 @@ ${systemCommon}` + baseSys;
                         };
 
                         const handleViewDetails = () => {
-                          const href = t.url || (t.id ? `https://clinicaltrials.gov/study/${t.id}` : null);
-                          if (href) {
-                            window.open(href, "_blank", "noopener");
+                          summarizeTrialFromCard(t, {
+                            status,
+                            phase: phaseLabel,
+                            country: countryLabel,
+                            registry: registryLabel,
+                            url: linkHref,
+                          });
+                        };
+
+                        const handleOpenSource = () => {
+                          if (linkHref) {
+                            window.open(linkHref, "_blank", "noopener");
                           }
                         };
 
@@ -3354,9 +3426,18 @@ ${systemCommon}` + baseSys;
                               </button>
                               <button
                                 type="button"
+                                onClick={handleOpenSource}
+                                disabled={!linkHref}
+                                className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                aria-label={linkHref ? `Open source link for ${t.id || 'trial'}` : 'Source link unavailable'}
+                              >
+                                Links
+                              </button>
+                              <button
+                                type="button"
                                 onClick={handleViewDetails}
                                 className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white"
-                                aria-label={`View ${t.id || 'trial'} details`}
+                                aria-label={`Summarize ${t.id || 'trial'} details`}
                               >
                                 View details
                               </button>
@@ -3526,7 +3607,7 @@ ${systemCommon}` + baseSys;
       </div>
 
       <div className="mt-auto mobile-composer-region">
-        <div className="px-6 pb-4 md:pb-6">
+        <div className={`${composerPaddingClass} pb-4 md:pb-6`}>
           <div className="mx-auto max-w-3xl space-y-3 px-4 py-4">
               {mode === 'doctor' && AIDOC_UI && (
                 <button
