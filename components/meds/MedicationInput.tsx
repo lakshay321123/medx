@@ -27,6 +27,8 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
 
   const name = lockedName ?? query.trim();
   const showSave = name.length >= 2;
+  const trimmedDose = dose.trim();
+  const shouldShowDoseInput = needsDose || !!lockedName || trimmedDose.length > 0 || showSave;
 
   useEffect(() => {
     if (!query.trim() || lockedName) {
@@ -63,7 +65,7 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
       setError("Enter a medication name.");
       return;
     }
-    const finalDose = dose.trim();
+    const finalDose = trimmedDose;
     if (!finalDose && !needsDose) {
       setNeedsDose(true);
       return;
@@ -89,8 +91,8 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
   };
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+    <div className="space-y-3">
+      <div className="flex flex-col gap-3">
         <div className="flex-1">
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-xs font-medium text-muted-foreground">Medication name</span>
@@ -135,12 +137,12 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
             </div>
           ) : null}
         </div>
-        {needsDose ? (
-          <label className="flex flex-col gap-1 text-sm sm:w-48">
-            <span className="text-xs font-medium text-muted-foreground">Dose</span>
+        {shouldShowDoseInput ? (
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-xs font-medium text-muted-foreground">Dose (enter 0 if not applicable)</span>
             <input
               className="rounded-md border px-3 py-2"
-              placeholder="e.g. 500 mg"
+              placeholder="e.g. 500 mg or 0"
               value={dose}
               onChange={e => setDose(e.target.value)}
             />
@@ -149,7 +151,7 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
         {showSave ? (
           <button
             type="button"
-            className="inline-flex items-center justify-center rounded-md border bg-primary px-3 py-2 text-sm text-primary-foreground shadow disabled:opacity-60"
+            className="inline-flex items-center justify-center self-start rounded-md border bg-primary px-3 py-2 text-sm text-primary-foreground shadow disabled:opacity-60"
             onClick={handleSave}
             disabled={loading}
           >
@@ -157,8 +159,8 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
           </button>
         ) : null}
       </div>
-      {needsDose && !dose.trim() ? (
-        <p className="text-xs text-muted-foreground">Add a dose before saving.</p>
+      {needsDose && !trimmedDose ? (
+        <p className="text-xs text-muted-foreground">Add a dose (enter 0 if not applicable) before saving.</p>
       ) : null}
     </div>
   );

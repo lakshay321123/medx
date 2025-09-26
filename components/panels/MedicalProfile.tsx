@@ -927,16 +927,8 @@ export default function MedicalProfile() {
             <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
               ⚠️ This is AI-generated support, not a medical diagnosis. Always consult a clinician.
             </div>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
-              <div>
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Chronic conditions
-                </h4>
-                <p className="mt-1 text-sm">
-                  {chronic.length ? chronic.join(", ") : "—"}
-                </p>
-              </div>
-              <div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="space-y-2">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Active medications
                 </h4>
@@ -946,7 +938,7 @@ export default function MedicalProfile() {
                       <MedicationTag
                         key={`summary-${med.key}`}
                         label={formatMedicationLabel(med)}
-                        onRemove={summaryMedsEditing ? () => handleRemoveMedication(med) : undefined}
+                        onRemove={() => handleRemoveMedication(med)}
                       />
                     ))}
                   </div>
@@ -954,7 +946,7 @@ export default function MedicalProfile() {
                   <p className="mt-1 text-sm text-muted-foreground">No medications recorded yet.</p>
                 )}
                 {summaryMedsEditing ? (
-                  <div className="mt-3 space-y-2">
+                  <div className="space-y-3">
                     <MedicationInput onSave={handleAddMedication} placeholder="Add a medication" />
                     <button
                       type="button"
@@ -967,14 +959,14 @@ export default function MedicalProfile() {
                 ) : (
                   <button
                     type="button"
-                    className="mt-2 inline-flex items-center rounded-md border px-3 py-1.5 text-xs"
+                    className="inline-flex items-center rounded-md border px-3 py-1.5 text-xs"
                     onClick={() => setSummaryMedsEditing(true)}
                   >
-                    Edit medications
+                    Add medication
                   </button>
                 )}
               </div>
-              <div>
+              <div className="space-y-2">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Symptoms / notes
                 </h4>
@@ -1032,7 +1024,7 @@ export default function MedicalProfile() {
                   </button>
                 )}
               </div>
-              <div>
+              <div className="space-y-2">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Next steps
                 </h4>
