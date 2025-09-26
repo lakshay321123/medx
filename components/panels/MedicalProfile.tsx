@@ -334,25 +334,29 @@ export default function MedicalProfile() {
     const observedAt = new Date().toISOString();
     const summaryLabel = buildMedicationSummaryLabel(normalizedName, doseLabel);
 
-    const res = await fetch("/api/observations", {
-      method: "POST",
+    const res = await fetch("/api/profile", {
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        kind,
-        value_text: normalizedName,
-        value_num: doseValue ?? null,
-        unit: doseUnit ?? null,
-        observed_at: observedAt,
-        meta: {
-          source: "manual",
-          category: "medication",
-          normalizedName,
-          doseLabel,
-          rxnormId: med.rxnormId ?? null,
-          committed: true,
-          label: summaryLabel,
-          medications: summaryLabel ? [summaryLabel] : [],
-        },
+        observations: [
+          {
+            kind,
+            value_text: normalizedName,
+            value_num: doseValue ?? null,
+            unit: doseUnit ?? null,
+            observed_at: observedAt,
+            meta: {
+              source: "manual",
+              category: "medication",
+              normalizedName,
+              doseLabel,
+              rxnormId: med.rxnormId ?? null,
+              committed: true,
+              label: summaryLabel,
+              medications: summaryLabel ? [summaryLabel] : [],
+            },
+          },
+        ],
       }),
     });
 
@@ -378,24 +382,28 @@ export default function MedicalProfile() {
     try {
       const summaryLabel = buildMedicationSummaryLabel(med.name, med.doseLabel || null);
 
-      const res = await fetch("/api/observations", {
-        method: "POST",
+      const res = await fetch("/api/profile", {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          kind: med.key,
-          value_text: null,
-          value_num: null,
-          unit: "__deleted__",
-          observed_at: new Date().toISOString(),
-          meta: {
-            source: "manual",
-            category: "medication",
-            normalizedName: med.name,
-            doseLabel: med.doseLabel ?? null,
-            committed: true,
-            label: summaryLabel,
-            deleted: true,
-          },
+          observations: [
+            {
+              kind: med.key,
+              value_text: null,
+              value_num: null,
+              unit: "__deleted__",
+              observed_at: new Date().toISOString(),
+              meta: {
+                source: "manual",
+                category: "medication",
+                normalizedName: med.name,
+                doseLabel: med.doseLabel ?? null,
+                committed: true,
+                label: summaryLabel,
+                deleted: true,
+              },
+            },
+          ],
         }),
       });
 
@@ -420,22 +428,26 @@ export default function MedicalProfile() {
     try {
       const trimmed = notesDraft.trim();
       const observedAt = new Date().toISOString();
-      const res = await fetch("/api/observations", {
-        method: "POST",
+      const res = await fetch("/api/profile", {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          kind: MANUAL_NOTES_KIND,
-          value_text: trimmed || null,
-          value_num: null,
-          unit: trimmed ? null : "__cleared__",
-          observed_at: observedAt,
-          meta: {
-            source: "manual",
-            category: "note",
-            committed: true,
-            label: "Symptoms / notes",
-            cleared: !trimmed,
-          },
+          observations: [
+            {
+              kind: MANUAL_NOTES_KIND,
+              value_text: trimmed || null,
+              value_num: null,
+              unit: trimmed ? null : "__cleared__",
+              observed_at: observedAt,
+              meta: {
+                source: "manual",
+                category: "note",
+                committed: true,
+                label: "Symptoms / notes",
+                cleared: !trimmed,
+              },
+            },
+          ],
         }),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -463,22 +475,26 @@ export default function MedicalProfile() {
     try {
       const trimmed = nextStepsDraft.trim();
       const observedAt = new Date().toISOString();
-      const res = await fetch("/api/observations", {
-        method: "POST",
+      const res = await fetch("/api/profile", {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          kind: MANUAL_NEXT_STEPS_KIND,
-          value_text: trimmed || null,
-          value_num: null,
-          unit: trimmed ? null : "__cleared__",
-          observed_at: observedAt,
-          meta: {
-            source: "manual",
-            category: "note",
-            committed: true,
-            label: "Next steps",
-            cleared: !trimmed,
-          },
+          observations: [
+            {
+              kind: MANUAL_NEXT_STEPS_KIND,
+              value_text: trimmed || null,
+              value_num: null,
+              unit: trimmed ? null : "__cleared__",
+              observed_at: observedAt,
+              meta: {
+                source: "manual",
+                category: "note",
+                committed: true,
+                label: "Next steps",
+                cleared: !trimmed,
+              },
+            },
+          ],
         }),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -980,30 +996,15 @@ function extractMedicationEntries(data: any): MedicationEntry[] {
   const entries: MedicationEntry[] = [];
   const groups = (data as any)?.groups;
   const groupMeds = Array.isArray(groups?.medications) ? groups.medications : [];
-
-  if (groupMeds.length) {
-    for (const item of groupMeds) {
-      const med = normalizeMedicationItem(item);
-      if (med) entries.push(med);
-    }
-    return dedupeMedicationList(entries);
+  for (const item of groupMeds) {
+    const med = normalizeMedicationItem(item);
+    if (med) entries.push(med);
   }
 
   const profileMeds = Array.isArray((data?.profile as any)?.medications)
     ? (data.profile as any).medications
     : [];
-
-  if (profileMeds.length) {
-    for (const item of profileMeds) {
-      const med = normalizeMedicationItem(item);
-      if (med) entries.push(med);
-    }
-    return dedupeMedicationList(entries);
-  }
-
-  const flatItems = Array.isArray((data as any)?.items) ? (data as any).items : [];
-  for (const item of flatItems) {
-    if (!isMedicationLike(item)) continue;
+  for (const item of profileMeds) {
     const med = normalizeMedicationItem(item);
     if (med) entries.push(med);
   }
@@ -1062,22 +1063,6 @@ function normalizeMedicationItem(raw: any): MedicationEntry | null {
     doseValue: doseValue ?? null,
     doseUnit: rawUnit,
   };
-}
-
-function isMedicationLike(item: any) {
-  if (!item || typeof item !== "object") return false;
-  const kind = typeof item.kind === "string" ? item.kind.toLowerCase() : "";
-  const group = typeof item.group === "string" ? item.group.toLowerCase() : "";
-  const key = typeof item.key === "string" ? item.key.toLowerCase() : "";
-  const category = typeof item.category === "string" ? item.category.toLowerCase() : "";
-
-  return (
-    group === "medications" ||
-    kind === "medication" ||
-    kind.includes("med") ||
-    category.includes("med") ||
-    key.startsWith("med_")
-  );
 }
 
 function dedupeMedicationList(input: MedicationEntry[]): MedicationEntry[] {

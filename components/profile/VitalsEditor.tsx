@@ -121,10 +121,10 @@ export default function VitalsEditor({
     setIsSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/observations/bulk", {
-        method: "POST",
+      const res = await fetch("/api/profile", {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: observations }),
+        body: JSON.stringify({ observations }),
       });
 
       if (!res.ok) {
