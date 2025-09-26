@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { Clipboard, Download, Link as LinkIcon, Share2, Twitter, Facebook, Loader2 } from 'lucide-react';
+import type { ShareActionKey } from '@/lib/share/useShareActions';
 
 type SharePanelProps = {
   open: boolean;
@@ -9,12 +10,12 @@ type SharePanelProps = {
   preview: string;
   onCopyLink: () => Promise<void>;
   onDownloadImage: () => Promise<void>;
-  onShareX: () => void | Promise<void>;
-  onShareFacebook: () => void | Promise<void>;
+  onShareX: () => Promise<void>;
+  onShareFacebook: () => Promise<void>;
   onSystemShare?: () => Promise<void>;
   onCopyCaption: () => Promise<void>;
   canSystemShare: boolean;
-  busyAction: null | 'link' | 'download' | 'caption' | 'system' | 'x' | 'facebook';
+  busyAction: ShareActionKey | null;
 };
 
 export default function SharePanel(props: SharePanelProps) {
