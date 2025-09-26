@@ -136,7 +136,7 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
       )}
 
       <section className="md:hidden space-y-2 px-3">
-        <div className="grid grid-cols-[1fr,96px] gap-2">
+        <div className="grid grid-cols-[1fr,88px] gap-2">
           <input
             value={local.query}
             onChange={(e) => setLocal(s => ({ ...s, query: e.target.value }))}
@@ -147,7 +147,7 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
           />
           <button
             type="submit"
-            className="rounded-xl bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50"
+            className="inline-flex h-10 items-center justify-center rounded-xl bg-blue-600 px-2 text-xs font-medium text-white disabled:opacity-50"
             disabled={busy}
           >
             {busy ? "Searching…" : "Search"}
@@ -219,7 +219,7 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
           })}
         </div>
 
-        <div className="grid grid-cols-[1fr,96px] gap-2">
+        <div className="grid grid-cols-[1fr,88px] gap-2">
           <input
             placeholder="Genes (comma separated)"
             value={local.genes}
@@ -229,7 +229,7 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
           />
           <button
             type="button"
-            className="rounded-xl bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50"
+            className="inline-flex h-10 items-center justify-center rounded-xl bg-blue-600 px-2 text-xs font-medium text-white disabled:opacity-50"
             onClick={() => {
               void handleSubmit();
             }}

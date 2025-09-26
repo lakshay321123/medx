@@ -3190,16 +3190,16 @@ ${systemCommon}` + baseSys;
                     {summary && (
                       <div className="space-y-3 rounded-2xl border border-white/10 bg-white/6 p-4 text-xs text-white/80">
                         <p className="whitespace-pre-wrap text-white/80">{summary}</p>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-1.5">
                           {stats?.recruitingCount ? (
-                            <span className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white">
+                            <span className="inline-flex h-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 text-xs font-medium text-white">
                               Recruiting: {stats.recruitingCount}
                             </span>
                           ) : null}
                           <button
                             type="button"
                             onClick={() => navigator.clipboard.writeText(summary!)}
-                            className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white"
+                            className="inline-flex h-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 text-xs font-medium text-white"
                             aria-label="Copy summary"
                           >
                             Copy
@@ -3207,7 +3207,7 @@ ${systemCommon}` + baseSys;
                           <button
                             type="button"
                             onClick={() => setShowDetails(s => !s)}
-                            className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white"
+                            className="inline-flex h-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 text-xs font-medium text-white"
                             aria-label={showDetails ? "Hide details" : "View details"}
                           >
                             {showDetails ? "Hide details" : "View details"}
@@ -3324,10 +3324,10 @@ ${systemCommon}` + baseSys;
                                 {status} • {phaseLabel} • {countryLabel}
                               </p>
                               <p className="text-[11px] text-white/60">{t.id || "—"} • {registryLabel}</p>
-                              <div className="mt-3 flex flex-wrap gap-2">
+                              <div className="mt-3 flex flex-wrap gap-1.5">
                                 <button
                                   type="button"
-                                  className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white"
+                                  className="inline-flex h-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 text-xs font-medium text-white"
                                   aria-label={`Recruiting status for ${t.id || "trial"}`}
                                 >
                                   Recruiting: {recruitingLabel}
@@ -3335,7 +3335,7 @@ ${systemCommon}` + baseSys;
                                 <button
                                   type="button"
                                   onClick={handleCopy}
-                                  className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white"
+                                  className="inline-flex h-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 text-xs font-medium text-white"
                                   aria-label={`Copy ${t.id || "trial"} details`}
                                 >
                                   Copy
@@ -3344,7 +3344,7 @@ ${systemCommon}` + baseSys;
                                   type="button"
                                   onClick={handleOpenSource}
                                   disabled={!linkHref}
-                                  className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="inline-flex h-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
                                   aria-label={linkHref ? `Open source link for ${t.id || "trial"}` : "Source link unavailable"}
                                 >
                                   Links
@@ -3352,7 +3352,7 @@ ${systemCommon}` + baseSys;
                                 <button
                                   type="button"
                                   onClick={handleViewDetails}
-                                  className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs text-white"
+                                  className="inline-flex h-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 text-xs font-medium text-white"
                                   aria-label={`Summarize ${t.id || "trial"} details`}
                                 >
                                   View details
