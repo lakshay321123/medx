@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import ChatMarkdown from '@/components/ChatMarkdown';
 import ResearchFilters from '@/components/ResearchFilters';
 import { LinkBadge } from '@/components/SafeLink';
-import TrialsTable from "@/components/TrialsTable";
+import TrialsResults from "@/components/TrialsResults";
 import type { TrialRow } from "@/types/trials";
 import { useResearchFilters } from '@/store/researchFilters';
 import { Send, Paperclip, Clipboard, Stethoscope, Users, ChevronDown, ChevronUp } from 'lucide-react';
@@ -662,6 +662,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ??
     (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
   const previewUrlsRef = useRef<string[]>([]);
+  const sendRef = useRef<(text: string, researchMode: boolean, opts?: SendOpts) => void>();
+  const researchModeRef = useRef<boolean>(false);
   const queueAbortRef = useRef<AbortController | null>(null);
   const { filters } = useResearchFilters();
 
@@ -708,6 +710,14 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, []);
 
   useEffect(() => {
+    sendRef.current = send;
+  });
+
+  useEffect(() => {
+    researchModeRef.current = Boolean(researchMode);
+  }, [researchMode]);
+
+  useEffect(() => {
     function onPush(e: Event) {
       const ce = e as CustomEvent<any>;
       const msg = ce.detail;
@@ -740,6 +750,21 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     return () => {
       window.removeEventListener("medx:chat:push", onPush as EventListener);
       window.removeEventListener("medx:chat:mark-done", onMarkDone as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    function onSend(event: Event) {
+      const detail = (event as CustomEvent<{ text?: string; opts?: SendOpts }>).detail;
+      if (!detail || typeof detail.text !== 'string') return;
+      const fn = sendRef.current;
+      if (!fn) return;
+      fn(detail.text, researchModeRef.current ?? false, detail.opts || {});
+    }
+
+    window.addEventListener('medx:chat:send', onSend as EventListener);
+    return () => {
+      window.removeEventListener('medx:chat:send', onSend as EventListener);
     };
   }, []);
 
@@ -3188,26 +3213,7 @@ ${systemCommon}` + baseSys;
                   )}
                 </div>
               )}
-              {trialRows.length > 0 && (
-                <div className="rounded-xl border border-slate-200 bg-white/85 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
-                  <div className="mb-2 flex justify-end">
-                    <button
-                      onClick={async ()=>{
-                        const res = await fetch("/api/trials/export", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ rows: trialRows }) });
-                        const blob = await res.blob();
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url; a.download = "trials.csv"; a.click();
-                        URL.revokeObjectURL(url);
-                      }}
-                      className="rounded-full border border-slate-200 px-3 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-                    >
-                      Export CSV
-                    </button>
-                  </div>
-                  <TrialsTable rows={trialRows} />
-                </div>
-              )}
+              {trialRows.length > 0 && <TrialsResults trials={trialRows} />}
             </div>
           )}
 
