@@ -1123,34 +1123,25 @@ function extractMedicationEntries(data: any): MedicationEntry[] {
   if (!data) return [];
 
   const entries: MedicationEntry[] = [];
-  const groups = (data as any)?.groups ?? (data?.profile as any)?.groups;
+  const profile = (data?.profile as any) ?? data ?? {};
+  const groups = (profile?.groups as any) ?? {};
   const groupMeds = Array.isArray(groups?.medications) ? groups.medications : [];
   for (const item of groupMeds) {
     const med = normalizeMedicationItem(item);
     if (med) entries.push(med);
   }
 
-  const profileMeds = Array.isArray((data?.profile as any)?.medications)
-    ? (data.profile as any).medications
-    : [];
+  const profileMeds = Array.isArray(profile?.medications) ? profile.medications : [];
   for (const item of profileMeds) {
     const med = normalizeMedicationItem(item);
     if (med) entries.push(med);
   }
 
-  const observationMeds = Array.isArray((data?.profile as any)?.observations)
-    ? (data.profile as any).observations
-    : [];
+  const observationMeds = Array.isArray(profile?.observations) ? profile.observations : [];
   for (const item of observationMeds) {
     if (typeof item?.kind === "string" && item.kind.toLowerCase() !== "medication") {
       continue;
     }
-    const med = normalizeMedicationItem(item);
-    if (med) entries.push(med);
-  }
-
-  const summaryMeds = Array.isArray((data?.summary as any)?.medications) ? data.summary.medications : [];
-  for (const item of summaryMeds) {
     const med = normalizeMedicationItem(item);
     if (med) entries.push(med);
   }

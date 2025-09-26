@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { pushToast } from "@/lib/ui/toast";
+import { useCountry } from "@/lib/country";
 
 type Suggestion = {
   name: string;
@@ -20,6 +21,7 @@ export type MedicationInputProps = {
 };
 
 export default function MedicationInput({ onSave, placeholder = "Add a medication" }: MedicationInputProps) {
+  const { country } = useCountry();
   const [query, setQuery] = useState("");
   const [lockedName, setLockedName] = useState<string | null>(null);
   const [lockedSuggestion, setLockedSuggestion] = useState<Suggestion | null>(null);
@@ -73,7 +75,8 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
     const controller = new AbortController();
     abortRef.current = controller;
     const handle = window.setTimeout(() => {
-      void fetchSuggestions(trimmed, controller.signal)
+      const countryCode = country.code2 || country.code3 || "";
+      void fetchSuggestions(trimmed, controller.signal, countryCode || undefined)
         .then(result => {
           setSuggestions(result.suggestions);
           setNormalizedSuggestion(result.normalized);
@@ -94,7 +97,7 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
       window.clearTimeout(handle);
       controller.abort();
     };
-  }, [lockedName, query]);
+  }, [country.code2, country.code3, lockedName, query]);
 
   const selectSuggestion = (suggestion: Suggestion) => {
     setLockedName(suggestion.name);
@@ -249,11 +252,17 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
   );
 }
 
-async function fetchSuggestions(term: string, signal: AbortSignal): Promise<SuggestionResult> {
+async function fetchSuggestions(
+  term: string,
+  signal: AbortSignal,
+  countryCode?: string,
+): Promise<SuggestionResult> {
   const suggestions: Suggestion[] = [];
   let normalized: Suggestion | null = null;
   try {
-    const searchRes = await fetch(`/api/meds/search?q=${encodeURIComponent(term)}`, { signal });
+    const params = new URLSearchParams({ q: term });
+    if (countryCode) params.set("country", countryCode);
+    const searchRes = await fetch(`/api/meds/search?${params.toString()}`, { signal });
     if (searchRes.ok) {
       const json = await searchRes.json();
       const meds = Array.isArray(json?.meds) ? json.meds : [];
@@ -280,13 +289,15 @@ async function fetchSuggestions(term: string, signal: AbortSignal): Promise<Sugg
   }
 
   try {
-    const normalizeUrl = `/api/rxnorm/normalize?name=${encodeURIComponent(term)}`;
+    const normalizeParams = new URLSearchParams({ name: term });
+    if (countryCode) normalizeParams.set("country", countryCode);
+    const normalizeUrl = `/api/rxnorm/normalize?${normalizeParams.toString()}`;
     let normalizeRes = await fetch(normalizeUrl, { signal });
     if (normalizeRes.status === 405) {
       normalizeRes = await fetch("/api/rxnorm/normalize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: term }),
+        body: JSON.stringify({ name: term, country: countryCode || undefined }),
         signal,
       });
     }
