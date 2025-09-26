@@ -112,6 +112,70 @@ const getMessageTextFromDom = (domId: string, fallback: string) => {
   return (text || fallback || '').trim();
 };
 
+type AssistantActionsProps = {
+  conversationId: string;
+  messageId: string;
+  mode: 'patient' | 'doctor' | 'research' | 'therapy';
+  messageContent: string;
+  getMessageText: () => string;
+  onRefresh?: () => void;
+  canRefresh: boolean;
+  isRefreshing: boolean;
+  disabled?: boolean;
+  onShare?: () => void;
+  showFeedback: boolean;
+};
+
+function AssistantActions({
+  conversationId,
+  messageId,
+  mode,
+  messageContent,
+  getMessageText,
+  onRefresh,
+  canRefresh,
+  isRefreshing,
+  disabled,
+  onShare,
+  showFeedback,
+}: AssistantActionsProps) {
+  return (
+    <>
+      <div className="pointer-events-none absolute right-3 top-3 hidden gap-2 rounded-full bg-white/80 px-2 py-1 text-slate-600 opacity-0 shadow-sm backdrop-blur transition group-hover/message:opacity-80 group-focus-within/message:opacity-80 dark:bg-slate-900/70 dark:text-slate-200 sm:flex">
+        <MessageActions
+          conversationId={conversationId}
+          messageId={messageId}
+          mode={mode}
+          messageContent={messageContent}
+          getMessageText={getMessageText}
+          onRefresh={onRefresh}
+          canRefresh={canRefresh}
+          isRefreshing={isRefreshing}
+          disabled={disabled}
+          onShare={onShare}
+          showFeedback={showFeedback}
+        />
+      </div>
+      <div className="mt-3 flex justify-end sm:hidden">
+        <MessageActions
+          conversationId={conversationId}
+          messageId={messageId}
+          mode={mode}
+          messageContent={messageContent}
+          getMessageText={getMessageText}
+          onRefresh={onRefresh}
+          canRefresh={canRefresh}
+          isRefreshing={isRefreshing}
+          disabled={disabled}
+          onShare={onShare}
+          showFeedback={showFeedback}
+          className="rounded-full border border-slate-200/80 bg-white/80 px-3 py-1 text-slate-600 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200"
+        />
+      </div>
+    </>
+  );
+}
+
 const formatTrendDate = (iso?: string) => {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -3126,39 +3190,19 @@ ${systemCommon}` + baseSys;
                   contentId={domId}
                 />
                 {hasId && (
-                  <>
-                    <div className="pointer-events-none absolute right-3 top-3 hidden sm:flex gap-2 rounded-full bg-white/80 px-2 py-1 text-slate-600 opacity-0 shadow-sm backdrop-blur transition group-hover/message:opacity-80 group-focus-within/message:opacity-80 dark:bg-slate-900/70 dark:text-slate-200">
-                      <MessageActions
-                        conversationId={conversationId}
-                        messageId={m.id!}
-                        mode={currentMode}
-                        messageContent={messageContent}
-                        getMessageText={() => getMessageTextFromDom(domId, messageContent)}
-                        onRefresh={canRefresh ? () => handleRefresh(m.id!) : undefined}
-                        canRefresh={canRefresh}
-                        isRefreshing={isRefreshing}
-                        disabled={isRefreshing}
-                        onShare={shareHandler}
-                        showFeedback={showFeedback}
-                      />
-                    </div>
-                    <div className="mt-3 flex justify-end sm:hidden">
-                      <MessageActions
-                        conversationId={conversationId}
-                        messageId={m.id!}
-                        mode={currentMode}
-                        messageContent={messageContent}
-                        getMessageText={() => getMessageTextFromDom(domId, messageContent)}
-                        onRefresh={canRefresh ? () => handleRefresh(m.id!) : undefined}
-                        canRefresh={canRefresh}
-                        isRefreshing={isRefreshing}
-                        disabled={isRefreshing}
-                        onShare={shareHandler}
-                        showFeedback={showFeedback}
-                        className="rounded-full border border-slate-200/80 bg-white/80 px-3 py-1 text-slate-600 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200"
-                      />
-                    </div>
-                  </>
+                  <AssistantActions
+                    conversationId={conversationId}
+                    messageId={m.id!}
+                    mode={currentMode}
+                    messageContent={messageContent}
+                    getMessageText={() => getMessageTextFromDom(domId, messageContent)}
+                    onRefresh={canRefresh ? () => handleRefresh(m.id!) : undefined}
+                    canRefresh={canRefresh}
+                    isRefreshing={isRefreshing}
+                    disabled={isRefreshing}
+                    onShare={shareHandler}
+                    showFeedback={showFeedback}
+                  />
                 )}
               </div>
               {(m as any).replaced && (
@@ -3205,39 +3249,19 @@ ${systemCommon}` + baseSys;
                 contentId={domId}
               />
               {hasId && !m.pending && (
-                <>
-                  <div className="pointer-events-none absolute right-3 top-3 hidden sm:flex gap-2 rounded-full bg-white/80 px-2 py-1 text-slate-600 opacity-0 shadow-sm backdrop-blur transition group-hover/message:opacity-80 group-focus-within/message:opacity-80 dark:bg-slate-900/70 dark:text-slate-200">
-                    <MessageActions
-                      conversationId={conversationId}
-                      messageId={m.id!}
-                      mode={currentMode}
-                      messageContent={messageContent}
-                      getMessageText={() => getMessageTextFromDom(domId, messageContent)}
-                      onRefresh={canRefresh ? () => handleRefresh(m.id!) : undefined}
-                      canRefresh={canRefresh}
-                      isRefreshing={isRefreshing}
-                      disabled={isRefreshing}
-                      onShare={shareHandler}
-                      showFeedback={showFeedback}
-                    />
-                  </div>
-                  <div className="mt-3 flex justify-end sm:hidden">
-                    <MessageActions
-                      conversationId={conversationId}
-                      messageId={m.id!}
-                      mode={currentMode}
-                      messageContent={messageContent}
-                      getMessageText={() => getMessageTextFromDom(domId, messageContent)}
-                      onRefresh={canRefresh ? () => handleRefresh(m.id!) : undefined}
-                      canRefresh={canRefresh}
-                      isRefreshing={isRefreshing}
-                      disabled={isRefreshing}
-                      onShare={shareHandler}
-                      showFeedback={showFeedback}
-                      className="rounded-full border border-slate-200/80 bg-white/80 px-3 py-1 text-slate-600 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200"
-                    />
-                  </div>
-                </>
+                <AssistantActions
+                  conversationId={conversationId}
+                  messageId={m.id!}
+                  mode={currentMode}
+                  messageContent={messageContent}
+                  getMessageText={() => getMessageTextFromDom(domId, messageContent)}
+                  onRefresh={canRefresh ? () => handleRefresh(m.id!) : undefined}
+                  canRefresh={canRefresh}
+                  isRefreshing={isRefreshing}
+                  disabled={isRefreshing}
+                  onShare={shareHandler}
+                  showFeedback={showFeedback}
+                />
               )}
             </div>
             {(m as any).replaced && (
