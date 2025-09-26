@@ -790,6 +790,28 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     handleCopyShareCaption,
   } = useShareActions();
 
+  const buildShareHandler = useCallback(
+    (message: ChatMessage, domId: string, messageContent: string) => {
+      const messageId = typeof message.id === 'string' ? message.id : '';
+      const isPending = Boolean((message as any)?.pending);
+      if (!messageId || isPending) return undefined;
+
+      return () => {
+        const plain = getMessageTextFromDom(domId, messageContent);
+        openShare({
+          conversationId,
+          messageId,
+          domId,
+          plainText: plain,
+          mdText: messageContent,
+          mode: currentMode,
+          research: researchMode,
+        });
+      };
+    },
+    [conversationId, currentMode, openShare, researchMode]
+  );
+
   const sp = useSearchParams();
   const isAiDocMode = useIsAiDocMode();
   const modeState = useMemo(() => fromSearchParams(sp, 'light'), [sp]);
@@ -3164,20 +3186,7 @@ ${systemCommon}` + baseSys;
           const showFeedback = currentMode !== 'therapy';
           const hasId = typeof m.id === 'string' && m.id.length > 0;
 
-          const shareHandler = hasId
-            ? () => {
-                const plain = getMessageTextFromDom(domId, messageContent);
-                openShare({
-                  conversationId,
-                  messageId: m.id!,
-                  domId,
-                  plainText: plain,
-                  mdText: messageContent,
-                  mode: currentMode,
-                  research: researchMode,
-                });
-              }
-            : undefined;
+          const shareHandler = buildShareHandler(m, domId, messageContent);
 
           return (
             <div key={derivedKey} className="space-y-2">
@@ -3219,20 +3228,7 @@ ${systemCommon}` + baseSys;
         const showFeedback = currentMode !== 'therapy';
         const hasId = typeof m.id === 'string' && m.id.length > 0;
 
-        const shareHandler = hasId
-          ? () => {
-              const plain = getMessageTextFromDom(domId, messageContent);
-              openShare({
-                conversationId,
-                messageId: m.id!,
-                domId,
-                plainText: plain,
-                mdText: messageContent,
-                mode: currentMode,
-                research: researchMode,
-              });
-            }
-          : undefined;
+        const shareHandler = buildShareHandler(m, domId, messageContent);
 
         return (
           <div key={derivedKey} className="space-y-2">
@@ -3284,7 +3280,7 @@ ${systemCommon}` + baseSys;
       currentMode,
       refreshingMessages,
       handleRefresh,
-      openShare
+      buildShareHandler
     ]
   );
 
