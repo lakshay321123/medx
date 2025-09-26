@@ -3324,7 +3324,6 @@ ${systemCommon}` + baseSys;
               <ResearchFilters
                 mode="research"
                 onResults={handleTrials}
-                showBanner={false}
                 className="px-3"
               />
 

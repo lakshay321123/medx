@@ -1,8 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useState, ChangeEvent, FormEvent } from "react";
 import { useResearchFilters } from "@/store/researchFilters";
 import type { Trial } from "@/lib/trials/search";
-import ClinicalBanner from "./ClinicalBanner";
 
 const phaseOptions = ['1','2','3','4'] as const;
 const statusLabels = [
@@ -32,11 +31,10 @@ function mapStatusKeyToApi(key?: string) {
 type Props = {
   mode: "patient" | "doctor" | "research" | "therapy";
   onResults?: (rows: Trial[]) => void;
-  showBanner?: boolean;
   className?: string;
 };
 
-export default function ResearchFilters({ mode, onResults, showBanner = true, className }: Props) {
+export default function ResearchFilters({ mode, onResults, className }: Props) {
   const { filters, setFilters, reset } = useResearchFilters();
 
   const [local, setLocal] = useState({
@@ -54,8 +52,22 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
   const togglePhase = (p: string) =>
     setLocal(s => ({ ...s, phase: s.phase === p ? '' : p }));
 
-  // Single-select country (clean & predictable)
-  const toggleCountry = (name: string) =>
+  const countriesSelectValue = local.countries.length === 0 ? ['ALL'] : local.countries;
+  const selectedCountriesCount = local.countries.length === 0 ? 'All' : local.countries.length;
+
+  function onCountriesChange(e: ChangeEvent<HTMLSelectElement>) {
+    let values = Array.from(e.target.selectedOptions).map(o => o.value);
+    if (values.length === 0 || values.includes('ALL')) {
+      setLocal(s => ({ ...s, countries: [] }));
+    } else {
+      if (values.length > 1 && values.includes('Worldwide')) {
+        values = values.filter(v => v !== 'Worldwide');
+      }
+      setLocal(s => ({ ...s, countries: values }));
+    }
+  }
+
+  const toggleDesktopCountry = (name: string) =>
     setLocal(s => ({
       ...s,
       countries: s.countries.includes(name) ? [] : [name],
@@ -103,7 +115,7 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
     }
   }
 
-  async function handleSubmit(e?: React.FormEvent) {
+  async function handleSubmit(e?: FormEvent) {
     if (e) e.preventDefault();
     applyLocalToStore();
     await runSearch();
@@ -129,21 +141,19 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
 
   return (
     <form onSubmit={handleSubmit} className={formClassName}>
-      <ClinicalBanner show={showBanner} />
-
       <section className="md:hidden space-y-2 px-3">
-        <div className="grid grid-cols-[1fr,80px] gap-2 md:hidden">
+        <div className="flex items-center gap-2">
           <input
             value={local.query}
             onChange={(e) => setLocal(s => ({ ...s, query: e.target.value }))}
             onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as any).form?.requestSubmit()}
             placeholder="Search trials (e.g., condition, gene, topic)…"
-            className="input-sm w-full"
+            className="input-sm w-[68%] min-w-[210px]"
             aria-label="Search trials"
           />
           <button
             type="submit"
-            className="btn-sm flex items-center justify-center disabled:opacity-50"
+            className="btn-sm w-[80px] shrink-0 flex items-center justify-center disabled:opacity-50"
             disabled={busy}
           >
             {busy ? "Searching…" : "Search"}
@@ -169,11 +179,11 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
           })}
         </div>
 
-        <div className="grid grid-cols-2 gap-2 md:hidden">
+        <div className="flex items-center gap-2">
           <select
             value={local.status}
             onChange={(e) => setLocal(s => ({ ...s, status: e.target.value as any }))}
-            className="select-sm w-full"
+            className="select-sm w-[160px]"
             aria-label="Filter by status"
           >
             {statusLabels.map(o => (
@@ -185,7 +195,7 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
           <select
             value={source}
             onChange={(e) => setSource(e.target.value)}
-            className="select-sm w-full"
+            className="select-sm w-[120px]"
             aria-label="Filter by source"
           >
             <option className="text-slate-900">All</option>
@@ -196,36 +206,37 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
           </select>
         </div>
 
-        <div className="overflow-x-auto no-scrollbar -mx-3 flex gap-1.5 px-3 md:hidden">
-          {countryOptions.map(name => {
-            const active = local.countries.includes(name);
-            return (
-              <button
-                key={name}
-                type="button"
-                onClick={() => toggleCountry(name)}
-                className={`chip-sm inline-flex items-center justify-center whitespace-nowrap ${
-                  active ? "border-white/60 bg-white/20" : ""
-                }`}
-                aria-pressed={active}
-              >
+        <div className="flex items-center gap-2">
+          <label className="sr-only" htmlFor="mobile-trial-countries">Countries</label>
+          <select
+            id="mobile-trial-countries"
+            multiple
+            value={countriesSelectValue}
+            onChange={onCountriesChange}
+            className="select-sm w-[240px]"
+            aria-label="Countries"
+          >
+            <option value="ALL" className="text-slate-900">All countries</option>
+            {countryOptions.map(name => (
+              <option key={name} value={name} className="text-slate-900">
                 {name}
-              </button>
-            );
-          })}
+              </option>
+            ))}
+          </select>
+          <span className="text-[11px] text-white/70">{selectedCountriesCount} selected</span>
         </div>
 
-        <div className="grid grid-cols-[1fr,80px] gap-2 md:hidden">
+        <div className="flex items-center gap-2">
           <input
             placeholder="Genes (comma separated)"
             value={local.genes}
             onChange={(e) => setLocal(s => ({ ...s, genes: e.target.value }))}
-            className="input-sm w-full"
+            className="input-sm w-[68%] min-w-[210px]"
             aria-label="Filter by genes"
           />
           <button
             type="button"
-            className="btn-sm flex items-center justify-center disabled:opacity-50"
+            className="btn-sm w-[80px] shrink-0 flex items-center justify-center disabled:opacity-50"
             onClick={() => {
               void handleSubmit();
             }}
@@ -314,7 +325,7 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
               <button
                 key={name}
                 type="button"
-                onClick={() => toggleCountry(name)}
+                onClick={() => toggleDesktopCountry(name)}
                 className={`rounded border px-2 py-1 text-xs ${
                   local.countries.includes(name)
                     ? "border-blue-600 bg-blue-600 text-white"
