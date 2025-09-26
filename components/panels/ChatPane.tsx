@@ -7,6 +7,7 @@ import ChatMarkdown from '@/components/ChatMarkdown';
 import ResearchFilters from '@/components/ResearchFilters';
 import { LinkBadge } from '@/components/SafeLink';
 import TrialsTable from "@/components/TrialsTable";
+import ClinicalBanner from "@/components/ClinicalBanner";
 import type { Trial } from "@/lib/trials/search";
 import { useResearchFilters } from '@/store/researchFilters';
 import { Send, Paperclip, Clipboard, Stethoscope, Users, ChevronDown, ChevronUp } from 'lucide-react';
@@ -3315,11 +3316,8 @@ ${systemCommon}` + baseSys;
           {mode === "doctor" && researchMode && (
             <div className="mb-6 space-y-4">
               <div className="md:hidden">
-                <div className="mx-auto w-full max-w-[420px] space-y-3 px-3">
-                  <div className="rounded-2xl bg-blue-700 p-4 text-white">
-                    <h2 className="text-base font-bold">Clinical Mode: ON</h2>
-                    <p className="text-xs opacity-90">Evidence-ready, clinician-first. Research: On — web evidence</p>
-                  </div>
+                <div className="mx-auto w-full max-w-[420px] px-3">
+                  <ClinicalBanner />
                 </div>
               </div>
 
@@ -3344,14 +3342,14 @@ ${systemCommon}` + baseSys;
                         <p className="whitespace-pre-wrap text-white/80">{summary}</p>
                         <div className="flex flex-wrap gap-1.5">
                           {stats?.recruitingCount ? (
-                            <span className="inline-flex h-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 text-xs font-medium text-white">
+                            <span className="chip-sm inline-flex items-center justify-center whitespace-nowrap">
                               Recruiting: {stats.recruitingCount}
                             </span>
                           ) : null}
                           <button
                             type="button"
                             onClick={() => navigator.clipboard.writeText(summary!)}
-                            className="inline-flex h-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 text-xs font-medium text-white"
+                            className="chip-sm inline-flex items-center justify-center whitespace-nowrap"
                             aria-label="Copy summary"
                           >
                             Copy
@@ -3359,7 +3357,7 @@ ${systemCommon}` + baseSys;
                           <button
                             type="button"
                             onClick={() => setShowDetails(s => !s)}
-                            className="inline-flex h-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 text-xs font-medium text-white"
+                            className="chip-sm inline-flex items-center justify-center whitespace-nowrap"
                             aria-label={showDetails ? "Hide details" : "View details"}
                           >
                             {showDetails ? "Hide details" : "View details"}
@@ -3476,10 +3474,10 @@ ${systemCommon}` + baseSys;
                                 {status} • {phaseLabel} • {countryLabel}
                               </p>
                               <p className="text-[11px] text-white/60">{t.id || "—"} • {registryLabel}</p>
-                              <div className="mt-3 flex flex-wrap gap-1.5">
+                              <div className="mt-2 flex flex-wrap gap-1.5">
                                 <button
                                   type="button"
-                                  className="flex min-h-[40px] items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white"
+                                  className="chip-sm inline-flex items-center justify-center whitespace-nowrap"
                                   aria-label={`Recruiting status for ${t.id || "trial"}`}
                                 >
                                   Recruiting: {recruitingLabel}
@@ -3487,7 +3485,7 @@ ${systemCommon}` + baseSys;
                                 <button
                                   type="button"
                                   onClick={handleCopy}
-                                  className="flex min-h-[40px] items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white"
+                                  className="chip-sm inline-flex items-center justify-center whitespace-nowrap"
                                   aria-label={`Copy ${t.id || "trial"} details`}
                                 >
                                   Copy
@@ -3496,7 +3494,7 @@ ${systemCommon}` + baseSys;
                                   type="button"
                                   onClick={handleOpenSource}
                                   disabled={!linkHref}
-                                  className="flex min-h-[40px] items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="chip-sm inline-flex items-center justify-center whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
                                   aria-label={linkHref ? `Open source link for ${t.id || "trial"}` : "Source link unavailable"}
                                 >
                                   Links
@@ -3504,7 +3502,7 @@ ${systemCommon}` + baseSys;
                                 <button
                                   type="button"
                                   onClick={handleViewDetails}
-                                  className="flex min-h-[40px] items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white"
+                                  className="chip-sm inline-flex items-center justify-center whitespace-nowrap"
                                   aria-label={`Summarize ${t.id || "trial"} details`}
                                 >
                                   View details

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useResearchFilters } from "@/store/researchFilters";
 import type { Trial } from "@/lib/trials/search";
+import ClinicalBanner from "./ClinicalBanner";
 
 const phaseOptions = ['1','2','3','4'] as const;
 const statusLabels = [
@@ -128,33 +129,28 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
 
   return (
     <form onSubmit={handleSubmit} className={formClassName}>
-      {showBanner && (
-        <div className="md:hidden rounded-2xl bg-blue-700 p-4 text-white">
-          <h2 className="text-base font-bold">Clinical Mode: ON</h2>
-          <p className="text-xs opacity-90">Evidence-ready, clinician-first. Research: On — web evidence</p>
-        </div>
-      )}
+      <ClinicalBanner show={showBanner} />
 
       <section className="md:hidden space-y-2 px-3">
-        <div className="grid grid-cols-[1fr,96px] gap-2">
+        <div className="grid grid-cols-[1fr,80px] gap-2 md:hidden">
           <input
             value={local.query}
             onChange={(e) => setLocal(s => ({ ...s, query: e.target.value }))}
             onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as any).form?.requestSubmit()}
             placeholder="Search trials (e.g., condition, gene, topic)…"
-            className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/60 min-h-[44px]"
+            className="input-sm w-full"
             aria-label="Search trials"
           />
           <button
             type="submit"
-            className="flex min-h-[44px] items-center justify-center rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="btn-sm flex items-center justify-center disabled:opacity-50"
             disabled={busy}
           >
             {busy ? "Searching…" : "Search"}
           </button>
         </div>
 
-        <div className="overflow-x-auto no-scrollbar -mx-3 flex gap-2 px-3">
+        <div className="overflow-x-auto no-scrollbar -mx-3 flex gap-1.5 px-3 md:hidden">
           {phaseOptions.map(p => {
             const active = local.phase === p;
             return (
@@ -162,8 +158,8 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
                 key={p}
                 type="button"
                 onClick={() => togglePhase(p)}
-                className={`inline-flex h-10 items-center justify-center rounded-full border px-3 text-xs text-white whitespace-nowrap ${
-                  active ? "border-white/60 bg-white/20" : "border-white/15 bg-white/10"
+                className={`chip-sm inline-flex items-center justify-center whitespace-nowrap ${
+                  active ? "border-white/60 bg-white/20" : ""
                 }`}
                 aria-pressed={active}
               >
@@ -173,11 +169,11 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
           })}
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2 md:hidden">
           <select
             value={local.status}
             onChange={(e) => setLocal(s => ({ ...s, status: e.target.value as any }))}
-            className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white min-h-[44px]"
+            className="select-sm w-full"
             aria-label="Filter by status"
           >
             {statusLabels.map(o => (
@@ -189,7 +185,7 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
           <select
             value={source}
             onChange={(e) => setSource(e.target.value)}
-            className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white min-h-[44px]"
+            className="select-sm w-full"
             aria-label="Filter by source"
           >
             <option className="text-slate-900">All</option>
@@ -200,7 +196,7 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
           </select>
         </div>
 
-        <div className="overflow-x-auto no-scrollbar -mx-3 flex gap-2 px-3">
+        <div className="overflow-x-auto no-scrollbar -mx-3 flex gap-1.5 px-3 md:hidden">
           {countryOptions.map(name => {
             const active = local.countries.includes(name);
             return (
@@ -208,8 +204,8 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
                 key={name}
                 type="button"
                 onClick={() => toggleCountry(name)}
-                className={`inline-flex h-10 items-center justify-center rounded-full border px-3 text-xs text-white whitespace-nowrap ${
-                  active ? "border-white/60 bg-white/20" : "border-white/15 bg-white/10"
+                className={`chip-sm inline-flex items-center justify-center whitespace-nowrap ${
+                  active ? "border-white/60 bg-white/20" : ""
                 }`}
                 aria-pressed={active}
               >
@@ -219,17 +215,17 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
           })}
         </div>
 
-        <div className="grid grid-cols-[1fr,96px] gap-2">
+        <div className="grid grid-cols-[1fr,80px] gap-2 md:hidden">
           <input
             placeholder="Genes (comma separated)"
             value={local.genes}
             onChange={(e) => setLocal(s => ({ ...s, genes: e.target.value }))}
-            className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/60 min-h-[44px]"
+            className="input-sm w-full"
             aria-label="Filter by genes"
           />
           <button
             type="button"
-            className="flex min-h-[44px] items-center justify-center rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="btn-sm flex items-center justify-center disabled:opacity-50"
             onClick={() => {
               void handleSubmit();
             }}
@@ -239,7 +235,7 @@ export default function ResearchFilters({ mode, onResults, showBanner = true, cl
           </button>
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex justify-end md:hidden">
           <button
             type="button"
             onClick={onReset}

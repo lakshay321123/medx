@@ -30,6 +30,25 @@ body.font-loading *::after {
          dark:bg-gray-800 dark:text-slate-100 dark:border-gray-600 dark:hover:bg-gray-700;
 }
 
+@layer components {
+  /* Smaller mobile controls */
+  .btn-sm {
+    @apply rounded-lg bg-blue-600 text-white text-xs px-2.5 py-1.5;
+  }
+
+  .input-sm {
+    @apply rounded-lg border border-white/10 bg-white/5 text-white text-xs px-3 py-2 placeholder:text-white/60;
+  }
+
+  .select-sm {
+    @apply rounded-lg border border-white/10 bg-white/5 text-white text-xs px-2.5 py-1.5;
+  }
+
+  .chip-sm {
+    @apply rounded-full border border-white/15 bg-white/10 text-[11px] px-2.5 py-1 text-white;
+  }
+}
+
 @layer utilities {
   .text-primary {
     @apply text-blue-600 dark:text-sky-400;
