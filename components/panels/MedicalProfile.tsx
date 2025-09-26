@@ -115,6 +115,13 @@ function pickObservation(map: ObservationMap, keys: string[]): { value: any; uni
   return null;
 }
 
+function formatObservedDate(value?: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString();
+}
+
 function derivePanelMode(searchParams: ReadonlyURLSearchParams, theme: string | undefined): PanelMode {
   const serialized = searchParams?.toString?.() ?? "";
   const state = fromSearchParams(new URLSearchParams(serialized), (theme as "light" | "dark") ?? "light");
@@ -647,17 +654,17 @@ export default function MedicalProfile() {
       <ProfileSection
         title="Personal details"
         actions={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
             <button
               type="button"
-              className="rounded-md border px-3 py-1.5 text-sm"
+              className="w-full rounded-md border px-3 py-1.5 text-sm sm:w-auto"
               onClick={() => router.push("/?panel=chat&threadId=med-profile&context=profile")}
             >
               Open in chat
             </button>
             <button
               type="button"
-              className="rounded-md border bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow disabled:opacity-60"
+              className="w-full rounded-md border bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow disabled:opacity-60 sm:w-auto"
               onClick={handleProfileSave}
               disabled={savingProfile}
             >
@@ -868,8 +875,8 @@ export default function MedicalProfile() {
         isEmpty={labs.length === 0}
         emptyMessage="No labs yet—upload a report or add data in chat."
       >
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-border text-sm">
+        <div className="hidden overflow-x-auto text-sm sm:block">
+          <table className="min-w-full divide-y divide-border">
             <thead className="bg-muted/40">
               <tr>
                 <th className="px-3 py-2 text-left font-semibold">Test</th>
@@ -886,12 +893,29 @@ export default function MedicalProfile() {
                     {item.unit ? ` ${item.unit}` : ""}
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">
-                    {new Date(item.observedAt).toLocaleDateString()}
+                    {formatObservedDate(item.observedAt)}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+        <div className="space-y-3 text-sm sm:hidden">
+          {labs.map(item => (
+            <div
+              key={`${item.key}-${item.observedAt}-card`}
+              className="rounded-lg border bg-muted/20 p-3 shadow-sm"
+            >
+              <div className="text-sm font-semibold">{item.label}</div>
+              <div className="mt-1 text-base font-medium">
+                {item.value ?? "—"}
+                {item.unit ? ` ${item.unit}` : ""}
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                Observed {formatObservedDate(item.observedAt)}
+              </div>
+            </div>
+          ))}
         </div>
       </ProfileSection>
 
@@ -899,17 +923,17 @@ export default function MedicalProfile() {
         <ProfileSection
           title="AI Summary"
           actions={
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
               <button
                 type="button"
-                className="rounded-md border px-3 py-1.5 text-sm"
+                className="w-full rounded-md border px-3 py-1.5 text-sm sm:w-auto"
                 onClick={() => router.push("/?panel=chat&threadId=med-profile&context=profile")}
               >
                 Discuss in chat
               </button>
               <button
                 type="button"
-                className="inline-flex items-center gap-2 rounded-md border bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow disabled:opacity-60"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-md border bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow disabled:opacity-60 sm:w-auto"
                 onClick={onRecomputeRisk}
                 disabled={recomputeBusy}
               >
