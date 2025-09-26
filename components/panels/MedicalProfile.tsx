@@ -70,6 +70,12 @@ function parseNumber(raw: any): number | null {
   return null;
 }
 
+function formatNumberInput(value: number | null) {
+  if (value == null || Number.isNaN(value)) return "";
+  const rounded = Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
+  return rounded.replace(/\.0$/, "");
+}
+
 function parseBp(value: any): { systolic?: number; diastolic?: number } {
   if (typeof value === "string" && value.includes("/")) {
     const [s, d] = value.split("/").map(part => parseNumber(part));
@@ -137,6 +143,8 @@ export default function MedicalProfile() {
   const [summaryNextSteps, setSummaryNextSteps] = useState("—");
   const [manualNotes, setManualNotes] = useState<string | null>(null);
   const [manualNextSteps, setManualNextSteps] = useState<string | null>(null);
+  const [heightInput, setHeightInput] = useState("");
+  const [weightInput, setWeightInput] = useState("");
 
   const [bootstrapped, setBootstrapped] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -148,6 +156,7 @@ export default function MedicalProfile() {
   const [nextStepsEditing, setNextStepsEditing] = useState(false);
   const [nextStepsDraft, setNextStepsDraft] = useState("");
   const [savingNextSteps, setSavingNextSteps] = useState(false);
+  const [summaryMedsEditing, setSummaryMedsEditing] = useState(false);
 
   const extractedMedications = useMemo(() => extractMedicationEntries(data), [data]);
 
@@ -177,13 +186,43 @@ export default function MedicalProfile() {
     setPredis(Array.isArray(prof.conditions_predisposition) ? prof.conditions_predisposition : []);
     setChronic(Array.isArray(prof.chronic_conditions) ? prof.chronic_conditions : []);
     setMedications(extractedMedications);
+
+    const profVitals = (prof as any)?.vitals ?? {};
+    const heightFromProfile = parseNumber(profVitals?.height_cm);
+    const weightFromProfile = parseNumber(profVitals?.weight_kg);
+    const fallbackHeight =
+      profileVitals.heightMeters != null ? Number((profileVitals.heightMeters * 100).toFixed(1)) : null;
+    const fallbackWeight =
+      profileVitals.weightKg != null ? Number(profileVitals.weightKg.toFixed(1)) : null;
+    setHeightInput(formatNumberInput(heightFromProfile ?? fallbackHeight));
+    setWeightInput(formatNumberInput(weightFromProfile ?? fallbackWeight));
+
     setBootstrapped(true);
-  }, [bootstrapped, data?.profile, extractedMedications]);
+  }, [
+    bootstrapped,
+    data?.profile,
+    extractedMedications,
+    profileVitals.heightMeters,
+    profileVitals.weightKg,
+  ]);
 
   useEffect(() => {
     if (!bootstrapped) return;
     setMedications(extractedMedications);
   }, [bootstrapped, extractedMedications]);
+
+  useEffect(() => {
+    if (!bootstrapped) return;
+    const profVitals = (data?.profile as any)?.vitals ?? {};
+    const heightFromProfile = parseNumber(profVitals?.height_cm);
+    const weightFromProfile = parseNumber(profVitals?.weight_kg);
+    const fallbackHeight =
+      profileVitals.heightMeters != null ? Number((profileVitals.heightMeters * 100).toFixed(1)) : null;
+    const fallbackWeight =
+      profileVitals.weightKg != null ? Number(profileVitals.weightKg.toFixed(1)) : null;
+    setHeightInput(formatNumberInput(heightFromProfile ?? fallbackHeight));
+    setWeightInput(formatNumberInput(weightFromProfile ?? fallbackWeight));
+  }, [bootstrapped, data?.profile, profileVitals.heightMeters, profileVitals.weightKg]);
 
   useEffect(() => {
     setManualNotes(manualNotesFromObservations);
@@ -298,6 +337,48 @@ export default function MedicalProfile() {
         conditions_predisposition: predis,
         chronic_conditions: chronic,
       } as Record<string, unknown>;
+
+      const observedAt = new Date().toISOString();
+      const observations: any[] = [];
+      const metaBase = { source: "manual", category: "vital", committed: true };
+
+      const trimmedHeight = heightInput.trim();
+      const trimmedWeight = weightInput.trim();
+
+      if (trimmedHeight) {
+        const heightValue = parseNumber(trimmedHeight);
+        if (heightValue == null) {
+          throw new Error("Enter a valid height in centimeters.");
+        }
+        observations.push({
+          kind: "height_cm",
+          value_num: heightValue,
+          value_text: String(heightValue),
+          unit: "cm",
+          observed_at: observedAt,
+          meta: metaBase,
+        });
+      }
+
+      if (trimmedWeight) {
+        const weightValue = parseNumber(trimmedWeight);
+        if (weightValue == null) {
+          throw new Error("Enter a valid weight in kilograms.");
+        }
+        observations.push({
+          kind: "weight_kg",
+          value_num: weightValue,
+          value_text: String(weightValue),
+          unit: "kg",
+          observed_at: observedAt,
+          meta: metaBase,
+        });
+      }
+
+      if (observations.length) {
+        payload.observations = observations;
+      }
+
       const res = await fetch("/api/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -640,6 +721,28 @@ export default function MedicalProfile() {
               ))}
             </select>
           </label>
+          <label className="flex flex-col gap-1">
+            <span>Height (cm)</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              className="rounded-md border px-3 py-2"
+              placeholder="e.g. 170"
+              value={heightInput}
+              onChange={e => setHeightInput(e.target.value)}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span>Weight (kg)</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              className="rounded-md border px-3 py-2"
+              placeholder="e.g. 70"
+              value={weightInput}
+              onChange={e => setWeightInput(e.target.value)}
+            />
+          </label>
           <label className="flex flex-col gap-1 md:col-span-1">
             <span>Predispositions</span>
             <input
@@ -824,7 +927,7 @@ export default function MedicalProfile() {
             <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
               ⚠️ This is AI-generated support, not a medical diagnosis. Always consult a clinician.
             </div>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
               <div>
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Chronic conditions
@@ -832,6 +935,44 @@ export default function MedicalProfile() {
                 <p className="mt-1 text-sm">
                   {chronic.length ? chronic.join(", ") : "—"}
                 </p>
+              </div>
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Active medications
+                </h4>
+                {medications.length ? (
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {medications.map(med => (
+                      <MedicationTag
+                        key={`summary-${med.key}`}
+                        label={formatMedicationLabel(med)}
+                        onRemove={summaryMedsEditing ? () => handleRemoveMedication(med) : undefined}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-sm text-muted-foreground">No medications recorded yet.</p>
+                )}
+                {summaryMedsEditing ? (
+                  <div className="mt-3 space-y-2">
+                    <MedicationInput onSave={handleAddMedication} placeholder="Add a medication" />
+                    <button
+                      type="button"
+                      className="inline-flex items-center rounded-md border px-3 py-1.5 text-xs"
+                      onClick={() => setSummaryMedsEditing(false)}
+                    >
+                      Done
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="mt-2 inline-flex items-center rounded-md border px-3 py-1.5 text-xs"
+                    onClick={() => setSummaryMedsEditing(true)}
+                  >
+                    Edit medications
+                  </button>
+                )}
               </div>
               <div>
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
