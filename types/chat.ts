@@ -7,4 +7,8 @@ export type ChatMessage = {
   // followUps may be legacy string arrays or Suggestion objects; normalize before use
   followUps?: unknown;
   citations?: Citation[];
+  originUserText?: string;
+  replacedByNewer?: boolean;
+  replacedByMessageId?: string;
+  refreshOf?: string;
 };

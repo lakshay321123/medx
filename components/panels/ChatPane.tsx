@@ -27,7 +27,8 @@ import { safeJson } from '@/lib/safeJson';
 import { splitFollowUps } from '@/lib/splitFollowUps';
 import { getTrials } from "@/lib/hooks/useTrials";
 import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials";
-import FeedbackBar from "@/components/FeedbackBar";
+import MessageActions from "@/components/chat/MessageActions";
+import SharePanel from "@/components/panels/SharePanel";
 import type { ChatMessage as BaseChatMessage } from "@/types/chat";
 import type { AnalysisCategory } from '@/lib/context';
 import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle, upsertThreadIndex, createNewThreadId } from '@/lib/chatThreads';
@@ -48,6 +49,10 @@ import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
 import { getUserPosition, fetchNearby, geocodeArea, type NearbyKind, type NearbyPlace } from "@/lib/nearby";
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
 import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
+import { exportMessageToPng } from "@/lib/share/snapshot";
+import { trackAnalyticsEvent } from "@/lib/analytics";
+import { pushToast } from "@/lib/ui/toast";
+import { useFeedback } from "@/hooks/useFeedback";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -298,7 +303,17 @@ function radiusLabel(km: number) {
 //  - 'chatty' : old behavior (prints canned lines)
 const SOCIAL_MODE: 'off' | 'silent' | 'chatty' = 'silent';
 
-type SendOpts = { visualEcho?: boolean; clientRequestId?: string };
+type SendOpts = {
+  visualEcho?: boolean;
+  clientRequestId?: string;
+  historyOverride?: ChatMessage[];
+  skipUserMemory?: boolean;
+  replacesId?: string;
+  onFinish?: () => void;
+  onError?: () => void;
+  onSuccess?: (newMessageId: string) => void;
+  onPending?: (pendingMessageId: string) => void;
+};
 let inFlight = false;
 
 async function computeEval(expr: string) {
@@ -553,6 +568,11 @@ function ChatCard({
     <div
       className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl"
     >
+      {m.replacedByNewer && (
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          Replaced by a newer answer
+        </div>
+      )}
       <ChatMarkdown content={m.content} />
       {m.role === "assistant" && (m.citations?.length || 0) > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
@@ -656,6 +676,14 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [labSummary, setLabSummary] = useState<any | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
   const [welcomeContent, setWelcomeContent] = useState<WelcomeMessage | null>(null);
+  const feedback = useFeedback();
+  const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [refreshingMessageId, setRefreshingMessageId] = useState<string | null>(null);
+  const [shareTarget, setShareTarget] = useState<{ id: string; content: string } | null>(null);
+  const [shareBusy, setShareBusy] = useState<null | 'link' | 'download' | 'system'>(null);
+  const [shareUrls, setShareUrls] = useState<Record<string, string>>({});
+  const [systemShareSupported, setSystemShareSupported] = useState(false);
+  const [canCopyLink, setCanCopyLink] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef =
@@ -690,6 +718,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const showLiveSuggestions = inputFocused && isTyping && liveSuggestions.length > 0;
   const showSuggestions = mounted && inputFocused && !isTyping;
 
+
   const lastSuggestions = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i];
@@ -707,6 +736,13 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const hasShare = typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function';
+    const hasClipboard = typeof navigator !== 'undefined' && !!navigator.clipboard?.writeText;
+    setSystemShareSupported(hasShare);
+    setCanCopyLink(Boolean(hasClipboard));
   }, []);
 
   useEffect(() => {
@@ -930,6 +966,255 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     }
   }, [threadId, isProfileThread, router, sp]);
   const currentMode: 'patient'|'doctor'|'research'|'therapy' = therapyMode ? 'therapy' : (researchMode ? 'research' : mode);
+
+  const registerMessageRef = useCallback(
+    (id: string) => (el: HTMLDivElement | null) => {
+      if (el) {
+        messageRefs.current[id] = el;
+      } else {
+        delete messageRefs.current[id];
+      }
+    },
+    []
+  );
+
+  const copyMessage = useCallback(
+    async (message: ChatMessage) => {
+      if (!message?.id) return;
+      const ref = messageRefs.current[message.id];
+      let text = '';
+      if (ref) {
+        const contentEl = ref.querySelector<HTMLElement>('.message-content');
+        text = (contentEl?.innerText || ref.innerText || '').trim();
+      }
+      if (!text) {
+        text = (message.content || '').trim();
+      }
+      if (!text) {
+        pushToast({ title: 'Nothing to copy', variant: 'destructive' });
+        return;
+      }
+      if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+        pushToast({ title: 'Clipboard unavailable', variant: 'destructive' });
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        pushToast({ title: 'Copied' });
+        trackAnalyticsEvent('copy_clicked', { conversationId, messageId: message.id });
+      } catch (error) {
+        pushToast({ title: 'Could not copy', variant: 'destructive' });
+      }
+    },
+    [conversationId]
+  );
+
+  const ensureShareUrl = useCallback(
+    async (target: { id: string; content: string }) => {
+      if (!target.id) throw new Error('missing_target');
+      if (shareUrls[target.id]) return shareUrls[target.id];
+      const response = await fetch('/api/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: target.content, mode: currentMode }),
+      });
+      if (!response.ok) {
+        throw new Error('share_failed');
+      }
+      const data = await response.json();
+      const url = typeof data?.url === 'string' ? data.url : '';
+      if (!url) throw new Error('share_failed');
+      const absolute = new URL(url, window.location.origin).toString();
+      setShareUrls(prev => ({ ...prev, [target.id]: absolute }));
+      return absolute;
+    },
+    [shareUrls, currentMode]
+  );
+
+  const handleCopyLink = useCallback(async () => {
+    if (!shareTarget) return;
+    setShareBusy('link');
+    try {
+      const url = await ensureShareUrl(shareTarget);
+      if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+        throw new Error('clipboard');
+      }
+      await navigator.clipboard.writeText(url);
+      pushToast({ title: 'Link copied' });
+    } catch (error) {
+      pushToast({ title: 'Could not copy link', variant: 'destructive' });
+    } finally {
+      setShareBusy(null);
+    }
+  }, [ensureShareUrl, shareTarget]);
+
+  const handleDownloadImage = useCallback(async () => {
+    if (!shareTarget) return;
+    const element = messageRefs.current[shareTarget.id];
+    if (!element) {
+      pushToast({ title: 'Message not ready', variant: 'destructive' });
+      return;
+    }
+    setShareBusy('download');
+    try {
+      const dataUrl = await exportMessageToPng(element);
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `${shareTarget.id}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      pushToast({ title: 'Image downloaded' });
+    } catch (error) {
+      pushToast({ title: 'Could not download image', variant: 'destructive' });
+    } finally {
+      setShareBusy(null);
+    }
+  }, [shareTarget]);
+
+  const handleShareX = useCallback(async () => {
+    if (!shareTarget) return;
+    try {
+      const url = await ensureShareUrl(shareTarget);
+      const text = encodeURIComponent(`Answer from ${BRAND_NAME}`);
+      const intent = `https://twitter.com/intent/tweet?text=${text}&url=${encodeURIComponent(url)}`;
+      window.open(intent, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      pushToast({ title: 'Could not open X', variant: 'destructive' });
+    }
+  }, [ensureShareUrl, shareTarget]);
+
+  const handleShareFacebook = useCallback(async () => {
+    if (!shareTarget) return;
+    try {
+      const url = await ensureShareUrl(shareTarget);
+      const shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+      window.open(shareUrl, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      pushToast({ title: 'Could not open Facebook', variant: 'destructive' });
+    }
+  }, [ensureShareUrl, shareTarget]);
+
+  const handleSystemShare = useCallback(async () => {
+    if (!shareTarget || !systemShareSupported) return;
+    try {
+      const url = await ensureShareUrl(shareTarget);
+      await (navigator as Navigator & { share?: (data: ShareData) => Promise<void> }).share?.({
+        title: `${BRAND_NAME} answer`,
+        text: `Shared from ${BRAND_NAME}`,
+        url,
+      });
+    } catch (error) {
+      pushToast({ title: 'Device share failed', variant: 'destructive' });
+    }
+  }, [ensureShareUrl, shareTarget, systemShareSupported]);
+
+  const handleCopyCaption = useCallback(async () => {
+    if (!shareTarget) return;
+    try {
+      const url = await ensureShareUrl(shareTarget);
+      const caption = `Shared from ${BRAND_NAME}: ${url}`;
+      if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+        throw new Error('clipboard');
+      }
+      await navigator.clipboard.writeText(caption);
+      pushToast({ title: 'Caption copied' });
+    } catch (error) {
+      pushToast({ title: 'Could not copy caption', variant: 'destructive' });
+    }
+  }, [ensureShareUrl, shareTarget]);
+
+  const closeSharePanel = useCallback(() => setShareTarget(null), []);
+
+  const openShareForMessage = useCallback(
+    (message: ChatMessage) => {
+      if (!message?.id) return;
+      setShareTarget({ id: message.id, content: message.content || '' });
+      trackAnalyticsEvent('share_opened', { conversationId, messageId: message.id });
+    },
+    [conversationId]
+  );
+
+  const handleFeedbackSubmit = useCallback(
+    async (messageId: string, rating: 1 | -1) => {
+      await feedback.submit({
+        conversationId,
+        messageId,
+        mode: currentMode,
+        model: researchMode ? 'research' : undefined,
+        rating,
+      });
+      trackAnalyticsEvent('feedback_submitted', { conversationId, messageId, rating });
+    },
+    [feedback, conversationId, currentMode, researchMode]
+  );
+
+  useEffect(() => {
+    if (feedback.error) {
+      pushToast({ title: feedback.error, variant: 'destructive' });
+    }
+  }, [feedback.error]);
+
+  const handleRefreshMessage = useCallback(
+    (message: ChatMessage) => {
+      if (!message?.id || message.pending) return;
+      const messageIndex = messages.findIndex(m => m.id === message.id);
+      if (messageIndex < 0) return;
+      const prompt = (message.originUserText || '').trim() || (() => {
+        for (let i = messageIndex - 1; i >= 0; i -= 1) {
+          const prev = messages[i];
+          if (prev?.role === 'user' && typeof prev.content === 'string' && prev.content.trim()) {
+            return prev.content.trim();
+          }
+        }
+        return '';
+      })();
+      if (!prompt) {
+        pushToast({ title: 'Original question unavailable', variant: 'destructive' });
+        return;
+      }
+
+      const history = messages.slice(0, messageIndex);
+      let pendingId: string | null = null;
+
+      setRefreshingMessageId(message.id);
+      trackAnalyticsEvent('refresh_clicked', { conversationId, messageId: message.id });
+
+      const revert = () => {
+        setMessages(prev =>
+          prev
+            .filter(m => (pendingId && m.id === pendingId ? false : true))
+            .map(m =>
+              m.id === message.id
+                ? { ...m, replacedByNewer: false, replacedByMessageId: undefined }
+                : m
+            )
+        );
+        pushToast({ title: "Couldn't refresh. Please try again.", variant: 'destructive' });
+      };
+
+      send(prompt, researchMode, {
+        visualEcho: false,
+        skipUserMemory: true,
+        replacesId: message.id,
+        historyOverride: history,
+        onPending: id => {
+          pendingId = id;
+        },
+        onFinish: () => {
+          setRefreshingMessageId(prev => (prev === message.id ? null : prev));
+        },
+        onError: () => {
+          setRefreshingMessageId(prev => (prev === message.id ? null : prev));
+          revert();
+        },
+      }).catch(() => {
+        setRefreshingMessageId(prev => (prev === message.id ? null : prev));
+        revert();
+      });
+    },
+    [messages, researchMode, conversationId, send]
+  );
   const [pendingCommitIds, setPendingCommitIds] = useState<string[]>([]);
   const [commitBusy, setCommitBusy] = useState<null | 'save' | 'discard'>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
@@ -1747,9 +2032,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     const messageText = isProfileThread ? normalize(text) : text;
     const visualEcho = opts.visualEcho !== false;
     const clientRequestId = opts.clientRequestId || crypto.randomUUID();
-    if (threadId) pushFullMem(threadId, "user", messageText);
-    if (stableThreadId) {
-      try { pushFullMem(stableThreadId, "user", messageText); } catch {}
+    if (!opts.skipUserMemory) {
+      if (threadId) pushFullMem(threadId, "user", messageText);
+      if (stableThreadId) {
+        try { pushFullMem(stableThreadId, "user", messageText); } catch {}
+      }
     }
 
     // Social intent handling (strict + low-noise)
@@ -1790,17 +2077,46 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     // Dedupe: avoid back-to-back identical user bubbles
     const lastUser = [...messages].reverse().find(m => m.role === 'user');
     const isDupUser = !!lastUser && lastUser.content.trim() === messageText.trim();
-    const nextMsgs: ChatMessage[] = (visualEcho && !isDupUser)
-      ? [
-          ...messages,
-          { id: userId, role: 'user', kind: 'chat', content: messageText } as ChatMessage,
-          { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true } as ChatMessage,
-        ]
-      : [
-          ...messages,
-          { id: pendingId, role: 'assistant', kind: 'chat', content: '', pending: true } as ChatMessage,
+    const baseMessages = opts.replacesId
+      ? messages.map(m =>
+          m.id === opts.replacesId
+            ? { ...m, replacedByNewer: true, replacedByMessageId: pendingId }
+            : m
+        )
+      : messages;
+    const pendingMessage: ChatMessage = {
+      id: pendingId,
+      role: 'assistant',
+      kind: 'chat',
+      content: '',
+      pending: true,
+      originUserText: messageText,
+      refreshOf: opts.replacesId,
+    } as ChatMessage;
+
+    let nextMsgs: ChatMessage[];
+    if (opts.replacesId) {
+      const insertAt = baseMessages.findIndex(m => m.id === opts.replacesId);
+      if (insertAt >= 0) {
+        nextMsgs = [
+          ...baseMessages.slice(0, insertAt + 1),
+          pendingMessage,
+          ...baseMessages.slice(insertAt + 1),
         ];
+      } else {
+        nextMsgs = [...baseMessages, pendingMessage];
+      }
+    } else if (visualEcho && !isDupUser) {
+      nextMsgs = [
+        ...baseMessages,
+        { id: userId, role: 'user', kind: 'chat', content: messageText } as ChatMessage,
+        pendingMessage,
+      ];
+    } else {
+      nextMsgs = [...baseMessages, pendingMessage];
+    }
     setMessages(nextMsgs);
+    opts.onPending?.(pendingId);
     const maybe = maybeFixMedicalTypo(messageText);
     if (maybe && messages.filter(m => m.role === "assistant").slice(-1)[0]?.content !== maybe.ask) {
       // Ask once, keep pending bubble as the question (no LLM call)
@@ -1872,10 +2188,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           } catch {}
         }
 
-        const thread = [
-          ...messages
-            .filter(m => !m.pending)
-            .map(m => ({ role: m.role, content: (m as any).content || '' })),
+    const history = opts.historyOverride ?? messages;
+    const thread = [
+      ...history
+        .filter(m => !m.pending)
+        .map(m => ({ role: m.role, content: (m as any).content || '' })),
           { role: 'user', content: `${messageText}${contextBlock}` }
         ];
 
@@ -1962,11 +2279,12 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             pushFullMem(threadId, "assistant", content);
             maybeIndexStructured(threadId, content);
           }
-          if (stableThreadId) {
-            try { pushFullMem(stableThreadId, "assistant", content); } catch {}
-          }
-          return;
+        if (stableThreadId) {
+          try { pushFullMem(stableThreadId, "assistant", content); } catch {}
         }
+        opts.onError?.();
+        return;
+      }
 
         if (j?.completion) {
           const content = j.completion;
@@ -2006,6 +2324,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           if (stableThreadId) {
             try { pushFullMem(stableThreadId, "assistant", content); } catch {}
           }
+          opts.onError?.();
         }
         if (j?.wrapup) {
           setMessages(prev => [
@@ -2299,6 +2618,7 @@ ${systemCommon}` + baseSys;
           m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
         )
       );
+      opts.onSuccess?.(pendingId);
       if (researchMode) {
         const lastUserMsg = text;
         const audience = mode;
@@ -2335,6 +2655,7 @@ ${systemCommon}` + baseSys;
               : m
           )
         );
+        opts.onError?.();
         return;
       }
       console.error(e);
@@ -2353,10 +2674,12 @@ ${systemCommon}` + baseSys;
       if (stableThreadId) {
         try { pushFullMem(stableThreadId, 'assistant', content); } catch {}
       }
+      opts.onError?.();
     } finally {
       setBusy(false);
       setThinkingStartedAt(null);
       abortRef.current = null;
+      opts.onFinish?.();
     }
   }
 
@@ -2949,6 +3272,10 @@ ${systemCommon}` + baseSys;
   const assistantBusy = loadingAction !== null;
   const simpleMode = currentMode === 'patient';
   const showWelcomeCard = showWelcome && !!welcomeContent;
+  const feedbackState = useMemo(
+    () => ({ submittedFor: feedback.submittedFor, loading: feedback.loading }),
+    [feedback.submittedFor, feedback.loading]
+  );
 
   const renderedMessages = useMemo(
     () =>
@@ -2992,44 +3319,64 @@ ${systemCommon}` + baseSys;
           return (
             <div key={derivedKey} className="space-y-2">
               <div className="space-y-4">
-                <AnalysisCard
-                  m={m as Extract<ChatMessage, { kind: 'analysis' }>}
-                  researchOn={researchMode}
-                  onQuickAction={stableOnQuickAction}
-                  busy={assistantBusy}
-                />
-                <FeedbackBar
-                  conversationId={conversationId}
-                  messageId={m.id}
-                  mode={currentMode}
-                  model={undefined}
-                  hiddenInTherapy={true}
-                />
+                <div className="relative group">
+                  <div ref={registerMessageRef(m.id)}>
+                    <AnalysisCard
+                      m={m as Extract<ChatMessage, { kind: 'analysis' }>}
+                      researchOn={researchMode}
+                      onQuickAction={stableOnQuickAction}
+                      busy={assistantBusy}
+                    />
+                  </div>
+                  <MessageActions
+                    conversationId={conversationId}
+                    messageId={m.id}
+                    onCopy={() => copyMessage(m)}
+                    onShare={() => openShareForMessage(m)}
+                    allowFeedback={!therapyMode}
+                    feedbackState={feedbackState}
+                    onFeedback={rating => handleFeedbackSubmit(m.id, rating)}
+                    disableRefresh
+                    isRefreshing={refreshingMessageId === m.id}
+                  />
+                </div>
               </div>
             </div>
           );
         }
 
+        const canRefresh = m.kind === 'chat' && !m.pending;
+        const disableRefresh = busy || assistantBusy || m.pending;
+
         return (
           <div key={derivedKey} className="space-y-2">
             <div className="space-y-4">
-              <AssistantMessage
-                m={m}
-                researchOn={researchMode}
-                onQuickAction={stableOnQuickAction}
-                busy={assistantBusy}
-                therapyMode={therapyMode}
-                onAction={stableHandleSuggestionAction}
-                simple={simpleMode}
-                pendingTimerActive={showThinkingTimer}
-              />
-              <FeedbackBar
-                conversationId={conversationId}
-                messageId={m.id}
-                mode={currentMode}
-                model={undefined}
-                hiddenInTherapy={true}
-              />
+              <div className="relative group">
+                <div ref={registerMessageRef(m.id)}>
+                  <AssistantMessage
+                    m={m}
+                    researchOn={researchMode}
+                    onQuickAction={stableOnQuickAction}
+                    busy={assistantBusy}
+                    therapyMode={therapyMode}
+                    onAction={stableHandleSuggestionAction}
+                    simple={simpleMode}
+                    pendingTimerActive={showThinkingTimer}
+                  />
+                </div>
+                <MessageActions
+                  conversationId={conversationId}
+                  messageId={m.id}
+                  onCopy={() => copyMessage(m)}
+                  onRefresh={canRefresh ? () => handleRefreshMessage(m) : undefined}
+                  onShare={() => openShareForMessage(m)}
+                  isRefreshing={refreshingMessageId === m.id}
+                  disableRefresh={disableRefresh}
+                  allowFeedback={!therapyMode}
+                  feedbackState={feedbackState}
+                  onFeedback={rating => handleFeedbackSubmit(m.id, rating)}
+                />
+              </div>
             </div>
           </div>
         );
@@ -3045,7 +3392,14 @@ ${systemCommon}` + baseSys;
       stableHandleSuggestionAction,
       simpleMode,
       conversationId,
-      currentMode
+      currentMode,
+      registerMessageRef,
+      copyMessage,
+      openShareForMessage,
+      feedbackState,
+      handleFeedbackSubmit,
+      handleRefreshMessage,
+      refreshingMessageId
     ]
   );
 
@@ -3555,6 +3909,20 @@ ${systemCommon}` + baseSys;
           </div>
         </div>
       )}
+
+      <SharePanel
+        open={shareTarget !== null}
+        onClose={closeSharePanel}
+        onCopyLink={canCopyLink ? handleCopyLink : undefined}
+        onDownloadImage={handleDownloadImage}
+        onShareX={handleShareX}
+        onShareFacebook={handleShareFacebook}
+        onSystemShare={systemShareSupported ? handleSystemShare : undefined}
+        onCopyCaption={handleCopyCaption}
+        busyAction={shareBusy}
+        canCopyLink={canCopyLink}
+        canSystemShare={systemShareSupported}
+      />
 
       <ComposerFocus suggestions={lastSuggestions} composerRef={inputRef} />
       <ScrollToBottom targetRef={chatRef} rebindKey={threadId} />
