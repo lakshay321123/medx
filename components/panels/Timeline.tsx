@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useTimeline } from "@/lib/hooks/useAppData";
 import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
@@ -21,6 +22,7 @@ export default function Timeline(){
   const [resetError, setResetError] = useState<string|null>(null);
   const { data, error, isLoading, mutate } = useTimeline(isAiDoc);
   const items = data?.items ?? [];
+  const params = useSearchParams();
 
   const [cat,setCat] = useState<Cat>("ALL");
   const [range,setRange] = useState<"ALL"|"7"|"30"|"90"|"CUSTOM">("ALL");
@@ -58,6 +60,17 @@ export default function Timeline(){
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<any|null>(null);
   const [signedUrl, setSignedUrl] = useState<string|null>(null);
+
+  useEffect(() => {
+    const catParam = (params.get("cat") || params.get("category") || "").toUpperCase();
+    if (["ALL", "LABS", "VITALS", "IMAGING", "AI", "NOTES"].includes(catParam) && catParam !== cat) {
+      setCat(catParam as Cat);
+    }
+    const focusParam = params.get("focus") || params.get("q") || "";
+    if (focusParam && focusParam !== q) {
+      setQ(focusParam);
+    }
+  }, [params, cat, q]);
   useEffect(()=>{
     if (!open || !active?.file) { setSignedUrl(null); return; }
     const f = active.file;

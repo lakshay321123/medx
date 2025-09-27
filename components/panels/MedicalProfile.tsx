@@ -6,6 +6,10 @@ import { useTheme } from "next-themes";
 import PanelLoader from "@/components/mobile/PanelLoader";
 import ProfileSection from "@/components/profile/ProfileSection";
 import VitalsEditor from "@/components/profile/VitalsEditor";
+import HeartHealthHighlights, {
+  type LatestObservationMap,
+  type ProfileVitals as HeartVitals,
+} from "@/components/profile/HeartHealthHighlights";
 import MedicationInput from "@/components/meds/MedicationInput";
 import MedicationTag from "@/components/meds/MedicationTag";
 import { useProfile } from "@/lib/hooks/useAppData";
@@ -44,8 +48,6 @@ type MedicationEntry = {
   observationId?: string | number | null;
   rxnormId?: string | null;
 };
-
-type ObservationMap = Record<string, { value: any; unit: string | null; observedAt: string } | undefined>;
 
 type PanelMode = "wellness" | "clinical" | "ai-doc";
 
@@ -105,7 +107,10 @@ function weightToKg(value: any, unit?: string | null): number | null {
   return numeric;
 }
 
-function pickObservation(map: ObservationMap, keys: string[]): { value: any; unit: string | null } | null {
+function pickObservation(
+  map: LatestObservationMap,
+  keys: string[]
+): { value: any; unit: string | null } | null {
   for (const key of keys) {
     const entry = map?.[key];
     if (entry && entry.value != null) {
@@ -169,7 +174,7 @@ export default function MedicalProfile() {
 
   const extractedMedications = useMemo(() => extractMedicationEntries(data), [data]);
 
-  const latestMap: ObservationMap = (data?.latest as ObservationMap) || {};
+  const latestMap: LatestObservationMap = (data?.latest as LatestObservationMap) || {};
 
   const profileVitals = useMemo(() => {
     const bpEntry = pickObservation(latestMap, [
@@ -206,6 +211,14 @@ export default function MedicalProfile() {
       heightMeters,
     };
   }, [latestMap]);
+
+  const heartVitals: HeartVitals = useMemo(
+    () => ({
+      systolic: profileVitals.systolic ?? null,
+      diastolic: profileVitals.diastolic ?? null,
+    }),
+    [profileVitals.diastolic, profileVitals.systolic]
+  );
 
   const manualNotesFromObservations = useMemo(() => {
     const entry = pickObservation(latestMap, [MANUAL_NOTES_KIND]);
@@ -651,6 +664,7 @@ export default function MedicalProfile() {
 
   return (
     <div className="space-y-4 p-4 md:p-6">
+      <HeartHealthHighlights latest={latestMap} vitals={heartVitals} />
       <ProfileSection
         title="Personal details"
         actions={
