@@ -1,8 +1,40 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useTheme } from "next-themes";
+
 import TrialsTable from "@/components/TrialsTable";
+import { TrialsMobileCard } from "./TrialsRow";
 import { sendMessage } from "@/lib/chat/sendMessage";
+import { fromSearchParams } from "@/lib/modes/url";
 import type { TrialRow } from "@/types/trials";
+
+const MOBILE_MAX_WIDTH = 480;
+
+function useIsMobile(maxWidth = MOBILE_MAX_WIDTH) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const query = window.matchMedia(`(max-width: ${maxWidth}px)`);
+
+    const update = () => setIsMobile(query.matches);
+    update();
+
+    const handler = (event: MediaQueryListEvent) => setIsMobile(event.matches);
+
+    if (typeof query.addEventListener === "function") {
+      query.addEventListener("change", handler);
+      return () => query.removeEventListener("change", handler);
+    }
+
+    query.addListener(handler);
+    return () => query.removeListener(handler);
+  }, [maxWidth]);
+
+  return isMobile;
+}
 
 function getRegistryLabel(source?: string) {
   switch (source) {
@@ -108,6 +140,19 @@ async function exportTrials(rows: TrialRow[]) {
 }
 
 export default function TrialsResults({ trials }: { trials: TrialRow[] }) {
+  const searchParams = useSearchParams();
+  const { resolvedTheme } = useTheme();
+  const theme = resolvedTheme === "dark" ? "dark" : "light";
+  const searchParamsString = searchParams.toString();
+  const modeState = useMemo(
+    () => fromSearchParams(new URLSearchParams(searchParamsString), theme),
+    [searchParamsString, theme],
+  );
+  const mode = modeState.base === "doctor" ? "clinical" : modeState.base === "aidoc" ? "aidoc" : "wellness";
+  const researchEnabled = Boolean(modeState.research);
+  const isMobile = useIsMobile();
+  const mobileContrast = isMobile && mode === "clinical" && researchEnabled && theme === "light";
+
   if (!trials || trials.length === 0) return null;
 
   return (
@@ -126,46 +171,35 @@ export default function TrialsResults({ trials }: { trials: TrialRow[] }) {
         </div>
       </section>
 
-      <section className="md:hidden grid gap-3 px-3 pb-[96px]">
-        {trials.map(trial => {
-          const registryId = getRegistryId(trial);
-          const registryLabel = getRegistryLabel(trial.source);
-          const countries = getCountries(trial);
-          const recruiting = getRecruitingLabel(trial);
-          const phase = trial.phase || "—";
-          const status = trial.status || "—";
+      <section className="md:hidden px-3 pb-[96px]">
+        <div
+          className="results-list grid gap-3"
+          data-mobile-contrast={mobileContrast ? "on" : undefined}
+        >
+          {trials.map(trial => {
+            const registryId = getRegistryId(trial);
+            const registryLabel = getRegistryLabel(trial.source);
+            const countries = getCountries(trial);
+            const recruiting = getRecruitingLabel(trial);
+            const phase = trial.phase || "—";
+            const status = trial.status || "—";
+            const countriesLabel = countries.length ? countries.join(", ") : "—";
+            const statusLine = `${status} • Phase ${phase} • ${countriesLabel}`;
+            const registryLine = `${registryId} • ${registryLabel}`;
 
-          return (
-            <article
-              key={`${trial.source || "src"}:${trial.id || trial.url}`}
-              className="rounded-2xl border border-white/10 bg-white/[.06] p-4"
-            >
-              <h3 className="text-[15px] font-semibold leading-5 text-white break-words hyphens-auto">
-                {trial.title}
-              </h3>
-
-              <p className="mt-1 text-[12.5px] text-white/80">
-                {status} • Phase {phase} • {countries.length ? countries.join(", ") : "—"}
-              </p>
-
-              <p className="text-[11px] text-white/60">
-                {registryId} • {registryLabel}
-              </p>
-
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                <button type="button" className="chip-sm">
-                  Recruiting: {recruiting}
-                </button>
-                <button type="button" className="chip-sm" onClick={() => copyTrial(trial)}>
-                  Copy
-                </button>
-                <button type="button" className="chip-sm" onClick={() => summarizeTrialIntoChat(trial)}>
-                  Summarize
-                </button>
-              </div>
-            </article>
-          );
-        })}
+            return (
+              <TrialsMobileCard
+                key={`${trial.source || "src"}:${trial.id || trial.url}`}
+                title={trial.title}
+                statusLine={statusLine}
+                registryLine={registryLine}
+                recruitingLabel={recruiting}
+                onCopy={() => copyTrial(trial)}
+                onSummarize={() => summarizeTrialIntoChat(trial)}
+              />
+            );
+          })}
+        </div>
       </section>
     </>
   );
