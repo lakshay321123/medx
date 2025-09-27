@@ -131,14 +131,14 @@ function formatHeight(value?: string | null) {
   if (value == null) return NO_DATA;
   const trimmed = typeof value === "string" ? value.trim() : String(value).trim();
   if (!trimmed) return NO_DATA;
-  return `${trimmed} cm`;
+  return trimmed;
 }
 
 function formatWeight(value?: string | null) {
   if (value == null) return NO_DATA;
   const trimmed = typeof value === "string" ? value.trim() : String(value).trim();
   if (!trimmed) return NO_DATA;
-  return `${trimmed} kg`;
+  return trimmed;
 }
 
 function formatPatientLine({
@@ -231,7 +231,10 @@ export default function MedicalProfileMobile({
   const predictionLine = predictionText?.trim() ? predictionText.trim() : NO_DATA;
 
   const medicationsList = medications
-    .map(med => ({ key: med.key, label: formatMedicationLabel(med).trim() }))
+    .map((med, index) => ({
+      key: (med.key ?? med.id ?? med.name ?? med.drug ?? med.dose ?? med.route ?? index).toString(),
+      label: formatMedicationLabel(med).trim(),
+    }))
     .filter(item => item.label.length > 0);
 
   const bpValue =
@@ -289,8 +292,8 @@ export default function MedicalProfileMobile({
       >
         <div className="space-y-2">
           <Row label="Blood pressure" value={bpValue} muted={bpValue === "—"} />
-          <Row label="Heart rate" value={heartRateValue} bold={heartRateValue !== "—"} />
-          <Row label="BMI" value={bmiValue} bold={bmiValue !== "—"} />
+          <Row label="Heart rate" value={heartRateValue} bold={heartRateValue !== "—"} muted={heartRateValue === "—"} />
+          <Row label="BMI" value={bmiValue} bold={bmiValue !== "—"} muted={bmiValue === "—"} />
         </div>
       </Section>
 
@@ -342,7 +345,7 @@ export default function MedicalProfileMobile({
               ))}
             </div>
           ) : (
-            <Empty>No medications recorded yet.</Empty>
+            <Empty>No medications recorded yet</Empty>
           )}
           {onAddMedication ? (
             <Button variant="outline" onClick={onAddMedication} aria-label="Add medication">
@@ -355,7 +358,7 @@ export default function MedicalProfileMobile({
       <Section title="Symptoms & Notes">
         <div className="space-y-3">
           {symptomsLine === NO_DATA ? (
-            <Empty>No data available.</Empty>
+            <Empty>No data available</Empty>
           ) : (
             <p className="whitespace-pre-line text-[13px] leading-6 text-slate-700 dark:text-slate-200">{symptomsLine}</p>
           )}
@@ -370,7 +373,7 @@ export default function MedicalProfileMobile({
       <Section title="Next Steps">
         <div className="space-y-3">
           {nextStepsLine === NO_DATA ? (
-            <Empty>No data available.</Empty>
+            <Empty>No data available</Empty>
           ) : (
             <p className="whitespace-pre-line text-[13px] leading-6 text-slate-700 dark:text-slate-200">{nextStepsLine}</p>
           )}
