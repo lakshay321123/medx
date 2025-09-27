@@ -20,7 +20,7 @@ export default function Button({
   className = "",
   ...rest
 }: ButtonProps) {
-  const sizeClasses = small ? "px-3 text-[12px]" : "px-4 text-[13px]";
+  const sizeClasses = small ? "h-8 px-3 text-[12px]" : "h-9 px-4 text-[13px]";
   const baseClasses =
     "inline-flex min-h-[44px] items-center justify-center rounded-full select-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500";
 

@@ -795,25 +795,25 @@ export default function MedicalProfile() {
               title="Personal details"
               actions={
                 <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
-            <button
-              type="button"
-              className="w-full rounded-md border px-3 py-1.5 text-sm sm:w-auto"
-              onClick={openProfileChat}
+                  <button
+                    type="button"
+                    className="w-full rounded-md border px-3 py-1.5 text-sm sm:w-auto"
+                    onClick={openProfileChat}
+                  >
+                    Open in chat
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full rounded-md border bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow disabled:opacity-60 sm:w-auto"
+                    onClick={handleProfileSave}
+                    disabled={savingProfile}
+                  >
+                    {savingProfile ? "Saving…" : "Save"}
+                  </button>
+                </div>
+              }
             >
-              Open in chat
-            </button>
-            <button
-              type="button"
-              className="w-full rounded-md border bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow disabled:opacity-60 sm:w-auto"
-              onClick={handleProfileSave}
-              disabled={savingProfile}
-            >
-              {savingProfile ? "Saving…" : "Save"}
-            </button>
-          </div>
-        }
-      >
-        <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
           <label className="flex flex-col gap-1">
             <span>Name</span>
             <input
