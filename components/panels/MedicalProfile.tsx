@@ -201,19 +201,15 @@ export default function MedicalProfile() {
     };
   }, [latestMap]);
 
-  const manualNotesFromObservations = useMemo(() => {
-    const entry = pickObservation(latestMap, [MANUAL_NOTES_KIND]);
-    if (!entry || entry.value == null) return null;
-    const text = String(entry.value).trim();
-    return text || null;
-  }, [latestMap]);
+  const manualNotesFromObservations = useMemo(
+    () => extractManualObservation(data, MANUAL_NOTES_KIND),
+    [data],
+  );
 
-  const manualNextStepsFromObservations = useMemo(() => {
-    const entry = pickObservation(latestMap, [MANUAL_NEXT_STEPS_KIND]);
-    if (!entry || entry.value == null) return null;
-    const text = String(entry.value).trim();
-    return text || null;
-  }, [latestMap]);
+  const manualNextStepsFromObservations = useMemo(
+    () => extractManualObservation(data, MANUAL_NEXT_STEPS_KIND),
+    [data],
+  );
 
   useEffect(() => {
     const prof = data?.profile ?? null;
@@ -355,13 +351,19 @@ export default function MedicalProfile() {
         if (heightValue == null) {
           throw new Error("Enter a valid height in centimeters.");
         }
+        const summary = `${heightValue} cm height`;
         observations.push({
           kind: "height_cm",
           value_num: heightValue,
           value_text: String(heightValue),
           unit: "cm",
           observed_at: observedAt,
-          meta: metaBase,
+          thread_id: null,
+          meta: {
+            ...metaBase,
+            summary,
+            text: `Height recorded as ${heightValue} cm from Medical Profile`,
+          },
         });
       }
 
@@ -370,13 +372,19 @@ export default function MedicalProfile() {
         if (weightValue == null) {
           throw new Error("Enter a valid weight in kilograms.");
         }
+        const summary = `${weightValue} kg weight`;
         observations.push({
           kind: "weight_kg",
           value_num: weightValue,
           value_text: String(weightValue),
           unit: "kg",
           observed_at: observedAt,
-          meta: metaBase,
+          thread_id: null,
+          meta: {
+            ...metaBase,
+            summary,
+            text: `Weight recorded as ${weightValue} kg from Medical Profile`,
+          },
         });
       }
 
@@ -390,18 +398,14 @@ export default function MedicalProfile() {
       }
 
       if (observations.length) {
-        await Promise.all(
-          observations.map(async observation => {
-            const result = await fetch("/api/observations", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ...observation, thread_id: null }),
-            });
-            if (!result.ok) {
-              throw new Error((await result.text()) || "Failed to save vitals");
-            }
-          }),
-        );
+        const result = await fetch("/api/observations/bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ observations }),
+        });
+        if (!result.ok) {
+          throw new Error((await result.text()) || "Failed to save vitals");
+        }
       }
 
       pushToast({ title: "Profile saved" });
@@ -428,23 +432,32 @@ export default function MedicalProfile() {
     if (!normalizedName) throw new Error("Medication name required");
 
     const { doseLabel, doseUnit, doseValue } = parseDoseString(med.dose ?? null);
-    const res = await fetch("/api/observations", {
+    const observedAt = new Date().toISOString();
+    const res = await fetch("/api/observations/bulk", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        kind: "medication",
-        value_text: normalizedName,
-        value_num: doseValue ?? null,
-        unit: doseUnit ?? null,
-        observed_at: new Date().toISOString(),
-        thread_id: null,
-        meta: {
-          normalizedName,
-          doseLabel: doseLabel ?? null,
-          rxnormId: med.rxnormId ?? null,
-          source: "manual",
-          committed: true,
-        },
+        observations: [
+          {
+            kind: "medication",
+            value_text: normalizedName,
+            value_num: doseValue ?? null,
+            unit: doseUnit ?? null,
+            observed_at: observedAt,
+            thread_id: null,
+            meta: {
+              source: "manual",
+              normalizedName,
+              doseLabel: doseLabel ?? null,
+              rxnormId: med.rxnormId ?? null,
+              summary: doseLabel ? `${normalizedName} — ${doseLabel}` : normalizedName,
+              text: doseLabel
+                ? `${normalizedName} (${doseLabel}) saved from Medical Profile`
+                : `${normalizedName} saved from Medical Profile`,
+              committed: true,
+            },
+          },
+        ],
       }),
     });
 
@@ -453,7 +466,8 @@ export default function MedicalProfile() {
     }
 
     const body = await res.json().catch(() => ({}));
-    const observationId = body?.observation?.id ?? null;
+    const inserted = Array.isArray(body?.observations) ? body.observations : [];
+    const observationId = inserted?.[0]?.id ?? inserted?.[0]?.observation?.id ?? null;
     if (!observationId) {
       throw new Error("Medication saved but response was malformed");
     }
@@ -473,30 +487,44 @@ export default function MedicalProfile() {
   };
 
   const persistManualObservation = async (
-    kind: string,
+    manualKind: string,
     label: string,
     text: string | null,
   ): Promise<string | null> => {
     const observedAt = new Date().toISOString();
     const trimmed = (text ?? "").trim();
     const cleared = trimmed.length === 0;
-    const res = await fetch("/api/observations", {
+    const summary = cleared
+      ? `${label} cleared`
+      : trimmed
+      ? `${label}: ${trimmed}`
+      : label;
+    const res = await fetch("/api/observations/bulk", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        kind,
-        value_text: cleared ? null : trimmed,
-        value_num: null,
-        unit: cleared ? "__cleared__" : null,
-        observed_at: observedAt,
-        thread_id: null,
-        meta: {
-          source: "manual",
-          category: "note",
-          committed: true,
-          label,
-          cleared,
-        },
+        observations: [
+          {
+            kind: "note",
+            value_text: cleared ? null : trimmed,
+            value_num: null,
+            unit: cleared ? "__cleared__" : null,
+            observed_at: observedAt,
+            thread_id: null,
+            meta: {
+              source: "manual",
+              category: "note",
+              committed: true,
+              label,
+              cleared,
+              manualKind,
+              summary,
+              text: cleared
+                ? `${label} cleared from Medical Profile`
+                : trimmed || label,
+            },
+          },
+        ],
       }),
     });
     if (!res.ok) throw new Error(await res.text());
@@ -1203,6 +1231,45 @@ function extractMedicationEntries(data: any): MedicationEntry[] {
   }
 
   return dedupeMedicationList(entries);
+}
+
+function extractManualObservation(data: any, manualKind: string): string | null {
+  if (!data) return null;
+
+  const profile = (data?.profile as any) ?? data ?? {};
+  const observations = Array.isArray(profile?.observations) ? profile.observations : [];
+
+  for (const item of observations) {
+    if (!item) continue;
+    const meta = (item as any)?.meta ?? {};
+    const manualTag =
+      meta?.manualKind ?? meta?.manual_kind ?? meta?.manual_kind_id ?? null;
+    const kindMatches = typeof item?.kind === "string" && item.kind === manualKind;
+    if (manualTag !== manualKind && !kindMatches) {
+      continue;
+    }
+    if (meta?.cleared || (typeof item?.unit === "string" && item.unit === "__cleared__")) {
+      return null;
+    }
+    const rawValue =
+      item?.value_text ??
+      item?.value ??
+      (typeof meta?.text === "string" ? meta.text : null);
+    if (rawValue == null) continue;
+    const text = typeof rawValue === "string" ? rawValue.trim() : String(rawValue).trim();
+    if (text) {
+      return text;
+    }
+  }
+
+  const latest = ((profile?.latest ?? data?.latest) ?? {}) as Record<string, any>;
+  const entry = latest?.[manualKind];
+  if (entry && entry.value != null) {
+    const text = String(entry.value).trim();
+    if (text) return text;
+  }
+
+  return null;
 }
 
 function normalizeMedicationItem(raw: any): MedicationEntry | null {

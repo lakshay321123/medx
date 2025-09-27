@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useTimeline } from "@/lib/hooks/useAppData";
 import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
 import PanelLoader from "@/components/mobile/PanelLoader";
+import { pushToast } from "@/lib/ui/toast";
 
 type Cat = "ALL"|"LABS"|"VITALS"|"IMAGING"|"AI"|"NOTES";
 const catOf = (it:any):Cat => {
@@ -22,6 +24,9 @@ export default function Timeline(){
   const { data, error, isLoading, mutate } = useTimeline(isAiDoc);
   const items = data?.items ?? [];
 
+  const [observations, setObservations] = useState<any[]>(items);
+  const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
+
   const [cat,setCat] = useState<Cat>("ALL");
   const [range,setRange] = useState<"ALL"|"7"|"30"|"90"|"CUSTOM">("ALL");
   const [from,setFrom] = useState<string>("");
@@ -36,8 +41,12 @@ export default function Timeline(){
     return undefined;
   },[range,from]);
 
+  useEffect(() => {
+    setObservations(items);
+  }, [items]);
+
   const filtered = useMemo(() =>
-    (items || []).filter((it: any) => {
+    (observations || []).filter((it: any) => {
       if (cat !== "ALL" && catOf(it) !== cat) return false;
       if (fromDate && new Date(it.observed_at) < fromDate) return false;
       if (q.trim()) {
@@ -52,7 +61,7 @@ export default function Timeline(){
       }
       return true;
     }),
-  [items, cat, fromDate, q]
+  [observations, cat, fromDate, q]
   );
 
   const [open, setOpen] = useState(false);
@@ -75,11 +84,44 @@ export default function Timeline(){
   if (isLoading) return <PanelLoader label="Timeline" />;
   if (error)     return <div className="p-6 text-sm text-red-500">Couldn’t load timeline. Retrying in background…</div>;
 
-  if (!items.length) return <div className="p-6 text-sm text-muted-foreground">No events yet.</div>;
+  if (!observations.length) return <div className="p-6 text-sm text-muted-foreground">No events yet.</div>;
 
-  const long = active?.meta?.summary_long;
-  const short = active?.meta?.summary;
+  const summaryLong = active?.meta?.summary_long;
+  const summaryShort = active?.meta?.summary;
   const text = active?.meta?.text;
+  const hasFile = Boolean(active?.file?.path || active?.file?.upload_id);
+
+  async function handleDelete(ob: { id: string }) {
+    if (typeof window !== "undefined") {
+      const ok = window.confirm("Delete this from your timeline?\nThis action can’t be undone.");
+      if (!ok) return;
+    }
+
+    setIsDeletingId(ob.id);
+    const previous = observations;
+    setObservations(prev => prev.filter(x => x.id !== ob.id));
+    if (active?.id === ob.id) {
+      setActive(null);
+      setOpen(false);
+    }
+
+    try {
+      const res = await fetch(`/api/observations/${ob.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      pushToast({ title: "Deleted" });
+    } catch (err) {
+      setObservations(previous);
+      await mutate();
+      pushToast({
+        title: "Couldn't delete. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeletingId(null);
+    }
+  }
 
   return (
     <div className="p-4">
@@ -113,10 +155,25 @@ export default function Timeline(){
         {filtered.map((it:any)=>(
           <li key={`${it.kind}:${it.id}`} className="rounded-xl p-3 cursor-pointer medx-surface text-medx"
               onClick={()=>{ if (it.kind==="observation") { setActive(it); setOpen(true); }}}>
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <div><span className="font-medium">Test date:</span> {new Date(it.observed_at).toLocaleString()}
-              {it.uploaded_at && <> · <span className="font-medium">Uploaded:</span> {new Date(it.uploaded_at).toLocaleString()}</>}</div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted">{it.kind==="prediction"?"AI":"Obs"}</span>
+            <div className="flex items-center justify-between text-xs text-muted-foreground gap-2">
+              <div>
+                <span className="font-medium">Test date:</span> {new Date(it.observed_at).toLocaleString()}
+                {it.uploaded_at && <> · <span className="font-medium">Uploaded:</span> {new Date(it.uploaded_at).toLocaleString()}</>}
+              </div>
+              <div className="flex items-center gap-1">
+                {it.kind === "observation" && (
+                  <button
+                    className="shrink-0 p-2 rounded-md hover:bg-slate-100 dark:hover:bg-gray-800"
+                    aria-label="Delete observation"
+                    title="Delete"
+                    disabled={isDeletingId === it.id}
+                    onClick={(e) => { e.stopPropagation(); handleDelete(it); }}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted">{it.kind==="prediction"?"AI":"Obs"}</span>
+              </div>
             </div>
             <div className="mt-1 font-medium">
               {it.name}
@@ -148,11 +205,22 @@ export default function Timeline(){
                 {!(active.file?.path || active.file?.upload_id) && (
                   <a href={`/api/observations/${active.id}/export`} className="text-xs px-2 py-1 rounded-md border">Download Summary</a>
                 )}
+                {active.kind === "observation" && (
+                  <button
+                    className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-gray-800"
+                    aria-label="Delete observation"
+                    title="Delete"
+                    disabled={isDeletingId === active.id}
+                    onClick={() => handleDelete(active)}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
                 <button onClick={() => setOpen(false)} className="text-xs px-2 py-1 rounded-md border">Close</button>
               </div>
             </header>
             <div className="px-5 py-4">
-              {active.file?.path || active.file?.upload_id ? (
+              {hasFile ? (
                 !signedUrl ? (
                   <div className="text-xs text-muted-foreground">Fetching file…</div>
                 ) : /\.pdf(\?|$)/i.test(signedUrl) ? (
@@ -163,26 +231,47 @@ export default function Timeline(){
                   <div className="text-sm text-muted-foreground text-center">Preview unavailable. Use <b>Open</b> or <b>Download</b>.</div>
                 )
               ) : (
-                <Tabs defaultValue={long ? 'summary' : (short ? 'summary' : 'text')}>
-                  {(long || short) && (
-                    <TabsList className="mb-3">
-                      <TabsTrigger value="summary">Summary</TabsTrigger>
-                      {text && <TabsTrigger value="text">Full text</TabsTrigger>}
-                    </TabsList>
+                <>
+                  {(summaryLong || summaryShort || text) ? (
+                    <Tabs defaultValue={summaryLong ? 'summary' : (summaryShort ? 'summary' : 'text')}>
+                      {(summaryLong || summaryShort) && (
+                        <TabsList className="mb-3">
+                          <TabsTrigger value="summary">Summary</TabsTrigger>
+                          {text && <TabsTrigger value="text">Full text</TabsTrigger>}
+                        </TabsList>
+                      )}
+                      {(summaryLong || summaryShort) && (
+                        <TabsContent value="summary">
+                          <article className="prose prose-zinc dark:prose-invert max-w-none whitespace-pre-wrap select-text">
+                            {(summaryLong || summaryShort) as string}
+                          </article>
+                        </TabsContent>
+                      )}
+                      {text && (
+                        <TabsContent value="text">
+                          <pre className="whitespace-pre-wrap break-words text-sm leading-6 select-text">{text}</pre>
+                        </TabsContent>
+                      )}
+                    </Tabs>
+                  ) : null}
+                  {!hasFile && !summaryLong && !summaryShort && !text && (
+                    <div className="text-sm leading-6 space-y-1">
+                      <div><b>Name:</b> {active?.name ?? active?.kind ?? "Observation"}</div>
+                      {"value_num" in (active ?? {}) && active?.value_num != null && (
+                        <div><b>Value:</b> {String(active.value_num)}{active.unit ? ` ${active.unit}` : ""}</div>
+                      )}
+                      {!!active?.value_text && (<div><b>Text:</b> {active.value_text}</div>)}
+                      {!!active?.observed_at && (
+                        <div><b>Observed:</b> {new Date(active.observed_at).toLocaleString()}</div>
+                      )}
+                      {!!active?.meta && Object.keys(active.meta).length > 0 && (
+                        <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-muted-foreground">
+                          {JSON.stringify(active.meta, null, 2)}
+                        </pre>
+                      )}
+                    </div>
                   )}
-                  {(long || short) && (
-                    <TabsContent value="summary">
-                      <article className="prose prose-zinc dark:prose-invert max-w-none whitespace-pre-wrap select-text">
-                        {(long || short) as string}
-                      </article>
-                    </TabsContent>
-                  )}
-                  {text && (
-                    <TabsContent value="text">
-                      <pre className="whitespace-pre-wrap break-words text-sm leading-6 select-text">{text}</pre>
-                    </TabsContent>
-                  )}
-                </Tabs>
+                </>
               )}
             </div>
           </aside>
