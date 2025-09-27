@@ -22,6 +22,52 @@ import { formatMedicationLabel } from "@/components/panels/MedicalProfile";
 
 const NO_DATA = "No data available";
 
+// Utils (local to this file)
+function fmtDate(d?: string | number | Date) {
+  if (!d) return "";
+  try {
+    const dt = new Date(d);
+    if (Number.isNaN(dt.getTime())) return "";
+    return dt.toLocaleString(undefined, { month: "short", year: "numeric" });
+  } catch {
+    return "";
+  }
+}
+
+export type LabLike = {
+  name?: string;
+  value?: string | number;
+  unit?: string;
+  collectedAt?: string | number | Date;
+  type?: string;
+};
+
+function buildLabsLine(labs?: LabLike[], limit = 5): string {
+  if (!labs || !Array.isArray(labs) || labs.length === 0) return NO_DATA;
+
+  const sorted = [...labs].sort((a, b) => {
+    const ta = new Date(a.collectedAt ?? 0).getTime();
+    const tb = new Date(b.collectedAt ?? 0).getTime();
+    return (tb || 0) - (ta || 0);
+  });
+
+  const parts: string[] = [];
+  for (const lab of sorted.slice(0, limit)) {
+    const name = lab.name?.trim();
+    const val = lab.value != null ? String(lab.value).trim() : "";
+    const unit = lab.unit?.trim();
+    const when = fmtDate(lab.collectedAt);
+
+    let piece = name || "";
+    if (val) piece += piece ? ` ${val}` : val;
+    if (unit) piece += ` ${unit}`;
+    if (when) piece += ` (${when})`;
+    if (piece) parts.push(piece);
+  }
+
+  return parts.length ? parts.join(", ") : NO_DATA;
+}
+
 export type MobileVitals = {
   systolic?: number | null;
   diastolic?: number | null;
@@ -40,6 +86,8 @@ type MedicalProfileMobileProps = {
   chronicConditions: string[];
   vitals: MobileVitals;
   medications: MedicationEntry[];
+  labs?: LabLike[];
+  labReports?: LabLike[];
   notes: string | null;
   nextSteps: string | null;
   predictionText: string;
@@ -135,6 +183,8 @@ export default function MedicalProfileMobile({
   chronicConditions,
   vitals,
   medications,
+  labs,
+  labReports,
   notes,
   nextSteps,
   predictionText,
@@ -160,7 +210,10 @@ export default function MedicalProfileMobile({
   const predispositionsValue = useMemo(() => joinValues(predispositions), [predispositions]);
   const chronicValue = useMemo(() => joinValues(chronicConditions), [chronicConditions]);
   const medsSummary = useMemo(() => buildMedicationSummary(medications), [medications]);
-  const labsLine = "HbA1c 5.8% (May 2025), LDL 161.9 mg/dL (Aug 2025), ALT 220 U/L (Aug 2025), eGFR —, Vitamin D 48.7 ng/mL (May 2025)";
+  const labsLine = useMemo(() => {
+    const labsSource = labs && labs.length ? labs : labReports ?? [];
+    return buildLabsLine(labsSource, 5);
+  }, [labReports, labs]);
 
   const symptomsLine = notes?.trim() ? notes.trim() : NO_DATA;
   const nextStepsLine = nextSteps?.trim() ? nextSteps.trim() : NO_DATA;

@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams, type ReadonlyURLSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
 import PanelLoader from "@/components/mobile/PanelLoader";
-import MedicalProfileMobileView from "@/components/medical-profile/mobile/MedicalProfileMobile";
+import MedicalProfileMobileView, {
+  type LabLike,
+} from "@/components/medical-profile/mobile/MedicalProfileMobile";
 import ProfileSection from "@/components/profile/ProfileSection";
 import VitalsEditor from "@/components/profile/VitalsEditor";
 import MedicationInput from "@/components/meds/MedicationInput";
@@ -380,6 +382,30 @@ export default function MedicalProfile() {
     weightInput.trim() ||
     (profileVitals.weightKg != null ? Number(profileVitals.weightKg.toFixed(1)).toString() : "");
 
+  const groupLabsRaw = (data?.groups as any)?.labs;
+  const mobileLabs = useMemo<LabLike[]>(() => {
+    const labItems = Array.isArray(groupLabsRaw) ? groupLabsRaw : [];
+    return labItems.map((item: any) => ({
+      name: item?.label ?? undefined,
+      value: item?.value ?? undefined,
+      unit: item?.unit ?? undefined,
+      collectedAt: item?.observedAt ?? undefined,
+      type: item?.source ?? undefined,
+    }));
+  }, [groupLabsRaw]);
+
+  const labReportsRaw = (data?.profile as any)?.labReports;
+  const mobileLabReports = useMemo<LabLike[]>(() => {
+    const profileLabs = Array.isArray(labReportsRaw) ? labReportsRaw : [];
+    return profileLabs.map((item: any) => ({
+      name: item?.name ?? item?.label ?? undefined,
+      value: item?.value ?? item?.result ?? undefined,
+      unit: item?.unit ?? undefined,
+      collectedAt: item?.collectedAt ?? item?.collected_at ?? item?.observedAt ?? undefined,
+      type: item?.type ?? item?.category ?? undefined,
+    }));
+  }, [labReportsRaw]);
+
   const handleProfileSave = async () => {
     setSavingProfile(true);
     try {
@@ -725,6 +751,8 @@ export default function MedicalProfile() {
             bmi: profileVitals.bmi ?? null,
           }}
           medications={medications}
+          labs={mobileLabs}
+          labReports={mobileLabReports}
           notes={displayedNotes ?? null}
           nextSteps={displayedNextSteps ?? null}
           predictionText={predictionText}
