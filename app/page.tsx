@@ -7,6 +7,7 @@ import AlertsPane from "@/components/panels/AlertsPane";
 import SettingsPane from "@/components/panels/SettingsPane";
 import { ResearchFiltersProvider } from "@/store/researchFilters";
 import AiDocPane from "@/components/panels/AiDocPane";
+import DirectoryPane from "@/components/panels/DirectoryPane";
 
 type Search = { panel?: string };
 
@@ -32,6 +33,8 @@ export default function Page({ searchParams }: { searchParams: Search }) {
         return <SettingsPane />;
       case "ai-doc":
         return <AiDocPane />;
+      case "directory":
+        return <DirectoryPane />;
       default:
         return null;
     }

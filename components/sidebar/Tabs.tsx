@@ -7,19 +7,12 @@ type Tab = {
   key: string;
   label: string;
   panel: string;
-  threadId?: string;
   context?: string;
 };
 
 const tabs: Tab[] = [
-  { key: "chat", label: "Chat", panel: "chat" },
-  {
-    key: "ai-doc",
-    label: "AI Doc",
-    panel: "chat",
-    threadId: "med-profile",
-    context: "profile",
-  },
+  { key: "directory", label: "Directory", panel: "directory" },
+  { key: "ai-doc", label: "AI Doc", panel: "ai-doc" },
   { key: "profile", label: "Medical Profile", panel: "profile" },
   { key: "timeline", label: "Timeline", panel: "timeline" },
   { key: "alerts", label: "Alerts", panel: "alerts" },
@@ -29,32 +22,24 @@ const tabs: Tab[] = [
 function NavLink({
   panel,
   children,
-  threadId: threadIdProp,
   context,
 }: {
   panel: string;
   children: React.ReactNode;
-  threadId?: string;
   context?: string;
 }) {
   const params = useSearchParams();
-  const closeSidebar = useMobileUiStore(state => state.closeSidebar);
+  const closeSidebar = useMobileUiStore((s) => s.closeSidebar);
 
-  const threadId = threadIdProp;
-  const href = `/?panel=${panel}${threadId ? `&threadId=${encodeURIComponent(threadId)}` : ""}${
-    context ? `&context=${encodeURIComponent(context)}` : ""
-  }`;
-
-  const active =
-    ((params.get("panel") ?? "chat").toLowerCase()) === panel &&
-    (threadIdProp ? params.get("threadId") === threadIdProp : !params.get("threadId"));
+  const href = `/?panel=${panel}${context ? `&context=${encodeURIComponent(context)}` : ""}`;
+  const active = ((params.get("panel") ?? "chat").toLowerCase()) === panel && !params.get("threadId");
 
   return (
     <Link
       href={href}
       prefetch={false}
       scroll={false}
-      onClick={event => {
+      onClick={(event) => {
         closeSidebar();
         event.stopPropagation();
       }}
@@ -68,18 +53,11 @@ function NavLink({
 }
 
 export default function Tabs() {
-  // preserve current threadId when navigating back to Chat
-  const params = useSearchParams();
-  const currentThreadId = params.get("threadId") || undefined;
   return (
-    <ul className="mt-3 space-y-1">
+    <ul className="mt-2 space-y-1">
       {tabs.map((t) => (
         <li key={t.key}>
-          <NavLink
-            panel={t.panel}
-            threadId={t.key === "chat" ? (t.threadId ?? currentThreadId) : t.threadId}
-            context={t.context}
-          >
+          <NavLink panel={t.panel} context={t.context}>
             {t.label}
           </NavLink>
         </li>
