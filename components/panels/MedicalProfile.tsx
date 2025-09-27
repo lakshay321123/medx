@@ -1025,13 +1025,14 @@ export default function MedicalProfile() {
         <ProfileSection
           title="AI Summary"
           actions={
-            <>
+            <div className="flex w-full flex-wrap justify-start gap-1.5 sm:w-auto sm:justify-end sm:gap-2">
               <button
                 type="button"
                 className="inline-flex h-9 items-center justify-center rounded-[10px] border border-border/70 px-2.5 text-[13px] font-medium text-foreground whitespace-nowrap transition hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40 md:px-3"
                 onClick={() => router.push("/?panel=chat&threadId=med-profile&context=profile")}
               >
-                Discuss in chat
+                <span className="md:hidden">Chat</span>
+                <span className="hidden md:inline">Discuss in chat</span>
               </button>
               <button
                 type="button"
@@ -1039,9 +1040,11 @@ export default function MedicalProfile() {
                 onClick={onRecomputeRisk}
                 disabled={recomputeBusy}
               >
-                {recomputeBusy ? "Computing…" : "Recompute risk"}
+                <span className="md:hidden">{recomputeBusy ? "Computing" : "Recompute"}</span>
+                <span className="hidden md:inline">{recomputeBusy ? "Computing…" : "Recompute risk"}</span>
+                <span className="md:hidden">{recomputeBusy ? "…" : " risk"}</span>
               </button>
-            </>
+            </div>
           }
         >
           <div className="space-y-2.5 text-[13px] md:space-y-3">
@@ -1066,14 +1069,14 @@ export default function MedicalProfile() {
                 </button>
               ) : null}
             </div>
-            <div className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[11px] text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/5 dark:text-amber-200 md:gap-2 md:px-3">
+            <div className="flex max-w-full flex-wrap items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[11px] text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/5 dark:text-amber-200 md:inline-flex md:gap-2 md:px-3">
               <span aria-hidden>⚠️</span>
               <span className="truncate">
                 This is AI-generated support, not a medical diagnosis. Always consult a clinician.
               </span>
             </div>
-            <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-3">
-              <div className="space-y-1.5 rounded-[10px] border border-border/60 bg-muted/20 p-3 dark:border-border/30 dark:bg-muted/10 md:space-y-2">
+            <div className="grid grid-cols-1 gap-2.5 min-[420px]:grid-cols-2 lg:grid-cols-3">
+              <div className="min-w-0 space-y-1.5 rounded-[10px] border border-border/60 bg-muted/20 p-3 dark:border-border/30 dark:bg-muted/10 md:space-y-2">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Active Meds</h4>
                 {medications.length ? (
                   <div className="flex flex-wrap gap-1.5">
@@ -1115,7 +1118,7 @@ export default function MedicalProfile() {
                   </button>
                 )}
               </div>
-              <div className="space-y-1.5 rounded-[10px] border border-border/60 bg-muted/20 p-3 dark:border-border/30 dark:bg-muted/10 md:space-y-2">
+              <div className="min-w-0 space-y-1.5 rounded-[10px] border border-border/60 bg-muted/20 p-3 dark:border-border/30 dark:bg-muted/10 md:space-y-2">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Symptoms &amp; Notes</h4>
                 {displayedNotes && !notesEditing ? (
                   <p className="text-[13px] leading-relaxed text-foreground/90 whitespace-pre-wrap">{displayedNotes}</p>
@@ -1195,7 +1198,7 @@ export default function MedicalProfile() {
                   </button>
                 )}
               </div>
-              <div className="space-y-1.5 rounded-[10px] border border-border/60 bg-muted/20 p-3 dark:border-border/30 dark:bg-muted/10 md:space-y-2">
+              <div className="min-w-0 space-y-1.5 rounded-[10px] border border-border/60 bg-muted/20 p-3 dark:border-border/30 dark:bg-muted/10 md:space-y-2">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Next Steps</h4>
                 {displayedNextSteps && !nextStepsEditing ? (
                   <p className="text-[13px] leading-relaxed text-foreground/90 whitespace-pre-wrap">{displayedNextSteps}</p>
