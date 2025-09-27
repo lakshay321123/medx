@@ -291,9 +291,9 @@ export default function MedicalProfileMobile({
         actionAriaLabel={onEditVitals ? "Edit vitals" : undefined}
       >
         <div className="space-y-2">
-          <Row label="Blood pressure" value={bpValue} muted={bpValue === "—"} />
-          <Row label="Heart rate" value={heartRateValue} bold={heartRateValue !== "—"} muted={heartRateValue === "—"} />
-          <Row label="BMI" value={bmiValue} bold={bmiValue !== "—"} muted={bmiValue === "—"} />
+          <Row label="Blood pressure" value={bpValue} />
+          <Row label="Heart rate" value={heartRateValue} emphasize />
+          <Row label="BMI" value={bmiValue} emphasize />
         </div>
       </Section>
 
