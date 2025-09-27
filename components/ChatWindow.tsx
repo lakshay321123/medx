@@ -1,13 +1,19 @@
 "use client";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
 import { ChatInput } from "@/components/ChatInput";
 import { persistIfTemp } from "@/lib/chat/persist";
-import { AnalyzingInline } from "@/components/chat/AnalyzingInline";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { getResearchFlagFromUrl } from "@/utils/researchFlag";
 import ChatMarkdown from "@/components/ChatMarkdown";
 import { LinkBadge } from "@/components/SafeLink";
+import { AssistantPendingMessage } from "@/components/chat/AssistantPendingMessage";
+import { AnimatedDot } from "@/components/chat/AnimatedDot";
+import { usePendingAssistantStages } from "@/hooks/usePendingAssistantStages";
+import { analyzingKeyForMode } from "@/lib/ui/analyzingPhrases";
+import type { AppMode } from "@/lib/welcomeMessages";
+
+const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== "0";
 
 function MessageRow({ m }: { m: { id: string; role: string; content: string } }) {
   return (
@@ -25,8 +31,9 @@ export function ChatWindow() {
   const [results, setResults] = useState<any[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
-  const [isThinking, setIsThinking] = useState(false);
-  const hasScrollableContent = messages.length > 0 || results.length > 0;
+  const [pendingMessage, setPendingMessage] = useState<{ id: string; content: string } | null>(null);
+  const [modeChoice, setModeChoice] = useState<AppMode>('wellness');
+  const hasScrollableContent = messages.length > 0 || results.length > 0 || !!pendingMessage;
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
@@ -80,26 +87,89 @@ export function ChatWindow() {
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("panel") === "ai-doc") {
+      setModeChoice("aidoc");
+      return;
+    }
+    const modeParam = params.get("mode");
+    if (modeParam === "doctor") {
+      setModeChoice("clinical");
+    } else if (params.get("therapy") === "1") {
+      setModeChoice("therapy");
+    } else {
+      setModeChoice("wellness");
+    }
+  }, []);
+
+  const handlePendingContentUpdate = useCallback((messageId: string, text: string) => {
+    setPendingMessage(prev => (prev && prev.id === messageId ? { ...prev, content: text } : prev));
+  }, []);
+
+  const handlePendingFinalize = useCallback(
+    (messageId: string, finalContent: string) => {
+      setPendingMessage(prev => (prev && prev.id === messageId ? { ...prev, content: finalContent } : prev));
+      addMessage({ role: "assistant", content: finalContent });
+      setPendingMessage(null);
+    },
+    [addMessage],
+  );
+
+  const {
+    state: pendingAssistantState,
+    begin: beginPendingAssistant,
+    markStreaming: markPendingAssistantStreaming,
+    enqueue: enqueuePendingAssistant,
+    finish: finishPendingAssistant,
+  } = usePendingAssistantStages({
+    enabled: CHAT_UX_V2_ENABLED,
+    onContentUpdate: handlePendingContentUpdate,
+    onFinalize: handlePendingFinalize,
+  });
+
   const handleSend = async (content: string, locationToken?: string) => {
     // after sending user message, persist thread if needed
     await persistIfTemp();
-    setIsThinking(true);
-    if (locationToken) {
-      const research = getResearchFlagFromUrl();
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: content, locationToken, research }),
-      });
-      const data = await res.json();
-      setResults(data.results || []);
-      addMessage({ role: "assistant", content: data.results ? "Here are some places nearby:" : "" });
-    } else {
-      // For now, echo the user's message as the assistant reply
-      // In a real implementation, replace this with a call to your backend/AI service
-      addMessage({ role: "assistant", content: `You said: ${content}` });
+    const research = getResearchFlagFromUrl();
+    const pendingId =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `pending-${Date.now()}`;
+    setPendingMessage({ id: pendingId, content: "" });
+    beginPendingAssistant(pendingId, analyzingKeyForMode(modeChoice, research));
+    try {
+      if (locationToken) {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: content, locationToken, research }),
+        });
+        const data = await res.json();
+        setResults(data.results || []);
+        const text = data.results ? "Here are some places nearby:" : "";
+        markPendingAssistantStreaming(pendingId);
+        if (text) {
+          enqueuePendingAssistant(pendingId, text);
+        }
+        finishPendingAssistant(pendingId, text);
+      } else {
+        // For now, echo the user's message as the assistant reply
+        // In a real implementation, replace this with a call to your backend/AI service
+        const reply = `You said: ${content}`;
+        markPendingAssistantStreaming(pendingId);
+        enqueuePendingAssistant(pendingId, reply);
+        finishPendingAssistant(pendingId, reply);
+      }
+    } catch (error) {
+      console.error(error);
+      const fallback = "We couldn't complete that. Please try again.";
+      markPendingAssistantStreaming(pendingId);
+      enqueuePendingAssistant(pendingId, fallback);
+      finishPendingAssistant(pendingId, fallback);
+      setResults([]);
     }
-    setIsThinking(false);
   };
 
   return (
@@ -113,23 +183,32 @@ export function ChatWindow() {
         } md:pb-0 md:overflow-y-auto`}
       >
         <div className="px-4">
-          {messages.map((m, idx) => {
-            const isLastMessage = idx === messages.length - 1;
-            const showThinkingTimer = isLastMessage && isThinking;
-            return (
-              <div key={m.id} className="space-y-2">
-                <MessageRow m={m} />
-                {showThinkingTimer ? (
-                  <div className="px-2">
-                    <div className="mt-1 inline-flex items-center gap-3 text-sm text-slate-500">
-                      <span>Thinking…</span>
-                      <AnalyzingInline active={showThinkingTimer} />
-                    </div>
+          {messages.map(m => (
+            <div key={m.id} className="space-y-2">
+              <MessageRow m={m} />
+            </div>
+          ))}
+          {pendingMessage ? (
+            <div className="space-y-2">
+              {pendingAssistantState && pendingAssistantState.id === pendingMessage.id ? (
+                <AssistantPendingMessage
+                  stage={pendingAssistantState.stage}
+                  analyzingPhrase={pendingAssistantState.analyzingPhrase}
+                  content={pendingMessage.content}
+                />
+              ) : (
+                <div
+                  className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl"
+                  aria-live="polite"
+                >
+                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                    <AnimatedDot />
+                    <span>Working</span>
                   </div>
-                ) : null}
-              </div>
-            );
-          })}
+                </div>
+              )}
+            </div>
+          ) : null}
           {results.length > 0 && (
             <div className="p-2 space-y-2">
               {results.map((place) => (
