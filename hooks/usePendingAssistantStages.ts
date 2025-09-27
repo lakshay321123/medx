@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AnalyzingKey } from "@/lib/ui/analyzingPhrases";
+import type { AppMode } from "@/lib/welcomeMessages";
 import { loadAnalyzingPhrases } from "@/lib/ui/analyzingPhrases";
+import { parsePendingIntent, type PendingIntent } from "@/lib/chat/pendingIntent";
 
-export type PendingAssistantStage = "thinking" | "analyzing" | "streaming";
+export type PendingAssistantStage = "thinking" | "reflecting" | "analyzing" | "streaming";
 
 export type PendingAssistantState = {
   id: string;
   stage: PendingAssistantStage;
   analyzingPhrase: string | null;
+  thinkingLabel: string | null;
 };
 
 export type PendingAssistantExtras = {
@@ -32,21 +34,30 @@ type Options = {
   onFinalize: (messageId: string, finalContent: string, extras?: PendingAssistantExtras) => void;
 };
 
+type BeginConfig = {
+  mode: AppMode;
+  research: boolean;
+  text: string;
+};
+
+type PendingMeta = PendingIntent & { messageId: string };
+
 const ANALYZING_DELAY_MS = 900;
-const ANALYZING_ROTATE_MS = 900;
-const TYPEWRITER_SPEED = 52;
+const ANALYZING_ROTATE_MS = 800;
+const ANALYZING_MAX_PHRASES = 2;
+const TYPEWRITER_SPEED = 50;
 const TYPEWRITER_MIN_BATCH = 4;
 const TYPEWRITER_MAX_BATCH = 8;
+const THINKING_LABEL = "Working…";
+const THERAPY_LABEL = "Reflecting…";
 
-export function usePendingAssistantStages({
-  enabled,
-  onContentUpdate,
-  onFinalize,
-}: Options) {
+export function usePendingAssistantStages({ enabled, onContentUpdate, onFinalize }: Options) {
   const [state, setState] = useState<PendingAssistantState | null>(null);
   const stateRef = useRef<PendingAssistantState | null>(null);
-  const analyzeStartRef = useRef<number | null>(null);
-  const analyzeRotateRef = useRef<number | null>(null);
+  const analyzeStartRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const analyzeRotateRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const analyzingQueueRef = useRef<string[]>([]);
+  const pendingMetaRef = useRef<PendingMeta | null>(null);
   const typewriterRef = useRef<TypewriterState>({
     messageId: null,
     queue: "",
@@ -70,6 +81,7 @@ export function usePendingAssistantStages({
       clearTimeout(analyzeRotateRef.current);
       analyzeRotateRef.current = null;
     }
+    analyzingQueueRef.current = [];
   }, []);
 
   const cancelTypewriter = useCallback((messageId?: string) => {
@@ -138,21 +150,27 @@ export function usePendingAssistantStages({
     [enabled, onContentUpdate],
   );
 
-  const rotatePhrases = useCallback(
-    (messageId: string, phrases: string[], index: number) => {
+  const scheduleNextAnalyzing = useCallback(
+    (messageId: string) => {
       if (!enabled || typeof window === "undefined") return;
-      if (index >= phrases.length) return;
+      if (analyzingQueueRef.current.length === 0) return;
+      if (analyzeRotateRef.current) {
+        clearTimeout(analyzeRotateRef.current);
+      }
       analyzeRotateRef.current = window.setTimeout(() => {
         if (!stateRef.current || stateRef.current.id !== messageId || stateRef.current.stage !== "analyzing") {
           return;
         }
-        const nextPhrase = phrases[index] ?? null;
+        const nextPhrase = analyzingQueueRef.current.shift();
+        if (!nextPhrase) {
+          return;
+        }
         setState(prev => {
-          if (!prev || prev.id !== messageId || prev.stage !== "analyzing") return prev;
+          if (!prev || prev.id !== messageId) return prev;
           return { ...prev, analyzingPhrase: nextPhrase };
         });
-        if (index + 1 < phrases.length) {
-          rotatePhrases(messageId, phrases, index + 1);
+        if (analyzingQueueRef.current.length > 0) {
+          scheduleNextAnalyzing(messageId);
         }
       }, ANALYZING_ROTATE_MS);
     },
@@ -160,10 +178,11 @@ export function usePendingAssistantStages({
   );
 
   const begin = useCallback(
-    (messageId: string, key: AnalyzingKey) => {
+    (messageId: string, config: BeginConfig) => {
       if (!enabled) return;
       clearAnalyzingTimers();
       cancelTypewriter();
+      pendingMetaRef.current = null;
       typewriterRef.current = {
         messageId,
         queue: "",
@@ -173,29 +192,59 @@ export function usePendingAssistantStages({
         lastTimestamp: 0,
         onDrain: null,
       };
-      setState({ id: messageId, stage: "thinking", analyzingPhrase: null });
-      if (typeof window === "undefined") return;
+
+      const pendingIntent = parsePendingIntent(config);
+      pendingMetaRef.current = { ...pendingIntent, messageId };
+
+      const stage: PendingAssistantStage = pendingIntent.isTherapy ? "reflecting" : "thinking";
+      const label = pendingIntent.isTherapy ? THERAPY_LABEL : THINKING_LABEL;
+
+      setState({ id: messageId, stage, analyzingPhrase: null, thinkingLabel: label });
+
+      if (pendingIntent.isTherapy || typeof window === "undefined") {
+        return;
+      }
+
       analyzeStartRef.current = window.setTimeout(() => {
         void (async () => {
           try {
-            const phrases = await loadAnalyzingPhrases(key);
-            if (!phrases.length) return;
+            const meta = pendingMetaRef.current;
+            if (!meta || meta.messageId !== messageId) return;
             if (!stateRef.current || stateRef.current.id !== messageId || stateRef.current.stage !== "thinking") return;
-            setState({ id: messageId, stage: "analyzing", analyzingPhrase: phrases[0] ?? null });
-            if (phrases.length > 1) rotatePhrases(messageId, phrases, 1);
+            const selection = await loadAnalyzingPhrases(meta.modeKey, {
+              keywords: meta.topicKeywords,
+              primaryKeyword: meta.primaryKeyword,
+              intentBucket: meta.intentBucket,
+              max: ANALYZING_MAX_PHRASES,
+              requireTopicOverlap: true,
+              researchRequested: meta.needsResearch,
+            });
+            if (!selection.phrases.length) {
+              return;
+            }
+            analyzingQueueRef.current = selection.phrases.slice(1);
+            if (selection.finalizer) {
+              analyzingQueueRef.current.push(selection.finalizer);
+            }
+            setState({ id: messageId, stage: "analyzing", analyzingPhrase: selection.phrases[0] ?? null, thinkingLabel: label });
+            if (analyzingQueueRef.current.length > 0) {
+              scheduleNextAnalyzing(messageId);
+            }
           } catch {
-            /* noop */
+            /* no-op */
           }
         })();
       }, ANALYZING_DELAY_MS);
     },
-    [enabled, cancelTypewriter, clearAnalyzingTimers, rotatePhrases],
+    [enabled, cancelTypewriter, clearAnalyzingTimers, scheduleNextAnalyzing],
   );
 
   const markStreaming = useCallback(
     (messageId: string) => {
       if (!enabled) return;
       clearAnalyzingTimers();
+      analyzingQueueRef.current = [];
+      pendingMetaRef.current = null;
       const tw = typewriterRef.current;
       if (!tw.messageId || tw.messageId !== messageId) {
         cancelTypewriter();
@@ -214,7 +263,7 @@ export function usePendingAssistantStages({
       }
       setState(prev => {
         if (!prev || prev.id !== messageId) return prev;
-        return { id: messageId, stage: "streaming", analyzingPhrase: null };
+        return { id: messageId, stage: "streaming", analyzingPhrase: null, thinkingLabel: prev.thinkingLabel };
       });
     },
     [enabled, cancelTypewriter, clearAnalyzingTimers],
@@ -260,6 +309,7 @@ export function usePendingAssistantStages({
         return;
       }
       clearAnalyzingTimers();
+      pendingMetaRef.current = null;
       const finalize = () => {
         onFinalize(messageId, finalContent, extras);
         setState(prev => (prev && prev.id === messageId ? null : prev));
@@ -289,16 +339,21 @@ export function usePendingAssistantStages({
     (messageId: string) => {
       if (!enabled) return;
       clearAnalyzingTimers();
+      pendingMetaRef.current = null;
       setState(prev => (prev && prev.id === messageId ? null : prev));
       cancelTypewriter(messageId);
     },
     [enabled, clearAnalyzingTimers, cancelTypewriter],
   );
 
-  useEffect(() => () => {
-    clearAnalyzingTimers();
-    cancelTypewriter();
-  }, [clearAnalyzingTimers, cancelTypewriter]);
+  useEffect(
+    () => () => {
+      clearAnalyzingTimers();
+      cancelTypewriter();
+      pendingMetaRef.current = null;
+    },
+    [clearAnalyzingTimers, cancelTypewriter],
+  );
 
   return {
     state,

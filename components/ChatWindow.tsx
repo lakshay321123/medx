@@ -8,9 +8,7 @@ import { getResearchFlagFromUrl } from "@/utils/researchFlag";
 import ChatMarkdown from "@/components/ChatMarkdown";
 import { LinkBadge } from "@/components/SafeLink";
 import { AssistantPendingMessage } from "@/components/chat/AssistantPendingMessage";
-import { AnimatedDot } from "@/components/chat/AnimatedDot";
 import { usePendingAssistantStages } from "@/hooks/usePendingAssistantStages";
-import { analyzingKeyForMode } from "@/lib/ui/analyzingPhrases";
 import type { AppMode } from "@/lib/welcomeMessages";
 
 const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== "0";
@@ -138,7 +136,7 @@ export function ChatWindow() {
         ? crypto.randomUUID()
         : `pending-${Date.now()}`;
     setPendingMessage({ id: pendingId, content: "" });
-    beginPendingAssistant(pendingId, analyzingKeyForMode(modeChoice, research));
+    beginPendingAssistant(pendingId, { mode: modeChoice, research, text: content });
     try {
       if (locationToken) {
         const res = await fetch("/api/chat", {
@@ -194,18 +192,16 @@ export function ChatWindow() {
                 <AssistantPendingMessage
                   stage={pendingAssistantState.stage}
                   analyzingPhrase={pendingAssistantState.analyzingPhrase}
+                  thinkingLabel={pendingAssistantState.thinkingLabel}
                   content={pendingMessage.content}
                 />
               ) : (
-                <div
-                  className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl"
-                  aria-live="polite"
-                >
-                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                    <AnimatedDot />
-                    <span>Working</span>
-                  </div>
-                </div>
+                <AssistantPendingMessage
+                  stage={modeChoice === "therapy" ? "reflecting" : "thinking"}
+                  analyzingPhrase={null}
+                  thinkingLabel={modeChoice === "therapy" ? "Reflecting…" : undefined}
+                  content={pendingMessage.content}
+                />
               )}
             </div>
           ) : null}

@@ -42,7 +42,6 @@ import { detectAdvancedDomain } from "@/lib/intents/advanced";
 // === ADD-ONLY for domain routing ===
 import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
-import { AnalyzingInline } from "@/components/chat/AnalyzingInline";
 import { AssistantPendingMessage } from "@/components/chat/AssistantPendingMessage";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { StopButton } from "@/components/ui/StopButton";
@@ -56,7 +55,6 @@ import { pushToast } from "@/lib/ui/toast";
 import { useFeedback } from "@/hooks/useFeedback";
 import { usePendingAssistantStages } from "@/hooks/usePendingAssistantStages";
 import type { PendingAssistantState } from "@/hooks/usePendingAssistantStages";
-import { analyzingKeyForMode } from "@/lib/ui/analyzingPhrases";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -482,17 +480,6 @@ No fabricated IDs. Provide themes, not specific trial numbers unless confident.`
   ];
 }
 
-function PendingChatCard({ label, active }: { label: string; active?: boolean }) {
-  return (
-    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
-      <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
-        <span>{label}</span>
-        <AnalyzingInline active={!!active} />
-      </div>
-    </div>
-  );
-}
-
 function AnalysisCard({
   m,
   researchOn,
@@ -576,11 +563,19 @@ function ChatCard({
         <AssistantPendingMessage
           stage={pendingStageState.stage}
           analyzingPhrase={pendingStageState.analyzingPhrase}
+          thinkingLabel={pendingStageState.thinkingLabel}
           content={typeof m.content === "string" ? m.content : ""}
         />
       );
     }
-    return <PendingChatCard label="Thinking" active={pendingTimerActive} />;
+    return (
+      <AssistantPendingMessage
+        stage={therapyMode ? "reflecting" : "thinking"}
+        analyzingPhrase={null}
+        thinkingLabel={therapyMode ? "Reflecting…" : undefined}
+        content={typeof m.content === "string" ? m.content : ""}
+      />
+    );
   }
   return (
     <div
@@ -2190,7 +2185,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       nextMsgs = [...baseMessages, pendingMessage];
     }
     setMessages(nextMsgs);
-    beginPendingAssistant(pendingId, analyzingKeyForMode(uiMode, researchMode));
+    beginPendingAssistant(pendingId, { mode: uiMode, research: Boolean(researchMode), text: messageText });
     opts.onPending?.(pendingId);
     const maybe = maybeFixMedicalTypo(messageText);
     if (maybe && messages.filter(m => m.role === "assistant").slice(-1)[0]?.content !== maybe.ask) {
