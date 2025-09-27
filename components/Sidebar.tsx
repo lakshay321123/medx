@@ -10,7 +10,6 @@ import { useMobileUiStore } from "@/lib/state/mobileUiStore";
 export default function Sidebar() {
   const router = useRouter();
   const [threads, setThreads] = useState<Thread[]>([]);
-  const [aidocThreads, setAidocThreads] = useState<{ id: string; title: string | null }[]>([]);
   const [q, setQ] = useState("");
   const closeSidebar = useMobileUiStore((state) => state.closeSidebar);
 
@@ -24,11 +23,6 @@ export default function Sidebar() {
       window.removeEventListener("chat-threads-updated", load);
     };
   }, []);
-
-  useEffect(() => {
-    fetch("/api/aidoc/threads").then((r) => r.json()).then(setAidocThreads).catch(() => {});
-  }, []);
-
   const handleNewChat = () => {
     const id = createNewThreadId();
     closeSidebar();
@@ -94,29 +88,6 @@ export default function Sidebar() {
             </div>
           </div>
         ))}
-
-        {aidocThreads.length > 0 && (
-          <div className="mt-4">
-            <div className="mb-1 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">AI Doc</div>
-            {aidocThreads.map((t) => (
-              <div
-                key={t.id}
-                className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/60 p-2 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/60"
-              >
-                <button
-                  onClick={() => {
-                    closeSidebar();
-                    router.push(`/?panel=ai-doc&threadId=${t.id}`);
-                  }}
-                  className="truncate text-left text-sm font-medium"
-                  title={t.title ?? ""}
-                >
-                  {t.title ?? "AI Doc — Case"}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       <div className="mt-auto">
