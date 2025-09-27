@@ -31,10 +31,10 @@ export default function DirectoryMap({ places, selectedId, onSelect, userLocatio
       style: MAP_STYLE,
       center,
       zoom: 13,
-      attributionControl: true,
     });
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
     mapRef.current = map;
 
     return () => {
