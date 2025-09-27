@@ -1,60 +1,66 @@
+// components/panels/DirectoryPane.tsx
 "use client";
 import { Phone, MapPin, MessageSquare, Navigation, Star } from "lucide-react";
 import AddressPicker from "@/components/directory/AddressPicker";
 import { useDirectory } from "@/hooks/useDirectory";
 
-type DirectoryType = ReturnType<typeof useDirectory>["state"]["type"];
-
-const TYPES: { key: DirectoryType; label: string }[] = [
+const TYPES = [
   { key: "doctor", label: "Doctors" },
   { key: "pharmacy", label: "Pharmacies" },
   { key: "lab", label: "Labs" },
   { key: "hospital", label: "Hospitals" },
   { key: "clinic", label: "Clinics" },
   { key: "all", label: "All" },
-];
+] as const;
 
 export default function DirectoryPane() {
   const { state, actions } = useDirectory();
-  const { locLabel, type, q, openNow, minRating, maxKm, data, loading, summary } = state;
+  const {
+    locLabel, type, q, openNow, minRating, maxKm, data, loading, summary,
+  } = state;
 
   return (
     <div className="flex min-h-0 flex-col">
-      <div className="sticky top-0 z-10 space-y-2 border-b border-black/5 bg-white/80 p-3 backdrop-blur dark:border-white/10 dark:bg-slate-900/60 rounded-t-2xl">
-        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-          <span className="inline-block h-2 w-2 rounded-full bg-green-500 ring-4 ring-green-100"></span>
-          Using: {locLabel}
+      {/* Header */}
+      <div className="sticky top-0 z-10 space-y-1.5 bg-white/90 p-2.5 backdrop-blur-md dark:bg-slate-900/70 border-b border-black/5 dark:border-white/10">
+        <div className="text-[11px] leading-5 text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+          <span className="inline-block h-2 w-2 rounded-full bg-green-500 ring-2 ring-green-100"></span>
+          {locLabel}
           <button
             onClick={actions.useMyLocation}
-            className="ml-2 rounded-full border border-slate-200 px-2 py-0.5 text-[11px] hover:bg-slate-50 dark:border-white/10 dark:hover:bg-slate-800"
+            className="ml-1 rounded-full border border-slate-200 px-2 py-0.5 text-[11px] leading-4 hover:bg-slate-50 dark:border-white/10 dark:hover:bg-slate-800"
+            title="Use precise location"
           >
             Use my location
           </button>
         </div>
 
-        <div className="flex flex-col gap-2 md:flex-row">
+        <div className="flex flex-col gap-1.5 md:flex-row">
           <div className="flex-1">
             <input
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white/90 px-3 pr-9 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none focus:ring-0 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100"
+              className="w-full h-10 rounded-lg border border-slate-200 bg-white/95 px-2.5 pr-8 text-[13px] leading-5 text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100"
               placeholder="Search doctors, pharmacies, labs"
               value={q}
-              onChange={(event) => actions.setQ(event.target.value)}
+              onChange={e => actions.setQ(e.target.value)}
             />
           </div>
-          <div className="md:w-[360px]">
-            <AddressPicker value={locLabel} onSelect={actions.setAddress} />
+          <div className="md:w-[320px]">
+            <AddressPicker
+              value={locLabel}
+              onSelect={actions.setAddress}
+            />
           </div>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto py-1">
-          {TYPES.map((t) => (
+        <div className="flex gap-1.5 overflow-x-auto py-0.5">
+          {TYPES.map(t => (
             <button
               key={t.key}
-              onClick={() => actions.setType(t.key)}
-              className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-sm ${
+              onClick={() => actions.setType(t.key as any)}
+              className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[13px] ${
                 type === t.key
-                  ? "border-blue-600 bg-blue-600 text-white"
-                  : "border-slate-200 bg-slate-50 text-slate-800 dark:border-white/10 dark:bg-slate-800 dark:text-slate-100"
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "bg-slate-50 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:border-white/10"
               }`}
             >
               {t.label}
@@ -62,108 +68,108 @@ export default function DirectoryPane() {
           ))}
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          <button
-            onClick={() => actions.setOpenNow((v) => !v)}
-            className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+          <button onClick={() => actions.setOpenNow(v => !v)} className="rounded-full border px-2.5 py-1 text-[12px] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-white/10">
             Open now {openNow ? "✓" : ""}
           </button>
-          <button
-            onClick={() => actions.setMinRating((r) => (r ? null : 4))}
-            className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            ★ 4.0+ {minRating ? "✓" : ""}
+          <button onClick={() => actions.setMinRating(r => (r ? null : 4))} className="rounded-full border px-2.5 py-1 text-[12px] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-white/10">
+            Star 4 plus {minRating ? "✓" : ""}
           </button>
-          <button
-            onClick={() => actions.setMaxKm((k) => (k ? null : 3))}
-            className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
+          <button onClick={() => actions.setMaxKm(k => (k ? null : 3))} className="rounded-full border px-2.5 py-1 text-[12px] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-white/10">
             Under 3 km {maxKm ? "✓" : ""}
           </button>
         </div>
       </div>
 
-      <div className="flex items-center justify-between px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between px-3 py-1.5 text-[12px] leading-5 text-slate-500 dark:text-slate-400">
         <div>{loading ? "Loading" : summary}</div>
-        <div className="rounded-full border border-slate-200 px-2 py-1 dark:border-white/10">Map</div>
+        <div className="rounded-full border border-slate-200 px-2 py-0.5 text-[12px] dark:border-white/10">Map</div>
       </div>
 
-      <div className="mobile-scroll-safe flex-1 space-y-3 overflow-y-auto p-3">
+      {/* List */}
+      <div className="flex-1 space-y-2.5 overflow-y-auto p-2.5 mobile-scroll-safe">
         {!loading && data.length === 0 && (
-          <div className="rounded-xl border border-slate-200 bg-white/70 p-4 text-sm text-slate-600 dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-300">
+          <div className="rounded-lg border border-slate-200 bg-white/80 p-3 text-[13px] text-slate-600 dark:border-white/10 dark:bg-slate-900/70 dark:text-slate-300">
             No results. Try All, increase radius, or change the address.
           </div>
         )}
-        {data.map((place) => (
+
+        {data.map((p) => (
           <div
-            key={place.id}
-            className="rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/60"
+            key={p.id}
+            className="rounded-xl border border-slate-200 bg-white/85 p-3 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/70"
           >
             <div className="flex items-center justify-between">
-              <div className="font-semibold text-slate-900 dark:text-slate-50">{place.name}</div>
-              <div className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] capitalize text-blue-900 dark:border-white/10 dark:bg-slate-800 dark:text-slate-100">
-                {place.type}
+              <div className="truncate font-semibold text-[14px] text-slate-900 dark:text-slate-50">{p.name}</div>
+              <div className="ml-2 shrink-0 rounded-full border px-2 py-0.5 text-[11px] text-blue-900 border-blue-200 bg-blue-50 dark:bg-slate-800 dark:border-white/10 dark:text-slate-100 capitalize">
+                {p.type}
               </div>
             </div>
 
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-[12.5px] text-slate-600 dark:text-slate-300">
-              <span className="inline-flex items-center gap-1">
-                <Star size={14} /> {place.rating ?? "—"}
+            <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12px] text-slate-600 dark:text-slate-300">
+              <span className="inline-flex items-center gap-1 shrink-0">
+                <Star size={14} /> {p.rating ?? "—"}
               </span>
-              {typeof place.distance_m === "number" && <span>• {(place.distance_m / 1000).toFixed(1)} km</span>}
-              <span>• {place.open_now ? "Open now" : "Hours not available"}</span>
+              {typeof p.distance_m === "number" && <span className="shrink-0">• {(p.distance_m / 1000).toFixed(1)} km</span>}
+              <span className="truncate">• {p.open_now ? "Open now" : "Hours not available"}</span>
             </div>
 
-            {place.address_short && (
-              <div className="mt-1 text-sm text-slate-700 dark:text-slate-200">{place.address_short}</div>
+            {p.address_short && (
+              <div className="mt-0.5 line-clamp-1 text-[13px] text-slate-700 dark:text-slate-200">
+                {p.address_short}
+              </div>
             )}
 
-            <div className="mt-3 grid grid-cols-4 gap-2">
+            <div className="mt-2 grid grid-cols-4 gap-1.5">
+              {/* Call */}
               <a
-                href={place.phones?.[0] ? `tel:${place.phones[0].replace(/\s+/g, "")}` : undefined}
-                className={`inline-flex items-center justify-center gap-1 rounded-lg border px-2 py-2 text-sm font-medium transition ${
-                  place.phones?.[0]
-                    ? "border-slate-200 bg-white text-slate-900 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
-                    : "pointer-events-none cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 dark:border-white/10 dark:bg-slate-800 dark:text-slate-500"
+                href={p.phones?.[0] ? `tel:${p.phones[0].replace(/\s+/g, "")}` : undefined}
+                className={`inline-flex h-10 items-center justify-center gap-1 rounded-lg border px-2 text-[13px] font-medium transition ${
+                  p.phones?.[0]
+                    ? "bg-white text-slate-900 border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-100 dark:border-white/10"
+                    : "pointer-events-none cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-800 dark:text-slate-500"
                 }`}
               >
                 <Phone size={16} /> Call
               </a>
 
+              {/* Directions */}
               <a
-                href={`https://www.google.com/maps/dir/?api=1&destination=${place.geo.lat},${place.geo.lng}`}
+                href={`https://www.google.com/maps/dir/?api=1&destination=${p.geo.lat},${p.geo.lng}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
+                className="inline-flex h-10 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 text-[13px] font-medium text-slate-900 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
               >
                 <Navigation size={16} /> Directions
               </a>
 
+              {/* WhatsApp */}
               <a
-                href={place.whatsapp ? `https://wa.me/${place.whatsapp.replace(/\D/g, "")}` : undefined}
+                href={p.whatsapp ? `https://wa.me/${p.whatsapp.replace(/\D/g, "")}` : undefined}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`inline-flex items-center justify-center gap-1 rounded-lg border px-2 py-2 text-sm font-medium transition ${
-                  place.whatsapp
-                    ? "border-slate-200 bg-white text-slate-900 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
-                    : "pointer-events-none cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 dark:border-white/10 dark:bg-slate-800 dark:text-slate-500"
+                className={`inline-flex h-10 items-center justify-center gap-1 rounded-lg border px-2 text-[13px] font-medium transition ${
+                  p.whatsapp
+                    ? "bg-white text-slate-900 border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-100 dark:border-white/10"
+                    : "pointer-events-none cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-800 dark:text-slate-500"
                 }`}
               >
                 <MessageSquare size={16} /> WhatsApp
               </a>
 
+              {/* Copy address */}
               <button
-                onClick={() => navigator.clipboard.writeText(place.address_short ?? "")}
-                className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
+                onClick={() => navigator.clipboard.writeText(p.address_short ?? "")}
+                className="inline-flex h-10 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 text-[13px] font-medium text-slate-900 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
                 title="Copy address"
               >
                 <MapPin size={16} /> Copy
               </button>
             </div>
 
-            <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-              Data: OpenStreetMap • Last checked {new Date(place.last_checked ?? Date.now()).toLocaleDateString()}
+            <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+              Data: {/** provider shown by backend if you want to surface it later */} Updated recently
             </div>
           </div>
         ))}

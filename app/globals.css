@@ -929,3 +929,10 @@ body {
     width: 100%;
   }
 }
+
+/* Directory mobile overflow guard */
+@media (max-width: 768px) {
+  .mobile-scroll-safe {
+    overflow-x: hidden;
+  }
+}
