@@ -272,7 +272,7 @@ export default function Timeline(){
   }
 
   return (
-    <div className="p-4">
+    <div className="mx-auto w-full max-w-[380px] p-4 sm:mx-0 sm:max-w-none sm:p-6">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-semibold">Timeline</h2>
         <button
@@ -287,7 +287,7 @@ export default function Timeline(){
         >Reset</button>
       </div>
       {resetError && <div className="mb-2 text-xs text-rose-600">{resetError}</div>}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="mb-3 flex w-full flex-wrap items-center gap-2">
         {(["ALL","LABS","VITALS","IMAGING","AI","NOTES"] as Cat[]).map(c=>(
           <button key={c} onClick={()=>setCat(c)} className={`text-xs px-2.5 py-1 rounded-full border ${cat===c?"bg-muted font-medium":"hover:bg-muted"}`}>{c}</button>
         ))}
@@ -297,7 +297,12 @@ export default function Timeline(){
           <option value="CUSTOM">Custom…</option>
         </select>
         {range==="CUSTOM" && <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="text-xs border rounded-md px-2 py-1" />}
-        <input placeholder="Search…" value={q} onChange={e=>setQ(e.target.value)} className="ml-auto text-xs border rounded-md px-2 py-1 min-w-[160px]"/>
+        <input
+          placeholder="Search…"
+          value={q}
+          onChange={e=>setQ(e.target.value)}
+          className="ml-0 w-full min-w-0 text-xs border rounded-md px-2 py-1 sm:ml-auto sm:w-auto sm:min-w-[160px]"
+        />
       </div>
       <ul className="space-y-2 text-sm">
         {filtered.map((it:any)=>{
