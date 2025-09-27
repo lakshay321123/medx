@@ -711,6 +711,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [canCopyLink, setCanCopyLink] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
+  const autoScrollEnabledRef = useRef(true);
+  const lastScrollTopRef = useRef(0);
   const inputRef =
     (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ??
     (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
@@ -829,9 +831,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       if (!msg) return;
       setMessages(prev => [...prev, msg as ChatMessage]);
       setTimeout(() => {
-        const chatContainer = document.getElementById("chat-scroll-container");
-        if (chatContainer) {
+        const chatContainer = chatRef.current;
+        if (chatContainer && autoScrollEnabledRef.current) {
           chatContainer.scrollTop = chatContainer.scrollHeight;
+          lastScrollTopRef.current = chatContainer.scrollTop;
         }
       }, 50);
     }
@@ -1828,20 +1831,48 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     } catch {}
   }, [threadId, ui]);
 
-  const isNearBottom = (el: HTMLElement, threshold = 120) =>
-    el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+  const isNearBottom = useCallback((el: HTMLElement, threshold = 120) =>
+    el.scrollHeight - el.scrollTop - el.clientHeight < threshold,
+  []);
 
   const scrollToBottom = useCallback((el: HTMLElement) => {
     window.clearTimeout((scrollToBottom as any)._t);
     (scrollToBottom as any)._t = window.setTimeout(() => {
+      autoScrollEnabledRef.current = true;
       el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+      lastScrollTopRef.current = el.scrollHeight - el.clientHeight;
     }, 90);
   }, []);
 
   useEffect(() => {
     const el = chatRef.current;
     if (!el) return;
-    if (isNearBottom(el)) scrollToBottom(el);
+
+    const handleScroll = () => {
+      const current = el.scrollTop;
+      const nearBottom = isNearBottom(el);
+
+      if (!nearBottom && current < lastScrollTopRef.current) {
+        autoScrollEnabledRef.current = false;
+      } else if (nearBottom) {
+        autoScrollEnabledRef.current = true;
+      }
+
+      lastScrollTopRef.current = current;
+    };
+
+    handleScroll();
+
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', handleScroll);
+    };
+  }, [isNearBottom]);
+
+  useEffect(() => {
+    const el = chatRef.current;
+    if (!el) return;
+    if (autoScrollEnabledRef.current || isNearBottom(el)) scrollToBottom(el);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
 
@@ -1850,12 +1881,12 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     if (!el || typeof ResizeObserver === 'undefined') return;
 
     const ro = new ResizeObserver(() => {
-      if (isNearBottom(el)) scrollToBottom(el);
+      if (autoScrollEnabledRef.current || isNearBottom(el)) scrollToBottom(el);
     });
     ro.observe(el);
 
     return () => ro.disconnect();
-  }, [scrollToBottom]);
+  }, [scrollToBottom, isNearBottom]);
 
   useEffect(() => {
     posted.current.clear();
@@ -1868,6 +1899,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     } else {
       setMessages([]);
     }
+    autoScrollEnabledRef.current = true;
+    lastScrollTopRef.current = 0;
   }, [threadId, isProfileThread]);
 
   useEffect(() => {
