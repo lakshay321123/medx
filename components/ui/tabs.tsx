@@ -14,7 +14,7 @@ export function TabsList({ children, className = "" }: { children: React.ReactNo
     <div
       className={
         className +
-        " flex w-full max-w-xs flex-wrap items-center justify-center gap-2 px-2 sm:w-auto sm:max-w-none sm:justify-start sm:px-0"
+        " mx-auto flex w-fit max-w-full flex-wrap items-center justify-center gap-2 sm:mx-0 sm:w-auto sm:max-w-none sm:justify-start"
       }
     >
       {children}
