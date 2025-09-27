@@ -1,18 +1,27 @@
 "use client";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useMobileUiStore } from "@/lib/state/mobileUiStore";
+import { MapPin } from "lucide-react";
+import type { ComponentType } from "react";
 
 type Tab = {
   key: string;
   label: string;
-  panel: string;
+  panel?: string;
+  href?: string;
   threadId?: string;
   context?: string;
+  icon?: ComponentType<{ className?: string }>;
 };
 
-const tabs: Tab[] = [
-  { key: "chat", label: "Chat", panel: "chat" },
+const DIRECTORY_ENABLED =
+  process.env.NEXT_PUBLIC_FEATURE_DIRECTORY === "1" || process.env.FEATURE_DIRECTORY === "1";
+
+const baseTabs: Tab[] = [
+  ...(DIRECTORY_ENABLED
+    ? [{ key: "directory", label: "Directory", href: "/directory", icon: MapPin } satisfies Tab]
+    : []),
   {
     key: "ai-doc",
     label: "AI Doc",
@@ -26,28 +35,31 @@ const tabs: Tab[] = [
   { key: "settings", label: "Settings", panel: "settings" },
 ];
 
-function NavLink({
-  panel,
-  children,
-  threadId: threadIdProp,
-  context,
-}: {
-  panel: string;
-  children: React.ReactNode;
-  threadId?: string;
-  context?: string;
-}) {
+function NavLink({ tab, currentThreadId }: { tab: Tab; currentThreadId?: string }) {
   const params = useSearchParams();
+  const pathname = usePathname();
   const closeSidebar = useMobileUiStore(state => state.closeSidebar);
 
-  const threadId = threadIdProp;
-  const href = `/?panel=${panel}${threadId ? `&threadId=${encodeURIComponent(threadId)}` : ""}${
-    context ? `&context=${encodeURIComponent(context)}` : ""
-  }`;
+  let href = tab.href;
+  if (!href && tab.panel) {
+    const threadId = tab.threadId ?? (tab.panel === "chat" ? currentThreadId : undefined);
+    const usp = new URLSearchParams();
+    usp.set("panel", tab.panel);
+    if (threadId) usp.set("threadId", threadId);
+    if (tab.context) usp.set("context", tab.context);
+    href = `/?${usp.toString()}`;
+  }
 
-  const active =
-    ((params.get("panel") ?? "chat").toLowerCase()) === panel &&
-    (threadIdProp ? params.get("threadId") === threadIdProp : !params.get("threadId"));
+  if (!href) return null;
+
+  const isPanelActive = tab.panel
+    ? ((params.get("panel") ?? "chat").toLowerCase()) === tab.panel &&
+      (tab.threadId ? params.get("threadId") === tab.threadId : !params.get("threadId"))
+    : false;
+  const isRouteActive = tab.href ? pathname === tab.href : false;
+  const active = tab.href ? isRouteActive : isPanelActive;
+
+  const Icon = tab.icon;
 
   return (
     <Link
@@ -58,30 +70,26 @@ function NavLink({
         closeSidebar();
         event.stopPropagation();
       }}
-      className={`block w-full text-left rounded-md px-3 py-2 hover:bg-muted text-sm ${active ? "bg-muted font-medium" : ""}`}
-      data-testid={`nav-${panel}`}
+      className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition hover:bg-muted ${
+        active ? "bg-muted font-medium" : ""
+      }`}
+      data-testid={`nav-${tab.key}`}
       aria-current={active ? "page" : undefined}
     >
-      {children}
+      {Icon ? <Icon className="h-4 w-4" /> : null}
+      <span>{tab.label}</span>
     </Link>
   );
 }
 
 export default function Tabs() {
-  // preserve current threadId when navigating back to Chat
   const params = useSearchParams();
   const currentThreadId = params.get("threadId") || undefined;
   return (
     <ul className="mt-3 space-y-1">
-      {tabs.map((t) => (
-        <li key={t.key}>
-          <NavLink
-            panel={t.panel}
-            threadId={t.key === "chat" ? (t.threadId ?? currentThreadId) : t.threadId}
-            context={t.context}
-          >
-            {t.label}
-          </NavLink>
+      {baseTabs.map(tab => (
+        <li key={tab.key}>
+          <NavLink tab={tab} currentThreadId={currentThreadId} />
         </li>
       ))}
     </ul>
