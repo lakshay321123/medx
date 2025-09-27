@@ -59,6 +59,9 @@ export async function POST(req: NextRequest) {
   let body: any = {};
   try { body = await req.json(); } catch {}
   const { context, clientRequestId, mode } = body;
+  const requestedMaxTokens = typeof body?.max_tokens === 'number'
+    ? Math.min(1200, Math.max(250, Math.floor(body.max_tokens)))
+    : undefined;
 
   const research =
     qp === '1' || qp === 'true' || body?.research === true || body?.research === 'true';
@@ -114,7 +117,7 @@ export async function POST(req: NextRequest) {
   // 4) Tighter generation when research brief is active
   const modelOptions = (research && !long)
     ? { temperature: 0.2, top_p: 0.9, max_tokens: 250, response_format: { type: 'json_object' } }
-    : { temperature: 0.7, max_tokens: 900 };
+    : { temperature: 0.7, max_tokens: requestedMaxTokens ?? 900 };
 
   const messages = history.length ? history : [latestUser];
   const showClinicalPrelude = mode === 'doctor' || mode === 'research';

@@ -1,15 +1,81 @@
 "use client";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
 import { ChatInput } from "@/components/ChatInput";
 import { persistIfTemp } from "@/lib/chat/persist";
-import { AnalyzingInline } from "@/components/chat/AnalyzingInline";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { getResearchFlagFromUrl } from "@/utils/researchFlag";
 import ChatMarkdown from "@/components/ChatMarkdown";
 import { LinkBadge } from "@/components/SafeLink";
 
-function MessageRow({ m }: { m: { id: string; role: string; content: string } }) {
+type ThinkingPhase = 'idle' | 'sending' | 'analyzing' | 'streaming';
+
+function AnalyzingSteps({ phrases, active }: { phrases: string[]; active: boolean }) {
+  if (!active || phrases.length === 0) return null;
+  return (
+    <ul className="mt-2 space-y-1 text-xs text-slate-500 dark:text-slate-400">
+      {phrases.map((phrase, idx) => (
+        <li
+          key={`${idx}-${phrase}`}
+          className="opacity-0 animate-[analyzing-step_0.5s_ease-forwards]"
+          style={{ animationDelay: `${idx * 0.24}s` }}
+        >
+          {phrase}
+        </li>
+      ))}
+      <style jsx>{`
+        @keyframes analyzing-step {
+          0% {
+            opacity: 0;
+            transform: translateY(4px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
+    </ul>
+  );
+}
+import ThinkingDots from "@/components/ui/ThinkingDots";
+import { parseQuery } from "@/lib/ui/queryParser";
+import {
+  genericAnalyzing,
+  pickAnalyzingPhrases,
+  wellnessAnalyzing,
+  wellnessResearchAnalyzing,
+} from "@/lib/ui/analyzingLibrary";
+import { createTypewriter, type TypewriterController } from "@/lib/ui/typewriter";
+
+type ChatWindowMessage = { id: string; role: string; content: string };
+
+function MessageRow({
+  m,
+  pending,
+  thinkingPhase,
+  phrases,
+  showDots,
+}: {
+  m: ChatWindowMessage;
+  pending?: boolean;
+  thinkingPhase?: ThinkingPhase;
+  phrases?: string[];
+  showDots?: boolean;
+}) {
+  if (pending) {
+    return (
+      <div className="p-2 space-y-2 rounded-2xl bg-white/80 dark:bg-zinc-900/70">
+        <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300">
+          <span>assistant</span>
+          <ThinkingDots active={!!showDots && thinkingPhase !== 'streaming'} />
+        </div>
+        <ChatMarkdown content={m.content} />
+        <AnalyzingSteps phrases={phrases ?? []} active={thinkingPhase === 'analyzing'} />
+      </div>
+    );
+  }
+
   return (
     <div className="p-2 space-y-1">
       <div className="text-xs uppercase tracking-wide text-slate-500">{m.role}</div>
@@ -25,8 +91,22 @@ export function ChatWindow() {
   const [results, setResults] = useState<any[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
-  const [isThinking, setIsThinking] = useState(false);
-  const hasScrollableContent = messages.length > 0 || results.length > 0;
+  const [thinkingPhase, setThinkingPhase] = useState<ThinkingPhase>('idle');
+  const [analyzingPhrases, setAnalyzingPhrases] = useState<string[]>([]);
+  const [thinkingDotsVisible, setThinkingDotsVisible] = useState(false);
+  const [pendingResponse, setPendingResponse] = useState<{ id: string; content: string } | null>(null);
+  const typewriterRef = useRef<TypewriterController | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const hasScrollableContent = messages.length > 0 || results.length > 0 || !!pendingResponse;
+  const resetThinking = useCallback(() => {
+    setThinkingPhase('idle');
+    setAnalyzingPhrases([]);
+    setThinkingDotsVisible(false);
+  }, []);
+  const visibleMessages = useMemo(() => {
+    if (!pendingResponse) return messages;
+    return [...messages, { ...pendingResponse, role: 'assistant', pending: true } as any];
+  }, [messages, pendingResponse]);
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
@@ -80,27 +160,136 @@ export function ChatWindow() {
     };
   }, []);
 
-  const handleSend = async (content: string, locationToken?: string) => {
-    // after sending user message, persist thread if needed
+  useEffect(() => {
+    return () => {
+      try { abortRef.current?.abort(); } catch {}
+      typewriterRef.current?.stop();
+      typewriterRef.current = null;
+    };
+  }, []);
+
+  const handleSend = useCallback(async (content: string, locationToken?: string) => {
+    const trimmed = content.trim();
+    if (!trimmed) return;
     await persistIfTemp();
-    setIsThinking(true);
+
+    const research = getResearchFlagFromUrl();
+
+    addMessage({ role: "user", content: trimmed });
+
     if (locationToken) {
-      const research = getResearchFlagFromUrl();
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: content, locationToken, research }),
-      });
-      const data = await res.json();
-      setResults(data.results || []);
-      addMessage({ role: "assistant", content: data.results ? "Here are some places nearby:" : "" });
-    } else {
-      // For now, echo the user's message as the assistant reply
-      // In a real implementation, replace this with a call to your backend/AI service
-      addMessage({ role: "assistant", content: `You said: ${content}` });
+      setThinkingPhase('sending');
+      setThinkingDotsVisible(true);
+      setAnalyzingPhrases([]);
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: trimmed, locationToken, research }),
+        });
+        const data = await res.json();
+        setResults(data.results || []);
+        addMessage({ role: "assistant", content: data.results ? "Here are some places nearby:" : "" });
+      } finally {
+        resetThinking();
+      }
+      return;
     }
-    setIsThinking(false);
-  };
+    const pendingId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `pending_${Date.now()}`;
+    setPendingResponse({ id: pendingId, content: '' });
+    setThinkingPhase('sending');
+    setThinkingDotsVisible(true);
+    setAnalyzingPhrases([]);
+
+    const insights = parseQuery({ text: trimmed, mode: 'wellness', researchEnabled: research });
+    const researchActive = Boolean(research) || insights.needsResearch;
+    const library = researchActive ? wellnessResearchAnalyzing : wellnessAnalyzing;
+    const phrases = pickAnalyzingPhrases(library.length ? library : genericAnalyzing);
+    if (phrases.length > 0) {
+      setThinkingPhase('analyzing');
+      setAnalyzingPhrases(phrases);
+    }
+    const needsExtended = insights.complexity === 'complex' || insights.needsCalculators || researchActive;
+    const maxTokens = needsExtended ? 1100 : 420;
+
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+
+    typewriterRef.current?.stop();
+    const typewriter = createTypewriter(text => {
+      setPendingResponse(prev => (prev ? { ...prev, content: text } : prev));
+    });
+    typewriter.reset('');
+    typewriterRef.current = typewriter;
+
+    const history = messages.map(m => ({ role: m.role, content: m.content }));
+    let streamStarted = false;
+    const handleFirstToken = () => {
+      if (streamStarted) return;
+      streamStarted = true;
+      setThinkingPhase('streaming');
+      setThinkingDotsVisible(false);
+      setAnalyzingPhrases([]);
+    };
+
+    let acc = '';
+
+    try {
+      const res = await fetch(`/api/chat/stream${research ? '?research=1' : ''}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'patient',
+          messages: [...history, { role: 'user', content: trimmed }],
+          max_tokens: maxTokens,
+        }),
+        signal: ctrl.signal,
+      });
+      if (res.status === 409) {
+        resetThinking();
+        setPendingResponse(null);
+        typewriter.stop();
+        typewriterRef.current = null;
+        return;
+      }
+      if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n').filter(line => line.startsWith('data: '));
+        for (const line of lines) {
+          if (line.trim() === 'data: [DONE]') continue;
+          try {
+            const payload = JSON.parse(line.replace(/^data:\s*/, ''));
+            const delta = payload?.choices?.[0]?.delta?.content;
+            if (delta) {
+              acc += delta;
+              handleFirstToken();
+              typewriter.enqueue(delta);
+            }
+          } catch {}
+        }
+      }
+      typewriter.flush();
+      setPendingResponse(null);
+      addMessage({ id: pendingId, role: 'assistant', content: acc });
+      resetThinking();
+    } catch (error: any) {
+      const message = `⚠️ ${String(error?.message || 'Request failed')}`;
+      typewriter.stop();
+      setPendingResponse(null);
+      addMessage({ id: pendingId, role: 'assistant', content: message });
+      resetThinking();
+    } finally {
+      abortRef.current = null;
+      typewriter.stop();
+      typewriterRef.current = null;
+    }
+  }, [addMessage, messages, resetThinking]);
 
   return (
     <div className="flex h-full flex-col">
@@ -113,20 +302,18 @@ export function ChatWindow() {
         } md:pb-0 md:overflow-y-auto`}
       >
         <div className="px-4">
-          {messages.map((m, idx) => {
-            const isLastMessage = idx === messages.length - 1;
-            const showThinkingTimer = isLastMessage && isThinking;
+          {visibleMessages.map((m: any) => {
+            const isPending = Boolean((m as any).pending);
+            const content = typeof m.content === 'string' ? m.content : '';
             return (
               <div key={m.id} className="space-y-2">
-                <MessageRow m={m} />
-                {showThinkingTimer ? (
-                  <div className="px-2">
-                    <div className="mt-1 inline-flex items-center gap-3 text-sm text-slate-500">
-                      <span>Thinking…</span>
-                      <AnalyzingInline active={showThinkingTimer} />
-                    </div>
-                  </div>
-                ) : null}
+                <MessageRow
+                  m={{ id: m.id, role: m.role, content }}
+                  pending={isPending}
+                  thinkingPhase={isPending ? thinkingPhase : 'idle'}
+                  phrases={isPending ? analyzingPhrases : []}
+                  showDots={isPending ? thinkingDotsVisible : false}
+                />
               </div>
             );
           })}

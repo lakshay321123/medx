@@ -42,9 +42,9 @@ import { detectAdvancedDomain } from "@/lib/intents/advanced";
 // === ADD-ONLY for domain routing ===
 import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
-import { AnalyzingInline } from "@/components/chat/AnalyzingInline";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { StopButton } from "@/components/ui/StopButton";
+import ThinkingDots from "@/components/ui/ThinkingDots";
 import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
 import { getUserPosition, fetchNearby, geocodeArea, type NearbyKind, type NearbyPlace } from "@/lib/nearby";
 import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
@@ -53,6 +53,17 @@ import { exportMessageToPng } from "@/lib/share/snapshot";
 import { trackAnalyticsEvent } from "@/lib/analytics";
 import { pushToast } from "@/lib/ui/toast";
 import { useFeedback } from "@/hooks/useFeedback";
+import { parseQuery } from "@/lib/ui/queryParser";
+import {
+  aiDocAnalyzing,
+  clinicalAnalyzing,
+  clinicalResearchAnalyzing,
+  genericAnalyzing,
+  pickAnalyzingPhrases,
+  wellnessAnalyzing,
+  wellnessResearchAnalyzing,
+} from "@/lib/ui/analyzingLibrary";
+import { createTypewriter, type TypewriterController } from "@/lib/ui/typewriter";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -477,13 +488,51 @@ No fabricated IDs. Provide themes, not specific trial numbers unless confident.`
   ];
 }
 
-function PendingChatCard({ label, active }: { label: string; active?: boolean }) {
+type ThinkingPhase = 'idle' | 'sending' | 'analyzing' | 'streaming';
+
+function PendingChatCard({
+  label,
+  showDots,
+  phrases,
+  thinkingPhase,
+}: {
+  label: string;
+  showDots: boolean;
+  phrases: string[];
+  thinkingPhase: ThinkingPhase;
+}) {
+  const showAnalyzing = thinkingPhase === 'analyzing' && phrases.length > 0;
   return (
     <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
       <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
         <span>{label}</span>
-        <AnalyzingInline active={!!active} />
+        <ThinkingDots active={showDots && thinkingPhase !== 'streaming'} />
       </div>
+      {showAnalyzing ? (
+        <ul className="mt-3 space-y-1 text-xs text-slate-500 dark:text-slate-400">
+          {phrases.map((phrase, idx) => (
+            <li
+              key={`${idx}-${phrase}`}
+              className="opacity-0 animate-[analyzing-step_0.5s_ease-forwards]"
+              style={{ animationDelay: `${idx * 0.24}s` }}
+            >
+              {phrase}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <style jsx>{`
+        @keyframes analyzing-step {
+          0% {
+            opacity: 0;
+            transform: translateY(4px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 }
@@ -554,16 +603,31 @@ function ChatCard({
   therapyMode,
   onAction,
   simple,
-  pendingTimerActive
+  pendingTimerActive,
+  thinkingPhase,
+  pendingPhrases,
+  showThinkingDots,
 }: {
   m: Extract<ChatMessage, { kind: "chat" }>;
   therapyMode: boolean;
   onAction: (s: Suggestion) => void;
   simple: boolean;
   pendingTimerActive?: boolean;
+  thinkingPhase: ThinkingPhase;
+  pendingPhrases: string[];
+  showThinkingDots: boolean;
 }) {
   const suggestions = normalizeSuggestions(m.followUps);
-  if (m.pending) return <PendingChatCard label="Thinking…" active={pendingTimerActive} />;
+  if (m.pending) {
+    return (
+      <PendingChatCard
+        label="Analyzing…"
+        showDots={showThinkingDots}
+        phrases={pendingPhrases}
+        thinkingPhase={thinkingPhase}
+      />
+    );
+  }
   return (
     <div
       className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl"
@@ -632,9 +696,22 @@ function AssistantMessage(props: {
   therapyMode: boolean;
   onAction: (s: Suggestion) => void;
   simple: boolean;
-  pendingTimerActive?: boolean;
+  thinkingPhase: ThinkingPhase;
+  pendingPhrases: string[];
+  showThinkingDots: boolean;
 }) {
-  const { m, therapyMode, onAction, simple, pendingTimerActive, researchOn, onQuickAction, busy } = props;
+  const {
+    m,
+    therapyMode,
+    onAction,
+    simple,
+    thinkingPhase,
+    pendingPhrases,
+    showThinkingDots,
+    researchOn,
+    onQuickAction,
+    busy,
+  } = props;
   if (m.kind === "analysis") {
     return (
       <AnalysisCard
@@ -654,7 +731,10 @@ function AssistantMessage(props: {
       therapyMode={therapyMode}
       onAction={onAction}
       simple={simple}
-      pendingTimerActive={pendingTimerActive}
+      pendingTimerActive={thinkingPhase === 'sending' || thinkingPhase === 'analyzing'}
+      thinkingPhase={thinkingPhase}
+      pendingPhrases={pendingPhrases}
+      showThinkingDots={showThinkingDots}
     />
   );
 }
@@ -672,6 +752,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [queueActive, setQueueActive] = useState(false);
   const [busy, setBusy] = useState(false);
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
+  const [thinkingPhase, setThinkingPhase] = useState<ThinkingPhase>('idle');
+  const [pendingAnalyzingPhrases, setPendingAnalyzingPhrases] = useState<string[]>([]);
+  const [thinkingDotsVisible, setThinkingDotsVisible] = useState(false);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const [labSummary, setLabSummary] = useState<any | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
@@ -693,6 +776,12 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const sendRef = useRef<(text: string, researchMode: boolean, opts?: SendOpts) => void>();
   const researchModeRef = useRef<boolean>(false);
   const queueAbortRef = useRef<AbortController | null>(null);
+  const typewritersRef = useRef<Map<string, TypewriterController>>(new Map());
+  const resetThinking = useCallback(() => {
+    setThinkingPhase('idle');
+    setPendingAnalyzingPhrases([]);
+    setThinkingDotsVisible(false);
+  }, []);
   const { filters } = useResearchFilters();
 
   const sp = useSearchParams();
@@ -748,6 +837,13 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   useEffect(() => {
     sendRef.current = send;
   });
+
+  useEffect(() => {
+    return () => {
+      typewritersRef.current.forEach(t => t.stop());
+      typewritersRef.current.clear();
+    };
+  }, []);
 
   useEffect(() => {
     researchModeRef.current = Boolean(researchMode);
@@ -2023,6 +2119,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     if (!text.trim() || busy) return;
     setBusy(true);
     setThinkingStartedAt(Date.now());
+    setThinkingPhase('sending');
+    setThinkingDotsVisible(true);
+    setPendingAnalyzingPhrases([]);
 
     const normalize = (s: string) =>
       s
@@ -2032,6 +2131,23 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     const messageText = isProfileThread ? normalize(text) : text;
     const visualEcho = opts.visualEcho !== false;
     const clientRequestId = opts.clientRequestId || crypto.randomUUID();
+    const queryInsights = parseQuery({ text: messageText, mode: uiMode, researchEnabled: researchMode });
+    const researchActive = researchMode || queryInsights.needsResearch;
+    const analyzingSource = isAiDocMode
+      ? aiDocAnalyzing
+      : uiMode === 'clinical'
+        ? (researchActive ? clinicalResearchAnalyzing : clinicalAnalyzing)
+        : uiMode === 'wellness'
+          ? (researchActive ? wellnessResearchAnalyzing : wellnessAnalyzing)
+          : genericAnalyzing;
+    const analyzingSteps = pickAnalyzingPhrases(analyzingSource);
+    if (analyzingSteps.length > 0) {
+      setThinkingPhase('analyzing');
+      setPendingAnalyzingPhrases(analyzingSteps);
+    }
+    const needsExtendedBudget =
+      queryInsights.complexity === 'complex' || queryInsights.needsCalculators || researchActive || isAiDocMode;
+    const maxTokens = needsExtendedBudget ? 1100 : 420;
     if (!opts.skipUserMemory) {
       if (threadId) pushFullMem(threadId, "user", messageText);
       if (stableThreadId) {
@@ -2047,11 +2163,13 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         const replay = (lastUser?.content || '').trim();
         setBusy(false);
         setThinkingStartedAt(null);
+        resetThinking();
         setUserText('');
         if (replay) await send(replay, researchMode, { visualEcho: false });
       } else {
         setBusy(false);
         setThinkingStartedAt(null);
+        resetThinking();
         setUserText('');
       }
       // 'chatty' (optional): uncomment to show lines
@@ -2116,7 +2234,33 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       nextMsgs = [...baseMessages, pendingMessage];
     }
     setMessages(nextMsgs);
+    const pendingTypewriter = createTypewriter(content => {
+      setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, content } : m)));
+    });
+    pendingTypewriter.reset('');
+    typewritersRef.current.set(pendingId, pendingTypewriter);
     opts.onPending?.(pendingId);
+    const typewriter = pendingTypewriter;
+    let streamStarted = false;
+    const handleFirstToken = () => {
+      if (streamStarted) return;
+      streamStarted = true;
+      setThinkingStartedAt(null);
+      setThinkingDotsVisible(false);
+      setPendingAnalyzingPhrases([]);
+      setThinkingPhase('streaming');
+    };
+    const flushTypewriter = () => {
+      try {
+        typewriter.flush();
+      } catch {}
+      typewriter.stop();
+      typewritersRef.current.delete(pendingId);
+    };
+    const abortTypewriter = () => {
+      typewriter.stop();
+      typewritersRef.current.delete(pendingId);
+    };
     const maybe = maybeFixMedicalTypo(messageText);
     if (maybe && messages.filter(m => m.role === "assistant").slice(-1)[0]?.content !== maybe.ask) {
       // Ask once, keep pending bubble as the question (no LLM call)
@@ -2130,6 +2274,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       }
       setBusy(false);
       setThinkingStartedAt(null);
+      resetThinking();
+      abortTypewriter();
       return; // wait for user Yes/No
     }
     setUserText('');
@@ -2164,6 +2310,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             );
             setBusy(false);
             setThinkingStartedAt(null);
+            resetThinking();
+            abortTypewriter();
             return;
           }
           try {
@@ -2183,6 +2331,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               }
               setBusy(false);
               setThinkingStartedAt(null);
+              resetThinking();
+              flushTypewriter();
               return;
             }
           } catch {}
@@ -2205,7 +2355,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             messages: thread,
             threadId,
             context,
-            clientRequestId
+            clientRequestId,
+            max_tokens: maxTokens
           }),
           signal: ctrl.signal
         });
@@ -2213,6 +2364,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           setMessages(prev => prev.filter(m => m.id !== pendingId));
           setBusy(false);
           setThinkingStartedAt(null);
+          resetThinking();
+          abortTypewriter();
           return;
         }
         if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
@@ -2231,12 +2384,14 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               const delta = payload?.choices?.[0]?.delta?.content;
               if (delta) {
                 acc += delta;
-                setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m)));
+                handleFirstToken();
+                typewriter.enqueue(delta);
               }
             } catch {}
           }
         }
         const { main, followUps } = splitFollowUps(acc);
+        flushTypewriter();
         setMessages(prev =>
           prev.map(m =>
             m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
@@ -2249,6 +2404,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         if (stableThreadId) {
           try { pushFullMem(stableThreadId, "assistant", main); } catch {}
         }
+        resetThinking();
         return;
       }
       if (therapyMode) {
@@ -2275,6 +2431,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               ? { ...m, content, pending: false, error: msg }
               : m
           ));
+          flushTypewriter();
+          resetThinking();
           if (threadId && content.trim()) {
             pushFullMem(threadId, "assistant", content);
             maybeIndexStructured(threadId, content);
@@ -2291,6 +2449,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           setMessages(prev => prev.map(m =>
             m.id === pendingId ? { ...m, content, pending: false } : m
           ));
+          flushTypewriter();
+          resetThinking();
           if (threadId && content.trim()) {
             pushFullMem(threadId, "assistant", content);
             maybeIndexStructured(threadId, content);
@@ -2303,6 +2463,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           setMessages(prev => prev.map(m =>
             m.id === pendingId ? { ...m, content, pending: false } : m
           ));
+          flushTypewriter();
+          resetThinking();
           if (threadId && content.trim()) {
             pushFullMem(threadId, "assistant", content);
             maybeIndexStructured(threadId, content);
@@ -2317,6 +2479,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               ? { ...m, content, pending: false, error: 'Empty response from server.' }
               : m
             ));
+          flushTypewriter();
+          resetThinking();
           if (threadId && content.trim()) {
             pushFullMem(threadId, "assistant", content);
             maybeIndexStructured(threadId, content);
@@ -2374,6 +2538,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           }
           setBusy(false);
           setThinkingStartedAt(null);
+          resetThinking();
+          abortTypewriter();
           return;
         }
         // else: proceed to normal LLM call with contextBlock (added above)
@@ -2576,7 +2742,8 @@ ${systemCommon}` + baseSys;
           threadId,
           context,
           clientRequestId,
-          research: researchMode
+          research: researchMode,
+          max_tokens: maxTokens
         }),
         signal: ctrl.signal
       });
@@ -2584,6 +2751,8 @@ ${systemCommon}` + baseSys;
         setMessages(prev => prev.filter(m => m.id !== pendingId));
         setBusy(false);
         setThinkingStartedAt(null);
+        resetThinking();
+        abortTypewriter();
         return;
       }
       if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
@@ -2605,19 +2774,20 @@ ${systemCommon}` + baseSys;
             const delta = payload?.choices?.[0]?.delta?.content;
             if (delta) {
               acc += delta;
-              setMessages(prev =>
-                prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m))
-              );
+              handleFirstToken();
+              typewriter.enqueue(delta);
             }
           } catch {}
         }
       }
       const { main, followUps } = splitFollowUps(acc);
+      flushTypewriter();
       setMessages(prev =>
         prev.map(m =>
           m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
         )
       );
+      resetThinking();
       opts.onSuccess?.(pendingId);
       if (researchMode) {
         const lastUserMsg = text;
@@ -2656,6 +2826,8 @@ ${systemCommon}` + baseSys;
           )
         );
         opts.onError?.();
+        abortTypewriter();
+        resetThinking();
         return;
       }
       console.error(e);
@@ -2675,10 +2847,13 @@ ${systemCommon}` + baseSys;
         try { pushFullMem(stableThreadId, 'assistant', content); } catch {}
       }
       opts.onError?.();
+      abortTypewriter();
+      resetThinking();
     } finally {
       setBusy(false);
       setThinkingStartedAt(null);
       abortRef.current = null;
+      resetThinking();
       opts.onFinish?.();
     }
   }
@@ -3348,6 +3523,10 @@ ${systemCommon}` + baseSys;
         const canRefresh = m.kind === 'chat' && !m.pending;
         const disableRefresh = busy || assistantBusy || m.pending;
 
+        const pendingPhase = m.pending && isLastVisible ? thinkingPhase : 'idle';
+        const pendingPhrases = m.pending && isLastVisible ? pendingAnalyzingPhrases : [];
+        const pendingDots = m.pending && isLastVisible ? thinkingDotsVisible : false;
+
         return (
           <div key={derivedKey} className="space-y-2">
             <div className="space-y-4">
@@ -3361,7 +3540,9 @@ ${systemCommon}` + baseSys;
                     therapyMode={therapyMode}
                     onAction={stableHandleSuggestionAction}
                     simple={simpleMode}
-                    pendingTimerActive={showThinkingTimer}
+                    thinkingPhase={pendingPhase as ThinkingPhase}
+                    pendingPhrases={pendingPhrases}
+                    showThinkingDots={pendingDots}
                   />
                 </div>
                 <MessageActions

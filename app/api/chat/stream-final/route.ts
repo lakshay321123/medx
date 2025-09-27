@@ -13,7 +13,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  const { messages = [], mode } = await req.json();
+  const body = await req.json();
+  const { messages = [], mode } = body;
+  const requestedMaxTokensRaw = typeof body?.max_tokens === 'number' ? body.max_tokens : (typeof body?.maxTokens === 'number' ? body.maxTokens : undefined);
+  const requestedMaxTokens = typeof requestedMaxTokensRaw === 'number'
+    ? Math.min(1200, Math.max(250, Math.floor(requestedMaxTokensRaw)))
+    : undefined;
 
   // This endpoint is explicitly the OpenAI (final say) stream for non-basic modes.
   // Keep your current /api/chat/stream for Groq/basic.
@@ -31,7 +36,7 @@ export async function POST(req: Request) {
 
   const minMs = minDelayMs();
   const upstream = await ensureMinDelay<Response>(
-    callOpenAIChat([{ role: "system", content: system }, ...messages], { stream: true }),
+    callOpenAIChat([{ role: "system", content: system }, ...messages], { stream: true, max_tokens: requestedMaxTokens }),
     minMs
   );
 
@@ -42,6 +47,9 @@ export async function POST(req: Request) {
   return new Response(upstream.body, {
     headers: {
       "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
       "x-medx-provider": "openai",
       "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-5"
     }
