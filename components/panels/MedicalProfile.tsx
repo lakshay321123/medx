@@ -63,6 +63,24 @@ function dedupeStrings(values: string[]) {
   return Array.from(new Set(values.map(v => v.trim()).filter(Boolean)));
 }
 
+function describeUpdatedAt(timestamp: string | number | Date | null | undefined) {
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return "";
+  const diff = Date.now() - date.getTime();
+  const dayMs = 24 * 60 * 60 * 1000;
+  if (diff < dayMs) return "Updated today";
+  if (diff < 2 * dayMs) return "Updated yesterday";
+  const days = Math.floor(diff / dayMs);
+  if (days < 7) return `Updated ${days} days ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 4) return `Updated ${weeks} week${weeks === 1 ? "" : "s"} ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `Updated ${months} month${months === 1 ? "" : "s"} ago`;
+  const years = Math.floor(days / 365);
+  return `Updated ${years} year${years === 1 ? "" : "s"} ago`;
+}
+
 function parseNumber(raw: any): number | null {
   if (raw == null) return null;
   if (typeof raw === "number" && Number.isFinite(raw)) return raw;
@@ -161,6 +179,8 @@ export default function MedicalProfile() {
   const [nextStepsDraft, setNextStepsDraft] = useState("");
   const [savingNextSteps, setSavingNextSteps] = useState(false);
   const [summaryMedsEditing, setSummaryMedsEditing] = useState(false);
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const [showMedicationComposer, setShowMedicationComposer] = useState(false);
 
   const extractedMedications = useMemo(() => extractMedicationEntries(data), [data]);
 
@@ -319,6 +339,7 @@ export default function MedicalProfile() {
       return value;
     };
     setSummaryText(text || "No summary yet.");
+    setSummaryExpanded(false);
     setPredictionText(findValue("AI Prediction"));
     setSummaryNotes(findValue("Symptoms/Notes"));
     setSummaryNextSteps(findValue("Next Steps"));
@@ -333,6 +354,7 @@ export default function MedicalProfile() {
       const reasons = body?.reasons || "";
       if (typeof reasons === "string" && !text) {
         setSummaryText(reasons);
+        setSummaryExpanded(false);
       }
     } catch (err) {
       console.warn("Failed to load profile summary", err);
@@ -361,7 +383,13 @@ export default function MedicalProfile() {
     },
   ];
 
-  const medsEmpty = medications.length === 0;
+  const vitalsUpdatedRaw =
+    (data?.profile as any)?.vitals?.updated_at ??
+    (data?.profile as any)?.vitals?.updatedAt ??
+    (data?.profile as any)?.vitals_updated_at ??
+    null;
+  const vitalsStatus = describeUpdatedAt(vitalsUpdatedRaw);
+  const summaryShouldClamp = (summaryText || "").length > 320;
   const displayedNotes = manualNotes ?? (summaryNotes !== NO_DATA_TEXT ? summaryNotes : null);
   const displayedNextSteps =
     manualNextSteps ?? (summaryNextSteps !== NO_DATA_TEXT ? summaryNextSteps : null);
@@ -462,6 +490,7 @@ export default function MedicalProfile() {
     };
 
     setMedications(prev => dedupeMedicationList([...prev, nextEntry]));
+    setShowMedicationComposer(false);
     await Promise.all([mutateProfile?.(), mutateGlobal?.("/api/profile"), loadSummary?.()]);
   };
 
@@ -660,6 +689,7 @@ export default function MedicalProfile() {
       if (summary) {
         parseSummary(summary);
         setSummaryText(summary);
+        setSummaryExpanded(false);
         if (/insufficient data/i.test(summary)) {
           setPredictionText("Not enough data to compute risk yet.");
         }
@@ -681,6 +711,28 @@ export default function MedicalProfile() {
 
   const showWellnessSections = panelMode !== "clinical";
   const showClinicalSections = panelMode !== "wellness";
+  const displaySex = sex ? `${sex[0]?.toUpperCase()}${sex.slice(1)}` : "";
+  const displayAge = ageFromDob(dob);
+  const identityDetails = [displaySex, displayAge ? `${displayAge} yrs` : "", bloodGroup]
+    .map(value => value?.toString().trim())
+    .filter(Boolean)
+    .join(" • ");
+  const isVerified = Boolean(
+    (data?.profile as any)?.verified ??
+      (data?.profile as any)?.is_verified ??
+      (data?.profile as any)?.isVerified ??
+      false,
+  );
+  const initials = useMemo(() => {
+    const trimmed = (fullName || "").trim();
+    if (!trimmed) return "MP";
+    const parts = trimmed.split(/\s+/).filter(Boolean);
+    if (!parts.length) return "MP";
+    if (parts.length === 1) {
+      return parts[0].slice(0, 2).toUpperCase();
+    }
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  }, [fullName]);
 
   if (isLoading) return <PanelLoader label="Medical Profile" />;
   if (error) {
@@ -693,165 +745,197 @@ export default function MedicalProfile() {
   }
 
   return (
-    <div className="space-y-4 p-4 md:p-6">
+    <div className="space-y-3 p-3 md:p-6">
       <ProfileSection
         title="Personal details"
         actions={
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
             <button
               type="button"
-              className="w-full rounded-md border px-3 py-1.5 text-sm sm:w-auto"
+              className="inline-flex h-9 w-full items-center justify-center rounded-[10px] border border-border/70 px-3 text-[13px] font-medium text-foreground transition hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:w-auto dark:border-border/40"
               onClick={() => router.push("/?panel=chat&threadId=med-profile&context=profile")}
             >
               Open in chat
             </button>
             <button
               type="button"
-              className="w-full rounded-md border bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow disabled:opacity-60 sm:w-auto"
+              className="inline-flex h-9 w-full items-center justify-center rounded-[10px] border border-primary/70 bg-primary px-3 text-[13px] font-semibold text-primary-foreground shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
               onClick={handleProfileSave}
               disabled={savingProfile}
             >
-              {savingProfile ? "Saving…" : "Save"}
+              {savingProfile ? "Saving…" : "Save profile"}
             </button>
           </div>
         }
       >
-        <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
-          <label className="flex flex-col gap-1">
-            <span>Name</span>
-            <input
-              className="rounded-md border px-3 py-2"
-              value={fullName}
-              onChange={e => setFullName(e.target.value)}
-              placeholder="Full name"
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span>DOB</span>
-            <input
-              type="date"
-              className="rounded-md border px-3 py-2"
-              value={/^\d{4}-\d{2}-\d{2}$/.test(dob) ? dob : ""}
-              max={new Date().toISOString().slice(0, 10)}
-              onChange={e => setDob(e.target.value)}
-            />
-            <span className="text-xs text-muted-foreground">Age: {ageFromDob(dob) || "—"}</span>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span>Sex</span>
-            <select
-              className="rounded-md border px-3 py-2"
-              value={sex || ""}
-              onChange={e => setSex(e.target.value)}
-            >
-              <option value="">—</option>
-              {SEXES.map(s => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span>Blood group</span>
-            <select
-              className="rounded-md border px-3 py-2"
-              value={bloodGroup || ""}
-              onChange={e => setBloodGroup(e.target.value)}
-            >
-              <option value="">—</option>
-              {BLOOD_GROUPS.map(bg => (
-                <option key={bg} value={bg}>
-                  {bg}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span>Height (cm)</span>
-            <input
-              type="number"
-              inputMode="decimal"
-              className="rounded-md border px-3 py-2"
-              placeholder="e.g. 170"
-              value={heightInput}
-              onChange={e => setHeightInput(e.target.value)}
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span>Weight (kg)</span>
-            <input
-              type="number"
-              inputMode="decimal"
-              className="rounded-md border px-3 py-2"
-              placeholder="e.g. 70"
-              value={weightInput}
-              onChange={e => setWeightInput(e.target.value)}
-            />
-          </label>
-          <label className="flex flex-col gap-1 md:col-span-1">
-            <span>Predispositions</span>
-            <input
-              className="rounded-md border px-3 py-2"
-              placeholder="Type to add (Enter)…"
-              onKeyDown={e => {
-                const value = (e.target as HTMLInputElement).value.trim();
-                if (e.key === "Enter" && value) {
-                  e.preventDefault();
-                  setPredis(dedupeStrings([...predis, value]));
-                  (e.target as HTMLInputElement).value = "";
-                }
-              }}
-              list="condlist"
-            />
-            <datalist id="condlist">
-              {PRESET_CONDITIONS.map(c => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
-            <div className="mt-1 flex flex-wrap gap-2">
-              {predis.map(c => (
-                <button
-                  key={c}
-                  type="button"
-                  className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs"
-                  onClick={() => setPredis(predis.filter(x => x !== c))}
-                >
-                  <span className="truncate">{c}</span>
-                  <span aria-hidden>×</span>
-                </button>
-              ))}
+        <div className="space-y-3 text-[13px]">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-muted text-base font-semibold text-foreground">
+              {initials}
             </div>
-          </label>
-          <label className="flex flex-col gap-1 md:col-span-1">
-            <span>Chronic conditions</span>
-            <input
-              className="rounded-md border px-3 py-2"
-              placeholder="Type to add (Enter)…"
-              onKeyDown={e => {
-                const value = (e.target as HTMLInputElement).value.trim();
-                if (e.key === "Enter" && value) {
-                  e.preventDefault();
-                  setChronic(dedupeStrings([...chronic, value]));
-                  (e.target as HTMLInputElement).value = "";
-                }
-              }}
-              list="condlist"
-            />
-            <div className="mt-1 flex flex-wrap gap-2">
-              {chronic.map(c => (
-                <button
-                  key={c}
-                  type="button"
-                  className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs"
-                  onClick={() => setChronic(chronic.filter(x => x !== c))}
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={
+                    fullName
+                      ? "truncate text-sm font-semibold text-foreground"
+                      : "truncate text-sm font-semibold text-muted-foreground"
+                  }
                 >
-                  <span className="truncate">{c}</span>
-                  <span aria-hidden>×</span>
-                </button>
-              ))}
+                  {fullName || "Add full name"}
+                </span>
+                {isVerified ? (
+                  <span className="inline-flex h-5 items-center rounded-full border border-emerald-500/60 bg-emerald-500/10 px-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:border-emerald-400/40 dark:text-emerald-200">
+                    Verified
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-1 truncate text-xs text-muted-foreground">
+                {identityDetails || "Add demographic details"}
+              </p>
             </div>
-          </label>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Name</span>
+              <input
+                className="h-10 rounded-[10px] border border-border/70 bg-background px-3 text-[13px] leading-tight shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
+                value={fullName}
+                onChange={e => setFullName(e.target.value)}
+                placeholder="Full name"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">DOB</span>
+              <input
+                type="date"
+                className="h-10 rounded-[10px] border border-border/70 bg-background px-3 text-[13px] leading-tight shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
+                value={/^\d{4}-\d{2}-\d{2}$/.test(dob) ? dob : ""}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={e => setDob(e.target.value)}
+              />
+              <span className="text-[11px] text-muted-foreground">Age: {displayAge || "—"}</span>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Sex</span>
+              <select
+                className="h-10 rounded-[10px] border border-border/70 bg-background px-3 text-[13px] leading-tight shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
+                value={sex || ""}
+                onChange={e => setSex(e.target.value)}
+              >
+                <option value="">—</option>
+                {SEXES.map(s => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Blood group</span>
+              <select
+                className="h-10 rounded-[10px] border border-border/70 bg-background px-3 text-[13px] leading-tight shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
+                value={bloodGroup || ""}
+                onChange={e => setBloodGroup(e.target.value)}
+              >
+                <option value="">—</option>
+                {BLOOD_GROUPS.map(bg => (
+                  <option key={bg} value={bg}>
+                    {bg}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Height (cm)</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                className="h-10 rounded-[10px] border border-border/70 bg-background px-3 text-[13px] leading-tight shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
+                placeholder="e.g. 170"
+                value={heightInput}
+                onChange={e => setHeightInput(e.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Weight (kg)</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                className="h-10 rounded-[10px] border border-border/70 bg-background px-3 text-[13px] leading-tight shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
+                placeholder="e.g. 70"
+                value={weightInput}
+                onChange={e => setWeightInput(e.target.value)}
+              />
+            </label>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Predispositions</span>
+              <input
+                className="h-10 rounded-[10px] border border-border/70 bg-background px-3 text-[13px] leading-tight shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
+                placeholder="Type to add (Enter)…"
+                onKeyDown={e => {
+                  const value = (e.target as HTMLInputElement).value.trim();
+                  if (e.key === "Enter" && value) {
+                    e.preventDefault();
+                    setPredis(dedupeStrings([...predis, value]));
+                    (e.target as HTMLInputElement).value = "";
+                  }
+                }}
+                list="condlist"
+              />
+              <datalist id="condlist">
+                {PRESET_CONDITIONS.map(c => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
+              <div className="flex flex-wrap gap-1.5">
+                {predis.map(c => (
+                  <button
+                    key={c}
+                    type="button"
+                    className="inline-flex h-6 items-center gap-1.5 rounded-full border border-border/70 px-3 text-[11px] font-medium text-foreground/90 transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
+                    onClick={() => setPredis(predis.filter(x => x !== c))}
+                  >
+                    <span className="truncate">{c}</span>
+                    <span aria-hidden>×</span>
+                  </button>
+                ))}
+              </div>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Chronic conditions</span>
+              <input
+                className="h-10 rounded-[10px] border border-border/70 bg-background px-3 text-[13px] leading-tight shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
+                placeholder="Type to add (Enter)…"
+                onKeyDown={e => {
+                  const value = (e.target as HTMLInputElement).value.trim();
+                  if (e.key === "Enter" && value) {
+                    e.preventDefault();
+                    setChronic(dedupeStrings([...chronic, value]));
+                    (e.target as HTMLInputElement).value = "";
+                  }
+                }}
+                list="condlist"
+              />
+              <div className="flex flex-wrap gap-1.5">
+                {chronic.map(c => (
+                  <button
+                    key={c}
+                    type="button"
+                    className="inline-flex h-6 items-center gap-1.5 rounded-full border border-border/70 px-3 text-[11px] font-medium text-foreground/90 transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
+                    onClick={() => setChronic(chronic.filter(x => x !== c))}
+                  >
+                    <span className="truncate">{c}</span>
+                    <span aria-hidden>×</span>
+                  </button>
+                ))}
+              </div>
+            </label>
+          </div>
         </div>
       </ProfileSection>
 
@@ -861,7 +945,7 @@ export default function MedicalProfile() {
           actions={
             <button
               type="button"
-              className="rounded-md border px-3 py-1.5 text-sm"
+              className="inline-flex h-9 items-center justify-center rounded-[10px] border border-border/70 px-3 text-[13px] font-medium text-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
               onClick={() => setEditingVitals(open => !open)}
             >
               {editingVitals ? "Close" : "Edit"}
@@ -901,14 +985,19 @@ export default function MedicalProfile() {
               }}
             />
           ) : (
-            <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
-              {vitalsDisplay.map(item => (
-                <div key={item.label}>
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</dt>
-                  <dd className="text-base font-medium">{item.value}</dd>
-                </div>
-              ))}
-            </dl>
+            <div className="space-y-2">
+              <dl className="grid grid-cols-1 gap-3 text-[13px] min-[420px]:grid-cols-2 xl:grid-cols-4">
+                {vitalsDisplay.map(item => (
+                  <div key={item.label} className="rounded-[10px] border border-border/60 bg-muted/40 p-3 dark:border-border/30 dark:bg-muted/20">
+                    <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</dt>
+                    <dd className="mt-1 truncate text-[13px] font-semibold text-foreground">{item.value}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="text-[11px] text-muted-foreground">
+                {vitalsStatus || "No recent vitals recorded."}
+              </p>
+            </div>
           )}
         </ProfileSection>
       ) : null}
@@ -917,17 +1006,17 @@ export default function MedicalProfile() {
         <ProfileSection
           title="AI Summary"
           actions={
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
               <button
                 type="button"
-                className="w-full rounded-md border px-3 py-1.5 text-sm sm:w-auto"
+                className="inline-flex h-9 w-full items-center justify-center rounded-[10px] border border-border/70 px-3 text-[13px] font-medium text-foreground transition hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:w-auto dark:border-border/40"
                 onClick={() => router.push("/?panel=chat&threadId=med-profile&context=profile")}
               >
                 Discuss in chat
               </button>
               <button
                 type="button"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-md border bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow disabled:opacity-60 sm:w-auto"
+                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-[10px] border border-primary/70 bg-primary px-3 text-[13px] font-semibold text-primary-foreground shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 onClick={onRecomputeRisk}
                 disabled={recomputeBusy}
               >
@@ -936,18 +1025,39 @@ export default function MedicalProfile() {
             </div>
           }
         >
-          <div className="space-y-3 text-sm">
-            <p className="whitespace-pre-wrap leading-relaxed">{summaryText}</p>
-            <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
-              ⚠️ This is AI-generated support, not a medical diagnosis. Always consult a clinician.
+          <div className="space-y-3 text-[13px]">
+            <div className="space-y-2">
+              <p
+                className="whitespace-pre-wrap text-[14px] leading-[1.6] text-foreground"
+                style={
+                  !summaryExpanded && summaryShouldClamp
+                    ? { display: "-webkit-box", WebkitLineClamp: 7, WebkitBoxOrient: "vertical", overflow: "hidden" }
+                    : undefined
+                }
+              >
+                {summaryText}
+              </p>
+              {summaryShouldClamp ? (
+                <button
+                  type="button"
+                  className="text-[12px] font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  onClick={() => setSummaryExpanded(expanded => !expanded)}
+                >
+                  {summaryExpanded ? "Show less" : "Show more"}
+                </button>
+              ) : null}
             </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Active Meds
-                </h4>
+            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-[11px] text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/5 dark:text-amber-200">
+              <span aria-hidden>⚠️</span>
+              <span className="truncate">
+                This is AI-generated support, not a medical diagnosis. Always consult a clinician.
+              </span>
+            </div>
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+              <div className="space-y-2 rounded-[10px] border border-border/60 bg-muted/20 p-3 dark:border-border/30 dark:bg-muted/10">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Active Meds</h4>
                 {medications.length ? (
-                  <div className="mt-1 flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {medications.map(med => (
                       <MedicationTag
                         key={`summary-${med.key}`}
@@ -957,42 +1067,46 @@ export default function MedicalProfile() {
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-1 text-sm text-muted-foreground">No medications recorded yet.</p>
+                  <p className="text-[12px] text-muted-foreground">No medications recorded yet.</p>
                 )}
                 {summaryMedsEditing ? (
-                  <div className="space-y-3">
-                    <MedicationInput onSave={handleAddMedication} placeholder="Add a medication" />
-                    <button
-                      type="button"
-                      className="inline-flex items-center rounded-md border px-3 py-1.5 text-xs"
-                      onClick={() => setSummaryMedsEditing(false)}
-                    >
-                      Done
-                    </button>
+                  <div className="space-y-2">
+                    <MedicationInput
+                      onSave={handleAddMedication}
+                      placeholder="Add a medication"
+                      autoFocus
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="inline-flex h-9 items-center rounded-[10px] border border-border/70 px-3 text-[12px] font-medium text-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
+                        onClick={() => setSummaryMedsEditing(false)}
+                      >
+                        Done
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <button
                     type="button"
-                    className="inline-flex items-center rounded-md border px-3 py-1.5 text-xs"
+                    className="inline-flex h-9 items-center rounded-[10px] border border-border/70 px-3 text-[12px] font-medium text-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
                     onClick={() => setSummaryMedsEditing(true)}
                   >
                     Add medication
                   </button>
                 )}
               </div>
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Symptoms & Notes
-                </h4>
+              <div className="space-y-2 rounded-[10px] border border-border/60 bg-muted/20 p-3 dark:border-border/30 dark:bg-muted/10">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Symptoms &amp; Notes</h4>
                 {displayedNotes && !notesEditing ? (
-                  <p className="mt-1 text-sm whitespace-pre-wrap">{displayedNotes}</p>
+                  <p className="text-[13px] leading-relaxed text-foreground/90 whitespace-pre-wrap">{displayedNotes}</p>
                 ) : !notesEditing ? (
-                  <p className="mt-1 text-sm text-muted-foreground">{NO_DATA_TEXT}</p>
+                  <p className="text-[12px] text-muted-foreground">{NO_DATA_TEXT}</p>
                 ) : null}
                 {notesEditing ? (
-                  <div className="mt-2 space-y-2">
+                  <div className="space-y-2">
                     <textarea
-                      className="w-full rounded-md border px-3 py-2 text-sm"
+                      className="w-full rounded-[10px] border border-border/70 bg-background px-3 py-2 text-[13px] leading-relaxed shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
                       rows={3}
                       value={notesDraft}
                       onChange={e => setNotesDraft(e.target.value)}
@@ -1000,7 +1114,7 @@ export default function MedicalProfile() {
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        className="rounded-md border bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow disabled:opacity-60"
+                        className="inline-flex h-9 items-center rounded-[10px] border border-primary/70 bg-primary px-3 text-[13px] font-semibold text-primary-foreground shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:cursor-not-allowed disabled:opacity-60"
                         onClick={handleSaveNotes}
                         disabled={savingNotes}
                       >
@@ -1008,7 +1122,7 @@ export default function MedicalProfile() {
                       </button>
                       <button
                         type="button"
-                        className="rounded-md border px-3 py-1.5 text-sm"
+                        className="inline-flex h-9 items-center rounded-[10px] border border-border/70 px-3 text-[13px] font-medium text-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-60 dark:border-border/40"
                         onClick={() => setNotesEditing(false)}
                         disabled={savingNotes}
                       >
@@ -1017,7 +1131,7 @@ export default function MedicalProfile() {
                       {manualNotes ? (
                         <button
                           type="button"
-                          className="rounded-md border px-3 py-1.5 text-sm"
+                          className="inline-flex h-9 items-center rounded-[10px] border border-border/70 px-3 text-[13px] font-medium text-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40 disabled:cursor-not-allowed disabled:opacity-60 dark:border-border/40"
                           onClick={handleClearNotes}
                           disabled={savingNotes}
                         >
@@ -1027,10 +1141,10 @@ export default function MedicalProfile() {
                     </div>
                   </div>
                 ) : displayedNotes ? (
-                  <div className="mt-2 flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      className="rounded-md border px-3 py-1.5 text-xs"
+                      className="inline-flex h-9 items-center rounded-[10px] border border-border/70 px-3 text-[12px] font-medium text-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
                       onClick={() => {
                         setNotesDraft(displayedNotes ?? "");
                         setNotesEditing(true);
@@ -1041,7 +1155,7 @@ export default function MedicalProfile() {
                     {manualNotes ? (
                       <button
                         type="button"
-                        className="rounded-md border px-3 py-1.5 text-xs"
+                        className="inline-flex h-9 items-center rounded-[10px] border border-border/70 px-3 text-[12px] font-medium text-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40 dark:border-border/40"
                         onClick={handleClearNotes}
                         disabled={savingNotes}
                       >
@@ -1052,7 +1166,7 @@ export default function MedicalProfile() {
                 ) : (
                   <button
                     type="button"
-                    className="mt-2 rounded-md border px-3 py-1.5 text-sm"
+                    className="inline-flex h-9 items-center rounded-[10px] border border-border/70 px-3 text-[12px] font-medium text-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
                     onClick={() => {
                       setNotesDraft("");
                       setNotesEditing(true);
@@ -1062,19 +1176,17 @@ export default function MedicalProfile() {
                   </button>
                 )}
               </div>
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Next Steps
-                </h4>
+              <div className="space-y-2 rounded-[10px] border border-border/60 bg-muted/20 p-3 dark:border-border/30 dark:bg-muted/10">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Next Steps</h4>
                 {displayedNextSteps && !nextStepsEditing ? (
-                  <p className="mt-1 text-sm whitespace-pre-wrap">{displayedNextSteps}</p>
+                  <p className="text-[13px] leading-relaxed text-foreground/90 whitespace-pre-wrap">{displayedNextSteps}</p>
                 ) : !nextStepsEditing ? (
-                  <p className="mt-1 text-sm text-muted-foreground">{NO_DATA_TEXT}</p>
+                  <p className="text-[12px] text-muted-foreground">{NO_DATA_TEXT}</p>
                 ) : null}
                 {nextStepsEditing ? (
-                  <div className="mt-2 space-y-2">
+                  <div className="space-y-2">
                     <textarea
-                      className="w-full rounded-md border px-3 py-2 text-sm"
+                      className="w-full rounded-[10px] border border-border/70 bg-background px-3 py-2 text-[13px] leading-relaxed shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
                       rows={3}
                       value={nextStepsDraft}
                       onChange={e => setNextStepsDraft(e.target.value)}
@@ -1082,7 +1194,7 @@ export default function MedicalProfile() {
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        className="rounded-md border bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow disabled:opacity-60"
+                        className="inline-flex h-9 items-center rounded-[10px] border border-primary/70 bg-primary px-3 text-[13px] font-semibold text-primary-foreground shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:cursor-not-allowed disabled:opacity-60"
                         onClick={handleSaveNextSteps}
                         disabled={savingNextSteps}
                       >
@@ -1090,7 +1202,7 @@ export default function MedicalProfile() {
                       </button>
                       <button
                         type="button"
-                        className="rounded-md border px-3 py-1.5 text-sm"
+                        className="inline-flex h-9 items-center rounded-[10px] border border-border/70 px-3 text-[13px] font-medium text-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-60 dark:border-border/40"
                         onClick={() => setNextStepsEditing(false)}
                         disabled={savingNextSteps}
                       >
@@ -1099,7 +1211,7 @@ export default function MedicalProfile() {
                       {manualNextSteps ? (
                         <button
                           type="button"
-                          className="rounded-md border px-3 py-1.5 text-sm"
+                          className="inline-flex h-9 items-center rounded-[10px] border border-border/70 px-3 text-[13px] font-medium text-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40 disabled:cursor-not-allowed disabled:opacity-60 dark:border-border/40"
                           onClick={handleClearNextSteps}
                           disabled={savingNextSteps}
                         >
@@ -1109,10 +1221,10 @@ export default function MedicalProfile() {
                     </div>
                   </div>
                 ) : displayedNextSteps ? (
-                  <div className="mt-2 flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      className="rounded-md border px-3 py-1.5 text-xs"
+                      className="inline-flex h-9 items-center rounded-[10px] border border-border/70 px-3 text-[12px] font-medium text-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
                       onClick={() => {
                         setNextStepsDraft(displayedNextSteps ?? "");
                         setNextStepsEditing(true);
@@ -1123,7 +1235,7 @@ export default function MedicalProfile() {
                     {manualNextSteps ? (
                       <button
                         type="button"
-                        className="rounded-md border px-3 py-1.5 text-xs"
+                        className="inline-flex h-9 items-center rounded-[10px] border border-border/70 px-3 text-[12px] font-medium text-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40 dark:border-border/40"
                         onClick={handleClearNextSteps}
                         disabled={savingNextSteps}
                       >
@@ -1134,7 +1246,7 @@ export default function MedicalProfile() {
                 ) : (
                   <button
                     type="button"
-                    className="mt-2 rounded-md border px-3 py-1.5 text-sm"
+                    className="inline-flex h-9 items-center rounded-[10px] border border-border/70 px-3 text-[12px] font-medium text-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
                     onClick={() => {
                       setNextStepsDraft("");
                       setNextStepsEditing(true);
@@ -1146,9 +1258,9 @@ export default function MedicalProfile() {
               </div>
             </div>
             {showClinicalSections ? (
-              <div className="rounded-lg border bg-muted/20 p-3 text-sm">
-                <div className="text-xs uppercase tracking-wide text-muted-foreground">AI prediction</div>
-                <div className="mt-1 whitespace-pre-wrap text-base font-medium">
+              <div className="rounded-[10px] border border-border/60 bg-muted/20 p-3 text-[13px] dark:border-border/30 dark:bg-muted/10">
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">AI prediction</div>
+                <div className="mt-1 whitespace-pre-wrap text-[13px] font-semibold text-foreground">
                   {predictionText && predictionText !== NO_DATA_TEXT
                     ? predictionText
                     : "No prediction yet — add vitals, labs, or medications to compute risk."}
@@ -1162,22 +1274,65 @@ export default function MedicalProfile() {
       {showClinicalSections ? (
         <ProfileSection
           title="Active Meds"
-          isEmpty={medsEmpty}
-          emptyMessage="No medications recorded yet."
-        >
-          {medications.length ? (
-            <div className="flex flex-wrap gap-2">
-              {medications.map(med => (
-                <MedicationTag
-                  key={med.key}
-                  label={formatMedicationLabel(med)}
-                  onRemove={() => handleRemoveMedication(med)}
-                />
-              ))}
+          actions={
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+              <button
+                type="button"
+                className="inline-flex h-9 items-center rounded-[10px] border border-border/70 px-3 text-[13px] font-medium text-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
+                onClick={() => setShowMedicationComposer(open => !open)}
+              >
+                {showMedicationComposer || medications.length === 0 ? "Close" : "Add"}
+              </button>
             </div>
-          ) : null}
-          <div className="mt-3">
-            <MedicationInput onSave={handleAddMedication} />
+          }
+        >
+          <div className="space-y-3 text-[13px]">
+            {medications.length ? (
+              <>
+                <div className="flex flex-wrap gap-1.5">
+                  {medications.map(med => (
+                    <MedicationTag
+                      key={med.key}
+                      label={formatMedicationLabel(med)}
+                      onRemove={() => handleRemoveMedication(med)}
+                    />
+                  ))}
+                </div>
+                <ul className="space-y-2.5">
+                  {medications.map(med => (
+                    <li
+                      key={`row-${med.key}`}
+                      className="flex items-center justify-between gap-3 rounded-[10px] border border-border/60 bg-background px-3 py-2.5 dark:border-border/30 dark:bg-muted/10"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-semibold text-foreground">{med.name}</p>
+                        <p className="truncate text-[12px] text-muted-foreground">
+                          {med.doseLabel || buildDoseLabelFromParts(med.doseValue ?? null, med.doseUnit) || "No dose recorded"}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="inline-flex h-9 items-center rounded-[10px] border border-border/70 px-3 text-[12px] font-medium text-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40 dark:border-border/40"
+                        onClick={() => handleRemoveMedication(med)}
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p className="text-[12px] text-muted-foreground">No medications recorded yet.</p>
+            )}
+            {showMedicationComposer || medications.length === 0 ? (
+              <div className="rounded-[10px] border border-border/60 bg-background/80 p-3 shadow-sm dark:border-border/30 dark:bg-muted/10">
+                <MedicationInput
+                  onSave={handleAddMedication}
+                  placeholder="Add a medication"
+                  autoFocus={showMedicationComposer || medications.length === 0}
+                />
+              </div>
+            ) : null}
           </div>
         </ProfileSection>
       ) : null}

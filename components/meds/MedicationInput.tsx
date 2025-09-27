@@ -18,9 +18,14 @@ type SuggestionResult = {
 export type MedicationInputProps = {
   onSave: (med: { name: string; dose?: string | null; rxnormId?: string | null }) => Promise<void> | void;
   placeholder?: string;
+  autoFocus?: boolean;
 };
 
-export default function MedicationInput({ onSave, placeholder = "Add a medication" }: MedicationInputProps) {
+export default function MedicationInput({
+  onSave,
+  placeholder = "Add a medication",
+  autoFocus = false,
+}: MedicationInputProps) {
   const { country } = useCountry();
   const [query, setQuery] = useState("");
   const [lockedName, setLockedName] = useState<string | null>(null);
@@ -151,10 +156,10 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
     <div className="space-y-3">
       <div className="flex flex-col gap-3">
         <div className="flex-1">
-          <label className="flex flex-col gap-1 text-sm">
+          <label className="flex flex-col gap-1.5 text-[13px]">
             <span className="text-xs font-medium text-muted-foreground">Medication name</span>
             <input
-              className="rounded-md border px-3 py-2"
+              className="h-10 w-full rounded-[10px] border border-border/70 bg-background px-3 text-[13px] leading-tight shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
               placeholder={placeholder}
               value={lockedName ?? query}
               onChange={e => {
@@ -164,6 +169,7 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
                 setQuery(e.target.value);
                 setError(null);
               }}
+              autoFocus={autoFocus}
               onKeyDown={event => {
                 if (!listOpen || displaySuggestions.length === 0) {
                   if (event.key === "Enter" && showSave) {
@@ -203,16 +209,18 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
               Searching suggestions…
             </p>
           ) : null}
-          {error ? <p className="mt-1 text-xs text-destructive">{error}</p> : null}
+          {error ? <p className="mt-1 text-[11px] text-destructive">{error}</p> : null}
           {!loading && listOpen && displaySuggestions.length > 0 ? (
-            <div className="mt-2 space-y-1 text-xs">
+            <div className="mt-2 space-y-1 text-[12px]">
               <p className="font-medium text-muted-foreground">Did you mean…</p>
-              <ul className="flex flex-wrap gap-1">
+              <ul className="flex flex-wrap gap-1.5">
                 {displaySuggestions.map((s, index) => (
                   <li key={`${s.rxnormId || s.name}`}>
                     <button
                       type="button"
-                      className={`rounded-full border px-3 py-1 hover:bg-muted ${highlightIndex === index ? "bg-muted" : ""}`}
+                      className={`inline-flex h-6 items-center rounded-full border border-border/70 px-3 text-[11px] font-medium transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40 ${
+                        highlightIndex === index ? "bg-muted/70" : ""
+                      }`}
                       onMouseEnter={() => setHighlightIndex(index)}
                       onClick={() => selectSuggestion(s)}
                     >
@@ -228,10 +236,10 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
           ) : null}
         </div>
         {shouldShowDoseInput ? (
-          <label className="flex flex-col gap-1 text-sm">
+          <label className="flex flex-col gap-1.5 text-[13px]">
             <span className="text-xs font-medium text-muted-foreground">Dose (enter 0 if not applicable)</span>
             <input
-              className="rounded-md border px-3 py-2"
+              className="h-10 rounded-[10px] border border-border/70 bg-background px-3 text-[13px] leading-tight shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
               placeholder="e.g. 500 mg or 0"
               value={dose}
               onChange={e => setDose(e.target.value)}
@@ -241,7 +249,7 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
         {showSave ? (
           <button
             type="button"
-            className="inline-flex items-center justify-center self-start rounded-md border bg-primary px-3 py-2 text-sm text-primary-foreground shadow disabled:opacity-60"
+            className="inline-flex h-9 items-center justify-center self-start rounded-[10px] border border-primary/70 bg-primary px-3 text-[13px] font-semibold text-primary-foreground shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:cursor-not-allowed disabled:opacity-60"
             onClick={handleSave}
             disabled={loading || !showSave}
           >
@@ -250,7 +258,7 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
         ) : null}
       </div>
       {needsDose && !trimmedDose ? (
-        <p className="text-xs text-muted-foreground">Add a dose (enter 0 if not applicable) before saving.</p>
+        <p className="text-[11px] text-muted-foreground">Add a dose (enter 0 if not applicable) before saving.</p>
       ) : null}
     </div>
   );

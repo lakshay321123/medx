@@ -30,23 +30,29 @@ export default function ProfileSection({
 }: ProfileSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <section className={`rounded-xl border bg-background p-4 shadow-sm ${className}`}>
-      <header className="flex items-start justify-between gap-3">
+    <section
+      className={`rounded-[12px] border border-border/70 bg-background/95 p-3 shadow-sm backdrop-blur-sm transition-colors dark:border-border/40 dark:bg-background/60 ${className}`}
+    >
+      <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <button
           type="button"
-          className="flex flex-1 items-center gap-2 text-left font-semibold"
+          className="flex flex-1 items-center gap-2 text-left text-sm font-semibold text-foreground"
           onClick={() => setOpen(v => !v)}
           aria-expanded={open}
           aria-controls={sectionId(title)}
         >
           {open ? (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           ) : (
-            <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           )}
-          <span>{title}</span>
+          <span className="truncate">{title}</span>
         </button>
-        {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+        {actions ? (
+          <div className="flex flex-wrap gap-2 sm:justify-end" aria-label={`${title} actions`}>
+            {actions}
+          </div>
+        ) : null}
       </header>
       <div id={sectionId(title)} className={open ? "mt-3" : "mt-3 hidden"}>
         {isLoading ? (

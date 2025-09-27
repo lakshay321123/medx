@@ -149,77 +149,74 @@ export default function VitalsEditor({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
-        <label className="flex flex-col gap-1">
+      <div className="grid grid-cols-1 gap-3 text-[13px] min-[420px]:grid-cols-2 md:grid-cols-4">
+        <label className="flex flex-col gap-1.5">
           <span className="text-xs font-medium text-muted-foreground">
             Systolic (mmHg)
           </span>
           <input
             type="number"
             inputMode="numeric"
-            className="rounded-md border px-3 py-2"
+            className="h-10 rounded-[10px] border border-border/70 bg-background px-3 text-[13px] leading-tight shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
             placeholder="120"
             value={systolic}
             onChange={event => setSystolic(event.target.value)}
             disabled={isSaving}
           />
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="flex flex-col gap-1.5">
           <span className="text-xs font-medium text-muted-foreground">
             Diastolic (mmHg)
           </span>
           <input
             type="number"
             inputMode="numeric"
-            className="rounded-md border px-3 py-2"
+            className="h-10 rounded-[10px] border border-border/70 bg-background px-3 text-[13px] leading-tight shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
             placeholder="80"
             value={diastolic}
             onChange={event => setDiastolic(event.target.value)}
             disabled={isSaving}
           />
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="flex flex-col gap-1.5">
           <span className="text-xs font-medium text-muted-foreground">
             Heart rate (BPM)
           </span>
           <input
             type="number"
             inputMode="numeric"
-            className="rounded-md border px-3 py-2"
+            className="h-10 rounded-[10px] border border-border/70 bg-background px-3 text-[13px] leading-tight shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
             placeholder="72"
             value={heartRate}
             onChange={event => setHeartRate(event.target.value)}
             disabled={isSaving}
           />
         </label>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
-        <label className="flex flex-col gap-1">
+        <label className="flex flex-col gap-1.5">
           <span className="text-xs font-medium text-muted-foreground">BMI (kg/m²)</span>
           <input
             type="number"
             inputMode="decimal"
-            className="rounded-md border px-3 py-2"
+            className="h-10 rounded-[10px] border border-border/70 bg-background px-3 text-[13px] leading-tight shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
             value={computedBmi != null ? String(computedBmi) : manualBmi}
             onChange={event => setManualBmi(event.target.value)}
             placeholder="e.g. 24.6"
             disabled={computedBmi != null || isSaving}
           />
           {computedBmi != null ? (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-[11px] text-muted-foreground">
               Calculated automatically from recorded height and weight.
             </span>
           ) : null}
         </label>
       </div>
 
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? <p className="text-[11px] text-destructive">{error}</p> : null}
 
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          className="inline-flex items-center rounded-md border bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow disabled:opacity-60"
+          className="inline-flex h-9 items-center rounded-[10px] border border-primary/70 bg-primary px-3 text-[13px] font-semibold text-primary-foreground shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:cursor-not-allowed disabled:opacity-60"
           onClick={handleSave}
           disabled={isSaving}
         >
@@ -227,7 +224,7 @@ export default function VitalsEditor({
         </button>
         <button
           type="button"
-          className="inline-flex items-center rounded-md border px-3 py-1.5 text-sm"
+          className="inline-flex h-9 items-center rounded-[10px] border border-border/70 px-3 text-[13px] font-medium text-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-60 dark:border-border/40"
           onClick={onCancel}
           disabled={isSaving}
         >
