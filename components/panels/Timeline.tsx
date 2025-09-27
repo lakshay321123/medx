@@ -272,8 +272,8 @@ export default function Timeline(){
   }
 
   return (
-    <div className="mx-auto w-full max-w-[380px] p-4 sm:mx-0 sm:max-w-none sm:p-6">
-      <div className="flex items-center justify-between mb-3">
+    <div className="mx-auto w-full max-w-[380px] px-4 pb-6 pt-4 sm:mx-0 sm:max-w-none sm:px-6">
+      <div className="mb-4 flex flex-wrap items-center gap-2 sm:flex-nowrap sm:justify-between">
         <h2 className="text-lg font-semibold">Timeline</h2>
         <button
           onClick={async () => {
@@ -283,26 +283,32 @@ export default function Timeline(){
             if (res.status === 401) { setResetError('Please sign in'); return; }
             await mutate();
           }}
-          className="text-xs px-2 py-1 rounded-md border"
+          className="text-xs px-2 py-1 rounded-md border sm:ml-auto"
         >Reset</button>
       </div>
       {resetError && <div className="mb-2 text-xs text-rose-600">{resetError}</div>}
-      <div className="mb-3 flex w-full flex-wrap items-center gap-2">
-        {(["ALL","LABS","VITALS","IMAGING","AI","NOTES"] as Cat[]).map(c=>(
-          <button key={c} onClick={()=>setCat(c)} className={`text-xs px-2.5 py-1 rounded-full border ${cat===c?"bg-muted font-medium":"hover:bg-muted"}`}>{c}</button>
-        ))}
-        <select value={range} onChange={e=>setRange(e.target.value as any)} className="text-xs border rounded-md px-2 py-1">
-          <option value="ALL">All dates</option><option value="7">Last 7d</option>
-          <option value="30">Last 30d</option><option value="90">Last 90d</option>
-          <option value="CUSTOM">Custom…</option>
-        </select>
-        {range==="CUSTOM" && <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="text-xs border rounded-md px-2 py-1" />}
-        <input
-          placeholder="Search…"
-          value={q}
-          onChange={e=>setQ(e.target.value)}
-          className="ml-0 w-full min-w-0 text-xs border rounded-md px-2 py-1 sm:ml-auto sm:w-auto sm:min-w-[160px]"
-        />
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+        <div className="flex flex-wrap justify-center gap-2 sm:flex-auto sm:justify-start">
+          {(["ALL","LABS","VITALS","IMAGING","AI","NOTES"] as Cat[]).map(c=>(
+            <button key={c} onClick={()=>setCat(c)} className={`rounded-full border px-2.5 py-1 text-[11px] ${cat===c?"bg-muted font-medium":"hover:bg-muted"}`}>{c}</button>
+          ))}
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
+            <select value={range} onChange={e=>setRange(e.target.value as any)} className="w-full rounded-md border px-2 py-1 text-xs sm:w-auto">
+              <option value="ALL">All dates</option><option value="7">Last 7d</option>
+              <option value="30">Last 30d</option><option value="90">Last 90d</option>
+              <option value="CUSTOM">Custom…</option>
+            </select>
+            {range==="CUSTOM" && <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="w-full rounded-md border px-2 py-1 text-xs sm:w-auto" />}
+          </div>
+          <input
+            placeholder="Search…"
+            value={q}
+            onChange={e=>setQ(e.target.value)}
+            className="w-full min-w-0 rounded-md border px-2 py-1 text-xs sm:ml-auto sm:w-[200px]"
+          />
+        </div>
       </div>
       <ul className="space-y-2 text-sm">
         {filtered.map((it:any)=>{
