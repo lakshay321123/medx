@@ -15,6 +15,11 @@ import { useProfile } from "@/lib/hooks/useAppData";
 import { pushToast } from "@/lib/ui/toast";
 import { fromSearchParams } from "@/lib/modes/url";
 import { extractManualObservation } from "@/lib/profile/extractManualObservation";
+import {
+  MedicationEntry,
+  buildDoseLabelFromParts,
+  formatMedicationLabel,
+} from "@/lib/medications";
 import { useSWRConfig } from "swr";
 
 const SEXES = ["male", "female", "other"] as const;
@@ -39,16 +44,31 @@ const PRESET_CONDITIONS = [
 const MANUAL_NOTES_KIND = "summary_notes_manual";
 const MANUAL_NEXT_STEPS_KIND = "summary_next_steps_manual";
 const NO_DATA_TEXT = "No data available";
+const MOBILE_VIEW_MAX_WIDTH = 767;
 
-export type MedicationEntry = {
-  key: string;
-  name: string;
-  doseLabel?: string | null;
-  doseValue?: number | null;
-  doseUnit?: string | null;
-  observationId?: string | number | null;
-  rxnormId?: string | null;
-};
+function useIsMobile(maxWidth = MOBILE_VIEW_MAX_WIDTH) {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia(`(max-width: ${maxWidth}px)`).matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const query = window.matchMedia(`(max-width: ${maxWidth}px)`);
+
+    const handleChange = (event: MediaQueryListEvent) => setIsMobile(event.matches);
+
+    if (typeof query.addEventListener === "function") {
+      query.addEventListener("change", handleChange);
+      return () => query.removeEventListener("change", handleChange);
+    }
+
+    query.addListener(handleChange);
+    return () => query.removeListener(handleChange);
+  }, [maxWidth]);
+
+  return isMobile;
+}
 
 type ObservationMap = Record<string, { value: any; unit: string | null; observedAt: string } | undefined>;
 
@@ -133,6 +153,7 @@ export default function MedicalProfile() {
   const params = useSearchParams();
   const { theme } = useTheme();
   const panelMode = useMemo(() => derivePanelMode(params, theme), [params, theme]);
+  const isMobileView = useIsMobile();
 
   const openProfileChat = useCallback(() => {
     router.push("/?panel=chat&threadId=med-profile&context=profile");
@@ -734,43 +755,46 @@ export default function MedicalProfile() {
 
   return (
     <>
-      <div className="md:hidden">
-        <MedicalProfileMobileView
-          fullName={fullName}
-          sex={sex}
-          dob={dob}
-          bloodGroup={bloodGroup}
-          heightCm={mobileHeightCm || null}
-          weightKg={mobileWeightKg || null}
-          predispositions={predis}
-          chronicConditions={chronic}
-          vitals={{
-            systolic: profileVitals.systolic ?? null,
-            diastolic: profileVitals.diastolic ?? null,
-            heartRate: profileVitals.heartRate ?? null,
-            bmi: profileVitals.bmi ?? null,
-          }}
-          medications={medications}
-          labs={mobileLabs}
-          labReports={mobileLabReports}
-          notes={displayedNotes ?? null}
-          nextSteps={displayedNextSteps ?? null}
-          predictionText={predictionText}
-          onEditPersonal={undefined /* TODO: implement mobile personal details editing */}
-          onEditVitals={undefined /* TODO: implement mobile vitals editing */}
-          onDiscussInChat={openProfileChat}
-          onRecomputeRisk={onRecomputeRisk}
-          onAddMedication={undefined /* TODO: implement mobile medication entry */}
-          onAddNotes={undefined /* TODO: implement mobile notes entry */}
-          onAddNextSteps={undefined /* TODO: implement mobile next steps entry */}
-        />
-      </div>
-      <div className="hidden md:block">
-        <div className="space-y-4 p-4 md:p-6">
-      <ProfileSection
-        title="Personal details"
-        actions={
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+      {isMobileView ? (
+        <div className="md:hidden">
+          <MedicalProfileMobileView
+            fullName={fullName}
+            sex={sex}
+            dob={dob}
+            bloodGroup={bloodGroup}
+            heightCm={mobileHeightCm || null}
+            weightKg={mobileWeightKg || null}
+            predispositions={predis}
+            chronicConditions={chronic}
+            vitals={{
+              systolic: profileVitals.systolic ?? null,
+              diastolic: profileVitals.diastolic ?? null,
+              heartRate: profileVitals.heartRate ?? null,
+              bmi: profileVitals.bmi ?? null,
+            }}
+            medications={medications}
+            labs={mobileLabs}
+            labReports={mobileLabReports}
+            notes={displayedNotes ?? null}
+            nextSteps={displayedNextSteps ?? null}
+            predictionText={predictionText}
+            onEditPersonal={undefined /* TODO: implement mobile personal details editing */}
+            onEditVitals={undefined /* TODO: implement mobile vitals editing */}
+            onDiscussInChat={openProfileChat}
+            onRecomputeRisk={onRecomputeRisk}
+            onAddMedication={undefined /* TODO: implement mobile medication entry */}
+            onAddNotes={undefined /* TODO: implement mobile notes entry */}
+            onAddNextSteps={undefined /* TODO: implement mobile next steps entry */}
+          />
+        </div>
+      ) : null}
+      {!isMobileView ? (
+        <div className="hidden md:block">
+          <div className="space-y-4 p-4 md:p-6">
+            <ProfileSection
+              title="Personal details"
+              actions={
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
             <button
               type="button"
               className="w-full rounded-md border px-3 py-1.5 text-sm sm:w-auto"
@@ -1097,8 +1121,9 @@ export default function MedicalProfile() {
                           Delete
                         </button>
                       ) : null}
-                    </div>
-                  </div>
+          </div>
+        </div>
+      ) : null}
                 ) : displayedNotes ? (
                   <div className="mt-2 flex flex-wrap gap-2">
                     <button
@@ -1401,11 +1426,6 @@ function dedupeMedicationList(input: MedicationEntry[]): MedicationEntry[] {
   return Array.from(map.values());
 }
 
-function formatMedicationLabel(med: MedicationEntry) {
-  const doseLabel = med.doseLabel || buildDoseLabelFromParts(med.doseValue ?? null, med.doseUnit);
-  return doseLabel ? `${med.name} ${doseLabel}` : med.name;
-}
-
 function parseDoseString(raw: string | null) {
   if (!raw) {
     return { doseLabel: null, doseUnit: null, doseValue: null };
@@ -1469,13 +1489,4 @@ function deriveMedicationNameFromKey(key: string) {
     .join(" ");
 }
 
-function buildDoseLabelFromParts(value: number | null, unit: string | null) {
-  if (value == null && !unit) return null;
-  const numeric = value != null ? Number(value.toFixed(value % 1 ? 1 : 0)) : null;
-  const parts = [] as string[];
-  if (numeric != null) parts.push(String(numeric));
-  if (unit) parts.push(unit);
-  return parts.length ? parts.join(" ") : null;
-}
-
-export { extractMedicationEntries, formatMedicationLabel };
+export { extractMedicationEntries };

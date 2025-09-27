@@ -17,8 +17,8 @@ import {
   IconUser,
   IconUsers,
 } from "./AISummaryIcons";
-import type { MedicationEntry } from "@/components/panels/MedicalProfile";
-import { formatMedicationLabel } from "@/components/panels/MedicalProfile";
+import type { MedicationEntry } from "@/lib/medications";
+import { formatMedicationLabel } from "@/lib/medications";
 
 const NO_DATA = "No data available";
 
@@ -32,6 +32,26 @@ function fmtDate(d?: string | number | Date) {
   } catch {
     return "";
   }
+}
+
+function fmtDOB(d?: string | number | Date) {
+  if (!d) return NO_DATA;
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return NO_DATA;
+  return new Intl.DateTimeFormat(undefined, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(dt);
+}
+
+function getAgeFromDob(d?: string | number | Date) {
+  if (!d) return "—";
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return "—";
+  const diff = Date.now() - dt.getTime();
+  const years = Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
+  return Number.isFinite(years) && years >= 0 ? String(years) : "—";
 }
 
 export type LabLike = {
@@ -100,37 +120,25 @@ type MedicalProfileMobileProps = {
   onAddNextSteps?: () => void;
 };
 
-function formatDobValue(dob: string) {
-  if (!dob) return "—";
-  const date = new Date(dob);
-  if (Number.isNaN(date.getTime())) return dob;
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = date.getFullYear();
-  const now = Date.now();
-  const age = Math.floor((now - date.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-  const base = `${day}/${month}/${year}`;
-  if (Number.isFinite(age) && age >= 0) {
-    return `${base} • Age: ${age}`;
-  }
-  return base;
-}
-
 function formatSex(value: string) {
-  if (!value) return "—";
+  if (!value) return NO_DATA;
   const normalized = value.trim().toLowerCase();
-  if (!normalized) return "—";
+  if (!normalized) return NO_DATA;
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
 function formatHeight(value?: string | null) {
-  if (!value) return "—";
-  return `${value} cm`;
+  if (value == null) return NO_DATA;
+  const trimmed = typeof value === "string" ? value.trim() : String(value).trim();
+  if (!trimmed) return NO_DATA;
+  return `${trimmed} cm`;
 }
 
 function formatWeight(value?: string | null) {
-  if (!value) return "—";
-  return `${value} kg`;
+  if (value == null) return NO_DATA;
+  const trimmed = typeof value === "string" ? value.trim() : String(value).trim();
+  if (!trimmed) return NO_DATA;
+  return `${trimmed} kg`;
 }
 
 function formatPatientLine({
@@ -169,7 +177,10 @@ function joinValues(values: string[]) {
 
 function buildMedicationSummary(medications: MedicationEntry[]) {
   if (!medications.length) return NO_DATA;
-  return medications.map(med => formatMedicationLabel(med)).join(", ");
+  const labels = medications
+    .map(med => formatMedicationLabel(med).trim())
+    .filter(Boolean);
+  return labels.length ? labels.join(", ") : NO_DATA;
 }
 
 export default function MedicalProfileMobile({
@@ -219,7 +230,9 @@ export default function MedicalProfileMobile({
   const nextStepsLine = nextSteps?.trim() ? nextSteps.trim() : NO_DATA;
   const predictionLine = predictionText?.trim() ? predictionText.trim() : NO_DATA;
 
-  const medicationsList = medications.map(med => ({ key: med.key, label: formatMedicationLabel(med) }));
+  const medicationsList = medications
+    .map(med => ({ key: med.key, label: formatMedicationLabel(med).trim() }))
+    .filter(item => item.label.length > 0);
 
   const bpValue =
     vitals.systolic != null && vitals.diastolic != null
@@ -227,23 +240,38 @@ export default function MedicalProfileMobile({
       : "—";
   const heartRateValue = vitals.heartRate != null ? `${vitals.heartRate} bpm` : "—";
   const bmiValue = vitals.bmi != null ? `${vitals.bmi}` : "—";
+  const nameValue = fullName.trim() ? fullName.trim() : NO_DATA;
+  const sexValue = formatSex(sex);
+  const bloodGroupValue = bloodGroup.trim() ? bloodGroup.trim() : NO_DATA;
+  const heightValue = formatHeight(heightCm);
+  const weightValue = formatWeight(weightKg);
+  const dobLabel = fmtDOB(dob);
+  const ageLabel = getAgeFromDob(dob);
+  const showSummaryActions = Boolean(onDiscussInChat || onRecomputeRisk);
 
   return (
     <div className="space-y-4 px-4 py-4">
       <Section
         title="Personal details"
-        actionLabel="Edit"
+        actionLabel={onEditPersonal ? "Edit" : undefined}
         primary
         onActionClick={onEditPersonal}
-        actionAriaLabel="Edit personal details"
+        actionAriaLabel={onEditPersonal ? "Edit personal details" : undefined}
       >
         <div className="space-y-3">
-          <KV label="Name" value={fullName || "—"} />
-          <KV label="Sex" value={formatSex(sex)} />
-          <KV label="DOB" value={formatDobValue(dob)} />
-          <KV label="Blood group" value={bloodGroup || "—"} />
-          <KV label="Height (cm)" value={formatHeight(heightCm)} />
-          <KV label="Weight (kg)" value={formatWeight(weightKg)} />
+          <KV label="Name" value={nameValue} />
+          <KV label="Sex" value={sexValue} />
+          <KV
+            label="DOB"
+            value={
+              <span>
+                {dobLabel} <span className="mx-1">•</span> Age: {ageLabel}
+              </span>
+            }
+          />
+          <KV label="Blood group" value={bloodGroupValue} />
+          <KV label="Height (cm)" value={heightValue} />
+          <KV label="Weight (kg)" value={weightValue} />
         </div>
         <Divider />
         <div className="space-y-3">
@@ -254,10 +282,10 @@ export default function MedicalProfileMobile({
 
       <Section
         title="Vitals"
-        actionLabel="Edit"
+        actionLabel={onEditVitals ? "Edit" : undefined}
         primary
         onActionClick={onEditVitals}
-        actionAriaLabel="Edit vitals"
+        actionAriaLabel={onEditVitals ? "Edit vitals" : undefined}
       >
         <div className="space-y-2">
           <Row label="Blood pressure" value={bpValue} muted={bpValue === "—"} />
@@ -278,25 +306,30 @@ export default function MedicalProfileMobile({
             <SummaryLine icon={<IconNote aria-hidden="true" />} label="Symptoms/Notes" value={symptomsLine} />
             <SummaryLine icon={<IconCheck aria-hidden="true" />} label="Next Steps" value={nextStepsLine} />
           </div>
-          <div className="flex flex-wrap gap-2 pt-1">
-            <Button
-              variant="outline"
-              onClick={onDiscussInChat}
-              aria-label="Discuss in chat"
-            >
-              Discuss in chat
-            </Button>
-            <Button primary onClick={onRecomputeRisk} aria-label="Recompute risk">
-              Recompute risk
-            </Button>
+          {showSummaryActions ? (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {onDiscussInChat ? (
+                <Button
+                  variant="outline"
+                  onClick={onDiscussInChat}
+                  aria-label="Discuss AI summary in chat"
+                >
+                  Discuss in chat
+                </Button>
+              ) : null}
+              {onRecomputeRisk ? (
+                <Button primary onClick={onRecomputeRisk} aria-label="Recompute risk">
+                  Recompute risk
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="rounded-xl border border-amber-300/60 bg-amber-50 px-3 py-3 text-[13px] dark:border-amber-800 dark:bg-amber-900/20">
+            <p className="font-medium">⚠️ AI support, not a medical diagnosis.</p>
+            <p>Always consult a clinician.</p>
           </div>
         </div>
       </Section>
-
-      <div className="rounded-xl border border-amber-300/60 bg-amber-50 px-3 py-3 text-[13px] dark:border-amber-800 dark:bg-amber-900/20">
-        <p className="font-medium">⚠️ AI support, not a medical diagnosis.</p>
-        <p>Always consult a clinician.</p>
-      </div>
 
       <Section title="Medications">
         <div className="space-y-3">
@@ -311,9 +344,11 @@ export default function MedicalProfileMobile({
           ) : (
             <Empty>No medications recorded yet.</Empty>
           )}
-          <Button variant="outline" onClick={onAddMedication} aria-label="Add medication">
-            Add medication
-          </Button>
+          {onAddMedication ? (
+            <Button variant="outline" onClick={onAddMedication} aria-label="Add medication">
+              Add medication
+            </Button>
+          ) : null}
         </div>
       </Section>
 
@@ -324,9 +359,11 @@ export default function MedicalProfileMobile({
           ) : (
             <p className="whitespace-pre-line text-[13px] leading-6 text-slate-700 dark:text-slate-200">{symptomsLine}</p>
           )}
-          <Button variant="outline" onClick={onAddNotes} aria-label="Add notes">
-            Add notes
-          </Button>
+          {onAddNotes ? (
+            <Button variant="outline" onClick={onAddNotes} aria-label="Add notes">
+              Add notes
+            </Button>
+          ) : null}
         </div>
       </Section>
 
@@ -337,9 +374,11 @@ export default function MedicalProfileMobile({
           ) : (
             <p className="whitespace-pre-line text-[13px] leading-6 text-slate-700 dark:text-slate-200">{nextStepsLine}</p>
           )}
-          <Button variant="outline" onClick={onAddNextSteps} aria-label="Add next steps">
-            Add next steps
-          </Button>
+          {onAddNextSteps ? (
+            <Button variant="outline" onClick={onAddNextSteps} aria-label="Add next steps">
+              Add next steps
+            </Button>
+          ) : null}
         </div>
       </Section>
     </div>

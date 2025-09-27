@@ -22,12 +22,13 @@ export default function Section({
   actionAriaLabel,
 }: SectionProps) {
   const actionVariant = primary ? "solid" : "outline";
+  const showAction = Boolean(actionLabel && onActionClick);
 
   return (
     <section className="rounded-2xl bg-white dark:bg-[#12141a] shadow-lg shadow-black/5 ring-1 ring-black/5 dark:ring-white/5">
       <div className="flex items-center justify-between px-4 pt-4">
         <h2 className="text-[15px] font-semibold">{title}</h2>
-        {actionLabel ? (
+        {showAction ? (
           <Button
             variant={actionVariant}
             primary={primary}
