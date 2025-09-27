@@ -11,6 +11,7 @@ import MedicationTag from "@/components/meds/MedicationTag";
 import { useProfile } from "@/lib/hooks/useAppData";
 import { pushToast } from "@/lib/ui/toast";
 import { fromSearchParams } from "@/lib/modes/url";
+import { extractManualObservation } from "@/lib/profile/extractManualObservation";
 import { useSWRConfig } from "swr";
 
 const SEXES = ["male", "female", "other"] as const;
@@ -165,6 +166,14 @@ export default function MedicalProfile() {
 
   const latestMap: ObservationMap = (data?.latest as ObservationMap) || {};
 
+  const manualSyncKey = useMemo(() => {
+    const updated = data?.profile?.updated_at ?? data?.profile?.updatedAt ?? "";
+    const count = Array.isArray(data?.profile?.observations)
+      ? data.profile.observations.length
+      : "";
+    return `${updated}|${count}`;
+  }, [data?.profile?.updated_at, data?.profile?.updatedAt, data?.profile?.observations]);
+
   const profileVitals = useMemo(() => {
     const bpEntry = pickObservation(latestMap, [
       "bp_systolic",
@@ -199,20 +208,6 @@ export default function MedicalProfile() {
       weightKg,
       heightMeters,
     };
-  }, [latestMap]);
-
-  const manualNotesFromObservations = useMemo(() => {
-    const entry = pickObservation(latestMap, [MANUAL_NOTES_KIND]);
-    if (!entry || entry.value == null) return null;
-    const text = String(entry.value).trim();
-    return text || null;
-  }, [latestMap]);
-
-  const manualNextStepsFromObservations = useMemo(() => {
-    const entry = pickObservation(latestMap, [MANUAL_NEXT_STEPS_KIND]);
-    if (!entry || entry.value == null) return null;
-    const text = String(entry.value).trim();
-    return text || null;
   }, [latestMap]);
 
   useEffect(() => {
@@ -264,12 +259,52 @@ export default function MedicalProfile() {
   }, [bootstrapped, data?.profile, profileVitals.heightMeters, profileVitals.weightKg]);
 
   useEffect(() => {
-    setManualNotes(manualNotesFromObservations);
-  }, [manualNotesFromObservations]);
+    let cancelled = false;
+
+    const loadManualNotes = async () => {
+      try {
+        const { text } = await extractManualObservation(MANUAL_NOTES_KIND);
+        if (cancelled) return;
+        const trimmed = text?.trim?.() ?? "";
+        setManualNotes(trimmed ? trimmed : null);
+      } catch (err) {
+        console.warn("Failed to load manual notes observation", err);
+        if (!cancelled) {
+          setManualNotes(null);
+        }
+      }
+    };
+
+    void loadManualNotes();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [manualSyncKey]);
 
   useEffect(() => {
-    setManualNextSteps(manualNextStepsFromObservations);
-  }, [manualNextStepsFromObservations]);
+    let cancelled = false;
+
+    const loadManualNextSteps = async () => {
+      try {
+        const { text } = await extractManualObservation(MANUAL_NEXT_STEPS_KIND);
+        if (cancelled) return;
+        const trimmed = text?.trim?.() ?? "";
+        setManualNextSteps(trimmed ? trimmed : null);
+      } catch (err) {
+        console.warn("Failed to load manual next steps observation", err);
+        if (!cancelled) {
+          setManualNextSteps(null);
+        }
+      }
+    };
+
+    void loadManualNextSteps();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [manualSyncKey]);
 
   const parseSummary = useCallback((text: string) => {
     const lines = text
@@ -343,43 +378,6 @@ export default function MedicalProfile() {
         chronic_conditions: chronic,
       } as Record<string, unknown>;
 
-      const observedAt = new Date().toISOString();
-      const observations: any[] = [];
-      const metaBase = { source: "manual", category: "vital", committed: true };
-
-      const trimmedHeight = heightInput.trim();
-      const trimmedWeight = weightInput.trim();
-
-      if (trimmedHeight) {
-        const heightValue = parseNumber(trimmedHeight);
-        if (heightValue == null) {
-          throw new Error("Enter a valid height in centimeters.");
-        }
-        observations.push({
-          kind: "height_cm",
-          value_num: heightValue,
-          value_text: String(heightValue),
-          unit: "cm",
-          observed_at: observedAt,
-          meta: metaBase,
-        });
-      }
-
-      if (trimmedWeight) {
-        const weightValue = parseNumber(trimmedWeight);
-        if (weightValue == null) {
-          throw new Error("Enter a valid weight in kilograms.");
-        }
-        observations.push({
-          kind: "weight_kg",
-          value_num: weightValue,
-          value_text: String(weightValue),
-          unit: "kg",
-          observed_at: observedAt,
-          meta: metaBase,
-        });
-      }
-
       const res = await fetch("/api/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -387,21 +385,6 @@ export default function MedicalProfile() {
       });
       if (!res.ok) {
         throw new Error(await res.text());
-      }
-
-      if (observations.length) {
-        await Promise.all(
-          observations.map(async observation => {
-            const result = await fetch("/api/observations", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ...observation, thread_id: null }),
-            });
-            if (!result.ok) {
-              throw new Error((await result.text()) || "Failed to save vitals");
-            }
-          }),
-        );
       }
 
       pushToast({ title: "Profile saved" });
@@ -428,23 +411,32 @@ export default function MedicalProfile() {
     if (!normalizedName) throw new Error("Medication name required");
 
     const { doseLabel, doseUnit, doseValue } = parseDoseString(med.dose ?? null);
-    const res = await fetch("/api/observations", {
+    const observedAt = new Date().toISOString();
+    const res = await fetch("/api/observations/bulk", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        kind: "medication",
-        value_text: normalizedName,
-        value_num: doseValue ?? null,
-        unit: doseUnit ?? null,
-        observed_at: new Date().toISOString(),
-        thread_id: null,
-        meta: {
-          normalizedName,
-          doseLabel: doseLabel ?? null,
-          rxnormId: med.rxnormId ?? null,
-          source: "manual",
-          committed: true,
-        },
+        observations: [
+          {
+            kind: "medication",
+            value_text: normalizedName,
+            value_num: doseValue ?? null,
+            unit: doseUnit ?? null,
+            observed_at: observedAt,
+            thread_id: null,
+            meta: {
+              source: "manual",
+              normalizedName,
+              doseLabel: doseLabel ?? null,
+              rxnormId: med.rxnormId ?? null,
+              summary: doseLabel ? `${normalizedName} — ${doseLabel}` : normalizedName,
+              text: doseLabel
+                ? `${normalizedName} (${doseLabel}) saved from Medical Profile`
+                : `${normalizedName} saved from Medical Profile`,
+              committed: true,
+            },
+          },
+        ],
       }),
     });
 
@@ -453,7 +445,8 @@ export default function MedicalProfile() {
     }
 
     const body = await res.json().catch(() => ({}));
-    const observationId = body?.observation?.id ?? null;
+    const inserted = Array.isArray(body?.observations) ? body.observations : [];
+    const observationId = inserted?.[0]?.id ?? inserted?.[0]?.observation?.id ?? null;
     if (!observationId) {
       throw new Error("Medication saved but response was malformed");
     }
@@ -473,30 +466,47 @@ export default function MedicalProfile() {
   };
 
   const persistManualObservation = async (
-    kind: string,
+    manualKind: string,
     label: string,
     text: string | null,
   ): Promise<string | null> => {
     const observedAt = new Date().toISOString();
     const trimmed = (text ?? "").trim();
     const cleared = trimmed.length === 0;
-    const res = await fetch("/api/observations", {
+    const title = manualKind === MANUAL_NEXT_STEPS_KIND ? "Next steps" : "Note";
+    const summary = cleared
+      ? `${title} cleared`
+      : trimmed.length > 140
+      ? `${trimmed.slice(0, 140)}…`
+      : trimmed || title;
+    const textPayload = cleared
+      ? `${title} cleared from Medical Profile`
+      : trimmed || title;
+    const res = await fetch("/api/observations/bulk", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        kind,
-        value_text: cleared ? null : trimmed,
-        value_num: null,
-        unit: cleared ? "__cleared__" : null,
-        observed_at: observedAt,
-        thread_id: null,
-        meta: {
-          source: "manual",
-          category: "note",
-          committed: true,
-          label,
-          cleared,
-        },
+        observations: [
+          {
+            kind: "note",
+            value_text: cleared ? null : trimmed,
+            value_num: null,
+            unit: cleared ? "__cleared__" : null,
+            observed_at: observedAt,
+            thread_id: null,
+            meta: {
+              source: "manual",
+              category: "note",
+              committed: true,
+              label,
+              cleared,
+              manualKind,
+              title,
+              summary,
+              text: textPayload,
+            },
+          },
+        ],
       }),
     });
     if (!res.ok) throw new Error(await res.text());

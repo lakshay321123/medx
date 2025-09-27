@@ -1,18 +1,151 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useTimeline } from "@/lib/hooks/useAppData";
 import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
 import PanelLoader from "@/components/mobile/PanelLoader";
+import { pushToast } from "@/lib/ui/toast";
+
+function normalizeKind(k?: string) {
+  const raw = String(k ?? "").toLowerCase().trim();
+  const squished = raw.replace(/\s+/g, "_");
+  const labAliases = ["labs", "lab_report", "report", "document"];
+  if (labAliases.includes(raw) || labAliases.includes(squished)) return "lab";
+
+  const imagingAliases = [
+    "image",
+    "radiology",
+    "scan",
+    "ct",
+    "mri",
+    "xray",
+    "x-ray",
+    "usg",
+    "ultrasound",
+    "echo",
+    "ecg",
+    "ekg",
+  ];
+  if (imagingAliases.includes(raw) || imagingAliases.includes(squished)) return "imaging";
+
+  return raw;
+}
+
+function inferImagingTitle(m: any): string | null {
+  const hint = String(m?.modality || m?.study || m?.fileTitle || "").toLowerCase();
+
+  if (/\b(ecg|ekg)\b/.test(hint)) return "ECG";
+  if (/\b(ct|computed tomography)\b/.test(hint)) return "CT";
+  if (/\b(mri|magnetic resonance)\b/.test(hint)) return "MRI";
+  if (/\b(x[- ]?ray|xray)\b/.test(hint)) return "X-ray";
+  if (/\b(ultrasound|usg|sonography)\b/.test(hint)) return "Ultrasound";
+  if (/\b(echo|echocardiogram|echography)\b/.test(hint)) return "Echo";
+  if (/\b(angiogram|angiography)\b/.test(hint)) return "Angiogram";
+  if (/\b(pet[- ]?ct|pet)\b/.test(hint)) return "PET-CT";
+
+  return null;
+}
+
+const EXCLUDED_OBSERVATION_KINDS = new Set([
+  "bmi",
+  "weight",
+  "profile",
+  "profile_edit",
+  "demographics",
+]);
+
+const isMedicalVisible = (ob: any) => {
+  const kind = normalizeKind(ob?.kind);
+  if (EXCLUDED_OBSERVATION_KINDS.has(kind)) return false;
+
+  if (["medication", "note", "symptom", "lab", "imaging"].includes(kind)) {
+    return true;
+  }
+
+  const meta = ob?.meta ?? {};
+  const category = String(meta?.category ?? "").toLowerCase();
+  if (["lab", "labs"].includes(category)) return true;
+  if (["imaging", "radiology"].includes(category)) return true;
+  if (meta?.testName || meta?.abnormalHint || meta?.impression || meta?.finding) return true;
+
+  const hasFile = Boolean(ob?.file?.path || ob?.file?.upload_id || meta?.fileTitle);
+  if (hasFile) return true;
+
+  return false;
+};
+
+function getDisplayTitle(ob: any) {
+  const kind = normalizeKind(ob?.kind);
+  const meta = ob?.meta ?? {};
+
+  if (kind === "lab") {
+    return "Blood report";
+  }
+
+  if (kind === "imaging") {
+    return inferImagingTitle(meta) || "Imaging report";
+  }
+
+  if (kind === "medication") {
+    return meta?.normalizedName || ob?.value_text || "Medication";
+  }
+
+  if (kind === "symptom") return "Symptom";
+  if (kind === "note") return meta?.title || "Note";
+
+  return ob?.name || "Observation";
+}
+
+const getShortSummary = (ob: any) => {
+  const meta = ob?.meta || {};
+  const kind = normalizeKind(ob?.kind);
+  if (meta?.summary) return meta.summary as string;
+
+  if (kind === "medication") {
+    const dose =
+      meta?.doseLabel ??
+      (ob?.value_num != null ? `${ob.value_num}${ob?.unit ? ` ${ob.unit}` : ""}` : null);
+    return [meta?.normalizedName || ob?.value_text, dose].filter(Boolean).join(" — ");
+  }
+
+  if (kind === "note" || kind === "symptom") {
+    const text = (meta?.text ?? ob?.value_text ?? "") as string;
+    const trimmed = text.trim();
+    if (!trimmed) return "";
+    return trimmed.length > 140 ? `${trimmed.slice(0, 140)}…` : trimmed;
+  }
+
+  if (kind === "lab") {
+    if (meta?.abnormalHint) return meta.abnormalHint as string;
+    if (meta?.topFinding) return meta.topFinding as string;
+    return meta?.fileTitle || meta?.testName || ob?.value_text || "";
+  }
+
+  if (kind === "imaging") {
+    return meta?.finding || meta?.impression || meta?.fileTitle || "";
+  }
+
+  return (meta?.text as string) || "";
+};
+
+const getChipLabel = (ob: any) => {
+  const kind = normalizeKind(ob?.kind);
+  if (kind === "medication") return "Med";
+  if (kind === "lab") return "Lab";
+  if (kind === "imaging") return "Imaging";
+  if (kind === "symptom") return "Symptom";
+  if (kind === "note") return "Note";
+  return "Obs";
+};
 
 type Cat = "ALL"|"LABS"|"VITALS"|"IMAGING"|"AI"|"NOTES";
 const catOf = (it:any):Cat => {
-  if (it.kind==="prediction") return "AI";
-  const s = `${(it.name||"").toLowerCase()} ${JSON.stringify(it.meta||{}).toLowerCase()}`;
-  if (/(x-?ray|xray|ct|mri|ultra\s?sound|usg|scan)/.test(s)) return "IMAGING";
-  if (/(bp|blood pressure|spo2|bmi|hr|heart rate|pulse)/.test(s)) return "VITALS";
-  if (/(hba1c|egfr|fpg|glucose|cholesterol|hdl|ldl|triglycer|creatinine|urea|tsh|t4|t3)/.test(s)) return "LABS";
-  if (/(med|tablet|dose|rx|prescription|note)/.test(s)) return "NOTES";
+  const kind = normalizeKind(it?.kind);
+  if (kind === "lab") return "LABS";
+  if (kind === "imaging") return "IMAGING";
+  if (kind === "medication" || kind === "note" || kind === "symptom") return "NOTES";
+  if (kind === "prediction") return "AI";
   return "NOTES";
 };
 
@@ -21,6 +154,11 @@ export default function Timeline(){
   const [resetError, setResetError] = useState<string|null>(null);
   const { data, error, isLoading, mutate } = useTimeline(isAiDoc);
   const items = data?.items ?? [];
+
+  const [observations, setObservations] = useState<any[]>(() =>
+    (items || []).filter(isMedicalVisible)
+  );
+  const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
 
   const [cat,setCat] = useState<Cat>("ALL");
   const [range,setRange] = useState<"ALL"|"7"|"30"|"90"|"CUSTOM">("ALL");
@@ -36,8 +174,13 @@ export default function Timeline(){
     return undefined;
   },[range,from]);
 
+  useEffect(() => {
+    const visible = (items || []).filter(isMedicalVisible);
+    setObservations(visible);
+  }, [items]);
+
   const filtered = useMemo(() =>
-    (items || []).filter((it: any) => {
+    (observations || []).filter((it: any) => {
       if (cat !== "ALL" && catOf(it) !== cat) return false;
       if (fromDate && new Date(it.observed_at) < fromDate) return false;
       if (q.trim()) {
@@ -52,7 +195,7 @@ export default function Timeline(){
       }
       return true;
     }),
-  [items, cat, fromDate, q]
+  [observations, cat, fromDate, q]
   );
 
   const [open, setOpen] = useState(false);
@@ -75,11 +218,58 @@ export default function Timeline(){
   if (isLoading) return <PanelLoader label="Timeline" />;
   if (error)     return <div className="p-6 text-sm text-red-500">Couldn’t load timeline. Retrying in background…</div>;
 
-  if (!items.length) return <div className="p-6 text-sm text-muted-foreground">No events yet.</div>;
+  if (!observations.length) return <div className="p-6 text-sm text-muted-foreground">No events yet.</div>;
 
-  const long = active?.meta?.summary_long;
-  const short = active?.meta?.summary;
+  const displayTitle = active ? getDisplayTitle(active) : "Observation";
+  const shortSummary = active ? getShortSummary(active) : "";
+  const summaryLong = active?.meta?.summary_long;
+  const summaryShort = active?.meta?.summary;
   const text = active?.meta?.text;
+  const hasFile = Boolean(active?.file?.path || active?.file?.upload_id);
+  const hasAiSummary = Boolean(summaryLong || summaryShort || text);
+  const dose =
+    active?.meta?.doseLabel ||
+    (active?.value_num != null
+      ? `${active.value_num}${active.unit ? ` ${active.unit}` : ""}`
+      : null);
+  const observed = active?.observed_at
+    ? new Date(active.observed_at).toLocaleString()
+    : null;
+  const source = active?.meta?.source;
+  const hasFallbackFacts = Boolean(dose || observed || source || (active?.unit && !dose));
+  const chipLabel = active ? getChipLabel(active) : null;
+
+  async function handleDelete(ob: { id: string }) {
+    if (typeof window !== "undefined") {
+      const ok = window.confirm("Delete this from your timeline?\nThis action can’t be undone.");
+      if (!ok) return;
+    }
+
+    setIsDeletingId(ob.id);
+    const previous = observations;
+    setObservations(prev => prev.filter(x => x.id !== ob.id));
+    if (active?.id === ob.id) {
+      setActive(null);
+      setOpen(false);
+    }
+
+    try {
+      const res = await fetch(`/api/observations/${ob.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      pushToast({ title: "Deleted" });
+    } catch (err) {
+      setObservations(previous);
+      await mutate();
+      pushToast({
+        title: "Couldn't delete. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeletingId(null);
+    }
+  }
 
   return (
     <div className="p-4">
@@ -110,26 +300,59 @@ export default function Timeline(){
         <input placeholder="Search…" value={q} onChange={e=>setQ(e.target.value)} className="ml-auto text-xs border rounded-md px-2 py-1 min-w-[160px]"/>
       </div>
       <ul className="space-y-2 text-sm">
-        {filtered.map((it:any)=>(
-          <li key={`${it.kind}:${it.id}`} className="rounded-xl p-3 cursor-pointer medx-surface text-medx"
-              onClick={()=>{ if (it.kind==="observation") { setActive(it); setOpen(true); }}}>
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <div><span className="font-medium">Test date:</span> {new Date(it.observed_at).toLocaleString()}
-              {it.uploaded_at && <> · <span className="font-medium">Uploaded:</span> {new Date(it.uploaded_at).toLocaleString()}</>}</div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted">{it.kind==="prediction"?"AI":"Obs"}</span>
-            </div>
-            <div className="mt-1 font-medium">
-              {it.name}
-              {it.kind==="prediction" && typeof it.probability==="number" && <> — {(it.probability*100).toFixed(0)}%</>}
-              {it.kind==="observation" && it.value!=null && <> — {String(it.value)}{it.unit?` ${it.unit}`:""}</>}
-            </div>
-            {it.meta?.summary && (
-              <div className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
-                {it.meta.summary}
+        {filtered.map((it:any)=>{
+          const observedAt = it?.observed_at ? new Date(it.observed_at).toLocaleString() : null;
+          const title = getDisplayTitle(it);
+          const short = getShortSummary(it);
+          const chipLabel = getChipLabel(it);
+          return (
+            <li
+              key={`${it.kind}:${it.id}`}
+              className="rounded-xl p-3 cursor-pointer medx-surface text-medx"
+              onClick={() => {
+                setActive(it);
+                setOpen(true);
+              }}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  {observedAt && (
+                    <div className="text-xs text-muted-foreground">
+                      {observedAt}
+                    </div>
+                  )}
+                  <div className="mt-1 font-medium truncate">
+                    {title}
+                  </div>
+                  {short && (
+                    <div className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+                      {short}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-start gap-1">
+                  {chipLabel && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted whitespace-nowrap">
+                      {chipLabel}
+                    </span>
+                  )}
+                  <button
+                    className="shrink-0 p-2 rounded-md hover:bg-slate-100 dark:hover:bg-gray-800"
+                    aria-label="Delete observation"
+                    title="Delete"
+                    disabled={isDeletingId === it.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(it);
+                    }}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
-            )}
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
 
       {open && active && (
@@ -137,7 +360,14 @@ export default function Timeline(){
           <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setOpen(false)} />
           <aside className="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-[640px] bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-2xl ring-1 ring-black/5 overflow-y-auto">
             <header className="sticky top-0 bg-white/90 dark:bg-zinc-900/90 backdrop-blur border-b border-zinc-200/70 dark:border-zinc-800/70 px-4 py-3 flex items-center gap-2">
-              <h3 className="font-semibold truncate">{active.name || active.meta?.file_name || "Observation"}</h3>
+              <h3 className="font-semibold truncate flex items-center gap-2">
+                <span>{displayTitle}</span>
+                {chipLabel && (
+                  <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs">
+                    {chipLabel}
+                  </span>
+                )}
+              </h3>
               <div className="ml-auto flex gap-2">
                 {(active.file?.path || active.file?.upload_id) && signedUrl && (
                   <button onClick={() => window.open(signedUrl, '_blank')} className="text-xs px-2 py-1 rounded-md border">Open</button>
@@ -145,14 +375,23 @@ export default function Timeline(){
                 {(active.file?.path || active.file?.upload_id) && signedUrl && (
                   <a href={signedUrl} download className="text-xs px-2 py-1 rounded-md border">Download</a>
                 )}
-                {!(active.file?.path || active.file?.upload_id) && (
+                {!hasFile && hasAiSummary && (
                   <a href={`/api/observations/${active.id}/export`} className="text-xs px-2 py-1 rounded-md border">Download Summary</a>
                 )}
+                <button
+                  className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-gray-800"
+                  aria-label="Delete observation"
+                  title="Delete"
+                  disabled={isDeletingId === active.id}
+                  onClick={() => handleDelete(active)}
+                >
+                  <Trash2 size={16} />
+                </button>
                 <button onClick={() => setOpen(false)} className="text-xs px-2 py-1 rounded-md border">Close</button>
               </div>
             </header>
             <div className="px-5 py-4">
-              {active.file?.path || active.file?.upload_id ? (
+              {hasFile ? (
                 !signedUrl ? (
                   <div className="text-xs text-muted-foreground">Fetching file…</div>
                 ) : /\.pdf(\?|$)/i.test(signedUrl) ? (
@@ -163,26 +402,74 @@ export default function Timeline(){
                   <div className="text-sm text-muted-foreground text-center">Preview unavailable. Use <b>Open</b> or <b>Download</b>.</div>
                 )
               ) : (
-                <Tabs defaultValue={long ? 'summary' : (short ? 'summary' : 'text')}>
-                  {(long || short) && (
-                    <TabsList className="mb-3">
-                      <TabsTrigger value="summary">Summary</TabsTrigger>
-                      {text && <TabsTrigger value="text">Full text</TabsTrigger>}
-                    </TabsList>
+                <>
+                  {(summaryLong || summaryShort || text) ? (
+                    <Tabs defaultValue={summaryLong ? 'summary' : (summaryShort ? 'summary' : 'text')}>
+                      {(summaryLong || summaryShort) && (
+                        <TabsList className="mb-3">
+                          <TabsTrigger value="summary">Summary</TabsTrigger>
+                          {text && <TabsTrigger value="text">Full text</TabsTrigger>}
+                        </TabsList>
+                      )}
+                      {(summaryLong || summaryShort) && (
+                        <TabsContent value="summary">
+                          <article className="prose prose-zinc dark:prose-invert max-w-none whitespace-pre-wrap select-text">
+                            {(summaryLong || summaryShort) as string}
+                          </article>
+                        </TabsContent>
+                      )}
+                      {text && (
+                        <TabsContent value="text">
+                          <pre className="whitespace-pre-wrap break-words text-sm leading-6 select-text">{text}</pre>
+                        </TabsContent>
+                      )}
+                    </Tabs>
+                  ) : null}
+                  {!hasFile && !summaryLong && !summaryShort && !text && (
+                    <div className="space-y-3 text-sm">
+                      {shortSummary && (
+                        <div className="rounded-md border px-3 py-2 leading-6">
+                          {shortSummary}
+                        </div>
+                      )}
+
+                      {hasFallbackFacts && (
+                        <div className="grid grid-cols-2 gap-2">
+                          {dose && (
+                            <div className="rounded-md border px-2 py-1">
+                              <div className="text-[11px] uppercase opacity-70">Dose</div>
+                              <div>{dose}</div>
+                            </div>
+                          )}
+                          {observed && (
+                            <div className="rounded-md border px-2 py-1">
+                              <div className="text-[11px] uppercase opacity-70">Observed</div>
+                              <div>{observed}</div>
+                            </div>
+                          )}
+                          {source && (
+                            <div className="rounded-md border px-2 py-1">
+                              <div className="text-[11px] uppercase opacity-70">Source</div>
+                              <div className="capitalize">{String(source)}</div>
+                            </div>
+                          )}
+                          {active?.unit && !dose && (
+                            <div className="rounded-md border px-2 py-1">
+                              <div className="text-[11px] uppercase opacity-70">Unit</div>
+                              <div>{active.unit}</div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {active?.value_text && active.value_text !== shortSummary && (
+                        <div className="rounded-md border px-3 py-2">
+                          {active.value_text}
+                        </div>
+                      )}
+                    </div>
                   )}
-                  {(long || short) && (
-                    <TabsContent value="summary">
-                      <article className="prose prose-zinc dark:prose-invert max-w-none whitespace-pre-wrap select-text">
-                        {(long || short) as string}
-                      </article>
-                    </TabsContent>
-                  )}
-                  {text && (
-                    <TabsContent value="text">
-                      <pre className="whitespace-pre-wrap break-words text-sm leading-6 select-text">{text}</pre>
-                    </TabsContent>
-                  )}
-                </Tabs>
+                </>
               )}
             </div>
           </aside>

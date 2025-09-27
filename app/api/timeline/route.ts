@@ -108,15 +108,33 @@ export async function GET(req: Request) {
     } catch {
       // ignore summarizer issues; keep row usable
     }
+    const kind = typeof r?.kind === "string" ? r.kind.toLowerCase() : "observation";
     const name =
       r?.name ??
       r?.metric ??
       r?.test ??
+      m?.normalizedName ??
       m?.analyte ??
       m?.test_name ??
       m?.label ??
+      kind ??
       "Observation";
-    const value = r?.value ?? m?.value ?? null;
+    const valueNum =
+      typeof r?.value_num === "number"
+        ? r.value_num
+        : typeof r?.value === "number"
+        ? r.value
+        : typeof m?.value_num === "number"
+        ? m.value_num
+        : null;
+    const valueText =
+      typeof r?.value_text === "string"
+        ? r.value_text
+        : typeof r?.value === "string"
+        ? r.value
+        : typeof m?.value_text === "string"
+        ? m.value_text
+        : null;
     const unit = r?.unit ?? m?.unit ?? null;
     const flags = Array.isArray(r?.flags)
       ? r.flags
@@ -126,16 +144,17 @@ export async function GET(req: Request) {
     const file = {
       upload_id:
         r?.source_upload_id ?? r?.upload_id ?? m?.upload_id ?? null,
-      bucket: m?.bucket ?? null,
-      path: m?.storage_path ?? m?.path ?? null,
+      bucket: r?.file_bucket ?? m?.bucket ?? null,
+      path: r?.file_path ?? m?.storage_path ?? m?.path ?? null,
       name: m?.file_name ?? m?.name ?? null,
       mime: m?.mime ?? null,
     };
     return {
       id: String(r?.id ?? cryptoRandomId()),
-      kind: "observation",
+      kind,
       name,
-      value,
+      value_num: valueNum,
+      value_text: valueText,
       unit,
       flags,
       observed_at: pickObserved(r),
@@ -161,7 +180,7 @@ export async function GET(req: Request) {
     const key =
       it.file?.upload_id ||
       it.meta?.source_hash ||
-      `${it.name}|${it.observed_at}|${"value" in it ? it.value ?? "" : ""}`;
+      `${it.name}|${it.observed_at}|${"value_num" in it ? it.value_num ?? "" : ""}|${"value_text" in it ? it.value_text ?? "" : ""}`;
     if (!dedup.has(key)) dedup.set(key, it);
   }
 
