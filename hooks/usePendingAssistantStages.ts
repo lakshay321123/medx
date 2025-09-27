@@ -45,8 +45,8 @@ export function usePendingAssistantStages({
 }: Options) {
   const [state, setState] = useState<PendingAssistantState | null>(null);
   const stateRef = useRef<PendingAssistantState | null>(null);
-  const analyzeStartRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const analyzeRotateRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const analyzeStartRef = useRef<number | null>(null);
+  const analyzeRotateRef = useRef<number | null>(null);
   const typewriterRef = useRef<TypewriterState>({
     messageId: null,
     queue: "",
