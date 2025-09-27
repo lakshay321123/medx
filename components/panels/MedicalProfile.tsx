@@ -734,18 +734,37 @@ export default function MedicalProfile() {
     return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
   }, [fullName]);
 
-  if (isLoading) return <PanelLoader label="Medical Profile" />;
+  const mobileShellClass =
+    "mx-auto w-full max-w-[360px] space-y-2.5 p-3 md:mx-0 md:max-w-none md:space-y-4 md:p-6";
+
+  if (isLoading) {
+    return (
+      <div className={mobileShellClass}>
+        <PanelLoader label="Medical Profile" />
+      </div>
+    );
+  }
   if (error) {
     return (
-      <div className="p-6 text-sm text-red-500">Couldn’t load profile. Retrying in background…</div>
+      <div className={mobileShellClass}>
+        <div className="rounded-[12px] border border-border/70 bg-background/95 p-3 text-sm text-red-500 shadow-sm dark:border-border/40 dark:bg-background/60">
+          Couldn’t load profile. Retrying in background…
+        </div>
+      </div>
     );
   }
   if (!data) {
-    return <div className="p-6 text-sm text-muted-foreground">No profile yet.</div>;
+    return (
+      <div className={mobileShellClass}>
+        <div className="rounded-[12px] border border-border/70 bg-background/95 p-3 text-sm text-muted-foreground shadow-sm dark:border-border/40 dark:bg-background/60">
+          No profile yet.
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-2.5 p-3 md:space-y-4 md:p-6">
+    <div className={mobileShellClass}>
       <ProfileSection
         title="Personal details"
         actions={
