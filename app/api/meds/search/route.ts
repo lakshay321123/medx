@@ -12,12 +12,19 @@ export async function GET(req: NextRequest) {
   }
   const { searchParams } = new URL(req.url);
   const q = String(searchParams.get("q") || "").trim();
+  const countryParam = (searchParams.get("country") || "").trim();
+  const country = countryParam || undefined;
   if (!q) {
     return NextResponse.json({ error: "q_required" }, { status: 400 });
   }
   try {
-    const url = `https://rxnav.nlm.nih.gov/REST/approximateTerm.json?term=${encodeURIComponent(q)}&maxEntries=5`;
-    const r = await fetch(url, { headers: { Accept: "application/json" } });
+    const url = new URL("https://rxnav.nlm.nih.gov/REST/approximateTerm.json");
+    url.searchParams.set("term", q);
+    url.searchParams.set("maxEntries", "5");
+    if (country) {
+      url.searchParams.set("country", country);
+    }
+    const r = await fetch(url.toString(), { headers: { Accept: "application/json" } });
     let meds: { name: string | null; rxnormId: string | null; score: number | null }[] = [];
     if (r.ok) {
       const j = await r.json();
@@ -33,7 +40,7 @@ export async function GET(req: NextRequest) {
         version: VERSION,
         sourceVersion: SOURCE_VERSION,
         slug: null,
-        country: null,
+        country: country ?? null,
         cached: false,
       };
     }
