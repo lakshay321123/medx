@@ -204,6 +204,67 @@ body.font-loading *::after {
   animation: caret 1s steps(1, end) infinite;
 }
 
+@keyframes status-dot-blink {
+  0% { opacity: 0.3; }
+  50% { opacity: 1; }
+  100% { opacity: 0.3; }
+}
+
+@keyframes status-breathe {
+  0% { transform: scale(0.98); opacity: 0.85; }
+  50% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.98); opacity: 0.85; }
+}
+
+@keyframes status-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@layer components {
+  .status-label {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    line-height: 1.25;
+  }
+
+  .status-label--dot::after {
+    content: "";
+    display: inline-block;
+    width: 0.45em;
+    height: 0.45em;
+    margin-left: 0.35em;
+    border-radius: 9999px;
+    background-color: currentColor;
+    opacity: 0.3;
+    animation: status-dot-blink 1s ease-in-out infinite;
+  }
+
+  .status-label--breathe {
+    animation: status-breathe 1.9s ease-in-out infinite;
+  }
+
+  .status-label--breathe::after {
+    content: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-label {
+    animation: status-fade-in 0.2s ease forwards;
+  }
+
+  .status-label--dot::after {
+    animation: none;
+    opacity: 1;
+  }
+
+  .status-label--breathe {
+    animation: status-fade-in 0.2s ease forwards;
+  }
+}
+
 /* Ensure message content is always clickable */
 .message-content,
 .message-content * {

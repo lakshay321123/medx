@@ -48,7 +48,7 @@ const ANALYZING_MAX_PHRASES = 2;
 const TYPEWRITER_SPEED = 50;
 const TYPEWRITER_MIN_BATCH = 4;
 const TYPEWRITER_MAX_BATCH = 8;
-const THINKING_LABEL = "Working…";
+const THINKING_LABEL = "Analyzing";
 const THERAPY_LABEL = "Reflecting…";
 
 export function usePendingAssistantStages({ enabled, onContentUpdate, onFinalize }: Options) {
