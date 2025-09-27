@@ -42,7 +42,7 @@ import { detectAdvancedDomain } from "@/lib/intents/advanced";
 // === ADD-ONLY for domain routing ===
 import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
-import { AnalyzingInline } from "@/components/chat/AnalyzingInline";
+import { AssistantPendingMessage } from "@/components/chat/AssistantPendingMessage";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { StopButton } from "@/components/ui/StopButton";
 import { pushAssistantToChat } from "@/lib/chat/pushAssistantToChat";
@@ -53,9 +53,12 @@ import { exportMessageToPng } from "@/lib/share/snapshot";
 import { trackAnalyticsEvent } from "@/lib/analytics";
 import { pushToast } from "@/lib/ui/toast";
 import { useFeedback } from "@/hooks/useFeedback";
+import { usePendingAssistantStages } from "@/hooks/usePendingAssistantStages";
+import type { PendingAssistantState } from "@/hooks/usePendingAssistantStages";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
+const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== '0';
 
 const NEARBY_DEFAULT_RADIUS_KM = 2;
 const NEARBY_RADIUS_CHOICES = [1, 2, 3, 5, 8, 10] as const;
@@ -477,17 +480,6 @@ No fabricated IDs. Provide themes, not specific trial numbers unless confident.`
   ];
 }
 
-function PendingChatCard({ label, active }: { label: string; active?: boolean }) {
-  return (
-    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl">
-      <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
-        <span>{label}</span>
-        <AnalyzingInline active={!!active} />
-      </div>
-    </div>
-  );
-}
-
 function AnalysisCard({
   m,
   researchOn,
@@ -554,16 +546,37 @@ function ChatCard({
   therapyMode,
   onAction,
   simple,
-  pendingTimerActive
+  pendingTimerActive,
+  pendingStageState,
 }: {
   m: Extract<ChatMessage, { kind: "chat" }>;
   therapyMode: boolean;
   onAction: (s: Suggestion) => void;
   simple: boolean;
   pendingTimerActive?: boolean;
+  pendingStageState?: PendingAssistantState | null;
 }) {
   const suggestions = normalizeSuggestions(m.followUps);
-  if (m.pending) return <PendingChatCard label="Thinking…" active={pendingTimerActive} />;
+  if (m.pending) {
+    if (pendingStageState && CHAT_UX_V2_ENABLED) {
+      return (
+        <AssistantPendingMessage
+          stage={pendingStageState.stage}
+          analyzingPhrase={pendingStageState.analyzingPhrase}
+          thinkingLabel={pendingStageState.thinkingLabel}
+          content={typeof m.content === "string" ? m.content : ""}
+        />
+      );
+    }
+    return (
+      <AssistantPendingMessage
+        stage={therapyMode ? "reflecting" : "thinking"}
+        analyzingPhrase={null}
+        thinkingLabel={therapyMode ? "Reflecting…" : undefined}
+        content={typeof m.content === "string" ? m.content : ""}
+      />
+    );
+  }
   return (
     <div
       className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl"
@@ -633,8 +646,19 @@ function AssistantMessage(props: {
   onAction: (s: Suggestion) => void;
   simple: boolean;
   pendingTimerActive?: boolean;
+  pendingStageState?: PendingAssistantState | null;
 }) {
-  const { m, therapyMode, onAction, simple, pendingTimerActive, researchOn, onQuickAction, busy } = props;
+  const {
+    m,
+    therapyMode,
+    onAction,
+    simple,
+    pendingTimerActive,
+    researchOn,
+    onQuickAction,
+    busy,
+    pendingStageState,
+  } = props;
   if (m.kind === "analysis") {
     return (
       <AnalysisCard
@@ -655,6 +679,7 @@ function AssistantMessage(props: {
       onAction={onAction}
       simple={simple}
       pendingTimerActive={pendingTimerActive}
+      pendingStageState={pendingStageState}
     />
   );
 }
@@ -694,6 +719,50 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const researchModeRef = useRef<boolean>(false);
   const queueAbortRef = useRef<AbortController | null>(null);
   const { filters } = useResearchFilters();
+
+  const handlePendingContentUpdate = useCallback(
+    (messageId: string, text: string) => {
+      setMessages(prev =>
+        prev.map(m => (m.id === messageId ? ({ ...m, content: text } as ChatMessage) : m)),
+      );
+    },
+    [setMessages],
+  );
+
+  const handlePendingFinalize = useCallback(
+    (messageId: string, finalContent: string, extras?: { followUps?: unknown; citations?: unknown; error?: string | null }) => {
+      setMessages(prev =>
+        prev.map(m => {
+          if (m.id !== messageId) return m;
+          const next = { ...m, content: finalContent, pending: false } as ChatMessage;
+          if (extras?.followUps !== undefined) {
+            (next as any).followUps = extras.followUps;
+          }
+          if (extras?.citations !== undefined) {
+            next.citations = extras.citations as any;
+          }
+          if (extras?.error !== undefined) {
+            next.error = extras.error ?? undefined;
+          }
+          return next;
+        }),
+      );
+    },
+    [setMessages],
+  );
+
+  const {
+    state: pendingAssistantState,
+    begin: beginPendingAssistant,
+    markStreaming: markPendingAssistantStreaming,
+    enqueue: enqueuePendingAssistant,
+    finish: finishPendingAssistant,
+    cancel: cancelPendingAssistant,
+  } = usePendingAssistantStages({
+    enabled: CHAT_UX_V2_ENABLED,
+    onContentUpdate: handlePendingContentUpdate,
+    onFinalize: handlePendingFinalize,
+  });
 
   const sp = useSearchParams();
   const isAiDocMode = useIsAiDocMode();
@@ -2116,11 +2185,14 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       nextMsgs = [...baseMessages, pendingMessage];
     }
     setMessages(nextMsgs);
+    beginPendingAssistant(pendingId, { mode: uiMode, research: Boolean(researchMode), text: messageText });
     opts.onPending?.(pendingId);
     const maybe = maybeFixMedicalTypo(messageText);
     if (maybe && messages.filter(m => m.role === "assistant").slice(-1)[0]?.content !== maybe.ask) {
       // Ask once, keep pending bubble as the question (no LLM call)
-      setMessages(prev => prev.map(m => m.id === pendingId ? { ...m, content: maybe.ask, pending: false } : m));
+      markPendingAssistantStreaming(pendingId);
+      enqueuePendingAssistant(pendingId, maybe.ask);
+      finishPendingAssistant(pendingId, maybe.ask);
       if (threadId && maybe.ask.trim()) {
         pushFullMem(threadId, "assistant", maybe.ask);
         maybeIndexStructured(threadId, maybe.ask);
@@ -2155,13 +2227,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         const isDatewise = /(date ?wise|by date|chronolog)/i.test(messageText);
         if (isLast || isChanges || isDatewise) {
           if (!isAiDocMode) {
-            setMessages(prev =>
-              prev.map(m =>
-                m.id === pendingId
-                  ? { ...m, content: REPORTS_LOCKED_MESSAGE, pending: false }
-                  : m
-              )
-            );
+            markPendingAssistantStreaming(pendingId);
+            enqueuePendingAssistant(pendingId, REPORTS_LOCKED_MESSAGE);
+            finishPendingAssistant(pendingId, REPORTS_LOCKED_MESSAGE);
             setBusy(false);
             setThinkingStartedAt(null);
             return;
@@ -2171,9 +2239,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             const body = await res.json().catch(() => null);
             if (body?.ok && Array.isArray(body.trend)) {
               const summary = labsMarkdown(body.trend);
-              setMessages(prev =>
-                prev.map(m => (m.id === pendingId ? { ...m, content: summary, pending: false } : m))
-              );
+              markPendingAssistantStreaming(pendingId);
+              enqueuePendingAssistant(pendingId, summary);
+              finishPendingAssistant(pendingId, summary);
               if (threadId && summary.trim()) {
                 pushFullMem(threadId, 'assistant', summary);
                 maybeIndexStructured(threadId, summary);
@@ -2209,16 +2277,18 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           }),
           signal: ctrl.signal
         });
-        if (res.status === 409) {
-          setMessages(prev => prev.filter(m => m.id !== pendingId));
-          setBusy(false);
-          setThinkingStartedAt(null);
-          return;
-        }
+      if (res.status === 409) {
+        cancelPendingAssistant(pendingId);
+        setMessages(prev => prev.filter(m => m.id !== pendingId));
+        setBusy(false);
+        setThinkingStartedAt(null);
+        return;
+      }
         if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         acc = '';
+        let sawContent = false;
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -2231,17 +2301,20 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               const delta = payload?.choices?.[0]?.delta?.content;
               if (delta) {
                 acc += delta;
-                setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m)));
+                if (!sawContent) {
+                  markPendingAssistantStreaming(pendingId);
+                  sawContent = true;
+                }
+                enqueuePendingAssistant(pendingId, delta);
+                if (!CHAT_UX_V2_ENABLED) {
+                  setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m)));
+                }
               }
             } catch {}
           }
         }
         const { main, followUps } = splitFollowUps(acc);
-        setMessages(prev =>
-          prev.map(m =>
-            m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
-          )
-        );
+        finishPendingAssistant(pendingId, main, { followUps });
         if (threadId && main && main.trim()) {
           pushFullMem(threadId, "assistant", main);
           maybeIndexStructured(threadId, main);
@@ -2270,11 +2343,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         } catch (e: any) {
           const msg = String(e?.message || 'HTTP error');
           const content = `⚠ ${msg}`;
-          setMessages(prev => prev.map(m =>
-            m.id === pendingId
-              ? { ...m, content, pending: false, error: msg }
-              : m
-          ));
+          finishPendingAssistant(pendingId, content, { error: msg });
           if (threadId && content.trim()) {
             pushFullMem(threadId, "assistant", content);
             maybeIndexStructured(threadId, content);
@@ -2288,9 +2357,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
         if (j?.completion) {
           const content = j.completion;
-          setMessages(prev => prev.map(m =>
-            m.id === pendingId ? { ...m, content, pending: false } : m
-          ));
+          markPendingAssistantStreaming(pendingId);
+          enqueuePendingAssistant(pendingId, content);
+          finishPendingAssistant(pendingId, content);
           if (threadId && content.trim()) {
             pushFullMem(threadId, "assistant", content);
             maybeIndexStructured(threadId, content);
@@ -2300,9 +2369,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           }
         } else if (j?.starter) {
           const content = j.starter;
-          setMessages(prev => prev.map(m =>
-            m.id === pendingId ? { ...m, content, pending: false } : m
-          ));
+          markPendingAssistantStreaming(pendingId);
+          enqueuePendingAssistant(pendingId, content);
+          finishPendingAssistant(pendingId, content);
           if (threadId && content.trim()) {
             pushFullMem(threadId, "assistant", content);
             maybeIndexStructured(threadId, content);
@@ -2312,11 +2381,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           }
         } else {
           const content = '⚠ Empty response from server.';
-          setMessages(prev => prev.map(m =>
-            m.id === pendingId
-              ? { ...m, content, pending: false, error: 'Empty response from server.' }
-              : m
-            ));
+          finishPendingAssistant(pendingId, content, { error: 'Empty response from server.' });
           if (threadId && content.trim()) {
             pushFullMem(threadId, "assistant", content);
             maybeIndexStructured(threadId, content);
@@ -2358,13 +2423,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         const hasAnyMemory = !!buildFullContext(stableThreadId);
         if (!hasAnyMemory) {
           const warn = "I don't have context from earlier in this session. Please reattach or restate it if you'd like me to use it.";
-          setMessages(prev =>
-            prev.map(m =>
-              m.id === pendingId
-                ? { ...m, pending: false, content: warn }
-                : m
-            )
-          );
+          markPendingAssistantStreaming(pendingId);
+          enqueuePendingAssistant(pendingId, warn);
+          finishPendingAssistant(pendingId, warn);
           if (threadId && warn.trim()) {
             pushFullMem(threadId, "assistant", warn);
             maybeIndexStructured(threadId, warn);
@@ -2581,6 +2642,7 @@ ${systemCommon}` + baseSys;
         signal: ctrl.signal
       });
       if (res.status === 409) {
+        cancelPendingAssistant(pendingId);
         setMessages(prev => prev.filter(m => m.id !== pendingId));
         setBusy(false);
         setThinkingStartedAt(null);
@@ -2591,6 +2653,7 @@ ${systemCommon}` + baseSys;
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       acc = '';
+      let sawContent = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -2605,19 +2668,22 @@ ${systemCommon}` + baseSys;
             const delta = payload?.choices?.[0]?.delta?.content;
             if (delta) {
               acc += delta;
-              setMessages(prev =>
-                prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m))
-              );
+              if (!sawContent) {
+                markPendingAssistantStreaming(pendingId);
+                sawContent = true;
+              }
+              enqueuePendingAssistant(pendingId, delta);
+              if (!CHAT_UX_V2_ENABLED) {
+                setMessages(prev =>
+                  prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m))
+                );
+              }
             }
           } catch {}
         }
       }
       const { main, followUps } = splitFollowUps(acc);
-      setMessages(prev =>
-        prev.map(m =>
-          m.id === pendingId ? { ...m, content: main, followUps, pending: false } : m
-        )
-      );
+      finishPendingAssistant(pendingId, main, { followUps });
       opts.onSuccess?.(pendingId);
       if (researchMode) {
         const lastUserMsg = text;
@@ -2648,25 +2714,13 @@ ${systemCommon}` + baseSys;
       }
     } catch (e: any) {
       if (e?.name === 'AbortError') {
-        setMessages(prev =>
-          prev.map(m =>
-            m.id === pendingId
-              ? Object.assign({}, m, { content: acc, pending: false })
-              : m
-          )
-        );
+        finishPendingAssistant(pendingId, acc);
         opts.onError?.();
         return;
       }
       console.error(e);
       const content = `⚠️ ${String(e?.message || e)}`;
-      setMessages(prev =>
-        prev.map(m =>
-          m.id === pendingId
-            ? Object.assign({}, m, { content, pending: false, error: String(e?.message || e) })
-            : m
-        )
-      );
+      finishPendingAssistant(pendingId, content, { error: String(e?.message || e) });
       if (threadId && content.trim()) {
         pushFullMem(threadId, 'assistant', content);
         maybeIndexStructured(threadId, content);
@@ -3286,7 +3340,8 @@ ${systemCommon}` + baseSys;
           (typeof (m as any).tempId === 'string' ? (m as any).tempId : undefined) ??
           `message-${index}`;
         const isLastVisible = index === visibleMessages.length - 1;
-        const showThinkingTimer = isLastVisible && m.role === 'assistant' && busy && !!thinkingStartedAt;
+        const showThinkingTimer =
+          !CHAT_UX_V2_ENABLED && isLastVisible && m.role === 'assistant' && busy && !!thinkingStartedAt;
 
         if (m.role === 'user') {
           if (m.kind === 'image') {
@@ -3362,6 +3417,11 @@ ${systemCommon}` + baseSys;
                     onAction={stableHandleSuggestionAction}
                     simple={simpleMode}
                     pendingTimerActive={showThinkingTimer}
+                    pendingStageState={
+                      pendingAssistantState && pendingAssistantState.id === m.id
+                        ? pendingAssistantState
+                        : null
+                    }
                   />
                 </div>
                 <MessageActions
@@ -3398,6 +3458,7 @@ ${systemCommon}` + baseSys;
       openShareForMessage,
       feedbackState,
       handleFeedbackSubmit,
+      pendingAssistantState,
       handleRefreshMessage,
       refreshingMessageId
     ]
