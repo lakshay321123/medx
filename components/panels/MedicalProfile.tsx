@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams, type ReadonlyURLSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
 import PanelLoader from "@/components/mobile/PanelLoader";
+import MedicalProfileMobileView from "@/components/medical-profile/mobile/MedicalProfileMobile";
 import ProfileSection from "@/components/profile/ProfileSection";
 import VitalsEditor from "@/components/profile/VitalsEditor";
 import MedicationInput from "@/components/meds/MedicationInput";
@@ -37,7 +38,7 @@ const MANUAL_NOTES_KIND = "summary_notes_manual";
 const MANUAL_NEXT_STEPS_KIND = "summary_next_steps_manual";
 const NO_DATA_TEXT = "No data available";
 
-type MedicationEntry = {
+export type MedicationEntry = {
   key: string;
   name: string;
   doseLabel?: string | null;
@@ -130,6 +131,10 @@ export default function MedicalProfile() {
   const params = useSearchParams();
   const { theme } = useTheme();
   const panelMode = useMemo(() => derivePanelMode(params, theme), [params, theme]);
+
+  const openProfileChat = useCallback(() => {
+    router.push("/?panel=chat&threadId=med-profile&context=profile");
+  }, [router]);
 
   const { mutate: mutateGlobal } = useSWRConfig();
   const { data, error, isLoading, mutate: mutateProfile } = useProfile();
@@ -365,6 +370,15 @@ export default function MedicalProfile() {
   const displayedNotes = manualNotes ?? (summaryNotes !== NO_DATA_TEXT ? summaryNotes : null);
   const displayedNextSteps =
     manualNextSteps ?? (summaryNextSteps !== NO_DATA_TEXT ? summaryNextSteps : null);
+
+  const mobileHeightCm =
+    heightInput.trim() ||
+    (profileVitals.heightMeters != null
+      ? Number((profileVitals.heightMeters * 100).toFixed(1)).toString()
+      : "");
+  const mobileWeightKg =
+    weightInput.trim() ||
+    (profileVitals.weightKg != null ? Number(profileVitals.weightKg.toFixed(1)).toString() : "");
 
   const handleProfileSave = async () => {
     setSavingProfile(true);
@@ -693,7 +707,38 @@ export default function MedicalProfile() {
   }
 
   return (
-    <div className="space-y-4 p-4 md:p-6">
+    <>
+      <div className="md:hidden">
+        <MedicalProfileMobileView
+          fullName={fullName}
+          sex={sex}
+          dob={dob}
+          bloodGroup={bloodGroup}
+          heightCm={mobileHeightCm || null}
+          weightKg={mobileWeightKg || null}
+          predispositions={predis}
+          chronicConditions={chronic}
+          vitals={{
+            systolic: profileVitals.systolic ?? null,
+            diastolic: profileVitals.diastolic ?? null,
+            heartRate: profileVitals.heartRate ?? null,
+            bmi: profileVitals.bmi ?? null,
+          }}
+          medications={medications}
+          notes={displayedNotes ?? null}
+          nextSteps={displayedNextSteps ?? null}
+          predictionText={predictionText}
+          onEditPersonal={undefined /* TODO: implement mobile personal details editing */}
+          onEditVitals={undefined /* TODO: implement mobile vitals editing */}
+          onDiscussInChat={openProfileChat}
+          onRecomputeRisk={onRecomputeRisk}
+          onAddMedication={undefined /* TODO: implement mobile medication entry */}
+          onAddNotes={undefined /* TODO: implement mobile notes entry */}
+          onAddNextSteps={undefined /* TODO: implement mobile next steps entry */}
+        />
+      </div>
+      <div className="hidden md:block">
+        <div className="space-y-4 p-4 md:p-6">
       <ProfileSection
         title="Personal details"
         actions={
@@ -701,7 +746,7 @@ export default function MedicalProfile() {
             <button
               type="button"
               className="w-full rounded-md border px-3 py-1.5 text-sm sm:w-auto"
-              onClick={() => router.push("/?panel=chat&threadId=med-profile&context=profile")}
+              onClick={openProfileChat}
             >
               Open in chat
             </button>
@@ -921,7 +966,7 @@ export default function MedicalProfile() {
               <button
                 type="button"
                 className="w-full rounded-md border px-3 py-1.5 text-sm sm:w-auto"
-                onClick={() => router.push("/?panel=chat&threadId=med-profile&context=profile")}
+                onClick={openProfileChat}
               >
                 Discuss in chat
               </button>
@@ -1181,7 +1226,9 @@ export default function MedicalProfile() {
           </div>
         </ProfileSection>
       ) : null}
-    </div>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -1402,3 +1449,5 @@ function buildDoseLabelFromParts(value: number | null, unit: string | null) {
   if (unit) parts.push(unit);
   return parts.length ? parts.join(" ") : null;
 }
+
+export { extractMedicationEntries, formatMedicationLabel };
