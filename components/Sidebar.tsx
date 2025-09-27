@@ -3,7 +3,7 @@ import { Search, Settings } from "lucide-react";
 import Tabs from "./sidebar/Tabs";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { listThreads, Thread } from "@/lib/chatThreads";
+import { createNewThreadId, listThreads, Thread } from "@/lib/chatThreads";
 import ThreadKebab from "@/components/chat/ThreadKebab";
 import { useMobileUiStore } from "@/lib/state/mobileUiStore";
 
@@ -29,9 +29,10 @@ export default function Sidebar() {
     fetch("/api/aidoc/threads").then((r) => r.json()).then(setAidocThreads).catch(() => {});
   }, []);
 
-  const handleOpenDirectory = () => {
+  const handleNewChat = () => {
+    const id = createNewThreadId();
     closeSidebar();
-    router.push("/?panel=directory");
+    router.push(`/?panel=chat&threadId=${id}`);
   };
 
   const handleSearch = (value: string) => {
@@ -41,13 +42,12 @@ export default function Sidebar() {
   const filtered = threads.filter((t) => t.title.toLowerCase().includes(q.toLowerCase()));
   return (
     <div className="sidebar-click-guard flex h-full w-full flex-col gap-4 px-4 pt-6 pb-0 text-medx">
-      {/* REPLACED BUTTON */}
       <button
         type="button"
-        onClick={handleOpenDirectory}
-        className="w-full rounded-full bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500"
+        onClick={handleNewChat}
+        className="w-full rounded-full bg-blue-600 px-4 py-2.5 text-left text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500"
       >
-        Open Directory
+        + New Chat
       </button>
 
       <div>
