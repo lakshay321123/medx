@@ -7,14 +7,77 @@ import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
 import PanelLoader from "@/components/mobile/PanelLoader";
 import { pushToast } from "@/lib/ui/toast";
 
+const TIMELINE_ALLOWED_KINDS = new Set([
+  "medication",
+  "note",
+  "symptom",
+  "lab",
+  "imaging",
+]);
+
+const normalizeKind = (value: unknown) => String(value ?? "").toLowerCase();
+
+const getDisplayTitle = (ob: any) => {
+  const kind = normalizeKind(ob?.kind);
+  if (kind === "medication") return ob?.meta?.normalizedName || ob?.value_text || "Medication";
+  if (kind === "lab") return ob?.meta?.testName || ob?.meta?.fileTitle || ob?.name || "Lab report";
+  if (kind === "imaging") return ob?.meta?.study || ob?.meta?.fileTitle || ob?.name || "Imaging";
+  if (kind === "symptom") return "Symptom";
+  if (kind === "note") return ob?.meta?.title || "Note";
+  return ob?.name || "Observation";
+};
+
+const getShortSummary = (ob: any) => {
+  const meta = ob?.meta || {};
+  const kind = normalizeKind(ob?.kind);
+  if (meta?.summary) return meta.summary as string;
+
+  if (kind === "medication") {
+    const dose =
+      meta?.doseLabel ??
+      (ob?.value_num != null ? `${ob.value_num}${ob?.unit ? ` ${ob.unit}` : ""}` : null);
+    return [meta?.normalizedName || ob?.value_text, dose].filter(Boolean).join(" — ");
+  }
+
+  if (kind === "note" || kind === "symptom") {
+    const text = (meta?.text ?? ob?.value_text ?? "") as string;
+    const trimmed = text.trim();
+    if (!trimmed) return "";
+    return trimmed.length > 140 ? `${trimmed.slice(0, 140)}…` : trimmed;
+  }
+
+  if (kind === "lab") {
+    if (meta?.abnormalHint) return meta.abnormalHint as string;
+    if (meta?.topFinding) return meta.topFinding as string;
+    return meta?.fileTitle || meta?.testName || ob?.value_text || "";
+  }
+
+  if (kind === "imaging") {
+    return meta?.finding || meta?.impression || meta?.fileTitle || "";
+  }
+
+  return (meta?.text as string) || "";
+};
+
+const getChipLabel = (ob: any) => {
+  const kind = normalizeKind(ob?.kind);
+  if (kind === "medication") return "Med";
+  if (kind === "lab") return "Lab";
+  if (kind === "imaging") return "Imaging";
+  if (kind === "symptom") return "Symptom";
+  if (kind === "note") return "Note";
+  return "Obs";
+};
+
+const isAllowedObservation = (ob: any) => TIMELINE_ALLOWED_KINDS.has(normalizeKind(ob?.kind));
+
 type Cat = "ALL"|"LABS"|"VITALS"|"IMAGING"|"AI"|"NOTES";
 const catOf = (it:any):Cat => {
-  if (it.kind==="prediction") return "AI";
-  const s = `${(it.name||"").toLowerCase()} ${JSON.stringify(it.meta||{}).toLowerCase()}`;
-  if (/(x-?ray|xray|ct|mri|ultra\s?sound|usg|scan)/.test(s)) return "IMAGING";
-  if (/(bp|blood pressure|spo2|bmi|hr|heart rate|pulse)/.test(s)) return "VITALS";
-  if (/(hba1c|egfr|fpg|glucose|cholesterol|hdl|ldl|triglycer|creatinine|urea|tsh|t4|t3)/.test(s)) return "LABS";
-  if (/(med|tablet|dose|rx|prescription|note)/.test(s)) return "NOTES";
+  const kind = normalizeKind(it?.kind);
+  if (kind === "lab") return "LABS";
+  if (kind === "imaging") return "IMAGING";
+  if (kind === "medication" || kind === "note" || kind === "symptom") return "NOTES";
+  if (kind === "prediction") return "AI";
   return "NOTES";
 };
 
@@ -24,7 +87,9 @@ export default function Timeline(){
   const { data, error, isLoading, mutate } = useTimeline(isAiDoc);
   const items = data?.items ?? [];
 
-  const [observations, setObservations] = useState<any[]>(items);
+  const [observations, setObservations] = useState<any[]>(() =>
+    (items || []).filter(isAllowedObservation)
+  );
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
 
   const [cat,setCat] = useState<Cat>("ALL");
@@ -42,7 +107,8 @@ export default function Timeline(){
   },[range,from]);
 
   useEffect(() => {
-    setObservations(items);
+    const visible = (items || []).filter(isAllowedObservation);
+    setObservations(visible);
   }, [items]);
 
   const filtered = useMemo(() =>
@@ -86,21 +152,13 @@ export default function Timeline(){
 
   if (!observations.length) return <div className="p-6 text-sm text-muted-foreground">No events yet.</div>;
 
+  const displayTitle = active ? getDisplayTitle(active) : "Observation";
+  const shortSummary = active ? getShortSummary(active) : "";
   const summaryLong = active?.meta?.summary_long;
   const summaryShort = active?.meta?.summary;
   const text = active?.meta?.text;
   const hasFile = Boolean(active?.file?.path || active?.file?.upload_id);
   const hasAiSummary = Boolean(summaryLong || summaryShort || text);
-  const isMed = (active?.kind ?? "").toLowerCase() === "medication";
-  const medName = active?.meta?.normalizedName || active?.value_text;
-  const titleFallback =
-    active?.meta?.title ||
-    active?.name ||
-    active?.meta?.file_name ||
-    active?.value_text ||
-    active?.kind ||
-    "Observation";
-  const niceTitle = isMed ? medName || "Medication" : titleFallback;
   const dose =
     active?.meta?.doseLabel ||
     (active?.value_num != null
@@ -111,6 +169,7 @@ export default function Timeline(){
     : null;
   const source = active?.meta?.source;
   const hasFallbackFacts = Boolean(dose || observed || source || (active?.unit && !dose));
+  const chipLabel = active ? getChipLabel(active) : null;
 
   async function handleDelete(ob: { id: string }) {
     if (typeof window !== "undefined") {
@@ -174,53 +233,55 @@ export default function Timeline(){
       </div>
       <ul className="space-y-2 text-sm">
         {filtered.map((it:any)=>{
-          const itemKind = (it?.kind ?? "").toLowerCase();
-          const isObservationItem = itemKind === "observation";
-          const isMedicationItem = itemKind === "medication";
-          const cardTitle = isMedicationItem && it.meta?.normalizedName ? it.meta.normalizedName : it.name;
-          const cardDose = it.meta?.doseLabel || (it.value != null ? `${String(it.value)}${it.unit ? ` ${it.unit}` : ""}` : null);
+          const observedAt = it?.observed_at ? new Date(it.observed_at).toLocaleString() : null;
+          const title = getDisplayTitle(it);
+          const short = getShortSummary(it);
+          const chipLabel = getChipLabel(it);
           return (
-            <li key={`${it.kind}:${it.id}`} className="rounded-xl p-3 cursor-pointer medx-surface text-medx"
-              onClick={()=>{ if (isObservationItem || isMedicationItem) { setActive(it); setOpen(true); }}}>
-            <div className="flex items-center justify-between text-xs text-muted-foreground gap-2">
-              <div>
-                <span className="font-medium">Test date:</span> {new Date(it.observed_at).toLocaleString()}
-                {it.uploaded_at && <> · <span className="font-medium">Uploaded:</span> {new Date(it.uploaded_at).toLocaleString()}</>}
-              </div>
-              <div className="flex items-center gap-1">
-                {(isObservationItem || isMedicationItem) && (
+            <li
+              key={`${it.kind}:${it.id}`}
+              className="rounded-xl p-3 cursor-pointer medx-surface text-medx"
+              onClick={() => {
+                setActive(it);
+                setOpen(true);
+              }}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  {observedAt && (
+                    <div className="text-xs text-muted-foreground">
+                      {observedAt}
+                    </div>
+                  )}
+                  <div className="mt-1 font-medium truncate">
+                    {title}
+                  </div>
+                  {short && (
+                    <div className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+                      {short}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-start gap-1">
+                  {chipLabel && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted whitespace-nowrap">
+                      {chipLabel}
+                    </span>
+                  )}
                   <button
                     className="shrink-0 p-2 rounded-md hover:bg-slate-100 dark:hover:bg-gray-800"
                     aria-label="Delete observation"
                     title="Delete"
                     disabled={isDeletingId === it.id}
-                    onClick={(e) => { e.stopPropagation(); handleDelete(it); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(it);
+                    }}
                   >
                     <Trash2 size={16} />
                   </button>
-                )}
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted">
-                  {itemKind === "prediction" ? "AI" : itemKind === "medication" ? "Med" : "Obs"}
-                </span>
+                </div>
               </div>
-            </div>
-            <div className="mt-1 font-medium">
-              {cardTitle}
-              {itemKind==="prediction" && typeof it.probability==="number" && <> — {(it.probability*100).toFixed(0)}%</>}
-              {isObservationItem && it.value!=null && <> — {String(it.value)}{it.unit?` ${it.unit}`:""}</>}
-            </div>
-            {isMedicationItem && (cardDose || it.observed_at) && (
-              <div className="mt-0.5 text-xs text-muted-foreground">
-                {cardDose && <span>{cardDose}</span>}
-                {cardDose && it.observed_at && <span> • </span>}
-                {it.observed_at && <span>{new Date(it.observed_at).toLocaleString()}</span>}
-              </div>
-            )}
-            {it.meta?.summary && (
-              <div className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
-                {it.meta.summary}
-              </div>
-            )}
             </li>
           );
         })}
@@ -232,10 +293,12 @@ export default function Timeline(){
           <aside className="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-[640px] bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-2xl ring-1 ring-black/5 overflow-y-auto">
             <header className="sticky top-0 bg-white/90 dark:bg-zinc-900/90 backdrop-blur border-b border-zinc-200/70 dark:border-zinc-800/70 px-4 py-3 flex items-center gap-2">
               <h3 className="font-semibold truncate flex items-center gap-2">
-                <span>{niceTitle}</span>
-                <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs">
-                  {isMed ? "Med" : (active?.kind || "Obs")}
-                </span>
+                <span>{displayTitle}</span>
+                {chipLabel && (
+                  <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs">
+                    {chipLabel}
+                  </span>
+                )}
               </h3>
               <div className="ml-auto flex gap-2">
                 {(active.file?.path || active.file?.upload_id) && signedUrl && (
@@ -247,17 +310,15 @@ export default function Timeline(){
                 {!hasFile && hasAiSummary && (
                   <a href={`/api/observations/${active.id}/export`} className="text-xs px-2 py-1 rounded-md border">Download Summary</a>
                 )}
-                {active.kind === "observation" && (
-                  <button
-                    className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-gray-800"
-                    aria-label="Delete observation"
-                    title="Delete"
-                    disabled={isDeletingId === active.id}
-                    onClick={() => handleDelete(active)}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                )}
+                <button
+                  className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-gray-800"
+                  aria-label="Delete observation"
+                  title="Delete"
+                  disabled={isDeletingId === active.id}
+                  onClick={() => handleDelete(active)}
+                >
+                  <Trash2 size={16} />
+                </button>
                 <button onClick={() => setOpen(false)} className="text-xs px-2 py-1 rounded-md border">Close</button>
               </div>
             </header>
@@ -298,8 +359,10 @@ export default function Timeline(){
                   ) : null}
                   {!hasFile && !summaryLong && !summaryShort && !text && (
                     <div className="space-y-3 text-sm">
-                      {isMed && medName && (
-                        <div className="text-base font-medium">{medName}</div>
+                      {shortSummary && (
+                        <div className="rounded-md border px-3 py-2 leading-6">
+                          {shortSummary}
+                        </div>
                       )}
 
                       {hasFallbackFacts && (
@@ -331,7 +394,7 @@ export default function Timeline(){
                         </div>
                       )}
 
-                      {active?.value_text && (
+                      {active?.value_text && active.value_text !== shortSummary && (
                         <div className="rounded-md border px-3 py-2">
                           {active.value_text}
                         </div>

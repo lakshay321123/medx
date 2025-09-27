@@ -339,55 +339,6 @@ export default function MedicalProfile() {
         chronic_conditions: chronic,
       } as Record<string, unknown>;
 
-      const observedAt = new Date().toISOString();
-      const observations: any[] = [];
-      const metaBase = { source: "manual", category: "vital", committed: true };
-
-      const trimmedHeight = heightInput.trim();
-      const trimmedWeight = weightInput.trim();
-
-      if (trimmedHeight) {
-        const heightValue = parseNumber(trimmedHeight);
-        if (heightValue == null) {
-          throw new Error("Enter a valid height in centimeters.");
-        }
-        const summary = `${heightValue} cm height`;
-        observations.push({
-          kind: "height_cm",
-          value_num: heightValue,
-          value_text: String(heightValue),
-          unit: "cm",
-          observed_at: observedAt,
-          thread_id: null,
-          meta: {
-            ...metaBase,
-            summary,
-            text: `Height recorded as ${heightValue} cm from Medical Profile`,
-          },
-        });
-      }
-
-      if (trimmedWeight) {
-        const weightValue = parseNumber(trimmedWeight);
-        if (weightValue == null) {
-          throw new Error("Enter a valid weight in kilograms.");
-        }
-        const summary = `${weightValue} kg weight`;
-        observations.push({
-          kind: "weight_kg",
-          value_num: weightValue,
-          value_text: String(weightValue),
-          unit: "kg",
-          observed_at: observedAt,
-          thread_id: null,
-          meta: {
-            ...metaBase,
-            summary,
-            text: `Weight recorded as ${weightValue} kg from Medical Profile`,
-          },
-        });
-      }
-
       const res = await fetch("/api/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -395,17 +346,6 @@ export default function MedicalProfile() {
       });
       if (!res.ok) {
         throw new Error(await res.text());
-      }
-
-      if (observations.length) {
-        const result = await fetch("/api/observations/bulk", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ observations }),
-        });
-        if (!result.ok) {
-          throw new Error((await result.text()) || "Failed to save vitals");
-        }
       }
 
       pushToast({ title: "Profile saved" });
@@ -494,11 +434,15 @@ export default function MedicalProfile() {
     const observedAt = new Date().toISOString();
     const trimmed = (text ?? "").trim();
     const cleared = trimmed.length === 0;
+    const title = manualKind === MANUAL_NEXT_STEPS_KIND ? "Next steps" : "Note";
     const summary = cleared
-      ? `${label} cleared`
-      : trimmed
-      ? `${label}: ${trimmed}`
-      : label;
+      ? `${title} cleared`
+      : trimmed.length > 140
+      ? `${trimmed.slice(0, 140)}…`
+      : trimmed || title;
+    const textPayload = cleared
+      ? `${title} cleared from Medical Profile`
+      : trimmed || title;
     const res = await fetch("/api/observations/bulk", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -518,10 +462,9 @@ export default function MedicalProfile() {
               label,
               cleared,
               manualKind,
+              title,
               summary,
-              text: cleared
-                ? `${label} cleared from Medical Profile`
-                : trimmed || label,
+              text: textPayload,
             },
           },
         ],

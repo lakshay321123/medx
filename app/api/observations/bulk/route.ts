@@ -31,17 +31,63 @@ export async function POST(req: NextRequest) {
 
   const now = new Date().toISOString();
   const rows = list.map(x => {
-    const name = String(x?.value_text ?? x?.kind ?? "Observation");
-    const hasNumericValue = x?.unit && x?.value_num != null;
-    const simple = hasNumericValue ? `${name} — ${x.value_num} ${x.unit}` : name;
-    const meta = { ...(x?.meta ?? {}) };
-    if (!meta.summary) meta.summary = simple;
-    if (!meta.text) meta.text = simple;
+    const rawKind = typeof x?.kind === "string" ? x.kind : "";
+    const kind = rawKind.toLowerCase() || "observation";
+    const incomingMeta = { ...(x?.meta ?? {}) };
+    const baseName =
+      incomingMeta.normalizedName ??
+      (typeof x?.value_text === "string" ? x.value_text : null) ??
+      (typeof rawKind === "string" && rawKind.trim() ? rawKind : "Observation");
+
+    const doseLabel = incomingMeta.doseLabel ?? null;
+    const numericDose =
+      x?.value_num != null
+        ? `${x.value_num}${x?.unit ? ` ${x.unit}` : ""}`
+        : null;
+
+    let fallbackSummary = baseName;
+    let fallbackText = incomingMeta.text;
+
+    if (kind === "medication") {
+      const dose = doseLabel ?? numericDose;
+      if (dose) {
+        fallbackSummary = baseName ? `${baseName} — ${dose}` : dose;
+      }
+      if (!fallbackText) {
+        fallbackText = doseLabel
+          ? `${baseName} (${doseLabel}) saved from Medical Profile`
+          : baseName;
+      }
+    } else if (kind === "note" || kind === "symptom") {
+      const text = typeof x?.value_text === "string" ? x.value_text : incomingMeta.text ?? "";
+      if (text) {
+        const trimmed = text.trim();
+        if (trimmed) {
+          fallbackText = trimmed;
+          fallbackSummary = trimmed.length > 140 ? `${trimmed.slice(0, 140)}…` : trimmed;
+        }
+      }
+    } else if (kind === "lab") {
+      const abnormal = incomingMeta.abnormalHint ?? incomingMeta.topFinding ?? null;
+      const title = incomingMeta.fileTitle ?? incomingMeta.testName ?? null;
+      fallbackSummary = abnormal || title || baseName;
+      if (!fallbackText) {
+        fallbackText = abnormal || title || incomingMeta.text || baseName;
+      }
+    } else if (kind === "imaging") {
+      const finding = incomingMeta.finding ?? incomingMeta.impression ?? incomingMeta.fileTitle ?? null;
+      fallbackSummary = finding || baseName;
+      if (!fallbackText) fallbackText = finding || incomingMeta.text || baseName;
+    }
+
+    const meta = { ...incomingMeta };
+    if (!meta.summary) meta.summary = fallbackSummary ?? baseName;
+    if (!meta.text) meta.text = fallbackText ?? fallbackSummary ?? baseName;
     meta.source = meta.source ?? "bulk";
 
     return {
       user_id: userId,
-      kind: typeof x?.kind === "string" ? x.kind.toLowerCase() : "observation",
+      kind,
       value_num: x?.value_num ?? null,
       value_text: x?.value_text ?? null,
       unit: x?.unit ?? null,
