@@ -55,7 +55,7 @@ function mapUiTypeToGoogle(uiType: string) {
 }
 
 function normDetailsHours(opening: any): Record<string, string> | undefined {
-  // Google returns weekday_text like ["Monday: 9 AM–9 PM", ...]
+  // Google returns weekday_text like ["Monday: 9 AM–9 PM", "Tuesday: 9 AM–9 PM"]
   const rows: string[] | undefined = opening?.weekday_text;
   if (!rows || !Array.isArray(rows)) return undefined;
   const out: Record<string, string> = {};
