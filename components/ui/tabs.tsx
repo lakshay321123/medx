@@ -12,10 +12,7 @@ export function Tabs({ defaultValue, children }: { defaultValue: string; childre
 export function TabsList({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
     <div
-      className={
-        className +
-        " mx-auto flex w-fit max-w-full flex-wrap items-center justify-center gap-2 sm:mx-0 sm:w-auto sm:max-w-none sm:justify-start"
-      }
+      className={`mx-auto flex w-full max-w-[380px] flex-wrap items-center justify-center gap-2 sm:mx-0 sm:w-auto sm:max-w-none sm:justify-start ${className}`}
     >
       {children}
     </div>
@@ -29,7 +26,7 @@ export function TabsTrigger({ value, children }: { value: string; children: Reac
     <button
       type="button"
       onClick={() => ctx.setValue(value)}
-      className={`w-[132px] rounded-md border px-2 py-1 text-[10px] sm:w-auto sm:px-2.5 sm:text-xs ${
+      className={`w-[120px] rounded-md border px-2 py-1 text-[10px] sm:w-auto sm:px-2.5 sm:text-xs ${
         active ? "bg-muted font-medium" : "hover:bg-muted"
       }`}
     >

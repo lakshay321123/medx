@@ -272,7 +272,7 @@ export default function Timeline(){
   }
 
   return (
-    <div className="mx-auto w-full max-w-[380px] px-4 pb-6 pt-4 sm:mx-0 sm:max-w-none sm:px-6">
+    <div className="mx-auto w-full max-w-[380px] overflow-x-hidden px-4 pb-6 pt-4 sm:mx-0 sm:max-w-none sm:overflow-visible sm:px-6">
       <div className="mb-4 flex flex-wrap items-center gap-2 sm:flex-nowrap sm:justify-between">
         <h2 className="text-lg font-semibold">Timeline</h2>
         <button
@@ -319,7 +319,7 @@ export default function Timeline(){
           return (
             <li
               key={`${it.kind}:${it.id}`}
-              className="rounded-xl p-3 cursor-pointer medx-surface text-medx"
+              className="w-full rounded-xl p-3 cursor-pointer medx-surface text-medx"
               onClick={() => {
                 setActive(it);
                 setOpen(true);
