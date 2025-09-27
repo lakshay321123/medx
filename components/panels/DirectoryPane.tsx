@@ -99,7 +99,7 @@ export default function DirectoryPane() {
   const [data, setData] = useState<Place[]>(SAMPLE);
   useEffect(() => {
     // keep placeholder so wiring is trivial later:
-    // fetch(`/api/directory/search?...`).then(r => r.json()).then(setData).catch(()=>setData(SAMPLE))
+    // fetch(`/api/directory/search?query=params`).then(r => r.json()).then(setData).catch(()=>setData(SAMPLE))
     setData(SAMPLE);
   }, []);
 
