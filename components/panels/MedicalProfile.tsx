@@ -749,23 +749,23 @@ export default function MedicalProfile() {
       <ProfileSection
         title="Personal details"
         actions={
-          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+          <>
             <button
               type="button"
-              className="inline-flex h-9 w-full items-center justify-center rounded-[10px] border border-border/70 px-3 text-[13px] font-medium text-foreground transition hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:w-auto dark:border-border/40"
+              className="inline-flex h-9 items-center justify-center rounded-[10px] border border-border/70 px-3 text-[13px] font-medium text-foreground whitespace-nowrap transition hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
               onClick={() => router.push("/?panel=chat&threadId=med-profile&context=profile")}
             >
               Open in chat
             </button>
             <button
               type="button"
-              className="inline-flex h-9 w-full items-center justify-center rounded-[10px] border border-primary/70 bg-primary px-3 text-[13px] font-semibold text-primary-foreground shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              className="inline-flex h-9 items-center justify-center rounded-[10px] border border-primary/70 bg-primary px-3 text-[13px] font-semibold text-primary-foreground whitespace-nowrap shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:cursor-not-allowed disabled:opacity-60"
               onClick={handleProfileSave}
               disabled={savingProfile}
             >
               {savingProfile ? "Saving…" : "Save profile"}
             </button>
-          </div>
+          </>
         }
       >
         <div className="space-y-3 text-[13px]">
@@ -796,7 +796,7 @@ export default function MedicalProfile() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
             <label className="flex flex-col gap-1.5">
               <span className="text-xs font-medium text-muted-foreground">Name</span>
               <input
@@ -986,7 +986,7 @@ export default function MedicalProfile() {
             />
           ) : (
             <div className="space-y-2">
-              <dl className="grid grid-cols-1 gap-3 text-[13px] min-[420px]:grid-cols-2 xl:grid-cols-4">
+              <dl className="grid grid-cols-1 gap-3 text-[13px] min-[380px]:grid-cols-2 xl:grid-cols-4">
                 {vitalsDisplay.map(item => (
                   <div key={item.label} className="rounded-[10px] border border-border/60 bg-muted/40 p-3 dark:border-border/30 dark:bg-muted/20">
                     <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</dt>
@@ -1006,23 +1006,23 @@ export default function MedicalProfile() {
         <ProfileSection
           title="AI Summary"
           actions={
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+            <>
               <button
                 type="button"
-                className="inline-flex h-9 w-full items-center justify-center rounded-[10px] border border-border/70 px-3 text-[13px] font-medium text-foreground transition hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:w-auto dark:border-border/40"
+                className="inline-flex h-9 items-center justify-center rounded-[10px] border border-border/70 px-3 text-[13px] font-medium text-foreground whitespace-nowrap transition hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
                 onClick={() => router.push("/?panel=chat&threadId=med-profile&context=profile")}
               >
                 Discuss in chat
               </button>
               <button
                 type="button"
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-[10px] border border-primary/70 bg-primary px-3 text-[13px] font-semibold text-primary-foreground shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-[10px] border border-primary/70 bg-primary px-3 text-[13px] font-semibold text-primary-foreground whitespace-nowrap shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:cursor-not-allowed disabled:opacity-60"
                 onClick={onRecomputeRisk}
                 disabled={recomputeBusy}
               >
                 {recomputeBusy ? "Computing…" : "Recompute risk"}
               </button>
-            </div>
+            </>
           }
         >
           <div className="space-y-3 text-[13px]">
@@ -1275,15 +1275,13 @@ export default function MedicalProfile() {
         <ProfileSection
           title="Active Meds"
           actions={
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
-              <button
-                type="button"
-                className="inline-flex h-9 items-center rounded-[10px] border border-border/70 px-3 text-[13px] font-medium text-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
-                onClick={() => setShowMedicationComposer(open => !open)}
-              >
-                {showMedicationComposer || medications.length === 0 ? "Close" : "Add"}
-              </button>
-            </div>
+            <button
+              type="button"
+              className="inline-flex h-9 items-center rounded-[10px] border border-border/70 px-3 text-[13px] font-medium text-foreground whitespace-nowrap transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40"
+              onClick={() => setShowMedicationComposer(open => !open)}
+            >
+              {showMedicationComposer || medications.length === 0 ? "Close" : "Add"}
+            </button>
           }
         >
           <div className="space-y-3 text-[13px]">
@@ -1312,7 +1310,7 @@ export default function MedicalProfile() {
                       </div>
                       <button
                         type="button"
-                        className="inline-flex h-9 items-center rounded-[10px] border border-border/70 px-3 text-[12px] font-medium text-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40 dark:border-border/40"
+                        className="inline-flex h-9 shrink-0 items-center rounded-[10px] border border-border/70 px-3 text-[12px] font-medium text-foreground whitespace-nowrap transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40 dark:border-border/40"
                         onClick={() => handleRemoveMedication(med)}
                       >
                         Remove

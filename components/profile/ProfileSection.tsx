@@ -49,7 +49,10 @@ export default function ProfileSection({
           <span className="truncate">{title}</span>
         </button>
         {actions ? (
-          <div className="flex flex-wrap gap-2 sm:justify-end" aria-label={`${title} actions`}>
+          <div
+            className="flex flex-wrap items-center gap-x-2 gap-y-1.5 sm:justify-end"
+            aria-label={`${title} actions`}
+          >
             {actions}
           </div>
         ) : null}
