@@ -42,7 +42,8 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
     (normalizedSuggestion && normalizedSuggestion.name.toLowerCase() === name.toLowerCase()
       ? normalizedSuggestion
       : null);
-  const showSave = Boolean(confirmedSuggestion);
+  const canSaveName = (confirmedSuggestion?.name ?? name).trim().length > 0;
+  const showSave = canSaveName;
   const shouldShowDoseInput = needsDose || !!lockedName || trimmedDose.length > 0 || showSave;
   const listOpen = useMemo(() => !lockedName && suggestions.length > 0, [lockedName, suggestions.length]);
   const displaySuggestions = useMemo(() => suggestions.slice(0, 5), [suggestions]);
@@ -114,10 +115,6 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
       return;
     }
     const source = confirmedSuggestion;
-    if (!source) {
-      setError("Select a suggestion to confirm the medication name.");
-      return;
-    }
     const finalDose = trimmedDose;
     const isZeroDose = /^0+(\.0+)?$/.test(finalDose);
     if (!finalDose && !isZeroDose && !needsDose) {
@@ -125,7 +122,12 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
       return;
     }
     try {
-      await onSave({ name: source.name, dose: finalDose || null, rxnormId: source.rxnormId ?? null });
+      const finalName = (source?.name ?? name).trim();
+      if (!finalName) {
+        setError("Enter a medication name.");
+        return;
+      }
+      await onSave({ name: finalName, dose: finalDose || null, rxnormId: source?.rxnormId ?? null });
       setQuery("");
       setLockedName(null);
       setLockedSuggestion(null);
@@ -160,6 +162,7 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
                 setLockedSuggestion(null);
                 setNormalizedSuggestion(null);
                 setQuery(e.target.value);
+                setError(null);
               }}
               onKeyDown={event => {
                 if (!listOpen || displaySuggestions.length === 0) {

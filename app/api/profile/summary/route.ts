@@ -215,10 +215,6 @@ function formatLabDate(iso?: string | null) {
   return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
-function formatUploadsDate(date: Date) {
-  return date.toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" });
-}
-
 function formatListLine(label: string, values: string[]) {
   return `${label}: ${values.length ? values.join(", ") : NO_DATA}`;
 }
@@ -386,22 +382,6 @@ export async function GET() {
   const nextStepsValue = nextStepsArr.length ? nextStepsArr.slice(0, 2).join("; ") : NO_DATA;
   const nextStepsLine = `Next Steps: ${nextStepsValue}`;
 
-  const uploadDates = obs
-    .map(row => resolveDate(row))
-    .map(iso => {
-      if (!iso) return null;
-      const d = new Date(iso);
-      return Number.isNaN(d.getTime()) ? null : d;
-    })
-    .filter((d): d is Date => Boolean(d))
-    .sort((a, b) => b.getTime() - a.getTime());
-  const latestUploadDate = uploadDates[0] ?? null;
-  const uploadsCount = obs.length;
-  const uploadsLine =
-    uploadsCount > 0
-      ? `Uploads: ${uploadsCount}${latestUploadDate ? ` (Last: ${formatUploadsDate(latestUploadDate)})` : ""}`
-      : `Uploads: ${NO_DATA}`;
-
   const summaryLines = [
     "AI Summary",
     patientLine,
@@ -412,7 +392,6 @@ export async function GET() {
     predLine,
     notesLine,
     nextStepsLine,
-    uploadsLine,
     "AI assistance only — not a medical diagnosis. Confirm with a clinician.",
   ];
   const text = summaryLines.join("\n");

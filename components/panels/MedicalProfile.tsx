@@ -116,13 +116,6 @@ function pickObservation(map: ObservationMap, keys: string[]): { value: any; uni
   return null;
 }
 
-function formatObservedDate(value?: string | null) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString();
-}
-
 function derivePanelMode(searchParams: ReadonlyURLSearchParams, theme: string | undefined): PanelMode {
   const serialized = searchParams?.toString?.() ?? "";
   const state = fromSearchParams(new URLSearchParams(serialized), (theme as "light" | "dark") ?? "light");
@@ -333,7 +326,6 @@ export default function MedicalProfile() {
     },
   ];
 
-  const labs = data?.groups?.labs ?? [];
   const medsEmpty = medications.length === 0;
   const displayedNotes = manualNotes ?? (summaryNotes !== NO_DATA_TEXT ? summaryNotes : null);
   const displayedNextSteps =
@@ -388,10 +380,6 @@ export default function MedicalProfile() {
         });
       }
 
-      if (observations.length) {
-        payload.observations = observations;
-      }
-
       const res = await fetch("/api/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -400,6 +388,22 @@ export default function MedicalProfile() {
       if (!res.ok) {
         throw new Error(await res.text());
       }
+
+      if (observations.length) {
+        await Promise.all(
+          observations.map(async observation => {
+            const result = await fetch("/api/observations", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...observation, thread_id: null }),
+            });
+            if (!result.ok) {
+              throw new Error((await result.text()) || "Failed to save vitals");
+            }
+          }),
+        );
+      }
+
       pushToast({ title: "Profile saved" });
       await mutateProfile();
       await mutateGlobal("/api/profile");
@@ -468,6 +472,37 @@ export default function MedicalProfile() {
     await Promise.all([mutateProfile?.(), mutateGlobal?.("/api/profile"), loadSummary?.()]);
   };
 
+  const persistManualObservation = async (
+    kind: string,
+    label: string,
+    text: string | null,
+  ): Promise<string | null> => {
+    const observedAt = new Date().toISOString();
+    const trimmed = (text ?? "").trim();
+    const cleared = trimmed.length === 0;
+    const res = await fetch("/api/observations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind,
+        value_text: cleared ? null : trimmed,
+        value_num: null,
+        unit: cleared ? "__cleared__" : null,
+        observed_at: observedAt,
+        thread_id: null,
+        meta: {
+          source: "manual",
+          category: "note",
+          committed: true,
+          label,
+          cleared,
+        },
+      }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return cleared ? null : trimmed;
+  };
+
   const handleRemoveMedication = async (med: MedicationEntry) => {
     try {
       const removalObservation: Record<string, any> = {
@@ -512,32 +547,7 @@ export default function MedicalProfile() {
   const handleSaveNotes = async () => {
     setSavingNotes(true);
     try {
-      const trimmed = notesDraft.trim();
-      const observedAt = new Date().toISOString();
-      const res = await fetch("/api/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          observations: [
-            {
-              kind: MANUAL_NOTES_KIND,
-              value_text: trimmed || null,
-              value_num: null,
-              unit: trimmed ? null : "__cleared__",
-              observed_at: observedAt,
-              meta: {
-                source: "manual",
-                category: "note",
-                committed: true,
-                label: "Symptoms / notes",
-                cleared: !trimmed,
-              },
-            },
-          ],
-        }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const stored = trimmed || null;
+      const stored = await persistManualObservation(MANUAL_NOTES_KIND, "Symptoms / notes", notesDraft);
       setManualNotes(stored);
       setSummaryNotes(stored || NO_DATA_TEXT);
       pushToast({ title: "Notes saved" });
@@ -556,35 +566,33 @@ export default function MedicalProfile() {
     }
   };
 
+  const handleClearNotes = async () => {
+    setSavingNotes(true);
+    try {
+      await persistManualObservation(MANUAL_NOTES_KIND, "Symptoms / notes", null);
+      setManualNotes(null);
+      setSummaryNotes(NO_DATA_TEXT);
+      setNotesDraft("");
+      setNotesEditing(false);
+      pushToast({ title: "Notes removed" });
+      await mutateProfile();
+      await mutateGlobal("/api/profile");
+      await loadSummary();
+    } catch (err: any) {
+      pushToast({
+        title: "Couldn’t remove notes",
+        description: err?.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingNotes(false);
+    }
+  };
+
   const handleSaveNextSteps = async () => {
     setSavingNextSteps(true);
     try {
-      const trimmed = nextStepsDraft.trim();
-      const observedAt = new Date().toISOString();
-      const res = await fetch("/api/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          observations: [
-            {
-              kind: MANUAL_NEXT_STEPS_KIND,
-              value_text: trimmed || null,
-              value_num: null,
-              unit: trimmed ? null : "__cleared__",
-              observed_at: observedAt,
-              meta: {
-                source: "manual",
-                category: "note",
-                committed: true,
-                label: "Next steps",
-                cleared: !trimmed,
-              },
-            },
-          ],
-        }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const stored = trimmed || null;
+      const stored = await persistManualObservation(MANUAL_NEXT_STEPS_KIND, "Next steps", nextStepsDraft);
       setManualNextSteps(stored);
       setSummaryNextSteps(stored || NO_DATA_TEXT);
       pushToast({ title: "Next steps saved" });
@@ -595,6 +603,29 @@ export default function MedicalProfile() {
     } catch (err: any) {
       pushToast({
         title: "Couldn’t save next steps",
+        description: err?.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingNextSteps(false);
+    }
+  };
+
+  const handleClearNextSteps = async () => {
+    setSavingNextSteps(true);
+    try {
+      await persistManualObservation(MANUAL_NEXT_STEPS_KIND, "Next steps", null);
+      setManualNextSteps(null);
+      setSummaryNextSteps(NO_DATA_TEXT);
+      setNextStepsDraft("");
+      setNextStepsEditing(false);
+      pushToast({ title: "Next steps removed" });
+      await mutateProfile();
+      await mutateGlobal("/api/profile");
+      await loadSummary();
+    } catch (err: any) {
+      pushToast({
+        title: "Couldn’t remove next steps",
         description: err?.message || "Please try again.",
         variant: "destructive",
       });
@@ -872,55 +903,6 @@ export default function MedicalProfile() {
         </ProfileSection>
       ) : null}
 
-      <ProfileSection
-        title="Labs"
-        isEmpty={labs.length === 0}
-        emptyMessage="No labs yet—upload a report or add data in chat."
-      >
-        <div className="hidden overflow-x-auto text-sm sm:block">
-          <table className="min-w-full divide-y divide-border">
-            <thead className="bg-muted/40">
-              <tr>
-                <th className="px-3 py-2 text-left font-semibold">Test</th>
-                <th className="px-3 py-2 text-left font-semibold">Value</th>
-                <th className="px-3 py-2 text-left font-semibold">Observed</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {labs.map(item => (
-                <tr key={`${item.key}-${item.observedAt}`}>
-                  <td className="px-3 py-2 font-medium">{item.label}</td>
-                  <td className="px-3 py-2">
-                    {item.value ?? "—"}
-                    {item.unit ? ` ${item.unit}` : ""}
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {formatObservedDate(item.observedAt)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="space-y-3 text-sm sm:hidden">
-          {labs.map(item => (
-            <div
-              key={`${item.key}-${item.observedAt}-card`}
-              className="rounded-lg border bg-muted/20 p-3 shadow-sm"
-            >
-              <div className="text-sm font-semibold">{item.label}</div>
-              <div className="mt-1 text-base font-medium">
-                {item.value ?? "—"}
-                {item.unit ? ` ${item.unit}` : ""}
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                Observed {formatObservedDate(item.observedAt)}
-              </div>
-            </div>
-          ))}
-        </div>
-      </ProfileSection>
-
       {showWellnessSections || showClinicalSections ? (
         <ProfileSection
           title="AI Summary"
@@ -1005,7 +987,7 @@ export default function MedicalProfile() {
                       value={notesDraft}
                       onChange={e => setNotesDraft(e.target.value)}
                     />
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
                         className="rounded-md border bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow disabled:opacity-60"
@@ -1022,19 +1004,41 @@ export default function MedicalProfile() {
                       >
                         Cancel
                       </button>
+                      {manualNotes ? (
+                        <button
+                          type="button"
+                          className="rounded-md border px-3 py-1.5 text-sm"
+                          onClick={handleClearNotes}
+                          disabled={savingNotes}
+                        >
+                          Delete
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 ) : displayedNotes ? (
-                  <button
-                    type="button"
-                    className="mt-2 rounded-md border px-3 py-1.5 text-xs"
-                    onClick={() => {
-                      setNotesDraft(displayedNotes ?? "");
-                      setNotesEditing(true);
-                    }}
-                  >
-                    Edit
-                  </button>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="rounded-md border px-3 py-1.5 text-xs"
+                      onClick={() => {
+                        setNotesDraft(displayedNotes ?? "");
+                        setNotesEditing(true);
+                      }}
+                    >
+                      Edit
+                    </button>
+                    {manualNotes ? (
+                      <button
+                        type="button"
+                        className="rounded-md border px-3 py-1.5 text-xs"
+                        onClick={handleClearNotes}
+                        disabled={savingNotes}
+                      >
+                        Delete
+                      </button>
+                    ) : null}
+                  </div>
                 ) : (
                   <button
                     type="button"
@@ -1065,7 +1069,7 @@ export default function MedicalProfile() {
                       value={nextStepsDraft}
                       onChange={e => setNextStepsDraft(e.target.value)}
                     />
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
                         className="rounded-md border bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow disabled:opacity-60"
@@ -1082,19 +1086,41 @@ export default function MedicalProfile() {
                       >
                         Cancel
                       </button>
+                      {manualNextSteps ? (
+                        <button
+                          type="button"
+                          className="rounded-md border px-3 py-1.5 text-sm"
+                          onClick={handleClearNextSteps}
+                          disabled={savingNextSteps}
+                        >
+                          Delete
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 ) : displayedNextSteps ? (
-                  <button
-                    type="button"
-                    className="mt-2 rounded-md border px-3 py-1.5 text-xs"
-                    onClick={() => {
-                      setNextStepsDraft(displayedNextSteps ?? "");
-                      setNextStepsEditing(true);
-                    }}
-                  >
-                    Edit
-                  </button>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="rounded-md border px-3 py-1.5 text-xs"
+                      onClick={() => {
+                        setNextStepsDraft(displayedNextSteps ?? "");
+                        setNextStepsEditing(true);
+                      }}
+                    >
+                      Edit
+                    </button>
+                    {manualNextSteps ? (
+                      <button
+                        type="button"
+                        className="rounded-md border px-3 py-1.5 text-xs"
+                        onClick={handleClearNextSteps}
+                        disabled={savingNextSteps}
+                      >
+                        Delete
+                      </button>
+                    ) : null}
+                  </div>
                 ) : (
                   <button
                     type="button"
