@@ -23,7 +23,9 @@ export default function DirectoryMap({ places, selectedId, onSelect, userLocatio
     if (typeof window === "undefined") return;
     if (mapRef.current || !containerRef.current) return;
 
-    const center = userLocation ? [userLocation.lng, userLocation.lat] : [77.209, 28.6139];
+    const center: [number, number] = userLocation
+      ? [userLocation.lng, userLocation.lat]
+      : [77.209, 28.6139];
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: MAP_STYLE,
