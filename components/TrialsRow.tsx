@@ -67,6 +67,47 @@ export function TrialsRow({
   );
 }
 
+export type TrialsMobileCardProps = {
+  title: string;
+  statusLine: string;
+  registryLine: string;
+  recruitingLabel: string;
+  onCopy: () => void;
+  onSummarize: () => void;
+};
+
+export function TrialsMobileCard({
+  title,
+  statusLine,
+  registryLine,
+  recruitingLabel,
+  onCopy,
+  onSummarize,
+}: TrialsMobileCardProps) {
+  return (
+    <div
+      className="
+        result-card
+        rounded-xl border transition p-4
+        bg-[var(--card-bg)] text-[var(--card-fg)] border-[var(--card-border)]
+      "
+    >
+      <h3 className="text-[15px] font-semibold leading-5 break-words hyphens-auto">{title}</h3>
+      <p className="meta mt-1 text-[12.5px] opacity-80">{statusLine}</p>
+      <p className="meta text-[11px] opacity-70">{registryLine}</p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <span className="chip chip-sm">Recruiting: {recruitingLabel}</span>
+        <button type="button" className="btn chip-sm" onClick={onCopy}>
+          Copy
+        </button>
+        <button type="button" className="btn chip-sm" onClick={onSummarize}>
+          Summarize
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function formatTrialBriefMarkdown(nctId: string, brief: any) {
   const bullets = (brief.bullets ?? []).slice(0, 3).map((b: string) => `- ${b}`).join("\n");
   const cite = (brief.citations ?? [])
