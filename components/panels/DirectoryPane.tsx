@@ -24,12 +24,12 @@ export default function DirectoryPane() {
     <div className="flex min-h-0 flex-col">
       {/* Sticky header: compact like Clinical/Research */}
       <div className="sticky top-0 z-10 space-y-1 bg-white/90 p-2 backdrop-blur-md dark:bg-slate-900/70 border-b border-black/5 dark:border-white/10">
-        <div className="text-[11px] leading-5 text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+        <div className="text-[11px] leading-5 text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-1.5">
           <span className="inline-block h-2 w-2 rounded-full bg-green-500 ring-2 ring-green-100"></span>
-          {locLabel}
+          <span className="min-w-0 flex-1 truncate text-left">{locLabel}</span>
           <button
             onClick={actions.useMyLocation}
-            className="ml-1 rounded-full border border-slate-200 px-2 py-0.5 text-[11px] leading-4 hover:bg-slate-50 dark:border-white/10 dark:hover:bg-slate-800"
+            className="ml-auto rounded-full border border-slate-200 px-2 py-0.5 text-[11px] leading-4 hover:bg-slate-50 dark:border-white/10 dark:hover:bg-slate-800 md:ml-1"
             title="Use precise location"
           >
             Use my location
@@ -103,9 +103,11 @@ export default function DirectoryPane() {
       </div>
 
       {/* Toolbar: compact */}
-      <div className="flex items-center justify-between px-3 py-1 text-[12px] leading-5 text-slate-500 dark:text-slate-400">
-        <div>{loading ? "Loading" : summary}</div>
-        <div className="rounded-full border border-slate-200 px-2 py-0.5 text-[12px] dark:border-white/10">Map</div>
+      <div className="flex flex-wrap items-center justify-between gap-1 px-3 py-1 text-[12px] leading-5 text-slate-500 dark:text-slate-400">
+        <div className="min-w-0 flex-1 truncate text-left">
+          {loading ? "Loading" : summary}
+        </div>
+        <div className="shrink-0 rounded-full border border-slate-200 px-2 py-0.5 text-[12px] dark:border-white/10">Map</div>
       </div>
 
       {/* List: tighter spacing and truncation */}
@@ -121,8 +123,8 @@ export default function DirectoryPane() {
             key={p.id}
             className="rounded-lg border border-slate-200 bg-white/85 p-2.5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/70"
           >
-            <div className="flex items-center justify-between">
-              <div className="truncate text-[14px] md:text-[15px] font-semibold text-slate-900 dark:text-slate-50">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 truncate text-[14px] md:text-[15px] font-semibold text-slate-900 dark:text-slate-50">
                 {p.name}
               </div>
               <div className="ml-2 shrink-0 rounded-full border px-2 py-0.5 text-[11px] text-blue-900 border-blue-200 bg-blue-50 dark:bg-slate-800 dark:border-white/10 dark:text-slate-100 capitalize">
