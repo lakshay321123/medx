@@ -7,15 +7,45 @@ import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
 import PanelLoader from "@/components/mobile/PanelLoader";
 import { pushToast } from "@/lib/ui/toast";
 
-const TIMELINE_ALLOWED_KINDS = new Set([
-  "medication",
-  "note",
-  "symptom",
-  "lab",
-  "imaging",
+const normalizeKind = (value: unknown) => {
+  const raw = String(value ?? "").toLowerCase().trim();
+  const squished = raw.replace(/\s+/g, "_");
+  if (["labs", "lab_report", "report", "document"].includes(raw) || ["labs", "lab_report", "report", "document"].includes(squished)) {
+    return "lab";
+  }
+  if (["image", "radiology", "scan", "ct", "mri", "xray"].includes(raw) || ["image", "radiology", "scan", "ct", "mri", "xray"].includes(squished)) {
+    return "imaging";
+  }
+  return raw;
+};
+
+const EXCLUDED_OBSERVATION_KINDS = new Set([
+  "bmi",
+  "weight",
+  "profile",
+  "profile_edit",
+  "demographics",
 ]);
 
-const normalizeKind = (value: unknown) => String(value ?? "").toLowerCase();
+const isMedicalVisible = (ob: any) => {
+  const kind = normalizeKind(ob?.kind);
+  if (EXCLUDED_OBSERVATION_KINDS.has(kind)) return false;
+
+  if (["medication", "note", "symptom", "lab", "imaging"].includes(kind)) {
+    return true;
+  }
+
+  const meta = ob?.meta ?? {};
+  const category = String(meta?.category ?? "").toLowerCase();
+  if (["lab", "labs"].includes(category)) return true;
+  if (["imaging", "radiology"].includes(category)) return true;
+  if (meta?.testName || meta?.abnormalHint || meta?.impression || meta?.finding) return true;
+
+  const hasFile = Boolean(ob?.file?.path || ob?.file?.upload_id || meta?.fileTitle);
+  if (hasFile) return true;
+
+  return false;
+};
 
 const getDisplayTitle = (ob: any) => {
   const kind = normalizeKind(ob?.kind);
@@ -69,8 +99,6 @@ const getChipLabel = (ob: any) => {
   return "Obs";
 };
 
-const isAllowedObservation = (ob: any) => TIMELINE_ALLOWED_KINDS.has(normalizeKind(ob?.kind));
-
 type Cat = "ALL"|"LABS"|"VITALS"|"IMAGING"|"AI"|"NOTES";
 const catOf = (it:any):Cat => {
   const kind = normalizeKind(it?.kind);
@@ -88,7 +116,7 @@ export default function Timeline(){
   const items = data?.items ?? [];
 
   const [observations, setObservations] = useState<any[]>(() =>
-    (items || []).filter(isAllowedObservation)
+    (items || []).filter(isMedicalVisible)
   );
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
 
@@ -107,7 +135,7 @@ export default function Timeline(){
   },[range,from]);
 
   useEffect(() => {
-    const visible = (items || []).filter(isAllowedObservation);
+    const visible = (items || []).filter(isMedicalVisible);
     setObservations(visible);
   }, [items]);
 
