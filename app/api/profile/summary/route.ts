@@ -184,8 +184,8 @@ function computePanels(rows: ObservationRow[]): PanelSummary[] {
       SanitizeResult,
       { ok: true }
     >;
-    const previousSan = previousEntry
-      ? (sanitize(previousEntry.rawValue, previousEntry.rawUnit, panel.defaultUnit) as SanitizeResult)
+    const previousSan: SanitizeResult = previousEntry
+      ? sanitize(previousEntry.rawValue, previousEntry.rawUnit, panel.defaultUnit)
       : { ok: false };
 
     return {
@@ -197,7 +197,7 @@ function computePanels(rows: ObservationRow[]): PanelSummary[] {
         unit: latestSan.unit ?? panel.defaultUnit ?? null,
         date: latestEntry.date ?? null,
       },
-      previous: previousSan.ok ? { value: previousSan.v } : undefined,
+      previous: previousSan.ok === true ? { value: previousSan.v } : undefined,
     };
   });
 }
