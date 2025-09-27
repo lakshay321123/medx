@@ -125,7 +125,7 @@ export default function DirectoryPane() {
           <div className="relative flex-1">
             <input
               className="w-full h-10 rounded-xl border border-slate-200 bg-white/90 px-3 pr-9 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none focus:ring-0 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100"
-              placeholder="Search doctors, pharmacies, labs…"
+              placeholder="Search doctors, pharmacies, labs"
               value={q}
               onChange={e => setQ(e.target.value)}
             />
