@@ -11,6 +11,7 @@ import MedicationTag from "@/components/meds/MedicationTag";
 import { useProfile } from "@/lib/hooks/useAppData";
 import { pushToast } from "@/lib/ui/toast";
 import { fromSearchParams } from "@/lib/modes/url";
+import { extractManualObservation } from "@/lib/profile/extractManualObservation";
 import { useSWRConfig } from "swr";
 
 const SEXES = ["male", "female", "other"] as const;
@@ -165,6 +166,14 @@ export default function MedicalProfile() {
 
   const latestMap: ObservationMap = (data?.latest as ObservationMap) || {};
 
+  const manualSyncKey = useMemo(() => {
+    const updated = data?.profile?.updated_at ?? data?.profile?.updatedAt ?? "";
+    const count = Array.isArray(data?.profile?.observations)
+      ? data.profile.observations.length
+      : "";
+    return `${updated}|${count}`;
+  }, [data?.profile?.updated_at, data?.profile?.updatedAt, data?.profile?.observations]);
+
   const profileVitals = useMemo(() => {
     const bpEntry = pickObservation(latestMap, [
       "bp_systolic",
@@ -200,16 +209,6 @@ export default function MedicalProfile() {
       heightMeters,
     };
   }, [latestMap]);
-
-  const manualNotesFromObservations = useMemo(
-    () => extractManualObservation(data, MANUAL_NOTES_KIND),
-    [data],
-  );
-
-  const manualNextStepsFromObservations = useMemo(
-    () => extractManualObservation(data, MANUAL_NEXT_STEPS_KIND),
-    [data],
-  );
 
   useEffect(() => {
     const prof = data?.profile ?? null;
@@ -260,12 +259,52 @@ export default function MedicalProfile() {
   }, [bootstrapped, data?.profile, profileVitals.heightMeters, profileVitals.weightKg]);
 
   useEffect(() => {
-    setManualNotes(manualNotesFromObservations);
-  }, [manualNotesFromObservations]);
+    let cancelled = false;
+
+    const loadManualNotes = async () => {
+      try {
+        const { text } = await extractManualObservation(MANUAL_NOTES_KIND);
+        if (cancelled) return;
+        const trimmed = text?.trim?.() ?? "";
+        setManualNotes(trimmed ? trimmed : null);
+      } catch (err) {
+        console.warn("Failed to load manual notes observation", err);
+        if (!cancelled) {
+          setManualNotes(null);
+        }
+      }
+    };
+
+    void loadManualNotes();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [manualSyncKey]);
 
   useEffect(() => {
-    setManualNextSteps(manualNextStepsFromObservations);
-  }, [manualNextStepsFromObservations]);
+    let cancelled = false;
+
+    const loadManualNextSteps = async () => {
+      try {
+        const { text } = await extractManualObservation(MANUAL_NEXT_STEPS_KIND);
+        if (cancelled) return;
+        const trimmed = text?.trim?.() ?? "";
+        setManualNextSteps(trimmed ? trimmed : null);
+      } catch (err) {
+        console.warn("Failed to load manual next steps observation", err);
+        if (!cancelled) {
+          setManualNextSteps(null);
+        }
+      }
+    };
+
+    void loadManualNextSteps();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [manualSyncKey]);
 
   const parseSummary = useCallback((text: string) => {
     const lines = text
@@ -1174,45 +1213,6 @@ function extractMedicationEntries(data: any): MedicationEntry[] {
   }
 
   return dedupeMedicationList(entries);
-}
-
-function extractManualObservation(data: any, manualKind: string): string | null {
-  if (!data) return null;
-
-  const profile = (data?.profile as any) ?? data ?? {};
-  const observations = Array.isArray(profile?.observations) ? profile.observations : [];
-
-  for (const item of observations) {
-    if (!item) continue;
-    const meta = (item as any)?.meta ?? {};
-    const manualTag =
-      meta?.manualKind ?? meta?.manual_kind ?? meta?.manual_kind_id ?? null;
-    const kindMatches = typeof item?.kind === "string" && item.kind === manualKind;
-    if (manualTag !== manualKind && !kindMatches) {
-      continue;
-    }
-    if (meta?.cleared || (typeof item?.unit === "string" && item.unit === "__cleared__")) {
-      return null;
-    }
-    const rawValue =
-      item?.value_text ??
-      item?.value ??
-      (typeof meta?.text === "string" ? meta.text : null);
-    if (rawValue == null) continue;
-    const text = typeof rawValue === "string" ? rawValue.trim() : String(rawValue).trim();
-    if (text) {
-      return text;
-    }
-  }
-
-  const latest = ((profile?.latest ?? data?.latest) ?? {}) as Record<string, any>;
-  const entry = latest?.[manualKind];
-  if (entry && entry.value != null) {
-    const text = String(entry.value).trim();
-    if (text) return text;
-  }
-
-  return null;
 }
 
 function normalizeMedicationItem(raw: any): MedicationEntry | null {
