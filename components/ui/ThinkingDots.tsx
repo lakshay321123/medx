@@ -1,7 +1,5 @@
 'use client';
 
-import clsx from 'clsx';
-
 type ThinkingDotsProps = {
   active: boolean;
   label?: string;
@@ -9,13 +7,17 @@ type ThinkingDotsProps = {
 };
 
 export function ThinkingDots({ active, label = 'Analyzing…', className }: ThinkingDotsProps) {
+  const classes = [
+    'inline-flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-300 transition-opacity duration-150',
+    active ? 'opacity-100' : 'opacity-0 pointer-events-none',
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <span
-      className={clsx(
-        'inline-flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-300 transition-opacity duration-150',
-        active ? 'opacity-100' : 'opacity-0 pointer-events-none',
-        className,
-      )}
+      className={classes}
       aria-live="polite"
       aria-busy={active}
     >
