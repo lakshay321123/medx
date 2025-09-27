@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { useRouter, useSearchParams, type ReadonlyURLSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
 import PanelLoader from "@/components/mobile/PanelLoader";
@@ -1401,4 +1402,335 @@ function buildDoseLabelFromParts(value: number | null, unit: string | null) {
   if (numeric != null) parts.push(String(numeric));
   if (unit) parts.push(unit);
   return parts.length ? parts.join(" ") : null;
+}
+
+const NO_DATA = "No data available";
+
+type LabItem = {
+  name?: string;
+  value?: string | number;
+  unit?: string;
+  collectedAt?: string | number | Date;
+};
+
+type MedicalProfileMobileProps = {
+  isMobile: boolean;
+  personal?: {
+    name?: string;
+    sex?: string;
+    dob?: string | Date;
+    age?: number | string;
+    bloodGroup?: string;
+    heightCm?: number | string;
+    weightKg?: number | string;
+    predispositions?: string;
+    chronicConditions?: string;
+  };
+  vitals?: {
+    bloodPressure?: string;
+    heartRate?: string | number;
+    bmi?: string | number;
+  };
+  labs?: LabItem[];
+  medications?: unknown[];
+  notes?: unknown[];
+  nextSteps?: unknown[];
+  onEditPersonal?: () => void;
+  onEditVitals?: () => void;
+  onDiscussAI?: () => void;
+  onRecomputeRisk?: () => void;
+  onAddMedication?: () => void;
+  onAddNote?: () => void;
+  onAddNextStep?: () => void;
+};
+
+export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
+  const {
+    isMobile,
+    personal = {},
+    vitals = {},
+    labs = [],
+    medications = [],
+    notes = [],
+    nextSteps = [],
+    onEditPersonal,
+    onEditVitals,
+    onDiscussAI,
+    onRecomputeRisk,
+    onAddMedication,
+    onAddNote,
+    onAddNextStep,
+  } = props;
+
+  if (!isMobile) return null;
+
+  const safeName = typeof personal.name === "string" && personal.name.trim()
+    ? personal.name
+    : NO_DATA;
+  const safeSex = typeof personal.sex === "string" && personal.sex.trim()
+    ? personal.sex
+    : NO_DATA;
+  const safeBloodGroup = typeof personal.bloodGroup === "string" && personal.bloodGroup.trim()
+    ? personal.bloodGroup
+    : NO_DATA;
+  const safePredispositions = typeof personal.predispositions === "string" && personal.predispositions.trim()
+    ? personal.predispositions
+    : NO_DATA;
+  const safeChronic = typeof personal.chronicConditions === "string" && personal.chronicConditions.trim()
+    ? personal.chronicConditions
+    : NO_DATA;
+  const safeHeight = personal.heightCm === "" || personal.heightCm == null ? "—" : personal.heightCm;
+  const safeWeight = personal.weightKg === "" || personal.weightKg == null ? "—" : personal.weightKg;
+  const safeAge = personal.age === "" || personal.age == null ? "—" : personal.age;
+
+  const safeBp = vitals.bloodPressure === "" || vitals.bloodPressure == null ? "—" : vitals.bloodPressure;
+  const safeHeartRate = vitals.heartRate === "" || vitals.heartRate == null ? "—" : vitals.heartRate;
+  const safeBmi = vitals.bmi === "" || vitals.bmi == null ? "—" : vitals.bmi;
+
+  const labsLine = buildLabsLine(labs, 5);
+
+  const medsCount = Array.isArray(medications) ? medications.length : 0;
+  const notesCount = Array.isArray(notes) ? notes.length : 0;
+  const nextStepsCount = Array.isArray(nextSteps) ? nextSteps.length : 0;
+
+  return (
+    <div className="space-y-4">
+      <Section
+        title="Personal details"
+        actionLabel={onEditPersonal ? "Edit" : undefined}
+        onAction={onEditPersonal}
+        actionAriaLabel="Edit personal details"
+        primary
+      >
+        <KV label="NAME" value={safeName} />
+        <KV label="SEX" value={safeSex} />
+        <KV
+          label="DOB"
+          value={
+            <span>
+              {fmtDOB(personal.dob)}
+              <span className="mx-1">•</span>
+              Age: {safeAge}
+            </span>
+          }
+        />
+        <KV label="BLOOD GROUP" value={safeBloodGroup} />
+        <KV label="HEIGHT (cm)" value={safeHeight} />
+        <KV label="WEIGHT (kg)" value={safeWeight} />
+        <Divider />
+        <KV label="PREDISPOSITIONS" value={safePredispositions} />
+        <KV label="CHRONIC CONDITIONS" value={safeChronic} />
+      </Section>
+
+      <Section
+        title="Vitals"
+        actionLabel={onEditVitals ? "Edit" : undefined}
+        onAction={onEditVitals}
+        actionAriaLabel="Edit vitals"
+        primary
+      >
+        <Row label="BLOOD PRESSURE" value={<span className="text-slate-400">{safeBp}</span>} />
+        <Row label="HEART RATE" value={<span className="font-semibold">{safeHeartRate}</span>} />
+        <Row label="BMI" value={<span className="font-semibold">{safeBmi}</span>} />
+      </Section>
+
+      <Section title="AI Summary">
+        <p className="text-[13px] leading-5 text-slate-600 dark:text-slate-300">
+          Patient: {safeName} ({safeSex === NO_DATA ? "—" : safeSex}, {safeAge} y, {safeBloodGroup === NO_DATA ? "—" : safeBloodGroup})
+          <br />Chronic conditions: {safeChronic}
+          <br />Predispositions: {safePredispositions}
+          <br />Active meds: {medsCount > 0 ? `${medsCount} item(s)` : NO_DATA}
+          <br />Recent labs: {labsLine}
+          <br />AI Prediction: {NO_DATA}
+          <br />Symptoms/Notes: {notesCount > 0 ? `${notesCount} item(s)` : NO_DATA}
+          <br />Next Steps: {nextStepsCount > 0 ? `${nextStepsCount} item(s)` : NO_DATA}
+        </p>
+
+        <div className="mt-3 flex gap-2">
+          {onDiscussAI ? (
+            <Button
+              variant="outline"
+              aria-label="Discuss AI summary in chat"
+              onClick={onDiscussAI}
+            >
+              Discuss in chat
+            </Button>
+          ) : null}
+          {onRecomputeRisk ? (
+            <Button
+              primary
+              aria-label="Recompute risk"
+              onClick={onRecomputeRisk}
+            >
+              Recompute risk
+            </Button>
+          ) : null}
+        </div>
+
+        <div className="mt-4 rounded-xl border border-amber-300/60 bg-amber-50 px-3 py-3 text-[13px] dark:border-amber-800 dark:bg-amber-900/20">
+          <div className="font-medium">⚠️ AI support, not a medical diagnosis.</div>
+          <div>Always consult a clinician.</div>
+        </div>
+      </Section>
+
+      <Section title="Medications">
+        <Empty text={medsCount > 0 ? "" : "No medications recorded yet."} />
+        {onAddMedication ? (
+          <div className="pt-2">
+            <Button variant="outline" onClick={onAddMedication} aria-label="Add medication">
+              Add medication
+            </Button>
+          </div>
+        ) : null}
+      </Section>
+
+      <Section title="Symptoms & Notes">
+        <Empty text={notesCount > 0 ? "" : NO_DATA} />
+        {onAddNote ? (
+          <div className="pt-2">
+            <Button variant="outline" onClick={onAddNote} aria-label="Add notes">
+              Add notes
+            </Button>
+          </div>
+        ) : null}
+      </Section>
+
+      <Section title="Next Steps">
+        <Empty text={nextStepsCount > 0 ? "" : NO_DATA} />
+        {onAddNextStep ? (
+          <div className="pt-2">
+            <Button variant="outline" onClick={onAddNextStep} aria-label="Add next steps">
+              Add next steps
+            </Button>
+          </div>
+        ) : null}
+      </Section>
+    </div>
+  );
+}
+
+function fmtDOB(d?: string | Date) {
+  if (!d) return NO_DATA;
+  const dt = new Date(d);
+  return Number.isNaN(dt.getTime())
+    ? NO_DATA
+    : new Intl.DateTimeFormat(undefined, {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      }).format(dt);
+}
+
+function fmtMonthYear(d?: string | number | Date) {
+  if (!d) return "";
+  const dt = new Date(d);
+  return Number.isNaN(dt.getTime()) ? "" : dt.toLocaleString(undefined, { month: "short", year: "numeric" });
+}
+
+function buildLabsLine(list?: LabItem[], limit = 5): string {
+  if (!Array.isArray(list) || list.length === 0) return NO_DATA;
+  const parts: string[] = [];
+  [...list]
+    .sort((a, b) => new Date(b.collectedAt ?? 0).getTime() - new Date(a.collectedAt ?? 0).getTime())
+    .slice(0, limit)
+    .forEach(lab => {
+      const name = lab.name?.trim();
+      const val = (lab.value ?? "").toString().trim();
+      const unit = lab.unit?.trim();
+      const when = fmtMonthYear(lab.collectedAt);
+      let piece = name || "";
+      if (val) piece += (piece ? " " : "") + val;
+      if (unit) piece += ` ${unit}`;
+      if (when) piece += ` (${when})`;
+      if (piece) parts.push(piece);
+    });
+  return parts.length ? parts.join(", ") : NO_DATA;
+}
+
+type SectionProps = {
+  title: string;
+  actionLabel?: string;
+  actionAriaLabel?: string;
+  onAction?: () => void;
+  primary?: boolean;
+  children?: ReactNode;
+};
+
+function Section({ title, actionLabel, actionAriaLabel, onAction, primary = false, children }: SectionProps) {
+  return (
+    <section className="rounded-2xl border border-slate-200/60 bg-white/90 p-4 shadow-sm dark:border-slate-800/60 dark:bg-slate-900/70">
+      <header className="mb-3 flex items-start justify-between gap-3">
+        <h2
+          className={`text-xs font-semibold uppercase tracking-wide ${
+            primary ? "text-slate-900 dark:text-slate-100" : "text-slate-500 dark:text-slate-300"
+          }`}
+        >
+          {title}
+        </h2>
+        {actionLabel && onAction ? (
+          <Button
+            variant="outline"
+            onClick={onAction}
+            aria-label={actionAriaLabel || actionLabel}
+          >
+            {actionLabel}
+          </Button>
+        ) : null}
+      </header>
+      <div className="space-y-3 text-[13px] leading-5 text-slate-600 dark:text-slate-300">{children}</div>
+    </section>
+  );
+}
+
+function Row({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        {label}
+      </span>
+      <span className="text-sm text-slate-700 dark:text-slate-100">{value}</span>
+    </div>
+  );
+}
+
+function KV({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</div>
+      <div className="text-sm text-slate-800 dark:text-slate-100">{value}</div>
+    </div>
+  );
+}
+
+function Divider() {
+  return <div className="my-2 h-px bg-slate-200/70 dark:bg-slate-700/60" aria-hidden="true" />;
+}
+
+function Empty({ text }: { text?: string }) {
+  if (!text) return null;
+  return <p className="text-sm text-slate-500 dark:text-slate-400">{text}</p>;
+}
+
+type ButtonProps = {
+  children: ReactNode;
+  onClick: () => void;
+  variant?: "outline" | "ghost";
+  primary?: boolean;
+  "aria-label"?: string;
+};
+
+function Button({ children, onClick, variant = "ghost", primary = false, ...rest }: ButtonProps) {
+  const base = "inline-flex h-11 min-w-[44px] items-center justify-center rounded-full px-4 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900";
+  let styles = "bg-transparent text-slate-600 dark:text-slate-200 border border-transparent";
+  if (primary) {
+    styles = "bg-blue-600 text-white hover:bg-blue-500 border border-blue-600 dark:bg-blue-500 dark:hover:bg-blue-400";
+  } else if (variant === "outline") {
+    styles = "border border-slate-200 text-slate-700 hover:bg-white/70 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800/80";
+  }
+
+  return (
+    <button type="button" onClick={onClick} className={`${base} ${styles}`} {...rest}>
+      {children}
+    </button>
+  );
 }
