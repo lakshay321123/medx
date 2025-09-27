@@ -7,17 +7,45 @@ import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
 import PanelLoader from "@/components/mobile/PanelLoader";
 import { pushToast } from "@/lib/ui/toast";
 
-const normalizeKind = (value: unknown) => {
-  const raw = String(value ?? "").toLowerCase().trim();
+function normalizeKind(k?: string) {
+  const raw = String(k ?? "").toLowerCase().trim();
   const squished = raw.replace(/\s+/g, "_");
-  if (["labs", "lab_report", "report", "document"].includes(raw) || ["labs", "lab_report", "report", "document"].includes(squished)) {
-    return "lab";
-  }
-  if (["image", "radiology", "scan", "ct", "mri", "xray"].includes(raw) || ["image", "radiology", "scan", "ct", "mri", "xray"].includes(squished)) {
-    return "imaging";
-  }
+  const labAliases = ["labs", "lab_report", "report", "document"];
+  if (labAliases.includes(raw) || labAliases.includes(squished)) return "lab";
+
+  const imagingAliases = [
+    "image",
+    "radiology",
+    "scan",
+    "ct",
+    "mri",
+    "xray",
+    "x-ray",
+    "usg",
+    "ultrasound",
+    "echo",
+    "ecg",
+    "ekg",
+  ];
+  if (imagingAliases.includes(raw) || imagingAliases.includes(squished)) return "imaging";
+
   return raw;
-};
+}
+
+function inferImagingTitle(m: any): string | null {
+  const hint = String(m?.modality || m?.study || m?.fileTitle || "").toLowerCase();
+
+  if (/\b(ecg|ekg)\b/.test(hint)) return "ECG";
+  if (/\b(ct|computed tomography)\b/.test(hint)) return "CT";
+  if (/\b(mri|magnetic resonance)\b/.test(hint)) return "MRI";
+  if (/\b(x[- ]?ray|xray)\b/.test(hint)) return "X-ray";
+  if (/\b(ultrasound|usg|sonography)\b/.test(hint)) return "Ultrasound";
+  if (/\b(echo|echocardiogram|echography)\b/.test(hint)) return "Echo";
+  if (/\b(angiogram|angiography)\b/.test(hint)) return "Angiogram";
+  if (/\b(pet[- ]?ct|pet)\b/.test(hint)) return "PET-CT";
+
+  return null;
+}
 
 const EXCLUDED_OBSERVATION_KINDS = new Set([
   "bmi",
@@ -47,15 +75,27 @@ const isMedicalVisible = (ob: any) => {
   return false;
 };
 
-const getDisplayTitle = (ob: any) => {
+function getDisplayTitle(ob: any) {
   const kind = normalizeKind(ob?.kind);
-  if (kind === "medication") return ob?.meta?.normalizedName || ob?.value_text || "Medication";
-  if (kind === "lab") return ob?.meta?.testName || ob?.meta?.fileTitle || ob?.name || "Lab report";
-  if (kind === "imaging") return ob?.meta?.study || ob?.meta?.fileTitle || ob?.name || "Imaging";
+  const meta = ob?.meta ?? {};
+
+  if (kind === "lab") {
+    return "Blood report";
+  }
+
+  if (kind === "imaging") {
+    return inferImagingTitle(meta) || "Imaging report";
+  }
+
+  if (kind === "medication") {
+    return meta?.normalizedName || ob?.value_text || "Medication";
+  }
+
   if (kind === "symptom") return "Symptom";
-  if (kind === "note") return ob?.meta?.title || "Note";
+  if (kind === "note") return meta?.title || "Note";
+
   return ob?.name || "Observation";
-};
+}
 
 const getShortSummary = (ob: any) => {
   const meta = ob?.meta || {};
