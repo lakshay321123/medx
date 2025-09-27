@@ -34,6 +34,7 @@ const PRESET_CONDITIONS = [
 
 const MANUAL_NOTES_KIND = "summary_notes_manual";
 const MANUAL_NEXT_STEPS_KIND = "summary_next_steps_manual";
+const NO_DATA_TEXT = "No data available";
 
 type MedicationEntry = {
   key: string;
@@ -147,9 +148,9 @@ export default function MedicalProfile() {
   const [chronic, setChronic] = useState<string[]>([]);
   const [medications, setMedications] = useState<MedicationEntry[]>([]);
   const [summaryText, setSummaryText] = useState("No summary yet.");
-  const [predictionText, setPredictionText] = useState("—");
-  const [summaryNotes, setSummaryNotes] = useState("—");
-  const [summaryNextSteps, setSummaryNextSteps] = useState("—");
+  const [predictionText, setPredictionText] = useState(NO_DATA_TEXT);
+  const [summaryNotes, setSummaryNotes] = useState(NO_DATA_TEXT);
+  const [summaryNextSteps, setSummaryNextSteps] = useState(NO_DATA_TEXT);
   const [manualNotes, setManualNotes] = useState<string | null>(null);
   const [manualNextSteps, setManualNextSteps] = useState<string | null>(null);
   const [heightInput, setHeightInput] = useState("");
@@ -284,8 +285,10 @@ export default function MedicalProfile() {
       .filter(Boolean);
     const findValue = (label: string) => {
       const line = lines.find(l => l.toLowerCase().startsWith(label.toLowerCase()));
-      if (!line) return "—";
-      return line.slice(label.length).replace(/^[:\s]+/, "").trim() || "—";
+      if (!line) return NO_DATA_TEXT;
+      const value = line.slice(label.length).replace(/^[:\s]+/, "").trim();
+      if (!value) return NO_DATA_TEXT;
+      return value;
     };
     setSummaryText(text || "No summary yet.");
     setPredictionText(findValue("AI Prediction"));
@@ -332,8 +335,9 @@ export default function MedicalProfile() {
 
   const labs = data?.groups?.labs ?? [];
   const medsEmpty = medications.length === 0;
-  const displayedNotes = manualNotes ?? (summaryNotes !== "—" ? summaryNotes : null);
-  const displayedNextSteps = manualNextSteps ?? (summaryNextSteps !== "—" ? summaryNextSteps : null);
+  const displayedNotes = manualNotes ?? (summaryNotes !== NO_DATA_TEXT ? summaryNotes : null);
+  const displayedNextSteps =
+    manualNextSteps ?? (summaryNextSteps !== NO_DATA_TEXT ? summaryNextSteps : null);
 
   const handleProfileSave = async () => {
     setSavingProfile(true);
@@ -420,27 +424,23 @@ export default function MedicalProfile() {
     if (!normalizedName) throw new Error("Medication name required");
 
     const { doseLabel, doseUnit, doseValue } = parseDoseString(med.dose ?? null);
-    const observedAt = new Date().toISOString();
-    const payload: Record<string, any> = {
-      kind: "medication",
-      value_text: normalizedName,
-      value_num: doseValue ?? null,
-      unit: doseUnit ?? null,
-      observed_at: observedAt,
-      thread_id: null,
-      meta: {
-        normalizedName,
-        doseLabel: doseLabel ?? null,
-        rxnormId: med.rxnormId ?? null,
-        source: "manual",
-      },
-    };
-
-    const res = await fetch("/api/profile", {
-      method: "PUT",
+    const res = await fetch("/api/observations", {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        observations: [payload],
+        kind: "medication",
+        value_text: normalizedName,
+        value_num: doseValue ?? null,
+        unit: doseUnit ?? null,
+        observed_at: new Date().toISOString(),
+        thread_id: null,
+        meta: {
+          normalizedName,
+          doseLabel: doseLabel ?? null,
+          rxnormId: med.rxnormId ?? null,
+          source: "manual",
+          committed: true,
+        },
       }),
     });
 
@@ -448,19 +448,24 @@ export default function MedicalProfile() {
       throw new Error((await res.text()) || "Failed to save medication");
     }
 
+    const body = await res.json().catch(() => ({}));
+    const observationId = body?.observation?.id ?? null;
+    if (!observationId) {
+      throw new Error("Medication saved but response was malformed");
+    }
+
     const nextEntry: MedicationEntry = {
-      key: buildMedicationKey(normalizedName, doseLabel ?? null, { fallbackId: Date.now() }),
+      key: buildMedicationKey(normalizedName, doseLabel ?? null, { observationId }),
       name: normalizedName,
       doseLabel,
       doseUnit: doseUnit ?? null,
       doseValue: doseValue ?? null,
       rxnormId: med.rxnormId ?? null,
+      observationId,
     };
 
     setMedications(prev => dedupeMedicationList([...prev, nextEntry]));
-    await mutateProfile();
-    await mutateGlobal("/api/profile");
-    await loadSummary();
+    await Promise.all([mutateProfile?.(), mutateGlobal?.("/api/profile"), loadSummary?.()]);
   };
 
   const handleRemoveMedication = async (med: MedicationEntry) => {
@@ -476,6 +481,7 @@ export default function MedicalProfile() {
           doseLabel: med.doseLabel ?? null,
           rxnormId: med.rxnormId ?? null,
           deleted: true,
+          committed: true,
         },
         thread_id: null,
       };
@@ -483,20 +489,16 @@ export default function MedicalProfile() {
         removalObservation.observation_id = med.observationId;
       }
 
-      const res = await fetch("/api/profile", {
-        method: "PUT",
+      const res = await fetch("/api/observations", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          observations: [removalObservation],
-        }),
+        body: JSON.stringify(removalObservation),
       });
 
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error((await res.text()) || "Failed to remove medication");
 
       setMedications(prev => prev.filter(item => item.key !== med.key));
-      await mutateProfile();
-      await mutateGlobal("/api/profile");
-      await loadSummary();
+      await Promise.all([mutateProfile?.(), mutateGlobal?.("/api/profile"), loadSummary?.()]);
       pushToast({ title: "Medication removed" });
     } catch (err: any) {
       pushToast({
@@ -537,7 +539,7 @@ export default function MedicalProfile() {
       if (!res.ok) throw new Error(await res.text());
       const stored = trimmed || null;
       setManualNotes(stored);
-      setSummaryNotes(stored || "—");
+      setSummaryNotes(stored || NO_DATA_TEXT);
       pushToast({ title: "Notes saved" });
       setNotesEditing(false);
       await mutateProfile();
@@ -584,7 +586,7 @@ export default function MedicalProfile() {
       if (!res.ok) throw new Error(await res.text());
       const stored = trimmed || null;
       setManualNextSteps(stored);
-      setSummaryNextSteps(stored || "—");
+      setSummaryNextSteps(stored || NO_DATA_TEXT);
       pushToast({ title: "Next steps saved" });
       setNextStepsEditing(false);
       await mutateProfile();
@@ -950,7 +952,7 @@ export default function MedicalProfile() {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Active medications
+                  Active Meds
                 </h4>
                 {medications.length ? (
                   <div className="mt-1 flex flex-wrap gap-2">
@@ -988,10 +990,12 @@ export default function MedicalProfile() {
               </div>
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Symptoms / notes
+                  Symptoms & Notes
                 </h4>
                 {displayedNotes && !notesEditing ? (
                   <p className="mt-1 text-sm whitespace-pre-wrap">{displayedNotes}</p>
+                ) : !notesEditing ? (
+                  <p className="mt-1 text-sm text-muted-foreground">{NO_DATA_TEXT}</p>
                 ) : null}
                 {notesEditing ? (
                   <div className="mt-2 space-y-2">
@@ -1046,10 +1050,12 @@ export default function MedicalProfile() {
               </div>
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Next steps
+                  Next Steps
                 </h4>
                 {displayedNextSteps && !nextStepsEditing ? (
                   <p className="mt-1 text-sm whitespace-pre-wrap">{displayedNextSteps}</p>
+                ) : !nextStepsEditing ? (
+                  <p className="mt-1 text-sm text-muted-foreground">{NO_DATA_TEXT}</p>
                 ) : null}
                 {nextStepsEditing ? (
                   <div className="mt-2 space-y-2">
@@ -1106,8 +1112,8 @@ export default function MedicalProfile() {
             {showClinicalSections ? (
               <div className="rounded-lg border bg-muted/20 p-3 text-sm">
                 <div className="text-xs uppercase tracking-wide text-muted-foreground">AI prediction</div>
-                <div className="mt-1 text-base font-medium whitespace-pre-wrap">
-                  {predictionText && predictionText !== "—"
+                <div className="mt-1 whitespace-pre-wrap text-base font-medium">
+                  {predictionText && predictionText !== NO_DATA_TEXT
                     ? predictionText
                     : "No prediction yet — add vitals, labs, or medications to compute risk."}
                 </div>
@@ -1119,7 +1125,7 @@ export default function MedicalProfile() {
 
       {showClinicalSections ? (
         <ProfileSection
-          title="Active medications"
+          title="Active Meds"
           isEmpty={medsEmpty}
           emptyMessage="No medications recorded yet."
         >

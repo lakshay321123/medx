@@ -119,7 +119,8 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
       return;
     }
     const finalDose = trimmedDose;
-    if (!finalDose && !needsDose) {
+    const isZeroDose = /^0+(\.0+)?$/.test(finalDose);
+    if (!finalDose && !isZeroDose && !needsDose) {
       setNeedsDose(true);
       return;
     }
