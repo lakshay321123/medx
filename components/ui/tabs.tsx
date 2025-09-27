@@ -11,7 +11,12 @@ export function Tabs({ defaultValue, children }: { defaultValue: string; childre
 
 export function TabsList({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={className + " flex flex-wrap items-center justify-center gap-2 sm:justify-start"}>
+    <div
+      className={
+        className +
+        " flex w-full max-w-xs flex-wrap items-center justify-center gap-2 px-2 sm:w-auto sm:max-w-none sm:justify-start sm:px-0"
+      }
+    >
       {children}
     </div>
   );
@@ -24,7 +29,9 @@ export function TabsTrigger({ value, children }: { value: string; children: Reac
     <button
       type="button"
       onClick={() => ctx.setValue(value)}
-      className={`text-[11px] px-2 py-1 rounded-md border sm:text-xs sm:px-2.5 ${active ? "bg-muted font-medium" : "hover:bg-muted"}`}
+      className={`w-[132px] rounded-md border px-2 py-1 text-[10px] sm:w-auto sm:px-2.5 sm:text-xs ${
+        active ? "bg-muted font-medium" : "hover:bg-muted"
+      }`}
     >
       {children}
     </button>
