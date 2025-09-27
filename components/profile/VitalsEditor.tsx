@@ -148,8 +148,8 @@ export default function VitalsEditor({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-3 text-[13px] min-[420px]:grid-cols-2 md:grid-cols-4">
+    <div className="space-y-3 md:space-y-4">
+      <div className="grid grid-cols-1 gap-2.5 text-[13px] min-[420px]:grid-cols-2 md:grid-cols-4">
         <label className="flex flex-col gap-1.5">
           <span className="text-xs font-medium text-muted-foreground">
             Systolic (mmHg)
@@ -216,7 +216,7 @@ export default function VitalsEditor({
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          className="inline-flex h-9 items-center rounded-[10px] border border-primary/70 bg-primary px-3 text-[13px] font-semibold text-primary-foreground shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-9 items-center rounded-[10px] border border-primary/70 bg-primary px-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:cursor-not-allowed disabled:opacity-60 md:px-3"
           onClick={handleSave}
           disabled={isSaving}
         >
@@ -224,7 +224,7 @@ export default function VitalsEditor({
         </button>
         <button
           type="button"
-          className="inline-flex h-9 items-center rounded-[10px] border border-border/70 px-3 text-[13px] font-medium text-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-60 dark:border-border/40"
+          className="inline-flex h-9 items-center rounded-[10px] border border-border/70 px-2.5 text-[13px] font-medium text-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-60 dark:border-border/40 md:px-3"
           onClick={onCancel}
           disabled={isSaving}
         >

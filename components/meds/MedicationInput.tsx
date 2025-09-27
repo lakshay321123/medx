@@ -153,8 +153,8 @@ export default function MedicationInput({
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-col gap-3">
+    <div className="space-y-2.5 md:space-y-3">
+      <div className="flex flex-col gap-2.5 md:gap-3">
         <div className="flex-1">
           <label className="flex flex-col gap-1.5 text-[13px]">
             <span className="text-xs font-medium text-muted-foreground">Medication name</span>
@@ -218,7 +218,7 @@ export default function MedicationInput({
                   <li key={`${s.rxnormId || s.name}`}>
                     <button
                       type="button"
-                      className={`inline-flex h-6 items-center rounded-full border border-border/70 px-3 text-[11px] font-medium transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40 ${
+                      className={`inline-flex h-6 items-center rounded-full border border-border/70 px-2.5 text-[11px] font-medium transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-border/40 ${
                         highlightIndex === index ? "bg-muted/70" : ""
                       }`}
                       onMouseEnter={() => setHighlightIndex(index)}
@@ -249,7 +249,7 @@ export default function MedicationInput({
         {showSave ? (
           <button
             type="button"
-            className="inline-flex h-9 items-center justify-center self-start rounded-[10px] border border-primary/70 bg-primary px-3 text-[13px] font-semibold text-primary-foreground shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-9 items-center justify-center self-start rounded-[10px] border border-primary/70 bg-primary px-2.5 text-[13px] font-semibold text-primary-foreground shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:cursor-not-allowed disabled:opacity-60 md:px-3"
             onClick={handleSave}
             disabled={loading || !showSave}
           >

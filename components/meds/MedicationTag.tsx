@@ -11,7 +11,7 @@ export type MedicationTagProps = {
 
 export default function MedicationTag({ label, onRemove, disabled = false }: MedicationTagProps) {
   return (
-    <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-border/70 bg-muted/60 px-3 text-[11px] font-medium text-foreground/90 dark:border-border/40 dark:bg-muted/30">
+    <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-border/70 bg-muted/60 px-2.5 text-[11px] font-medium text-foreground/90 dark:border-border/40 dark:bg-muted/30">
       <span className="max-w-[10rem] truncate" title={typeof label === "string" ? label : undefined}>
         {label}
       </span>
