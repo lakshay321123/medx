@@ -54,8 +54,10 @@ const THERAPY_LABEL = "Reflecting…";
 export function usePendingAssistantStages({ enabled, onContentUpdate, onFinalize }: Options) {
   const [state, setState] = useState<PendingAssistantState | null>(null);
   const stateRef = useRef<PendingAssistantState | null>(null);
-  const analyzeStartRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const analyzeRotateRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  type TimerHandle = ReturnType<typeof setTimeout> | number;
+
+  const analyzeStartRef = useRef<TimerHandle | null>(null);
+  const analyzeRotateRef = useRef<TimerHandle | null>(null);
   const analyzingQueueRef = useRef<string[]>([]);
   const pendingMetaRef = useRef<PendingMeta | null>(null);
   const typewriterRef = useRef<TypewriterState>({
