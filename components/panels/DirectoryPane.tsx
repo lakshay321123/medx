@@ -20,153 +20,221 @@ export default function DirectoryPane() {
 
   return (
     <div className="flex min-h-0 flex-col">
-      <div className="sticky top-0 z-10 space-y-2 border-b border-black/5 bg-white/80 p-3 backdrop-blur dark:border-white/10 dark:bg-slate-900/60 rounded-t-2xl">
-        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-          <span className="inline-block h-2 w-2 rounded-full bg-green-500 ring-4 ring-green-100"></span>
-          Using: {locLabel}
+      <div className="sticky top-0 z-10 space-y-3 border-b border-black/5 bg-white/85 px-3 pb-3 pt-2 backdrop-blur dark:border-white/10 dark:bg-slate-950/60">
+        <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+          <span className="inline-block h-2 w-2 rounded-full bg-green-500"></span>
+          <span className="truncate">Using: {locLabel}</span>
           <button
             onClick={actions.useMyLocation}
-            className="ml-2 rounded-full border border-slate-200 px-2 py-0.5 text-[11px] hover:bg-slate-50 dark:border-white/10 dark:hover:bg-slate-800"
+            className="ml-auto inline-flex h-9 items-center gap-1 truncate rounded-full border border-slate-200 px-3 text-[11px] font-medium text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950"
           >
             Use my location
           </button>
         </div>
 
-        <div className="flex flex-col gap-2 md:flex-row">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center">
           <div className="flex-1">
             <input
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white/90 px-3 pr-9 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none focus:ring-0 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100"
+              className="h-10 w-full rounded-[10px] border border-slate-200 bg-white/90 px-3 text-[13px] text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none focus:ring-0 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100"
               placeholder="Search doctors, pharmacies, labs"
               value={q}
               onChange={(event) => actions.setQ(event.target.value)}
             />
           </div>
-          <div className="md:w-[360px]">
+          <div className="md:w-[320px]">
             <AddressPicker value={locLabel} onSelect={actions.setAddress} />
           </div>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto py-1">
-          {TYPES.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => actions.setType(t.key)}
-              className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-sm ${
-                type === t.key
-                  ? "border-blue-600 bg-blue-600 text-white"
-                  : "border-slate-200 bg-slate-50 text-slate-800 dark:border-white/10 dark:bg-slate-800 dark:text-slate-100"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {TYPES.map((t) => {
+            const selected = type === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => actions.setType(t.key)}
+                className={`inline-flex h-[30px] min-w-[72px] items-center justify-center whitespace-nowrap rounded-full border px-3 text-[12.5px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 ${
+                  selected
+                    ? "border-blue-500 bg-blue-500 text-white"
+                    : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-800"
+                }`}
+                aria-pressed={selected}
+              >
+                {t.label}
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex gap-2 overflow-x-auto pb-1">
           <button
             onClick={() => actions.setOpenNow((v) => !v)}
-            className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-slate-800"
+            className={`inline-flex h-[30px] items-center justify-center whitespace-nowrap rounded-full border px-3 text-[12px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 ${
+              openNow
+                ? "border-blue-500 bg-blue-500 text-white"
+                : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-800"
+            }`}
+            aria-pressed={openNow}
           >
-            Open now {openNow ? "✓" : ""}
+            Open now
           </button>
           <button
             onClick={() => actions.setMinRating((r) => (r ? null : 4))}
-            className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-slate-800"
+            className={`inline-flex h-[30px] items-center justify-center whitespace-nowrap rounded-full border px-3 text-[12px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 ${
+              minRating
+                ? "border-blue-500 bg-blue-500 text-white"
+                : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-800"
+            }`}
+            aria-pressed={Boolean(minRating)}
           >
-            ★ 4.0+ {minRating ? "✓" : ""}
+            Star 4 plus
           </button>
           <button
             onClick={() => actions.setMaxKm((k) => (k ? null : 3))}
-            className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-slate-800"
+            className={`inline-flex h-[30px] items-center justify-center whitespace-nowrap rounded-full border px-3 text-[12px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 ${
+              maxKm
+                ? "border-blue-500 bg-blue-500 text-white"
+                : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-800"
+            }`}
+            aria-pressed={Boolean(maxKm)}
           >
-            Under 3 km {maxKm ? "✓" : ""}
+            Under 3 km
           </button>
         </div>
       </div>
 
-      <div className="flex items-center justify-between px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
-        <div>{loading ? "Loading" : summary}</div>
-        <div className="rounded-full border border-slate-200 px-2 py-1 dark:border-white/10">Map</div>
+      <div className="flex items-center justify-between px-3 py-2 text-[12px] text-slate-500 dark:text-slate-400">
+        <div className="truncate">{loading ? "Loading" : summary}</div>
+        <div className="inline-flex h-[27px] items-center rounded-full border border-slate-200 px-3 text-[12px] font-medium text-slate-600 dark:border-white/10 dark:text-slate-200">
+          Map
+        </div>
       </div>
 
-      <div className="mobile-scroll-safe flex-1 space-y-3 overflow-y-auto p-3">
+      <div className="mobile-scroll-safe flex-1 space-y-3 overflow-y-auto px-3 pb-4">
         {!loading && data.length === 0 && (
-          <div className="rounded-xl border border-slate-200 bg-white/70 p-4 text-sm text-slate-600 dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-300">
+          <div className="rounded-[12px] border border-slate-200 bg-white/75 p-4 text-[13px] text-slate-600 shadow-sm dark:border-white/10 dark:bg-slate-950/60 dark:text-slate-300">
             No results. Try All, increase radius, or change the address.
           </div>
         )}
-        {data.map((place) => (
-          <div
-            key={place.id}
-            className="rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/60"
-          >
-            <div className="flex items-center justify-between">
-              <div className="font-semibold text-slate-900 dark:text-slate-50">{place.name}</div>
-              <div className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] capitalize text-blue-900 dark:border-white/10 dark:bg-slate-800 dark:text-slate-100">
-                {place.type}
+        {data.map((place) => {
+          const actionsList = [
+            place.phones?.[0]
+              ? {
+                  key: "call",
+                  label: "Call",
+                  icon: <Phone size={16} aria-hidden />,
+                  element: (
+                    <a
+                      href={`tel:${place.phones[0].replace(/\s+/g, "")}`}
+                      className="inline-flex h-9 items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[12.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950"
+                    >
+                      <Phone size={16} aria-hidden /> Call
+                    </a>
+                  ),
+                }
+              : null,
+            {
+              key: "directions",
+              label: "Directions",
+              element: (
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${place.geo.lat},${place.geo.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-9 items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[12.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950"
+                >
+                  <Navigation size={16} aria-hidden /> Directions
+                </a>
+              ),
+            },
+            place.whatsapp
+              ? {
+                  key: "whatsapp",
+                  label: "WhatsApp",
+                  element: (
+                    <a
+                      href={`https://wa.me/${place.whatsapp.replace(/\D/g, "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex h-9 items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[12.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950"
+                    >
+                      <MessageSquare size={16} aria-hidden /> WhatsApp
+                    </a>
+                  ),
+                }
+              : null,
+            place.address_short
+              ? {
+                  key: "copy",
+                  label: "Copy",
+                  element: (
+                    <button
+                      onClick={() => navigator.clipboard.writeText(place.address_short ?? "")}
+                      className="inline-flex h-9 items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[12.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950"
+                      title="Copy address"
+                      aria-label="Copy address"
+                    >
+                      <MapPin size={16} aria-hidden /> Copy
+                    </button>
+                  ),
+                }
+              : null,
+          ].filter(Boolean) as {
+            key: string;
+            label: string;
+            element: JSX.Element;
+          }[];
+
+          return (
+            <div
+              key={place.id}
+              className="rounded-[12px] border border-slate-200 bg-white/85 p-3 shadow-sm backdrop-blur-sm transition hover:shadow-md dark:border-white/10 dark:bg-slate-950/60"
+            >
+              <div className="flex items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="truncate text-[14px] font-semibold text-slate-900 dark:text-slate-50" title={place.name}>
+                      {place.name}
+                    </div>
+                    <div className="inline-flex h-[22px] items-center whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-2 text-[11px] capitalize text-blue-900 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-100">
+                      {place.type}
+                    </div>
+                  </div>
+
+                  <div className="mt-1 flex items-center gap-2 truncate text-[12px] text-slate-600 dark:text-slate-300">
+                    <span className="inline-flex shrink-0 items-center gap-1">
+                      <Star size={14} aria-hidden /> {place.rating ?? "—"}
+                    </span>
+                    {typeof place.distance_m === "number" && (
+                      <span className="shrink-0">• {(place.distance_m / 1000).toFixed(1)} km</span>
+                    )}
+                    <span className="truncate">
+                      • {place.open_now ? "Open now" : "Hours not available"}
+                    </span>
+                  </div>
+
+                  {place.address_short && (
+                    <div className="mt-1 truncate text-[13px] text-slate-700 dark:text-slate-200" title={place.address_short}>
+                      {place.address_short}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {actionsList.length > 0 && (
+                <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4" aria-label="Primary actions">
+                  {actionsList.map((action) => (
+                    <div key={action.key} className="flex">{action.element}</div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+                Data: OpenStreetMap • Last checked {new Date(place.last_checked ?? Date.now()).toLocaleDateString()}
               </div>
             </div>
-
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-[12.5px] text-slate-600 dark:text-slate-300">
-              <span className="inline-flex items-center gap-1">
-                <Star size={14} /> {place.rating ?? "—"}
-              </span>
-              {typeof place.distance_m === "number" && <span>• {(place.distance_m / 1000).toFixed(1)} km</span>}
-              <span>• {place.open_now ? "Open now" : "Hours not available"}</span>
-            </div>
-
-            {place.address_short && (
-              <div className="mt-1 text-sm text-slate-700 dark:text-slate-200">{place.address_short}</div>
-            )}
-
-            <div className="mt-3 grid grid-cols-4 gap-2">
-              <a
-                href={place.phones?.[0] ? `tel:${place.phones[0].replace(/\s+/g, "")}` : undefined}
-                className={`inline-flex items-center justify-center gap-1 rounded-lg border px-2 py-2 text-sm font-medium transition ${
-                  place.phones?.[0]
-                    ? "border-slate-200 bg-white text-slate-900 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
-                    : "pointer-events-none cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 dark:border-white/10 dark:bg-slate-800 dark:text-slate-500"
-                }`}
-              >
-                <Phone size={16} /> Call
-              </a>
-
-              <a
-                href={`https://www.google.com/maps/dir/?api=1&destination=${place.geo.lat},${place.geo.lng}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
-              >
-                <Navigation size={16} /> Directions
-              </a>
-
-              <a
-                href={place.whatsapp ? `https://wa.me/${place.whatsapp.replace(/\D/g, "")}` : undefined}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`inline-flex items-center justify-center gap-1 rounded-lg border px-2 py-2 text-sm font-medium transition ${
-                  place.whatsapp
-                    ? "border-slate-200 bg-white text-slate-900 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
-                    : "pointer-events-none cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 dark:border-white/10 dark:bg-slate-800 dark:text-slate-500"
-                }`}
-              >
-                <MessageSquare size={16} /> WhatsApp
-              </a>
-
-              <button
-                onClick={() => navigator.clipboard.writeText(place.address_short ?? "")}
-                className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
-                title="Copy address"
-              >
-                <MapPin size={16} /> Copy
-              </button>
-            </div>
-
-            <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-              Data: OpenStreetMap • Last checked {new Date(place.last_checked ?? Date.now()).toLocaleDateString()}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
