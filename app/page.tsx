@@ -48,7 +48,7 @@ export default function Page({ searchParams }: { searchParams: Search }) {
         </ResearchFiltersProvider>
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto mobile-scroll-safe">
-          <div className="m-6 rounded-2xl p-6 ring-1 ring-black/5 bg-white/80 dark:bg-slate-900/60 dark:ring-white/10">
+          <div className="mx-2 my-3 rounded-2xl p-3 ring-1 ring-black/5 bg-white/80 dark:bg-slate-900/60 dark:ring-white/10 md:mx-6 md:p-6">
             {renderPane()}
           </div>
         </div>
