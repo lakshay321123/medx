@@ -19,7 +19,7 @@ export default function DirectoryPane() {
   const { locLabel, type, q, openNow, minRating, maxKm, data, loading, summary } = state;
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-[360px] flex-col md:mx-0 md:max-w-none">
+    <div className="mx-auto flex min-h-0 w-full max-w-[320px] flex-col md:mx-0 md:max-w-none">
       <div className="sticky top-0 z-10 space-y-1 border-b border-black/5 bg-white/85 px-1.5 pb-1 pt-1 backdrop-blur dark:border-white/10 dark:bg-slate-950/60 md:space-y-3 md:px-3 md:pb-3 md:pt-2">
         <div className="flex items-center gap-1 text-[9px] text-slate-500 dark:text-slate-400 md:gap-2 md:text-[11px]">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500"></span>
@@ -46,7 +46,7 @@ export default function DirectoryPane() {
           </div>
         </div>
 
-        <div className="flex gap-1 overflow-x-auto pb-0.5 md:gap-2">
+        <div className="flex flex-wrap gap-1 pb-0.5 md:flex-nowrap md:gap-2 md:overflow-x-auto">
           {TYPES.map((t) => {
             const selected = type === t.key;
             return (
@@ -66,7 +66,7 @@ export default function DirectoryPane() {
           })}
         </div>
 
-        <div className="flex gap-1 overflow-x-auto pb-0.5 md:gap-2">
+        <div className="flex flex-wrap gap-1 pb-0.5 md:flex-nowrap md:gap-2 md:overflow-x-auto">
           <button
             onClick={() => actions.setOpenNow((v) => !v)}
             className={`inline-flex h-[22px] items-center justify-center whitespace-nowrap rounded-full border px-1.5 text-[10px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-[30px] md:px-3 md:text-[12px] ${
@@ -193,7 +193,7 @@ export default function DirectoryPane() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2 md:gap-3">
                     <div
-                      className="mobile-truncate-2 text-[11.5px] font-semibold leading-[1.2] text-slate-900 dark:text-slate-50 md:truncate md:text-[14px]"
+                      className="break-words text-[11.5px] font-semibold leading-[1.3] text-slate-900 dark:text-slate-50 md:truncate md:text-[14px]"
                       title={place.name}
                     >
                       {place.name}
