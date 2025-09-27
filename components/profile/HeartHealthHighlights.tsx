@@ -61,6 +61,8 @@ type HeroData = {
   navigateKey: string;
 };
 
+type HeroCircleStyle = CSSProperties & Record<"--hero-percent", number>;
+
 function normalizeKey(key: string) {
   return key.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
 }
@@ -524,6 +526,21 @@ export function HeartHealthHighlights({
 
   const hasAnyData = rows.some(row => row.hasData);
   const heroKey = useHeroAnimationKey(heroData.percent, heroData.status);
+  const heroCircumference = 2 * Math.PI * 68;
+  const heroPercent = clampPercent(heroData.percent);
+  const heroCircleStyle: HeroCircleStyle = {
+    strokeLinecap: "round",
+    strokeDasharray: `${heroCircumference}`,
+    strokeDashoffset: prefersReducedMotion
+      ? `${heroCircumference * (1 - heroPercent / 100)}`
+      : undefined,
+    animation: prefersReducedMotion
+      ? "none"
+      : `${heroData.hasData ? "heroSweep" : "heroBreath"} ${
+          heroData.hasData ? "0.8s ease-out forwards" : "3.6s ease-in-out infinite"
+        }`,
+    "--hero-percent": heroPercent,
+  };
   const [explainRow, setExplainRow] = useState<HighlightRow | null>(null);
 
   useEffect(() => {
@@ -579,19 +596,7 @@ export function HeartHealthHighlights({
                   ? "stroke-amber-500"
                   : "stroke-rose-500"
                 ) : "stroke-muted"}`}
-              style={{
-                strokeLinecap: "round",
-                strokeDasharray: `${2 * Math.PI * 68}`,
-                strokeDashoffset: prefersReducedMotion
-                  ? `${(2 * Math.PI * 68) * (1 - clampPercent(heroData.percent) / 100)}`
-                  : undefined,
-                animation: prefersReducedMotion
-                  ? "none"
-                  : `${heroData.hasData ? "heroSweep" : "heroBreath"} ${
-                      heroData.hasData ? "0.8s ease-out forwards" : "3.6s ease-in-out infinite"
-                    }`,
-                "--hero-percent": clampPercent(heroData.percent),
-              }}
+              style={heroCircleStyle}
               data-has-data={heroData.hasData ? "true" : "false"}
             />
           </svg>
