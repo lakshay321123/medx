@@ -11,63 +11,53 @@ export default function AddressPicker({
   const [q, setQ] = useState(value);
   const [opts, setOpts] = useState<{ label: string; lat: number; lng: number }[]>([]);
   const [open, setOpen] = useState(false);
-  const timeoutRef = useRef<number | null>(null);
+  const t = useRef<number | null>(null);
 
   useEffect(() => {
-    setQ(value);
-  }, [value]);
-
-  useEffect(() => {
-    if (timeoutRef.current) {
-      window.clearTimeout(timeoutRef.current);
-    }
-
+    if (t.current) window.clearTimeout(t.current);
     if (!q) {
       setOpts([]);
-      setOpen(false);
       return;
     }
-
-    timeoutRef.current = window.setTimeout(async () => {
+    t.current = window.setTimeout(async () => {
       try {
-        const response = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, { cache: "no-store" });
-        const json = await response.json();
-        setOpts(json.data || []);
+        const r = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, { cache: "no-store" });
+        const j = await r.json();
+        setOpts(j.data || []);
         setOpen(true);
-      } catch (error) {
+      } catch {
         setOpts([]);
+        setOpen(false);
       }
     }, 250);
-
     return () => {
-      if (timeoutRef.current) {
-        window.clearTimeout(timeoutRef.current);
-      }
+      if (t.current) window.clearTimeout(t.current);
     };
   }, [q]);
 
   return (
     <div className="relative w-full">
       <input
-        className="w-full h-10 rounded-xl border border-slate-200 bg-white/90 px-3 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100"
-        placeholder="Enter area, city, or address"
+        className="w-full h-10 rounded-lg border border-slate-200 bg-white/95 px-2.5 text-[13px] leading-5 text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100"
+        placeholder="Enter area or address"
         value={q}
-        onChange={(event) => setQ(event.target.value)}
+        onChange={(e) => setQ(e.target.value)}
         onFocus={() => q && setOpen(true)}
       />
       {open && opts.length > 0 && (
-        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg dark:border-white/10 dark:bg-slate-900">
-          {opts.map((option) => (
+        <div className="absolute z-20 mt-1 max-h-44 w-full overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg dark:border-white/10 dark:bg-slate-900">
+          {opts.map((o) => (
             <button
-              key={`${option.label}-${option.lat}-${option.lng}`}
+              key={`${o.label}-${o.lat}-${o.lng}`}
               onClick={() => {
-                onSelect(option);
-                setQ(option.label);
+                onSelect(o);
+                setQ(o.label);
                 setOpen(false);
               }}
-              className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+              className="block w-full truncate px-2 py-1.5 text-left text-[12.5px] hover:bg-slate-50 dark:hover:bg-slate-800"
+              title={o.label}
             >
-              {option.label}
+              {o.label}
             </button>
           ))}
         </div>

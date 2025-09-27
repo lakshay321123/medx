@@ -900,6 +900,7 @@ body {
 
   .mobile-scroll-safe {
     padding-bottom: calc(var(--mobile-footer-height, 0px) + var(--mobile-composer-offset, 0px));
+    overflow-x: hidden;
   }
 
   .mobile-truncate-2 {
