@@ -43,7 +43,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB per image
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type BinaryInput = Buffer | ArrayBuffer | ArrayBufferView;
+type BinaryInput = Buffer | ArrayBuffer | NodeJS.ArrayBufferView;
 
 function toNodeBuffer(input: BinaryInput): Buffer {
   if (Buffer.isBuffer(input)) return input;
@@ -52,8 +52,8 @@ function toNodeBuffer(input: BinaryInput): Buffer {
     const view = input as ArrayBufferView;
     return Buffer.from(view.buffer, view.byteOffset, view.byteLength);
   }
-  // Fallback: coerce to Buffer; should be unreachable but satisfies typings.
-  return Buffer.from(input as ArrayBuffer);
+  const view = input as NodeJS.ArrayBufferView;
+  return Buffer.from(view.buffer, view.byteOffset, view.byteLength);
 }
 
 function toDataUrl(buf: BinaryInput, mime = "image/jpeg") {

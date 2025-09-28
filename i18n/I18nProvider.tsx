@@ -125,7 +125,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
         window.localStorage.setItem(LANGUAGE_STORAGE_KEY, applied);
       }
       if (applied !== previous || !state.messages) {
-        const toastLabel = messages?.["language.updated"] ?? "Language updated";
+        const toastLabel = messages?.["language.toast"] ?? messages?.["language.updated"] ?? "Language updated";
         pushToast({ title: toastLabel });
       }
     },
