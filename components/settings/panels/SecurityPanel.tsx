@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 const selectBase =
-  "h-10 min-w-[140px] rounded-lg border border-neutral-700 bg-neutral-900/80 px-3 text-sm text-neutral-100 shadow-sm transition hover:border-neutral-500 focus:border-neutral-400 focus:outline-none";
+  "h-10 min-w-[160px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm transition focus:border-slate-300 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-slate-100 dark:focus:border-neutral-500";
 
 function ToggleRow({
   label,
@@ -16,10 +16,10 @@ function ToggleRow({
 }) {
   const [enabled, setEnabled] = useState(initial);
   return (
-    <div className="flex items-center justify-between gap-4 px-4 py-4">
+    <div className="flex items-center justify-between gap-4 px-6 py-5">
       <div className="space-y-1">
-        <p className="text-sm font-semibold text-white">{label}</p>
-        <p className="text-xs text-neutral-400">{description}</p>
+        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{label}</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">{description}</p>
       </div>
       <button
         type="button"
@@ -27,7 +27,7 @@ function ToggleRow({
         aria-checked={enabled}
         onClick={() => setEnabled(!enabled)}
         className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-          enabled ? "bg-sky-500/90" : "bg-neutral-700"
+          enabled ? "bg-[var(--medx-accent)]" : "bg-slate-300 dark:bg-neutral-700"
         }`}
       >
         <span
@@ -44,14 +44,14 @@ export default function SecurityPanel() {
   const [timeout, setTimeoutValue] = useState("15");
 
   return (
-    <div className="flex flex-col divide-y divide-neutral-800/70">
+    <div className="flex flex-col divide-y divide-slate-200 dark:divide-neutral-800">
       <ToggleRow label="Require passcode on open" description="Prompt for a passcode whenever MedX launches." initial />
       <ToggleRow label="Mask sensitive data" description="Blur personal details until hovered." />
 
-      <div className="flex items-center justify-between gap-4 px-4 py-4">
+      <div className="flex items-center justify-between gap-4 px-6 py-5">
         <div className="space-y-1">
-          <p className="text-sm font-semibold text-white">Session timeout</p>
-          <p className="text-xs text-neutral-400">Automatically lock after inactivity.</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Session timeout</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Automatically lock after inactivity.</p>
         </div>
         <select
           className={selectBase}

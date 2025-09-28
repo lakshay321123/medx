@@ -4,24 +4,24 @@ import { Play } from "lucide-react";
 import { useMemo, useState } from "react";
 
 const selectBase =
-  "h-10 min-w-[140px] rounded-lg border border-neutral-700 bg-neutral-900/80 px-3 text-sm text-neutral-100 shadow-sm transition hover:border-neutral-500 focus:border-neutral-400 focus:outline-none";
+  "h-10 min-w-[160px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm transition focus:border-slate-300 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-slate-100 dark:focus:border-neutral-500";
 
 const pillBase =
-  "inline-flex items-center gap-2 rounded-full border border-neutral-700 bg-neutral-800/60 px-3 py-1.5 text-sm font-medium text-neutral-100";
+  "inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-slate-100 dark:hover:bg-neutral-800";
 
 export default function GeneralPanel() {
   const [theme, setTheme] = useState("system");
   const [language, setLanguage] = useState("Hindi");
   const [voice, setVoice] = useState("Cove");
 
-  const accent = useMemo(() => ({ label: "Purple", tone: "#a855f7" }), []);
+  const accent = useMemo(() => ({ label: "Purple" }), []);
 
   return (
-    <div className="flex flex-col divide-y divide-neutral-800/70">
-      <div className="flex items-center justify-between gap-4 px-4 py-4">
+    <div className="flex flex-col divide-y divide-slate-200 dark:divide-neutral-800">
+      <div className="flex items-center justify-between gap-4 px-6 py-5">
         <div className="space-y-1">
-          <p className="text-sm font-semibold text-white">Theme</p>
-          <p className="text-xs text-neutral-400">Select how the interface adapts to your system.</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Theme</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Select how the interface adapts to your system.</p>
         </div>
         <select
           className={selectBase}
@@ -34,25 +34,25 @@ export default function GeneralPanel() {
         </select>
       </div>
 
-      <div className="flex items-center justify-between gap-4 px-4 py-4">
+      <div className="flex items-center justify-between gap-4 px-6 py-5">
         <div className="space-y-1">
-          <p className="text-sm font-semibold text-white">Accent color</p>
-          <p className="text-xs text-neutral-400">Update highlight elements across the app.</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Accent color</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Update highlight elements across the app.</p>
         </div>
         <button type="button" className={pillBase}>
           <span
             aria-hidden="true"
             className="inline-flex h-2.5 w-2.5 rounded-full"
-            style={{ backgroundColor: accent.tone }}
+            style={{ backgroundColor: "var(--medx-purple)" }}
           />
           {accent.label}
         </button>
       </div>
 
-      <div className="flex items-center justify-between gap-4 px-4 py-4">
+      <div className="flex items-center justify-between gap-4 px-6 py-5">
         <div className="space-y-1">
-          <p className="text-sm font-semibold text-white">Language</p>
-          <p className="text-xs text-neutral-400">Choose your preferred conversational language.</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Language</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Choose your preferred conversational language.</p>
         </div>
         <select
           className={selectBase}
@@ -67,15 +67,15 @@ export default function GeneralPanel() {
         </select>
       </div>
 
-      <div className="flex items-center justify-between gap-4 px-4 py-4">
+      <div className="flex items-center justify-between gap-4 px-6 py-5">
         <div className="space-y-1">
-          <p className="text-sm font-semibold text-white">Voice</p>
-          <p className="text-xs text-neutral-400">Preview and select the voice used for spoken responses.</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Voice</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Preview and select the voice used for spoken responses.</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="inline-flex items-center gap-2 rounded-full border border-neutral-700 bg-neutral-800/70 px-3 py-2 text-sm font-medium text-neutral-100 transition hover:border-neutral-500 hover:bg-neutral-800"
+            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-slate-100 dark:hover:bg-neutral-800"
           >
             <Play size={14} /> Play
           </button>

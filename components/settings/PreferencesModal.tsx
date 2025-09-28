@@ -161,7 +161,7 @@ export default function PreferencesModal({ open = false, defaultTab = "General",
   const ActivePanel = useMemo(() => PANEL_COMPONENTS[activeTab], [activeTab]);
 
   const mobileSelector = (
-    <div className="border-b border-neutral-800 px-4 py-4 min-[861px]:hidden">
+    <div className="border-b border-slate-200 px-4 py-4 min-[861px]:hidden dark:border-neutral-800">
       <div className="relative">
         <label htmlFor="preferences-tab-select" className="sr-only">
           Preferences section
@@ -170,7 +170,7 @@ export default function PreferencesModal({ open = false, defaultTab = "General",
           id="preferences-tab-select"
           value={activeTab}
           onChange={(event) => setActiveTab(event.target.value as PreferenceTab)}
-          className="h-11 w-full appearance-none rounded-xl border border-neutral-700 bg-neutral-900/80 px-3 pr-10 text-sm text-white focus:border-neutral-400 focus:outline-none"
+          className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm text-slate-900 shadow-sm focus:border-slate-300 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-slate-100 dark:focus:border-neutral-500"
         >
           {TAB_ITEMS.map((tab) => (
             <option key={tab.id} value={tab.id}>
@@ -178,7 +178,7 @@ export default function PreferencesModal({ open = false, defaultTab = "General",
             </option>
           ))}
         </select>
-        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
       </div>
     </div>
   );
@@ -193,14 +193,14 @@ export default function PreferencesModal({ open = false, defaultTab = "General",
       ref={overlayRef}
       onMouseDown={handleOverlayClick}
     >
-      <div className="absolute inset-0 bg-black/55" aria-hidden="true" />
+      <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={headerId}
         tabIndex={-1}
-        className="relative z-10 mx-auto flex h-[min(92vh,620px)] w-[min(96vw,980px)] overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900 text-white shadow-2xl max-[860px]:h-full max-[860px]:w-full max-[860px]:flex-col max-[860px]:rounded-none max-[860px]:border-none"
+        className="relative z-10 mx-auto flex h-[min(92vh,620px)] w-[min(96vw,980px)] overflow-hidden rounded-2xl border border-slate-200 bg-white/95 text-slate-900 shadow-xl backdrop-blur-sm max-[860px]:h-full max-[860px]:w-full max-[860px]:flex-col max-[860px]:rounded-none max-[860px]:border-none dark:border-neutral-800 dark:bg-neutral-900/90 dark:text-slate-100"
       >
         <PreferencesTabs
           items={TAB_ITEMS}
@@ -210,17 +210,17 @@ export default function PreferencesModal({ open = false, defaultTab = "General",
         />
 
         <div className="flex flex-1 flex-col">
-          <div className="flex items-center justify-between border-b border-neutral-800 px-6 py-5">
+          <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5 dark:border-neutral-800">
             <div>
-              <h2 id={headerId} className="text-lg font-semibold text-white">
+              <h2 id={headerId} className="text-lg font-semibold text-slate-900 dark:text-slate-100">
                 {activeTab}
               </h2>
-              <p className="text-xs text-neutral-400">Adjust how MedX behaves and personalizes your care.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Adjust how MedX behaves and personalizes your care.</p>
             </div>
             <button
               type="button"
               onClick={handleClose}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-neutral-700 text-neutral-300 transition hover:border-neutral-500 hover:bg-neutral-800 min-[861px]:hidden"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:bg-slate-50 min-[861px]:hidden dark:border-neutral-700 dark:text-slate-300 dark:hover:bg-neutral-800"
               aria-label="Close preferences"
             >
               ✕
@@ -233,18 +233,18 @@ export default function PreferencesModal({ open = false, defaultTab = "General",
             <ActivePanel />
           </div>
 
-          <div className="flex justify-end gap-3 border-t border-neutral-800 px-6 py-4">
+          <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4 dark:border-neutral-800">
             <button
               type="button"
               onClick={handleClose}
-              className="rounded-full border border-neutral-700 bg-neutral-800/60 px-4 py-2 text-sm font-medium text-neutral-200 transition hover:border-neutral-500 hover:bg-neutral-800"
+              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-slate-200 dark:hover:bg-neutral-800"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handleClose}
-              className="rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-400"
+              className="rounded-full bg-[var(--medx-accent)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
             >
               Save changes
             </button>

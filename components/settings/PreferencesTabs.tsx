@@ -18,14 +18,14 @@ interface PreferencesTabsProps {
 
 export default function PreferencesTabs({ items, activeTab, onSelect, onClose }: PreferencesTabsProps) {
   return (
-    <aside className="hidden h-full w-[280px] flex-none flex-col border-r border-neutral-800 bg-neutral-950/60 px-4 py-6 max-[860px]:hidden">
+    <aside className="hidden h-full w-[280px] flex-none flex-col border-r border-slate-200/80 bg-white/80 px-4 py-6 backdrop-blur max-[860px]:hidden dark:border-neutral-800 dark:bg-neutral-900/60">
       <div className="mb-6 flex items-center justify-between">
-        <p className="text-sm font-semibold text-neutral-200">Preferences</p>
+        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Preferences</p>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close preferences"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-700 text-neutral-300 transition hover:border-neutral-500 hover:bg-neutral-900"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:bg-slate-50 dark:border-neutral-700 dark:text-slate-300 dark:hover:bg-neutral-800"
         >
           ✕
         </button>
@@ -41,12 +41,12 @@ export default function PreferencesTabs({ items, activeTab, onSelect, onClose }:
               onClick={() => onSelect(tab.id)}
               className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition ${
                 isActive
-                  ? "border border-neutral-700 bg-neutral-800/70 text-white"
-                  : "border border-transparent text-neutral-300 hover:border-neutral-700 hover:bg-neutral-800/40"
+                  ? "border border-slate-200 bg-white text-slate-900 shadow-sm dark:border-neutral-700 dark:bg-neutral-800/70 dark:text-slate-100"
+                  : "border border-transparent text-slate-600 hover:border-slate-200 hover:bg-white/70 dark:text-slate-300 dark:hover:border-neutral-700 dark:hover:bg-neutral-800/40"
               }`}
             >
-              <tab.icon size={16} className={isActive ? "text-white" : "text-neutral-400"} />
-              <span className="font-medium">{tab.label}</span>
+              <tab.icon size={16} className={isActive ? "text-[color:var(--medx-accent)]" : "text-slate-400 dark:text-slate-500"} />
+              <span className={`font-medium ${isActive ? "text-[color:var(--medx-accent)]" : ""}`}>{tab.label}</span>
             </button>
           );
         })}

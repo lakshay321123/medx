@@ -1,9 +1,20 @@
 'use client';
-import { useState } from "react";
-import PreferencesModal from "../settings/PreferencesModal";
+
+import { useEffect } from "react";
+import type { PreferenceTab } from "../settings/PreferencesModal";
+
+const DATA_CONTROLS_TAB: PreferenceTab = "Data controls";
 
 export default function SettingsPane() {
-  const [open, setOpen] = useState(true);
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("preferences-modal:open", { detail: { tab: DATA_CONTROLS_TAB } })
+    );
 
-  return <PreferencesModal open={open} defaultTab="General" onClose={() => setOpen(false)} />;
+    return () => {
+      window.dispatchEvent(new Event("preferences-modal:close"));
+    };
+  }, []);
+
+  return null;
 }

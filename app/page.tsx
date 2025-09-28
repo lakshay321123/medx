@@ -8,18 +8,29 @@ import SettingsPane from "@/components/panels/SettingsPane";
 import { ResearchFiltersProvider } from "@/store/researchFilters";
 import AiDocPane from "@/components/panels/AiDocPane";
 import DirectoryPane from "@/components/panels/DirectoryPane";
+import { useSearchParams } from "next/navigation";
 
 type Search = { panel?: string };
 
 export default function Page({ searchParams }: { searchParams: Search }) {
   const panel = searchParams.panel?.toLowerCase() || "chat";
   const chatInputRef = useRef<HTMLInputElement>(null);
+  const searchParamsClient = useSearchParams();
+  const panelFromSearch = searchParamsClient.get("panel");
 
   useEffect(() => {
     const handler = () => chatInputRef.current?.focus();
     window.addEventListener("focus-chat-input", handler);
     return () => window.removeEventListener("focus-chat-input", handler);
   }, []);
+
+  useEffect(() => {
+    if (panelFromSearch?.toLowerCase() === "settings") {
+      window.dispatchEvent(
+        new CustomEvent("preferences-modal:open", { detail: { tab: "Data controls" } })
+      );
+    }
+  }, [panelFromSearch]);
 
   const renderPane = () => {
     switch (panel) {
