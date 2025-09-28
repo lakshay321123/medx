@@ -14,6 +14,7 @@
   "section.notes": "الأعراض والملاحظات",
   "section.next": "الخطوات التالية",
   "action.edit": "تعديل",
+  "action.edit_section": "تعديل {section}",
   "action.discuss": "مناقشة في الدردشة",
   "action.recompute": "إعادة حساب الخطر",
   "action.add_med": "إضافة دواء",
@@ -22,6 +23,7 @@
   "label.name": "الاسم",
   "label.sex": "الجنس",
   "label.dob": "تاريخ الميلاد",
+  "label.age": "العمر",
   "label.blood_group": "فصيلة الدم",
   "label.height_cm": "الطول (cm)",
   "label.weight_kg": "الوزن (kg)",
@@ -45,6 +47,7 @@
   "symbol.dot": "•",
   "meds.count": "{count, plural, =0 {لا توجد أدوية مسجلة بعد.} one {دواء واحد} two {دواءان} few {# أدوية} many {# دواء} other {# دواء}}",
   "notes.count": "{count, plural, =0 {لا توجد بيانات متاحة} one {ملاحظة واحدة} two {ملاحظتان} few {# ملاحظات} many {# ملاحظة} other {# ملاحظة}}",
+  "next.count": "{count, plural, =0 {لا توجد بيانات متاحة} one {خطوة واحدة} two {خطوتان} few {# خطوات} many {# خطوة} other {# خطوة}}",
   "loader.hint": "جارٍ جلب بياناتك بأمان…",
   "loader.label.profile": "الملف الطبي"
 }

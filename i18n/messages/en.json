@@ -14,6 +14,7 @@
   "section.notes": "Symptoms & Notes",
   "section.next": "Next Steps",
   "action.edit": "Edit",
+  "action.edit_section": "Edit {section}",
   "action.discuss": "Discuss in chat",
   "action.recompute": "Recompute risk",
   "action.add_med": "Add medication",
@@ -22,6 +23,7 @@
   "label.name": "NAME",
   "label.sex": "SEX",
   "label.dob": "DOB",
+  "label.age": "Age",
   "label.blood_group": "BLOOD GROUP",
   "label.height_cm": "HEIGHT (cm)",
   "label.weight_kg": "WEIGHT (kg)",
@@ -45,6 +47,7 @@
   "symbol.dot": "•",
   "meds.count": "{count, plural, =0 {No medications recorded yet.} one {# medication} other {# medications}}",
   "notes.count": "{count, plural, =0 {No data available} one {# note} other {# notes}}",
+  "next.count": "{count, plural, =0 {No data available} one {# step} other {# steps}}",
   "loader.hint": "Fetching your data securely…",
   "loader.label.profile": "Medical Profile"
 }

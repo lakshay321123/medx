@@ -14,6 +14,7 @@ import { pushToast } from "@/lib/ui/toast";
 import { fromSearchParams } from "@/lib/modes/url";
 import { extractManualObservation } from "@/lib/profile/extractManualObservation";
 import { useSWRConfig } from "swr";
+import { useI18n } from "@/i18n/I18nProvider";
 
 const SEXES = ["male", "female", "other"] as const;
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -131,6 +132,7 @@ export default function MedicalProfile() {
   const params = useSearchParams();
   const { theme } = useTheme();
   const panelMode = useMemo(() => derivePanelMode(params, theme), [params, theme]);
+  const { formatMessage } = useI18n();
 
   const { mutate: mutateGlobal } = useSWRConfig();
   const { data, error, isLoading, mutate: mutateProfile } = useProfile();
@@ -683,7 +685,10 @@ export default function MedicalProfile() {
   const showWellnessSections = panelMode !== "clinical";
   const showClinicalSections = panelMode !== "wellness";
 
-  if (isLoading) return <PanelLoader label="Medical Profile" />;
+  if (isLoading)
+    return (
+      <PanelLoader label={formatMessage({ id: "loader.label.profile", defaultMessage: "Medical Profile" })} />
+    );
   if (error) {
     return (
       <div className="p-6 text-sm text-red-500">Couldn’t load profile. Retrying in background…</div>
@@ -1464,187 +1469,312 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
 
   if (!isMobile) return null;
 
-  const safeName = typeof personal.name === "string" && personal.name.trim()
-    ? personal.name
-    : NO_DATA;
-  const safeSex = typeof personal.sex === "string" && personal.sex.trim()
-    ? personal.sex
-    : NO_DATA;
-  const safeBloodGroup = typeof personal.bloodGroup === "string" && personal.bloodGroup.trim()
-    ? personal.bloodGroup
-    : NO_DATA;
-  const safePredispositions = typeof personal.predispositions === "string" && personal.predispositions.trim()
-    ? personal.predispositions
-    : NO_DATA;
-  const safeChronic = typeof personal.chronicConditions === "string" && personal.chronicConditions.trim()
-    ? personal.chronicConditions
-    : NO_DATA;
-  const safeHeight = personal.heightCm === "" || personal.heightCm == null ? "—" : personal.heightCm;
-  const safeWeight = personal.weightKg === "" || personal.weightKg == null ? "—" : personal.weightKg;
-  const safeAge = personal.age === "" || personal.age == null ? "—" : personal.age;
+  const { formatMessage, formatNumber, formatDate } = useI18n();
 
-  const safeBp = vitals.bloodPressure === "" || vitals.bloodPressure == null ? "—" : vitals.bloodPressure;
-  const safeHeartRate = vitals.heartRate === "" || vitals.heartRate == null ? "—" : vitals.heartRate;
-  const safeBmi = vitals.bmi === "" || vitals.bmi == null ? "—" : vitals.bmi;
+  const personalTitle = formatMessage({ id: "section.personal", defaultMessage: "Personal details" });
+  const vitalsTitle = formatMessage({ id: "section.vitals", defaultMessage: "Vitals" });
+  const aiTitle = formatMessage({ id: "section.ai", defaultMessage: "AI Summary" });
+  const medsTitle = formatMessage({ id: "section.meds", defaultMessage: "Medications" });
+  const notesTitle = formatMessage({ id: "section.notes", defaultMessage: "Symptoms & Notes" });
+  const nextTitle = formatMessage({ id: "section.next", defaultMessage: "Next Steps" });
 
-  const labsLine = buildLabsLine(labs, 5);
+  const editLabel = formatMessage({ id: "action.edit", defaultMessage: "Edit" });
+  const discussLabel = formatMessage({ id: "action.discuss", defaultMessage: "Discuss in chat" });
+  const recomputeLabel = formatMessage({ id: "action.recompute", defaultMessage: "Recompute risk" });
+  const addMedicationLabel = formatMessage({ id: "action.add_med", defaultMessage: "Add medication" });
+  const addNoteLabel = formatMessage({ id: "action.add_note", defaultMessage: "Add notes" });
+  const addNextLabel = formatMessage({ id: "action.add_next", defaultMessage: "Add next steps" });
+
+  const nameLabel = formatMessage({ id: "label.name", defaultMessage: "NAME" });
+  const sexLabel = formatMessage({ id: "label.sex", defaultMessage: "SEX" });
+  const dobLabel = formatMessage({ id: "label.dob", defaultMessage: "DOB" });
+  const ageLabel = formatMessage({ id: "label.age", defaultMessage: "Age" });
+  const bloodGroupLabel = formatMessage({ id: "label.blood_group", defaultMessage: "BLOOD GROUP" });
+  const heightLabel = formatMessage({ id: "label.height_cm", defaultMessage: "HEIGHT (cm)" });
+  const weightLabel = formatMessage({ id: "label.weight_kg", defaultMessage: "WEIGHT (kg)" });
+  const predisLabel = formatMessage({ id: "label.predispositions", defaultMessage: "PREDISPOSITIONS" });
+  const chronicLabel = formatMessage({ id: "label.chronic", defaultMessage: "CHRONIC CONDITIONS" });
+  const bpLabel = formatMessage({ id: "label.bp", defaultMessage: "BLOOD PRESSURE" });
+  const hrLabel = formatMessage({ id: "label.hr", defaultMessage: "HEART RATE" });
+  const bmiLabel = formatMessage({ id: "label.bmi", defaultMessage: "BMI" });
+
+  const emptyGeneric = formatMessage({ id: "empty.generic", defaultMessage: "No data available" });
+  const emptyMeds = formatMessage({ id: "empty.meds", defaultMessage: "No medications recorded yet." });
+  const dotSymbol = formatMessage({ id: "symbol.dot", defaultMessage: "•" });
+
+  const editSectionAria = useCallback(
+    (section: string) =>
+      formatMessage({ id: "action.edit_section", defaultMessage: "Edit {section}" }, { section }),
+    [formatMessage],
+  );
+
+  const missingValue = "—";
+
+  const toDisplay = useCallback(
+    (value: unknown, fallback: string, allowNumeric = true): string => {
+      if (value == null || value === "") return fallback;
+      if (typeof value === "number") {
+        return Number.isFinite(value) ? formatNumber(value) : fallback;
+      }
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) return fallback;
+        if (allowNumeric && /^-?[0-9]+(?:[.,][0-9]+)?$/.test(trimmed)) {
+          const normalized = Number(trimmed.replace(/,/g, ""));
+          if (Number.isFinite(normalized)) {
+            return formatNumber(normalized);
+          }
+        }
+        return trimmed;
+      }
+      return String(value);
+    },
+    [formatNumber],
+  );
+
+  const safeName = toDisplay(personal.name, emptyGeneric, false);
+  const safeSex = toDisplay(personal.sex, emptyGeneric, false);
+  const safeBloodGroup = toDisplay(personal.bloodGroup, emptyGeneric, false);
+  const safePredispositions = toDisplay(personal.predispositions, emptyGeneric, false);
+  const safeChronic = toDisplay(personal.chronicConditions, emptyGeneric, false);
+  const safeHeight = toDisplay(personal.heightCm, missingValue, true);
+  const safeWeight = toDisplay(personal.weightKg, missingValue, true);
+  const safeAge = toDisplay(personal.age, missingValue, true);
+
+  const safeBp = toDisplay(vitals.bloodPressure, missingValue, false);
+  const safeHeartRate = toDisplay(vitals.heartRate, missingValue, true);
+  const safeBmi = toDisplay(vitals.bmi, missingValue, true);
+
+  const formatDob = useCallback(
+    (value?: string | Date) => {
+      if (!value) return emptyGeneric;
+      const dt = new Date(value);
+      if (Number.isNaN(dt.getTime())) return emptyGeneric;
+      return formatDate(dt, { day: "2-digit", month: "2-digit", year: "numeric" });
+    },
+    [emptyGeneric, formatDate],
+  );
+
+  const formatMonthYear = useCallback(
+    (value?: string | number | Date) => {
+      if (!value) return "";
+      const dt = new Date(value);
+      if (Number.isNaN(dt.getTime())) return "";
+      return formatDate(dt, { month: "short", year: "numeric" });
+    },
+    [formatDate],
+  );
+
+  const labsLine = useMemo(() => {
+    if (!Array.isArray(labs) || labs.length === 0) return emptyGeneric;
+    const parts: string[] = [];
+    [...labs]
+      .sort((a, b) => new Date(b.collectedAt ?? 0).getTime() - new Date(a.collectedAt ?? 0).getTime())
+      .slice(0, 5)
+      .forEach(lab => {
+        const name = typeof lab.name === "string" ? lab.name.trim() : "";
+        const val = lab.value != null ? String(lab.value).trim() : "";
+        const unit = typeof lab.unit === "string" ? lab.unit.trim() : "";
+        const when = formatMonthYear(lab.collectedAt);
+        let piece = name;
+        if (val) piece += (piece ? " " : "") + val;
+        if (unit) piece += ` ${unit}`;
+        if (when) piece += ` (${when})`;
+        if (piece) parts.push(piece);
+      });
+    return parts.length ? parts.join(", ") : emptyGeneric;
+  }, [labs, emptyGeneric, formatMonthYear]);
 
   const medsCount = Array.isArray(medications) ? medications.length : 0;
   const notesCount = Array.isArray(notes) ? notes.length : 0;
   const nextStepsCount = Array.isArray(nextSteps) ? nextSteps.length : 0;
 
+  const hasSex = typeof personal.sex === "string" && personal.sex.trim().length > 0;
+  const hasBloodGroup = typeof personal.bloodGroup === "string" && personal.bloodGroup.trim().length > 0;
+
+  const medsCountText = formatMessage(
+    {
+      id: "meds.count",
+      defaultMessage: "{count, plural, =0 {No medications recorded yet.} one {# medication} other {# medications}}",
+    },
+    { count: medsCount },
+  );
+  const notesCountText = formatMessage(
+    {
+      id: "notes.count",
+      defaultMessage: "{count, plural, =0 {No data available} one {# note} other {# notes}}",
+    },
+    { count: notesCount },
+  );
+  const nextStepsCountText = formatMessage(
+    {
+      id: "next.count",
+      defaultMessage: "{count, plural, =0 {No data available} one {# step} other {# steps}}",
+    },
+    { count: nextStepsCount },
+  );
+
+  const summaryPatient = formatMessage(
+    { id: "summary.patient", defaultMessage: "Patient: {name} ({sex}, {age} y, {bg})" },
+    {
+      name: safeName,
+      sex: hasSex ? safeSex : missingValue,
+      age: safeAge,
+      bg: hasBloodGroup ? safeBloodGroup : missingValue,
+    },
+  );
+  const summaryChronic = formatMessage(
+    { id: "summary.chronic", defaultMessage: "Chronic conditions: {value}" },
+    { value: safeChronic },
+  );
+  const summaryPredispositions = formatMessage(
+    { id: "summary.predispositions", defaultMessage: "Predispositions: {value}" },
+    { value: safePredispositions },
+  );
+  const summaryMeds = formatMessage(
+    { id: "summary.active_meds", defaultMessage: "Active meds: {value}" },
+    { value: medsCountText },
+  );
+  const summaryLabs = formatMessage(
+    { id: "summary.recent_labs", defaultMessage: "Recent labs: {value}" },
+    { value: labsLine },
+  );
+  const summaryPrediction = formatMessage(
+    { id: "summary.prediction", defaultMessage: "AI Prediction: {value}" },
+    { value: emptyGeneric },
+  );
+  const summaryNotes = formatMessage(
+    { id: "summary.notes", defaultMessage: "Symptoms/Notes: {value}" },
+    { value: notesCountText },
+  );
+  const summaryNextSteps = formatMessage(
+    { id: "summary.next", defaultMessage: "Next Steps: {value}" },
+    { value: nextStepsCountText },
+  );
+
+  const disclaimerLine1 = formatMessage({ id: "disclaimer.line1", defaultMessage: "⚠️ AI support, not a medical diagnosis." });
+  const disclaimerLine2 = formatMessage({ id: "disclaimer.line2", defaultMessage: "Always consult a clinician." });
+
+  const medsEmptyText = medsCount > 0 ? "" : emptyMeds;
+  const notesEmptyText = notesCount > 0 ? "" : emptyGeneric;
+  const nextEmptyText = nextStepsCount > 0 ? "" : emptyGeneric;
+
+  const personalAria = onEditPersonal ? editSectionAria(personalTitle) : undefined;
+  const vitalsAria = onEditVitals ? editSectionAria(vitalsTitle) : undefined;
+
   return (
     <div className="space-y-4">
       <Section
-        title="Personal details"
-        actionLabel={onEditPersonal ? "Edit" : undefined}
+        title={personalTitle}
+        actionLabel={onEditPersonal ? editLabel : undefined}
         onAction={onEditPersonal}
-        actionAriaLabel="Edit personal details"
+        actionAriaLabel={personalAria}
         primary
       >
-        <KV label="NAME" value={safeName} />
-        <KV label="SEX" value={safeSex} />
+        <KV label={nameLabel} value={safeName} />
+        <KV label={sexLabel} value={safeSex} />
         <KV
-          label="DOB"
+          label={dobLabel}
           value={
             <span>
-              {fmtDOB(personal.dob)}
-              <span className="mx-1">•</span>
-              Age: {safeAge}
+              {formatDob(personal.dob)}
+              <span className="mx-1">{dotSymbol}</span>
+              {ageLabel}: {safeAge}
             </span>
           }
         />
-        <KV label="BLOOD GROUP" value={safeBloodGroup} />
-        <KV label="HEIGHT (cm)" value={safeHeight} />
-        <KV label="WEIGHT (kg)" value={safeWeight} />
+        <KV label={bloodGroupLabel} value={safeBloodGroup} />
+        <KV label={heightLabel} value={safeHeight} />
+        <KV label={weightLabel} value={safeWeight} />
         <Divider />
-        <KV label="PREDISPOSITIONS" value={safePredispositions} />
-        <KV label="CHRONIC CONDITIONS" value={safeChronic} />
+        <KV label={predisLabel} value={safePredispositions} />
+        <KV label={chronicLabel} value={safeChronic} />
       </Section>
 
       <Section
-        title="Vitals"
-        actionLabel={onEditVitals ? "Edit" : undefined}
+        title={vitalsTitle}
+        actionLabel={onEditVitals ? editLabel : undefined}
         onAction={onEditVitals}
-        actionAriaLabel="Edit vitals"
+        actionAriaLabel={vitalsAria}
         primary
       >
-        <Row label="BLOOD PRESSURE" value={<span className="text-slate-400">{safeBp}</span>} />
-        <Row label="HEART RATE" value={<span className="font-semibold">{safeHeartRate}</span>} />
-        <Row label="BMI" value={<span className="font-semibold">{safeBmi}</span>} />
+        <Row label={bpLabel} value={<span className="text-slate-400">{safeBp}</span>} />
+        <Row label={hrLabel} value={<span className="font-semibold">{safeHeartRate}</span>} />
+        <Row label={bmiLabel} value={<span className="font-semibold">{safeBmi}</span>} />
       </Section>
 
-      <Section title="AI Summary">
+      <Section title={aiTitle}>
         <p className="text-[13px] leading-5 text-slate-600 dark:text-slate-300">
-          Patient: {safeName} ({safeSex === NO_DATA ? "—" : safeSex}, {safeAge} y, {safeBloodGroup === NO_DATA ? "—" : safeBloodGroup})
-          <br />Chronic conditions: {safeChronic}
-          <br />Predispositions: {safePredispositions}
-          <br />Active meds: {medsCount > 0 ? `${medsCount} item(s)` : NO_DATA}
-          <br />Recent labs: {labsLine}
-          <br />AI Prediction: {NO_DATA}
-          <br />Symptoms/Notes: {notesCount > 0 ? `${notesCount} item(s)` : NO_DATA}
-          <br />Next Steps: {nextStepsCount > 0 ? `${nextStepsCount} item(s)` : NO_DATA}
+          {summaryPatient}
+          <br />
+          {summaryChronic}
+          <br />
+          {summaryPredispositions}
+          <br />
+          {summaryMeds}
+          <br />
+          {summaryLabs}
+          <br />
+          {summaryPrediction}
+          <br />
+          {summaryNotes}
+          <br />
+          {summaryNextSteps}
         </p>
 
         <div className="mt-3 flex gap-2">
           {onDiscussAI ? (
-            <Button
-              variant="outline"
-              aria-label="Discuss AI summary in chat"
-              onClick={onDiscussAI}
-            >
-              Discuss in chat
+            <Button variant="outline" aria-label={discussLabel} onClick={onDiscussAI}>
+              {discussLabel}
             </Button>
           ) : null}
           {onRecomputeRisk ? (
-            <Button
-              primary
-              aria-label="Recompute risk"
-              onClick={onRecomputeRisk}
-            >
-              Recompute risk
+            <Button primary aria-label={recomputeLabel} onClick={onRecomputeRisk}>
+              {recomputeLabel}
             </Button>
           ) : null}
         </div>
 
         <div className="mt-4 rounded-xl border border-amber-300/60 bg-amber-50 px-3 py-3 text-[13px] dark:border-amber-800 dark:bg-amber-900/20">
-          <div className="font-medium">⚠️ AI support, not a medical diagnosis.</div>
-          <div>Always consult a clinician.</div>
+          <div className="font-medium">{disclaimerLine1}</div>
+          <div>{disclaimerLine2}</div>
         </div>
       </Section>
 
-      <Section title="Medications">
-        <Empty text={medsCount > 0 ? "" : "No medications recorded yet."} />
+      <Section title={medsTitle}>
+        <Empty text={medsEmptyText} />
         {onAddMedication ? (
           <div className="pt-2">
-            <Button variant="outline" onClick={onAddMedication} aria-label="Add medication">
-              Add medication
+            <Button variant="outline" onClick={onAddMedication} aria-label={addMedicationLabel}>
+              {addMedicationLabel}
             </Button>
           </div>
         ) : null}
       </Section>
 
-      <Section title="Symptoms & Notes">
-        <Empty text={notesCount > 0 ? "" : NO_DATA} />
+      <Section title={notesTitle}>
+        <Empty text={notesEmptyText} />
         {onAddNote ? (
           <div className="pt-2">
-            <Button variant="outline" onClick={onAddNote} aria-label="Add notes">
-              Add notes
+            <Button variant="outline" onClick={onAddNote} aria-label={addNoteLabel}>
+              {addNoteLabel}
             </Button>
           </div>
         ) : null}
       </Section>
 
-      <Section title="Next Steps">
-        <Empty text={nextStepsCount > 0 ? "" : NO_DATA} />
+      <Section title={nextTitle}>
+        <Empty text={nextEmptyText} />
         {onAddNextStep ? (
           <div className="pt-2">
-            <Button variant="outline" onClick={onAddNextStep} aria-label="Add next steps">
-              Add next steps
+            <Button variant="outline" onClick={onAddNextStep} aria-label={addNextLabel}>
+              {addNextLabel}
             </Button>
           </div>
         ) : null}
       </Section>
     </div>
   );
-}
-
-function fmtDOB(d?: string | Date) {
-  if (!d) return NO_DATA;
-  const dt = new Date(d);
-  return Number.isNaN(dt.getTime())
-    ? NO_DATA
-    : new Intl.DateTimeFormat(undefined, {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      }).format(dt);
-}
-
-function fmtMonthYear(d?: string | number | Date) {
-  if (!d) return "";
-  const dt = new Date(d);
-  return Number.isNaN(dt.getTime()) ? "" : dt.toLocaleString(undefined, { month: "short", year: "numeric" });
-}
-
-function buildLabsLine(list?: LabItem[], limit = 5): string {
-  if (!Array.isArray(list) || list.length === 0) return NO_DATA;
-  const parts: string[] = [];
-  [...list]
-    .sort((a, b) => new Date(b.collectedAt ?? 0).getTime() - new Date(a.collectedAt ?? 0).getTime())
-    .slice(0, limit)
-    .forEach(lab => {
-      const name = lab.name?.trim();
-      const val = (lab.value ?? "").toString().trim();
-      const unit = lab.unit?.trim();
-      const when = fmtMonthYear(lab.collectedAt);
-      let piece = name || "";
-      if (val) piece += (piece ? " " : "") + val;
-      if (unit) piece += ` ${unit}`;
-      if (when) piece += ` (${when})`;
-      if (piece) parts.push(piece);
-    });
-  return parts.length ? parts.join(", ") : NO_DATA;
 }
 
 type SectionProps = {

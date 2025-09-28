@@ -4,7 +4,7 @@ export type ViewCode = "PA" | "Lateral" | "Oblique";
 
 export interface ViewDetectImage {
   name: string;
-  buffer: Buffer;
+  buffer: Buffer | ArrayBuffer | ArrayBufferView;
   mime: string;
   metadata?: Record<string, any> | null;
 }
@@ -59,8 +59,21 @@ function classifyView(name: string, metadata?: Record<string, any> | null): View
   return viewFromText(name) ?? "PA";
 }
 
-function hashBuffer(buffer: Buffer) {
-  return crypto.createHash("sha1").update(buffer).digest("hex");
+function toBinaryLike(buffer: Buffer | ArrayBuffer | ArrayBufferView): crypto.BinaryLike {
+  if (typeof Buffer !== "undefined" && Buffer.isBuffer(buffer)) {
+    return buffer;
+  }
+  if (buffer instanceof ArrayBuffer) {
+    return new Uint8Array(buffer);
+  }
+  if (ArrayBuffer.isView(buffer)) {
+    return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  }
+  return buffer as crypto.BinaryLike;
+}
+
+function hashBuffer(buffer: Buffer | ArrayBuffer | ArrayBufferView) {
+  return crypto.createHash("sha1").update(toBinaryLike(buffer)).digest("hex");
 }
 
 export function detectViews<T extends ViewDetectImage>(images: T[]): ViewDetectionResult<T> {

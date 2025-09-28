@@ -14,6 +14,7 @@
   "section.notes": "Sintomi e note",
   "section.next": "Prossimi passi",
   "action.edit": "Modifica",
+  "action.edit_section": "Modifica {section}",
   "action.discuss": "Discuti in chat",
   "action.recompute": "Ricalcola rischio",
   "action.add_med": "Aggiungi farmaco",
@@ -22,6 +23,7 @@
   "label.name": "NOME",
   "label.sex": "SESSO",
   "label.dob": "DATA DI NASC.",
+  "label.age": "ETÀ",
   "label.blood_group": "GRUPPO SANGUIGNO",
   "label.height_cm": "ALTEZZA (cm)",
   "label.weight_kg": "PESO (kg)",
@@ -45,6 +47,7 @@
   "symbol.dot": "•",
   "meds.count": "{count, plural, =0 {Nessun farmaco registrato.} one {# farmaco} other {# farmaci}}",
   "notes.count": "{count, plural, =0 {Nessun dato disponibile} one {# nota} other {# note}}",
+  "next.count": "{count, plural, =0 {Nessun dato disponibile} one {# passo} other {# passi}}",
   "loader.hint": "Recupero sicuro dei tuoi dati…",
   "loader.label.profile": "Profilo medico"
 }

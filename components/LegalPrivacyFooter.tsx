@@ -3,6 +3,8 @@
 import type { CSSProperties } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Scale } from "lucide-react";
+import { useI18n } from "@/i18n/I18nProvider";
+import { LanguagePicker } from "@/components/i18n/LanguagePicker";
 
 type CookiePrefs = {
   essential: true;
@@ -126,6 +128,7 @@ function getStoredPrefs(): CookiePrefs {
 }
 
 export default function LegalPrivacyFooter() {
+  const { formatMessage } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [consentValue, setConsentValue] = useState<"true" | "false" | null>(null);
   const [agreeChecked, setAgreeChecked] = useState(false);
@@ -308,6 +311,8 @@ export default function LegalPrivacyFooter() {
     setIsOpen(true);
   };
 
+  const languageLabel = formatMessage({ id: "language.login_footer", defaultMessage: "Language" });
+
   const cookieToggles = useMemo(
     () =>
       (Object.keys(COOKIE_DESCRIPTIONS) as ToggleableCookie[]).map(key => ({
@@ -341,10 +346,10 @@ export default function LegalPrivacyFooter() {
         ref={footerRef}
         className="mobile-footer flex-shrink-0 border-t border-black/10 bg-white/80 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/60"
       >
-        <div className="mobile-footer-inner mx-auto flex w-full max-w-screen-2xl items-center justify-center gap-1.5 px-6 text-center text-[11px] text-slate-600 dark:text-slate-300 md:gap-3 md:py-1.5 md:text-xs">
+        <div className="mobile-footer-inner mx-auto flex w-full max-w-screen-2xl items-center justify-between gap-1.5 px-6 text-center text-[11px] text-slate-600 dark:text-slate-300 md:gap-3 md:py-1.5 md:text-xs">
           <div
             ref={marqueeContainerRef}
-            className={`mobile-footer-message${marqueeVars ? " mobile-footer-marquee-active" : ""}`}
+            className={`mobile-footer-message flex-1${marqueeVars ? " mobile-footer-marquee-active" : ""}`}
             style={
               marqueeVars
                 ? ({
@@ -364,6 +369,13 @@ export default function LegalPrivacyFooter() {
                 </span>
               ) : null}
             </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="hidden md:inline text-[11px] font-medium">{languageLabel}</span>
+            <LanguagePicker
+              ariaLabel={languageLabel}
+              className="h-8 min-w-[110px] rounded-md border border-slate-300 bg-white px-2 text-[11px] leading-tight text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:focus-visible:ring-offset-slate-900"
+            />
           </div>
           <button
             type="button"

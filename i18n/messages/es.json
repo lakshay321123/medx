@@ -14,6 +14,7 @@
   "section.notes": "Síntomas y notas",
   "section.next": "Próximos pasos",
   "action.edit": "Editar",
+  "action.edit_section": "Editar {section}",
   "action.discuss": "Discutir en el chat",
   "action.recompute": "Recalcular riesgo",
   "action.add_med": "Agregar medicamento",
@@ -22,6 +23,7 @@
   "label.name": "NOMBRE",
   "label.sex": "SEXO",
   "label.dob": "FECHA DE NAC.",
+  "label.age": "EDAD",
   "label.blood_group": "GRUPO SANGUÍNEO",
   "label.height_cm": "ESTATURA (cm)",
   "label.weight_kg": "PESO (kg)",
@@ -45,6 +47,7 @@
   "symbol.dot": "•",
   "meds.count": "{count, plural, =0 {Aún no se registraron medicamentos.} one {# medicamento} other {# medicamentos}}",
   "notes.count": "{count, plural, =0 {No hay datos disponibles} one {# nota} other {# notas}}",
+  "next.count": "{count, plural, =0 {No hay datos disponibles} one {# paso} other {# pasos}}",
   "loader.hint": "Obteniendo tus datos de forma segura…",
   "loader.label.profile": "Perfil médico"
 }
