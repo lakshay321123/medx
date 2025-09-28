@@ -12,7 +12,9 @@ import {
   User,
   Home,
 } from "lucide-react";
-import cn from "clsx";
+function cn(...inputs: (string | false | null | undefined)[]) {
+  return inputs.filter(Boolean).join(" ");
+}
 import GeneralPanel from "./panels/General";
 import NotificationsPanel from "./panels/Notifications";
 import PersonalizationPanel from "./panels/Personalization";
