@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import PreferencesModal from "@/components/settings/PreferencesModal";
 import { useRouter } from "next/navigation";
 import ChatPane from "@/components/panels/ChatPane";
@@ -10,15 +10,36 @@ import { ResearchFiltersProvider } from "@/store/researchFilters";
 import AiDocPane from "@/components/panels/AiDocPane";
 import DirectoryPane from "@/components/panels/DirectoryPane";
 
-type Search = { panel?: string };
+type Search = Record<string, string | string[] | undefined>;
+
+const getFirst = (value: string | string[] | undefined) =>
+  Array.isArray(value) ? value[0] : value;
 
 export default function Page({ searchParams }: { searchParams: Search }) {
-  const panel = searchParams.panel?.toLowerCase() || "chat";
+  const panelValue = getFirst(searchParams.panel);
+  const panel = typeof panelValue === "string" ? panelValue.toLowerCase() : "chat";
   const showPrefs = panel === "settings" || panel === "preferences";
-  const defaultTab = (searchParams as any).tab || "General";
+  const defaultTab = getFirst(searchParams.tab) || "General";
   const mainPanel = showPrefs ? "chat" : panel;
   const router = useRouter();
   const chatInputRef = useRef<HTMLInputElement>(null);
+
+  const makeParams = useCallback(
+    (nextPanel: string) => {
+      const params = new URLSearchParams();
+      Object.entries(searchParams).forEach(([key, value]) => {
+        if (key === "panel" || key === "tab") return;
+        if (typeof value === "string") {
+          params.append(key, value);
+        } else if (Array.isArray(value)) {
+          value.forEach((entry) => params.append(key, entry));
+        }
+      });
+      params.set("panel", nextPanel);
+      return params;
+    },
+    [searchParams]
+  );
 
   useEffect(() => {
     const handler = () => chatInputRef.current?.focus();
@@ -59,7 +80,7 @@ export default function Page({ searchParams }: { searchParams: Search }) {
       <PreferencesModal
         open={showPrefs}
         defaultTab={defaultTab as any}
-        onClose={() => router.push("/?panel=chat")}
+        onClose={() => router.push(`/?${makeParams("chat").toString()}`)}
       />
     </div>
   );

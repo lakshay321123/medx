@@ -1,7 +1,7 @@
 "use client";
 import { Search, Settings } from "lucide-react";
 import Tabs from "./sidebar/Tabs";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createNewThreadId, listThreads, Thread } from "@/lib/chatThreads";
 import ThreadKebab from "@/components/chat/ThreadKebab";
@@ -9,6 +9,7 @@ import { useMobileUiStore } from "@/lib/state/mobileUiStore";
 
 export default function Sidebar() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [threads, setThreads] = useState<Thread[]>([]);
   const [q, setQ] = useState("");
   const closeSidebar = useMobileUiStore((state) => state.closeSidebar);
@@ -96,7 +97,10 @@ export default function Sidebar() {
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          router.push("/?panel=settings");
+          const params = new URLSearchParams(searchParams?.toString() ?? "");
+          params.set("panel", "settings");
+          params.delete("tab");
+          router.push(`/?${params.toString()}`);
         }}
         className="fixed bottom-3 left-3 z-20 flex items-center gap-1.5 rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm shadow-sm hover:bg-white/90 dark:border-white/10 dark:bg-slate-900/70 dark:hover:bg-slate-900"
       >
