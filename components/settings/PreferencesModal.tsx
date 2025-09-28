@@ -21,6 +21,8 @@ import SchedulesPanel from "./panels/Schedules";
 import DataControlsPanel from "./panels/DataControls";
 import SecurityPanel from "./panels/Security";
 import AccountPanel from "./panels/Account";
+import { useSettingsStore } from "@/lib/settings/store";
+import { t } from "@/lib/i18n/dictionaries";
 
 type TabKey =
   | "General"
@@ -55,6 +57,7 @@ export default function PreferencesModal({
   const [tab, setTab] = useState<TabKey>(defaultTab);
   const cardRef = useRef<HTMLDivElement>(null);
   const [ignoreFirst, setIgnoreFirst] = useState(false);
+  const lang = useSettingsStore((state) => state.lang);
 
   useEffect(() => {
     if (open) setTab(defaultTab);
@@ -189,7 +192,7 @@ export default function PreferencesModal({
                   )}
                 >
                   <Icon size={14} className="opacity-70" />
-                  <span>{label}</span>
+                  <span>{t(lang, label)}</span>
                 </button>
               ))}
             </nav>
@@ -197,7 +200,7 @@ export default function PreferencesModal({
 
           <section className="flex min-w-0 flex-1 flex-col">
             <header className="border-b border-black/5 px-5 py-3 text-[15px] font-semibold dark:border-white/10">
-              {tab}
+              {t(lang, tab)}
             </header>
             <div className="flex-1 overflow-auto divide-y divide-black/5 dark:divide-white/10">
               {Panel}

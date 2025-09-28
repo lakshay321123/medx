@@ -52,6 +52,8 @@ import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
 import { exportMessageToPng } from "@/lib/share/snapshot";
 import { trackAnalyticsEvent } from "@/lib/analytics";
 import { pushToast } from "@/lib/ui/toast";
+import { useSettingsStore } from "@/lib/settings/store";
+import { t } from "@/lib/i18n/dictionaries";
 import { useFeedback } from "@/hooks/useFeedback";
 import { usePendingAssistantStages } from "@/hooks/usePendingAssistantStages";
 import type { PendingAssistantState } from "@/hooks/usePendingAssistantStages";
@@ -89,6 +91,12 @@ const formatTrendDate = (iso?: string) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
 };
+
+function useQuotaGuard() {
+  const state = useSettingsStore.getState();
+  state.resetWindowIfNeeded();
+  return state.plan === "pro" || state.promptsUsed < 10;
+}
 
 const trendLineFor = (t: any) => {
   const unit = t?.unit ? ` ${t.unit}` : "";
@@ -2091,6 +2099,22 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   async function send(text: string, researchMode: boolean, opts: SendOpts = {}) {
     if (!text.trim() || busy) return;
+    if (!useQuotaGuard()) {
+      const settings = useSettingsStore.getState();
+      pushToast({
+        title: t(settings.lang, "Upgrade to Pro"),
+        description: t(settings.lang, "Includes access to everything"),
+        variant: "destructive",
+      });
+      const params = new URLSearchParams(sp.toString());
+      params.set("panel", "settings");
+      params.set("tab", "Account");
+      if (threadId) {
+        params.set("threadId", threadId);
+      }
+      router.push(`/?${params.toString()}`);
+      return;
+    }
     setBusy(true);
     setThinkingStartedAt(Date.now());
 
@@ -2625,12 +2649,15 @@ ${systemCommon}` + baseSys;
       }
 
       const url = `/api/chat/stream${researchMode ? '?research=1' : ''}`;
+      const settings = useSettingsStore.getState();
+      const langPref = settings.lang;
       const res = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-conversation-id': conversationId,
-          'x-new-chat': messages.length === 0 ? 'true' : 'false'
+          'x-new-chat': messages.length === 0 ? 'true' : 'false',
+          'x-lang': langPref,
         },
         body: JSON.stringify({
           mode: mode === 'doctor' ? 'doctor' : 'patient',
@@ -2638,7 +2665,8 @@ ${systemCommon}` + baseSys;
           threadId,
           context,
           clientRequestId,
-          research: researchMode
+          research: researchMode,
+          lang: langPref,
         }),
         signal: ctrl.signal
       });
@@ -2650,6 +2678,7 @@ ${systemCommon}` + baseSys;
         return;
       }
       if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
+      settings.incUsage();
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();

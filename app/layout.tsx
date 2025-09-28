@@ -14,6 +14,7 @@ import UndoToast from "@/components/memory/UndoToast";
 import AppToastHost from "@/components/ui/AppToastHost";
 import dynamic from "next/dynamic";
 import Script from "next/script";
+import I18nProvider from "@/components/providers/I18nProvider";
 
 // Mobile-only UI (loaded client-side)
 const MobileHeader = dynamic(() => import("@/components/mobile/MobileHeader"), { ssr: false });
@@ -39,8 +40,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </noscript>
       </head>
       <body className="font-loading h-full bg-slate-100 text-slate-900 dark:bg-transparent dark:text-slate-100 font-sans antialiased">
-        <Script id="ensure-proxima-first" strategy="beforeInteractive">
-          {`
+        <I18nProvider>
+          <Script id="ensure-proxima-first" strategy="beforeInteractive">
+            {`
             (function() {
               var className = "font-loading";
               var removeClass = function() {
@@ -73,12 +75,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               }
             })();
           `}
-        </Script>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <CountryProvider>
-            <ContextProvider>
-              <TopicProvider>
-                <div className="flex h-full min-h-screen flex-col medx-gradient">
+          </Script>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            <CountryProvider>
+              <ContextProvider>
+                <TopicProvider>
+                  <div className="flex h-full min-h-screen flex-col medx-gradient">
                   {/* Desktop Header */}
                   <Suspense fallback={<div className="h-[62px]" />}>
                     <div className="hidden md:block">
@@ -118,11 +120,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   {/* Mobile overlays/sheets (client side) */}
                   <MobileSidebarOverlay />
                   <MobileActionsSheet />
-                </div>
-              </TopicProvider>
-            </ContextProvider>
-          </CountryProvider>
-        </ThemeProvider>
+                  </div>
+                </TopicProvider>
+              </ContextProvider>
+            </CountryProvider>
+          </ThemeProvider>
+        </I18nProvider>
       </body>
     </html>
   );

@@ -10,8 +10,18 @@ import { LinkBadge } from "@/components/SafeLink";
 import { AssistantPendingMessage } from "@/components/chat/AssistantPendingMessage";
 import { usePendingAssistantStages } from "@/hooks/usePendingAssistantStages";
 import type { AppMode } from "@/lib/welcomeMessages";
+import { useRouter } from "next/navigation";
+import { pushToast } from "@/lib/ui/toast";
+import { useSettingsStore } from "@/lib/settings/store";
+import { t } from "@/lib/i18n/dictionaries";
 
 const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== "0";
+
+function useQuotaGuard() {
+  const state = useSettingsStore.getState();
+  state.resetWindowIfNeeded();
+  return state.plan === "pro" || state.promptsUsed < 10;
+}
 
 function MessageRow({ m }: { m: { id: string; role: string; content: string } }) {
   return (
@@ -32,6 +42,7 @@ export function ChatWindow() {
   const [pendingMessage, setPendingMessage] = useState<{ id: string; content: string } | null>(null);
   const [modeChoice, setModeChoice] = useState<AppMode>('wellness');
   const hasScrollableContent = messages.length > 0 || results.length > 0 || !!pendingMessage;
+  const router = useRouter();
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
@@ -128,6 +139,24 @@ export function ChatWindow() {
   });
 
   const handleSend = async (content: string, locationToken?: string) => {
+    if (!useQuotaGuard()) {
+      const settings = useSettingsStore.getState();
+      pushToast({
+        title: t(settings.lang, "Upgrade to Pro"),
+        description: t(settings.lang, "Includes access to everything"),
+        variant: "destructive",
+      });
+      const params = new URLSearchParams(window.location.search);
+      params.set("panel", "settings");
+      params.set("tab", "Account");
+      if (currentId) {
+        params.set("threadId", currentId);
+      }
+      router.push(`/?${params.toString()}`);
+      return;
+    }
+    const settings = useSettingsStore.getState();
+    const langPref = settings.lang;
     // after sending user message, persist thread if needed
     await persistIfTemp();
     const research = getResearchFlagFromUrl();
@@ -141,8 +170,8 @@ export function ChatWindow() {
       if (locationToken) {
         const res = await fetch("/api/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: content, locationToken, research }),
+          headers: { "Content-Type": "application/json", "x-lang": langPref },
+          body: JSON.stringify({ query: content, locationToken, research, lang: langPref }),
         });
         const data = await res.json();
         setResults(data.results || []);
@@ -160,6 +189,7 @@ export function ChatWindow() {
         enqueuePendingAssistant(pendingId, reply);
         finishPendingAssistant(pendingId, reply);
       }
+      settings.incUsage();
     } catch (error) {
       console.error(error);
       const fallback = "We couldn't complete that. Please try again.";

@@ -80,6 +80,17 @@ function contextStringFrom(messages: ChatCompletionMessageParam[]): string {
 
 export async function POST(req: Request) {
   const body = await req.json();
+  const headers = req.headers;
+  const lang = (headers.get("x-lang") || body.lang || "en") as string;
+
+  const systemHint = {
+    en: "Respond in English.",
+    hi: "Respond in Hindi.",
+    ar: "Respond in Arabic.",
+    it: "Respond in Italian.",
+    zh: "Respond in Chinese (Simplified).",
+    es: "Respond in Spanish.",
+  }[lang] || "Respond in English.";
   const { query, locationToken } = body;
   if (query && /near me/i.test(query) && locationToken) {
     const results = await searchNearby(locationToken, query);
@@ -94,7 +105,6 @@ export async function POST(req: Request) {
     researchOn = true;
   }
 
-  const headers = req.headers;
   let conversationId = headers.get("x-conversation-id");
   let isNewChat = headers.get("x-new-chat") === "true";
   if (!conversationId) {
@@ -130,16 +140,17 @@ export async function POST(req: Request) {
     const prompt = mode === "doctor"
       ? singleTrialClinicianPrompt(trial)
       : singleTrialPatientPrompt(trial);
-    const reply = await callGroq([
-      {
-        role: "system",
-        content:
-          mode === "doctor"
-            ? "You are a concise clinical evidence summarizer for clinicians."
-            : "You explain clinical trials in plain language for laypeople.",
-      },
-      { role: "user", content: prompt },
-    ], { temperature: 0.25, max_tokens: 1200 });
+      const reply = await callGroq([
+        { role: "system", content: systemHint },
+        {
+          role: "system",
+          content:
+            mode === "doctor"
+              ? "You are a concise clinical evidence summarizer for clinicians."
+              : "You explain clinical trials in plain language for laypeople.",
+        },
+        { role: "user", content: prompt },
+      ], { temperature: 0.25, max_tokens: 1200 });
     return respond({ ok: true, text: reply });
   }
 
@@ -190,6 +201,7 @@ export async function POST(req: Request) {
           : `Summarize these trials in plain English for a patient. Explain what each is testing, status, and where. Keep it clear and short.\n\n${list}`;
 
       const reply = await callGroq([
+        { role: "system", content: systemHint },
         {
           role: "system",
           content:
@@ -213,6 +225,7 @@ export async function POST(req: Request) {
     const patient = await buildPatientSnapshot(thread_id);
     const systemPrompt = DOCTOR_JSON_SYSTEM;
     const msg: ChatCompletionMessageParam[] = [
+      { role: "system", content: systemHint },
       { role: "system", content: systemPrompt },
       ...(incomingMessages || []),
     ];
@@ -336,6 +349,7 @@ export async function POST(req: Request) {
 
   // 6) Groq call
   const messages: ChatCompletionMessageParam[] = [
+    { role: "system", content: systemHint },
     { role: "system", content: fullSystem },
     ...(sourceBlock ? [{ role: "system", content: sourceBlock }] : []),
     ...recent.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
