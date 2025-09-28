@@ -36,7 +36,7 @@ export default function ThreadKebab({ id, title, onRenamed, onDeleted }: {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-1 w-44 rounded-md border bg-white dark:bg-slate-900 dark:border-slate-700 shadow-lg z-20">
+        <div className="absolute right-0 mt-1 w-44 rounded-md border bg-white dark:bg-slate-900 dark:border-slate-700 shadow-lg z-50">
           <button
             className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
             onClick={() => { setAskRename(true); setOpen(false); }}
