@@ -95,7 +95,9 @@ export default function Sidebar() {
       <div className="mt-auto"></div>
       <button
         type="button"
-        onClick={() => {
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
           closeSidebar();
           router.push("?panel=settings");
         }}

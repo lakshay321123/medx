@@ -55,9 +55,17 @@ export default function PreferencesModal({
   onClose: () => void;
 }) {
   const [tab, setTab] = useState<TabKey>(defaultTab);
+  const [ignoreFirst, setIgnoreFirst] = useState(false);
   useEffect(() => {
     if (open) setTab(defaultTab);
   }, [open, defaultTab]);
+
+  useEffect(() => {
+    if (!open) return;
+    setIgnoreFirst(true);
+    const id = requestAnimationFrame(() => setIgnoreFirst(false));
+    return () => cancelAnimationFrame(id);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -93,7 +101,12 @@ export default function PreferencesModal({
 
   return (
     <div className="fixed inset-0 z-[100]">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div
+        className={cn("absolute inset-0 bg-black/40", ignoreFirst && "pointer-events-none")}
+        onMouseDown={(e) => {
+          if (!ignoreFirst && e.target === e.currentTarget) onClose();
+        }}
+      />
       <div
         role="dialog"
         aria-modal="true"
