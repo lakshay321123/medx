@@ -8,7 +8,7 @@ import SettingsPane from "@/components/panels/SettingsPane";
 import { ResearchFiltersProvider } from "@/store/researchFilters";
 import AiDocPane from "@/components/panels/AiDocPane";
 import DirectoryPane from "@/components/panels/DirectoryPane";
-import PreferencesModal from "@/components/settings/PreferencesModal";
+import PreferencesModal, { resolveTabKey } from "@/components/settings/PreferencesModal";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type Search = { panel?: string; tab?: string };
@@ -18,7 +18,7 @@ export default function Page({ searchParams }: { searchParams: Search }) {
   const params = useSearchParams();
   const panel = searchParams.panel?.toLowerCase() || "chat";
   const showPrefs = panel === "settings" || panel === "preferences";
-  const defaultTab = searchParams.tab ?? "General";
+  const defaultTab = resolveTabKey(searchParams.tab);
   const mainPanel = showPrefs ? "chat" : panel;
   const chatInputRef = useRef<HTMLInputElement>(null);
   const handleClosePreferences = () => {
@@ -68,7 +68,7 @@ export default function Page({ searchParams }: { searchParams: Search }) {
       )}
       <PreferencesModal
         open={showPrefs}
-        defaultTab={defaultTab as any}
+        defaultTab={defaultTab}
         onClose={handleClosePreferences}
       />
     </div>

@@ -45,20 +45,39 @@ const TABS: { key: TabKey; label: string; icon: any }[] = [
   { key: "Account", label: "Account", icon: User },
 ];
 
+const TAB_LOOKUP = TABS.reduce<Record<string, TabKey>>((acc, tab) => {
+  const variants = [
+    tab.key,
+    tab.label,
+    tab.key.replace(/\s+/g, "-"),
+    tab.label.replace(/\s+/g, "-"),
+  ];
+  variants.forEach((variant) => {
+    acc[variant.toLowerCase()] = tab.key;
+  });
+  return acc;
+}, {});
+
+export function resolveTabKey(value?: string | null): TabKey {
+  if (!value) return "General";
+  return TAB_LOOKUP[value.toLowerCase()] ?? "General";
+}
+
 export default function PreferencesModal({
   open,
   defaultTab = "General",
   onClose,
 }: {
   open: boolean;
-  defaultTab?: TabKey;
+  defaultTab?: string | null;
   onClose: () => void;
 }) {
-  const [tab, setTab] = useState<TabKey>(defaultTab);
+  const normalizedDefaultTab = resolveTabKey(defaultTab);
+  const [tab, setTab] = useState<TabKey>(normalizedDefaultTab);
   const [ignoreFirst, setIgnoreFirst] = useState(false);
   useEffect(() => {
-    if (open) setTab(defaultTab);
-  }, [open, defaultTab]);
+    if (open) setTab(normalizedDefaultTab);
+  }, [open, normalizedDefaultTab]);
 
   useEffect(() => {
     if (!open) return;
