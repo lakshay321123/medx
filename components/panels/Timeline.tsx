@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useTimeline } from "@/lib/hooks/useAppData";
 import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
@@ -360,6 +360,14 @@ export default function Timeline(){
           <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setOpen(false)} />
           <aside className="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-[640px] bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-2xl ring-1 ring-black/5 overflow-y-auto">
             <header className="sticky top-0 bg-white/90 dark:bg-zinc-900/90 backdrop-blur border-b border-zinc-200/70 dark:border-zinc-800/70 px-4 py-3 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="sm:hidden -ml-2 mr-1 p-2 rounded-md hover:bg-slate-100 dark:hover:bg-gray-800"
+                aria-label="Close panel"
+              >
+                <X size={16} />
+              </button>
               <h3 className="font-semibold truncate flex items-center gap-2">
                 <span>{displayTitle}</span>
                 {chipLabel && (
@@ -387,7 +395,7 @@ export default function Timeline(){
                 >
                   <Trash2 size={16} />
                 </button>
-                <button onClick={() => setOpen(false)} className="text-xs px-2 py-1 rounded-md border">Close</button>
+                <button onClick={() => setOpen(false)} className="hidden sm:inline-flex text-xs px-2 py-1 rounded-md border">Close</button>
               </div>
             </header>
             <div className="px-5 py-4">
