@@ -27,6 +27,12 @@ const DICT: Record<string, Record<string, string>> = {
       "Choose your preferred conversational language.",
     "Preview and select the voice used for spoken responses.":
       "Preview and select the voice used for spoken responses.",
+    "We use cookies to improve your experience. See our":
+      "We use cookies to improve your experience. See our",
+    "Cookie Policy": "Cookie Policy",
+    "Accept all": "Accept all",
+    "Reject non-essential": "Reject non-essential",
+    Manage: "Manage",
     "New chat": "New chat",
     Search: "Search",
     Directory: "Directory",
@@ -106,6 +112,12 @@ const DICT: Record<string, Record<string, string>> = {
       "अपनी पसंदीदा भाषा चुनें।",
     "Preview and select the voice used for spoken responses.":
       "आवाज़ का पूर्वावलोकन और चयन करें।",
+    "We use cookies to improve your experience. See our":
+      "हम आपके अनुभव को बेहतर बनाने के लिए कुकीज़ का उपयोग करते हैं। हमारा",
+    "Cookie Policy": "कुकी नीति",
+    "Accept all": "सभी स्वीकार करें",
+    "Reject non-essential": "गैर-आवश्यक अस्वीकार करें",
+    Manage: "प्रबंधित करें",
     "New chat": "नई चैट",
     Search: "खोजें",
     Directory: "निर्देशिका",
@@ -185,6 +197,12 @@ const DICT: Record<string, Record<string, string>> = {
       "اختر لغتك المفضلة.",
     "Preview and select the voice used for spoken responses.":
       "عاين واختر الصوت.",
+    "We use cookies to improve your experience. See our":
+      "نستخدم ملفات تعريف الارتباط لتحسين تجربتك. اطّلع على",
+    "Cookie Policy": "سياسة ملفات تعريف الارتباط",
+    "Accept all": "قبول الكل",
+    "Reject non-essential": "رفض غير الضرورية",
+    Manage: "إدارة",
     "New chat": "محادثة جديدة",
     Search: "بحث",
     Directory: "الدليل",
@@ -264,6 +282,12 @@ const DICT: Record<string, Record<string, string>> = {
       "Scegli la lingua preferita.",
     "Preview and select the voice used for spoken responses.":
       "Anteprima e scelta della voce.",
+    "We use cookies to improve your experience. See our":
+      "Utilizziamo i cookie per migliorare la tua esperienza. Consulta la nostra",
+    "Cookie Policy": "Informativa sui cookie",
+    "Accept all": "Accetta tutto",
+    "Reject non-essential": "Rifiuta i non essenziali",
+    Manage: "Gestisci",
     "New chat": "Nuova chat",
     Search: "Cerca",
     Directory: "Directory",
@@ -343,6 +367,12 @@ const DICT: Record<string, Record<string, string>> = {
       "选择偏好的语言。",
     "Preview and select the voice used for spoken responses.":
       "预览并选择语音。",
+    "We use cookies to improve your experience. See our":
+      "我们使用 Cookie 改善您的体验。查看我们的",
+    "Cookie Policy": "Cookie 政策",
+    "Accept all": "全部接受",
+    "Reject non-essential": "拒绝非必要",
+    Manage: "管理",
     "New chat": "新建对话",
     Search: "搜索",
     Directory: "目录",
@@ -422,6 +452,12 @@ const DICT: Record<string, Record<string, string>> = {
       "Elige tu idioma preferido.",
     "Preview and select the voice used for spoken responses.":
       "Previsualiza y selecciona la voz.",
+    "We use cookies to improve your experience. See our":
+      "Utilizamos cookies para mejorar tu experiencia. Consulta nuestra",
+    "Cookie Policy": "Política de cookies",
+    "Accept all": "Aceptar todo",
+    "Reject non-essential": "Rechazar no esenciales",
+    Manage: "Gestionar",
     "New chat": "Nueva conversación",
     Search: "Buscar",
     Directory: "Directorio",
