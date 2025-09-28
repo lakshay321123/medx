@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
 import { useOpenPass } from "@/hooks/useOpenPass";
 import { Paperclip, SendHorizontal } from "lucide-react";
+import { usePrefs } from "@/components/providers/PreferencesProvider";
 
 export function ChatInput({ onSend }: { onSend: (text: string, locationToken?: string)=>Promise<void> }) {
   const [text, setText] = useState("");
@@ -10,6 +11,20 @@ export function ChatInput({ onSend }: { onSend: (text: string, locationToken?: s
   const openPass = useOpenPass();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const prefs = usePrefs();
+
+  const redirectToAccount = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const u = new URL(window.location.href);
+    u.searchParams.set("panel", "settings");
+    u.searchParams.set("tab", "Account");
+    window.history.pushState({}, "", u.toString());
+  }, []);
+
+  const canSend = () => {
+    prefs.resetWindowIfNeeded();
+    return prefs.plan === "pro" || prefs.promptsUsed < 10;
+  };
 
   const ensureThread = useCallback(() => {
     const state = useChatStore.getState();
@@ -34,6 +49,10 @@ export function ChatInput({ onSend }: { onSend: (text: string, locationToken?: s
   const handleSend = async () => {
     const content = text.trim();
     if (!content) return;
+    if (!canSend()) {
+      redirectToAccount();
+      return;
+    }
     ensureThread();
     // add user message locally (this also sets the title from first words)
     addMessage({ role: "user", content });

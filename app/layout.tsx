@@ -14,6 +14,7 @@ import UndoToast from "@/components/memory/UndoToast";
 import AppToastHost from "@/components/ui/AppToastHost";
 import dynamic from "next/dynamic";
 import Script from "next/script";
+import PreferencesProvider from "@/components/providers/PreferencesProvider";
 
 // Mobile-only UI (loaded client-side)
 const MobileHeader = dynamic(() => import("@/components/mobile/MobileHeader"), { ssr: false });
@@ -24,7 +25,7 @@ export const metadata = { title: BRAND_NAME, description: "Global medical AI" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" dir="ltr" suppressHydrationWarning>
       <head>
         <link rel="dns-prefetch" href="https://fonts.cdnfonts.com" />
         <link rel="preconnect" href="https://fonts.cdnfonts.com" crossOrigin="anonymous" />
@@ -74,11 +75,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             })();
           `}
         </Script>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <CountryProvider>
-            <ContextProvider>
-              <TopicProvider>
-                <div className="flex h-full min-h-screen flex-col medx-gradient">
+        <PreferencesProvider>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            <CountryProvider>
+              <ContextProvider>
+                <TopicProvider>
+                  <div className="flex h-full min-h-screen flex-col medx-gradient">
                   {/* Desktop Header */}
                   <Suspense fallback={<div className="h-[62px]" />}>
                     <div className="hidden md:block">
@@ -123,6 +125,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </ContextProvider>
           </CountryProvider>
         </ThemeProvider>
+        </PreferencesProvider>
       </body>
     </html>
   );

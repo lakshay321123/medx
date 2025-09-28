@@ -10,6 +10,7 @@ import { LinkBadge } from "@/components/SafeLink";
 import { AssistantPendingMessage } from "@/components/chat/AssistantPendingMessage";
 import { usePendingAssistantStages } from "@/hooks/usePendingAssistantStages";
 import type { AppMode } from "@/lib/welcomeMessages";
+import { usePrefs } from "@/components/providers/PreferencesProvider";
 
 const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== "0";
 
@@ -32,6 +33,20 @@ export function ChatWindow() {
   const [pendingMessage, setPendingMessage] = useState<{ id: string; content: string } | null>(null);
   const [modeChoice, setModeChoice] = useState<AppMode>('wellness');
   const hasScrollableContent = messages.length > 0 || results.length > 0 || !!pendingMessage;
+  const prefs = usePrefs();
+
+  const redirectToAccount = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const u = new URL(window.location.href);
+    u.searchParams.set("panel", "settings");
+    u.searchParams.set("tab", "Account");
+    window.history.pushState({}, "", u.toString());
+  }, []);
+
+  const canSend = () => {
+    prefs.resetWindowIfNeeded();
+    return prefs.plan === "pro" || prefs.promptsUsed < 10;
+  };
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
@@ -128,6 +143,11 @@ export function ChatWindow() {
   });
 
   const handleSend = async (content: string, locationToken?: string) => {
+    if (!canSend()) {
+      redirectToAccount();
+      return;
+    }
+
     // after sending user message, persist thread if needed
     await persistIfTemp();
     const research = getResearchFlagFromUrl();
@@ -137,25 +157,36 @@ export function ChatWindow() {
         : `pending-${Date.now()}`;
     setPendingMessage({ id: pendingId, content: "" });
     beginPendingAssistant(pendingId, { mode: modeChoice, research, text: content });
+    if (!locationToken) {
+      setResults([]);
+    }
     try {
+      const payload: Record<string, unknown> = { query: content, lang: prefs.lang, research };
       if (locationToken) {
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: content, locationToken, research }),
-        });
-        const data = await res.json();
-        setResults(data.results || []);
-        const text = data.results ? "Here are some places nearby:" : "";
+        payload.locationToken = locationToken;
+      }
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-lang": prefs.lang,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        throw new Error(`Chat request failed: ${res.status}`);
+      }
+      const data = await res.json();
+      if (locationToken && Array.isArray(data?.results)) {
+        setResults(data.results);
+        const text = data.results.length > 0 ? "Here are some places nearby:" : "";
         markPendingAssistantStreaming(pendingId);
         if (text) {
           enqueuePendingAssistant(pendingId, text);
         }
         finishPendingAssistant(pendingId, text);
       } else {
-        // For now, echo the user's message as the assistant reply
-        // In a real implementation, replace this with a call to your backend/AI service
-        const reply = `You said: ${content}`;
+        const reply = typeof data?.reply === "string" ? data.reply : `You said: ${content}`;
         markPendingAssistantStreaming(pendingId);
         enqueuePendingAssistant(pendingId, reply);
         finishPendingAssistant(pendingId, reply);
@@ -167,6 +198,8 @@ export function ChatWindow() {
       enqueuePendingAssistant(pendingId, fallback);
       finishPendingAssistant(pendingId, fallback);
       setResults([]);
+    } finally {
+      prefs.incUsage();
     }
   };
 
