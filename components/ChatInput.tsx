@@ -3,6 +3,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useChatStore } from "@/lib/state/chatStore";
 import { useOpenPass } from "@/hooks/useOpenPass";
 import { Paperclip, SendHorizontal } from "lucide-react";
+import { useT } from "@/components/hooks/useI18n";
 
 export function ChatInput({
   onSend,
@@ -19,6 +20,7 @@ export function ChatInput({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const t = useT();
 
   const redirectToAccount = useCallback(() => {
     const q = new URLSearchParams(searchParams?.toString() || "");
@@ -81,7 +83,7 @@ export function ChatInput({
     >
       <button
         type="button"
-        aria-label="Upload"
+        aria-label={t("Upload")}
         className="flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--medx-text)] transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-[color:var(--medx-text)] dark:hover:bg-white/10"
         onClick={() => {
           ensureThread();
@@ -108,7 +110,7 @@ export function ChatInput({
         ref={textareaRef}
         value={text}
         onChange={e => setText(e.target.value)}
-        placeholder="Type a message…"
+        placeholder={`${t("Type a message")}…`}
         rows={1}
         onKeyDown={event => {
           if (event.key === "Enter" && !event.shiftKey) {
@@ -120,7 +122,8 @@ export function ChatInput({
       />
       <button
         type="submit"
-        aria-label="Send"
+        aria-label={t("Send")}
+        title={t("Send")}
         disabled={!text.trim()}
         className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-sky-500 dark:hover:bg-sky-400"
       >

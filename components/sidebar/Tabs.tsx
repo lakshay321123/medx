@@ -2,19 +2,20 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMobileUiStore } from "@/lib/state/mobileUiStore";
+import { useT } from "@/components/hooks/useI18n";
 
 type Tab = {
   key: string;
-  label: string;
+  labelKey: string;
   panel: string;
   context?: string;
 };
 
-const tabs: Tab[] = [
-  { key: "directory", label: "Directory", panel: "directory" },
-  { key: "profile", label: "Medical Profile", panel: "profile" },
-  { key: "timeline", label: "Timeline", panel: "timeline" },
-  { key: "alerts", label: "Alerts", panel: "alerts" },
+const TAB_DEFS: Tab[] = [
+  { key: "directory", labelKey: "Directory", panel: "directory" },
+  { key: "profile", labelKey: "Medical Profile", panel: "profile" },
+  { key: "timeline", labelKey: "Timeline", panel: "timeline" },
+  { key: "alerts", labelKey: "Alerts", panel: "alerts" },
 ];
 
 function NavLink({
@@ -51,12 +52,13 @@ function NavLink({
 }
 
 export default function Tabs() {
+  const t = useT();
   return (
     <ul className="mt-2 space-y-1">
-      {tabs.map((t) => (
-        <li key={t.key}>
-          <NavLink panel={t.panel} context={t.context}>
-            {t.label}
+      {TAB_DEFS.map((tab) => (
+        <li key={tab.key}>
+          <NavLink panel={tab.panel} context={tab.context}>
+            {t(tab.labelKey)}
           </NavLink>
         </li>
       ))}

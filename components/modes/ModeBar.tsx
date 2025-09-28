@@ -1,5 +1,6 @@
 "use client";
 import { useModeController } from "@/hooks/useModeController";
+import { useT } from "@/components/hooks/useI18n";
 
 export default function ModeBar() {
   const {
@@ -11,6 +12,7 @@ export default function ModeBar() {
     toggleTherapy,
     toggleResearch,
   } = useModeController();
+  const t = useT();
 
   const btn = (active: boolean, disabled?: boolean) =>
     [
@@ -31,7 +33,7 @@ export default function ModeBar() {
         className={btn(wellnessActive)}
         onClick={() => togglePatient()}
       >
-        Wellness
+        {t("Wellness")}
       </button>
       <button
         className={btn(state.therapy, aidocOn || state.base !== "patient" || therapyBusy)}
@@ -39,7 +41,7 @@ export default function ModeBar() {
         onClick={() => toggleTherapy()}
         aria-busy={therapyBusy}
       >
-        <span>Therapy</span>
+        <span>{t("Therapy")}</span>
         {therapyBusy && !state.therapy ? (
           <span className="ml-2 inline-flex h-3 w-3 items-center" aria-hidden="true">
             <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -51,19 +53,19 @@ export default function ModeBar() {
         disabled={aidocOn}
         onClick={() => toggleResearch()}
       >
-        Research
+        {t("Research")}
       </button>
       <button
         className={btn(doctorActive)}
         onClick={() => toggleDoctor()}
       >
-        Clinical
+        {t("Clinical")}
       </button>
 
       <div className="mx-1 h-5 w-px bg-black/10 dark:bg-white/10" />
 
       <button className={btn(aidocOn)} onClick={() => toggleAidoc()}>
-        AI Doc
+        {t("AI Doc")}
       </button>
     </div>
   );
