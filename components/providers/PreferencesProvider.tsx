@@ -38,6 +38,9 @@ export type Prefs = {
   canSend(): boolean;
 };
 
+const KEY = "medx-prefs-v1";
+const WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
 const DEFAULT: Prefs = {
   theme: "system",
   accent: "purple",
@@ -76,9 +79,6 @@ const DEFAULT: Prefs = {
 };
 
 const Ctx = createContext<Prefs>(DEFAULT);
-
-const KEY = "medx-prefs-v1";
-const WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
 export default function PreferencesProvider({ children }: { children: React.ReactNode }) {
   const mounted = useRef(false);
