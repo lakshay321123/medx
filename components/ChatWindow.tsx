@@ -10,6 +10,7 @@ import { LinkBadge } from "@/components/SafeLink";
 import { AssistantPendingMessage } from "@/components/chat/AssistantPendingMessage";
 import { usePendingAssistantStages } from "@/hooks/usePendingAssistantStages";
 import type { AppMode } from "@/lib/welcomeMessages";
+import { usePrefs } from "@/components/providers/PreferencesProvider";
 
 const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== "0";
 
@@ -27,11 +28,17 @@ export function ChatWindow() {
   const addMessage = useChatStore(s => s.addMessage);
   const currentId = useChatStore(s => s.currentId);
   const [results, setResults] = useState<any[]>([]);
+  const prefs = usePrefs();
   const chatRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const [pendingMessage, setPendingMessage] = useState<{ id: string; content: string } | null>(null);
   const [modeChoice, setModeChoice] = useState<AppMode>('wellness');
   const hasScrollableContent = messages.length > 0 || results.length > 0 || !!pendingMessage;
+
+  const canSend = () => {
+    prefs.resetWindowIfNeeded();
+    return prefs.plan === "pro" || prefs.promptsUsed < 10;
+  };
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
@@ -128,6 +135,14 @@ export function ChatWindow() {
   });
 
   const handleSend = async (content: string, locationToken?: string) => {
+    if (!canSend()) {
+      const u = new URL(window.location.href);
+      u.searchParams.set("panel", "settings");
+      u.searchParams.set("tab", "Account");
+      window.history.pushState({}, "", u.toString());
+      return;
+    }
+
     // after sending user message, persist thread if needed
     await persistIfTemp();
     const research = getResearchFlagFromUrl();
@@ -137,12 +152,13 @@ export function ChatWindow() {
         : `pending-${Date.now()}`;
     setPendingMessage({ id: pendingId, content: "" });
     beginPendingAssistant(pendingId, { mode: modeChoice, research, text: content });
+    let counted = false;
     try {
       if (locationToken) {
         const res = await fetch("/api/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: content, locationToken, research }),
+          headers: { "Content-Type": "application/json", "x-lang": prefs.lang },
+          body: JSON.stringify({ query: content, locationToken, research, lang: prefs.lang }),
         });
         const data = await res.json();
         setResults(data.results || []);
@@ -152,6 +168,7 @@ export function ChatWindow() {
           enqueuePendingAssistant(pendingId, text);
         }
         finishPendingAssistant(pendingId, text);
+        counted = true;
       } else {
         // For now, echo the user's message as the assistant reply
         // In a real implementation, replace this with a call to your backend/AI service
@@ -159,6 +176,7 @@ export function ChatWindow() {
         markPendingAssistantStreaming(pendingId);
         enqueuePendingAssistant(pendingId, reply);
         finishPendingAssistant(pendingId, reply);
+        counted = true;
       }
     } catch (error) {
       console.error(error);
@@ -167,6 +185,10 @@ export function ChatWindow() {
       enqueuePendingAssistant(pendingId, fallback);
       finishPendingAssistant(pendingId, fallback);
       setResults([]);
+    } finally {
+      if (counted) {
+        prefs.incUsage();
+      }
     }
   };
 
