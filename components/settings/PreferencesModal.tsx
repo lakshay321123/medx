@@ -21,6 +21,7 @@ import SchedulesPanel from "./panels/Schedules";
 import DataControlsPanel from "./panels/DataControls";
 import SecurityPanel from "./panels/Security";
 import AccountPanel from "./panels/Account";
+import { useT } from "@/components/hooks/useI18n";
 
 type TabKey =
   | "General"
@@ -31,17 +32,6 @@ type TabKey =
   | "Data controls"
   | "Security"
   | "Account";
-
-const TABS: { key: TabKey; label: string; icon: any }[] = [
-  { key: "General", label: "General", icon: Home },
-  { key: "Notifications", label: "Notifications", icon: Bell },
-  { key: "Personalization", label: "Personalization", icon: SlidersHorizontal },
-  { key: "Connectors", label: "Connectors", icon: Link2 },
-  { key: "Schedules", label: "Schedules", icon: CalendarClock },
-  { key: "Data controls", label: "Data controls", icon: Database },
-  { key: "Security", label: "Security", icon: Lock },
-  { key: "Account", label: "Account", icon: User },
-];
 
 export default function PreferencesModal({
   open,
@@ -55,6 +45,21 @@ export default function PreferencesModal({
   const [tab, setTab] = useState<TabKey>(defaultTab);
   const cardRef = useRef<HTMLDivElement>(null);
   const [ignoreFirst, setIgnoreFirst] = useState(false);
+  const t = useT();
+
+  const tabs = useMemo(
+    () => [
+      { key: "General", label: t("General"), icon: Home },
+      { key: "Notifications", label: t("Notifications"), icon: Bell },
+      { key: "Personalization", label: t("Personalization"), icon: SlidersHorizontal },
+      { key: "Connectors", label: t("Connectors"), icon: Link2 },
+      { key: "Schedules", label: t("Schedules"), icon: CalendarClock },
+      { key: "Data controls", label: t("Data controls"), icon: Database },
+      { key: "Security", label: t("Security"), icon: Lock },
+      { key: "Account", label: t("Account"), icon: User },
+    ],
+    [t]
+  );
 
   useEffect(() => {
     if (open) setTab(defaultTab);
@@ -159,7 +164,7 @@ export default function PreferencesModal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Preferences"
+        aria-label={t("Preferences")}
         ref={cardRef}
         onMouseDown={(e) => e.stopPropagation()}
         className="absolute left-1/2 top-1/2 h-[min(92vh,620px)] w-[min(96vw,980px)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl bg-white/90 ring-1 ring-black/5 backdrop-blur-md shadow-2xl dark:bg-slate-900/80 dark:ring-white/10"
@@ -167,7 +172,7 @@ export default function PreferencesModal({
         <div className="flex h-full">
           <aside className="w-[280px] border-r border-black/5 bg-white/70 p-2 pr-1 dark:border-white/10 dark:bg-slate-900/60">
             <div className="flex items-center justify-between px-2 py-2">
-              <div className="text-sm font-semibold opacity-70">Preferences</div>
+              <div className="text-sm font-semibold opacity-70">{t("Preferences")}</div>
               <button
                 data-close
                 onClick={onClose}
@@ -178,7 +183,7 @@ export default function PreferencesModal({
               </button>
             </div>
             <nav className="mt-1 space-y-1 overflow-auto pr-1">
-              {TABS.map(({ key, label, icon: Icon }) => (
+              {tabs.map(({ key, label, icon: Icon }) => (
                 <button
                   key={key}
                   onClick={() => setTab(key)}
@@ -197,7 +202,7 @@ export default function PreferencesModal({
 
           <section className="flex min-w-0 flex-1 flex-col">
             <header className="border-b border-black/5 px-5 py-3 text-[15px] font-semibold dark:border-white/10">
-              {tab}
+              {tabs.find((item) => item.key === tab)?.label ?? t(tab)}
             </header>
             <div className="flex-1 overflow-auto divide-y divide-black/5 dark:divide-white/10">
               {Panel}
@@ -207,13 +212,13 @@ export default function PreferencesModal({
                 onClick={onClose}
                 className="rounded-lg border border-black/10 bg-white/70 px-3.5 py-1.5 text-sm hover:bg-white/90 dark:border-white/10 dark:bg-slate-900/60 dark:hover:bg-slate-900/80"
               >
-                Cancel
+                {t("Cancel")}
               </button>
               <button
                 onClick={onClose}
                 className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-blue-500"
               >
-                Save changes
+                {t("Save changes")}
               </button>
             </footer>
           </section>
