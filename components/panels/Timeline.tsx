@@ -6,6 +6,7 @@ import { useTimeline } from "@/lib/hooks/useAppData";
 import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
 import PanelLoader from "@/components/mobile/PanelLoader";
 import { pushToast } from "@/lib/ui/toast";
+import { useRouter } from "next/navigation";
 
 function normalizeKind(k?: string) {
   const raw = String(k ?? "").toLowerCase().trim();
@@ -202,6 +203,8 @@ export default function Timeline(){
   const [active, setActive] = useState<any|null>(null);
   const [signedUrl, setSignedUrl] = useState<string|null>(null);
   const overlayHistoryRef = useRef(false);
+  const overlayPopActiveRef = useRef(false);
+  const router = useRouter();
 
   const closeOverlay = useCallback((options?: { skipHistory?: boolean }) => {
     const hadHistoryEntry = overlayHistoryRef.current;
@@ -210,7 +213,11 @@ export default function Timeline(){
     setActive(null);
     setSignedUrl(null);
     if (!options?.skipHistory && hadHistoryEntry && typeof window !== "undefined") {
+      overlayPopActiveRef.current = true;
       window.history.back();
+      setTimeout(() => {
+        overlayPopActiveRef.current = false;
+      }, 0);
     }
   }, []);
 
@@ -220,7 +227,11 @@ export default function Timeline(){
 
     const handlePopState = () => {
       if (!overlayHistoryRef.current) return;
+      overlayPopActiveRef.current = true;
       closeOverlay({ skipHistory: true });
+      setTimeout(() => {
+        overlayPopActiveRef.current = false;
+      }, 0);
     };
 
     window.addEventListener("popstate", handlePopState);
@@ -231,6 +242,20 @@ export default function Timeline(){
       window.removeEventListener("popstate", handlePopState);
     };
   }, [open, closeOverlay]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleRootPopState = () => {
+      if (overlayHistoryRef.current || overlayPopActiveRef.current) return;
+      router.replace("/?panel=chat");
+    };
+
+    window.addEventListener("popstate", handleRootPopState);
+    return () => {
+      window.removeEventListener("popstate", handleRootPopState);
+    };
+  }, [router]);
   useEffect(()=>{
     if (!open || !active?.file) { setSignedUrl(null); return; }
     const f = active.file;
