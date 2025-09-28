@@ -414,10 +414,19 @@ export default function Timeline(){
                   {(summaryLong || summaryShort || text) ? (
                     <Tabs defaultValue={summaryLong ? 'summary' : (summaryShort ? 'summary' : 'text')}>
                       {(summaryLong || summaryShort) && (
-                        <TabsList className="mb-3">
-                          <TabsTrigger value="summary">Summary</TabsTrigger>
-                          {text && <TabsTrigger value="text">Full text</TabsTrigger>}
-                        </TabsList>
+                        <div className="mb-3 flex items-center gap-2">
+                          <TabsList className="flex-1">
+                            <TabsTrigger value="summary">Summary</TabsTrigger>
+                            {text && <TabsTrigger value="text">Full text</TabsTrigger>}
+                          </TabsList>
+                          <button
+                            type="button"
+                            onClick={() => setOpen(false)}
+                            className="sm:hidden text-xs px-2 py-1 rounded-md border whitespace-nowrap"
+                          >
+                            Close
+                          </button>
+                        </div>
                       )}
                       {(summaryLong || summaryShort) && (
                         <TabsContent value="summary">
