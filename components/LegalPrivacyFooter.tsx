@@ -3,6 +3,7 @@
 import type { CSSProperties } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Scale } from "lucide-react";
+import { useT } from "@/components/hooks/useI18n";
 
 type CookiePrefs = {
   essential: true;
@@ -22,8 +23,6 @@ const PRIVACY_EMAIL =
 const GOVERNING_LAW =
   process.env.NEXT_PUBLIC_GOVERNING_LAW ?? "Delaware, USA";
 
-const LEGAL_NOTICE = "Second Opinion can make mistakes… Always consult a clinician.";
-
 const DEFAULT_PREFS: CookiePrefs = {
   essential: true,
   analytics: false,
@@ -31,76 +30,13 @@ const DEFAULT_PREFS: CookiePrefs = {
   marketing: false,
 };
 
-const COOKIE_DESCRIPTIONS: Record<ToggleableCookie, string> = {
-  analytics: "Helps us understand usage patterns so we can improve features and reliability.",
-  functional: "Remembers helpful preferences such as language, accessibility, and session context.",
-  marketing: "Allows us to share relevant updates about new capabilities and clinical resources.",
-};
+const COOKIE_KEYS: ToggleableCookie[] = ["analytics", "functional", "marketing"];
 
-const SECTION_COPY = [
-  {
-    title: "Introduction",
-    body: (
-      <p>
-        {BRAND} provides AI-assisted health insights designed to complement conversations with
-        licensed clinicians. These terms explain how we handle information, the limits of the
-        service, and your choices around cookies and data use.
-      </p>
-    ),
-  },
-  {
-    title: "Medical Advice Disclaimer",
-    body: (
-      <p>
-        The chat experience does not replace personalized care from a qualified professional. Always
-        seek the advice of your physician or other licensed clinician with any questions you may
-        have regarding a medical condition. Never disregard professional medical advice or delay
-        seeking it because of something you read here.
-      </p>
-    ),
-  },
-  {
-    title: "AI Limitations",
-    body: (
-      <p>
-        AI models can misunderstand context, omit critical information, or present outdated research.
-        Double-check important findings, especially before making care decisions. Let us know if you
-        spot inaccuracies so we can continue to refine our systems.
-      </p>
-    ),
-  },
-  {
-    title: "Data Privacy & Storage",
-    body: (
-      <p>
-        We store chats and uploaded content to deliver the service, detect safety issues, and
-        improve product quality. Data may be processed in the United States or other jurisdictions
-        with appropriate safeguards. Please avoid sharing sensitive personal details beyond what is
-        required for your care questions.
-      </p>
-    ),
-  },
-];
-
-const LIABILITY_COPY = (
-  <p>
-    This service is provided on an “as-is” basis without warranties of any kind. To the extent
-    permitted by law, {BRAND} and its partners are not liable for damages arising from your use of
-    the platform. These terms are governed by the laws of {GOVERNING_LAW}. Local
-    consumer protections still apply where relevant.
-  </p>
-);
-
-const CONTACT_COPY = (
-  <p>
-    Questions about these terms or your data? Email us at
-    {" "}
-    <a className="text-primary underline" href={`mailto:${PRIVACY_EMAIL}`}>
-      {PRIVACY_EMAIL}
-    </a>
-    .
-  </p>
-);
+const formatTokens = (template: string, tokens: Record<string, string>) =>
+  Object.entries(tokens).reduce(
+    (acc, [token, value]) => acc.replaceAll(`{${token}}`, value),
+    template,
+  );
 
 const parseConsentValue = (value: string | null): "true" | "false" | null => {
   if (value === null) return null;
@@ -126,6 +62,7 @@ function getStoredPrefs(): CookiePrefs {
 }
 
 export default function LegalPrivacyFooter() {
+  const t = useT();
   const [isOpen, setIsOpen] = useState(false);
   const [consentValue, setConsentValue] = useState<"true" | "false" | null>(null);
   const [agreeChecked, setAgreeChecked] = useState(false);
@@ -134,6 +71,36 @@ export default function LegalPrivacyFooter() {
   const marqueeContainerRef = useRef<HTMLDivElement | null>(null);
   const marqueeTextRef = useRef<HTMLSpanElement | null>(null);
   const [marqueeVars, setMarqueeVars] = useState<{ duration: number; distance: number } | null>(null);
+
+  const legalNotice = formatTokens(t("Legal marquee notice"), { brand: BRAND });
+  const sectionCopy = useMemo(
+    () => [
+      {
+        title: t("Introduction"),
+        body: [formatTokens(t("Introduction body"), { brand: BRAND })],
+      },
+      {
+        title: t("Medical Advice Disclaimer"),
+        body: [t("Medical Advice Disclaimer body")],
+      },
+      {
+        title: t("AI Limitations"),
+        body: [t("AI Limitations body")],
+      },
+      {
+        title: t("Data Privacy & Storage"),
+        body: [t("Data Privacy & Storage body")],
+      },
+    ],
+    [t],
+  );
+  const liabilityCopy = formatTokens(t("Liability & Governing Law body"), {
+    brand: BRAND,
+    law: GOVERNING_LAW,
+  });
+  const contactPrefix = t("Contact body prefix");
+  const contactSuffix = t("Contact body suffix");
+  const cookieIntro = t("Cookies & Tracking intro");
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
@@ -308,18 +275,26 @@ export default function LegalPrivacyFooter() {
     setIsOpen(true);
   };
 
-  const cookieToggles = useMemo(
-    () =>
-      (Object.keys(COOKIE_DESCRIPTIONS) as ToggleableCookie[]).map(key => ({
-        key,
-        label: key.charAt(0).toUpperCase() + key.slice(1),
-        description: COOKIE_DESCRIPTIONS[key],
-        value: cookiePrefs[key],
-        labelId: `cookie-${key}-label`,
-        descriptionId: `cookie-${key}-description`,
-      })),
-    [cookiePrefs]
-  );
+  const cookieToggles = useMemo(() => {
+    const labels: Record<ToggleableCookie, string> = {
+      analytics: t("Analytics"),
+      functional: t("Functional"),
+      marketing: t("Marketing"),
+    };
+    const descriptions: Record<ToggleableCookie, string> = {
+      analytics: t("Analytics description"),
+      functional: t("Functional description"),
+      marketing: t("Marketing description"),
+    };
+    return COOKIE_KEYS.map(key => ({
+      key,
+      label: labels[key],
+      description: descriptions[key],
+      value: cookiePrefs[key],
+      labelId: `cookie-${key}-label`,
+      descriptionId: `cookie-${key}-description`,
+    }));
+  }, [cookiePrefs, t]);
 
   const handleReject = () => {
     if (typeof window !== "undefined") {
@@ -356,11 +331,11 @@ export default function LegalPrivacyFooter() {
           >
             <div className="mobile-footer-marquee-track">
               <span ref={marqueeTextRef} className="mobile-footer-marquee-segment">
-                {LEGAL_NOTICE}
+                {legalNotice}
               </span>
               {marqueeVars ? (
                 <span aria-hidden="true" className="mobile-footer-marquee-segment">
-                  {LEGAL_NOTICE}
+                  {legalNotice}
                 </span>
               ) : null}
             </div>
@@ -369,7 +344,7 @@ export default function LegalPrivacyFooter() {
             type="button"
             onClick={openModal}
             className="mobile-icon-btn mobile-footer-icon"
-            aria-label="View legal & privacy"
+            aria-label={t("View legal & privacy")}
           >
             <Scale className="h-4 w-4" />
           </button>
@@ -391,13 +366,13 @@ export default function LegalPrivacyFooter() {
           >
             <div className="flex items-center justify-between border-b border-black/5 bg-slate-50/70 px-5 py-4 dark:border-white/10 dark:bg-slate-900/40">
               <h2 id="legal-privacy-title" className="text-lg font-semibold text-primary">
-                Legal &amp; Privacy
+                {t("Legal & Privacy")}
               </h2>
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
                 className="rounded-md p-2 text-slate-500 transition hover:bg-slate-200/70 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:text-slate-300 dark:hover:bg-slate-800/80 dark:focus-visible:ring-offset-slate-900"
-                aria-label="Close dialog"
+                aria-label={t("Close dialog")}
               >
                 <span aria-hidden="true">×</span>
               </button>
@@ -405,34 +380,32 @@ export default function LegalPrivacyFooter() {
 
             <div className="px-5 pb-5 pt-4">
               <div className="max-h-[50vh] space-y-6 overflow-y-auto pr-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                {SECTION_COPY.map(section => (
+                {sectionCopy.map(section => (
                   <section key={section.title}>
                     <h3 className="mb-2 text-base font-semibold text-primary">{section.title}</h3>
-                    <div className="space-y-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{section.body}</div>
+                    <div className="space-y-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                      {section.body.map((paragraph, index) => (
+                        <p key={index}>{paragraph}</p>
+                      ))}
+                    </div>
                   </section>
                 ))}
 
                 <section>
-                  <h3 className="mb-2 text-base font-semibold text-primary">Cookies &amp; Tracking</h3>
-                  <p className="mb-3">
-                    We use cookies to keep the service secure, measure performance, and remember your
-                    preferences. Essential cookies are always on. You can update other categories at
-                    any time below.
-                  </p>
+                  <h3 className="mb-2 text-base font-semibold text-primary">{t("Cookies & Tracking")}</h3>
+                  <p className="mb-3">{cookieIntro}</p>
 
                   <div className="space-y-3">
                     <div className="flex items-start justify-between gap-4 rounded-lg border border-black/5 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-slate-900/40">
                       <div>
-                        <div className="text-sm font-medium text-slate-700 dark:text-slate-200">Essential</div>
-                        <p className="text-sm text-slate-600 dark:text-slate-300">
-                          Required for security, basic functionality, and storing your cookie preferences.
-                        </p>
+                        <div className="text-sm font-medium text-slate-700 dark:text-slate-200">{t("Essential")}</div>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">{t("Essential description")}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="rounded-full bg-blue-500 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
-                          On
+                          {t("On")}
                         </span>
-                        <span className="text-xs text-slate-500 dark:text-slate-400">Required</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">{t("Required")}</span>
                       </div>
                     </div>
 
@@ -442,10 +415,7 @@ export default function LegalPrivacyFooter() {
                         className="flex items-start justify-between gap-4 rounded-lg border border-black/5 bg-white/70 p-3 transition dark:border-white/10 dark:bg-slate-900/40"
                       >
                         <div>
-                          <span
-                            id={option.labelId}
-                            className="block text-sm font-medium capitalize text-slate-700 dark:text-slate-200"
-                          >
+                          <span id={option.labelId} className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                             {option.label}
                           </span>
                           <p
@@ -487,13 +457,23 @@ export default function LegalPrivacyFooter() {
                 </section>
 
                 <section>
-                  <h3 className="mb-2 text-base font-semibold text-primary">Liability &amp; Governing Law</h3>
-                  <div className="space-y-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{LIABILITY_COPY}</div>
+                  <h3 className="mb-2 text-base font-semibold text-primary">{t("Liability & Governing Law")}</h3>
+                  <div className="space-y-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                    <p>{liabilityCopy}</p>
+                  </div>
                 </section>
 
                 <section>
-                  <h3 className="mb-2 text-base font-semibold text-primary">Contact</h3>
-                  <div className="space-y-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{CONTACT_COPY}</div>
+                  <h3 className="mb-2 text-base font-semibold text-primary">{t("Contact")}</h3>
+                  <div className="space-y-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                    <p>
+                      {contactPrefix}{" "}
+                      <a className="text-primary underline" href={`mailto:${PRIVACY_EMAIL}`}>
+                        {PRIVACY_EMAIL}
+                      </a>
+                      {contactSuffix}
+                    </p>
+                  </div>
                 </section>
               </div>
 
@@ -505,10 +485,7 @@ export default function LegalPrivacyFooter() {
                     checked={agreeChecked}
                     onChange={event => setAgreeChecked(event.target.checked)}
                   />
-                  <span>
-                    I agree to the Legal &amp; Privacy terms, including the handling of my data and cookie
-                    preferences as described above.
-                  </span>
+                  <span>{t("I agree to the Legal & Privacy terms, including the handling of my data and cookie preferences as described above.")}</span>
                 </label>
 
                 <div className="mt-4 flex flex-wrap justify-end gap-2">
@@ -517,14 +494,14 @@ export default function LegalPrivacyFooter() {
                     onClick={() => setIsOpen(false)}
                     className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900"
                   >
-                    Cancel
+                    {t("Cancel")}
                   </button>
                   <button
                     type="button"
                     onClick={handleReject}
                     className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900"
                   >
-                    Reject Non-Essential
+                    {t("Reject Non-Essential")}
                   </button>
                   <button
                     type="button"
@@ -532,7 +509,7 @@ export default function LegalPrivacyFooter() {
                     disabled={!agreeChecked}
                     className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-sky-400/90 dark:focus-visible:ring-offset-slate-900"
                   >
-                    Accept
+                    {t("Accept")}
                   </button>
                 </div>
               </div>

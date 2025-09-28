@@ -41,11 +41,6 @@ export function ChatWindow() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const canSend = () => {
-    prefs.resetWindowIfNeeded();
-    return prefs.plan === "pro" || prefs.promptsUsed < 10;
-  };
-
   const gotoAccount = useCallback(() => {
     const q = new URLSearchParams(searchParams?.toString() || "");
     const tid = q.get("threadId");
@@ -150,7 +145,7 @@ export function ChatWindow() {
   });
 
   const handleSend = async (content: string, locationToken?: string, langOverride?: string) => {
-    if (!canSend()) {
+    if (!prefs.canSend()) {
       gotoAccount();
       return;
     }
@@ -306,7 +301,7 @@ export function ChatWindow() {
         </div>
       </div>
       <div ref={composerRef} className="mobile-composer md:static md:bg-transparent md:p-0 md:shadow-none">
-        <ChatInput onSend={handleSend} canSend={canSend} />
+        <ChatInput onSend={handleSend} canSend={prefs.canSend} />
       </div>
       <ScrollToBottom targetRef={chatRef} rebindKey={currentId} />
     </div>

@@ -1,9 +1,14 @@
 "use client";
+import { useEffect } from "react";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
 
 export default function AccountPanel(){
   const p = usePrefs();
-  p.resetWindowIfNeeded();
+
+  useEffect(() => {
+    p.resetWindowIfNeeded();
+  }, [p.resetWindowIfNeeded]);
+
   const remaining = Math.max(0, 10 - p.promptsUsed);
 
   const Card = ({title, sub, cta, primary=false, onClick}:{title:string; sub:string; cta:string; primary?:boolean; onClick?:()=>void;}) => (

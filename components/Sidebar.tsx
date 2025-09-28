@@ -102,7 +102,9 @@ export default function Sidebar() {
           e.preventDefault();
           e.stopPropagation();
           closeSidebar?.();
-          const params = new URLSearchParams(searchParams?.toString() || "");
+          const params = new URLSearchParams(
+            typeof window !== "undefined" ? window.location.search : searchParams?.toString() || "",
+          );
           const tid = params.get("threadId");
           params.set("panel", "settings");
           params.delete("tab");

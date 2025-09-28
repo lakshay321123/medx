@@ -33,7 +33,9 @@ function Menu({ value, onPick, items }: MenuProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleClick = (event: MouseEvent) => {
+    if (!open) return;
+
+    const handlePointer = (event: PointerEvent) => {
       if (ref.current && !ref.current.contains(event.target as Node)) {
         setOpen(false);
       }
@@ -44,13 +46,13 @@ function Menu({ value, onPick, items }: MenuProps) {
       }
     };
 
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("keydown", handleKey);
+    document.addEventListener("pointerdown", handlePointer, { passive: true });
+    document.addEventListener("keydown", handleKey, { passive: true });
     return () => {
-      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("pointerdown", handlePointer);
       document.removeEventListener("keydown", handleKey);
     };
-  }, []);
+  }, [open]);
 
   return (
     <div ref={ref} className="relative">
