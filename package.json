@@ -12,6 +12,7 @@
     "check:links": "tsx scripts/check-links.ts"
   },
   "dependencies": {
+    "@mdx-js/loader": "^3.1.1",
     "@napi-rs/canvas": "^0.1.78",
     "@next/mdx": "^15.5.4",
     "@supabase/auth-helpers-nextjs": "^0.10.0",
