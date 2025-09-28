@@ -63,6 +63,22 @@ export async function POST(req: NextRequest) {
   const research =
     qp === '1' || qp === 'true' || body?.research === true || body?.research === 'true';
 
+  const headerLang = req.headers.get('x-lang') || '';
+  const lang = (typeof body?.lang === 'string' && body.lang) || headerLang || 'en';
+  const languageName =
+    ({
+      en: 'English',
+      hi: 'Hindi',
+      ar: 'Arabic',
+      it: 'Italian',
+      zh: 'Simplified Chinese',
+      es: 'Spanish',
+    } as Record<string, string>)[lang] || 'English';
+  const languageDirective =
+    `You are MedX. Always reply in ${languageName} only (no mixed languages). ` +
+    `If the user writes in another language, translate to ${languageName}. ` +
+    `For Arabic, use RTL; for Chinese, use Simplified.`;
+
   // 1) Gather existing conversation
   const history: Array<{role:'system'|'user'|'assistant'; content:string}> =
     Array.isArray(body?.messages) ? body.messages : [];
@@ -100,7 +116,7 @@ export async function POST(req: NextRequest) {
         .join('\n\n')
     : '';
 
-  const briefMessages: Array<{role:'system'|'user'|'assistant'; content:string}> =
+  let briefMessages: Array<{role:'system'|'user'|'assistant'; content:string}> =
     research && !long
       ? [
           { role: 'system', content: RESEARCH_BRIEF_STYLE + (srcBlock ? `\n\nSOURCES:\n${srcBlock}` : '') },
@@ -108,8 +124,12 @@ export async function POST(req: NextRequest) {
           latestUser             // ask the new question
         ]
       : history.length
-      ? history
+      ? [...history]
       : [latestUser];
+
+  if (research && !long) {
+    briefMessages = [{ role: 'system', content: languageDirective }, ...briefMessages];
+  }
 
   // 4) Tighter generation when research brief is active
   const modelOptions = (research && !long)
@@ -235,6 +255,8 @@ export async function POST(req: NextRequest) {
     finalMessages = [{ role: 'system', content: __calcPrelude }, ...finalMessages];
   }
   // === [MEDX_CALC_PRELUDE_END] ===
+
+  finalMessages = [{ role: 'system', content: languageDirective }, ...finalMessages];
 
   const upstream = await fetch(url, {
     method: 'POST',

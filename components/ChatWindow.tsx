@@ -210,7 +210,7 @@ export function ChatWindow() {
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" dir={prefs.dir}>
       <div
         ref={chatRef}
         className={`flex-1 pt-4 md:px-0 md:pt-0 ${

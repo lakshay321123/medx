@@ -44,6 +44,43 @@ const DICT: Record<string, Record<string, string>> = {
     "Ask about wellness, therapy, research or clinical topics.":
       "Ask about wellness, therapy, research or clinical topics.",
     Upload: "Upload",
+    "Wellness Mode: ON": "Wellness Mode: ON",
+    "Clinical Mode: ON": "Clinical Mode: ON",
+    "Therapy Mode: ON": "Therapy Mode: ON",
+    "AI Doc: ON": "AI Doc: ON",
+    "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.":
+      "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.",
+    "Everything health, without the jargon. From lab reports to daily habits—meds, diet, fitness—made easy to act on.":
+      "Everything health, without the jargon. From lab reports to daily habits—meds, diet, fitness—made easy to act on.",
+    "Clarity for everyday care. Reports, guidance, medication, diet, and fitness—understood at a glance.":
+      "Clarity for everyday care. Reports, guidance, medication, diet, and fitness—understood at a glance.",
+    "All your health, decoded. Reports, tips, meds, diet, and fitness—concise and actionable.":
+      "All your health, decoded. Reports, tips, meds, diet, and fitness—concise and actionable.",
+    "Clinical reasoning on demand. Built for doctors, nurses, and medical students.":
+      "Clinical reasoning on demand. Built for doctors, nurses, and medical students.",
+    "Depth when it matters. Structured differentials, red flags, and management—professional grade.":
+      "Depth when it matters. Structured differentials, red flags, and management—professional grade.",
+    "Evidence-ready, clinician-first.": "Evidence-ready, clinician-first.",
+    "Precision over prose. Concise clinical answers with clear next steps.":
+      "Precision over prose. Concise clinical answers with clear next steps.",
+    "Therapy guidance, made clear. Tools and support; not for emergencies.":
+      "Therapy guidance, made clear. Tools and support; not for emergencies.",
+    "Calm, structured support. Practical techniques and next steps.":
+      "Calm, structured support. Practical techniques and next steps.",
+    "Clarity for tough days. Grounded guidance, actionable exercises.":
+      "Clarity for tough days. Grounded guidance, actionable exercises.",
+    "Steady help, simple words. Skills you can use today.":
+      "Steady help, simple words. Skills you can use today.",
+    "Your records, organized. Upload, store, and retrieve securely.":
+      "Your records, organized. Upload, store, and retrieve securely.",
+    "All your reports in one place. Fast search, clear summaries.":
+      "All your reports in one place. Fast search, clear summaries.",
+    "Medical files that make sense. Structured, searchable, shareable.":
+      "Medical files that make sense. Structured, searchable, shareable.",
+    "From paper to clarity. Digitize reports; get clean overviews.":
+      "From paper to clarity. Digitize reports; get clean overviews.",
+    "Research: On — web evidence": "Research: On — web evidence",
+    "Research: Off — enable web evidence": "Research: Off — enable web evidence",
   },
   hi: {
     Preferences: "प्राथमिकताएँ",
@@ -86,6 +123,43 @@ const DICT: Record<string, Record<string, string>> = {
     "Ask about wellness, therapy, research or clinical topics.":
       "वेलनेस, थेरेपी, रिसर्च या क्लिनिकल विषय पूछें।",
     Upload: "अपलोड",
+    "Wellness Mode: ON": "वेलनेस मोड: चालू",
+    "Clinical Mode: ON": "क्लिनिकल मोड: चालू",
+    "Therapy Mode: ON": "थेरेपी मोड: चालू",
+    "AI Doc: ON": "एआई डॉक: चालू",
+    "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.":
+      "आपका स्वास्थ्य, सरल बनाया गया। रिपोर्ट, सुझाव, दवाएँ, आहार और फिटनेस—साफ भाषा में समझाया गया।",
+    "Everything health, without the jargon. From lab reports to daily habits—meds, diet, fitness—made easy to act on.":
+      "स्वास्थ्य की हर बात, बिना भारी शब्दों के। लैब रिपोर्ट से रोज़मर्रा की आदतों तक—दवाएँ, आहार, फिटनेस—आसानी से अपनाने लायक।",
+    "Clarity for everyday care. Reports, guidance, medication, diet, and fitness—understood at a glance.":
+      "दैनिक देखभाल के लिए स्पष्टता। रिपोर्ट, मार्गदर्शन, दवाएँ, आहार और फिटनेस—एक नज़र में समझें।",
+    "All your health, decoded. Reports, tips, meds, diet, and fitness—concise and actionable.":
+      "आपका पूरा स्वास्थ्य, डिकोड किया हुआ। रिपोर्ट, सुझाव, दवाएँ, आहार और फिटनेस—संक्षिप्त और उपयोगी।",
+    "Clinical reasoning on demand. Built for doctors, nurses, and medical students.":
+      "क्लिनिकल विचार तुरंत। डॉक्टर, नर्स और मेडिकल छात्रों के लिए तैयार।",
+    "Depth when it matters. Structured differentials, red flags, and management—professional grade.":
+      "ज़रूरत पड़ने पर गहराई। संरचित डिफरेंशियल, रेड फ्लैग और प्रबंधन—प्रोफेशनल स्तर।",
+    "Evidence-ready, clinician-first.": "साक्ष्य तैयार, क्लिनिशियन-प्रथम।",
+    "Precision over prose. Concise clinical answers with clear next steps.":
+      "प्रिसिजन, सिर्फ़ बातों से आगे। संक्षिप्त क्लिनिकल उत्तर और स्पष्ट अगले कदम।",
+    "Therapy guidance, made clear. Tools and support; not for emergencies.":
+      "थेरेपी मार्गदर्शन, साफ़-साफ़। उपकरण और समर्थन; आपात स्थितियों के लिए नहीं।",
+    "Calm, structured support. Practical techniques and next steps.":
+      "शांत, संरचित सहारा। व्यावहारिक तकनीकें और अगले कदम।",
+    "Clarity for tough days. Grounded guidance, actionable exercises.":
+      "कठिन दिनों के लिए स्पष्टता। ठोस मार्गदर्शन, उपयोगी अभ्यास।",
+    "Steady help, simple words. Skills you can use today.":
+      "स्थिर मदद, सरल शब्द। आज ही उपयोग में आने वाले कौशल।",
+    "Your records, organized. Upload, store, and retrieve securely.":
+      "आपके रिकॉर्ड, व्यवस्थित। सुरक्षित रूप से अपलोड करें, संग्रहीत करें और प्राप्त करें।",
+    "All your reports in one place. Fast search, clear summaries.":
+      "आपकी सारी रिपोर्ट एक जगह। तेज़ खोज, साफ़ सारांश।",
+    "Medical files that make sense. Structured, searchable, shareable.":
+      "समझ आने वाली मेडिकल फ़ाइलें। संरचित, खोजने योग्य, साझा करने योग्य।",
+    "From paper to clarity. Digitize reports; get clean overviews.":
+      "कागज़ से स्पष्टता तक। रिपोर्ट डिजिटाइज़ करें; साफ़ अवलोकन पाएं।",
+    "Research: On — web evidence": "रिसर्च: चालू — वेब साक्ष्य",
+    "Research: Off — enable web evidence": "रिसर्च: बंद — वेब साक्ष्य चालू करें",
   },
   ar: {
     Preferences: "التفضيلات",
@@ -128,6 +202,43 @@ const DICT: Record<string, Record<string, string>> = {
     "Ask about wellness, therapy, research or clinical topics.":
       "اسأل عن العافية أو العلاج أو البحث أو السريري.",
     Upload: "تحميل",
+    "Wellness Mode: ON": "وضع العافية: مفعل",
+    "Clinical Mode: ON": "الوضع السريري: مفعل",
+    "Therapy Mode: ON": "وضع العلاج: مفعل",
+    "AI Doc: ON": "مستند ذكي: مفعل",
+    "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.":
+      "صحتك ببساطة. التقارير والنصائح والأدوية والحمية واللياقة — بلغة واضحة.",
+    "Everything health, without the jargon. From lab reports to daily habits—meds, diet, fitness—made easy to act on.":
+      "كل ما يخص الصحة بلا مصطلحات معقدة. من تقارير المختبر إلى العادات اليومية—الأدوية، الغذاء، اللياقة—بسهولة للتنفيذ.",
+    "Clarity for everyday care. Reports, guidance, medication, diet, and fitness—understood at a glance.":
+      "وضوح للرعاية اليومية. التقارير والإرشاد والأدوية والحمية واللياقة—تفهم من النظرة الأولى.",
+    "All your health, decoded. Reports, tips, meds, diet, and fitness—concise and actionable.":
+      "كل صحتك، مفككة بوضوح. التقارير والنصائح والأدوية والحمية واللياقة—مختصرة وقابلة للتطبيق.",
+    "Clinical reasoning on demand. Built for doctors, nurses, and medical students.":
+      "تفكير سريري عند الطلب. مصمم للأطباء والممرضين وطلاب الطب.",
+    "Depth when it matters. Structured differentials, red flags, and management—professional grade.":
+      "العمق عندما يلزم. تفريقات منظمة، علامات خطورة، وخطط علاج بمستوى احترافي.",
+    "Evidence-ready, clinician-first.": "جاهز بالأدلة، موجه للطاقم السريري أولاً.",
+    "Precision over prose. Concise clinical answers with clear next steps.":
+      "دقة قبل الإطناب. إجابات سريرية موجزة بخطوات تالية واضحة.",
+    "Therapy guidance, made clear. Tools and support; not for emergencies.":
+      "إرشاد علاجي واضح. أدوات ودعم؛ ليس للطوارئ.",
+    "Calm, structured support. Practical techniques and next steps.":
+      "دعم هادئ ومنظم. تقنيات عملية وخطوات تالية.",
+    "Clarity for tough days. Grounded guidance, actionable exercises.":
+      "وضوح للأيام الصعبة. إرشاد راسخ وتمارين قابلة للتنفيذ.",
+    "Steady help, simple words. Skills you can use today.":
+      "مساندة ثابتة، بكلمات بسيطة. مهارات يمكنك استخدامها اليوم.",
+    "Your records, organized. Upload, store, and retrieve securely.":
+      "سجلاتك منظمة. ارفع وخزن واسترجع بأمان.",
+    "All your reports in one place. Fast search, clear summaries.":
+      "كل تقاريرك في مكان واحد. بحث سريع وملخصات واضحة.",
+    "Medical files that make sense. Structured, searchable, shareable.":
+      "ملفات طبية مفهومة. منظمة، قابلة للبحث، قابلة للمشاركة.",
+    "From paper to clarity. Digitize reports; get clean overviews.":
+      "من الورق إلى الوضوح. رقمن التقارير لتحصل على رؤى واضحة.",
+    "Research: On — web evidence": "البحث: مفعل — أدلة ويب",
+    "Research: Off — enable web evidence": "البحث: متوقف — فعّل أدلة الويب",
   },
   it: {
     Preferences: "Preferenze",
@@ -170,6 +281,43 @@ const DICT: Record<string, Record<string, string>> = {
     "Ask about wellness, therapy, research or clinical topics.":
       "Chiedi su benessere, terapia, ricerca o clinico.",
     Upload: "Carica",
+    "Wellness Mode: ON": "Modalità Benessere: attiva",
+    "Clinical Mode: ON": "Modalità Clinica: attiva",
+    "Therapy Mode: ON": "Modalità Terapia: attiva",
+    "AI Doc: ON": "AI Doc: attivo",
+    "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.":
+      "La tua salute, resa semplice. Referti, consigli, farmaci, diete e fitness—spiegati con un linguaggio chiaro.",
+    "Everything health, without the jargon. From lab reports to daily habits—meds, diet, fitness—made easy to act on.":
+      "Tutto sulla salute, senza gergo. Dai referti di laboratorio alle abitudini quotidiane—farmaci, dieta, fitness—facili da mettere in pratica.",
+    "Clarity for everyday care. Reports, guidance, medication, diet, and fitness—understood at a glance.":
+      "Chiarezza per la cura quotidiana. Referti, guide, farmaci, dieta e fitness—comprensibili a colpo d’occhio.",
+    "All your health, decoded. Reports, tips, meds, diet, and fitness—concise and actionable.":
+      "Tutta la tua salute, decodificata. Referti, consigli, farmaci, dieta e fitness—concisi e azionabili.",
+    "Clinical reasoning on demand. Built for doctors, nurses, and medical students.":
+      "Ragionamento clinico on demand. Pensato per medici, infermieri e studenti di medicina.",
+    "Depth when it matters. Structured differentials, red flags, and management—professional grade.":
+      "Profondità quando serve. Differentiali strutturati, segnali di allarme e gestione—livello professionale.",
+    "Evidence-ready, clinician-first.": "Pronto all’evidenza, pensato prima per i clinici.",
+    "Precision over prose. Concise clinical answers with clear next steps.":
+      "Precisione prima della prosa. Risposte cliniche concise con passi successivi chiari.",
+    "Therapy guidance, made clear. Tools and support; not for emergencies.":
+      "Orientamento terapeutico, reso chiaro. Strumenti e supporto; non per le emergenze.",
+    "Calm, structured support. Practical techniques and next steps.":
+      "Supporto calmo e strutturato. Tecniche pratiche e prossimi passi.",
+    "Clarity for tough days. Grounded guidance, actionable exercises.":
+      "Chiarezza per i giorni difficili. Guida solida ed esercizi applicabili.",
+    "Steady help, simple words. Skills you can use today.":
+      "Aiuto costante, parole semplici. Abilità da usare subito.",
+    "Your records, organized. Upload, store, and retrieve securely.":
+      "I tuoi documenti organizzati. Carica, archivia e recupera in modo sicuro.",
+    "All your reports in one place. Fast search, clear summaries.":
+      "Tutti i tuoi referti in un unico posto. Ricerca rapida, riepiloghi chiari.",
+    "Medical files that make sense. Structured, searchable, shareable.":
+      "Documenti medici che hanno senso. Strutturati, ricercabili, condivisibili.",
+    "From paper to clarity. Digitize reports; get clean overviews.":
+      "Dalla carta alla chiarezza. Digitalizza i referti e ottieni panoramiche pulite.",
+    "Research: On — web evidence": "Ricerca: attiva — evidenze web",
+    "Research: Off — enable web evidence": "Ricerca: disattiva — abilita evidenze web",
   },
   zh: {
     Preferences: "偏好设置",
@@ -212,6 +360,43 @@ const DICT: Record<string, Record<string, string>> = {
     "Ask about wellness, therapy, research or clinical topics.":
       "询问健康、治疗、研究或临床话题。",
     Upload: "上传",
+    "Wellness Mode: ON": "健康模式：开启",
+    "Clinical Mode: ON": "临床模式：开启",
+    "Therapy Mode: ON": "治疗模式：开启",
+    "AI Doc: ON": "智能文档：开启",
+    "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.":
+      "让健康变得简单。报告、提示、用药、饮食和健身——用清晰语言解释。",
+    "Everything health, without the jargon. From lab reports to daily habits—meds, diet, fitness—made easy to act on.":
+      "没有行话的健康信息。从化验报告到日常习惯——用药、饮食、健身——轻松付诸行动。",
+    "Clarity for everyday care. Reports, guidance, medication, diet, and fitness—understood at a glance.":
+      "日常护理更清楚。报告、指导、用药、饮食和健身——一目了然。",
+    "All your health, decoded. Reports, tips, meds, diet, and fitness—concise and actionable.":
+      "你的健康尽在掌握。报告、提示、用药、饮食和健身——精简且可执行。",
+    "Clinical reasoning on demand. Built for doctors, nurses, and medical students.":
+      "按需获得临床推理。为医生、护士和医学生打造。",
+    "Depth when it matters. Structured differentials, red flags, and management—professional grade.":
+      "需要时的深度。结构化鉴别诊断、危险信号和处置——专业级。",
+    "Evidence-ready, clinician-first.": "证据随时就绪，面向临床人士。",
+    "Precision over prose. Concise clinical answers with clear next steps.":
+      "精准胜于长篇。简洁的临床回答和明确的下一步。",
+    "Therapy guidance, made clear. Tools and support; not for emergencies.":
+      "清晰的治疗指导。提供工具与支持；非紧急使用。",
+    "Calm, structured support. Practical techniques and next steps.":
+      "冷静有序的支持。实用技巧与下一步建议。",
+    "Clarity for tough days. Grounded guidance, actionable exercises.":
+      "艰难日子的清晰指引。扎实的指导和可操作的练习。",
+    "Steady help, simple words. Skills you can use today.":
+      "持续帮助，语言简单。立即可用的技巧。",
+    "Your records, organized. Upload, store, and retrieve securely.":
+      "整理好的健康记录。安全上传、存储与提取。",
+    "All your reports in one place. Fast search, clear summaries.":
+      "所有报告集中在一起。快速搜索，清晰摘要。",
+    "Medical files that make sense. Structured, searchable, shareable.":
+      "有意义的医疗文件。结构化、可搜索、可分享。",
+    "From paper to clarity. Digitize reports; get clean overviews.":
+      "从纸质到清晰。数字化报告，获得清爽概览。",
+    "Research: On — web evidence": "研究：开启 — 网络证据",
+    "Research: Off — enable web evidence": "研究：关闭 — 启用网络证据",
   },
   es: {
     Preferences: "Preferencias",
@@ -254,6 +439,43 @@ const DICT: Record<string, Record<string, string>> = {
     "Ask about wellness, therapy, research or clinical topics.":
       "Pregunta sobre bienestar, terapia, investigación o clínica.",
     Upload: "Subir",
+    "Wellness Mode: ON": "Modo Bienestar: activo",
+    "Clinical Mode: ON": "Modo Clínico: activo",
+    "Therapy Mode: ON": "Modo Terapia: activo",
+    "AI Doc: ON": "Doc IA: activo",
+    "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.":
+      "Tu salud, hecha sencilla. Informes, consejos, medicamentos, dietas y ejercicio—explicados con lenguaje claro.",
+    "Everything health, without the jargon. From lab reports to daily habits—meds, diet, fitness—made easy to act on.":
+      "Todo sobre salud sin jerga. De informes de laboratorio a hábitos diarios—medicación, dieta, ejercicio—listo para poner en práctica.",
+    "Clarity for everyday care. Reports, guidance, medication, diet, and fitness—understood at a glance.":
+      "Claridad para el cuidado diario. Informes, guías, medicamentos, dieta y ejercicio—comprensibles de un vistazo.",
+    "All your health, decoded. Reports, tips, meds, diet, and fitness—concise and actionable.":
+      "Toda tu salud, descifrada. Informes, consejos, medicamentos, dieta y ejercicio—concisos y accionables.",
+    "Clinical reasoning on demand. Built for doctors, nurses, and medical students.":
+      "Razonamiento clínico a demanda. Diseñado para médicos, enfermería y estudiantes de medicina.",
+    "Depth when it matters. Structured differentials, red flags, and management—professional grade.":
+      "Profundidad cuando importa. Diferenciales estructurados, señales de alarma y manejo—nivel profesional.",
+    "Evidence-ready, clinician-first.": "Listo con evidencia, pensado primero para clínicos.",
+    "Precision over prose. Concise clinical answers with clear next steps.":
+      "Precisión sobre prosa. Respuestas clínicas concisas con pasos siguientes claros.",
+    "Therapy guidance, made clear. Tools and support; not for emergencies.":
+      "Orientación terapéutica, explicada con claridad. Herramientas y apoyo; no para emergencias.",
+    "Calm, structured support. Practical techniques and next steps.":
+      "Apoyo sereno y estructurado. Técnicas prácticas y próximos pasos.",
+    "Clarity for tough days. Grounded guidance, actionable exercises.":
+      "Claridad para los días difíciles. Guía sólida y ejercicios accionables.",
+    "Steady help, simple words. Skills you can use today.":
+      "Ayuda constante, palabras sencillas. Habilidades que puedes usar hoy mismo.",
+    "Your records, organized. Upload, store, and retrieve securely.":
+      "Tus registros, organizados. Sube, guarda y recupera con seguridad.",
+    "All your reports in one place. Fast search, clear summaries.":
+      "Todos tus informes en un solo lugar. Búsqueda rápida, resúmenes claros.",
+    "Medical files that make sense. Structured, searchable, shareable.":
+      "Archivos médicos comprensibles. Estructurados, buscables y compartibles.",
+    "From paper to clarity. Digitize reports; get clean overviews.":
+      "Del papel a la claridad. Digitaliza informes; obtén panoramas limpios.",
+    "Research: On — web evidence": "Investigación: activada — evidencia web",
+    "Research: Off — enable web evidence": "Investigación: desactivada — habilita evidencia web",
   },
 };
 

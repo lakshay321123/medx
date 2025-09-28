@@ -38,6 +38,7 @@ import { computeTrialStats, type TrialStats } from "@/lib/research/trialStats";
 import { detectSocialIntent } from "@/lib/social";
 import { pushFullMem, buildFullContext } from "@/lib/memory/shortTerm";
 import { maybeIndexStructured } from "@/lib/memory/structured";
+import { usePrefs } from "@/components/providers/PreferencesProvider";
 import { detectAdvancedDomain } from "@/lib/intents/advanced";
 // === ADD-ONLY for domain routing ===
 import { detectDomain } from "@/lib/intents/domains";
@@ -688,6 +689,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const { country } = useCountry();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
+  const prefs = usePrefs();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userText, setUserText] = useState('');
   const [mounted, setMounted] = useState(false);
@@ -2630,7 +2632,8 @@ ${systemCommon}` + baseSys;
         headers: {
           'Content-Type': 'application/json',
           'x-conversation-id': conversationId,
-          'x-new-chat': messages.length === 0 ? 'true' : 'false'
+          'x-new-chat': messages.length === 0 ? 'true' : 'false',
+          'x-lang': prefs.lang,
         },
         body: JSON.stringify({
           mode: mode === 'doctor' ? 'doctor' : 'patient',
@@ -2638,7 +2641,8 @@ ${systemCommon}` + baseSys;
           threadId,
           context,
           clientRequestId,
-          research: researchMode
+          research: researchMode,
+          lang: prefs.lang,
         }),
         signal: ctrl.signal
       });
