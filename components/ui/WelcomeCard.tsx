@@ -1,3 +1,6 @@
+"use client";
+
+import { useT } from "@/components/hooks/useI18n";
 import { X } from "lucide-react";
 
 export type WelcomeCardProps = {
@@ -19,6 +22,8 @@ export default function WelcomeCard({
   onDismiss,
   className,
 }: WelcomeCardProps) {
+  const t = useT();
+
   return (
     <div
       role="region"
@@ -41,9 +46,9 @@ export default function WelcomeCard({
         <X className="h-4 w-4" aria-hidden="true" />
       </button>
       <div className="pr-6">
-        <div className="text-[0.95rem] font-semibold">{header}</div>
-        <div className="mt-1 leading-snug text-blue-50 dark:text-blue-100">{body}</div>
-        {status ? <div className="mt-1 text-xs opacity-90">{status}</div> : null}
+        <div className="text-[0.95rem] font-semibold">{t(header)}</div>
+        <div className="mt-1 leading-snug text-blue-50 dark:text-blue-100">{t(body)}</div>
+        {status ? <div className="mt-1 text-xs opacity-90">{t(status)}</div> : null}
       </div>
     </div>
   );

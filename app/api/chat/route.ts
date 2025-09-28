@@ -79,7 +79,7 @@ function contextStringFrom(messages: ChatCompletionMessageParam[]): string {
 }
 
 export async function POST(req: Request) {
-  const body = await req.json();
+  const body = (await req.json().catch(() => ({}))) as any;
   const { query, locationToken } = body;
   if (query && /near me/i.test(query) && locationToken) {
     const results = await searchNearby(locationToken, query);
@@ -95,7 +95,7 @@ export async function POST(req: Request) {
   }
 
   const headers = req.headers;
-  const lang = headers.get("x-lang") || "en";
+  const lang = (typeof body.lang === "string" ? body.lang : undefined) || headers.get("x-lang") || "en";
   let conversationId = headers.get("x-conversation-id");
   let isNewChat = headers.get("x-new-chat") === "true";
   if (!conversationId) {
@@ -304,7 +304,19 @@ export async function POST(req: Request) {
 
   // 4) Decide routing for current turn
   const systemExtra: string[] = [];
-  const languageDirective = lang === "en" ? "You are MedX." : `Respond in ${lang} using the user's locale.`;
+  const languageName =
+    ({
+      en: "English",
+      hi: "Hindi",
+      ar: "Arabic",
+      it: "Italian",
+      zh: "Simplified Chinese",
+      es: "Spanish",
+    } as Record<string, string>)[lang] || "English";
+  const languageDirective =
+    `You are MedX. Always reply in ${languageName} only (no mixed languages). ` +
+    `If user pastes another language, translate to ${languageName} unless they explicitly ask otherwise. ` +
+    `For Arabic, use RTL script. For Chinese, use Simplified.`;
   systemExtra.push(languageDirective);
   const routeDecision = decideRoute(text, state.topic);
   if (routeDecision === "clarify-quick") {
