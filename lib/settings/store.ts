@@ -1,6 +1,6 @@
 "use client";
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
 
 type Plan = "free" | "pro";
 type Tone = "plain" | "clinical" | "friendly";
@@ -43,6 +43,10 @@ type SettingsState = {
 const WINDOW_DAYS = 30;
 const ms = (d: number) => d * 24 * 60 * 60 * 1000;
 
+const storage = typeof window !== "undefined"
+  ? createJSONStorage(() => window.localStorage)
+  : undefined;
+
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
@@ -78,6 +82,9 @@ export const useSettingsStore = create<SettingsState>()(
       },
       setPlan: (p) => set({ plan: p }),
     }),
-    { name: "medx-settings-v1" },
+    {
+      name: "medx-settings-v1",
+      storage,
+    },
   ),
 );
