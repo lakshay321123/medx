@@ -95,6 +95,7 @@ export async function POST(req: Request) {
   }
 
   const headers = req.headers;
+  const lang = headers.get("x-lang") || "en";
   let conversationId = headers.get("x-conversation-id");
   let isNewChat = headers.get("x-new-chat") === "true";
   if (!conversationId) {
@@ -303,6 +304,8 @@ export async function POST(req: Request) {
 
   // 4) Decide routing for current turn
   const systemExtra: string[] = [];
+  const languageDirective = lang === "en" ? "You are MedX." : `Respond in ${lang} using the user's locale.`;
+  systemExtra.push(languageDirective);
   const routeDecision = decideRoute(text, state.topic);
   if (routeDecision === "clarify-quick") {
     systemExtra.push("If the user intent may have changed, ask one concise clarification question, then proceed.");
