@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Play } from "lucide-react";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
 import type { Prefs } from "@/components/providers/PreferencesProvider";
@@ -11,6 +12,66 @@ const langs = [
   { code: "zh", label: "Chinese" },
   { code: "es", label: "Spanish" },
 ] as const;
+
+function LanguageSelect({ prefs }: { prefs: Prefs }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onDown = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  const current = langs.find((l) => l.code === prefs.lang)?.label ?? "English";
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="inline-flex items-center justify-between gap-2 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60"
+      >
+        {current} <ChevronDown size={14} className="opacity-70" />
+      </button>
+
+      <div
+        role="listbox"
+        className={`absolute right-0 z-10 mt-2 w-44 overflow-hidden rounded-md border border-black/10 bg-white shadow-md dark:border-white/10 dark:bg-slate-900 ${open ? "block" : "hidden"}`}
+      >
+        {langs.map((l) => (
+          <button
+            key={l.code}
+            role="option"
+            aria-selected={prefs.lang === l.code}
+            onClick={() => {
+              prefs.setLang(l.code);
+              setOpen(false);
+            }}
+            className="block w-full px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10"
+          >
+            {l.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function GeneralPanel() {
   const prefs = usePrefs();
@@ -25,23 +86,7 @@ export default function GeneralPanel() {
     </div>
   );
 
-  const LangSelect = (
-    <div className="relative">
-      <button className="inline-flex items-center justify-between gap-2 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60">
-        {langs.find((l) => l.code === prefs.lang)?.label ?? "English"}
-        <ChevronDown size={14} className="opacity-70" />
-      </button>
-      <div className="absolute right-0 z-10 mt-2 w-44 overflow-hidden rounded-md border border-black/10 bg-white shadow-md dark:border-white/10 dark:bg-slate-900">
-        {langs.map((l) => (
-          <button key={l.code}
-                  onClick={() => prefs.setLang(l.code as Prefs["lang"])}
-                  className="block w-full px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10">
-            {l.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+  const LangSelect = <LanguageSelect prefs={prefs} />;
 
   const Pill = ({ dot = "#7C3AED", label = "Purple" }) => (
     <button className="inline-flex items-center gap-2 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60">
