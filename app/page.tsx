@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useRef } from "react";
+import PreferencesModal from "@/components/settings/PreferencesModal";
+import { useRouter } from "next/navigation";
 import ChatPane from "@/components/panels/ChatPane";
 import MedicalProfile from "@/components/panels/MedicalProfile";
 import Timeline from "@/components/panels/Timeline";
 import AlertsPane from "@/components/panels/AlertsPane";
-import SettingsPane from "@/components/panels/SettingsPane";
 import { ResearchFiltersProvider } from "@/store/researchFilters";
 import AiDocPane from "@/components/panels/AiDocPane";
 import DirectoryPane from "@/components/panels/DirectoryPane";
@@ -13,6 +14,10 @@ type Search = { panel?: string };
 
 export default function Page({ searchParams }: { searchParams: Search }) {
   const panel = searchParams.panel?.toLowerCase() || "chat";
+  const showPrefs = panel === "settings" || panel === "preferences";
+  const defaultTab = (searchParams as any).tab || "General";
+  const mainPanel = showPrefs ? "chat" : panel;
+  const router = useRouter();
   const chatInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -22,15 +27,13 @@ export default function Page({ searchParams }: { searchParams: Search }) {
   }, []);
 
   const renderPane = () => {
-    switch (panel) {
+    switch (mainPanel) {
       case "profile":
         return <MedicalProfile />;
       case "timeline":
         return <Timeline />;
       case "alerts":
         return <AlertsPane />;
-      case "settings":
-        return <SettingsPane />;
       case "ai-doc":
         return <AiDocPane />;
       case "directory":
@@ -42,7 +45,7 @@ export default function Page({ searchParams }: { searchParams: Search }) {
 
   return (
     <div className="flex flex-1 min-h-0 flex-col">
-      {panel === "chat" ? (
+      {mainPanel === "chat" ? (
         <ResearchFiltersProvider>
           <ChatPane inputRef={chatInputRef} />
         </ResearchFiltersProvider>
@@ -53,6 +56,11 @@ export default function Page({ searchParams }: { searchParams: Search }) {
           </div>
         </div>
       )}
+      <PreferencesModal
+        open={showPrefs}
+        defaultTab={defaultTab as any}
+        onClose={() => router.push("/?panel=chat")}
+      />
     </div>
   );
 }
