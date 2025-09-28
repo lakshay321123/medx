@@ -45,9 +45,30 @@ function normalizeMime(mime?: string): "image/png" | "image/jpeg" {
   return "image/png";
 }
 
-async function rotateIfNeeded(image: { buffer: Buffer; mime?: string }): Promise<Rotated | null> {
+type ArrayBufferViewLike = ArrayBufferView | NodeJS.ArrayBufferView | { buffer: ArrayBufferLike; byteOffset: number; byteLength: number };
+
+type BinaryInput = Buffer | ArrayBuffer | ArrayBufferViewLike;
+
+function toNodeBuffer(input: BinaryInput): Buffer {
+  if (Buffer.isBuffer(input)) {
+    return input;
+  }
+  if (input instanceof ArrayBuffer) {
+    return Buffer.from(input);
+  }
+  if (ArrayBuffer.isView(input)) {
+    const view = input as ArrayBufferView;
+    return Buffer.from(view.buffer, view.byteOffset, view.byteLength);
+  }
+
+  const view = input as ArrayBufferViewLike;
+  return Buffer.from(view.buffer, view.byteOffset, view.byteLength);
+}
+
+async function rotateIfNeeded(image: { buffer: BinaryInput; mime?: string }): Promise<Rotated | null> {
   try {
-    const img = await loadImage(image.buffer);
+    const source = toNodeBuffer(image.buffer);
+    const img = await loadImage(source);
     const width = img.width;
     const height = img.height;
 
