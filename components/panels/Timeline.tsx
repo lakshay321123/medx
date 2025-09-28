@@ -1,11 +1,12 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useTimeline } from "@/lib/hooks/useAppData";
 import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
 import PanelLoader from "@/components/mobile/PanelLoader";
 import { pushToast } from "@/lib/ui/toast";
+import { useRouter } from "next/navigation";
 
 function normalizeKind(k?: string) {
   const raw = String(k ?? "").toLowerCase().trim();
@@ -201,6 +202,60 @@ export default function Timeline(){
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<any|null>(null);
   const [signedUrl, setSignedUrl] = useState<string|null>(null);
+  const overlayHistoryRef = useRef(false);
+  const overlayPopActiveRef = useRef(false);
+  const router = useRouter();
+
+  const closeOverlay = useCallback((options?: { skipHistory?: boolean }) => {
+    const hadHistoryEntry = overlayHistoryRef.current;
+    overlayHistoryRef.current = false;
+    setOpen(false);
+    setActive(null);
+    setSignedUrl(null);
+    if (!options?.skipHistory && hadHistoryEntry && typeof window !== "undefined") {
+      overlayPopActiveRef.current = true;
+      window.history.back();
+      setTimeout(() => {
+        overlayPopActiveRef.current = false;
+      }, 0);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!open) return;
+
+    const handlePopState = () => {
+      if (!overlayHistoryRef.current) return;
+      overlayPopActiveRef.current = true;
+      closeOverlay({ skipHistory: true });
+      setTimeout(() => {
+        overlayPopActiveRef.current = false;
+      }, 0);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    window.history.pushState({ timelineOverlay: true }, "");
+    overlayHistoryRef.current = true;
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [open, closeOverlay]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleRootPopState = () => {
+      if (overlayHistoryRef.current || overlayPopActiveRef.current) return;
+      router.replace("/?panel=chat");
+    };
+
+    window.addEventListener("popstate", handleRootPopState);
+    return () => {
+      window.removeEventListener("popstate", handleRootPopState);
+    };
+  }, [router]);
   useEffect(()=>{
     if (!open || !active?.file) { setSignedUrl(null); return; }
     const f = active.file;
@@ -249,8 +304,7 @@ export default function Timeline(){
     const previous = observations;
     setObservations(prev => prev.filter(x => x.id !== ob.id));
     if (active?.id === ob.id) {
-      setActive(null);
-      setOpen(false);
+      closeOverlay();
     }
 
     try {
@@ -372,7 +426,7 @@ export default function Timeline(){
 
       {open && active && (
         <>
-          <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setOpen(false)} />
+          <div className="fixed inset-0 bg-black/40 z-40" onClick={() => closeOverlay()} />
           <aside className="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-[640px] bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-2xl ring-1 ring-black/5 overflow-y-auto">
             <header className="sticky top-0 bg-white/90 dark:bg-zinc-900/90 backdrop-blur border-b border-zinc-200/70 dark:border-zinc-800/70 px-4 py-3 flex items-center gap-2">
               <h3 className="font-semibold truncate flex items-center gap-2">
@@ -402,7 +456,7 @@ export default function Timeline(){
                 >
                   <Trash2 size={16} />
                 </button>
-                <button onClick={() => setOpen(false)} className="text-xs px-2 py-1 rounded-md border">Close</button>
+                <button onClick={() => closeOverlay()} className="text-xs px-2 py-1 rounded-md border">Close</button>
               </div>
             </header>
             <div className="px-5 py-4">
