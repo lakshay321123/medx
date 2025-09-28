@@ -15,6 +15,7 @@ import AppToastHost from "@/components/ui/AppToastHost";
 import dynamic from "next/dynamic";
 import Script from "next/script";
 import PreferencesProvider from "@/components/providers/PreferencesProvider";
+import LangDirEffect from "@/components/providers/LangDirEffect";
 
 // Mobile-only UI (loaded client-side)
 const MobileHeader = dynamic(() => import("@/components/mobile/MobileHeader"), { ssr: false });
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </noscript>
       </head>
       <body className="font-loading h-full bg-slate-100 text-slate-900 dark:bg-transparent dark:text-slate-100 font-sans antialiased">
+        <LangDirEffect />
         <Script id="ensure-proxima-first" strategy="beforeInteractive">
           {`
             (function() {
@@ -76,7 +78,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           `}
         </Script>
         <PreferencesProvider>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
             <CountryProvider>
               <ContextProvider>
                 <TopicProvider>

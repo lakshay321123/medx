@@ -140,39 +140,19 @@ export default function PreferencesProvider({ children }: { children: React.Reac
     persist(state);
   }, [persist, state]);
 
-  // apply lang/dir to <html> instantly
-  useEffect(() => {
-    if (!mounted.current) return;
-    const html = document.documentElement;
-    html.lang = state.lang;
-    html.dir = state.dir;
-  }, [state.lang, state.dir]);
-
-  useEffect(() => {
-    if (!mounted.current) return;
-    const root = document.documentElement;
-    if (state.theme === "system") {
-      const media = window.matchMedia("(prefers-color-scheme: dark)");
-      const sync = () => {
-        root.classList.toggle("dark", media.matches);
-      };
-      sync();
-      if (typeof media.addEventListener === "function") {
-        media.addEventListener("change", sync);
-        return () => media.removeEventListener("change", sync);
-      }
-      if (typeof media.addListener === "function") {
-        media.addListener(sync);
-        return () => media.removeListener(sync);
-      }
-      return;
-    }
-    root.classList.toggle("dark", state.theme === "dark");
-  }, [state.theme]);
-
   const api = useMemo<Prefs>(() => {
     const set = <K extends keyof Prefs>(key: K, val: Prefs[K]) => setState((s) => ({ ...s, [key]: val }));
-    const setLang = (l: Lang) => setState((s) => ({ ...s, lang: l, dir: l === "ar" ? "rtl" : "ltr" }));
+    const setLang = (l: Lang) => {
+      let nextState: Prefs | null = null;
+      setState((s) => {
+        const next = { ...s, lang: l, dir: l === "ar" ? "rtl" : "ltr" } as Prefs;
+        nextState = next;
+        return next;
+      });
+      if (nextState) {
+        persist(nextState);
+      }
+    };
     const incUsage = () => setState((s) => ({ ...s, promptsUsed: s.promptsUsed + 1 }));
     const resetWindowIfNeeded = () => {
       let didReset = false;
