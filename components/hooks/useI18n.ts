@@ -17,6 +17,20 @@ const DICT: Record<string, Record<string, string>> = {
     "Accent color": "Accent color",
     Language: "Language",
     Voice: "Voice",
+    "Legal & Privacy": "Legal & Privacy",
+    Introduction: "Introduction",
+    "Intro.copy":
+      "Second Opinion provides AI-assisted health insights to complement conversations with licensed clinicians. These terms explain how we handle information, service limits, and your cookie/data choices.",
+    "Medical Advice Disclaimer": "Medical Advice Disclaimer",
+    "Disclaimer.copy":
+      "The chat experience does not replace personalized care from a qualified professional. Always consult your clinician for medical questions. Don’t ignore or delay care because of something you read here.",
+    "AI Limitations": "AI Limitations",
+    "Limitations.copy":
+      "AI can misunderstand context or present outdated research. Double-check important findings, especially before making care decisions.",
+    "Consent.checkbox":
+      "I agree to the Legal & Privacy terms, including handling of my data and cookie preferences as described above.",
+    "Reject Non-Essential": "Reject Non-Essential",
+    Accept: "Accept",
     Cancel: "Cancel",
     "Save changes": "Save changes",
     "Adjust how MedX behaves and personalizes your care.":
@@ -102,6 +116,20 @@ const DICT: Record<string, Record<string, string>> = {
     "Accent color": "एक्सेंट रंग",
     Language: "भाषा",
     Voice: "आवाज़",
+    "Legal & Privacy": "कानूनी व गोपनीयता",
+    Introduction: "परिचय",
+    "Intro.copy":
+      "सेकंड ओपिनियन लाइसेंस प्राप्त चिकित्सकों के साथ बातचीत को पूरक करने हेतु एआई-आधारित स्वास्थ्य जानकारी देता है। यहाँ हम डाटा उपयोग, सेवा सीमाएँ और कुकी/डाटा विकल्प समझाते हैं।",
+    "Medical Advice Disclaimer": "चिकित्सीय सलाह अस्वीकरण",
+    "Disclaimer.copy":
+      "चैट अनुभव व्यक्तिगत चिकित्सा सलाह का स्थानापन्न नहीं है। किसी भी स्थिति में अपने चिकित्सक से परामर्श करें; यहाँ पढ़ी बातों के कारण देखभाल में देरी/अनदेखी न करें।",
+    "AI Limitations": "एआई सीमाएँ",
+    "Limitations.copy":
+      "एआई संदर्भ समझने में चूक या पुराना शोध दिखा सकता है; विशेषकर निर्णय लेने से पहले महत्वपूर्ण निष्कर्षों को दोबारा जाँचें।",
+    "Consent.checkbox":
+      "ऊपर वर्णित अनुसार मेरे डाटा व कुकी वरीयताओं के साथ कानूनी व गोपनीयता शर्तों से सहमत हूँ।",
+    "Reject Non-Essential": "गैर-आवश्यक अस्वीकार",
+    Accept: "स्वीकार",
     Cancel: "रद्द करें",
     "Save changes": "परिवर्तन सहेजें",
     "Adjust how MedX behaves and personalizes your care.":
@@ -187,6 +215,20 @@ const DICT: Record<string, Record<string, string>> = {
     "Accent color": "لون مميز",
     Language: "اللغة",
     Voice: "الصوت",
+    "Legal & Privacy": "القانون والخصوصية",
+    Introduction: "مقدمة",
+    "Intro.copy":
+      "يوفر Second Opinion رؤى صحية مدعومة بالذكاء الاصطناعي لتكميل محادثاتك مع الأطباء المرخّصين. تشرح هذه البنود كيفية معالجة البيانات وحدود الخدمة وخيارات ملفات تعريف الارتباط.",
+    "Medical Advice Disclaimer": "إخلاء المسؤولية الطبية",
+    "Disclaimer.copy":
+      "لا تُعد الدردشة بديلاً عن رعاية شخصية من مختص مؤهل. استشر طبيبك دائماً؛ لا تُهمِل أو تؤخّر الرعاية بسبب ما تقرأه هنا.",
+    "AI Limitations": "قيود الذكاء الاصطناعي",
+    "Limitations.copy":
+      "قد يسيء الذكاء الاصطناعي فهم السياق أو يعرض أبحاثاً قديمة؛ تحقّق من النتائج المهمة قبل قرارات الرعاية.",
+    "Consent.checkbox":
+      "أوافق على شروط القانون والخصوصية، بما في ذلك معالجة بياناتي وتفضيلات ملفات الارتباط كما هو موضح أعلاه.",
+    "Reject Non-Essential": "رفض غير الأساسية",
+    Accept: "موافقة",
     Cancel: "إلغاء",
     "Save changes": "حفظ التغييرات",
     "Adjust how MedX behaves and personalizes your care.":
@@ -272,6 +314,20 @@ const DICT: Record<string, Record<string, string>> = {
     "Accent color": "Colore accento",
     Language: "Lingua",
     Voice: "Voce",
+    "Legal & Privacy": "Legale e Privacy",
+    Introduction: "Introduzione",
+    "Intro.copy":
+      "Second Opinion offre approfondimenti sanitari assistiti dall’AI a supporto delle conversazioni con clinici abilitati. Questi termini spiegano gestione dati, limiti del servizio e scelte sui cookie.",
+    "Medical Advice Disclaimer": "Avvertenza medica",
+    "Disclaimer.copy":
+      "La chat non sostituisce l’assistenza personalizzata di un professionista. Consulta sempre il tuo medico; non ignorare o ritardare cure per quanto letto qui.",
+    "AI Limitations": "Limitazioni dell’AI",
+    "Limitations.copy":
+      "L’AI può fraintendere il contesto o mostrare ricerche obsolete; verifica i risultati importanti prima delle decisioni cliniche.",
+    "Consent.checkbox":
+      "Accetto i termini Legali e di Privacy, inclusa la gestione dei miei dati e delle preferenze cookie come sopra descritto.",
+    "Reject Non-Essential": "Rifiuta non essenziali",
+    Accept: "Accetta",
     Cancel: "Annulla",
     "Save changes": "Salva modifiche",
     "Adjust how MedX behaves and personalizes your care.":
@@ -357,6 +413,20 @@ const DICT: Record<string, Record<string, string>> = {
     "Accent color": "强调色",
     Language: "语言",
     Voice: "语音",
+    "Legal & Privacy": "法律与隐私",
+    Introduction: "简介",
+    "Intro.copy":
+      "Second Opinion 提供由 AI 辅助的健康洞见，用以补充与持证临床医生的交流。本文说明数据处理、服务限制及 Cookie/数据选项。",
+    "Medical Advice Disclaimer": "医疗声明",
+    "Disclaimer.copy":
+      "聊天不替代专业个性化医疗建议；任何健康问题请咨询医生，请勿因阅读内容而延误或忽视就医。",
+    "AI Limitations": "AI 限制",
+    "Limitations.copy":
+      "AI 可能误解语境或显示过时研究；做出医疗决策前请复核重要发现。",
+    "Consent.checkbox":
+      "我同意法律与隐私条款，包括按上述说明处理我的数据与 Cookie 偏好。",
+    "Reject Non-Essential": "拒绝非必要",
+    Accept: "同意",
     Cancel: "取消",
     "Save changes": "保存更改",
     "Adjust how MedX behaves and personalizes your care.":
@@ -442,6 +512,20 @@ const DICT: Record<string, Record<string, string>> = {
     "Accent color": "Color de acento",
     Language: "Idioma",
     Voice: "Voz",
+    "Legal & Privacy": "Legal y Privacidad",
+    Introduction: "Introducción",
+    "Intro.copy":
+      "Second Opinion ofrece información sanitaria asistida por IA para complementar conversaciones con clínicos titulados. Aquí explicamos el manejo de datos, límites del servicio y tus opciones de cookies.",
+    "Medical Advice Disclaimer": "Aviso médico",
+    "Disclaimer.copy":
+      "El chat no sustituye la atención personalizada de un profesional. Consulta siempre a tu médico; no ignores ni retrases la atención por lo leído aquí.",
+    "AI Limitations": "Limitaciones de la IA",
+    "Limitations.copy":
+      "La IA puede malinterpretar el contexto o mostrar investigaciones desactualizadas; verifica hallazgos importantes antes de decidir.",
+    "Consent.checkbox":
+      "Acepto los términos Legales y de Privacidad, incluido el tratamiento de mis datos y preferencias de cookies como se describe arriba.",
+    "Reject Non-Essential": "Rechazar no esenciales",
+    Accept: "Aceptar",
     Cancel: "Cancelar",
     "Save changes": "Guardar cambios",
     "Adjust how MedX behaves and personalizes your care.":
