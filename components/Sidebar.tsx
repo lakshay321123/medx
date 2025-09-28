@@ -99,7 +99,9 @@ export default function Sidebar() {
           e.preventDefault();
           e.stopPropagation();
           closeSidebar();
-          router.push("?panel=settings");
+          const params = new URLSearchParams(searchParams.toString());
+          params.set("panel", "settings");
+          router.push(`/?${params.toString()}`);
         }}
         className="fixed bottom-3 left-3 z-20 flex items-center gap-1.5 rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm shadow-sm hover:bg-white/90 dark:border-white/10 dark:bg-slate-900/70 dark:hover:bg-slate-900"
         aria-pressed={preferencesOpen}

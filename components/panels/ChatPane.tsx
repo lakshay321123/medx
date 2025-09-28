@@ -765,6 +765,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   });
 
   const sp = useSearchParams();
+  const panelParamRaw = sp.get("panel");
+  const panelParam = panelParamRaw?.toLowerCase();
   const isAiDocMode = useIsAiDocMode();
   const modeState = useMemo(() => fromSearchParams(sp, 'light'), [sp]);
   const mode: 'patient' | 'doctor' = modeState.base === 'doctor' ? 'doctor' : 'patient';
@@ -1024,16 +1026,17 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           ? ((window as any).__medxEphemeralId ||= crypto.randomUUID())
           : 'ephemeral'));
 
-  // Auto-create a fresh thread when landing on /?panel=chat with no threadId
+  // Auto-create a fresh thread when navigating without a threadId, preserving the current panel
   useEffect(() => {
     if (!threadId && !isProfileThread) {
       const id = createNewThreadId();
       const params = new URLSearchParams(sp.toString());
-      params.set("panel", "chat");
+      const targetPanel = panelParam && panelParam !== "chat" ? panelParamRaw ?? panelParam : "chat";
+      params.set("panel", targetPanel);
       params.set("threadId", id);
       router.replace(`/?${params.toString()}`);
     }
-  }, [threadId, isProfileThread, router, sp]);
+  }, [threadId, isProfileThread, router, sp, panelParam, panelParamRaw]);
   const currentMode: 'patient'|'doctor'|'research'|'therapy' = therapyMode ? 'therapy' : (researchMode ? 'research' : mode);
 
   const registerMessageRef = useCallback(
