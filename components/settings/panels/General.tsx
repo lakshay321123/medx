@@ -1,20 +1,20 @@
 "use client";
+
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Play } from "lucide-react";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
+import { useT } from "@/components/hooks/useI18n";
 
-const langs = [
-  { code: "en", label: "English" },
-  { code: "hi", label: "Hindi" },
-  { code: "ar", label: "Arabic" },
-  { code: "it", label: "Italian" },
-  { code: "zh", label: "Chinese" },
-  { code: "es", label: "Spanish" },
-] as const;
-
-function LanguageSelect() {
-  const prefs = usePrefs();
+function Menu({
+  value,
+  onPick,
+  items,
+}: {
+  value: string;
+  onPick: (val: string) => void;
+  items: string[];
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -38,37 +38,29 @@ function LanguageSelect() {
     };
   }, []);
 
-  const current = langs.find((lang) => lang.code === prefs.lang)?.label ?? "English";
-
   return (
     <div ref={ref} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((value) => !value)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
+        onClick={() => setOpen((prev) => !prev)}
         className="inline-flex items-center justify-between gap-2 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60"
       >
-        {current} <ChevronDown size={14} className="opacity-70" />
+        {value} <ChevronDown size={14} className="opacity-70" />
       </button>
-
       <div
-        role="listbox"
         className={`absolute right-0 z-10 mt-2 w-44 overflow-hidden rounded-md border border-black/10 bg-white shadow-md dark:border-white/10 dark:bg-slate-900 ${open ? "block" : "hidden"}`}
       >
-        {langs.map((lang) => (
+        {items.map((item) => (
           <button
-            key={lang.code}
+            key={item}
             type="button"
-            role="option"
-            aria-selected={prefs.lang === lang.code}
             onClick={() => {
-              prefs.setLang(lang.code);
+              onPick(item);
               setOpen(false);
             }}
             className="block w-full px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10"
           >
-            {lang.label}
+            {item}
           </button>
         ))}
       </div>
@@ -77,6 +69,9 @@ function LanguageSelect() {
 }
 
 export default function GeneralPanel() {
+  const prefs = usePrefs();
+  const t = useT();
+
   const Row = ({ title, sub, right }: { title: string; sub?: string; right: ReactNode }) => (
     <div className="flex items-center justify-between gap-4 px-5 py-4">
       <div>
@@ -87,39 +82,71 @@ export default function GeneralPanel() {
     </div>
   );
 
-  const Pill = ({ dot = "#7C3AED", label = "Purple" }) => (
-    <button className="inline-flex items-center gap-2 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60">
-      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: dot }} /> {label}
-    </button>
-  );
+  const themeOptions = {
+    System: "system",
+    Light: "light",
+    Dark: "dark",
+  } as const;
+  const themeLabel = prefs.theme === "system" ? "System" : prefs.theme === "light" ? "Light" : "Dark";
+  const langMap = {
+    en: "English",
+    hi: "Hindi",
+    ar: "Arabic",
+    it: "Italian",
+    zh: "Chinese",
+    es: "Spanish",
+  } as const;
+  const languages = Object.entries(langMap) as Array<[keyof typeof langMap, string]>;
 
   return (
     <>
       <div className="px-5 py-3 text-[13px] text-slate-500 dark:text-slate-400">
-        Adjust how MedX behaves and personalizes your care.
+        {t("Adjust how MedX behaves and personalizes your care.")}
       </div>
       <Row
-        title="Theme"
-        sub="Select how the interface adapts to your system."
+        title={t("Theme")}
+        sub={t("Select how the interface adapts to your system.")}
         right={
-          <button className="inline-flex items-center justify-between gap-2 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60">
-            System <ChevronDown size={14} className="opacity-70" />
-          </button>
+          <Menu
+            value={themeLabel}
+            onPick={(value) => {
+              const next = themeOptions[value as keyof typeof themeOptions];
+              if (next) {
+                prefs.set("theme", next);
+              }
+            }}
+            items={Object.keys(themeOptions)}
+          />
         }
       />
-      <Row title="Accent color" sub="Update highlight elements across the app." right={<Pill />} />
-      <Row title="Language" sub="Choose your preferred conversational language." right={<LanguageSelect />} />
       <Row
-        title="Voice"
-        sub="Preview and select the voice used for spoken responses."
+        title={t("Language")}
+        sub={t("Choose your preferred conversational language.")}
+        right={
+          <Menu
+            value={langMap[prefs.lang as keyof typeof langMap]}
+            onPick={(value) => {
+              const found = languages.find(([, label]) => label === value);
+              if (found) {
+                prefs.setLang(found[0] as Parameters<typeof prefs.setLang>[0]);
+              }
+            }}
+            items={languages.map(([, label]) => label)}
+          />
+        }
+      />
+      <Row
+        title={t("Voice")}
+        sub={t("Preview and select the voice used for spoken responses.")}
         right={
           <>
-            <button className="inline-flex items-center gap-1.5 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60"
+            >
               <Play size={14} /> Play
             </button>
-            <button className="inline-flex items-center justify-between gap-2 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60">
-              Cove <ChevronDown size={14} className="opacity-70" />
-            </button>
+            <Menu value="Cove" onPick={() => {}} items={["Cove"]} />
           </>
         }
       />

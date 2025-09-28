@@ -32,13 +32,9 @@ export default function AccountPanel() {
         <span className="rounded-full border border-black/10 bg-white/70 px-2 py-0.5 dark:border-white/10 dark:bg-slate-900/60">Current: {p.plan === "pro" ? "Pro" : "Free"}</span>
         {p.plan === "free" && <span className="text-xs text-slate-500">Remaining this window: {remaining}</span>}
       </div>
-      <Card title="Free" sub="Up to 10 prompts/month" cta="Stay on Free" />
+      <Card title="Free" sub="Up to 10 prompts/month" cta="Stay on Free" onClick={() => p.setPlan("free")} />
       <Card title="Pro — $1/month" sub="Includes access to everything" cta="Upgrade to Pro" primary onClick={() => p.setPlan("pro")} />
       <div className="h-px w-full bg-black/5 dark:bg-white/10" />
-      <div className="flex items-center justify-between">
-        <div className="text-[13px]">Manage subscription</div>
-        <button className="rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60">Open</button>
-      </div>
       <div className="flex items-center justify-between">
         <div className="text-[13px]">Sign out</div>
         <button className="rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60">Sign out</button>

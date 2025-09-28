@@ -14,6 +14,9 @@ export type Prefs = {
   lang: Lang;
   dir: "ltr" | "rtl";
 
+  memoryEnabled: boolean;
+  memoryAutosave: boolean;
+
   medReminders: boolean;
   labUpdates: boolean;
   weeklyDigest: boolean;
@@ -43,6 +46,9 @@ const DEFAULT: Prefs = {
 
   lang: "en",
   dir: "ltr",
+
+  memoryEnabled: true,
+  memoryAutosave: true,
 
   medReminders: false,
   labUpdates: false,
@@ -98,6 +104,28 @@ export default function PreferencesProvider({ children }: { children: React.Reac
     html.lang = state.lang;
     html.dir = state.dir;
   }, [state.lang, state.dir]);
+
+  useEffect(() => {
+    if (!mounted.current) return;
+    const root = document.documentElement;
+
+    if (state.theme === "system") {
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      const sync = () => {
+        root.classList.toggle("dark", mq.matches);
+      };
+      sync();
+      try {
+        mq.addEventListener("change", sync);
+        return () => mq.removeEventListener("change", sync);
+      } catch {
+        mq.addListener(sync);
+        return () => mq.removeListener(sync);
+      }
+    }
+
+    root.classList.toggle("dark", state.theme === "dark");
+  }, [state.theme]);
 
   const api = useMemo<Prefs>(() => ({
     ...state,
