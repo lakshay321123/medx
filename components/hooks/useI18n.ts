@@ -18,6 +18,18 @@ const DICT: Record<string, Record<string, string>> = {
     Language: "Language",
     Voice: "Voice",
     "Legal & Privacy": "Legal & Privacy",
+    "Data Privacy & Storage": "Data Privacy & Storage",
+    "Data.store.copy":
+      "We store chats and uploaded content to deliver the service, detect safety issues, and improve product quality. Data may be processed in the United States or other jurisdictions with appropriate safeguards. Please avoid sharing sensitive personal details beyond what is required for your care questions.",
+    "Cookies & Tracking": "Cookies & Tracking",
+    "Cookies.copy":
+      "We use cookies to keep the service secure, measure performance, and remember your preferences. Essential cookies are always on. You can update other categories at any time below.",
+    Essential: "Essential",
+    "Essential.desc": "Required for security, basic functionality, and storing your cookie preferences.",
+    On: "ON",
+    Required: "Required",
+    Analytics: "Analytics",
+    "Analytics.desc": "Helps us understand usage patterns so we can improve features and reliability.",
     Introduction: "Introduction",
     "Intro.copy":
       "Second Opinion provides AI-assisted health insights to complement conversations with licensed clinicians. These terms explain how we handle information, service limits, and your cookie/data choices.",
@@ -28,7 +40,7 @@ const DICT: Record<string, Record<string, string>> = {
     "Limitations.copy":
       "AI can misunderstand context or present outdated research. Double-check important findings, especially before making care decisions.",
     "Consent.checkbox":
-      "I agree to the Legal & Privacy terms, including handling of my data and cookie preferences as described above.",
+      "I agree to the Legal & Privacy terms, including the handling of my data and cookie preferences as described above.",
     "Reject Non-Essential": "Reject Non-Essential",
     Accept: "Accept",
     Cancel: "Cancel",
@@ -117,6 +129,18 @@ const DICT: Record<string, Record<string, string>> = {
     Language: "भाषा",
     Voice: "आवाज़",
     "Legal & Privacy": "कानूनी व गोपनीयता",
+    "Data Privacy & Storage": "डेटा गोपनीयता व भंडारण",
+    "Data.store.copy":
+      "हम सेवा प्रदान करने, सुरक्षा मुद्दों की पहचान करने और उत्पाद गुणवत्ता सुधारने के लिए चैट और अपलोड किया गया सामग्री संग्रहीत करते हैं। डेटा को संयुक्त राज्य अमेरिका या अन्य न्याय क्षेत्रों में उपयुक्त सुरक्षा के साथ संसाधित किया जा सकता है। कृपया अपनी देखभाल संबंधी प्रश्नों के लिए आवश्यक से अधिक संवेदनशील व्यक्तिगत विवरण साझा करने से बचें।",
+    "Cookies & Tracking": "कुकीज़ व ट्रैकिंग",
+    "Cookies.copy":
+      "हम सेवा को सुरक्षित रखने, प्रदर्शन मापने और आपकी प्राथमिकताएँ याद रखने के लिए कुकीज़ का उपयोग करते हैं। आवश्यक कुकीज़ हमेशा चालू रहती हैं। आप नीचे किसी भी समय अन्य श्रेणियों को अपडेट कर सकते हैं।",
+    Essential: "आवश्यक",
+    "Essential.desc": "सुरक्षा, मूलभूत कार्यक्षमता और आपकी कुकी प्राथमिकताओं को सहेजने हेतु आवश्यक।",
+    On: "चालू",
+    Required: "अनिवार्य",
+    Analytics: "एनालिटिक्स",
+    "Analytics.desc": "हमें उपयोग पैटर्न समझने में मदद करता है ताकि हम सुविधाओं और विश्वसनीयता में सुधार कर सकें।",
     Introduction: "परिचय",
     "Intro.copy":
       "सेकंड ओपिनियन लाइसेंस प्राप्त चिकित्सकों के साथ बातचीत को पूरक करने हेतु एआई-आधारित स्वास्थ्य जानकारी देता है। यहाँ हम डाटा उपयोग, सेवा सीमाएँ और कुकी/डाटा विकल्प समझाते हैं।",
@@ -127,7 +151,7 @@ const DICT: Record<string, Record<string, string>> = {
     "Limitations.copy":
       "एआई संदर्भ समझने में चूक या पुराना शोध दिखा सकता है; विशेषकर निर्णय लेने से पहले महत्वपूर्ण निष्कर्षों को दोबारा जाँचें।",
     "Consent.checkbox":
-      "ऊपर वर्णित अनुसार मेरे डाटा व कुकी वरीयताओं के साथ कानूनी व गोपनीयता शर्तों से सहमत हूँ।",
+      "मैं कानूनी व गोपनीयता शर्तों से सहमत हूँ, जिसमें ऊपर वर्णित अनुसार मेरे डेटा और कुकी प्राथमिकताओं का प्रबंधन शामिल है।",
     "Reject Non-Essential": "गैर-आवश्यक अस्वीकार",
     Accept: "स्वीकार",
     Cancel: "रद्द करें",
@@ -216,6 +240,18 @@ const DICT: Record<string, Record<string, string>> = {
     Language: "اللغة",
     Voice: "الصوت",
     "Legal & Privacy": "القانون والخصوصية",
+    "Data Privacy & Storage": "خصوصية البيانات والتخزين",
+    "Data.store.copy":
+      "نقوم بتخزين المحادثات والمحتوى الذي ترفعه لتقديم الخدمة، واكتشاف مشكلات السلامة، وتحسين جودة المنتج. قد تتم معالجة البيانات في الولايات المتحدة أو في ولايات قضائية أخرى مع توفير الضمانات المناسبة. يرجى تجنب مشاركة التفاصيل الشخصية الحساسة إلا عند الحاجة لأسئلتك المتعلقة بالرعاية.",
+    "Cookies & Tracking": "ملفات تعريف الارتباط والتتبع",
+    "Cookies.copy":
+      "نستخدم ملفات تعريف الارتباط للحفاظ على أمان الخدمة، وقياس الأداء، وتذكر تفضيلاتك. ملفات الارتباط الأساسية تكون مفعّلة دائماً. يمكنك تحديث الفئات الأخرى في أي وقت أدناه.",
+    Essential: "أساسية",
+    "Essential.desc": "مطلوبة للأمان والوظائف الأساسية وتخزين تفضيلات ملفات تعريف الارتباط.",
+    On: "مفعّل",
+    Required: "مطلوب",
+    Analytics: "تحليلات",
+    "Analytics.desc": "تساعدنا على فهم أنماط الاستخدام حتى نستطيع تحسين الميزات والموثوقية.",
     Introduction: "مقدمة",
     "Intro.copy":
       "يوفر Second Opinion رؤى صحية مدعومة بالذكاء الاصطناعي لتكميل محادثاتك مع الأطباء المرخّصين. تشرح هذه البنود كيفية معالجة البيانات وحدود الخدمة وخيارات ملفات تعريف الارتباط.",
@@ -315,6 +351,18 @@ const DICT: Record<string, Record<string, string>> = {
     Language: "Lingua",
     Voice: "Voce",
     "Legal & Privacy": "Legale e Privacy",
+    "Data Privacy & Storage": "Privacy e archiviazione dei dati",
+    "Data.store.copy":
+      "Conserviamo le chat e i contenuti caricati per erogare il servizio, individuare problemi di sicurezza e migliorare la qualità del prodotto. I dati possono essere trattati negli Stati Uniti o in altre giurisdizioni con adeguate garanzie. Evita di condividere dettagli personali sensibili oltre a quanto necessario per le tue domande di cura.",
+    "Cookies & Tracking": "Cookie e tracciamento",
+    "Cookies.copy":
+      "Utilizziamo i cookie per mantenere il servizio sicuro, misurare le prestazioni e ricordare le tue preferenze. I cookie essenziali sono sempre attivi. Puoi aggiornare le altre categorie in qualsiasi momento qui sotto.",
+    Essential: "Essenziali",
+    "Essential.desc": "Necessari per la sicurezza, le funzioni di base e il salvataggio delle preferenze sui cookie.",
+    On: "ATTIVO",
+    Required: "Obbligatorio",
+    Analytics: "Analisi",
+    "Analytics.desc": "Ci aiutano a comprendere i modelli di utilizzo così da migliorare funzionalità e affidabilità.",
     Introduction: "Introduzione",
     "Intro.copy":
       "Second Opinion offre approfondimenti sanitari assistiti dall’AI a supporto delle conversazioni con clinici abilitati. Questi termini spiegano gestione dati, limiti del servizio e scelte sui cookie.",
@@ -414,6 +462,18 @@ const DICT: Record<string, Record<string, string>> = {
     Language: "语言",
     Voice: "语音",
     "Legal & Privacy": "法律与隐私",
+    "Data Privacy & Storage": "数据隐私与存储",
+    "Data.store.copy":
+      "我们会保存聊天记录和上传内容，以提供服务、发现安全问题并提升产品质量。数据可能在美国或其他具备适当保障的司法辖区处理。请避免分享超出护理问题所需的敏感个人信息。",
+    "Cookies & Tracking": "Cookie 与跟踪",
+    "Cookies.copy":
+      "我们使用 Cookie 以保持服务安全、衡量性能并记住您的偏好。必要的 Cookie 始终开启。您可随时在下方更新其他类别。",
+    Essential: "必要",
+    "Essential.desc": "用于安全、基础功能以及保存您的 Cookie 偏好。",
+    On: "开启",
+    Required: "必需",
+    Analytics: "分析",
+    "Analytics.desc": "帮助我们了解使用模式，从而改进功能与可靠性。",
     Introduction: "简介",
     "Intro.copy":
       "Second Opinion 提供由 AI 辅助的健康洞见，用以补充与持证临床医生的交流。本文说明数据处理、服务限制及 Cookie/数据选项。",
@@ -513,6 +573,18 @@ const DICT: Record<string, Record<string, string>> = {
     Language: "Idioma",
     Voice: "Voz",
     "Legal & Privacy": "Legal y Privacidad",
+    "Data Privacy & Storage": "Privacidad y almacenamiento de datos",
+    "Data.store.copy":
+      "Almacenamos los chats y el contenido subido para prestar el servicio, detectar problemas de seguridad y mejorar la calidad del producto. Los datos pueden procesarse en Estados Unidos u otras jurisdicciones con las garantías adecuadas. Evita compartir datos personales sensibles más allá de lo necesario para tus preguntas de cuidado.",
+    "Cookies & Tracking": "Cookies y seguimiento",
+    "Cookies.copy":
+      "Usamos cookies para mantener el servicio seguro, medir el rendimiento y recordar tus preferencias. Las cookies esenciales siempre están activas. Puedes actualizar las demás categorías en cualquier momento a continuación.",
+    Essential: "Esenciales",
+    "Essential.desc": "Necesarias para la seguridad, la funcionalidad básica y guardar tus preferencias de cookies.",
+    On: "ACTIVAS",
+    Required: "Obligatorias",
+    Analytics: "Analítica",
+    "Analytics.desc": "Nos ayuda a comprender los patrones de uso para mejorar las funciones y la fiabilidad.",
     Introduction: "Introducción",
     "Intro.copy":
       "Second Opinion ofrece información sanitaria asistida por IA para complementar conversaciones con clínicos titulados. Aquí explicamos el manejo de datos, límites del servicio y tus opciones de cookies.",

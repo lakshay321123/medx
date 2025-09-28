@@ -34,16 +34,30 @@ export default function LegalPrivacyModal({
         <header className="border-b px-5 py-4 text-[15px] font-semibold">{t("Legal & Privacy")}</header>
         <div className="max-h-[70vh] space-y-6 overflow-auto px-6 py-5 text-sm leading-6">
           <section>
-            <h3 className="mb-1 font-semibold">{t("Introduction")}</h3>
-            <p>{t("Intro.copy")}</p>
+            <h3 className="mb-1 font-semibold">{t("Data Privacy & Storage")}</h3>
+            <p>{t("Data.store.copy")}</p>
           </section>
           <section>
-            <h3 className="mb-1 font-semibold">{t("Medical Advice Disclaimer")}</h3>
-            <p>{t("Disclaimer.copy")}</p>
+            <h3 className="mb-1 font-semibold">{t("Cookies & Tracking")}</h3>
+            <p>{t("Cookies.copy")}</p>
           </section>
           <section>
-            <h3 className="mb-1 font-semibold">{t("AI Limitations")}</h3>
-            <p>{t("Limitations.copy")}</p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="font-semibold">{t("Essential")}</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">{t("Essential.desc")}</div>
+              </div>
+              <div className="flex flex-col items-end gap-1 text-xs font-semibold uppercase">
+                <span>{t("On")}</span>
+                <span className="font-normal normal-case text-slate-500 dark:text-slate-400">{t("Required")}</span>
+              </div>
+            </div>
+            <div className="mt-3 flex items-start justify-between gap-4">
+              <div>
+                <div className="font-semibold">{t("Analytics")}</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">{t("Analytics.desc")}</div>
+              </div>
+            </div>
           </section>
           <label className="mt-2 flex items-start gap-2">
             <input
