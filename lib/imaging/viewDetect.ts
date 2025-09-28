@@ -61,7 +61,7 @@ function classifyView(name: string, metadata?: Record<string, any> | null): View
 
 function toBinaryLike(buffer: Buffer | ArrayBuffer | ArrayBufferView): crypto.BinaryLike {
   if (typeof Buffer !== "undefined" && Buffer.isBuffer(buffer)) {
-    return buffer;
+    return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
   }
   if (buffer instanceof ArrayBuffer) {
     return new Uint8Array(buffer);
