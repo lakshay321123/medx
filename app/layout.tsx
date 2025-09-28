@@ -14,6 +14,7 @@ import UndoToast from "@/components/memory/UndoToast";
 import AppToastHost from "@/components/ui/AppToastHost";
 import dynamic from "next/dynamic";
 import Script from "next/script";
+import PreferencesProvider from "@/components/providers/PreferencesProvider";
 
 // Mobile-only UI (loaded client-side)
 const MobileHeader = dynamic(() => import("@/components/mobile/MobileHeader"), { ssr: false });
@@ -24,7 +25,7 @@ export const metadata = { title: BRAND_NAME, description: "Global medical AI" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" dir="ltr" suppressHydrationWarning>
       <head>
         <link rel="dns-prefetch" href="https://fonts.cdnfonts.com" />
         <link rel="preconnect" href="https://fonts.cdnfonts.com" crossOrigin="anonymous" />
@@ -74,55 +75,57 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             })();
           `}
         </Script>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <CountryProvider>
-            <ContextProvider>
-              <TopicProvider>
-                <div className="flex h-full min-h-screen flex-col medx-gradient">
-                  {/* Desktop Header */}
-                  <Suspense fallback={<div className="h-[62px]" />}>
-                    <div className="hidden md:block">
-                      <Header />
-                    </div>
-                  </Suspense>
-
-                  {/* Mobile Header (always rendered; CSS shows it only on mobile) */}
-                  <MobileHeader />
-
-                  <div className="grid grow min-h-0 grid-cols-12 mobile-content-offset md:pt-0">
-                    {/* Desktop Sidebar */}
-                    <aside className="hidden min-h-0 overflow-y-auto border-r border-black/5 bg-white/70 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/40 md:col-span-3 md:flex lg:col-span-2">
-                      <Suspense fallback={null}>
-                        <Sidebar />
-                      </Suspense>
-                    </aside>
-
-                    {/* Main Content */}
-                    <main className="col-span-12 flex min-h-0 md:col-span-9 lg:col-span-10">
-                      <div className="flex flex-1 min-h-0 flex-col">
-                        <Suspense fallback={<div className="flex-1 min-h-0" />}>
-                          {children}
-                        </Suspense>
+        <PreferencesProvider>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            <CountryProvider>
+              <ContextProvider>
+                <TopicProvider>
+                  <div className="flex h-full min-h-screen flex-col medx-gradient">
+                    {/* Desktop Header */}
+                    <Suspense fallback={<div className="h-[62px]" />}>
+                      <div className="hidden md:block">
+                        <Header />
                       </div>
-                    </main>
+                    </Suspense>
+
+                    {/* Mobile Header (always rendered; CSS shows it only on mobile) */}
+                    <MobileHeader />
+
+                    <div className="grid grow min-h-0 grid-cols-12 mobile-content-offset md:pt-0">
+                      {/* Desktop Sidebar */}
+                      <aside className="hidden min-h-0 overflow-y-auto border-r border-black/5 bg-white/70 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/40 md:col-span-3 md:flex lg:col-span-2">
+                        <Suspense fallback={null}>
+                          <Sidebar />
+                        </Suspense>
+                      </aside>
+
+                      {/* Main Content */}
+                      <main className="col-span-12 flex min-h-0 md:col-span-9 lg:col-span-10">
+                        <div className="flex flex-1 min-h-0 flex-col">
+                          <Suspense fallback={<div className="flex-1 min-h-0" />}>
+                            {children}
+                          </Suspense>
+                        </div>
+                      </main>
+                    </div>
+
+                    {/* Fixed Legal & Privacy footer (mobile-aware) */}
+                    <LegalPrivacyFooter />
+
+                    {/* App Toasts */}
+                    <MemorySnackbar />
+                    <UndoToast />
+                    <AppToastHost />
+
+                    {/* Mobile overlays/sheets (client side) */}
+                    <MobileSidebarOverlay />
+                    <MobileActionsSheet />
                   </div>
-
-                  {/* Fixed Legal & Privacy footer (mobile-aware) */}
-                  <LegalPrivacyFooter />
-
-                  {/* App Toasts */}
-                  <MemorySnackbar />
-                  <UndoToast />
-                  <AppToastHost />
-
-                  {/* Mobile overlays/sheets (client side) */}
-                  <MobileSidebarOverlay />
-                  <MobileActionsSheet />
-                </div>
-              </TopicProvider>
-            </ContextProvider>
-          </CountryProvider>
-        </ThemeProvider>
+                </TopicProvider>
+              </ContextProvider>
+            </CountryProvider>
+          </ThemeProvider>
+        </PreferencesProvider>
       </body>
     </html>
   );

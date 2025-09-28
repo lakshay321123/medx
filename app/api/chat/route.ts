@@ -79,7 +79,7 @@ function contextStringFrom(messages: ChatCompletionMessageParam[]): string {
 }
 
 export async function POST(req: Request) {
-  const body = await req.json();
+  const body: any = await req.json().catch(() => ({}));
   const { query, locationToken } = body;
   if (query && /near me/i.test(query) && locationToken) {
     const results = await searchNearby(locationToken, query);
@@ -95,6 +95,17 @@ export async function POST(req: Request) {
   }
 
   const headers = req.headers;
+  const requestedLang = typeof body?.lang === "string" ? body.lang : undefined;
+  const lang = (requestedLang || headers.get("x-lang") || "en").toLowerCase();
+  const languageNames: Record<string, string> = {
+    en: "English",
+    hi: "Hindi",
+    ar: "Arabic",
+    it: "Italian",
+    zh: "Simplified Chinese",
+    es: "Spanish",
+  };
+  const languageName = languageNames[lang] || "English";
   let conversationId = headers.get("x-conversation-id");
   let isNewChat = headers.get("x-new-chat") === "true";
   if (!conversationId) {
@@ -303,6 +314,9 @@ export async function POST(req: Request) {
 
   // 4) Decide routing for current turn
   const systemExtra: string[] = [];
+  systemExtra.push(
+    `You are MedX. Always answer in ${languageName} only (no mixed languages). If the user writes in another language, translate to ${languageName} unless they explicitly ask otherwise. For Arabic, use RTL; for Chinese, use Simplified.`
+  );
   const routeDecision = decideRoute(text, state.topic);
   if (routeDecision === "clarify-quick") {
     systemExtra.push("If the user intent may have changed, ask one concise clarification question, then proceed.");

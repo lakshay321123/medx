@@ -1,48 +1,151 @@
 "use client";
-
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { ChevronDown, Play } from "lucide-react";
+import { usePrefs } from "@/components/providers/PreferencesProvider";
+import { useT } from "@/components/hooks/useI18n";
 
-const Row = ({ title, sub, right }: { title: string; sub?: string; right: ReactNode }) => (
-  <div className="flex items-center justify-between gap-4 px-5 py-4">
-    <div>
-      <div className="text-[13px] font-semibold">{title}</div>
-      {sub ? <div className="text-xs text-slate-500 dark:text-slate-400">{sub}</div> : null}
+const LANG_LABELS = {
+  en: "English",
+  hi: "Hindi",
+  ar: "Arabic",
+  it: "Italian",
+  zh: "Chinese",
+  es: "Spanish",
+} as const;
+
+const THEME_OPTIONS = {
+  System: "system",
+  Light: "light",
+  Dark: "dark",
+} as const;
+
+const THEME_ITEMS = ["System", "Light", "Dark"] as const;
+
+type MenuProps = {
+  value: string;
+  onPick: (value: string) => void;
+  items: string[];
+};
+
+function Menu({ value, onPick, items }: MenuProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointer = (event: PointerEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointer, { passive: true });
+    document.addEventListener("keydown", handleKey, { passive: true });
+    return () => {
+      document.removeEventListener("pointerdown", handlePointer);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((prev) => !prev)}
+        className="inline-flex items-center justify-between gap-2 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60"
+      >
+        {value}
+        <ChevronDown size={14} className="opacity-70" />
+      </button>
+      <div
+        className={`absolute right-0 z-10 mt-2 w-44 overflow-hidden rounded-md border border-black/10 bg-white shadow-md dark:border-white/10 dark:bg-slate-900 ${open ? "block" : "hidden"}`}
+      >
+        {items.map((item) => (
+          <button
+            key={item}
+            onClick={() => {
+              onPick(item);
+              setOpen(false);
+            }}
+            className="block w-full px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10"
+          >
+            {item}
+          </button>
+        ))}
+      </div>
     </div>
-    <div className="flex items-center gap-2">{right}</div>
-  </div>
-);
-
-const Select = ({ label }: { label: string }) => (
-  <button className="inline-flex items-center justify-between gap-2 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60">
-    {label} <ChevronDown size={14} className="opacity-70" />
-  </button>
-);
-
-const Pill = ({ dot = "#7C3AED", label = "Purple" }: { dot?: string; label?: string }) => (
-  <button className="inline-flex items-center gap-2 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60">
-    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: dot }} /> {label}
-  </button>
-);
+  );
+}
 
 export default function GeneralPanel() {
+  const prefs = usePrefs();
+  const t = useT();
+
+  const Row = ({ title, sub, right }: { title: string; sub?: string; right: ReactNode }) => (
+    <div className="flex items-center justify-between gap-4 px-5 py-4">
+      <div>
+        <div className="text-[13px] font-semibold">{title}</div>
+        {sub && <div className="text-xs text-slate-500 dark:text-slate-400">{sub}</div>}
+      </div>
+      <div className="flex items-center gap-2">{right}</div>
+    </div>
+  );
+
+  const themeLabel = prefs.theme === "system" ? "System" : prefs.theme === "light" ? "Light" : "Dark";
+  const languages = Object.entries(LANG_LABELS) as [keyof typeof LANG_LABELS, string][];
+
   return (
     <>
       <div className="px-5 py-3 text-[13px] text-slate-500 dark:text-slate-400">
-        Adjust how MedX behaves and personalizes your care.
+        {t("Adjust how MedX behaves and personalizes your care.")}
       </div>
-      <Row title="Theme" sub="Select how the interface adapts to your system." right={<Select label="System" />} />
-      <Row title="Accent color" sub="Update highlight elements across the app." right={<Pill />} />
-      <Row title="Language" sub="Choose your preferred conversational language." right={<Select label="Hindi" />} />
       <Row
-        title="Voice"
-        sub="Preview and select the voice used for spoken responses."
+        title={t("Theme")}
+        sub={t("Select how the interface adapts to your system.")}
+        right={
+          <Menu
+            value={themeLabel}
+            onPick={(value) => {
+              const theme = THEME_OPTIONS[value as keyof typeof THEME_OPTIONS];
+              if (theme) {
+                prefs.set("theme", theme);
+              }
+            }}
+            items={[...THEME_ITEMS]}
+          />
+        }
+      />
+      <Row
+        title={t("Language")}
+        sub={t("Choose your preferred conversational language.")}
+        right={
+          <Menu
+            value={LANG_LABELS[prefs.lang]}
+            onPick={(value) => {
+              const match = languages.find(([, label]) => label === value);
+              if (match) {
+                prefs.setLang(match[0]);
+              }
+            }}
+            items={languages.map(([, label]) => label)}
+          />
+        }
+      />
+      <Row
+        title={t("Voice")}
+        sub={t("Preview and select the voice used for spoken responses.")}
         right={
           <>
             <button className="inline-flex items-center gap-1.5 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60">
               <Play size={14} /> Play
             </button>
-            <Select label="Cove" />
+            <Menu value="Cove" onPick={() => {}} items={["Cove"]} />
           </>
         }
       />

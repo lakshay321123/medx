@@ -1,15 +1,37 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useChatStore } from "@/lib/state/chatStore";
 import { useOpenPass } from "@/hooks/useOpenPass";
 import { Paperclip, SendHorizontal } from "lucide-react";
+import { useT } from "@/components/hooks/useI18n";
+import { usePrefs } from "@/components/providers/PreferencesProvider";
 
-export function ChatInput({ onSend }: { onSend: (text: string, locationToken?: string)=>Promise<void> }) {
+export function ChatInput({
+  onSend,
+  canSend,
+}: {
+  onSend: (text: string, locationToken?: string, lang?: string) => Promise<void>;
+  canSend: () => boolean;
+}) {
   const [text, setText] = useState("");
   const currentId = useChatStore(s => s.currentId);
   const addMessage = useChatStore(s => s.addMessage);
   const openPass = useOpenPass();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const t = useT();
+  const { lang } = usePrefs();
+
+  const redirectToAccount = useCallback(() => {
+    const q = new URLSearchParams(searchParams?.toString() || "");
+    const tid = q.get("threadId");
+    q.set("panel", "settings");
+    q.set("tab", "Account");
+    if (tid) q.set("threadId", tid);
+    router.push(`/?${q.toString()}`);
+  }, [router, searchParams]);
 
   const ensureThread = useCallback(() => {
     const state = useChatStore.getState();
@@ -34,6 +56,10 @@ export function ChatInput({ onSend }: { onSend: (text: string, locationToken?: s
   const handleSend = async () => {
     const content = text.trim();
     if (!content) return;
+    if (!canSend()) {
+      redirectToAccount();
+      return;
+    }
     ensureThread();
     // add user message locally (this also sets the title from first words)
     addMessage({ role: "user", content });
@@ -44,7 +70,7 @@ export function ChatInput({ onSend }: { onSend: (text: string, locationToken?: s
       locationToken = await openPass.getLocationToken() || undefined;
     }
 
-    await onSend(content, locationToken); // your existing streaming/send logic
+    await onSend(content, locationToken, lang); // your existing streaming/send logic
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -59,7 +85,7 @@ export function ChatInput({ onSend }: { onSend: (text: string, locationToken?: s
     >
       <button
         type="button"
-        aria-label="Upload"
+        aria-label={t("Upload")}
         className="flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--medx-text)] transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-[color:var(--medx-text)] dark:hover:bg-white/10"
         onClick={() => {
           ensureThread();
@@ -86,7 +112,7 @@ export function ChatInput({ onSend }: { onSend: (text: string, locationToken?: s
         ref={textareaRef}
         value={text}
         onChange={e => setText(e.target.value)}
-        placeholder="Type a message…"
+        placeholder={`${t("Type a message")}…`}
         rows={1}
         onKeyDown={event => {
           if (event.key === "Enter" && !event.shiftKey) {
@@ -98,7 +124,8 @@ export function ChatInput({ onSend }: { onSend: (text: string, locationToken?: s
       />
       <button
         type="submit"
-        aria-label="Send"
+        aria-label={t("Send")}
+        title={t("Send")}
         disabled={!text.trim()}
         className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-sky-500 dark:hover:bg-sky-400"
       >

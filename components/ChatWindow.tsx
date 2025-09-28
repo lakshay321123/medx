@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useChatStore } from "@/lib/state/chatStore";
 import { ChatInput } from "@/components/ChatInput";
 import { persistIfTemp } from "@/lib/chat/persist";
@@ -10,6 +11,8 @@ import { LinkBadge } from "@/components/SafeLink";
 import { AssistantPendingMessage } from "@/components/chat/AssistantPendingMessage";
 import { usePendingAssistantStages } from "@/hooks/usePendingAssistantStages";
 import type { AppMode } from "@/lib/welcomeMessages";
+import { usePrefs } from "@/components/providers/PreferencesProvider";
+import WelcomeCard from "@/components/chat/WelcomeCard";
 
 const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== "0";
 
@@ -27,11 +30,25 @@ export function ChatWindow() {
   const addMessage = useChatStore(s => s.addMessage);
   const currentId = useChatStore(s => s.currentId);
   const [results, setResults] = useState<any[]>([]);
+  const prefs = usePrefs();
   const chatRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const [pendingMessage, setPendingMessage] = useState<{ id: string; content: string } | null>(null);
   const [modeChoice, setModeChoice] = useState<AppMode>('wellness');
-  const hasScrollableContent = messages.length > 0 || results.length > 0 || !!pendingMessage;
+  const showWelcomeCard = messages.length === 0 && results.length === 0 && !pendingMessage;
+  const hasScrollableContent =
+    messages.length > 0 || results.length > 0 || !!pendingMessage || showWelcomeCard;
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const gotoAccount = useCallback(() => {
+    const q = new URLSearchParams(searchParams?.toString() || "");
+    const tid = q.get("threadId");
+    q.set("panel", "settings");
+    q.set("tab", "Account");
+    if (tid) q.set("threadId", tid);
+    router.push(`/?${q.toString()}`);
+  }, [router, searchParams]);
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
@@ -127,7 +144,14 @@ export function ChatWindow() {
     onFinalize: handlePendingFinalize,
   });
 
-  const handleSend = async (content: string, locationToken?: string) => {
+  const handleSend = async (content: string, locationToken?: string, langOverride?: string) => {
+    if (!prefs.canSend()) {
+      gotoAccount();
+      return;
+    }
+
+    const lang = langOverride ?? prefs.lang;
+
     // after sending user message, persist thread if needed
     await persistIfTemp();
     const research = getResearchFlagFromUrl();
@@ -137,29 +161,66 @@ export function ChatWindow() {
         : `pending-${Date.now()}`;
     setPendingMessage({ id: pendingId, content: "" });
     beginPendingAssistant(pendingId, { mode: modeChoice, research, text: content });
+    let counted = false;
     try {
+      let replyText = "";
       if (locationToken) {
         const res = await fetch("/api/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: content, locationToken, research }),
+          headers: { "Content-Type": "application/json", "x-lang": lang },
+          body: JSON.stringify({
+            query: content,
+            locationToken,
+            research,
+            lang,
+            activeThreadId: currentId,
+            threadId: currentId,
+            mode: modeChoice,
+          }),
         });
+        if (!res.ok) {
+          throw new Error(`Chat API error ${res.status}`);
+        }
         const data = await res.json();
         setResults(data.results || []);
-        const text = data.results ? "Here are some places nearby:" : "";
-        markPendingAssistantStreaming(pendingId);
-        if (text) {
-          enqueuePendingAssistant(pendingId, text);
-        }
-        finishPendingAssistant(pendingId, text);
+        replyText =
+          typeof data.text === "string"
+            ? data.text
+            : typeof data.reply === "string"
+            ? data.reply
+            : "";
       } else {
-        // For now, echo the user's message as the assistant reply
-        // In a real implementation, replace this with a call to your backend/AI service
-        const reply = `You said: ${content}`;
-        markPendingAssistantStreaming(pendingId);
-        enqueuePendingAssistant(pendingId, reply);
-        finishPendingAssistant(pendingId, reply);
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-lang": lang },
+          body: JSON.stringify({
+            text: content,
+            lang,
+            activeThreadId: currentId,
+            threadId: currentId,
+            mode: modeChoice,
+            researchOn: research,
+          }),
+        });
+        if (!res.ok) {
+          throw new Error(`Chat API error ${res.status}`);
+        }
+        const data = await res.json();
+        setResults([]);
+        replyText =
+          typeof data.text === "string"
+            ? data.text
+            : typeof data.reply === "string"
+            ? data.reply
+            : "";
       }
+
+      markPendingAssistantStreaming(pendingId);
+      if (replyText) {
+        enqueuePendingAssistant(pendingId, replyText);
+      }
+      finishPendingAssistant(pendingId, replyText);
+      counted = true;
     } catch (error) {
       console.error(error);
       const fallback = "We couldn't complete that. Please try again.";
@@ -167,11 +228,15 @@ export function ChatWindow() {
       enqueuePendingAssistant(pendingId, fallback);
       finishPendingAssistant(pendingId, fallback);
       setResults([]);
+    } finally {
+      if (counted) {
+        prefs.incUsage();
+      }
     }
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" dir={prefs.dir}>
       <div
         ref={chatRef}
         className={`flex-1 pt-4 md:px-0 md:pt-0 ${
@@ -181,6 +246,11 @@ export function ChatWindow() {
         } md:pb-0 md:overflow-y-auto`}
       >
         <div className="px-4">
+          {showWelcomeCard ? (
+            <div className="py-10">
+              <WelcomeCard />
+            </div>
+          ) : null}
           {messages.map(m => (
             <div key={m.id} className="space-y-2">
               <MessageRow m={m} />
@@ -231,7 +301,7 @@ export function ChatWindow() {
         </div>
       </div>
       <div ref={composerRef} className="mobile-composer md:static md:bg-transparent md:p-0 md:shadow-none">
-        <ChatInput onSend={handleSend} />
+        <ChatInput onSend={handleSend} canSend={prefs.canSend} />
       </div>
       <ScrollToBottom targetRef={chatRef} rebindKey={currentId} />
     </div>
