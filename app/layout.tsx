@@ -41,7 +41,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </noscript>
       </head>
       <body className="font-loading h-full bg-slate-100 text-slate-900 dark:bg-transparent dark:text-slate-100 font-sans antialiased">
-        <LangDirEffect />
         <Script id="ensure-proxima-first" strategy="beforeInteractive">
           {`
             (function() {
@@ -78,6 +77,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           `}
         </Script>
         <PreferencesProvider>
+          <LangDirEffect />
           <ThemeProvider
             attribute="class"
             defaultTheme="system"

@@ -141,17 +141,18 @@ export default function PreferencesProvider({ children }: { children: React.Reac
   }, [persist, state]);
 
   const api = useMemo<Prefs>(() => {
-    const set = <K extends keyof Prefs>(key: K, val: Prefs[K]) => setState((s) => ({ ...s, [key]: val }));
     const setLang = (l: Lang) => {
-      let nextState: Prefs | null = null;
-      setState((s) => {
-        const next = { ...s, lang: l, dir: l === "ar" ? "rtl" : "ltr" } as Prefs;
-        nextState = next;
-        return next;
-      });
-      if (nextState) {
-        persist(nextState);
+      setState((s) => ({ ...s, lang: l, dir: l === "ar" ? "rtl" : "ltr" } as Prefs));
+    };
+    const set = <K extends keyof Prefs>(key: K, val: Prefs[K]) => {
+      if (key === "lang") {
+        setLang(val as Lang);
+        return;
       }
+      if (key === "dir") {
+        return;
+      }
+      setState((s) => ({ ...s, [key]: val }));
     };
     const incUsage = () => setState((s) => ({ ...s, promptsUsed: s.promptsUsed + 1 }));
     const resetWindowIfNeeded = () => {
