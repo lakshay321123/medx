@@ -43,8 +43,22 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB per image
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function toDataUrl(buf: Buffer, mime = "image/jpeg") {
-  return `data:${mime};base64,${buf.toString("base64")}`;
+type BinaryInput = Buffer | ArrayBuffer | ArrayBufferView;
+
+function toNodeBuffer(input: BinaryInput): Buffer {
+  if (Buffer.isBuffer(input)) return input;
+  if (input instanceof ArrayBuffer) return Buffer.from(input);
+  if (ArrayBuffer.isView(input)) {
+    const view = input as ArrayBufferView;
+    return Buffer.from(view.buffer, view.byteOffset, view.byteLength);
+  }
+  // Fallback: coerce to Buffer; should be unreachable but satisfies typings.
+  return Buffer.from(input as ArrayBuffer);
+}
+
+function toDataUrl(buf: BinaryInput, mime = "image/jpeg") {
+  const normalized = toNodeBuffer(buf);
+  return `data:${mime};base64,${normalized.toString("base64")}`;
 }
 
 function parseJsonField<T>(value: FormDataEntryValue | null): T | null {
