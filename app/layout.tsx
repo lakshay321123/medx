@@ -14,6 +14,7 @@ import UndoToast from "@/components/memory/UndoToast";
 import AppToastHost from "@/components/ui/AppToastHost";
 import dynamic from "next/dynamic";
 import Script from "next/script";
+import PreferencesModalHost from "@/components/settings/PreferencesModalHost";
 
 // Mobile-only UI (loaded client-side)
 const MobileHeader = dynamic(() => import("@/components/mobile/MobileHeader"), { ssr: false });
@@ -75,6 +76,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           `}
         </Script>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <PreferencesModalHost />
           <CountryProvider>
             <ContextProvider>
               <TopicProvider>

@@ -11,6 +11,7 @@ export default function Sidebar() {
   const router = useRouter();
   const [threads, setThreads] = useState<Thread[]>([]);
   const [q, setQ] = useState("");
+  const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const closeSidebar = useMobileUiStore((state) => state.closeSidebar);
 
   useEffect(() => {
@@ -33,6 +34,25 @@ export default function Sidebar() {
     setQ(value);
     window.dispatchEvent(new CustomEvent("search-chats", { detail: value }));
   };
+  useEffect(() => {
+    const handlePreferencesClosed = () => setIsPreferencesOpen(false);
+    if (typeof window !== "undefined") {
+      window.addEventListener("preferences-modal:closed", handlePreferencesClosed);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("preferences-modal:closed", handlePreferencesClosed);
+      }
+    };
+  }, []);
+
+  const openPreferences = () => {
+    setIsPreferencesOpen(true);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("preferences-modal:open", { detail: { tab: "General" } }));
+    }
+  };
+
   const filtered = threads.filter((t) => t.title.toLowerCase().includes(q.toLowerCase()));
   return (
     <div className="sidebar-click-guard flex h-full w-full flex-col gap-4 px-4 pt-6 pb-0 text-medx">
@@ -56,7 +76,7 @@ export default function Sidebar() {
         <Tabs />
       </div>
 
-      <div className="mt-2 flex-1 space-y-1 overflow-y-auto pr-1">
+      <div className="mt-2 flex-1 space-y-1 overflow-y-auto pr-1 pb-16">
         {filtered.map((t) => (
           <div
             key={t.id}
@@ -90,16 +110,14 @@ export default function Sidebar() {
         ))}
       </div>
 
-      <div className="mt-auto">
-        <div className="sticky bottom-0 left-0 -mx-4 border-t border-black/5 bg-white/60 px-4 py-3 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/50">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white/70 px-3 py-2 text-sm text-slate-900 transition hover:bg-white/90 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900"
-          >
-            <Settings size={14} /> Preferences
-          </button>
-        </div>
-      </div>
+      <button
+        type="button"
+        onClick={openPreferences}
+        aria-pressed={isPreferencesOpen}
+        className="fixed bottom-3 left-3 z-20 inline-flex items-center gap-2 rounded-xl border border-neutral-800 bg-white/5 px-3 py-2 text-sm font-medium text-slate-900 backdrop-blur transition hover:bg-white/10 dark:border-neutral-800 dark:bg-neutral-900/60 dark:text-white"
+      >
+        <Settings size={14} /> Preferences
+      </button>
     </div>
   );
 }

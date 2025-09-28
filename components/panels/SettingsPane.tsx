@@ -1,12 +1,9 @@
 'use client';
-import Preferences from "../settings/Preferences";
-import { MemorySettings } from "../settings/MemorySettings";
+import { useState } from "react";
+import PreferencesModal from "../settings/PreferencesModal";
 
 export default function SettingsPane() {
-  return (
-    <div className="p-4 space-y-4">
-      <Preferences />
-      <MemorySettings />
-    </div>
-  );
+  const [open, setOpen] = useState(true);
+
+  return <PreferencesModal open={open} defaultTab="General" onClose={() => setOpen(false)} />;
 }
