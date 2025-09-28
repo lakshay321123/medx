@@ -8,11 +8,17 @@ import SettingsPane from "@/components/panels/SettingsPane";
 import { ResearchFiltersProvider } from "@/store/researchFilters";
 import AiDocPane from "@/components/panels/AiDocPane";
 import DirectoryPane from "@/components/panels/DirectoryPane";
+import PreferencesModal from "@/components/settings/PreferencesModal";
+import { useRouter } from "next/navigation";
 
-type Search = { panel?: string };
+type Search = { panel?: string; tab?: string };
 
 export default function Page({ searchParams }: { searchParams: Search }) {
+  const router = useRouter();
   const panel = searchParams.panel?.toLowerCase() || "chat";
+  const showPrefs = panel === "settings" || panel === "preferences";
+  const defaultTab = searchParams.tab ?? "General";
+  const mainPanel = showPrefs ? "chat" : panel;
   const chatInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -22,7 +28,7 @@ export default function Page({ searchParams }: { searchParams: Search }) {
   }, []);
 
   const renderPane = () => {
-    switch (panel) {
+    switch (mainPanel) {
       case "profile":
         return <MedicalProfile />;
       case "timeline":
@@ -42,7 +48,7 @@ export default function Page({ searchParams }: { searchParams: Search }) {
 
   return (
     <div className="flex flex-1 min-h-0 flex-col">
-      {panel === "chat" ? (
+      {mainPanel === "chat" ? (
         <ResearchFiltersProvider>
           <ChatPane inputRef={chatInputRef} />
         </ResearchFiltersProvider>
@@ -53,6 +59,11 @@ export default function Page({ searchParams }: { searchParams: Search }) {
           </div>
         </div>
       )}
+      <PreferencesModal
+        open={showPrefs}
+        defaultTab={defaultTab as any}
+        onClose={() => router.push("?panel=chat")}
+      />
     </div>
   );
 }
