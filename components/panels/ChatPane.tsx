@@ -17,6 +17,7 @@ import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
 import { detectFollowupIntent } from '@/lib/intents';
 import { BRAND_NAME } from "@/lib/brand";
+import { usePrefs } from "@/components/providers/PreferencesProvider";
 import SuggestionChips from "@/components/chat/SuggestionChips";
 import SuggestBar from "@/components/suggest/SuggestBar";
 import ComposerFocus from "@/components/chat/ComposerFocus";
@@ -687,6 +688,7 @@ function AssistantMessage(props: {
 export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: RefObject<HTMLInputElement> } = {}) {
 
   const { country } = useCountry();
+  const prefs = usePrefs();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userText, setUserText] = useState('');
@@ -2630,7 +2632,8 @@ ${systemCommon}` + baseSys;
         headers: {
           'Content-Type': 'application/json',
           'x-conversation-id': conversationId,
-          'x-new-chat': messages.length === 0 ? 'true' : 'false'
+          'x-new-chat': messages.length === 0 ? 'true' : 'false',
+          'x-lang': prefs.lang
         },
         body: JSON.stringify({
           mode: mode === 'doctor' ? 'doctor' : 'patient',
@@ -2638,7 +2641,8 @@ ${systemCommon}` + baseSys;
           threadId,
           context,
           clientRequestId,
-          research: researchMode
+          research: researchMode,
+          lang: prefs.lang
         }),
         signal: ctrl.signal
       });

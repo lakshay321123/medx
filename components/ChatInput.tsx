@@ -4,12 +4,13 @@ import { useChatStore } from "@/lib/state/chatStore";
 import { useOpenPass } from "@/hooks/useOpenPass";
 import { Paperclip, SendHorizontal } from "lucide-react";
 import { useT } from "@/components/hooks/useI18n";
+import { usePrefs } from "@/components/providers/PreferencesProvider";
 
 export function ChatInput({
   onSend,
   canSend,
 }: {
-  onSend: (text: string, locationToken?: string) => Promise<void>;
+  onSend: (text: string, locationToken?: string, lang?: string) => Promise<void>;
   canSend: () => boolean;
 }) {
   const [text, setText] = useState("");
@@ -21,6 +22,7 @@ export function ChatInput({
   const router = useRouter();
   const searchParams = useSearchParams();
   const t = useT();
+  const { lang } = usePrefs();
 
   const redirectToAccount = useCallback(() => {
     const q = new URLSearchParams(searchParams?.toString() || "");
@@ -68,7 +70,7 @@ export function ChatInput({
       locationToken = await openPass.getLocationToken() || undefined;
     }
 
-    await onSend(content, locationToken); // your existing streaming/send logic
+    await onSend(content, locationToken, lang); // your existing streaming/send logic
   };
 
   const handleSubmit = async (event: FormEvent) => {

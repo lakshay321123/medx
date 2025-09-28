@@ -12,6 +12,7 @@ import { AssistantPendingMessage } from "@/components/chat/AssistantPendingMessa
 import { usePendingAssistantStages } from "@/hooks/usePendingAssistantStages";
 import type { AppMode } from "@/lib/welcomeMessages";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
+import WelcomeCard from "@/components/chat/WelcomeCard";
 
 const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== "0";
 
@@ -34,7 +35,9 @@ export function ChatWindow() {
   const composerRef = useRef<HTMLDivElement>(null);
   const [pendingMessage, setPendingMessage] = useState<{ id: string; content: string } | null>(null);
   const [modeChoice, setModeChoice] = useState<AppMode>('wellness');
-  const hasScrollableContent = messages.length > 0 || results.length > 0 || !!pendingMessage;
+  const showWelcomeCard = messages.length === 0 && results.length === 0 && !pendingMessage;
+  const hasScrollableContent =
+    messages.length > 0 || results.length > 0 || !!pendingMessage || showWelcomeCard;
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -146,11 +149,13 @@ export function ChatWindow() {
     onFinalize: handlePendingFinalize,
   });
 
-  const handleSend = async (content: string, locationToken?: string) => {
+  const handleSend = async (content: string, locationToken?: string, langOverride?: string) => {
     if (!canSend()) {
       gotoAccount();
       return;
     }
+
+    const lang = langOverride ?? prefs.lang;
 
     // after sending user message, persist thread if needed
     await persistIfTemp();
@@ -166,8 +171,8 @@ export function ChatWindow() {
       if (locationToken) {
         const res = await fetch("/api/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-lang": prefs.lang },
-          body: JSON.stringify({ query: content, locationToken, research, lang: prefs.lang }),
+          headers: { "Content-Type": "application/json", "x-lang": lang },
+          body: JSON.stringify({ query: content, locationToken, research, lang }),
         });
         const data = await res.json();
         setResults(data.results || []);
@@ -212,6 +217,11 @@ export function ChatWindow() {
         } md:pb-0 md:overflow-y-auto`}
       >
         <div className="px-4">
+          {showWelcomeCard ? (
+            <div className="py-10">
+              <WelcomeCard />
+            </div>
+          ) : null}
           {messages.map(m => (
             <div key={m.id} className="space-y-2">
               <MessageRow m={m} />
