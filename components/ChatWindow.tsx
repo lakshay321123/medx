@@ -168,30 +168,64 @@ export function ChatWindow() {
     beginPendingAssistant(pendingId, { mode: modeChoice, research, text: content });
     let counted = false;
     try {
+      let replyText = "";
       if (locationToken) {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-lang": lang },
-          body: JSON.stringify({ query: content, locationToken, research, lang }),
+          body: JSON.stringify({
+            query: content,
+            locationToken,
+            research,
+            lang,
+            activeThreadId: currentId,
+            threadId: currentId,
+            mode: modeChoice,
+          }),
         });
+        if (!res.ok) {
+          throw new Error(`Chat API error ${res.status}`);
+        }
         const data = await res.json();
         setResults(data.results || []);
-        const text = data.results ? "Here are some places nearby:" : "";
-        markPendingAssistantStreaming(pendingId);
-        if (text) {
-          enqueuePendingAssistant(pendingId, text);
-        }
-        finishPendingAssistant(pendingId, text);
-        counted = true;
+        replyText =
+          typeof data.text === "string"
+            ? data.text
+            : typeof data.reply === "string"
+            ? data.reply
+            : "";
       } else {
-        // For now, echo the user's message as the assistant reply
-        // In a real implementation, replace this with a call to your backend/AI service
-        const reply = `You said: ${content}`;
-        markPendingAssistantStreaming(pendingId);
-        enqueuePendingAssistant(pendingId, reply);
-        finishPendingAssistant(pendingId, reply);
-        counted = true;
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-lang": lang },
+          body: JSON.stringify({
+            text: content,
+            lang,
+            activeThreadId: currentId,
+            threadId: currentId,
+            mode: modeChoice,
+            researchOn: research,
+          }),
+        });
+        if (!res.ok) {
+          throw new Error(`Chat API error ${res.status}`);
+        }
+        const data = await res.json();
+        setResults([]);
+        replyText =
+          typeof data.text === "string"
+            ? data.text
+            : typeof data.reply === "string"
+            ? data.reply
+            : "";
       }
+
+      markPendingAssistantStreaming(pendingId);
+      if (replyText) {
+        enqueuePendingAssistant(pendingId, replyText);
+      }
+      finishPendingAssistant(pendingId, replyText);
+      counted = true;
     } catch (error) {
       console.error(error);
       const fallback = "We couldn't complete that. Please try again.";
@@ -207,7 +241,7 @@ export function ChatWindow() {
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" dir={prefs.dir}>
       <div
         ref={chatRef}
         className={`flex-1 pt-4 md:px-0 md:pt-0 ${

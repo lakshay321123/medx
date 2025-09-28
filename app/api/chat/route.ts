@@ -315,7 +315,7 @@ export async function POST(req: Request) {
   // 4) Decide routing for current turn
   const systemExtra: string[] = [];
   systemExtra.push(
-    `You are MedX. Always reply in ${languageName} only (no mixed languages). If user pastes another language, translate to ${languageName} unless they explicitly ask otherwise. For Arabic, use RTL script. For Chinese, use Simplified.`
+    `You are MedX. Always answer in ${languageName} only (no mixed languages). If the user writes in another language, translate to ${languageName} unless they explicitly ask otherwise. For Arabic, use RTL; for Chinese, use Simplified.`
   );
   const routeDecision = decideRoute(text, state.topic);
   if (routeDecision === "clarify-quick") {
