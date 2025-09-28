@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useChatStore } from "@/lib/state/chatStore";
 import { useOpenPass } from "@/hooks/useOpenPass";
 import { Paperclip, SendHorizontal } from "lucide-react";
@@ -12,14 +13,19 @@ export function ChatInput({ onSend }: { onSend: (text: string, locationToken?: s
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const prefs = usePrefs();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   const redirectToAccount = useCallback(() => {
-    if (typeof window === "undefined") return;
-    const u = new URL(window.location.href);
-    u.searchParams.set("panel", "settings");
-    u.searchParams.set("tab", "Account");
-    window.history.pushState({}, "", u.toString());
-  }, []);
+    const q = new URLSearchParams(searchParams?.toString() || "");
+    const threadId = q.get("threadId");
+    q.set("panel", "settings");
+    q.set("tab", "Account");
+    if (threadId) {
+      q.set("threadId", threadId);
+    }
+    router.push(`/?${q.toString()}`);
+  }, [router, searchParams]);
 
   const canSend = () => {
     prefs.resetWindowIfNeeded();

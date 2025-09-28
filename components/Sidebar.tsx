@@ -10,7 +10,6 @@ import { useMobileUiStore } from "@/lib/state/mobileUiStore";
 export default function Sidebar() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const threadId = searchParams.get("threadId") ?? "";
   const [threads, setThreads] = useState<Thread[]>([]);
   const [q, setQ] = useState("");
   const closeSidebar = useMobileUiStore((state) => state.closeSidebar);
@@ -99,10 +98,12 @@ export default function Sidebar() {
           e.preventDefault();
           e.stopPropagation();
           closeSidebar?.();
-          const params = new URLSearchParams(window.location.search);
+          const params = new URLSearchParams(searchParams?.toString() || "");
+          const tid = params.get("threadId");
           params.set("panel", "settings");
-          if (threadId) {
-            params.set("threadId", threadId);
+          params.delete("tab");
+          if (tid) {
+            params.set("threadId", tid);
           }
           router.push(`/?${params.toString()}`);
         }}

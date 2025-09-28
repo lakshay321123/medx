@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useChatStore } from "@/lib/state/chatStore";
 import { ChatInput } from "@/components/ChatInput";
 import { persistIfTemp } from "@/lib/chat/persist";
@@ -34,14 +35,19 @@ export function ChatWindow() {
   const [modeChoice, setModeChoice] = useState<AppMode>('wellness');
   const hasScrollableContent = messages.length > 0 || results.length > 0 || !!pendingMessage;
   const prefs = usePrefs();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   const redirectToAccount = useCallback(() => {
-    if (typeof window === "undefined") return;
-    const u = new URL(window.location.href);
-    u.searchParams.set("panel", "settings");
-    u.searchParams.set("tab", "Account");
-    window.history.pushState({}, "", u.toString());
-  }, []);
+    const q = new URLSearchParams(searchParams?.toString() || "");
+    const threadId = q.get("threadId");
+    q.set("panel", "settings");
+    q.set("tab", "Account");
+    if (threadId) {
+      q.set("threadId", threadId);
+    }
+    router.push(`/?${q.toString()}`);
+  }, [router, searchParams]);
 
   const canSend = () => {
     prefs.resetWindowIfNeeded();
