@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useChatStore } from "@/lib/state/chatStore";
 import { ChatInput } from "@/components/ChatInput";
 import { persistIfTemp } from "@/lib/chat/persist";
@@ -34,11 +35,22 @@ export function ChatWindow() {
   const [pendingMessage, setPendingMessage] = useState<{ id: string; content: string } | null>(null);
   const [modeChoice, setModeChoice] = useState<AppMode>('wellness');
   const hasScrollableContent = messages.length > 0 || results.length > 0 || !!pendingMessage;
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   const canSend = () => {
     prefs.resetWindowIfNeeded();
     return prefs.plan === "pro" || prefs.promptsUsed < 10;
   };
+
+  const gotoAccount = useCallback(() => {
+    const q = new URLSearchParams(searchParams?.toString() || "");
+    const tid = q.get("threadId");
+    q.set("panel", "settings");
+    q.set("tab", "Account");
+    if (tid) q.set("threadId", tid);
+    router.push(`/?${q.toString()}`);
+  }, [router, searchParams]);
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
@@ -136,10 +148,7 @@ export function ChatWindow() {
 
   const handleSend = async (content: string, locationToken?: string) => {
     if (!canSend()) {
-      const u = new URL(window.location.href);
-      u.searchParams.set("panel", "settings");
-      u.searchParams.set("tab", "Account");
-      window.history.pushState({}, "", u.toString());
+      gotoAccount();
       return;
     }
 
@@ -253,7 +262,7 @@ export function ChatWindow() {
         </div>
       </div>
       <div ref={composerRef} className="mobile-composer md:static md:bg-transparent md:p-0 md:shadow-none">
-        <ChatInput onSend={handleSend} />
+        <ChatInput onSend={handleSend} canSend={canSend} />
       </div>
       <ScrollToBottom targetRef={chatRef} rebindKey={currentId} />
     </div>

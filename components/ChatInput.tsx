@@ -1,15 +1,33 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useChatStore } from "@/lib/state/chatStore";
 import { useOpenPass } from "@/hooks/useOpenPass";
 import { Paperclip, SendHorizontal } from "lucide-react";
 
-export function ChatInput({ onSend }: { onSend: (text: string, locationToken?: string)=>Promise<void> }) {
+export function ChatInput({
+  onSend,
+  canSend,
+}: {
+  onSend: (text: string, locationToken?: string) => Promise<void>;
+  canSend: () => boolean;
+}) {
   const [text, setText] = useState("");
   const currentId = useChatStore(s => s.currentId);
   const addMessage = useChatStore(s => s.addMessage);
   const openPass = useOpenPass();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const redirectToAccount = useCallback(() => {
+    const q = new URLSearchParams(searchParams?.toString() || "");
+    const tid = q.get("threadId");
+    q.set("panel", "settings");
+    q.set("tab", "Account");
+    if (tid) q.set("threadId", tid);
+    router.push(`/?${q.toString()}`);
+  }, [router, searchParams]);
 
   const ensureThread = useCallback(() => {
     const state = useChatStore.getState();
@@ -34,6 +52,10 @@ export function ChatInput({ onSend }: { onSend: (text: string, locationToken?: s
   const handleSend = async () => {
     const content = text.trim();
     if (!content) return;
+    if (!canSend()) {
+      redirectToAccount();
+      return;
+    }
     ensureThread();
     // add user message locally (this also sets the title from first words)
     addMessage({ role: "user", content });
