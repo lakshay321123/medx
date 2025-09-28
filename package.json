@@ -17,6 +17,7 @@
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.57.0",
     "@tanstack/react-query": "^5.89.0",
+    "clsx": "^2.1.1",
     "framer-motion": "^12.23.12",
     "html-to-image": "^1.11.11",
     "isomorphic-dompurify": "2.13.0",

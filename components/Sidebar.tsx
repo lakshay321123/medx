@@ -1,7 +1,7 @@
 "use client";
 import { Search, Settings } from "lucide-react";
 import Tabs from "./sidebar/Tabs";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createNewThreadId, listThreads, Thread } from "@/lib/chatThreads";
 import ThreadKebab from "@/components/chat/ThreadKebab";
@@ -9,6 +9,8 @@ import { useMobileUiStore } from "@/lib/state/mobileUiStore";
 
 export default function Sidebar() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const threadId = searchParams.get("threadId") ?? "";
   const [threads, setThreads] = useState<Thread[]>([]);
   const [q, setQ] = useState("");
   const closeSidebar = useMobileUiStore((state) => state.closeSidebar);
@@ -56,7 +58,7 @@ export default function Sidebar() {
         <Tabs />
       </div>
 
-      <div className="mt-2 flex-1 space-y-1 overflow-y-auto pr-1">
+      <div className="mt-2 flex-1 space-y-1 overflow-y-auto pr-1 pb-16">
         {filtered.map((t) => (
           <div
             key={t.id}
@@ -90,16 +92,24 @@ export default function Sidebar() {
         ))}
       </div>
 
-      <div className="mt-auto">
-        <div className="sticky bottom-0 left-0 -mx-4 border-t border-black/5 bg-white/60 px-4 py-3 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/50">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white/70 px-3 py-2 text-sm text-slate-900 transition hover:bg-white/90 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900"
-          >
-            <Settings size={14} /> Preferences
-          </button>
-        </div>
-      </div>
+      <div className="mt-auto" />
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          closeSidebar?.();
+          const params = new URLSearchParams(window.location.search);
+          params.set("panel", "settings");
+          if (threadId) {
+            params.set("threadId", threadId);
+          }
+          router.push(`/?${params.toString()}`);
+        }}
+        className="fixed bottom-3 left-3 z-20 flex items-center gap-1.5 rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm shadow-sm hover:bg-white/90 dark:border-white/10 dark:bg-slate-900/70 dark:hover:bg-slate-900"
+      >
+        <Settings size={14} /> Preferences
+      </button>
     </div>
   );
 }

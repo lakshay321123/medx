@@ -1029,8 +1029,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     if (!threadId && !isProfileThread) {
       const id = createNewThreadId();
       const params = new URLSearchParams(sp.toString());
-      params.set("panel", "chat");
-      params.set("threadId", id);
+      const currentPanel = sp.get('panel') ?? 'chat';
+      params.set('panel', currentPanel);
+      params.set('threadId', id);
       router.replace(`/?${params.toString()}`);
     }
   }, [threadId, isProfileThread, router, sp]);
