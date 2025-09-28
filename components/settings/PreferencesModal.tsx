@@ -11,6 +11,7 @@ import {
   Lock,
   User,
   Home,
+  type LucideIcon,
 } from "lucide-react";
 import cn from "clsx";
 import GeneralPanel from "./panels/General";
@@ -47,11 +48,15 @@ export default function PreferencesModal({
   const [ignoreFirst, setIgnoreFirst] = useState(false);
   const t = useT();
 
-  const tabs = useMemo(
+  const tabs = useMemo<Array<{ key: TabKey; label: string; icon: LucideIcon }>>(
     () => [
       { key: "General", label: t("General"), icon: Home },
       { key: "Notifications", label: t("Notifications"), icon: Bell },
-      { key: "Personalization", label: t("Personalization"), icon: SlidersHorizontal },
+      {
+        key: "Personalization",
+        label: t("Personalization"),
+        icon: SlidersHorizontal,
+      },
       { key: "Connectors", label: t("Connectors"), icon: Link2 },
       { key: "Schedules", label: t("Schedules"), icon: CalendarClock },
       { key: "Data controls", label: t("Data controls"), icon: Database },
