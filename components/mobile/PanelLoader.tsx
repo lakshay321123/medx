@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useI18n } from "@/i18n/I18nProvider";
 
 export default function PanelLoader({ label }: { label: string }) {
   const [showHint, setShowHint] = useState(false);
+  const { formatMessage } = useI18n();
+
+  const hint = formatMessage({ id: "loader.hint", defaultMessage: "Fetching your data securely…" });
 
   useEffect(() => {
     const timer = window.setTimeout(() => setShowHint(true), 3200);
@@ -21,9 +25,7 @@ export default function PanelLoader({ label }: { label: string }) {
         </span>
       </div>
       {showHint ? (
-        <p className="max-w-[220px] text-xs text-slate-500 dark:text-slate-400">
-          Fetching your data securely…
-        </p>
+        <p className="max-w-[220px] text-xs text-slate-500 dark:text-slate-400">{hint}</p>
       ) : null}
     </div>
   );

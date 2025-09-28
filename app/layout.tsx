@@ -8,6 +8,9 @@ import { CountryProvider } from "@/lib/country";
 import { ContextProvider } from "@/lib/context";
 import { TopicProvider } from "@/lib/topic";
 import { BRAND_NAME } from "@/lib/brand";
+import { I18nProvider } from "@/i18n/I18nProvider";
+import LocalizedAppShell from "@/components/i18n/LocalizedAppShell";
+import { DEFAULT_LOCALE } from "@/i18n/config";
 import { Suspense } from "react";
 import MemorySnackbar from "@/components/memory/Snackbar";
 import UndoToast from "@/components/memory/UndoToast";
@@ -24,7 +27,7 @@ export const metadata = { title: BRAND_NAME, description: "Global medical AI" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={DEFAULT_LOCALE} suppressHydrationWarning>
       <head>
         <link rel="dns-prefetch" href="https://fonts.cdnfonts.com" />
         <link rel="preconnect" href="https://fonts.cdnfonts.com" crossOrigin="anonymous" />
@@ -74,55 +77,57 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             })();
           `}
         </Script>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <CountryProvider>
-            <ContextProvider>
-              <TopicProvider>
-                <div className="flex h-full min-h-screen flex-col medx-gradient">
-                  {/* Desktop Header */}
-                  <Suspense fallback={<div className="h-[62px]" />}>
-                    <div className="hidden md:block">
-                      <Header />
-                    </div>
-                  </Suspense>
-
-                  {/* Mobile Header (always rendered; CSS shows it only on mobile) */}
-                  <MobileHeader />
-
-                  <div className="grid grow min-h-0 grid-cols-12 mobile-content-offset md:pt-0">
-                    {/* Desktop Sidebar */}
-                    <aside className="hidden min-h-0 overflow-y-auto border-r border-black/5 bg-white/70 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/40 md:col-span-3 md:flex lg:col-span-2">
-                      <Suspense fallback={null}>
-                        <Sidebar />
-                      </Suspense>
-                    </aside>
-
-                    {/* Main Content */}
-                    <main className="col-span-12 flex min-h-0 md:col-span-9 lg:col-span-10">
-                      <div className="flex flex-1 min-h-0 flex-col">
-                        <Suspense fallback={<div className="flex-1 min-h-0" />}>
-                          {children}
-                        </Suspense>
+        <I18nProvider>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            <CountryProvider>
+              <ContextProvider>
+                <TopicProvider>
+                  <LocalizedAppShell className="flex h-full min-h-screen flex-col medx-gradient">
+                    {/* Desktop Header */}
+                    <Suspense fallback={<div className="h-[62px]" />}>
+                      <div className="hidden md:block">
+                        <Header />
                       </div>
-                    </main>
-                  </div>
+                    </Suspense>
 
-                  {/* Fixed Legal & Privacy footer (mobile-aware) */}
-                  <LegalPrivacyFooter />
+                    {/* Mobile Header (always rendered; CSS shows it only on mobile) */}
+                    <MobileHeader />
 
-                  {/* App Toasts */}
-                  <MemorySnackbar />
-                  <UndoToast />
-                  <AppToastHost />
+                    <div className="grid grow min-h-0 grid-cols-12 mobile-content-offset md:pt-0">
+                      {/* Desktop Sidebar */}
+                      <aside className="hidden min-h-0 overflow-y-auto border-r border-black/5 bg-white/70 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/40 md:col-span-3 md:flex lg:col-span-2">
+                        <Suspense fallback={null}>
+                          <Sidebar />
+                        </Suspense>
+                      </aside>
 
-                  {/* Mobile overlays/sheets (client side) */}
-                  <MobileSidebarOverlay />
-                  <MobileActionsSheet />
-                </div>
-              </TopicProvider>
-            </ContextProvider>
-          </CountryProvider>
-        </ThemeProvider>
+                      {/* Main Content */}
+                      <main className="col-span-12 flex min-h-0 md:col-span-9 lg:col-span-10">
+                        <div className="flex flex-1 min-h-0 flex-col">
+                          <Suspense fallback={<div className="flex-1 min-h-0" />}>
+                            {children}
+                          </Suspense>
+                        </div>
+                      </main>
+                    </div>
+
+                    {/* Fixed Legal & Privacy footer (mobile-aware) */}
+                    <LegalPrivacyFooter />
+
+                    {/* App Toasts */}
+                    <MemorySnackbar />
+                    <UndoToast />
+                    <AppToastHost />
+
+                    {/* Mobile overlays/sheets (client side) */}
+                    <MobileSidebarOverlay />
+                    <MobileActionsSheet />
+                  </LocalizedAppShell>
+                </TopicProvider>
+              </ContextProvider>
+            </CountryProvider>
+          </ThemeProvider>
+        </I18nProvider>
       </body>
     </html>
   );
