@@ -58,6 +58,11 @@ export default function PreferencesModal({
   const cardRef = useRef<HTMLDivElement>(null);
   const [ignoreFirst, setIgnoreFirst] = useState(false);
   const lang = useSettingsStore((state) => state.lang);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (open) setTab(defaultTab);
@@ -145,7 +150,7 @@ export default function PreferencesModal({
     }
   }, [tab]);
 
-  if (!open) return null;
+  if (!mounted || !open) return null;
 
   return (
     <div className="fixed inset-0 z-[100]">

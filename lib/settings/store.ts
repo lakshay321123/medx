@@ -43,9 +43,11 @@ type SettingsState = {
 const WINDOW_DAYS = 30;
 const ms = (d: number) => d * 24 * 60 * 60 * 1000;
 
-const storage = typeof window !== "undefined"
-  ? createJSONStorage(() => window.localStorage)
-  : undefined;
+const memoryStorage = {
+  getItem: (_: string) => null,
+  setItem: (_: string, __: string) => {},
+  removeItem: (_: string) => {},
+};
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
@@ -84,7 +86,9 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: "medx-settings-v1",
-      storage,
+      storage: createJSONStorage(() =>
+        typeof window === "undefined" ? (memoryStorage as any) : window.localStorage,
+      ),
     },
   ),
 );
