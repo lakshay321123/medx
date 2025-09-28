@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import PreferencesModal from "@/components/settings/PreferencesModal";
 import { useRouter } from "next/navigation";
 import ChatPane from "@/components/panels/ChatPane";
@@ -23,23 +23,6 @@ export default function Page({ searchParams }: { searchParams: Search }) {
   const mainPanel = showPrefs ? "chat" : panel;
   const router = useRouter();
   const chatInputRef = useRef<HTMLInputElement>(null);
-
-  const makeParams = useCallback(
-    (nextPanel: string) => {
-      const params = new URLSearchParams();
-      Object.entries(searchParams).forEach(([key, value]) => {
-        if (key === "panel" || key === "tab") return;
-        if (typeof value === "string") {
-          params.append(key, value);
-        } else if (Array.isArray(value)) {
-          value.forEach((entry) => params.append(key, entry));
-        }
-      });
-      params.set("panel", nextPanel);
-      return params;
-    },
-    [searchParams]
-  );
 
   useEffect(() => {
     const handler = () => chatInputRef.current?.focus();
@@ -80,7 +63,11 @@ export default function Page({ searchParams }: { searchParams: Search }) {
       <PreferencesModal
         open={showPrefs}
         defaultTab={defaultTab as any}
-        onClose={() => router.push(`/?${makeParams("chat").toString()}`)}
+        onClose={() => {
+          const params = new URLSearchParams(window.location.search);
+          params.set("panel", "chat");
+          router.push(`/?${params.toString()}`);
+        }}
       />
     </div>
   );

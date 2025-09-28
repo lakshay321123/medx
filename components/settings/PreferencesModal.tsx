@@ -12,6 +12,7 @@ import {
   User,
   Home,
 } from "lucide-react";
+import cn from "clsx";
 import GeneralPanel from "./panels/General";
 import NotificationsPanel from "./panels/Notifications";
 import PersonalizationPanel from "./panels/Personalization";
@@ -20,9 +21,6 @@ import SchedulesPanel from "./panels/Schedules";
 import DataControlsPanel from "./panels/DataControls";
 import SecurityPanel from "./panels/Security";
 import AccountPanel from "./panels/Account";
-
-const cn = (...classes: (string | false | null | undefined)[]) =>
-  classes.filter(Boolean).join(" ");
 
 type TabKey =
   | "General"
