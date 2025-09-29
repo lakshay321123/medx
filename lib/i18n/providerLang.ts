@@ -1,18 +1,22 @@
-export function providerLang(appLang: string): string {
-  switch (appLang) {
+export function providerLang(appLang?: string): string {
+  const raw = (appLang ?? "en").toLowerCase().replace(/_/g, "-").trim();
+  const [base, regionOrScript] = raw.split("-");
+
+  switch (base) {
     case "hi":
-      return "hi";
     case "es":
-      return "es";
     case "it":
-      return "it";
     case "ar":
-      return "ar";
-    case "zh":
-    case "zh-CN":
+      return base;
+
+    case "zh": {
+      const region = (regionOrScript ?? "").toLowerCase();
+      if (region === "tw" || region === "hk" || region === "mo" || raw.includes("hant")) {
+        return "zh-TW";
+      }
       return "zh-CN";
-    case "zh-TW":
-      return "zh-TW";
+    }
+
     default:
       return "en";
   }
