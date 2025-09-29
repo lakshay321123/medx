@@ -1,8 +1,11 @@
+"use client";
+
 import { X } from "lucide-react";
+import { useT } from "@/components/hooks/useI18n";
 
 export type WelcomeCardProps = {
-  header: string;
-  body: string;
+  header?: string;
+  body?: string;
   status?: string;
   onDismiss: () => void;
   className?: string;
@@ -19,6 +22,10 @@ export default function WelcomeCard({
   onDismiss,
   className,
 }: WelcomeCardProps) {
+  const t = useT();
+  const resolvedHeader = header ?? t("Start a new conversation");
+  const resolvedBody = body ?? t("Ask about wellness, therapy, research or clinical topics.");
+
   return (
     <div
       role="region"
@@ -41,8 +48,8 @@ export default function WelcomeCard({
         <X className="h-4 w-4" aria-hidden="true" />
       </button>
       <div className="pr-6">
-        <div className="text-[0.95rem] font-semibold">{header}</div>
-        <div className="mt-1 leading-snug text-blue-50 dark:text-blue-100">{body}</div>
+        <div className="text-[0.95rem] font-semibold">{resolvedHeader}</div>
+        <div className="mt-1 leading-snug text-blue-50 dark:text-blue-100">{resolvedBody}</div>
         {status ? <div className="mt-1 text-xs opacity-90">{status}</div> : null}
       </div>
     </div>

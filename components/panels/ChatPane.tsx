@@ -18,6 +18,7 @@ import { isFollowUp } from '@/lib/followup';
 import { detectFollowupIntent } from '@/lib/intents';
 import { BRAND_NAME } from "@/lib/brand";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
+import { useT } from "@/components/hooks/useI18n";
 import SuggestionChips from "@/components/chat/SuggestionChips";
 import SuggestBar from "@/components/suggest/SuggestBar";
 import ComposerFocus from "@/components/chat/ComposerFocus";
@@ -689,6 +690,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const { country } = useCountry();
   const prefs = usePrefs();
+  const t = useT();
+  const isEnglish = prefs.lang === "en";
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userText, setUserText] = useState('');
@@ -3515,8 +3518,8 @@ ${systemCommon}` + baseSys;
         <div className="px-6 pt-6">
           <div className="mx-auto w-full max-w-3xl">
             <WelcomeCard
-              header={welcomeContent.header}
-              body={welcomeContent.body}
+              header={isEnglish ? t("Start a new conversation") : undefined}
+              body={isEnglish ? t("Ask about wellness, therapy, research or clinical topics.") : undefined}
               status={welcomeContent.status}
               onDismiss={dismissWelcome}
             />
