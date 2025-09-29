@@ -29,6 +29,43 @@ type Place = {
   rank_score?: number;
 };
 
+type GoogleAddressComponent = {
+  longText?: string;
+  shortText?: string;
+  types?: string[];
+};
+
+function composeAddress(components: GoogleAddressComponent[], appLang: string) {
+  const lang = providerLang(appLang);
+  const by = (t: string) =>
+    components.find(c => Array.isArray(c.types) && c.types.includes(t));
+  const text = (component: GoogleAddressComponent | undefined) =>
+    component?.longText || component?.shortText;
+
+  const street = [text(by("street_number")), text(by("route"))]
+    .filter(Boolean)
+    .join(" ");
+  const sublocality = text(by("sublocality")) || text(by("sublocality_level_1"));
+  const locality = text(by("locality")) || text(by("postal_town"));
+  const admin2 = text(by("administrative_area_level_2"));
+  const admin1 = text(by("administrative_area_level_1"));
+  const postal = text(by("postal_code"));
+  const countryCode = by("country")?.shortText;
+
+  let country: string | undefined;
+  if (countryCode) {
+    try {
+      country = new Intl.DisplayNames(lang, { type: "region" }).of(countryCode) ?? undefined;
+    } catch {
+      country = countryCode;
+    }
+  }
+
+  return [street, sublocality, locality, admin2, admin1, postal, country]
+    .filter(Boolean)
+    .join(", ");
+}
+
 function distMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const dx = (b.lng - a.lng) * (Math.cos(((a.lat + b.lat) / 2) * Math.PI / 180) * M_PER_DEG);
   const dy = (b.lat - a.lat) * M_PER_DEG;
@@ -140,6 +177,8 @@ type GoogleDetails = {
   formattedAddress?: string;
   displayNameText?: string;
   primaryTypeDisplayNameText?: string;
+  addressComponents?: GoogleAddressComponent[];
+  composedAddress?: string;
 };
 
 async function googlePlaceDetailsV1(placeId: string, key: string, lang: string): Promise<GoogleDetails> {
@@ -147,6 +186,7 @@ async function googlePlaceDetailsV1(placeId: string, key: string, lang: string):
     "displayName",
     "primaryTypeDisplayName",
     "formattedAddress",
+    "addressComponents",
     "internationalPhoneNumber",
     "regularOpeningHours",
   ].join(",");
@@ -170,6 +210,7 @@ async function googlePlaceDetailsV1(placeId: string, key: string, lang: string):
     formattedAddress: j?.formattedAddress ?? undefined,
     displayNameText: j?.displayName?.text ?? undefined,
     primaryTypeDisplayNameText: j?.primaryTypeDisplayName?.text ?? undefined,
+    addressComponents: Array.isArray(j?.addressComponents) ? j.addressComponents : undefined,
   };
 }
 
@@ -205,7 +246,7 @@ async function googleLegacyDetails(placeId: string, key: string, lang: string): 
   };
 }
 
-async function googleDetailsBatch(placeIds: string[], key: string, lang: string) {
+async function googleDetailsBatch(placeIds: string[], key: string, lang: string, appLang: string) {
   // Enrich top N results for phone and opening hours.
   // We limit N to 12 to keep latency and quota sane.
   const N = Math.min(placeIds.length, 12);
@@ -215,11 +256,13 @@ async function googleDetailsBatch(placeIds: string[], key: string, lang: string)
     const id = placeIds[i];
     try {
       const v1 = await googlePlaceDetailsV1(id, key, lang);
-      out.set(id, v1);
+      const composedAddress =
+        v1.addressComponents?.length ? composeAddress(v1.addressComponents, appLang) : undefined;
+      out.set(id, { ...v1, composedAddress });
     } catch (v1Error) {
       try {
         const legacy = await googleLegacyDetails(id, key, lang);
-        out.set(id, legacy);
+        out.set(id, { ...legacy, composedAddress: legacy.formattedAddress });
       } catch {
         // ignore errors for individual details calls
       }
@@ -234,7 +277,6 @@ function normalizeGoogleResults(
   uiType: string,
   appLang: string,
 ): Place[] {
-  const shouldLocalizeQualifiers = !appLang.toLowerCase().startsWith("en");
   const now = new Date().toISOString();
   return results
     .map((r: any) => {
@@ -247,9 +289,7 @@ function normalizeGoogleResults(
         r?.vicinity ??
         r?.plus_code?.compound_code ??
         "Unnamed";
-      const localizedName = shouldLocalizeQualifiers
-        ? localizeQualifiers(providerName, appLang)
-        : providerName;
+      const localizedName = localizeQualifiers(providerName, appLang);
       const formattedAddress =
         r?.formattedAddress ??
         r?.formatted_address ??
@@ -490,21 +530,19 @@ export async function GET(req: Request) {
 
       // enrich top items with phone and hours
       const ids = normalized.map(p => p.id);
-      const details = await googleDetailsBatch(ids, key, lang);
-      const shouldLocalizeQualifiers = !appLang.toLowerCase().startsWith("en");
+      const details = await googleDetailsBatch(ids, key, lang, appLang);
       for (const p of normalized) {
         const d = details.get(p.id);
         if (d?.phone) p.phones = [d.phone];
         if (d?.hours) p.hours = d.hours;
-        if (d?.formattedAddress) p.address_short = d.formattedAddress;
+        const composedAddress = d?.composedAddress ?? d?.formattedAddress ?? p.address_short;
+        if (composedAddress) p.address_short = composedAddress;
         if (d?.primaryTypeDisplayNameText) {
           p.category_display = d.primaryTypeDisplayNameText;
         }
         if (d?.displayNameText) {
           const providerName = d.displayNameText;
-          p.name = shouldLocalizeQualifiers
-            ? localizeQualifiers(providerName, appLang)
-            : providerName;
+          p.name = localizeQualifiers(providerName, appLang);
         }
       }
 
