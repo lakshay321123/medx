@@ -1,3 +1,5 @@
+"use client";
+
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useChatStore } from "@/lib/state/chatStore";
@@ -112,7 +114,8 @@ export function ChatInput({
         ref={textareaRef}
         value={text}
         onChange={e => setText(e.target.value)}
-        placeholder={`${t("Type a message")}…`}
+        placeholder={t("Type a message")}
+        aria-label={t("Type a message")}
         rows={1}
         onKeyDown={event => {
           if (event.key === "Enter" && !event.shiftKey) {

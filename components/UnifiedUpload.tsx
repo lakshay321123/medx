@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { safeJson } from "@/lib/safeJson";
+import { tfmt, useT } from "@/components/hooks/useI18n";
 
 function pushChatMessage(msg: any) {
   if (typeof window === "undefined") return;
@@ -26,6 +27,19 @@ export default function UnifiedUpload() {
     severeSwelling: false,
   });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const t = useT();
+
+  const maxViewCount = typeof MAX_VIEW_COUNT === "number" ? MAX_VIEW_COUNT : null;
+  const uploadLimitMessage = tfmt(
+    t("Upload up to {count} images (PA, lateral, oblique)."),
+    maxViewCount !== null ? { count: maxViewCount } : undefined,
+  );
+  const unsupportedTypeMessage = t("Unsupported file type. Upload PDF/PNG/JPG.");
+  const pdfSeparationMessage = t("Upload PDFs separately from radiograph images.");
+  const singlePdfMessage = t("Upload a single PDF at a time.");
+  const fileSizeMessage = t("Each image must be under 5 MB.");
+  const unclearImageMessage = t("Upload clearer image or side view.");
+  const uploadFailedMessage = t("Upload failed");
 
   const qualityPanelClass = (label?: string | null) => {
     if (label === "Good") return "border border-emerald-200 bg-emerald-50 text-emerald-700";
@@ -50,31 +64,31 @@ export default function UnifiedUpload() {
     const imageFiles = files.filter(file => classify(file).isImage);
 
     if (pdfFiles.length && imageFiles.length) {
-      setErr("Upload PDFs separately from radiograph images.");
+      setErr(pdfSeparationMessage);
       e.target.value = "";
       return;
     }
 
     if (pdfFiles.length > 1) {
-      setErr("Upload a single PDF at a time.");
+      setErr(singlePdfMessage);
       e.target.value = "";
       return;
     }
 
-    if (!pdfFiles.length && imageFiles.length > MAX_VIEW_COUNT) {
-      setErr(`Upload up to ${MAX_VIEW_COUNT} images (PA, lateral, oblique).`);
+    if (!pdfFiles.length && maxViewCount !== null && imageFiles.length > maxViewCount) {
+      setErr(uploadLimitMessage);
       e.target.value = "";
       return;
     }
 
     if (imageFiles.some(file => file.size > MAX_IMAGE_BYTES)) {
-      setErr("Each image must be under 5 MB.");
+      setErr(fileSizeMessage);
       e.target.value = "";
       return;
     }
 
     if (!pdfFiles.length && !imageFiles.length) {
-      setErr("Unsupported file type. Upload PDF/PNG/JPG.");
+      setErr(unsupportedTypeMessage);
       e.target.value = "";
       return;
     }
@@ -146,15 +160,15 @@ export default function UnifiedUpload() {
       }
     } catch (e: any) {
       markAllPreviewsDone();
-      const message = String(e?.message || e) || "Upload failed";
+      const message = String(e?.message || "");
       if (message.includes("415")) {
-        setErr("Unsupported file type. Upload PDF/PNG/JPG.");
+        setErr(unsupportedTypeMessage);
       } else if (message.includes("413")) {
-        setErr("Each image must be under 5 MB.");
+        setErr(fileSizeMessage);
       } else if (message.includes("Upload up to")) {
-        setErr(`Upload up to ${MAX_VIEW_COUNT} images (PA, lateral, oblique).`);
+        setErr(uploadLimitMessage);
       } else {
-        setErr("Upload clearer image or side view.");
+        setErr(uploadFailedMessage);
       }
     } finally {
       setLoading(false);
@@ -190,7 +204,7 @@ export default function UnifiedUpload() {
           className="px-4 py-2 rounded bg-black text-white cursor-pointer"
           onClick={() => fileInputRef.current?.click()}
         >
-          <span>Upload</span>
+          <span>{t("Upload")}</span>
           <input
             type="file"
             accept="application/pdf,image/*"
@@ -336,11 +350,11 @@ export default function UnifiedUpload() {
                       <p>
                         <span className="font-medium">Type:</span> {suspected}
                       </p>
-                  {angulation !== null && (
-                    <p>
-                      <span className="font-medium">Angle:</span> {angulation}°
-                    </p>
-                  )}
+                      {angulation !== null && (
+                        <p>
+                          <span className="font-medium">Angle:</span> {angulation}°
+                        </p>
+                      )}
                       {redFlags.length > 0 && (
                         <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                           <p className="font-semibold text-red-800">Red flags</p>
@@ -376,7 +390,7 @@ export default function UnifiedUpload() {
                   onClick={() => fileInputRef.current?.click()}
                   disabled={loading}
                 >
-                  Upload more views
+                  {t("Upload more views")}
                 </button>
               )}
             </section>
