@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { providerLang } from "@/lib/i18n/providerLang";
-import { localizeQualifiers } from "@/lib/i18n/qualifierMap";
 
 // meters per degree latitude (simple distance estimate)
 const M_PER_DEG = 111_320;
@@ -8,6 +7,9 @@ const M_PER_DEG = 111_320;
 type Place = {
   id: string;
   name: string;
+  address?: string;
+  localizedName?: string;
+  localizedAddress?: string;
   type: "doctor" | "pharmacy" | "lab" | "hospital" | "clinic";
   category_display?: string;
   rating?: number;
@@ -18,7 +20,6 @@ type Place = {
   hours?: Record<string, string>;
   phones?: string[];
   whatsapp?: string | null;
-  address_short?: string;
   geo: { lat: number; lng: number };
   amenities?: string[];
   services?: string[];
@@ -269,40 +270,49 @@ function normalizeGoogleResults(
   results: any[],
   origin: { lat: number; lng: number },
   uiType: string,
-  appLang: string,
 ): Place[] {
   const now = new Date().toISOString();
   return results
     .map((r: any) => {
       const loc = r?.geometry?.location;
       if (!loc) return null;
-      const providerName =
+      const structuredName = r?.structured_formatting?.main_text;
+      const rawName =
+        typeof r?.name === "string" && !r.name.startsWith("ChIJ") ? r.name : undefined;
+      const fallbackName =
+        rawName ??
+        structuredName ??
         r?.displayName?.text ??
-        r?.name ??
-        r?.structured_formatting?.main_text ??
         r?.vicinity ??
         r?.plus_code?.compound_code ??
         "Unnamed";
-      const localizedName = localizeQualifiers(providerName, appLang);
-      const formattedAddress =
-        r?.formattedAddress ??
-        r?.formatted_address ??
-        r?.vicinity ??
-        r?.plus_code?.compound_code;
+      const canonicalName = rawName ?? structuredName ?? fallbackName;
+      const localizedName =
+        typeof r?.displayName?.text === "string" ? r.displayName.text : undefined;
+      const localizedAddressCandidate =
+        r?.formattedAddress ?? r?.formatted_address ?? undefined;
+      const canonicalAddress = r?.vicinity ?? r?.plus_code?.compound_code ?? undefined;
+      const address = canonicalAddress ?? localizedAddressCandidate ?? undefined;
+      const localizedAddress =
+        localizedAddressCandidate && localizedAddressCandidate !== address
+          ? localizedAddressCandidate
+          : undefined;
       const primaryTypeDisplayName =
         r?.primaryTypeDisplayName?.text ??
         r?.primary_type_display_name ??
         humanizeGoogleType(Array.isArray(r?.types) ? r.types[0] : undefined);
       const p: Place = {
         id: r.place_id,
-        name: localizedName,
+        name: canonicalName,
+        address,
+        localizedName: localizedName && localizedName !== canonicalName ? localizedName : undefined,
+        localizedAddress,
         type: (uiType === "all" ? inferTypeFromGoogle(r.types || []) : (uiType as Place["type"])) || "clinic",
         rating: r.rating,
         reviews_count: r.user_ratings_total,
         price_level: r.price_level,
         distance_m: Math.round(distMeters(origin, { lat: loc.lat, lng: loc.lng })),
         open_now: r.opening_hours?.open_now,
-        address_short: formattedAddress,
         geo: { lat: loc.lat, lng: loc.lng },
         amenities: [],
         services: [],
@@ -330,7 +340,7 @@ function inferTypeFromGoogle(types: string[]): Place["type"] {
 }
 
 function uniqueByNameAddr(list: Place[]) {
-  const key = (p: Place) => `${(p.name || "").toLowerCase()}|${(p.address_short || "").toLowerCase()}`;
+  const key = (p: Place) => `${(p.name || "").toLowerCase()}|${(p.address || "").toLowerCase()}`;
   const seen = new Set<string>();
   const out: Place[] = [];
   for (const p of list) {
@@ -350,9 +360,7 @@ async function osmFallback(
   radius: number,
   uiType: string,
   lang: string,
-  appLang: string,
 ) {
-  const shouldLocalizeQualifiers = !appLang.toLowerCase().startsWith("en");
   function kindFilters(type: string) {
     switch (type) {
       case "pharmacy":
@@ -410,7 +418,7 @@ async function osmFallback(
   const res: Place[] = (j.elements || []).map((el: any) => {
     const center = el.center || { lat: el.lat, lon: el.lon };
     const namedetails = el?.namedetails ?? {};
-    const localizedName = langCandidates
+    const localizedNameCandidate = langCandidates
       .map(code => namedetails?.[`name:${code}`] ?? el?.tags?.[`name:${code}`])
       .find(Boolean);
     const fallbackName =
@@ -418,8 +426,10 @@ async function osmFallback(
       el?.tags?.name ||
       el?.tags?.["addr:housename"] ||
       el?.tags?.["brand"];
-    const providerName = localizedName || el?.localname || fallbackName || "Unnamed";
-    const name = shouldLocalizeQualifiers ? localizeQualifiers(providerName, appLang) : providerName;
+    const providerName = localizedNameCandidate || el?.localname || fallbackName || "Unnamed";
+    const name = fallbackName || providerName || "Unnamed";
+    const localizedName =
+      providerName && providerName !== name ? providerName : undefined;
     const localizedStreet = langCandidates
       .map(code => el?.tags?.[`addr:street:${code}`])
       .find(Boolean);
@@ -432,23 +442,39 @@ async function osmFallback(
     const localizedFull = langCandidates
       .map(code => el?.tags?.[`addr:full:${code}`])
       .find(Boolean);
-    const addrParts = [
+    const fallbackStreet = el?.tags?.["addr:street"];
+    const fallbackNeighbourhood = el?.tags?.["addr:neighbourhood"];
+    const fallbackCity = el?.tags?.["addr:city"];
+    const fallbackFull = el?.tags?.["addr:full"];
+    const canonicalParts = [
       el?.tags?.["addr:housenumber"],
-      localizedStreet || el?.tags?.["addr:street"],
-      localizedNeighbourhood || el?.tags?.["addr:neighbourhood"],
-      localizedCity || el?.tags?.["addr:city"],
+      fallbackStreet,
+      fallbackNeighbourhood,
+      fallbackCity,
     ];
-    const addr =
-      localizedFull ||
-      namedetails?.[`addr:full:${langLower}`] ||
-      addrParts.filter(Boolean).join(", ") ||
-      el?.tags?.["addr:full"];
+    const canonicalAddress = fallbackFull || canonicalParts.filter(Boolean).join(", ");
+    const localizedFullCandidate = localizedFull || namedetails?.[`addr:full:${langLower}`];
+    const localizedAddressCandidate =
+      localizedFullCandidate ||
+      [
+        el?.tags?.["addr:housenumber"],
+        localizedStreet || fallbackStreet,
+        localizedNeighbourhood || fallbackNeighbourhood,
+        localizedCity || fallbackCity,
+      ]
+        .filter(Boolean)
+        .join(", ");
+    const address = canonicalAddress || localizedAddressCandidate || undefined;
+    const localizedAddress =
+      localizedAddressCandidate && localizedAddressCandidate !== address ? localizedAddressCandidate : undefined;
     const p: Place = {
       id: String(el.id),
       name,
+      address,
+      localizedName,
+      localizedAddress,
       type: "clinic",
       distance_m: Math.round(distMeters(origin, { lat: center.lat, lng: center.lon })),
-      address_short: addr || el?.tags?.["addr:full"],
       geo: { lat: center.lat, lng: center.lon },
       source: "osm",
       source_ref: String(el.id),
@@ -506,7 +532,7 @@ export async function GET(req: Request) {
   if (key) {
     try {
       const results = await googleNearby({ lat, lng, radius, uiType, q, key, lang });
-      let normalized = normalizeGoogleResults(results, origin, uiType, appLang);
+      let normalized = normalizeGoogleResults(results, origin, uiType);
 
       // optional post filter by rating
       if (Number.isFinite(minRating)) {
@@ -526,14 +552,24 @@ export async function GET(req: Request) {
         const d = details.get(p.id);
         if (d?.phone) p.phones = [d.phone];
         if (d?.hours) p.hours = d.hours;
-        const composedAddress = d?.composedAddress ?? d?.formattedAddress ?? p.address_short;
-        if (composedAddress) p.address_short = composedAddress;
+        const composedAddress = d?.composedAddress ?? d?.formattedAddress;
+        if (composedAddress) {
+          if (!p.address) {
+            p.address = composedAddress;
+          } else if (p.address !== composedAddress) {
+            p.localizedAddress = composedAddress;
+          }
+        }
         if (d?.primaryTypeDisplayNameText) {
           p.category_display = d.primaryTypeDisplayNameText;
         }
         if (d?.displayNameText) {
           const providerName = d.displayNameText;
-          p.name = localizeQualifiers(providerName, appLang);
+          if (!p.name) {
+            p.name = providerName;
+          } else if (p.name !== providerName) {
+            p.localizedName = providerName;
+          }
         }
       }
 
@@ -546,7 +582,7 @@ export async function GET(req: Request) {
   }
 
   if (!usedGoogle) {
-    const osm = await osmFallback(lat, lng, radius, uiType, lang, appLang);
+    const osm = await osmFallback(lat, lng, radius, uiType, lang);
     let filtered = osm;
     if (Number.isFinite(maxKm)) filtered = filtered.filter(p => (p.distance_m ?? 1e9) <= maxKm * 1000);
     filtered.sort((a, b) => (a.distance_m ?? 1e9) - (b.distance_m ?? 1e9));
