@@ -3,6 +3,363 @@ import { providerLang } from "@/lib/i18n/providerLang";
 
 // meters per degree latitude (simple distance estimate)
 const M_PER_DEG = 111_320;
+const DIRECTORY_I18N_V1 =
+  ((process.env.DIRECTORY_I18N_V1 ?? process.env.NEXT_PUBLIC_DIRECTORY_I18N_V1 ?? "true").toString().toLowerCase() ||
+    "true") !== "false";
+const NAME_CACHE_TTL_SECONDS = 86_400;
+const DETAILS_CACHE_TTL_MS = NAME_CACHE_TTL_SECONDS * 1000;
+
+type NameLocalization = {
+  name_original: string;
+  name_localized: string;
+  name_method: "provider" | "translate" | "transliterate" | "fallback";
+  name_display: string;
+  name_cache_ttl: number;
+};
+
+type DirectoryCaches = {
+  __dirCache?: Map<string, { data: Place[]; updatedAt: string; provider: "google" | "osm" }>;
+  __dirNameCache?: Map<string, { entry: NameLocalization; expiresAt: number }>;
+  __dirDetailsCache?: Map<string, { entry: GoogleDetails; expiresAt: number }>;
+};
+
+const GENERIC_TRANSLATIONS: Record<string, Record<string, string>> = {
+  hi: {
+    "medical center": "मेडिकल सेंटर",
+    "medical centre": "मेडिकल सेंटर",
+    center: "केंद्र",
+    centre: "केंद्र",
+    multispeciality: "बहु-विशेषता",
+    multispecialty: "बहु-विशेषता",
+    maternity: "मातृत्व",
+    physiotherapy: "फिजियोथेरेपी",
+    ent: "ईएनटी",
+    dermatology: "त्वचा रोग",
+    pediatric: "बाल चिकित्सा",
+    paediatric: "बाल चिकित्सा",
+    orthopedic: "अस्थि रोग",
+    orthopaedic: "अस्थि रोग",
+    gynecology: "स्त्री रोग",
+    gynaecology: "स्त्री रोग",
+    cardiac: "हृदय",
+    dental: "दंत",
+    eye: "नेत्र",
+    diagnostics: "डायग्नोस्टिक्स",
+    labs: "लैब्स",
+    lab: "लैब",
+    clinic: "क्लिनिक",
+    hospital: "अस्पताल",
+    pharmacy: "फार्मेसी",
+    doctor: "डॉक्टर",
+  },
+  ar: {
+    "medical center": "مركز طبي",
+    "medical centre": "مركز طبي",
+    center: "مركز",
+    centre: "مركز",
+    multispeciality: "متعدد التخصصات",
+    multispecialty: "متعدد التخصصات",
+    maternity: "أمومة",
+    physiotherapy: "علاج طبيعي",
+    ent: "أنف وأذن وحنجرة",
+    dermatology: "جلدية",
+    pediatric: "أطفال",
+    paediatric: "أطفال",
+    orthopedic: "عظام",
+    orthopaedic: "عظام",
+    gynecology: "نسائية",
+    gynaecology: "نسائية",
+    cardiac: "قلبي",
+    dental: "أسنان",
+    eye: "عيون",
+    diagnostics: "تشخيص",
+    labs: "مختبرات",
+    lab: "مختبر",
+    clinic: "عيادة",
+    hospital: "مستشفى",
+    pharmacy: "صيدلية",
+    doctor: "طبيب",
+  },
+  it: {
+    "medical center": "Centro Medico",
+    "medical centre": "Centro Medico",
+    center: "Centro",
+    centre: "Centro",
+    multispeciality: "Polispecialistica",
+    multispecialty: "Polispecialistica",
+    maternity: "Maternità",
+    physiotherapy: "Fisioterapia",
+    ent: "Otorinolaringoiatria",
+    dermatology: "Dermatologia",
+    pediatric: "Pediatria",
+    paediatric: "Pediatria",
+    orthopedic: "Ortopedia",
+    orthopaedic: "Ortopedia",
+    gynecology: "Gynecologia",
+    gynaecology: "Gynecologia",
+    cardiac: "Cardiologia",
+    dental: "Odontoiatria",
+    eye: "Oculistica",
+    diagnostics: "Diagnostica",
+    labs: "Laboratori",
+    lab: "Laboratorio",
+    clinic: "Clinica",
+    hospital: "Ospedale",
+    pharmacy: "Farmacia",
+    doctor: "Medico",
+  },
+  es: {
+    "medical center": "Centro Médico",
+    "medical centre": "Centro Médico",
+    center: "Centro",
+    centre: "Centro",
+    multispeciality: "Multiespecialidad",
+    multispecialty: "Multiespecialidad",
+    maternity: "Maternidad",
+    physiotherapy: "Fisioterapia",
+    ent: "Otorrinolaringología",
+    dermatology: "Dermatología",
+    pediatric: "Pediatría",
+    paediatric: "Pediatría",
+    orthopedic: "Ortopedia",
+    orthopaedic: "Ortopedia",
+    gynecology: "Ginecología",
+    gynaecology: "Ginecología",
+    cardiac: "Cardiología",
+    dental: "Dental",
+    eye: "Oftalmología",
+    diagnostics: "Diagnóstico",
+    labs: "Laboratorios",
+    lab: "Laboratorio",
+    clinic: "Clínica",
+    hospital: "Hospital",
+    pharmacy: "Farmacia",
+    doctor: "Doctor",
+  },
+  zh: {
+    "medical center": "医疗中心",
+    "medical centre": "医疗中心",
+    center: "中心",
+    centre: "中心",
+    multispeciality: "多专科",
+    multispecialty: "多专科",
+    maternity: "产科",
+    physiotherapy: "物理治疗",
+    ent: "耳鼻喉科",
+    dermatology: "皮肤科",
+    pediatric: "儿科",
+    paediatric: "儿科",
+    orthopedic: "骨科",
+    orthopaedic: "骨科",
+    gynecology: "妇科",
+    gynaecology: "妇科",
+    cardiac: "心脏科",
+    dental: "牙科",
+    eye: "眼科",
+    diagnostics: "诊断",
+    labs: "实验室",
+    lab: "实验室",
+    clinic: "诊所",
+    hospital: "医院",
+    pharmacy: "药店",
+    doctor: "医生",
+  },
+};
+
+const ABBREVIATION_TRANSLATIONS: Record<string, { pattern: RegExp; replacement: string }> = {
+  hi: { pattern: /\bDr\.?/gi, replacement: "डा." },
+  ar: { pattern: /\bDr\.?/gi, replacement: "د." },
+  it: { pattern: /\bDr\.?/gi, replacement: "Dott.ssa" },
+  es: { pattern: /\bDr\.?/gi, replacement: "Dr." },
+  zh: { pattern: /\bDr\.?/gi, replacement: "医生" },
+};
+
+const DEVANAGARI_MAP: Record<string, string> = {
+  a: "अ",
+  b: "ब",
+  c: "क",
+  d: "द",
+  e: "ए",
+  f: "फ",
+  g: "ग",
+  h: "ह",
+  i: "इ",
+  j: "ज",
+  k: "क",
+  l: "ल",
+  m: "म",
+  n: "न",
+  o: "ओ",
+  p: "प",
+  q: "क",
+  r: "र",
+  s: "स",
+  t: "ट",
+  u: "उ",
+  v: "व",
+  w: "व",
+  x: "क्स",
+  y: "य",
+  z: "ज़",
+};
+
+const ARABIC_MAP: Record<string, string> = {
+  a: "ا",
+  b: "ب",
+  c: "ك",
+  d: "د",
+  e: "ي",
+  f: "ف",
+  g: "ج",
+  h: "ه",
+  i: "ي",
+  j: "ج",
+  k: "ك",
+  l: "ل",
+  m: "م",
+  n: "ن",
+  o: "و",
+  p: "ب",
+  q: "ق",
+  r: "ر",
+  s: "س",
+  t: "ت",
+  u: "و",
+  v: "ف",
+  w: "و",
+  x: "كس",
+  y: "ي",
+  z: "ز",
+};
+
+function resolveLangMap<T>(table: Record<string, T>, lang: string): T | undefined {
+  const normalized = lang.toLowerCase();
+  if (table[normalized]) return table[normalized];
+  const base = normalized.split("-")[0];
+  return table[base];
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function preserveCase(sample: string, localized: string) {
+  if (!sample) return localized;
+  if (sample === sample.toUpperCase()) return localized.toUpperCase();
+  if (sample === sample.toLowerCase()) return localized.toLowerCase();
+  if (sample[0] === sample[0].toUpperCase()) {
+    return localized.charAt(0).toUpperCase() + localized.slice(1);
+  }
+  return localized;
+}
+
+function translateGenericTerms(name: string, lang: string) {
+  const map = resolveLangMap(GENERIC_TRANSLATIONS, lang);
+  if (!map) return { text: name, changed: false };
+
+  let text = name;
+  let changed = false;
+  const terms = Object.keys(map).sort((a, b) => b.length - a.length);
+
+  for (const term of terms) {
+    const localized = map[term];
+    const pattern = escapeRegExp(term);
+    const possessive = new RegExp(`([\\p{L}\\p{M}0-9]+)[’']s\\s+${pattern}(?=\\b)`, "giu");
+    text = text.replace(possessive, (_, owner: string) => {
+      changed = true;
+      return `${localized} ${owner}`;
+    });
+
+    const regex = new RegExp(`\\b${pattern}\\b`, "gi");
+    text = text.replace(regex, (match: string) => {
+      changed = true;
+      return preserveCase(match, localized);
+    });
+  }
+
+  const abbr = resolveLangMap(ABBREVIATION_TRANSLATIONS, lang);
+  if (abbr) {
+    const { pattern, replacement } = abbr;
+    if (pattern.test(text)) {
+      text = text.replace(pattern, replacement);
+      changed = true;
+    }
+  }
+
+  return { text, changed };
+}
+
+function transliterate(name: string, lang: string) {
+  const asciiOnly = /^[\p{ASCII}]*$/u.test(name);
+  if (!asciiOnly) return null;
+  if (!/[A-Za-z]/.test(name)) return null;
+  const lowerLang = lang.toLowerCase();
+  if (lowerLang.startsWith("hi")) {
+    return name
+      .split("")
+      .map((char) => {
+        const lower = char.toLowerCase();
+        const mapped = DEVANAGARI_MAP[lower];
+        return mapped ? mapped : char;
+      })
+      .join("");
+  }
+  if (lowerLang.startsWith("ar")) {
+    return name
+      .split("")
+      .map((char) => {
+        const lower = char.toLowerCase();
+        const mapped = ARABIC_MAP[lower];
+        return mapped ? mapped : char;
+      })
+      .join("");
+  }
+  return null;
+}
+
+function localizeName(place: Place, lang: string, caches: DirectoryCaches): NameLocalization {
+  const nameOriginal = place.name || "";
+  const cacheKey = `${place.id}|${lang}`;
+  const now = Date.now();
+  caches.__dirNameCache ||= new Map();
+  const cached = caches.__dirNameCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) {
+    return cached.entry;
+  }
+
+  let nameLocalized = nameOriginal;
+  let method: NameLocalization["name_method"] = "fallback";
+
+  const providerName = place.localizedName && place.localizedName.trim().length ? place.localizedName : undefined;
+  if (providerName && providerName !== nameOriginal) {
+    nameLocalized = providerName;
+    method = "provider";
+  } else {
+    const translated = translateGenericTerms(nameOriginal, lang);
+    if (translated.changed && translated.text.trim().length) {
+      nameLocalized = translated.text.trim();
+      method = "translate";
+    } else {
+      const transliterated = transliterate(nameOriginal, lang);
+      if (transliterated && transliterated !== nameOriginal) {
+        nameLocalized = transliterated;
+        method = "transliterate";
+      }
+    }
+  }
+
+  const nameDisplay = nameLocalized !== nameOriginal ? `${nameLocalized} (${nameOriginal})` : nameOriginal;
+  const entry: NameLocalization = {
+    name_original: nameOriginal,
+    name_localized: nameLocalized,
+    name_method: method,
+    name_display: nameDisplay,
+    name_cache_ttl: NAME_CACHE_TTL_SECONDS,
+  };
+
+  caches.__dirNameCache.set(cacheKey, { entry, expiresAt: now + DETAILS_CACHE_TTL_MS });
+  return entry;
+}
 
 type Place = {
   id: string;
@@ -10,6 +367,11 @@ type Place = {
   address?: string;
   localizedName?: string;
   localizedAddress?: string;
+  name_original?: string;
+  name_localized?: string;
+  name_method?: "provider" | "translate" | "transliterate" | "fallback";
+  name_display?: string;
+  name_cache_ttl?: number;
   type: "doctor" | "pharmacy" | "lab" | "hospital" | "clinic";
   category_display?: string;
   rating?: number;
@@ -241,23 +603,47 @@ async function googleLegacyDetails(placeId: string, key: string, lang: string): 
   };
 }
 
-async function googleDetailsBatch(placeIds: string[], key: string, lang: string, appLang: string) {
+async function googleDetailsBatch(
+  placeIds: string[],
+  key: string,
+  lang: string,
+  appLang: string,
+  caches: DirectoryCaches,
+) {
   // Enrich top N results for phone and opening hours.
   // We limit N to 12 to keep latency and quota sane.
   const N = Math.min(placeIds.length, 12);
   const out = new Map<string, GoogleDetails>();
+  caches.__dirDetailsCache ||= new Map();
+  const cache = caches.__dirDetailsCache;
+  const langKey = lang.toLowerCase();
 
   for (let i = 0; i < N; i++) {
     const id = placeIds[i];
+    const cacheKey = `${id}|${langKey}`;
+    const cached = cache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      const entry = { ...cached.entry };
+      if (entry.addressComponents?.length) {
+        entry.composedAddress = composeAddress(entry.addressComponents, appLang);
+      }
+      out.set(id, entry);
+      continue;
+    }
     try {
       const v1 = await googlePlaceDetailsV1(id, key, lang);
-      const composedAddress =
-        v1.addressComponents?.length ? composeAddress(v1.addressComponents, appLang) : undefined;
-      out.set(id, { ...v1, composedAddress });
+      const base: GoogleDetails = { ...v1 };
+      if (base.addressComponents?.length) {
+        base.composedAddress = composeAddress(base.addressComponents, appLang);
+      }
+      out.set(id, base);
+      cache.set(cacheKey, { entry: { ...base, composedAddress: undefined }, expiresAt: Date.now() + DETAILS_CACHE_TTL_MS });
     } catch (v1Error) {
       try {
         const legacy = await googleLegacyDetails(id, key, lang);
-        out.set(id, { ...legacy, composedAddress: legacy.formattedAddress });
+        const base: GoogleDetails = { ...legacy, composedAddress: legacy.formattedAddress };
+        out.set(id, base);
+        cache.set(cacheKey, { entry: { ...base, composedAddress: undefined }, expiresAt: Date.now() + DETAILS_CACHE_TTL_MS });
       } catch {
         // ignore errors for individual details calls
       }
@@ -505,13 +891,10 @@ export async function GET(req: Request) {
     searchParams.get("lng") ?? "",
     searchParams.get("radius") ?? "",
     lang,
+    DIRECTORY_I18N_V1 ? "i18n" : "base",
   ].join("|");
-  const globalAny = globalThis as typeof globalThis & {
-    __dirCache?: Map<string, { data: Place[]; updatedAt: string; provider: "google" | "osm" }>;
-  };
-  if (!globalAny.__dirCache) {
-    globalAny.__dirCache = new Map();
-  }
+  const globalAny = globalThis as typeof globalThis & DirectoryCaches;
+  globalAny.__dirCache ||= new Map();
   const cache = globalAny.__dirCache;
 
   const cached = cache.get(cacheKey);
@@ -547,17 +930,26 @@ export async function GET(req: Request) {
 
       // enrich top items with phone and hours
       const ids = normalized.map(p => p.id);
-      const details = await googleDetailsBatch(ids, key, lang, appLang);
+      const details = await googleDetailsBatch(ids, key, lang, appLang, globalAny);
       for (const p of normalized) {
         const d = details.get(p.id);
         if (d?.phone) p.phones = [d.phone];
         if (d?.hours) p.hours = d.hours;
-        const composedAddress = d?.composedAddress ?? d?.formattedAddress;
-        if (composedAddress) {
+        const formattedAddress = d?.formattedAddress ?? d?.composedAddress;
+        if (DIRECTORY_I18N_V1) {
+          if (formattedAddress) {
+            p.address = formattedAddress;
+          } else if (!p.address) {
+            p.address = "";
+          }
+          if (p.localizedAddress) {
+            delete p.localizedAddress;
+          }
+        } else if (formattedAddress) {
           if (!p.address) {
-            p.address = composedAddress;
-          } else if (p.address !== composedAddress) {
-            p.localizedAddress = composedAddress;
+            p.address = formattedAddress;
+          } else if (p.address !== formattedAddress) {
+            p.localizedAddress = formattedAddress;
           }
         }
         if (d?.primaryTypeDisplayNameText) {
@@ -575,6 +967,9 @@ export async function GET(req: Request) {
 
       normalized.sort((a, b) => (a.distance_m ?? 1e9) - (b.distance_m ?? 1e9));
       places = uniqueByNameAddr(normalized).slice(0, 120);
+      if (DIRECTORY_I18N_V1) {
+        places = places.map(p => ({ ...p, ...localizeName(p, lang, globalAny) }));
+      }
       usedGoogle = places.length > 0;
     } catch {
       // fall through to OSM
@@ -587,6 +982,9 @@ export async function GET(req: Request) {
     if (Number.isFinite(maxKm)) filtered = filtered.filter(p => (p.distance_m ?? 1e9) <= maxKm * 1000);
     filtered.sort((a, b) => (a.distance_m ?? 1e9) - (b.distance_m ?? 1e9));
     places = filtered.slice(0, 120);
+    if (DIRECTORY_I18N_V1) {
+      places = places.map(p => ({ ...p, ...localizeName(p, lang, globalAny) }));
+    }
   }
 
   const payload = {

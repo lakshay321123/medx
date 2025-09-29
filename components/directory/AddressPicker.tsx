@@ -15,12 +15,17 @@ export default function AddressPicker({
   const [opts, setOpts] = useState<{ label: string; lat: number; lng: number }[]>([]);
   const [open, setOpen] = useState(false);
   const timeoutRef = useRef<number | null>(null);
+  const langRef = useRef(lang);
   const t = useT();
   const placeholder = t("Enter area, city, or address");
 
   useEffect(() => {
     setQ(value);
   }, [value]);
+
+  useEffect(() => {
+    langRef.current = lang;
+  }, [lang]);
 
   useEffect(() => {
     if (timeoutRef.current) {
@@ -35,7 +40,7 @@ export default function AddressPicker({
 
     timeoutRef.current = window.setTimeout(async () => {
       try {
-        const params = new URLSearchParams({ q, lang });
+        const params = new URLSearchParams({ q, lang: langRef.current });
         const response = await fetch(`/api/geocode?${params.toString()}`, { cache: "no-store" });
         const json = await response.json();
         setOpts(json.data || []);
@@ -50,7 +55,7 @@ export default function AddressPicker({
         window.clearTimeout(timeoutRef.current);
       }
     };
-  }, [q, lang]);
+  }, [q]);
 
   return (
     <div className="relative w-full">

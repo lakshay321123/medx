@@ -13,6 +13,7 @@ export type Prefs = {
 
   lang: Lang;
   dir: "ltr" | "rtl";
+  directoryShowOriginalName: boolean;
 
   memoryEnabled: boolean;
   memoryAutosave: boolean;
@@ -50,6 +51,7 @@ const DEFAULT: Prefs = {
 
   lang: "en",
   dir: "ltr",
+  directoryShowOriginalName: true,
 
   memoryEnabled: true,
   memoryAutosave: true,

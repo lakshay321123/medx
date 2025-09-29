@@ -10,9 +10,12 @@ import { ISO_COUNTRIES } from "@/lib/i18n/isoCountries";
 type DirectoryType = ReturnType<typeof useDirectory>["state"]["type"];
 
 const PREFS_STORAGE_KEY = "medx-prefs-v1";
+const DIRECTORY_I18N_V1_ENABLED =
+  ((process.env.NEXT_PUBLIC_DIRECTORY_I18N_V1 ?? "true").toString().toLowerCase() || "true") !== "false";
 
 export default function DirectoryPane() {
-  const { lang } = usePrefs();
+  const prefs = usePrefs();
+  const { lang } = prefs;
   const storedLang = useMemo(() => {
     if (typeof window === "undefined") return null;
     try {
@@ -199,7 +202,21 @@ export default function DirectoryPane() {
           </div>
         )}
         {data.map((place) => {
-          const displayName = place.localizedName ?? place.name;
+          const nameFields = place as typeof place & {
+            name_display?: string;
+            name_localized?: string;
+            name_original?: string;
+          };
+          const showOriginalName = prefs.directoryShowOriginalName !== false;
+          const fallbackName = place.localizedName ?? place.name;
+          const displayName = DIRECTORY_I18N_V1_ENABLED
+            ? showOriginalName
+              ? nameFields.name_display ?? nameFields.name_localized ?? fallbackName
+              : nameFields.name_localized ?? fallbackName
+            : fallbackName;
+          const titleAttr = DIRECTORY_I18N_V1_ENABLED
+            ? nameFields.name_original ?? displayName
+            : place.name;
           const displayAddress = place.localizedAddress ?? place.address;
           const typeLabel =
             place.category_display ??
@@ -283,7 +300,7 @@ export default function DirectoryPane() {
                   <div className="flex items-start justify-between gap-2 md:gap-3">
                     <div
                       className="break-words text-start text-[12.5px] font-semibold leading-[1.35] text-slate-900 dark:text-slate-50 md:truncate md:text-[14px]"
-                      title={place.name}
+                      title={titleAttr}
                     >
                       {displayName}
                     </div>
