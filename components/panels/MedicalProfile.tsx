@@ -1466,6 +1466,8 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
 
   if (!isMobile) return null;
 
+  const t = useT();
+
   const safeName = typeof personal.name === "string" && personal.name.trim()
     ? personal.name
     : NO_DATA;
