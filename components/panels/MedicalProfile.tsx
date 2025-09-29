@@ -1536,7 +1536,7 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
         title={t("Personal details")}
         actionLabel={onEditPersonal ? t("Edit") : undefined}
         onAction={onEditPersonal}
-        actionAriaLabel="Edit personal details"
+        actionAriaLabel={t("Edit personal details")}
         primary
       >
         <KV label={t("Name")} value={safeName} />
@@ -1563,7 +1563,7 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
         title={t("Vitals")}
         actionLabel={onEditVitals ? t("Edit") : undefined}
         onAction={onEditVitals}
-        actionAriaLabel="Edit vitals"
+        actionAriaLabel={t("Edit vitals")}
         primary
       >
         <Row label={t("BLOOD PRESSURE")} value={<span className="text-slate-400">{safeBp}</span>} />
@@ -1573,21 +1573,29 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
 
       <Section title={t("AI Summary")}>
         <p className="text-[13px] leading-5 text-slate-600 dark:text-slate-300">
-          Patient: {safeName} ({safeSex === noDataDisplay ? "—" : safeSex}, {safeAge} y, {safeBloodGroup === noDataDisplay ? "—" : safeBloodGroup})
-          <br />Chronic conditions: {safeChronic}
-          <br />Predispositions: {safePredispositions}
-          <br />Active meds: {medsCount > 0 ? `${n(medsCount)} item(s)` : noDataDisplay}
-          <br />Recent labs: {labsLine}
-          <br />AI Prediction: {noDataDisplay}
-          <br />Symptoms/Notes: {notesCount > 0 ? `${n(notesCount)} item(s)` : noDataDisplay}
-          <br />Next Steps: {nextStepsCount > 0 ? `${n(nextStepsCount)} item(s)` : noDataDisplay}
+          {t("Patient")}: {safeName} (
+          {t("Sex")}: {safeSex === noDataDisplay ? "—" : safeSex}, {t("Age")}: {safeAge}, {t("Blood group")}: {safeBloodGroup === noDataDisplay ? "—" : safeBloodGroup})
+          <br />
+          {t("Chronic conditions")}: {safeChronic}
+          <br />
+          {t("Predispositions")}: {safePredispositions}
+          <br />
+          {t("Active meds")}: {medsCount > 0 ? `${n(medsCount)} ${t("items")}` : noDataDisplay}
+          <br />
+          {t("Recent labs")}: {labsLine}
+          <br />
+          {t("AI prediction")}: {noDataDisplay}
+          <br />
+          {t("Symptoms/Notes")}: {notesCount > 0 ? `${n(notesCount)} ${t("items")}` : noDataDisplay}
+          <br />
+          {t("Next Steps")}: {nextStepsCount > 0 ? `${n(nextStepsCount)} ${t("items")}` : noDataDisplay}
         </p>
 
         <div className="mt-3 flex gap-2">
           {onDiscussAI ? (
             <Button
               variant="outline"
-              aria-label="Discuss AI summary in chat"
+              aria-label={t("Discuss AI summary in chat")}
               onClick={onDiscussAI}
             >
               {t("Discuss in chat")}
@@ -1596,7 +1604,7 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
           {onRecomputeRisk ? (
             <Button
               primary
-              aria-label="Recompute risk"
+              aria-label={t("Recompute risk")}
               onClick={onRecomputeRisk}
             >
               {t("Recompute risk")}
@@ -1605,8 +1613,8 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
         </div>
 
         <div className="mt-4 rounded-xl border border-amber-300/60 bg-amber-50 px-3 py-3 text-[13px] dark:border-amber-800 dark:bg-amber-900/20">
-          <div className="font-medium">⚠️ AI support, not a medical diagnosis.</div>
-          <div>Always consult a clinician.</div>
+          <div className="font-medium">{t("⚠️ AI support, not a medical diagnosis.")}</div>
+          <div>{t("Always consult a clinician.")}</div>
         </div>
       </Section>
 
@@ -1614,7 +1622,7 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
         <Empty text={medsCount > 0 ? "" : noMedicationsDisplay} />
         {onAddMedication ? (
           <div className="pt-2">
-            <Button variant="outline" onClick={onAddMedication} aria-label="Add medication">
+            <Button variant="outline" onClick={onAddMedication} aria-label={t("Add medication")}>
               {t("Add")} {t("Medications")}
             </Button>
           </div>
@@ -1625,7 +1633,7 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
         <Empty text={notesCount > 0 ? "" : noDataDisplay} />
         {onAddNote ? (
           <div className="pt-2">
-            <Button variant="outline" onClick={onAddNote} aria-label="Add notes">
+            <Button variant="outline" onClick={onAddNote} aria-label={t("Add notes")}>
               {t("Add notes")}
             </Button>
           </div>
@@ -1636,7 +1644,7 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
         <Empty text={nextStepsCount > 0 ? "" : noDataDisplay} />
         {onAddNextStep ? (
           <div className="pt-2">
-            <Button variant="outline" onClick={onAddNextStep} aria-label="Add next steps">
+            <Button variant="outline" onClick={onAddNextStep} aria-label={t("Add next steps")}>
               {t("Add next steps")}
             </Button>
           </div>
