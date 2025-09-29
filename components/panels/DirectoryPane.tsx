@@ -10,25 +10,26 @@ type DirectoryType = ReturnType<typeof useDirectory>["state"]["type"];
 
 export default function DirectoryPane() {
   const { lang } = usePrefs();
-  const { state, actions } = useDirectory({ lang });
+  const appLang = lang && lang.length > 0 ? lang : "en";
+  const { state, actions } = useDirectory({ lang: appLang });
   const { locLabel, type, q, openNow, minRating, maxKm, data, loading, updatedAt } = state;
   const t = useT();
 
   const dateFormatter = useMemo(
     () =>
-      new Intl.DateTimeFormat(lang, {
+      new Intl.DateTimeFormat(appLang, {
         year: "numeric",
         month: "numeric",
         day: "numeric",
       }),
-    [lang],
+    [appLang],
   );
   const numberFormatter = useMemo(
     () =>
-      new Intl.NumberFormat(lang, {
+      new Intl.NumberFormat(appLang, {
         maximumFractionDigits: 1,
       }),
-    [lang],
+    [appLang],
   );
   const updatedAtDate = updatedAt ? new Date(updatedAt) : null;
   const countLine = tfmt(t("{count} results"), { count: data.length });
@@ -39,8 +40,34 @@ export default function DirectoryPane() {
       })
     : countLine;
   const summaryText = loading ? t("Loading") : resultsLine;
-  const locationLabel =
-    locLabel === "Current location" ? t("Current location") : locLabel;
+  const regionDisplay = useMemo(() => {
+    try {
+      return new Intl.DisplayNames([appLang], { type: "region" });
+    } catch {
+      return null;
+    }
+  }, [appLang]);
+  const locationLabel = useMemo(() => {
+    if (locLabel === "Current location") {
+      return t("Current location");
+    }
+    if (!locLabel) return "";
+    if (!regionDisplay || appLang.toLowerCase().startsWith("en")) {
+      return locLabel;
+    }
+    const parts = locLabel.split(",").map(part => part.trim()).filter(Boolean);
+    if (parts.length === 0) return locLabel;
+    const last = parts[parts.length - 1];
+    if (/^[A-Z]{2}$/i.test(last)) {
+      const iso = last.toUpperCase();
+      const localizedRegion = regionDisplay.of(iso);
+      if (localizedRegion && localizedRegion !== iso) {
+        const formattedParts = [...parts.slice(0, -1), localizedRegion];
+        return formattedParts.join(", ");
+      }
+    }
+    return locLabel;
+  }, [locLabel, regionDisplay, appLang, t]);
 
   const typeOptions: { key: DirectoryType; label: string }[] = [
     { key: "all", label: t("All") },

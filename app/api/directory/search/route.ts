@@ -111,11 +111,17 @@ async function googleDetailsBatch(placeIds: string[], key: string, lang: string)
   const N = Math.min(placeIds.length, 12);
   const out = new Map<
     string,
-    { phone?: string; hours?: Record<string, string>; formattedAddress?: string }
+    {
+      phone?: string;
+      hours?: Record<string, string>;
+      formattedAddress?: string;
+      displayNameText?: string;
+      primaryTypeDisplayNameText?: string;
+    }
   >();
 
   const fields =
-    "formatted_phone_number,international_phone_number,opening_hours,formatted_address";
+    "formatted_phone_number,international_phone_number,opening_hours,formatted_address,name";
   for (let i = 0; i < N; i++) {
     const id = placeIds[i];
     const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
@@ -132,6 +138,9 @@ async function googleDetailsBatch(placeIds: string[], key: string, lang: string)
         phone,
         hours: normDetailsHours(d?.opening_hours),
         formattedAddress: d?.formatted_address,
+        displayNameText: d?.displayName?.text ?? d?.name ?? undefined,
+        primaryTypeDisplayNameText:
+          d?.primaryTypeDisplayName?.text ?? d?.primary_type_display_name ?? undefined,
       });
     } catch {
       // ignore errors for individual details calls
@@ -146,6 +155,7 @@ function normalizeGoogleResults(
   uiType: string,
   appLang: string,
 ): Place[] {
+  const shouldLocalizeQualifiers = !appLang.toLowerCase().startsWith("en");
   const now = new Date().toISOString();
   return results
     .map((r: any) => {
@@ -158,7 +168,9 @@ function normalizeGoogleResults(
         r?.vicinity ??
         r?.plus_code?.compound_code ??
         "Unnamed";
-      const localizedName = localizeQualifiers(providerName, appLang);
+      const localizedName = shouldLocalizeQualifiers
+        ? localizeQualifiers(providerName, appLang)
+        : providerName;
       const formattedAddress =
         r?.formatted_address ??
         r?.vicinity ??
@@ -226,6 +238,7 @@ async function osmFallback(
   lang: string,
   appLang: string,
 ) {
+  const shouldLocalizeQualifiers = !appLang.toLowerCase().startsWith("en");
   function kindFilters(type: string) {
     switch (type) {
       case "pharmacy":
@@ -277,18 +290,29 @@ async function osmFallback(
   const j = await r.json();
   const origin = { lat, lng };
   const now = new Date().toISOString();
-  const langBase = lang.split("-")[0] || lang;
-  const langCode = langBase ? langBase.toLowerCase() : "";
+  const langLower = lang.toLowerCase();
+  const langBase = langLower.split("-")[0] || langLower;
+  const langCandidates = Array.from(new Set([langLower, langBase].filter(Boolean)));
   const res: Place[] = (j.elements || []).map((el: any) => {
     const center = el.center || { lat: el.lat, lon: el.lon };
-    const localizedName = langCode ? el?.tags?.[`name:${langCode}`] : undefined;
+    const localizedName = langCandidates
+      .map(code => el?.tags?.[`name:${code}`])
+      .find(Boolean);
     const fallbackName = el?.tags?.name || el?.tags?.["addr:housename"] || el?.tags?.["brand"];
     const providerName = localizedName || el?.localname || fallbackName || "Unnamed";
-    const name = localizeQualifiers(providerName, appLang);
-    const localizedStreet = langCode ? el?.tags?.[`addr:street:${langCode}`] : undefined;
-    const localizedNeighbourhood = langCode ? el?.tags?.[`addr:neighbourhood:${langCode}`] : undefined;
-    const localizedCity = langCode ? el?.tags?.[`addr:city:${langCode}`] : undefined;
-    const localizedFull = langCode ? el?.tags?.[`addr:full:${langCode}`] : undefined;
+    const name = shouldLocalizeQualifiers ? localizeQualifiers(providerName, appLang) : providerName;
+    const localizedStreet = langCandidates
+      .map(code => el?.tags?.[`addr:street:${code}`])
+      .find(Boolean);
+    const localizedNeighbourhood = langCandidates
+      .map(code => el?.tags?.[`addr:neighbourhood:${code}`])
+      .find(Boolean);
+    const localizedCity = langCandidates
+      .map(code => el?.tags?.[`addr:city:${code}`])
+      .find(Boolean);
+    const localizedFull = langCandidates
+      .map(code => el?.tags?.[`addr:full:${code}`])
+      .find(Boolean);
     const addrParts = [
       el?.tags?.["addr:housenumber"],
       localizedStreet || el?.tags?.["addr:street"],
@@ -355,11 +379,21 @@ export async function GET(req: Request) {
       // enrich top items with phone and hours
       const ids = normalized.map(p => p.id);
       const details = await googleDetailsBatch(ids, key, lang);
+      const shouldLocalizeQualifiers = !appLang.toLowerCase().startsWith("en");
       for (const p of normalized) {
         const d = details.get(p.id);
         if (d?.phone) p.phones = [d.phone];
         if (d?.hours) p.hours = d.hours;
         if (d?.formattedAddress) p.address_short = d.formattedAddress;
+        if (d?.primaryTypeDisplayNameText) {
+          p.category_display = d.primaryTypeDisplayNameText;
+        }
+        if (d?.displayNameText) {
+          const providerName = d.displayNameText;
+          p.name = shouldLocalizeQualifiers
+            ? localizeQualifiers(providerName, appLang)
+            : providerName;
+        }
       }
 
       normalized.sort((a, b) => (a.distance_m ?? 1e9) - (b.distance_m ?? 1e9));
