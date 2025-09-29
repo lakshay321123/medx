@@ -105,6 +105,25 @@ async function googleNearby({
   return j?.results ?? [];
 }
 
+function humanizeGoogleType(type?: string | null) {
+  if (!type) return undefined;
+  const map: Record<string, string> = {
+    doctor: "Doctor",
+    pharmacy: "Pharmacy",
+    hospital: "Hospital",
+    clinic: "Clinic",
+    medical_lab: "Medical Lab",
+    health: "Health",
+  };
+  const lower = type.toLowerCase();
+  if (map[lower]) return map[lower];
+  return lower
+    .split("_")
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 async function googleDetailsBatch(placeIds: string[], key: string, lang: string) {
   // Enrich top N results for phone and opening hours.
   // We limit N to 12 to keep latency and quota sane.
@@ -128,6 +147,7 @@ async function googleDetailsBatch(placeIds: string[], key: string, lang: string)
     "name",
     "displayName",
     "primaryTypeDisplayName",
+    "types",
   ].join(",");
   for (let i = 0; i < N; i++) {
     const id = placeIds[i];
@@ -141,13 +161,20 @@ async function googleDetailsBatch(placeIds: string[], key: string, lang: string)
       const j = await r.json();
       const d = j?.result;
       const phone = d?.international_phone_number || d?.formatted_phone_number;
+      const rawTypes = Array.isArray(d?.types) ? d?.types : [];
+      const primaryTypeDisplayNameText =
+        d?.primaryTypeDisplayName?.text ??
+        d?.primary_type_display_name ??
+        humanizeGoogleType(rawTypes[0]);
+      const formattedAddress =
+        d?.formattedAddress ?? d?.formatted_address ?? d?.vicinity ?? undefined;
+      const displayNameText = d?.displayName?.text ?? d?.name ?? undefined;
       out.set(id, {
         phone,
         hours: normDetailsHours(d?.opening_hours),
-        formattedAddress: d?.formatted_address,
-        displayNameText: d?.displayName?.text ?? d?.name ?? undefined,
-        primaryTypeDisplayNameText:
-          d?.primaryTypeDisplayName?.text ?? d?.primary_type_display_name ?? undefined,
+        formattedAddress,
+        displayNameText,
+        primaryTypeDisplayNameText,
       });
     } catch {
       // ignore errors for individual details calls
@@ -186,7 +213,7 @@ function normalizeGoogleResults(
       const primaryTypeDisplayName =
         r?.primaryTypeDisplayName?.text ??
         r?.primary_type_display_name ??
-        undefined;
+        humanizeGoogleType(Array.isArray(r?.types) ? r.types[0] : undefined);
       const p: Place = {
         id: r.place_id,
         name: localizedName,

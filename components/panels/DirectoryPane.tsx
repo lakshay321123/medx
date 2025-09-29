@@ -5,6 +5,7 @@ import AddressPicker from "@/components/directory/AddressPicker";
 import { tfmt, useT } from "@/components/hooks/useI18n";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
 import { useDirectory } from "@/hooks/useDirectory";
+import { ISO_COUNTRIES } from "@/lib/i18n/isoCountries";
 
 type DirectoryType = ReturnType<typeof useDirectory>["state"]["type"];
 
@@ -76,8 +77,8 @@ export default function DirectoryPane() {
     const parts = locLabel.split(",").map(part => part.trim()).filter(Boolean);
     if (parts.length === 0) return locLabel;
     const last = parts[parts.length - 1];
-    if (/^[A-Z]{2}$/i.test(last)) {
-      const iso = last.toUpperCase();
+    const iso = last.toUpperCase();
+    if (ISO_COUNTRIES.has(iso)) {
       const localizedRegion = regionDisplay.of(iso);
       if (localizedRegion && localizedRegion !== iso) {
         const formattedParts = [...parts.slice(0, -1), localizedRegion];
