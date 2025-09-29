@@ -768,7 +768,6 @@ export default function MedicalProfile() {
       const summary = body?.summary as string | undefined;
       if (summary) {
         parseSummary(summary);
-        setSummaryText(summary);
         if (/insufficient data/i.test(summary)) {
           setPredictionText("Not enough data to compute risk yet.");
         }
