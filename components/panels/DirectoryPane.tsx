@@ -5,30 +5,50 @@ import AddressPicker from "@/components/directory/AddressPicker";
 import { tfmt, useT } from "@/components/hooks/useI18n";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
 import { useDirectory } from "@/hooks/useDirectory";
+import { ISO_COUNTRIES } from "@/lib/i18n/isoCountries";
 
 type DirectoryType = ReturnType<typeof useDirectory>["state"]["type"];
 
+const PREFS_STORAGE_KEY = "medx-prefs-v1";
+
 export default function DirectoryPane() {
   const { lang } = usePrefs();
-  const { state, actions } = useDirectory({ lang });
+  const storedLang = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.localStorage.getItem(PREFS_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { lang?: string } | null;
+      const saved = typeof parsed?.lang === "string" ? parsed.lang : null;
+      return saved && saved.length > 0 ? saved : null;
+    } catch {
+      return null;
+    }
+  }, []);
+  const appLang = useMemo(() => {
+    if (lang && lang !== "en") return lang;
+    if (storedLang && storedLang !== "en") return storedLang;
+    return lang || storedLang || "en";
+  }, [lang, storedLang]);
+  const { state, actions } = useDirectory({ lang: appLang });
   const { locLabel, type, q, openNow, minRating, maxKm, data, loading, updatedAt } = state;
   const t = useT();
 
   const dateFormatter = useMemo(
     () =>
-      new Intl.DateTimeFormat(lang, {
+      new Intl.DateTimeFormat(appLang, {
         year: "numeric",
         month: "numeric",
         day: "numeric",
       }),
-    [lang],
+    [appLang],
   );
   const numberFormatter = useMemo(
     () =>
-      new Intl.NumberFormat(lang, {
+      new Intl.NumberFormat(appLang, {
         maximumFractionDigits: 1,
       }),
-    [lang],
+    [appLang],
   );
   const updatedAtDate = updatedAt ? new Date(updatedAt) : null;
   const countLine = tfmt(t("{count} results"), { count: data.length });
@@ -39,8 +59,34 @@ export default function DirectoryPane() {
       })
     : countLine;
   const summaryText = loading ? t("Loading") : resultsLine;
-  const locationLabel =
-    locLabel === "Current location" ? t("Current location") : locLabel;
+  const regionDisplay = useMemo(() => {
+    try {
+      return new Intl.DisplayNames([appLang], { type: "region" });
+    } catch {
+      return null;
+    }
+  }, [appLang]);
+  const locationLabel = useMemo(() => {
+    if (locLabel === "Current location") {
+      return t("Current location");
+    }
+    if (!locLabel) return "";
+    if (!regionDisplay || appLang.toLowerCase().startsWith("en")) {
+      return locLabel;
+    }
+    const parts = locLabel.split(",").map(part => part.trim()).filter(Boolean);
+    if (parts.length === 0) return locLabel;
+    const last = parts[parts.length - 1];
+    const iso = last.toUpperCase();
+    if (ISO_COUNTRIES.has(iso)) {
+      const localizedRegion = regionDisplay.of(iso);
+      if (localizedRegion && localizedRegion !== iso) {
+        const formattedParts = [...parts.slice(0, -1), localizedRegion];
+        return formattedParts.join(", ");
+      }
+    }
+    return locLabel;
+  }, [locLabel, regionDisplay, appLang, t]);
 
   const typeOptions: { key: DirectoryType; label: string }[] = [
     { key: "all", label: t("All") },

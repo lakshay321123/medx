@@ -105,17 +105,50 @@ async function googleNearby({
   return j?.results ?? [];
 }
 
+function humanizeGoogleType(type?: string | null) {
+  if (!type) return undefined;
+  const map: Record<string, string> = {
+    doctor: "Doctor",
+    pharmacy: "Pharmacy",
+    hospital: "Hospital",
+    clinic: "Clinic",
+    medical_lab: "Medical Lab",
+    health: "Health",
+  };
+  const lower = type.toLowerCase();
+  if (map[lower]) return map[lower];
+  return lower
+    .split("_")
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 async function googleDetailsBatch(placeIds: string[], key: string, lang: string) {
   // Enrich top N results for phone and opening hours.
   // We limit N to 12 to keep latency and quota sane.
   const N = Math.min(placeIds.length, 12);
   const out = new Map<
     string,
-    { phone?: string; hours?: Record<string, string>; formattedAddress?: string }
+    {
+      phone?: string;
+      hours?: Record<string, string>;
+      formattedAddress?: string;
+      displayNameText?: string;
+      primaryTypeDisplayNameText?: string;
+    }
   >();
 
-  const fields =
-    "formatted_phone_number,international_phone_number,opening_hours,formatted_address";
+  const fields = [
+    "formatted_phone_number",
+    "international_phone_number",
+    "opening_hours",
+    "formatted_address",
+    "name",
+    "displayName",
+    "primaryTypeDisplayName",
+    "types",
+  ].join(",");
   for (let i = 0; i < N; i++) {
     const id = placeIds[i];
     const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
@@ -128,10 +161,20 @@ async function googleDetailsBatch(placeIds: string[], key: string, lang: string)
       const j = await r.json();
       const d = j?.result;
       const phone = d?.international_phone_number || d?.formatted_phone_number;
+      const rawTypes = Array.isArray(d?.types) ? d?.types : [];
+      const primaryTypeDisplayNameText =
+        d?.primaryTypeDisplayName?.text ??
+        d?.primary_type_display_name ??
+        humanizeGoogleType(rawTypes[0]);
+      const formattedAddress =
+        d?.formattedAddress ?? d?.formatted_address ?? d?.vicinity ?? undefined;
+      const displayNameText = d?.displayName?.text ?? d?.name ?? undefined;
       out.set(id, {
         phone,
         hours: normDetailsHours(d?.opening_hours),
-        formattedAddress: d?.formatted_address,
+        formattedAddress,
+        displayNameText,
+        primaryTypeDisplayNameText,
       });
     } catch {
       // ignore errors for individual details calls
@@ -146,6 +189,7 @@ function normalizeGoogleResults(
   uiType: string,
   appLang: string,
 ): Place[] {
+  const shouldLocalizeQualifiers = !appLang.toLowerCase().startsWith("en");
   const now = new Date().toISOString();
   return results
     .map((r: any) => {
@@ -158,15 +202,18 @@ function normalizeGoogleResults(
         r?.vicinity ??
         r?.plus_code?.compound_code ??
         "Unnamed";
-      const localizedName = localizeQualifiers(providerName, appLang);
+      const localizedName = shouldLocalizeQualifiers
+        ? localizeQualifiers(providerName, appLang)
+        : providerName;
       const formattedAddress =
+        r?.formattedAddress ??
         r?.formatted_address ??
         r?.vicinity ??
         r?.plus_code?.compound_code;
       const primaryTypeDisplayName =
         r?.primaryTypeDisplayName?.text ??
         r?.primary_type_display_name ??
-        undefined;
+        humanizeGoogleType(Array.isArray(r?.types) ? r.types[0] : undefined);
       const p: Place = {
         id: r.place_id,
         name: localizedName,
@@ -226,6 +273,7 @@ async function osmFallback(
   lang: string,
   appLang: string,
 ) {
+  const shouldLocalizeQualifiers = !appLang.toLowerCase().startsWith("en");
   function kindFilters(type: string) {
     switch (type) {
       case "pharmacy":
@@ -277,18 +325,29 @@ async function osmFallback(
   const j = await r.json();
   const origin = { lat, lng };
   const now = new Date().toISOString();
-  const langBase = lang.split("-")[0] || lang;
-  const langCode = langBase ? langBase.toLowerCase() : "";
+  const langLower = lang.toLowerCase();
+  const langBase = langLower.split("-")[0] || langLower;
+  const langCandidates = Array.from(new Set([langLower, langBase].filter(Boolean)));
   const res: Place[] = (j.elements || []).map((el: any) => {
     const center = el.center || { lat: el.lat, lon: el.lon };
-    const localizedName = langCode ? el?.tags?.[`name:${langCode}`] : undefined;
+    const localizedName = langCandidates
+      .map(code => el?.tags?.[`name:${code}`])
+      .find(Boolean);
     const fallbackName = el?.tags?.name || el?.tags?.["addr:housename"] || el?.tags?.["brand"];
     const providerName = localizedName || el?.localname || fallbackName || "Unnamed";
-    const name = localizeQualifiers(providerName, appLang);
-    const localizedStreet = langCode ? el?.tags?.[`addr:street:${langCode}`] : undefined;
-    const localizedNeighbourhood = langCode ? el?.tags?.[`addr:neighbourhood:${langCode}`] : undefined;
-    const localizedCity = langCode ? el?.tags?.[`addr:city:${langCode}`] : undefined;
-    const localizedFull = langCode ? el?.tags?.[`addr:full:${langCode}`] : undefined;
+    const name = shouldLocalizeQualifiers ? localizeQualifiers(providerName, appLang) : providerName;
+    const localizedStreet = langCandidates
+      .map(code => el?.tags?.[`addr:street:${code}`])
+      .find(Boolean);
+    const localizedNeighbourhood = langCandidates
+      .map(code => el?.tags?.[`addr:neighbourhood:${code}`])
+      .find(Boolean);
+    const localizedCity = langCandidates
+      .map(code => el?.tags?.[`addr:city:${code}`])
+      .find(Boolean);
+    const localizedFull = langCandidates
+      .map(code => el?.tags?.[`addr:full:${code}`])
+      .find(Boolean);
     const addrParts = [
       el?.tags?.["addr:housenumber"],
       localizedStreet || el?.tags?.["addr:street"],
@@ -325,6 +384,15 @@ export async function GET(req: Request) {
   const openNow = searchParams.get("open_now") === "1";
   const appLang = (searchParams.get("lang") || "en").trim() || "en";
   const lang = providerLang(appLang);
+  const cacheKey = [
+    "dir",
+    q,
+    searchParams.get("lat") ?? "",
+    searchParams.get("lng") ?? "",
+    searchParams.get("radius") ?? "",
+    lang,
+  ].join("|");
+  void cacheKey;
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return NextResponse.json({ error: "lat and lng required" }, { status: 400 });
@@ -355,11 +423,21 @@ export async function GET(req: Request) {
       // enrich top items with phone and hours
       const ids = normalized.map(p => p.id);
       const details = await googleDetailsBatch(ids, key, lang);
+      const shouldLocalizeQualifiers = !appLang.toLowerCase().startsWith("en");
       for (const p of normalized) {
         const d = details.get(p.id);
         if (d?.phone) p.phones = [d.phone];
         if (d?.hours) p.hours = d.hours;
         if (d?.formattedAddress) p.address_short = d.formattedAddress;
+        if (d?.primaryTypeDisplayNameText) {
+          p.category_display = d.primaryTypeDisplayNameText;
+        }
+        if (d?.displayNameText) {
+          const providerName = d.displayNameText;
+          p.name = shouldLocalizeQualifiers
+            ? localizeQualifiers(providerName, appLang)
+            : providerName;
+        }
       }
 
       normalized.sort((a, b) => (a.distance_m ?? 1e9) - (b.distance_m ?? 1e9));

@@ -1,17 +1,37 @@
-const LANGUAGE_MAP: Record<string, string> = {
-  hi: "hi",
-  es: "es",
-  it: "it",
-  ar: "ar",
-  zh: "zh-CN",
-};
+export function providerLang(appLang: string): string {
+  const normalized = (appLang || "").trim();
+  if (!normalized) {
+    return "en";
+  }
 
-export function providerLang(appLang: string | null | undefined): string {
-  if (!appLang) return "en";
-  const normalized = appLang.trim().toLowerCase();
-  if (!normalized) return "en";
-  if (LANGUAGE_MAP[normalized]) return LANGUAGE_MAP[normalized];
+  switch (normalized) {
+    case "hi":
+    case "es":
+    case "it":
+    case "ar":
+      return normalized;
+    case "zh":
+    case "zh-CN":
+      return "zh-CN";
+    case "zh-cn":
+      return "zh-CN";
+    case "zh-TW":
+    case "zh-tw":
+      return "zh-TW";
+    default:
+      break;
+  }
+
   const base = normalized.split("-")[0];
-  if (base && LANGUAGE_MAP[base]) return LANGUAGE_MAP[base];
-  return "en";
+  switch (base) {
+    case "hi":
+    case "es":
+    case "it":
+    case "ar":
+      return base;
+    case "zh":
+      return "zh-CN";
+    default:
+      return "en";
+  }
 }
