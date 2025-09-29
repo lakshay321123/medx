@@ -208,18 +208,31 @@ function formatLabValue(value: number) {
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }
 
-function formatLabDate(iso?: string | null) {
+function formatLabDate(formatter: Intl.DateTimeFormat, iso?: string | null) {
   if (!iso) return "No date recorded";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "No date recorded";
-  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  return formatter.format(d);
 }
 
 function formatListLine(label: string, values: string[]) {
   return `${label}: ${values.length ? values.join(", ") : NO_DATA}`;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const lang = (searchParams.get("lang") || "en").toLowerCase();
+  const df = new Intl.DateTimeFormat(lang, { month: "short", year: "numeric" });
+  const LAST_TOKENS: Record<string, string> = {
+    en: "Last",
+    it: "Ultimo",
+    hi: "अंतिम",
+    es: "Último",
+    fr: "Dernier",
+    ar: "آخر",
+  };
+  const baseLang = lang.split("-")[0];
+  const lastLabel = LAST_TOKENS[lang] ?? LAST_TOKENS[baseLang] ?? LAST_TOKENS.en;
   const userId = await getUserId();
   if (!userId) {
     return NextResponse.json({ text: "", reasons: "" }, { headers: noStore });
@@ -328,8 +341,8 @@ export async function GET() {
     const arrow = trend(panel.latest.value, panel.previous?.value);
     const valueText = formatLabValue(panel.latest.value);
     const unitText = panel.latest.unit ? ` ${panel.latest.unit}` : "";
-    const dt = formatLabDate(panel.latest.date);
-    return { label: panel.label, text: `${panel.name} ${valueText}${unitText} ${arrow} (Last: ${dt})` };
+    const dt = formatLabDate(df, panel.latest.date);
+    return { label: panel.label, text: `${panel.name} ${valueText}${unitText} ${arrow} (${lastLabel}: ${dt})` };
   });
 
   const labsLines = [

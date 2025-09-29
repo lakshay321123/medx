@@ -3134,7 +3134,10 @@ ${systemCommon}` + baseSys;
           const items = Array.from(new Set(text.split(/[,;]+/).map(s=>s.trim()).filter(Boolean)));
           await fetch('/api/profile', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ conditions_predisposition: items }) });
           ack(`Noted — added predispositions: ${items.join(', ')}`);
-          await fetch('/api/profile/summary', { cache:'no-store' });
+          await fetch(
+            `/api/profile/summary?lang=${encodeURIComponent(prefs?.lang ?? 'en')}`,
+            { cache: 'no-store' },
+          );
           markAskedNow(threadId, 'proactive');
         } else if (proactive.kind === 'medications') {
           const meds = text.split(/[,;]+/).map(s=>s.trim()).filter(Boolean);
