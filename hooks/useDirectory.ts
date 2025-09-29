@@ -6,6 +6,9 @@ export type DirType = "all" | "doctor" | "pharmacy" | "lab" | "hospital" | "clin
 export type Place = {
   id: string;
   name: string;
+  address?: string;
+  localizedName?: string;
+  localizedAddress?: string;
   type: DirType;
   category_display?: string;
   distance_m?: number;
@@ -13,7 +16,6 @@ export type Place = {
   rating?: number;
   phones?: string[];
   whatsapp?: string | null;
-  address_short?: string;
   geo: { lat: number; lng: number };
   source: "google" | "osm";
   last_checked?: string;

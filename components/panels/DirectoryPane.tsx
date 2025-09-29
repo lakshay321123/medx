@@ -199,6 +199,8 @@ export default function DirectoryPane() {
           </div>
         )}
         {data.map((place) => {
+          const displayName = place.localizedName ?? place.name;
+          const displayAddress = place.localizedAddress ?? place.address;
           const typeLabel =
             place.category_display ??
             cardTypeLabels[place.type] ??
@@ -280,22 +282,22 @@ export default function DirectoryPane() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2 md:gap-3">
                     <div
-                      className="break-words text-[12.5px] font-semibold leading-[1.35] text-slate-900 dark:text-slate-50 md:truncate md:text-[14px]"
+                      className="break-words text-start text-[12.5px] font-semibold leading-[1.35] text-slate-900 dark:text-slate-50 md:truncate md:text-[14px]"
                       title={place.name}
                     >
-                      {place.name}
+                      {displayName}
                     </div>
-                  <div className="inline-flex h-[16px] items-center whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-1.5 text-[9px] capitalize text-blue-900 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-100 md:h-[22px] md:px-2 md:text-[11px]">
+                    <div className="inline-flex h-[16px] items-center whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-1.5 text-[9px] capitalize text-blue-900 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-100 md:h-[22px] md:px-2 md:text-[11px]">
                       {typeLabel}
+                    </div>
                   </div>
-                </div>
 
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11.5px] text-slate-600 dark:text-slate-300 md:flex-nowrap md:gap-2 md:text-[12px]">
-                  <span className="inline-flex shrink-0 items-center gap-1">
-                    <Star size={14} aria-hidden /> {place.rating ?? "—"}
-                  </span>
-                  {typeof place.distance_m === "number" && (
-                    <span className="shrink-0">
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11.5px] text-slate-600 dark:text-slate-300 md:flex-nowrap md:gap-2 md:text-[12px]">
+                    <span className="inline-flex shrink-0 items-center gap-1">
+                      <Star size={14} aria-hidden /> {place.rating ?? "—"}
+                    </span>
+                    {typeof place.distance_m === "number" && (
+                      <span className="shrink-0">
                       • {`${numberFormatter.format(place.distance_m / 1000)} ${t("km")}`}
                     </span>
                   )}
@@ -304,12 +306,12 @@ export default function DirectoryPane() {
                   </span>
                 </div>
 
-                {place.address_short && (
+                  {displayAddress && (
                     <div
-                      className="mt-1 text-[12px] leading-snug text-slate-700 dark:text-slate-200 md:mt-1.5 md:truncate md:text-[13px]"
-                      title={place.address_short}
+                      className="mt-1 text-start text-[12px] leading-snug text-slate-700 dark:text-slate-200 md:mt-1.5 md:truncate md:text-[13px]"
+                      title={displayAddress}
                     >
-                      {place.address_short}
+                      {displayAddress}
                     </div>
                   )}
                 </div>
