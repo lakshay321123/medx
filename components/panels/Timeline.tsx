@@ -7,6 +7,7 @@ import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
 import PanelLoader from "@/components/mobile/PanelLoader";
 import { pushToast } from "@/lib/ui/toast";
 import { useRouter } from "next/navigation";
+import { useT } from "@/components/hooks/useI18n";
 
 function normalizeKind(k?: string) {
   const raw = String(k ?? "").toLowerCase().trim();
@@ -130,28 +131,144 @@ const getShortSummary = (ob: any) => {
   return (meta?.text as string) || "";
 };
 
-const getChipLabel = (ob: any) => {
+const IMPORTANT_FLAG_SET = new Set([
+  "important",
+  "critical",
+  "urgent",
+  "high",
+  "high_priority",
+  "highpriority",
+  "priority_high",
+  "flagged",
+  "needs_attention",
+  "alert",
+]);
+
+const VITAL_KINDS = new Set([
+  "bp",
+  "blood_pressure",
+  "heart_rate",
+  "heartrate",
+  "pulse",
+  "respiratory_rate",
+  "respiratoryrate",
+  "temperature",
+  "temp",
+  "spo2",
+  "oxygen_saturation",
+  "oxygen",
+  "vital",
+  "vitals",
+]);
+
+const getChipLabel = (ob: any, translate: (value: string) => string) => {
   const kind = normalizeKind(ob?.kind);
-  if (kind === "medication") return "Med";
-  if (kind === "lab") return "Lab";
-  if (kind === "imaging") return "Imaging";
-  if (kind === "symptom") return "Symptom";
-  if (kind === "note") return "Note";
-  return "Obs";
+  if (kind === "medication") return translate("Med");
+  return translate("Obs");
 };
 
-type Cat = "ALL"|"LABS"|"VITALS"|"IMAGING"|"AI"|"NOTES";
-const catOf = (it:any):Cat => {
+type Cat =
+  | "ALL"
+  | "MEDICATIONS"
+  | "LABS"
+  | "SYMPTOMS"
+  | "NOTES"
+  | "IMPORTANT"
+  | "IMAGING"
+  | "AI"
+  | "VITALS";
+
+const hasImportantSignal = (it: any) => {
+  const meta = it?.meta ?? {};
+  if (meta?.important === true || meta?.isImportant === true || meta?.highlight === true) {
+    return true;
+  }
+
+  const priority = String(
+    meta?.priority ??
+      meta?.importance ??
+      meta?.severity ??
+      meta?.alert ??
+      meta?.signalImportance ??
+      "",
+  )
+    .toLowerCase()
+    .replace(/[^a-z_]+/g, "");
+  if (priority && IMPORTANT_FLAG_SET.has(priority)) return true;
+
+  const flagsSource = Array.isArray(it?.flags)
+    ? it.flags
+    : Array.isArray(meta?.flags)
+    ? meta.flags
+    : null;
+  if (Array.isArray(flagsSource)) {
+    for (const flag of flagsSource) {
+      const norm = String(flag ?? "")
+        .toLowerCase()
+        .replace(/[^a-z_]+/g, "");
+      if (IMPORTANT_FLAG_SET.has(norm)) return true;
+    }
+  }
+
+  if (meta?.abnormalHint || meta?.alertHint || meta?.topFinding) return true;
+
+  return false;
+};
+
+const isVitalObservation = (it: any) => {
   const kind = normalizeKind(it?.kind);
-  if (kind === "lab") return "LABS";
-  if (kind === "imaging") return "IMAGING";
-  if (kind === "medication" || kind === "note" || kind === "symptom") return "NOTES";
-  if (kind === "prediction") return "AI";
-  return "NOTES";
+  if (VITAL_KINDS.has(kind)) return true;
+  const category = String(it?.meta?.category ?? "").toLowerCase();
+  if (category.includes("vital")) return true;
+  return false;
+};
+
+const matchesCategory = (it: any, cat: Cat) => {
+  if (cat === "ALL") return true;
+  const kind = normalizeKind(it?.kind);
+  const category = String(it?.meta?.category ?? "").toLowerCase();
+
+  if (cat === "MEDICATIONS") return kind === "medication" || category === "medication";
+  if (cat === "LABS") return kind === "lab" || category === "lab" || category === "labs";
+  if (cat === "SYMPTOMS") return kind === "symptom" || category === "symptom";
+  if (cat === "NOTES") return kind === "note" || category === "note";
+  if (cat === "IMPORTANT") return hasImportantSignal(it);
+  if (cat === "IMAGING")
+    return (
+      kind === "imaging" ||
+      category === "imaging" ||
+      category === "radiology" ||
+      category === "image"
+    );
+  if (cat === "AI")
+    return (
+      kind === "prediction" ||
+      kind === "ai_extract" ||
+      category === "prediction" ||
+      category === "ai"
+    );
+  if (cat === "VITALS") return isVitalObservation(it);
+
+  return false;
 };
 
 export default function Timeline(){
   const isAiDoc = useIsAiDocMode();
+  const t = useT();
+  const catOptions = useMemo<{ id: Cat; label: string }[]>(
+    () => [
+      { id: "ALL", label: t("All") },
+      { id: "MEDICATIONS", label: t("Medications") },
+      { id: "LABS", label: t("Labs") },
+      { id: "SYMPTOMS", label: t("Symptoms") },
+      { id: "NOTES", label: t("Notes") },
+      { id: "IMPORTANT", label: t("Important signals") },
+      { id: "IMAGING", label: t("Imaging") },
+      { id: "AI", label: t("AI extracts") },
+      { id: "VITALS", label: t("Vitals") },
+    ],
+    [t],
+  );
   const [resetError, setResetError] = useState<string|null>(null);
   const { data, error, isLoading, mutate } = useTimeline(isAiDoc);
   const items = data?.items ?? [];
@@ -182,7 +299,7 @@ export default function Timeline(){
 
   const filtered = useMemo(() =>
     (observations || []).filter((it: any) => {
-      if (cat !== "ALL" && catOf(it) !== cat) return false;
+      if (!matchesCategory(it, cat)) return false;
       if (fromDate && new Date(it.observed_at) < fromDate) return false;
       if (q.trim()) {
         const norm = (s: any) =>
@@ -270,7 +387,7 @@ export default function Timeline(){
 
   if (!isAiDoc) return null;
 
-  if (isLoading) return <PanelLoader label="Timeline" />;
+  if (isLoading) return <PanelLoader label={t("Timeline")} />;
   if (error)     return <div className="p-6 text-sm text-red-500">Couldn’t load timeline. Retrying in background…</div>;
 
   if (!observations.length) return <div className="p-6 text-sm text-muted-foreground">No events yet.</div>;
@@ -292,7 +409,7 @@ export default function Timeline(){
     : null;
   const source = active?.meta?.source;
   const hasFallbackFacts = Boolean(dose || observed || source || (active?.unit && !dose));
-  const chipLabel = active ? getChipLabel(active) : null;
+  const chipLabel = active ? getChipLabel(active, t) : null;
 
   async function handleDelete(ob: { id: string }) {
     if (typeof window !== "undefined") {
@@ -339,30 +456,40 @@ export default function Timeline(){
                 if (res.status === 401) { setResetError('Please sign in'); return; }
                 await mutate();
               }}
-              className="text-xs px-2 py-1 rounded-md border sm:ml-auto"
+              className="text-xs px-2 py-1 rounded-md border sm:ms-auto"
             >Reset</button>
           </div>
           {resetError && <div className="mb-2 text-xs text-rose-600">{resetError}</div>}
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
             <div className="flex flex-wrap justify-center gap-2 sm:flex-auto sm:justify-start">
-              {(["ALL","LABS","VITALS","IMAGING","AI","NOTES"] as Cat[]).map(c=>(
-                <button key={c} onClick={()=>setCat(c)} className={`rounded-full border px-2.5 py-1 text-[11px] ${cat===c?"bg-muted font-medium":"hover:bg-muted"}`}>{c}</button>
+              {catOptions.map(option => (
+                <button
+                  key={option.id}
+                  onClick={() => setCat(option.id)}
+                  className={`rounded-full border px-2.5 py-1 text-[11px] ${
+                    cat === option.id ? "bg-muted font-medium" : "hover:bg-muted"
+                  }`}
+                >
+                  {option.label}
+                </button>
               ))}
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
                 <select value={range} onChange={e=>setRange(e.target.value as any)} className="w-full rounded-md border px-2 py-1 text-xs sm:w-auto">
-                  <option value="ALL">All dates</option><option value="7">Last 7d</option>
-                  <option value="30">Last 30d</option><option value="90">Last 90d</option>
-                  <option value="CUSTOM">Custom…</option>
+                  <option value="ALL">{t("All dates")}</option>
+                  <option value="7">{t("Last 7d")}</option>
+                  <option value="30">{t("Last 30d")}</option>
+                  <option value="90">{t("Last 90d")}</option>
+                  <option value="CUSTOM">{t("Custom…")}</option>
                 </select>
                 {range==="CUSTOM" && <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="w-full rounded-md border px-2 py-1 text-xs sm:w-auto" />}
               </div>
               <input
-                placeholder="Search…"
+                placeholder={t("Search....")}
                 value={q}
                 onChange={e=>setQ(e.target.value)}
-                className="w-full min-w-0 rounded-md border px-2 py-1 text-xs sm:ml-auto sm:w-[200px]"
+                className="w-full min-w-0 rounded-md border px-2 py-1 text-xs sm:ms-auto sm:w-[200px]"
               />
             </div>
           </div>
@@ -371,7 +498,7 @@ export default function Timeline(){
               const observedAt = it?.observed_at ? new Date(it.observed_at).toLocaleString() : null;
               const title = getDisplayTitle(it);
               const short = getShortSummary(it);
-              const chipLabel = getChipLabel(it);
+              const chipLabel = getChipLabel(it, t);
               return (
                 <li
                   key={`${it.kind}:${it.id}`}
@@ -432,7 +559,7 @@ export default function Timeline(){
               <button
                 type="button"
                 onClick={() => closeOverlay()}
-                className="sm:hidden -ml-1 rounded-md p-2 hover:bg-slate-100 dark:hover:bg-gray-800"
+                className="sm:hidden -ms-1 rounded-md p-2 hover:bg-slate-100 dark:hover:bg-gray-800"
                 aria-label="Close details"
               >
                 <ArrowLeft size={18} />
@@ -445,7 +572,7 @@ export default function Timeline(){
                   </span>
                 )}
               </h3>
-              <div className="ml-auto flex gap-2">
+              <div className="ms-auto flex gap-2">
                 {(active.file?.path || active.file?.upload_id) && signedUrl && (
                   <button onClick={() => window.open(signedUrl, '_blank')} className="text-xs px-2 py-1 rounded-md border">Open</button>
                 )}
