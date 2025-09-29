@@ -53,6 +53,18 @@ type ObservationMap = Record<string, { value: any; unit: string | null; observed
 
 type PanelMode = "wellness" | "clinical" | "ai-doc";
 
+type ParsedSummary = {
+  patient?: string | null;
+  chronic?: string | null;
+  predispositions?: string | null;
+  meds?: string | null;
+  labs: string[];
+  prediction?: string | null;
+  notes?: string | null;
+  nextSteps?: string | null;
+  disclaimer?: string | null;
+};
+
 function ageFromDob(dob?: string | null): number | null {
   if (!dob) return null;
   const d = new Date(dob);
@@ -80,6 +92,14 @@ function formatNumberInput(value: number | null) {
   if (value == null || Number.isNaN(value)) return "";
   const rounded = Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
   return rounded.replace(/\.0$/, "");
+}
+
+function formatSexLabel(value: string, translate: (key: string) => string) {
+  const normalized = value?.toLowerCase?.() ?? value;
+  if (normalized === "male") return translate("Male");
+  if (normalized === "female") return translate("Female");
+  if (normalized === "other") return translate("Other");
+  return value;
 }
 
 function parseBp(value: any): { systolic?: number; diastolic?: number } {
@@ -134,6 +154,8 @@ export default function MedicalProfile() {
   const panelMode = useMemo(() => derivePanelMode(params, theme), [params, theme]);
   const { t, n } = useT();
 
+  const getSexLabel = useCallback((value: string) => formatSexLabel(value, t), [t]);
+
   const { mutate: mutateGlobal } = useSWRConfig();
   const { data, error, isLoading, mutate: mutateProfile } = useProfile();
 
@@ -144,7 +166,8 @@ export default function MedicalProfile() {
   const [predis, setPredis] = useState<string[]>([]);
   const [chronic, setChronic] = useState<string[]>([]);
   const [medications, setMedications] = useState<MedicationEntry[]>([]);
-  const [summaryText, setSummaryText] = useState("No summary yet.");
+  const [summaryRaw, setSummaryRaw] = useState<string | null>(null);
+  const [parsedSummary, setParsedSummary] = useState<ParsedSummary | null>(null);
   const [predictionText, setPredictionText] = useState(NO_DATA_TEXT);
   const [summaryNotes, setSummaryNotes] = useState(NO_DATA_TEXT);
   const [summaryNextSteps, setSummaryNextSteps] = useState(NO_DATA_TEXT);
@@ -167,6 +190,46 @@ export default function MedicalProfile() {
 
   const noDataText = t(NO_DATA_TEXT);
   const noMedicationsText = t("No medications recorded yet.");
+  const summaryDisplay = useMemo(() => {
+    if (parsedSummary) {
+      const formatValue = (value?: string | null) => {
+        if (!value || value === NO_DATA_TEXT) return noDataText;
+        return value;
+      };
+
+      const lines: string[] = [
+        `${t("Patient")}: ${formatValue(parsedSummary.patient)}`,
+        `${t("Chronic conditions")}: ${formatValue(parsedSummary.chronic)}`,
+        `${t("Predispositions")}: ${formatValue(parsedSummary.predispositions)}`,
+        `${t("Active meds")}: ${formatValue(parsedSummary.meds)}`,
+      ];
+
+      if (parsedSummary.labs.length) {
+        lines.push(`${t("Recent labs")}:`);
+        parsedSummary.labs.forEach(lab => {
+          lines.push(`- ${lab}`);
+        });
+      } else {
+        lines.push(`${t("Recent labs")}: ${noDataText}`);
+      }
+
+      lines.push(`${t("AI prediction")}: ${formatValue(parsedSummary.prediction)}`);
+      lines.push(`${t("Symptoms/Notes")}: ${formatValue(parsedSummary.notes)}`);
+      lines.push(`${t("Next Steps")}: ${formatValue(parsedSummary.nextSteps)}`);
+
+      if (parsedSummary.disclaimer) {
+        lines.push(t("AI assistance only — not a medical diagnosis. Confirm with a clinician."));
+      }
+
+      return lines.join("\n");
+    }
+
+    if (summaryRaw?.trim()) {
+      return summaryRaw;
+    }
+
+    return t("No summary yet.");
+  }, [parsedSummary, summaryRaw, t, noDataText]);
 
   const extractedMedications = useMemo(() => extractMedicationEntries(data), [data]);
 
@@ -317,17 +380,43 @@ export default function MedicalProfile() {
       .split(/\n+/)
       .map(line => line.trim())
       .filter(Boolean);
-    const findValue = (label: string) => {
+
+    const extractValue = (label: string): string | null => {
       const line = lines.find(l => l.toLowerCase().startsWith(label.toLowerCase()));
-      if (!line) return NO_DATA_TEXT;
+      if (!line) return null;
       const value = line.slice(label.length).replace(/^[:\s]+/, "").trim();
-      if (!value) return NO_DATA_TEXT;
-      return value;
+      return value || null;
     };
-    setSummaryText(text || "No summary yet.");
-    setPredictionText(findValue("AI Prediction"));
-    setSummaryNotes(findValue("Symptoms/Notes"));
-    setSummaryNextSteps(findValue("Next Steps"));
+
+    const labs: string[] = [];
+    const labsIndex = lines.findIndex(line => line.toLowerCase().startsWith("recent labs"));
+    if (labsIndex >= 0) {
+      for (let i = labsIndex + 1; i < lines.length; i += 1) {
+        const entry = lines[i];
+        if (!entry.startsWith("-")) break;
+        labs.push(entry.replace(/^-+\s*/, "").trim());
+      }
+    }
+
+    const disclaimer = lines.find(line => line.toLowerCase().includes("ai assistance only")) ?? null;
+
+    const parsed: ParsedSummary = {
+      patient: extractValue("Patient"),
+      chronic: extractValue("Chronic conditions"),
+      predispositions: extractValue("Predispositions"),
+      meds: extractValue("Active Meds"),
+      labs,
+      prediction: extractValue("AI Prediction"),
+      notes: extractValue("Symptoms/Notes"),
+      nextSteps: extractValue("Next Steps"),
+      disclaimer,
+    };
+
+    setSummaryRaw(text || null);
+    setParsedSummary(parsed);
+    setPredictionText(parsed.prediction ?? NO_DATA_TEXT);
+    setSummaryNotes(parsed.notes ?? NO_DATA_TEXT);
+    setSummaryNextSteps(parsed.nextSteps ?? NO_DATA_TEXT);
   }, []);
 
   const loadSummary = useCallback(async () => {
@@ -335,10 +424,18 @@ export default function MedicalProfile() {
       const res = await fetch("/api/profile/summary", { cache: "no-store" });
       const body = await res.json().catch(() => ({}));
       const text = body?.text || body?.summary || "";
-      if (text) parseSummary(text);
+      if (text) {
+        parseSummary(text);
+      } else {
+        setParsedSummary(null);
+        setSummaryRaw(null);
+        setPredictionText(NO_DATA_TEXT);
+        setSummaryNotes(NO_DATA_TEXT);
+        setSummaryNextSteps(NO_DATA_TEXT);
+      }
       const reasons = body?.reasons || "";
       if (typeof reasons === "string" && !text) {
-        setSummaryText(reasons);
+        setSummaryRaw(reasons);
       }
     } catch (err) {
       console.warn("Failed to load profile summary", err);
@@ -671,7 +768,6 @@ export default function MedicalProfile() {
       const summary = body?.summary as string | undefined;
       if (summary) {
         parseSummary(summary);
-        setSummaryText(summary);
         if (/insufficient data/i.test(summary)) {
           setPredictionText("Not enough data to compute risk yet.");
         }
@@ -761,7 +857,7 @@ export default function MedicalProfile() {
               <option value="">—</option>
               {SEXES.map(s => (
                 <option key={s} value={s}>
-                  {s}
+                  {getSexLabel(s)}
                 </option>
               ))}
             </select>
@@ -951,9 +1047,11 @@ export default function MedicalProfile() {
           }
         >
           <div className="space-y-3 text-sm">
-            <p className="whitespace-pre-wrap leading-relaxed">{summaryText}</p>
+            <p className="whitespace-pre-wrap leading-relaxed">{summaryDisplay}</p>
             <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
-              ⚠️ This is AI-generated support, not a medical diagnosis. Always consult a clinician.
+              {t(
+                "⚠️ This is AI-generated support, not a medical diagnosis. Always consult a clinician.",
+              )}
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div className="space-y-2">
@@ -1487,6 +1585,7 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
   const safeSex = typeof personal.sex === "string" && personal.sex.trim()
     ? personal.sex
     : noDataDisplay;
+  const safeSexDisplay = safeSex === noDataDisplay ? safeSex : formatSexLabel(safeSex, t);
   const safeBloodGroup = typeof personal.bloodGroup === "string" && personal.bloodGroup.trim()
     ? personal.bloodGroup
     : noDataDisplay;
@@ -1540,7 +1639,7 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
         primary
       >
         <KV label={t("Name")} value={safeName} />
-        <KV label={t("Sex")} value={safeSex} />
+        <KV label={t("Sex")} value={safeSexDisplay} />
         <KV
           label={t("DOB")}
           value={
@@ -1574,7 +1673,7 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
       <Section title={t("AI Summary")}>
         <p className="text-[13px] leading-5 text-slate-600 dark:text-slate-300">
           {t("Patient")}: {safeName} (
-          {t("Sex")}: {safeSex === noDataDisplay ? "—" : safeSex}, {t("Age")}: {safeAge}, {t("Blood group")}: {safeBloodGroup === noDataDisplay ? "—" : safeBloodGroup})
+          {t("Sex")}: {safeSex === noDataDisplay ? "—" : safeSexDisplay}, {t("Age")}: {safeAge}, {t("Blood group")}: {safeBloodGroup === noDataDisplay ? "—" : safeBloodGroup})
           <br />
           {t("Chronic conditions")}: {safeChronic}
           <br />
