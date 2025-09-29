@@ -486,7 +486,7 @@ export default function Timeline(){
                 {range==="CUSTOM" && <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="w-full rounded-md border px-2 py-1 text-xs sm:w-auto" />}
               </div>
               <input
-                placeholder={t("Search....")}
+                placeholder={t("Search…")}
                 value={q}
                 onChange={e=>setQ(e.target.value)}
                 className="w-full min-w-0 rounded-md border px-2 py-1 text-xs sm:ms-auto sm:w-[200px]"
