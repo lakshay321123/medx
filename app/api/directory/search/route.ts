@@ -39,27 +39,20 @@ function composeAddress(components: GoogleAddressComponent[], appLang: string) {
   const lang = providerLang(appLang);
   const by = (t: string) =>
     components.find(c => Array.isArray(c.types) && c.types.includes(t));
-  const text = (component: GoogleAddressComponent | undefined) =>
-    component?.longText || component?.shortText;
 
-  const street = [text(by("street_number")), text(by("route"))]
+  const street = [by("street_number")?.longText, by("route")?.longText]
     .filter(Boolean)
     .join(" ");
-  const sublocality = text(by("sublocality")) || text(by("sublocality_level_1"));
-  const locality = text(by("locality")) || text(by("postal_town"));
-  const admin2 = text(by("administrative_area_level_2"));
-  const admin1 = text(by("administrative_area_level_1"));
-  const postal = text(by("postal_code"));
+  const sublocality = by("sublocality")?.longText ?? by("sublocality_level_1")?.longText;
+  const locality = by("locality")?.longText ?? by("postal_town")?.longText;
+  const admin2 = by("administrative_area_level_2")?.longText;
+  const admin1 = by("administrative_area_level_1")?.longText;
+  const postal = by("postal_code")?.longText;
   const countryCode = by("country")?.shortText;
 
-  let country: string | undefined;
-  if (countryCode) {
-    try {
-      country = new Intl.DisplayNames(lang, { type: "region" }).of(countryCode) ?? undefined;
-    } catch {
-      country = countryCode;
-    }
-  }
+  const country = countryCode
+    ? new Intl.DisplayNames(lang, { type: "region" }).of(countryCode)
+    : undefined;
 
   return [street, sublocality, locality, admin2, admin1, postal, country]
     .filter(Boolean)
