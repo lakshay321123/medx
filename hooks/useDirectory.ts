@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 export type DirType = "all" | "doctor" | "pharmacy" | "lab" | "hospital" | "clinic";
 export type Place = {
@@ -82,11 +82,6 @@ export function useDirectory() {
     );
   }
 
-  const summary = useMemo(() => {
-    const updated = updatedAt ? ` • updated ${new Date(updatedAt).toLocaleDateString()}` : "";
-    return `${data.length} results${updated}`;
-  }, [data.length, updatedAt]);
-
   return {
     state: {
       lat,
@@ -100,7 +95,7 @@ export function useDirectory() {
       radius,
       data,
       loading,
-      summary,
+      updatedAt,
     },
     actions: {
       setType,
