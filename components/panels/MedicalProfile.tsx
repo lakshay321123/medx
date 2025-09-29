@@ -152,7 +152,7 @@ export default function MedicalProfile() {
   const params = useSearchParams();
   const { theme } = useTheme();
   const panelMode = useMemo(() => derivePanelMode(params, theme), [params, theme]);
-  const { t, n } = useT();
+  const { t, n, lang } = useT();
 
   const getSexLabel = useCallback((value: string) => formatSexLabel(value, t), [t]);
 
@@ -421,7 +421,9 @@ export default function MedicalProfile() {
 
   const loadSummary = useCallback(async () => {
     try {
-      const res = await fetch("/api/profile/summary", { cache: "no-store" });
+      const res = await fetch(`/api/profile/summary?lang=${encodeURIComponent(lang)}`, {
+        cache: "no-store",
+      });
       const body = await res.json().catch(() => ({}));
       const text = body?.text || body?.summary || "";
       if (text) {
@@ -440,7 +442,7 @@ export default function MedicalProfile() {
     } catch (err) {
       console.warn("Failed to load profile summary", err);
     }
-  }, [parseSummary]);
+  }, [lang, parseSummary]);
 
   useEffect(() => {
     void loadSummary();
@@ -774,7 +776,7 @@ export default function MedicalProfile() {
       } else {
         setPredictionText("Not enough data to compute risk yet.");
       }
-      pushToast({ title: "Risk recomputed" });
+      pushToast({ title: t("Risk recomputed") });
       await loadSummary();
     } catch (err: any) {
       pushToast({
@@ -793,7 +795,9 @@ export default function MedicalProfile() {
   if (isLoading) return <PanelLoader label={t("Medical Profile")} />;
   if (error) {
     return (
-      <div className="p-6 text-sm text-red-500">Couldn’t load profile. Retrying in background…</div>
+      <div className="p-6 text-sm text-red-500">
+        {t("Couldn’t load profile. Retrying in background…")}
+      </div>
     );
   }
   if (!data) {
@@ -903,7 +907,7 @@ export default function MedicalProfile() {
             <span>{t("Predispositions")}</span>
             <input
               className="rounded-md border px-3 py-2"
-              placeholder="Type to add (Enter)…"
+              placeholder={t("Type to add (Enter)…")}
               onKeyDown={e => {
                 const value = (e.target as HTMLInputElement).value.trim();
                 if (e.key === "Enter" && value) {
@@ -937,7 +941,7 @@ export default function MedicalProfile() {
             <span>{t("Chronic conditions")}</span>
             <input
               className="rounded-md border px-3 py-2"
-              placeholder="Type to add (Enter)…"
+              placeholder={t("Type to add (Enter)…")}
               onKeyDown={e => {
                 const value = (e.target as HTMLInputElement).value.trim();
                 if (e.key === "Enter" && value) {

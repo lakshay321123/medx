@@ -84,6 +84,10 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "No summary yet.": "No summary yet.",
     "No medications recorded yet.": "No medications recorded yet.",
     "No data available": "No data available",
+    "Type to add (Enter)…": "Type to add (Enter)…",
+    "Risk recomputed": "Risk recomputed",
+    "Couldn’t load profile. Retrying in background…": "Couldn’t load profile. Retrying in background…",
+    "Toggle theme": "Toggle theme",
     Name: "Name",
     DOB: "DOB",
     Age: "Age",
@@ -325,6 +329,11 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "No summary yet.": "अभी कोई सारांश नहीं है।",
     "No medications recorded yet.": "अभी कोई दवाएँ दर्ज नहीं हैं।",
     "No data available": "कोई डेटा उपलब्ध नहीं है",
+    "Type to add (Enter)…": "जोड़ने के लिए लिखें (एंटर)…",
+    "Risk recomputed": "जोखिम पुनःगणना किया गया",
+    "Couldn’t load profile. Retrying in background…":
+      "प्रोफ़ाइल लोड नहीं हो सकी। बैकग्राउंड में पुनः प्रयास…",
+    "Toggle theme": "थीम बदलें",
     Name: "नाम",
     DOB: "जन्म तिथि",
     Age: "आयु",
@@ -566,6 +575,11 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "No summary yet.": "لا يوجد ملخص بعد.",
     "No medications recorded yet.": "لا توجد أدوية مسجلة بعد.",
     "No data available": "لا توجد بيانات متاحة",
+    "Type to add (Enter)…": "اكتب للإضافة (إدخال)…",
+    "Risk recomputed": "تمت إعادة حساب المخاطر",
+    "Couldn’t load profile. Retrying in background…":
+      "تعذر تحميل الملف الشخصي. إعادة المحاولة في الخلفية…",
+    "Toggle theme": "تبديل السمة",
     Name: "الاسم",
     DOB: "تاريخ الميلاد",
     Age: "العمر",
@@ -806,6 +820,11 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "No summary yet.": "Nessun riepilogo ancora.",
     "No medications recorded yet.": "Nessun farmaco registrato.",
     "No data available": "Nessun dato disponibile",
+    "Type to add (Enter)…": "Scrivi per aggiungere (Invio)…",
+    "Risk recomputed": "Rischio ricalcolato",
+    "Couldn’t load profile. Retrying in background…":
+      "Impossibile caricare il profilo. Nuovo tentativo in background…",
+    "Toggle theme": "Cambia tema",
     Name: "Nome",
     DOB: "Data di nascita",
     Age: "Età",
@@ -1286,6 +1305,11 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "No summary yet.": "Aún no hay resumen.",
     "No medications recorded yet.": "No hay medicamentos registrados aún.",
     "No data available": "No hay datos disponibles",
+    "Type to add (Enter)…": "Escribe para añadir (Enter)…",
+    "Risk recomputed": "Riesgo recalculado",
+    "Couldn’t load profile. Retrying in background…":
+      "No se pudo cargar el perfil. Reintentando en segundo plano…",
+    "Toggle theme": "Cambiar tema",
     Name: "Nombre",
     DOB: "Fecha de nacimiento",
     Age: "Edad",
@@ -1459,6 +1483,13 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "Last 30d": "Últimos 30 días",
     "Last 90d": "Últimos 90 días",
     "Custom…": "Personalizado…",
+  },
+  fr: {
+    "Type to add (Enter)…": "Tapez pour ajouter (Entrée)…",
+    "Risk recomputed": "Risque recalculé",
+    "Couldn’t load profile. Retrying in background…":
+      "Impossible de charger le profil. Nouvel essai en arrière-plan…",
+    "Toggle theme": "Changer le thème",
   },
 };
 
