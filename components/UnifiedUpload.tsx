@@ -160,7 +160,7 @@ export default function UnifiedUpload() {
       }
     } catch (e: any) {
       markAllPreviewsDone();
-      const message = String(e?.message || e) || uploadFailedMessage;
+      const message = String(e?.message || "");
       if (message.includes("415")) {
         setErr(unsupportedTypeMessage);
       } else if (message.includes("413")) {
@@ -168,7 +168,7 @@ export default function UnifiedUpload() {
       } else if (message.includes("Upload up to")) {
         setErr(uploadLimitMessage);
       } else {
-        setErr(unclearImageMessage);
+        setErr(uploadFailedMessage);
       }
     } finally {
       setLoading(false);
