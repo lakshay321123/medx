@@ -9,6 +9,7 @@ import ProfileSection from "@/components/profile/ProfileSection";
 import VitalsEditor from "@/components/profile/VitalsEditor";
 import MedicationInput from "@/components/meds/MedicationInput";
 import MedicationTag from "@/components/meds/MedicationTag";
+import { useT } from "@/components/hooks/useI18n";
 import { useProfile } from "@/lib/hooks/useAppData";
 import { pushToast } from "@/lib/ui/toast";
 import { fromSearchParams } from "@/lib/modes/url";
@@ -131,6 +132,7 @@ export default function MedicalProfile() {
   const params = useSearchParams();
   const { theme } = useTheme();
   const panelMode = useMemo(() => derivePanelMode(params, theme), [params, theme]);
+  const t = useT();
 
   const { mutate: mutateGlobal } = useSWRConfig();
   const { data, error, isLoading, mutate: mutateProfile } = useProfile();
@@ -346,18 +348,18 @@ export default function MedicalProfile() {
 
   const vitalsDisplay = [
     {
-      label: "Blood pressure",
+      label: t("BLOOD PRESSURE"),
       value:
         profileVitals.systolic != null && profileVitals.diastolic != null
           ? `${profileVitals.systolic}/${profileVitals.diastolic} mmHg`
           : "—",
     },
     {
-      label: "Heart rate",
+      label: t("HEART RATE"),
       value: profileVitals.heartRate != null ? `${profileVitals.heartRate} bpm` : "—",
     },
     {
-      label: "BMI",
+      label: t("BMI"),
       value: profileVitals.bmi != null ? `${profileVitals.bmi}` : "—",
     },
   ];
@@ -683,7 +685,7 @@ export default function MedicalProfile() {
   const showWellnessSections = panelMode !== "clinical";
   const showClinicalSections = panelMode !== "wellness";
 
-  if (isLoading) return <PanelLoader label="Medical Profile" />;
+  if (isLoading) return <PanelLoader label={t("Medical Profile")} />;
   if (error) {
     return (
       <div className="p-6 text-sm text-red-500">Couldn’t load profile. Retrying in background…</div>
@@ -696,7 +698,7 @@ export default function MedicalProfile() {
   return (
     <div className="space-y-4 p-4 md:p-6">
       <ProfileSection
-        title="Personal details"
+        title={t("Personal details")}
         actions={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
             <button
@@ -704,7 +706,7 @@ export default function MedicalProfile() {
               className="w-full rounded-md border px-3 py-1.5 text-sm sm:w-auto"
               onClick={() => router.push("/?panel=chat&threadId=med-profile&context=profile")}
             >
-              Open in chat
+              {t("Open in chat")}
             </button>
             <button
               type="button"
@@ -712,14 +714,14 @@ export default function MedicalProfile() {
               onClick={handleProfileSave}
               disabled={savingProfile}
             >
-              {savingProfile ? "Saving…" : "Save"}
+              {savingProfile ? t("Saving…") : t("Save")}
             </button>
           </div>
         }
       >
         <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
           <label className="flex flex-col gap-1">
-            <span>Name</span>
+            <span>{t("Name")}</span>
             <input
               className="rounded-md border px-3 py-2"
               value={fullName}
@@ -728,7 +730,7 @@ export default function MedicalProfile() {
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span>DOB</span>
+            <span>{t("DOB")}</span>
             <input
               type="date"
               className="rounded-md border px-3 py-2"
@@ -736,10 +738,10 @@ export default function MedicalProfile() {
               max={new Date().toISOString().slice(0, 10)}
               onChange={e => setDob(e.target.value)}
             />
-            <span className="text-xs text-muted-foreground">Age: {ageFromDob(dob) || "—"}</span>
+            <span className="text-xs text-muted-foreground">{t("Age")}: {ageFromDob(dob) || "—"}</span>
           </label>
           <label className="flex flex-col gap-1">
-            <span>Sex</span>
+            <span>{t("Sex")}</span>
             <select
               className="rounded-md border px-3 py-2"
               value={sex || ""}
@@ -754,7 +756,7 @@ export default function MedicalProfile() {
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span>Blood group</span>
+            <span>{t("Blood group")}</span>
             <select
               className="rounded-md border px-3 py-2"
               value={bloodGroup || ""}
@@ -769,7 +771,7 @@ export default function MedicalProfile() {
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span>Height (cm)</span>
+            <span>{t("Height (cm)")}</span>
             <input
               type="number"
               inputMode="decimal"
@@ -780,7 +782,7 @@ export default function MedicalProfile() {
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span>Weight (kg)</span>
+            <span>{t("Weight (kg)")}</span>
             <input
               type="number"
               inputMode="decimal"
@@ -791,7 +793,7 @@ export default function MedicalProfile() {
             />
           </label>
           <label className="flex flex-col gap-1 md:col-span-1">
-            <span>Predispositions</span>
+            <span>{t("Predispositions")}</span>
             <input
               className="rounded-md border px-3 py-2"
               placeholder="Type to add (Enter)…"
@@ -825,7 +827,7 @@ export default function MedicalProfile() {
             </div>
           </label>
           <label className="flex flex-col gap-1 md:col-span-1">
-            <span>Chronic conditions</span>
+            <span>{t("Chronic conditions")}</span>
             <input
               className="rounded-md border px-3 py-2"
               placeholder="Type to add (Enter)…"
@@ -858,14 +860,14 @@ export default function MedicalProfile() {
 
       {showWellnessSections ? (
         <ProfileSection
-          title="Vitals"
+          title={t("Vitals")}
           actions={
             <button
               type="button"
               className="rounded-md border px-3 py-1.5 text-sm"
               onClick={() => setEditingVitals(open => !open)}
             >
-              {editingVitals ? "Close" : "Edit"}
+              {editingVitals ? "Close" : t("Edit")}
             </button>
           }
         >
@@ -916,7 +918,7 @@ export default function MedicalProfile() {
 
       {showWellnessSections || showClinicalSections ? (
         <ProfileSection
-          title="AI Summary"
+          title={t("AI Summary")}
           actions={
             <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
               <button
@@ -924,7 +926,7 @@ export default function MedicalProfile() {
                 className="w-full rounded-md border px-3 py-1.5 text-sm sm:w-auto"
                 onClick={() => router.push("/?panel=chat&threadId=med-profile&context=profile")}
               >
-                Discuss in chat
+                {t("Discuss in chat")}
               </button>
               <button
                 type="button"
@@ -932,7 +934,7 @@ export default function MedicalProfile() {
                 onClick={onRecomputeRisk}
                 disabled={recomputeBusy}
               >
-                {recomputeBusy ? "Computing…" : "Recompute risk"}
+                {recomputeBusy ? t("Computing…") : t("Recompute risk")}
               </button>
             </div>
           }
@@ -945,7 +947,7 @@ export default function MedicalProfile() {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Active Meds
+                  {t("Active medication")}
                 </h4>
                 {medications.length ? (
                   <div className="mt-1 flex flex-wrap gap-2">
@@ -968,7 +970,7 @@ export default function MedicalProfile() {
                       className="inline-flex items-center rounded-md border px-3 py-1.5 text-xs"
                       onClick={() => setSummaryMedsEditing(false)}
                     >
-                      Done
+                      {t("Done")}
                     </button>
                   </div>
                 ) : (
@@ -977,13 +979,13 @@ export default function MedicalProfile() {
                     className="inline-flex items-center rounded-md border px-3 py-1.5 text-xs"
                     onClick={() => setSummaryMedsEditing(true)}
                   >
-                    Add medication
+                    {t("Add")} {t("Medications")}
                   </button>
                 )}
               </div>
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Symptoms & Notes
+                  {t("Symptoms & Notes")}
                 </h4>
                 {displayedNotes && !notesEditing ? (
                   <p className="mt-1 text-sm whitespace-pre-wrap">{displayedNotes}</p>
@@ -1005,7 +1007,7 @@ export default function MedicalProfile() {
                         onClick={handleSaveNotes}
                         disabled={savingNotes}
                       >
-                        {savingNotes ? "Saving…" : "Save"}
+                        {savingNotes ? t("Saving…") : t("Save")}
                       </button>
                       <button
                         type="button"
@@ -1013,7 +1015,7 @@ export default function MedicalProfile() {
                         onClick={() => setNotesEditing(false)}
                         disabled={savingNotes}
                       >
-                        Cancel
+                        {t("Cancel")}
                       </button>
                       {manualNotes ? (
                         <button
@@ -1022,7 +1024,7 @@ export default function MedicalProfile() {
                           onClick={handleClearNotes}
                           disabled={savingNotes}
                         >
-                          Delete
+                          {t("Delete")}
                         </button>
                       ) : null}
                     </div>
@@ -1037,7 +1039,7 @@ export default function MedicalProfile() {
                         setNotesEditing(true);
                       }}
                     >
-                      Edit
+                      {t("Edit")}
                     </button>
                     {manualNotes ? (
                       <button
@@ -1046,7 +1048,7 @@ export default function MedicalProfile() {
                         onClick={handleClearNotes}
                         disabled={savingNotes}
                       >
-                        Delete
+                        {t("Delete")}
                       </button>
                     ) : null}
                   </div>
@@ -1059,14 +1061,14 @@ export default function MedicalProfile() {
                       setNotesEditing(true);
                     }}
                   >
-                    Add notes
+                    {t("Add notes")}
                   </button>
                 )}
               </div>
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Next Steps
-                </h4>
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {t("Next Steps")}
+                  </h4>
                 {displayedNextSteps && !nextStepsEditing ? (
                   <p className="mt-1 text-sm whitespace-pre-wrap">{displayedNextSteps}</p>
                 ) : !nextStepsEditing ? (
@@ -1087,7 +1089,7 @@ export default function MedicalProfile() {
                         onClick={handleSaveNextSteps}
                         disabled={savingNextSteps}
                       >
-                        {savingNextSteps ? "Saving…" : "Save"}
+                        {savingNextSteps ? t("Saving…") : t("Save")}
                       </button>
                       <button
                         type="button"
@@ -1095,7 +1097,7 @@ export default function MedicalProfile() {
                         onClick={() => setNextStepsEditing(false)}
                         disabled={savingNextSteps}
                       >
-                        Cancel
+                        {t("Cancel")}
                       </button>
                       {manualNextSteps ? (
                         <button
@@ -1104,7 +1106,7 @@ export default function MedicalProfile() {
                           onClick={handleClearNextSteps}
                           disabled={savingNextSteps}
                         >
-                          Delete
+                          {t("Delete")}
                         </button>
                       ) : null}
                     </div>
@@ -1119,7 +1121,7 @@ export default function MedicalProfile() {
                         setNextStepsEditing(true);
                       }}
                     >
-                      Edit
+                      {t("Edit")}
                     </button>
                     {manualNextSteps ? (
                       <button
@@ -1128,7 +1130,7 @@ export default function MedicalProfile() {
                         onClick={handleClearNextSteps}
                         disabled={savingNextSteps}
                       >
-                        Delete
+                        {t("Delete")}
                       </button>
                     ) : null}
                   </div>
@@ -1141,7 +1143,7 @@ export default function MedicalProfile() {
                       setNextStepsEditing(true);
                     }}
                   >
-                    Add next steps
+                    {t("Add next steps")}
                   </button>
                 )}
               </div>
@@ -1162,7 +1164,7 @@ export default function MedicalProfile() {
 
       {showClinicalSections ? (
         <ProfileSection
-          title="Active Meds"
+          title={t("Active medication")}
           isEmpty={medsEmpty}
           emptyMessage="No medications recorded yet."
         >
@@ -1462,6 +1464,8 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
     onAddNextStep,
   } = props;
 
+  const t = useT();
+
   if (!isMobile) return null;
 
   const safeName = typeof personal.name === "string" && personal.name.trim()
@@ -1496,45 +1500,45 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
   return (
     <div className="space-y-4">
       <Section
-        title="Personal details"
-        actionLabel={onEditPersonal ? "Edit" : undefined}
+        title={t("Personal details")}
+        actionLabel={onEditPersonal ? t("Edit") : undefined}
         onAction={onEditPersonal}
         actionAriaLabel="Edit personal details"
         primary
       >
-        <KV label="NAME" value={safeName} />
-        <KV label="SEX" value={safeSex} />
+        <KV label={t("Name")} value={safeName} />
+        <KV label={t("Sex")} value={safeSex} />
         <KV
-          label="DOB"
+          label={t("DOB")}
           value={
             <span>
               {fmtDOB(personal.dob)}
               <span className="mx-1">•</span>
-              Age: {safeAge}
+              {t("Age")}: {safeAge}
             </span>
           }
         />
-        <KV label="BLOOD GROUP" value={safeBloodGroup} />
-        <KV label="HEIGHT (cm)" value={safeHeight} />
-        <KV label="WEIGHT (kg)" value={safeWeight} />
+        <KV label={t("Blood group")} value={safeBloodGroup} />
+        <KV label={t("Height (cm)")} value={safeHeight} />
+        <KV label={t("Weight (kg)")} value={safeWeight} />
         <Divider />
-        <KV label="PREDISPOSITIONS" value={safePredispositions} />
-        <KV label="CHRONIC CONDITIONS" value={safeChronic} />
+        <KV label={t("Predispositions")} value={safePredispositions} />
+        <KV label={t("Chronic conditions")} value={safeChronic} />
       </Section>
 
       <Section
-        title="Vitals"
-        actionLabel={onEditVitals ? "Edit" : undefined}
+        title={t("Vitals")}
+        actionLabel={onEditVitals ? t("Edit") : undefined}
         onAction={onEditVitals}
         actionAriaLabel="Edit vitals"
         primary
       >
-        <Row label="BLOOD PRESSURE" value={<span className="text-slate-400">{safeBp}</span>} />
-        <Row label="HEART RATE" value={<span className="font-semibold">{safeHeartRate}</span>} />
-        <Row label="BMI" value={<span className="font-semibold">{safeBmi}</span>} />
+        <Row label={t("BLOOD PRESSURE")} value={<span className="text-slate-400">{safeBp}</span>} />
+        <Row label={t("HEART RATE")} value={<span className="font-semibold">{safeHeartRate}</span>} />
+        <Row label={t("BMI")} value={<span className="font-semibold">{safeBmi}</span>} />
       </Section>
 
-      <Section title="AI Summary">
+      <Section title={t("AI Summary")}>
         <p className="text-[13px] leading-5 text-slate-600 dark:text-slate-300">
           Patient: {safeName} ({safeSex === NO_DATA ? "—" : safeSex}, {safeAge} y, {safeBloodGroup === NO_DATA ? "—" : safeBloodGroup})
           <br />Chronic conditions: {safeChronic}
@@ -1553,7 +1557,7 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
               aria-label="Discuss AI summary in chat"
               onClick={onDiscussAI}
             >
-              Discuss in chat
+              {t("Discuss in chat")}
             </Button>
           ) : null}
           {onRecomputeRisk ? (
@@ -1562,7 +1566,7 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
               aria-label="Recompute risk"
               onClick={onRecomputeRisk}
             >
-              Recompute risk
+              {t("Recompute risk")}
             </Button>
           ) : null}
         </div>
@@ -1573,34 +1577,34 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
         </div>
       </Section>
 
-      <Section title="Medications">
+      <Section title={t("Medications")}>
         <Empty text={medsCount > 0 ? "" : "No medications recorded yet."} />
         {onAddMedication ? (
           <div className="pt-2">
             <Button variant="outline" onClick={onAddMedication} aria-label="Add medication">
-              Add medication
+              {t("Add")} {t("Medications")}
             </Button>
           </div>
         ) : null}
       </Section>
 
-      <Section title="Symptoms & Notes">
+      <Section title={t("Symptoms & Notes")}>
         <Empty text={notesCount > 0 ? "" : NO_DATA} />
         {onAddNote ? (
           <div className="pt-2">
             <Button variant="outline" onClick={onAddNote} aria-label="Add notes">
-              Add notes
+              {t("Add notes")}
             </Button>
           </div>
         ) : null}
       </Section>
 
-      <Section title="Next Steps">
+      <Section title={t("Next Steps")}>
         <Empty text={nextStepsCount > 0 ? "" : NO_DATA} />
         {onAddNextStep ? (
           <div className="pt-2">
             <Button variant="outline" onClick={onAddNextStep} aria-label="Add next steps">
-              Add next steps
+              {t("Add next steps")}
             </Button>
           </div>
         ) : null}
