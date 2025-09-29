@@ -1,14 +1,15 @@
 'use client';
 import { useState } from 'react';
+import { useT } from '@/components/hooks/useI18n';
 import { useResearchFilters } from '@/store/researchFilters';
 import type { TrialRow } from '@/types/trials';
 
 const phaseOptions = ['1','2','3','4'] as const;
 const statusLabels = [
-  { key: 'recruiting', api: 'Recruiting', label: 'Recruiting' },
-  { key: 'active', api: 'Active, not recruiting', label: 'Active (not recruiting)' },
-  { key: 'completed', api: 'Completed', label: 'Completed' },
-  { key: 'any', api: undefined, label: 'Any' },
+  { key: 'recruiting', api: 'Recruiting', labelKey: 'Recruiting' },
+  { key: 'active', api: 'Active, not recruiting', labelKey: 'Active (not recruiting)' },
+  { key: 'completed', api: 'Completed', labelKey: 'Completed' },
+  { key: 'any', api: undefined, labelKey: 'Any' },
 ] as const;
 
 // Add China, keep Worldwide (treated as no filter)
@@ -35,6 +36,7 @@ type Props = {
 
 export default function ResearchFilters({ mode, onResults }: Props) {
   const { filters, setFilters, reset } = useResearchFilters();
+  const t = useT();
 
   const [local, setLocal] = useState({
     query: filters.query || '',
@@ -90,10 +92,12 @@ export default function ResearchFilters({ mode, onResults }: Props) {
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Search failed');
+      if (!res.ok) throw new Error(data?.error || t('Search failed'));
       onResults?.(data.trials || []);
     } catch (e:any) {
-      setError(e.message || 'Failed to fetch trials');
+      const fallback = t('Failed to fetch trials.');
+      const message = typeof e?.message === 'string' ? e.message : '';
+      setError(message && message !== 'Failed to fetch' ? message : fallback);
       onResults?.([]);
     } finally {
       setBusy(false);
@@ -137,7 +141,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
           className="px-3 py-2 rounded-lg text-sm border bg-blue-600 text-white dark:border-blue-600 disabled:opacity-50"
           disabled={busy}
         >
-          {busy ? 'Searching…' : 'Search'}
+          {busy ? t('Searching…') : t('Search')}
         </button>
       </div>
 
@@ -153,7 +157,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
               'bg-white dark:bg-slate-800 dark:border-slate-700'
             }`}
           >
-            Phase {p}
+            {t('Phase')} {p}
           </button>
         ))}
       </div>
@@ -166,7 +170,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
           className="rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
         >
           {statusLabels.map(o=>(
-            <option key={o.key} value={o.key}>{o.label}</option>
+            <option key={o.key} value={o.key}>{t(o.labelKey)}</option>
           ))}
         </select>
       </div>
@@ -212,10 +216,10 @@ export default function ResearchFilters({ mode, onResults }: Props) {
           className="flex-1 rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
         />
         <button type="submit" className="px-3 py-1.5 rounded-lg text-sm border bg-blue-600 text-white dark:border-blue-600 disabled:opacity-50" disabled={busy}>
-          {busy ? 'Searching…' : 'Apply'}
+          {busy ? t('Searching…') : t('Apply')}
         </button>
         <button type="button" onClick={onReset} className="px-3 py-1.5 rounded-lg text-sm border">
-          Reset
+          {t('Reset')}
         </button>
       </div>
 

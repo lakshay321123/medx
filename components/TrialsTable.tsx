@@ -1,10 +1,12 @@
 "use client";
 
 import React from "react";
+import { useT } from "@/components/hooks/useI18n";
 import type { TrialRow } from "@/types/trials";
 import { TrialsRow } from "./TrialsRow";
 
 export default function TrialsTable({ rows }: { rows: TrialRow[] }) {
+  const t = useT();
   if (!rows || rows.length === 0) return null;
 
   return (
@@ -12,11 +14,11 @@ export default function TrialsTable({ rows }: { rows: TrialRow[] }) {
       <table className="w-full border-collapse border border-gray-300 text-sm">
         <thead>
           <tr className="bg-gray-100">
-            <th className="border px-2 py-1">Registry ID</th>
-            <th className="border px-2 py-1">Title</th>
-            <th className="border px-2 py-1">Phase</th>
-            <th className="border px-2 py-1">Status</th>
-            <th className="border px-2 py-1">Country</th>
+            <th className="border px-2 py-1">{t("Registry")}</th>
+            <th className="border px-2 py-1">{t("Title")}</th>
+            <th className="border px-2 py-1">{t("Phase")}</th>
+            <th className="border px-2 py-1">{t("Status")}</th>
+            <th className="border px-2 py-1">{t("Country")}</th>
           </tr>
         </thead>
 
