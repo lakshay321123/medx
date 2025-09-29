@@ -6,6 +6,7 @@ export type Place = {
   id: string;
   name: string;
   type: DirType;
+  category_display?: string;
   distance_m?: number;
   open_now?: boolean;
   rating?: number;
@@ -13,7 +14,7 @@ export type Place = {
   whatsapp?: string | null;
   address_short?: string;
   geo: { lat: number; lng: number };
-  source: "osm";
+  source: "google" | "osm";
   last_checked?: string;
 };
 

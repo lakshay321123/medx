@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { providerLang } from "@/lib/i18n/providerLang";
+import { localizeQualifiers } from "@/lib/i18n/qualifierMap";
 
 // meters per degree latitude (simple distance estimate)
 const M_PER_DEG = 111_320;
@@ -8,6 +9,7 @@ type Place = {
   id: string;
   name: string;
   type: "doctor" | "pharmacy" | "lab" | "hospital" | "clinic";
+  category_display?: string;
   rating?: number;
   reviews_count?: number;
   price_level?: number;
@@ -138,22 +140,43 @@ async function googleDetailsBatch(placeIds: string[], key: string, lang: string)
   return out;
 }
 
-function normalizeGoogleResults(results: any[], origin: { lat: number; lng: number }, uiType: string): Place[] {
+function normalizeGoogleResults(
+  results: any[],
+  origin: { lat: number; lng: number },
+  uiType: string,
+  appLang: string,
+): Place[] {
   const now = new Date().toISOString();
   return results
     .map((r: any) => {
       const loc = r?.geometry?.location;
       if (!loc) return null;
+      const providerName =
+        r?.displayName?.text ??
+        r?.name ??
+        r?.structured_formatting?.main_text ??
+        r?.vicinity ??
+        r?.plus_code?.compound_code ??
+        "Unnamed";
+      const localizedName = localizeQualifiers(providerName, appLang);
+      const formattedAddress =
+        r?.formatted_address ??
+        r?.vicinity ??
+        r?.plus_code?.compound_code;
+      const primaryTypeDisplayName =
+        r?.primaryTypeDisplayName?.text ??
+        r?.primary_type_display_name ??
+        undefined;
       const p: Place = {
         id: r.place_id,
-        name: r.name,
+        name: localizedName,
         type: (uiType === "all" ? inferTypeFromGoogle(r.types || []) : (uiType as Place["type"])) || "clinic",
         rating: r.rating,
         reviews_count: r.user_ratings_total,
         price_level: r.price_level,
         distance_m: Math.round(distMeters(origin, { lat: loc.lat, lng: loc.lng })),
         open_now: r.opening_hours?.open_now,
-        address_short: r.vicinity || r.formatted_address,
+        address_short: formattedAddress,
         geo: { lat: loc.lat, lng: loc.lng },
         amenities: [],
         services: [],
@@ -162,6 +185,9 @@ function normalizeGoogleResults(results: any[], origin: { lat: number; lng: numb
         source_ref: r.place_id,
         last_checked: now,
       };
+      if (primaryTypeDisplayName) {
+        p.category_display = primaryTypeDisplayName;
+      }
       return p;
     })
     .filter(Boolean) as Place[];
@@ -198,6 +224,7 @@ async function osmFallback(
   radius: number,
   uiType: string,
   lang: string,
+  appLang: string,
 ) {
   function kindFilters(type: string) {
     switch (type) {
@@ -255,7 +282,9 @@ async function osmFallback(
   const res: Place[] = (j.elements || []).map((el: any) => {
     const center = el.center || { lat: el.lat, lon: el.lon };
     const localizedName = langCode ? el?.tags?.[`name:${langCode}`] : undefined;
-    const name = localizedName || el?.tags?.name || el?.tags?.["addr:housename"] || "Unnamed";
+    const fallbackName = el?.tags?.name || el?.tags?.["addr:housename"] || el?.tags?.["brand"];
+    const providerName = localizedName || el?.localname || fallbackName || "Unnamed";
+    const name = localizeQualifiers(providerName, appLang);
     const localizedStreet = langCode ? el?.tags?.[`addr:street:${langCode}`] : undefined;
     const localizedNeighbourhood = langCode ? el?.tags?.[`addr:neighbourhood:${langCode}`] : undefined;
     const localizedCity = langCode ? el?.tags?.[`addr:city:${langCode}`] : undefined;
@@ -310,7 +339,7 @@ export async function GET(req: Request) {
   if (key) {
     try {
       const results = await googleNearby({ lat, lng, radius, uiType, q, key, lang });
-      let normalized = normalizeGoogleResults(results, origin, uiType);
+      let normalized = normalizeGoogleResults(results, origin, uiType, appLang);
 
       // optional post filter by rating
       if (Number.isFinite(minRating)) {
@@ -342,7 +371,7 @@ export async function GET(req: Request) {
   }
 
   if (!usedGoogle) {
-    const osm = await osmFallback(lat, lng, radius, uiType, lang);
+    const osm = await osmFallback(lat, lng, radius, uiType, lang, appLang);
     let filtered = osm;
     if (Number.isFinite(maxKm)) filtered = filtered.filter(p => (p.distance_m ?? 1e9) <= maxKm * 1000);
     filtered.sort((a, b) => (a.distance_m ?? 1e9) - (b.distance_m ?? 1e9));

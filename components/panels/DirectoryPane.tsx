@@ -154,6 +154,7 @@ export default function DirectoryPane() {
         )}
         {data.map((place) => {
           const typeLabel =
+            place.category_display ??
             cardTypeLabels[place.type] ??
             typeOptions.find((option) => option.key === place.type)?.label ??
             place.type;
