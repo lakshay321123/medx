@@ -456,7 +456,7 @@ export default function Timeline(){
                 if (res.status === 401) { setResetError('Please sign in'); return; }
                 await mutate();
               }}
-              className="text-xs px-2 py-1 rounded-md border sm:ms-auto"
+              className="text-xs px-2 py-1 rounded-md border sm:ml-auto"
             >Reset</button>
           </div>
           {resetError && <div className="mb-2 text-xs text-rose-600">{resetError}</div>}
@@ -489,7 +489,7 @@ export default function Timeline(){
                 placeholder={t("Search…")}
                 value={q}
                 onChange={e=>setQ(e.target.value)}
-                className="w-full min-w-0 rounded-md border px-2 py-1 text-xs sm:ms-auto sm:w-[200px]"
+                className="w-full min-w-0 rounded-md border px-2 py-1 text-xs sm:ml-auto sm:w-[200px]"
               />
             </div>
           </div>
@@ -559,7 +559,7 @@ export default function Timeline(){
               <button
                 type="button"
                 onClick={() => closeOverlay()}
-                className="sm:hidden -ms-1 rounded-md p-2 hover:bg-slate-100 dark:hover:bg-gray-800"
+                className="sm:hidden -ml-1 rounded-md p-2 hover:bg-slate-100 dark:hover:bg-gray-800"
                 aria-label="Close details"
               >
                 <ArrowLeft size={18} />
@@ -572,7 +572,7 @@ export default function Timeline(){
                   </span>
                 )}
               </h3>
-              <div className="ms-auto flex gap-2">
+              <div className="ml-auto flex gap-2">
                 {(active.file?.path || active.file?.upload_id) && signedUrl && (
                   <button onClick={() => window.open(signedUrl, '_blank')} className="text-xs px-2 py-1 rounded-md border">Open</button>
                 )}
