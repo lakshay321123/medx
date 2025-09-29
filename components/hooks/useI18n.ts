@@ -1,6 +1,21 @@
 "use client";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
 
+export type TranslationTokens = Record<string, string | number>;
+
+export function tfmt(
+  template: string | null | undefined,
+  tokens?: TranslationTokens,
+) {
+  const base = typeof template === "string" ? template : "";
+  if (!tokens) return base;
+
+  return Object.entries(tokens).reduce(
+    (acc, [token, value]) => acc.replaceAll(`{${token}}`, String(value)),
+    base,
+  );
+}
+
 const DICTIONARY: Record<string, Record<string, string>> = {
   en: {
     Preferences: "Preferences",

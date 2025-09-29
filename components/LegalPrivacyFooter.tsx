@@ -3,7 +3,7 @@
 import type { CSSProperties } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Scale } from "lucide-react";
-import { useT } from "@/components/hooks/useI18n";
+import { tfmt, useT } from "@/components/hooks/useI18n";
 
 type CookiePrefs = {
   essential: true;
@@ -31,12 +31,6 @@ const DEFAULT_PREFS: CookiePrefs = {
 };
 
 const COOKIE_KEYS: ToggleableCookie[] = ["analytics", "functional", "marketing"];
-
-const formatTokens = (template: string, tokens: Record<string, string>) =>
-  Object.entries(tokens).reduce(
-    (acc, [token, value]) => acc.replaceAll(`{${token}}`, value),
-    template,
-  );
 
 const parseConsentValue = (value: string | null): "true" | "false" | null => {
   if (value === null) return null;
@@ -72,12 +66,12 @@ export default function LegalPrivacyFooter() {
   const marqueeTextRef = useRef<HTMLSpanElement | null>(null);
   const [marqueeVars, setMarqueeVars] = useState<{ duration: number; distance: number } | null>(null);
 
-  const legalNotice = formatTokens(t("Legal marquee notice"), { brand: BRAND });
+  const legalNotice = tfmt(t("Legal marquee notice"), { brand: BRAND });
   const sectionCopy = useMemo(
     () => [
       {
         title: t("Introduction"),
-        body: [formatTokens(t("Introduction body"), { brand: BRAND })],
+        body: [tfmt(t("Introduction body"), { brand: BRAND })],
       },
       {
         title: t("Medical Advice Disclaimer"),
@@ -94,7 +88,7 @@ export default function LegalPrivacyFooter() {
     ],
     [t],
   );
-  const liabilityCopy = formatTokens(t("Liability & Governing Law body"), {
+  const liabilityCopy = tfmt(t("Liability & Governing Law body"), {
     brand: BRAND,
     law: GOVERNING_LAW,
   });
