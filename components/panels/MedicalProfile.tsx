@@ -82,6 +82,14 @@ function formatNumberInput(value: number | null) {
   return rounded.replace(/\.0$/, "");
 }
 
+function formatSexLabel(value: string, translate: (key: string) => string) {
+  const normalized = value?.toLowerCase?.() ?? value;
+  if (normalized === "male") return translate("Male");
+  if (normalized === "female") return translate("Female");
+  if (normalized === "other") return translate("Other");
+  return value;
+}
+
 function parseBp(value: any): { systolic?: number; diastolic?: number } {
   if (typeof value === "string" && value.includes("/")) {
     const [s, d] = value.split("/").map(part => parseNumber(part));
@@ -133,6 +141,8 @@ export default function MedicalProfile() {
   const { theme } = useTheme();
   const panelMode = useMemo(() => derivePanelMode(params, theme), [params, theme]);
   const { t, n } = useT();
+
+  const getSexLabel = useCallback((value: string) => formatSexLabel(value, t), [t]);
 
   const { mutate: mutateGlobal } = useSWRConfig();
   const { data, error, isLoading, mutate: mutateProfile } = useProfile();
@@ -761,7 +771,7 @@ export default function MedicalProfile() {
               <option value="">—</option>
               {SEXES.map(s => (
                 <option key={s} value={s}>
-                  {s}
+                  {getSexLabel(s)}
                 </option>
               ))}
             </select>
@@ -1487,6 +1497,7 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
   const safeSex = typeof personal.sex === "string" && personal.sex.trim()
     ? personal.sex
     : noDataDisplay;
+  const safeSexDisplay = safeSex === noDataDisplay ? safeSex : formatSexLabel(safeSex, t);
   const safeBloodGroup = typeof personal.bloodGroup === "string" && personal.bloodGroup.trim()
     ? personal.bloodGroup
     : noDataDisplay;
@@ -1540,7 +1551,7 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
         primary
       >
         <KV label={t("Name")} value={safeName} />
-        <KV label={t("Sex")} value={safeSex} />
+        <KV label={t("Sex")} value={safeSexDisplay} />
         <KV
           label={t("DOB")}
           value={
@@ -1574,7 +1585,7 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
       <Section title={t("AI Summary")}>
         <p className="text-[13px] leading-5 text-slate-600 dark:text-slate-300">
           {t("Patient")}: {safeName} (
-          {t("Sex")}: {safeSex === noDataDisplay ? "—" : safeSex}, {t("Age")}: {safeAge}, {t("Blood group")}: {safeBloodGroup === noDataDisplay ? "—" : safeBloodGroup})
+          {t("Sex")}: {safeSex === noDataDisplay ? "—" : safeSexDisplay}, {t("Age")}: {safeAge}, {t("Blood group")}: {safeBloodGroup === noDataDisplay ? "—" : safeBloodGroup})
           <br />
           {t("Chronic conditions")}: {safeChronic}
           <br />
