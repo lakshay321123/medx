@@ -435,7 +435,13 @@ export default function Timeline(){
       setTranslated(null);
       return;
     }
-    const cacheKey = `${active.id}:${lang}`;
+    const englishSnapshot = JSON.stringify({
+      summaryLong: meta.summary_long ?? meta.summaryLong ?? "",
+      summaryShort: meta.summary ?? meta.summaryShort ?? "",
+      text: meta.text ?? "",
+      valueText: active?.value_text ?? "",
+    });
+    const cacheKey = `${active.id}:${lang}:${englishSnapshot}`;
     const cached = translationCacheRef.current.get(cacheKey);
     if (cached) {
       setTranslated(cached);
