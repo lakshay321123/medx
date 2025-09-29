@@ -18,15 +18,16 @@ export function SidebarThreads() {
   return (
     <div className="flex flex-col">
       {threads.map(thread => {
+        const title = (thread.title ?? "").trim();
         const displayTitle =
-          !thread.title || LEGACY_UNTITLED_TITLES.has(thread.title)
-            ? t("New chat")
-            : thread.title;
+          !title || LEGACY_UNTITLED_TITLES.has(title) ? t("New chat") : title;
 
         return (
           <a key={thread.id} href={`/chat/${thread.id}`} className="px-3 py-2 hover:bg-muted">
             <div className="truncate">{displayTitle}</div>
-            {thread.isTemp && <div className="text-xs opacity-60">saving…</div>}
+            {thread.isTemp && (
+              <div className="text-xs opacity-60">{t("saving…")}</div>
+            )}
           </a>
         );
       })}

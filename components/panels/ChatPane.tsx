@@ -3517,9 +3517,19 @@ ${systemCommon}` + baseSys;
         <div className="px-6 pt-6">
           <div className="mx-auto w-full max-w-3xl">
             <WelcomeCard
-              header={t(welcomeContent.header)}
-              body={t(welcomeContent.body)}
-              status={welcomeContent.status ? t(welcomeContent.status) : undefined}
+              header={
+                welcomeContent.header
+                  ? t(welcomeContent.header)
+                  : undefined
+              }
+              body={
+                welcomeContent.body ? t(welcomeContent.body) : undefined
+              }
+              status={
+                welcomeContent.status
+                  ? t(welcomeContent.status)
+                  : undefined
+              }
               onDismiss={dismissWelcome}
             />
           </div>

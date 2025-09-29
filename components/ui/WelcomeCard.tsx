@@ -29,7 +29,7 @@ export default function WelcomeCard({
   return (
     <div
       role="region"
-      aria-label="Welcome"
+      aria-label={t("Welcome")}
       className={joinClassNames(
         "relative rounded-lg border p-3 shadow-sm text-sm",
         "bg-blue-600 text-white border-blue-500",
@@ -40,7 +40,7 @@ export default function WelcomeCard({
     >
       <button
         type="button"
-        aria-label="Dismiss welcome"
+        aria-label={t("Dismiss welcome")}
         onClick={onDismiss}
         tabIndex={0}
         className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full text-white/80 transition hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-white/70"
