@@ -9,6 +9,7 @@ import { TrialsMobileCard } from "./TrialsRow";
 import { sendMessage } from "@/lib/chat/sendMessage";
 import { fromSearchParams } from "@/lib/modes/url";
 import type { TrialRow } from "@/types/trials";
+import { useT } from "@/components/hooks/useI18n";
 
 const MOBILE_MAX_WIDTH = 480;
 
@@ -140,6 +141,7 @@ async function exportTrials(rows: TrialRow[]) {
 }
 
 export default function TrialsResults({ trials }: { trials: TrialRow[] }) {
+  const t = useT();
   const searchParams = useSearchParams();
   const { resolvedTheme } = useTheme();
   const theme = resolvedTheme === "dark" ? "dark" : "light";
@@ -164,7 +166,7 @@ export default function TrialsResults({ trials }: { trials: TrialRow[] }) {
               onClick={() => exportTrials(trials)}
               className="rounded-full border border-slate-200 px-3 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
             >
-              Export CSV
+              {t("Export")}
             </button>
           </div>
           <TrialsTable rows={trials} />
@@ -184,8 +186,8 @@ export default function TrialsResults({ trials }: { trials: TrialRow[] }) {
             const phase = trial.phase || "—";
             const status = trial.status || "—";
             const countriesLabel = countries.length ? countries.join(", ") : "—";
-            const statusLine = `${status} • Phase ${phase} • ${countriesLabel}`;
-            const registryLine = `${registryId} • ${registryLabel}`;
+            const statusLine = `${t("Status")}: ${status} • ${t("Phase")}: ${phase} • ${countriesLabel}`;
+            const registryLine = `${t("Registry")}: ${registryId} • ${registryLabel}`;
 
             return (
               <TrialsMobileCard

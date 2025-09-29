@@ -7,6 +7,7 @@ import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
 import PanelLoader from "@/components/mobile/PanelLoader";
 import { pushToast } from "@/lib/ui/toast";
 import { useRouter } from "next/navigation";
+import { useT } from "@/components/hooks/useI18n";
 
 function normalizeKind(k?: string) {
   const raw = String(k ?? "").toLowerCase().trim();
@@ -151,6 +152,7 @@ const catOf = (it:any):Cat => {
 };
 
 export default function Timeline(){
+  const t = useT();
   const isAiDoc = useIsAiDocMode();
   const [resetError, setResetError] = useState<string|null>(null);
   const { data, error, isLoading, mutate } = useTimeline(isAiDoc);
@@ -165,6 +167,15 @@ export default function Timeline(){
   const [range,setRange] = useState<"ALL"|"7"|"30"|"90"|"CUSTOM">("ALL");
   const [from,setFrom] = useState<string>("");
   const [q,setQ] = useState("");
+
+  const catLabels: Record<Cat, string> = {
+    ALL: t("All"),
+    LABS: t("Labs"),
+    VITALS: t("Vitals"),
+    IMAGING: t("Imaging"),
+    AI: t("AI Summary"),
+    NOTES: t("Notes"),
+  };
 
   const fromDate = useMemo(()=>{
     const now=new Date();
@@ -270,12 +281,16 @@ export default function Timeline(){
 
   if (!isAiDoc) return null;
 
-  if (isLoading) return <PanelLoader label="Timeline" />;
-  if (error)     return <div className="p-6 text-sm text-red-500">Couldn’t load timeline. Retrying in background…</div>;
+  if (isLoading) return <PanelLoader label={t("Timeline")} />;
+  if (error)
+    return (
+      <div className="p-6 text-sm text-red-500">{t("Couldn’t load timeline. Retrying in background…")}</div>
+    );
 
-  if (!observations.length) return <div className="p-6 text-sm text-muted-foreground">No events yet.</div>;
+  if (!observations.length)
+    return <div className="p-6 text-sm text-muted-foreground">{t("No events yet.")}</div>;
 
-  const displayTitle = active ? getDisplayTitle(active) : "Observation";
+  const displayTitle = active ? getDisplayTitle(active) : t("Observation");
   const shortSummary = active ? getShortSummary(active) : "";
   const summaryLong = active?.meta?.summary_long;
   const summaryShort = active?.meta?.summary;
@@ -296,7 +311,7 @@ export default function Timeline(){
 
   async function handleDelete(ob: { id: string }) {
     if (typeof window !== "undefined") {
-      const ok = window.confirm("Delete this from your timeline?\nThis action can’t be undone.");
+      const ok = window.confirm(t("Delete this from your timeline?\nThis action can’t be undone."));
       if (!ok) return;
     }
 
@@ -312,12 +327,12 @@ export default function Timeline(){
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
-      pushToast({ title: "Deleted" });
+      pushToast({ title: t("Deleted") });
     } catch (err) {
       setObservations(previous);
       await mutate();
       pushToast({
-        title: "Couldn't delete. Please try again.",
+        title: t("Couldn't delete. Please try again."),
         variant: "destructive",
       });
     } finally {
@@ -330,36 +345,36 @@ export default function Timeline(){
       <div className="-mx-6 sm:mx-0">
         <div className="mx-auto w-full max-w-[380px] overflow-x-hidden px-4 pb-6 pt-4 sm:mx-0 sm:max-w-none sm:overflow-visible sm:px-6">
           <div className="mb-4 flex flex-wrap items-center gap-2 sm:flex-nowrap sm:justify-between">
-            <h2 className="text-lg font-semibold">Timeline</h2>
+            <h2 className="text-lg font-semibold">{t("Timeline")}</h2>
             <button
               onClick={async () => {
-                if (!confirm('Reset all observations and predictions?')) return;
+                if (!confirm(t('Reset all observations and predictions?'))) return;
                 setResetError(null);
                 const res = await fetch('/api/observations/reset', { method: 'POST' });
-                if (res.status === 401) { setResetError('Please sign in'); return; }
+                if (res.status === 401) { setResetError(t('Please sign in')); return; }
                 await mutate();
               }}
               className="text-xs px-2 py-1 rounded-md border sm:ml-auto"
-            >Reset</button>
+            >{t("Reset")}</button>
           </div>
           {resetError && <div className="mb-2 text-xs text-rose-600">{resetError}</div>}
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
             <div className="flex flex-wrap justify-center gap-2 sm:flex-auto sm:justify-start">
               {(["ALL","LABS","VITALS","IMAGING","AI","NOTES"] as Cat[]).map(c=>(
-                <button key={c} onClick={()=>setCat(c)} className={`rounded-full border px-2.5 py-1 text-[11px] ${cat===c?"bg-muted font-medium":"hover:bg-muted"}`}>{c}</button>
+                <button key={c} onClick={()=>setCat(c)} className={`rounded-full border px-2.5 py-1 text-[11px] ${cat===c?"bg-muted font-medium":"hover:bg-muted"}`}>{catLabels[c]}</button>
               ))}
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
                 <select value={range} onChange={e=>setRange(e.target.value as any)} className="w-full rounded-md border px-2 py-1 text-xs sm:w-auto">
-                  <option value="ALL">All dates</option><option value="7">Last 7d</option>
-                  <option value="30">Last 30d</option><option value="90">Last 90d</option>
-                  <option value="CUSTOM">Custom…</option>
+                  <option value="ALL">{t("All dates")}</option><option value="7">{t("Last 7d")}</option>
+                  <option value="30">{t("Last 30d")}</option><option value="90">{t("Last 90d")}</option>
+                  <option value="CUSTOM">{t("Custom…")}</option>
                 </select>
                 {range==="CUSTOM" && <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="w-full rounded-md border px-2 py-1 text-xs sm:w-auto" />}
               </div>
               <input
-                placeholder="Search…"
+                placeholder={t("Search…")}
                 value={q}
                 onChange={e=>setQ(e.target.value)}
                 className="w-full min-w-0 rounded-md border px-2 py-1 text-xs sm:ml-auto sm:w-[200px]"
@@ -405,8 +420,8 @@ export default function Timeline(){
                       )}
                       <button
                         className="shrink-0 p-2 rounded-md hover:bg-slate-100 dark:hover:bg-gray-800"
-                        aria-label="Delete observation"
-                        title="Delete"
+                        aria-label={t("Delete observation")}
+                        title={t("Delete")}
                         disabled={isDeletingId === it.id}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -433,7 +448,7 @@ export default function Timeline(){
                 type="button"
                 onClick={() => closeOverlay()}
                 className="sm:hidden -ml-1 rounded-md p-2 hover:bg-slate-100 dark:hover:bg-gray-800"
-                aria-label="Close details"
+                aria-label={t("Close details")}
               >
                 <ArrowLeft size={18} />
               </button>
@@ -447,18 +462,18 @@ export default function Timeline(){
               </h3>
               <div className="ml-auto flex gap-2">
                 {(active.file?.path || active.file?.upload_id) && signedUrl && (
-                  <button onClick={() => window.open(signedUrl, '_blank')} className="text-xs px-2 py-1 rounded-md border">Open</button>
+                  <button onClick={() => window.open(signedUrl, '_blank')} className="text-xs px-2 py-1 rounded-md border">{t("Open")}</button>
                 )}
                 {(active.file?.path || active.file?.upload_id) && signedUrl && (
-                  <a href={signedUrl} download className="text-xs px-2 py-1 rounded-md border">Download</a>
+                  <a href={signedUrl} download className="text-xs px-2 py-1 rounded-md border">{t("Download")}</a>
                 )}
                 {!hasFile && hasAiSummary && (
-                  <a href={`/api/observations/${active.id}/export`} className="text-xs px-2 py-1 rounded-md border">Download Summary</a>
+                  <a href={`/api/observations/${active.id}/export`} className="text-xs px-2 py-1 rounded-md border">{t("Download Summary")}</a>
                 )}
                 <button
                   className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-gray-800"
-                  aria-label="Delete observation"
-                  title="Delete"
+                  aria-label={t("Delete observation")}
+                  title={t("Delete")}
                   disabled={isDeletingId === active.id}
                   onClick={() => handleDelete(active)}
                 >
@@ -468,20 +483,20 @@ export default function Timeline(){
                   onClick={() => closeOverlay()}
                   className="hidden sm:inline-flex text-xs px-2 py-1 rounded-md border"
                 >
-                  Close
+                  {t("Close")}
                 </button>
               </div>
             </header>
             <div className="px-5 py-4">
               {hasFile ? (
                 !signedUrl ? (
-                  <div className="text-xs text-muted-foreground">Fetching file…</div>
+                  <div className="text-xs text-muted-foreground">{t("Fetching file…")}</div>
                 ) : /\.pdf(\?|$)/i.test(signedUrl) ? (
                   <iframe src={signedUrl} className="w-full h-[80vh] bg-white" />
                 ) : /\.(png|jpe?g|gif|webp)(\?|$)/i.test(signedUrl) ? (
                   <img src={signedUrl} className="max-w-full max-h-[80vh] object-contain" />
                 ) : (
-                  <div className="text-sm text-muted-foreground text-center">Preview unavailable. Use <b>Open</b> or <b>Download</b>.</div>
+                  <div className="text-sm text-muted-foreground text-center">{t("Preview unavailable. Use Open or Download.")}</div>
                 )
               ) : (
                 <>
@@ -490,15 +505,15 @@ export default function Timeline(){
                   {(summaryLong || summaryShort) && (
                     <div className="mb-3 flex items-center gap-2">
                       <TabsList className="mx-0 flex-1 justify-start sm:flex-none">
-                        <TabsTrigger value="summary">Summary</TabsTrigger>
-                        {text && <TabsTrigger value="text">Full text</TabsTrigger>}
+                        <TabsTrigger value="summary">{t("Summary")}</TabsTrigger>
+                        {text && <TabsTrigger value="text">{t("Full text")}</TabsTrigger>}
                       </TabsList>
                       <button
                         type="button"
                         onClick={() => closeOverlay()}
                         className="sm:hidden inline-flex items-center justify-center whitespace-nowrap rounded-md border px-2 py-1 text-xs"
                       >
-                        Close
+                        {t("Close")}
                       </button>
                     </div>
                   )}
@@ -528,25 +543,25 @@ export default function Timeline(){
                         <div className="grid grid-cols-2 gap-2">
                           {dose && (
                             <div className="rounded-md border px-2 py-1">
-                              <div className="text-[11px] uppercase opacity-70">Dose</div>
+                              <div className="text-[11px] uppercase opacity-70">{t("Dose")}</div>
                               <div>{dose}</div>
                             </div>
                           )}
                           {observed && (
                             <div className="rounded-md border px-2 py-1">
-                              <div className="text-[11px] uppercase opacity-70">Observed</div>
+                              <div className="text-[11px] uppercase opacity-70">{t("Observed")}</div>
                               <div>{observed}</div>
                             </div>
                           )}
                           {source && (
                             <div className="rounded-md border px-2 py-1">
-                              <div className="text-[11px] uppercase opacity-70">Source</div>
+                              <div className="text-[11px] uppercase opacity-70">{t("Source")}</div>
                               <div className="capitalize">{String(source)}</div>
                             </div>
                           )}
                           {active?.unit && !dose && (
                             <div className="rounded-md border px-2 py-1">
-                              <div className="text-[11px] uppercase opacity-70">Unit</div>
+                              <div className="text-[11px] uppercase opacity-70">{t("Unit")}</div>
                               <div>{active.unit}</div>
                             </div>
                           )}

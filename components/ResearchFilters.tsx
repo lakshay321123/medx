@@ -1,14 +1,15 @@
 'use client';
 import { useState } from 'react';
+import { useT } from '@/components/hooks/useI18n';
 import { useResearchFilters } from '@/store/researchFilters';
 import type { TrialRow } from '@/types/trials';
 
 const phaseOptions = ['1','2','3','4'] as const;
 const statusLabels = [
-  { key: 'recruiting', api: 'Recruiting', label: 'Recruiting' },
-  { key: 'active', api: 'Active, not recruiting', label: 'Active (not recruiting)' },
-  { key: 'completed', api: 'Completed', label: 'Completed' },
-  { key: 'any', api: undefined, label: 'Any' },
+  { key: 'recruiting', api: 'Recruiting', labelKey: 'Recruiting' },
+  { key: 'active', api: 'Active, not recruiting', labelKey: 'Active (not recruiting)' },
+  { key: 'completed', api: 'Completed', labelKey: 'Completed' },
+  { key: 'any', api: undefined, labelKey: 'Any' },
 ] as const;
 
 // Add China, keep Worldwide (treated as no filter)
@@ -34,6 +35,7 @@ type Props = {
 };
 
 export default function ResearchFilters({ mode, onResults }: Props) {
+  const t = useT();
   const { filters, setFilters, reset } = useResearchFilters();
 
   const [local, setLocal] = useState({
@@ -90,10 +92,10 @@ export default function ResearchFilters({ mode, onResults }: Props) {
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Search failed');
+      if (!res.ok) throw new Error(data?.error || t('Search failed'));
       onResults?.(data.trials || []);
     } catch (e:any) {
-      setError(e.message || 'Failed to fetch trials');
+      setError(e.message || t('Failed to fetch trials'));
       onResults?.([]);
     } finally {
       setBusy(false);
@@ -129,7 +131,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
           value={local.query}
           onChange={(e)=>setLocal(s=>({ ...s, query: e.target.value }))}
           onKeyDown={(e)=> e.key === 'Enter' && (e.currentTarget as any).form?.requestSubmit()}
-          placeholder="Search trials (e.g., condition, gene, topic)…"
+          placeholder={t('Search trials (e.g., condition, gene, topic)…')}
           className="w-full rounded-lg border px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700"
         />
         <button
@@ -137,7 +139,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
           className="px-3 py-2 rounded-lg text-sm border bg-blue-600 text-white dark:border-blue-600 disabled:opacity-50"
           disabled={busy}
         >
-          {busy ? 'Searching…' : 'Search'}
+          {busy ? t('Searching…') : t('Search')}
         </button>
       </div>
 
@@ -153,7 +155,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
               'bg-white dark:bg-slate-800 dark:border-slate-700'
             }`}
           >
-            Phase {p}
+            {t('Phase')} {p}
           </button>
         ))}
       </div>
@@ -166,7 +168,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
           className="rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
         >
           {statusLabels.map(o=>(
-            <option key={o.key} value={o.key}>{o.label}</option>
+            <option key={o.key} value={o.key}>{t(o.labelKey)}</option>
           ))}
         </select>
       </div>
@@ -178,11 +180,11 @@ export default function ResearchFilters({ mode, onResults }: Props) {
           onChange={(e)=>setSource(e.target.value)}
           className="rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
         >
-          <option>All</option>
-          <option>CTgov</option>
-          <option>EUCTR</option>
-          <option>CTRI</option>
-          <option>ISRCTN</option>
+          <option>{t('All')}</option>
+          <option>{t('CTgov')}</option>
+          <option>{t('EUCTR')}</option>
+          <option>{t('CTRI')}</option>
+          <option>{t('ISRCTN')}</option>
         </select>
       </div>
 
@@ -206,16 +208,16 @@ export default function ResearchFilters({ mode, onResults }: Props) {
       {/* Genes + Apply / Reset */}
       <div className="mt-3 flex items-center gap-2">
         <input
-          placeholder="Genes (comma separated)"
+          placeholder={t('Genes (comma separated)')}
           value={local.genes}
           onChange={(e)=>setLocal(s=>({ ...s, genes: e.target.value }))}
           className="flex-1 rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
         />
         <button type="submit" className="px-3 py-1.5 rounded-lg text-sm border bg-blue-600 text-white dark:border-blue-600 disabled:opacity-50" disabled={busy}>
-          {busy ? 'Searching…' : 'Apply'}
+          {busy ? t('Searching…') : t('Apply')}
         </button>
         <button type="button" onClick={onReset} className="px-3 py-1.5 rounded-lg text-sm border">
-          Reset
+          {t('Reset')}
         </button>
       </div>
 

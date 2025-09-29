@@ -1,20 +1,22 @@
 "use client";
 import { Phone, MapPin, MessageSquare, Navigation, Star } from "lucide-react";
+import { useT } from "@/components/hooks/useI18n";
 import AddressPicker from "@/components/directory/AddressPicker";
 import { useDirectory } from "@/hooks/useDirectory";
 
 type DirectoryType = ReturnType<typeof useDirectory>["state"]["type"];
 
-const TYPES: { key: DirectoryType; label: string }[] = [
-  { key: "doctor", label: "Doctors" },
-  { key: "pharmacy", label: "Pharmacies" },
-  { key: "lab", label: "Labs" },
-  { key: "hospital", label: "Hospitals" },
-  { key: "clinic", label: "Clinics" },
-  { key: "all", label: "All" },
+const TYPES: { key: DirectoryType; labelKey: string }[] = [
+  { key: "doctor", labelKey: "Doctors" },
+  { key: "pharmacy", labelKey: "Pharmacies" },
+  { key: "lab", labelKey: "Labs" },
+  { key: "hospital", labelKey: "Hospitals" },
+  { key: "clinic", labelKey: "Clinics" },
+  { key: "all", labelKey: "All" },
 ];
 
 export default function DirectoryPane() {
+  const t = useT();
   const { state, actions } = useDirectory();
   const { locLabel, type, q, openNow, minRating, maxKm, data, loading, summary } = state;
 
@@ -23,12 +25,12 @@ export default function DirectoryPane() {
       <div className="sticky top-0 z-10 space-y-1 border-b border-black/5 bg-white/85 px-2 pb-1 pt-1 backdrop-blur dark:border-white/10 dark:bg-slate-950/60 md:space-y-3 md:px-3 md:pb-3 md:pt-2">
         <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 md:gap-2 md:text-[11px]">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500"></span>
-          <span className="truncate">Using: {locLabel}</span>
+          <span className="truncate">{t("Using:")} {locLabel}</span>
           <button
             onClick={actions.useMyLocation}
             className="ml-auto inline-flex h-[30px] items-center gap-1 truncate rounded-full border border-slate-200 px-2.5 text-[11px] font-medium text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:px-3 md:text-[11px]"
           >
-            Use my location
+            {t("Use my location")}
           </button>
         </div>
 
@@ -36,7 +38,7 @@ export default function DirectoryPane() {
           <div className="flex-1">
             <input
               className="h-[34px] w-full rounded-[10px] border border-slate-200 bg-white/90 px-3 text-[12px] text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none focus:ring-0 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 md:h-10 md:rounded-[10px] md:px-3 md:text-[13px]"
-              placeholder="Search doctors, pharmacies, labs"
+              placeholder={t("Search doctors, pharmacies, labs")}
               value={q}
               onChange={(event) => actions.setQ(event.target.value)}
             />
@@ -47,12 +49,12 @@ export default function DirectoryPane() {
         </div>
 
         <div className="flex flex-wrap gap-1 pb-0.5 md:flex-nowrap md:gap-2 md:overflow-x-auto">
-          {TYPES.map((t) => {
-            const selected = type === t.key;
+          {TYPES.map((tab) => {
+            const selected = type === tab.key;
             return (
               <button
-                key={t.key}
-                onClick={() => actions.setType(t.key)}
+                key={tab.key}
+                onClick={() => actions.setType(tab.key)}
                 className={`inline-flex h-[26px] min-w-[64px] items-center justify-center whitespace-nowrap rounded-full border px-2.5 text-[11.5px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-[30px] md:min-w-[72px] md:px-3 md:text-[12.5px] ${
                   selected
                     ? "border-blue-500 bg-blue-500 text-white"
@@ -60,7 +62,7 @@ export default function DirectoryPane() {
                 }`}
                 aria-pressed={selected}
               >
-                {t.label}
+                {t(tab.labelKey)}
               </button>
             );
           })}
@@ -76,7 +78,7 @@ export default function DirectoryPane() {
             }`}
             aria-pressed={openNow}
           >
-            Open now
+            {t("Open now")}
           </button>
           <button
             onClick={() => actions.setMinRating((r) => (r ? null : 4))}
@@ -87,7 +89,7 @@ export default function DirectoryPane() {
             }`}
             aria-pressed={Boolean(minRating)}
           >
-            Star 4 plus
+            {t("Star 4 plus")}
           </button>
           <button
             onClick={() => actions.setMaxKm((k) => (k ? null : 3))}
@@ -98,22 +100,22 @@ export default function DirectoryPane() {
             }`}
             aria-pressed={Boolean(maxKm)}
           >
-            Under 3 km
+            {t("Under 3 km")}
           </button>
         </div>
       </div>
 
       <div className="flex items-center justify-between px-2 py-1 text-[11px] text-slate-500 dark:text-slate-400 md:px-3 md:py-2 md:text-[12px]">
-        <div className="truncate">{loading ? "Loading" : summary}</div>
+        <div className="truncate">{loading ? t("Loading") : summary}</div>
         <div className="inline-flex h-[22px] items-center rounded-full border border-slate-200 px-2.5 text-[11px] font-medium text-slate-600 dark:border-white/10 dark:text-slate-200 md:h-[27px] md:px-3 md:text-[12px]">
-          Map
+          {t("Map")}
         </div>
       </div>
 
       <div className="mobile-scroll-safe flex-1 space-y-1.5 overflow-y-auto px-2 pb-2 md:space-y-3 md:px-3 md:pb-4">
         {!loading && data.length === 0 && (
           <div className="rounded-[10px] border border-slate-200 bg-white/75 p-2.5 text-[12px] text-slate-600 shadow-sm dark:border-white/10 dark:bg-slate-950/60 dark:text-slate-300 md:rounded-[12px] md:p-4 md:text-[13px]">
-            No results. Try All, increase radius, or change the address.
+            {t("No results. Try All, increase radius, or change the address.")}
           </div>
         )}
         {data.map((place) => {
@@ -121,20 +123,20 @@ export default function DirectoryPane() {
             place.phones?.[0]
               ? {
                   key: "call",
-                  label: "Call",
+                  label: t("Call"),
                   element: (
                     <a
                       href={`tel:${place.phones[0].replace(/\s+/g, "")}`}
                       className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
                     >
-                      <Phone size={14} aria-hidden /> Call
+                      <Phone size={14} aria-hidden /> {t("Call")}
                     </a>
                   ),
                 }
               : null,
             {
               key: "directions",
-              label: "Directions",
+              label: t("Directions"),
               element: (
                 <a
                   href={`https://www.google.com/maps/dir/?api=1&destination=${place.geo.lat},${place.geo.lng}`}
@@ -142,14 +144,14 @@ export default function DirectoryPane() {
                   rel="noopener noreferrer"
                   className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
                 >
-                  <Navigation size={14} aria-hidden /> Directions
+                  <Navigation size={14} aria-hidden /> {t("Directions")}
                 </a>
               ),
             },
             place.whatsapp
               ? {
                   key: "whatsapp",
-                  label: "WhatsApp",
+                  label: t("Message"),
                   element: (
                     <a
                       href={`https://wa.me/${place.whatsapp.replace(/\D/g, "")}`}
@@ -157,7 +159,7 @@ export default function DirectoryPane() {
                       rel="noopener noreferrer"
                       className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
                     >
-                      <MessageSquare size={14} aria-hidden /> WhatsApp
+                      <MessageSquare size={14} aria-hidden /> {t("Message")}
                     </a>
                   ),
                 }
@@ -165,15 +167,15 @@ export default function DirectoryPane() {
             place.address_short
               ? {
                   key: "copy",
-                  label: "Copy",
+                  label: t("Copy"),
                   element: (
                     <button
                       onClick={() => navigator.clipboard.writeText(place.address_short ?? "")}
                       className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
-                      title="Copy address"
-                      aria-label="Copy address"
+                      title={t("Copy address")}
+                      aria-label={t("Copy address")}
                     >
-                      <MapPin size={14} aria-hidden /> Copy
+                      <MapPin size={14} aria-hidden /> {t("Copy")}
                     </button>
                   ),
                 }
@@ -211,7 +213,7 @@ export default function DirectoryPane() {
                       <span className="shrink-0">• {(place.distance_m / 1000).toFixed(1)} km</span>
                     )}
                     <span className="truncate md:whitespace-nowrap">
-                      • {place.open_now ? "Open now" : "Hours not available"}
+                      • {place.open_now ? t("Open now") : t("Hours not available")}
                     </span>
                   </div>
 
@@ -229,7 +231,7 @@ export default function DirectoryPane() {
               {actionsList.length > 0 && (
                 <div
                   className="mt-1.5 flex flex-wrap gap-1.5 md:mt-3 md:grid md:grid-cols-4 md:gap-2"
-                  aria-label="Primary actions"
+                  aria-label={t("Primary actions")}
                 >
                   {actionsList.map((action) => (
                     <div key={action.key} className="flex min-w-[76px] flex-1 md:min-w-0">
@@ -240,7 +242,12 @@ export default function DirectoryPane() {
               )}
 
               <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400 md:mt-2 md:text-[11px]">
-                Data: OpenStreetMap • Last checked {new Date(place.last_checked ?? Date.now()).toLocaleDateString()}
+                {t("Data: OpenStreetMap")}
+                {" • "}
+                {t("Last checked {date}").replace(
+                  "{date}",
+                  new Date(place.last_checked ?? Date.now()).toLocaleDateString(),
+                )}
               </div>
             </div>
           );
