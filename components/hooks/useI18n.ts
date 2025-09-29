@@ -137,6 +137,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     Loading: "Loading",
     "Searching…": "Searching…",
     "Search…": "Search…",
+    "Search...": "Search...",
     Registry: "Registry",
     Status: "Status",
     Phase: "Phase",

@@ -161,10 +161,10 @@ const VITAL_KINDS = new Set([
   "vitals",
 ]);
 
-const getChipLabel = (ob: any, translate: (value: string) => string) => {
+const getChipLabel = (ob: any, labels: Record<"MED" | "OBS", string>) => {
   const kind = normalizeKind(ob?.kind);
-  if (kind === "medication") return translate("Med");
-  return translate("Obs");
+  if (kind === "medication") return labels.MED;
+  return labels.OBS;
 };
 
 type Cat =
@@ -254,7 +254,7 @@ const matchesCategory = (it: any, cat: Cat) => {
 
 export default function Timeline(){
   const isAiDoc = useIsAiDocMode();
-  const t = useT();
+  const { t } = useT();
   const catOptions = useMemo<{ id: Cat; label: string }[]>(
     () => [
       { id: "ALL", label: t("All") },
@@ -267,6 +267,13 @@ export default function Timeline(){
       { id: "AI", label: t("AI extracts") },
       { id: "VITALS", label: t("Vitals") },
     ],
+    [t],
+  );
+  const BADGE_LABELS = useMemo<Record<"MED" | "OBS", string>>(
+    () => ({
+      MED: t("Med"),
+      OBS: t("Obs"),
+    }),
     [t],
   );
   const [resetError, setResetError] = useState<string|null>(null);
@@ -409,7 +416,7 @@ export default function Timeline(){
     : null;
   const source = active?.meta?.source;
   const hasFallbackFacts = Boolean(dose || observed || source || (active?.unit && !dose));
-  const chipLabel = active ? getChipLabel(active, t) : null;
+  const chipLabel = active ? getChipLabel(active, BADGE_LABELS) : null;
 
   async function handleDelete(ob: { id: string }) {
     if (typeof window !== "undefined") {
@@ -476,7 +483,19 @@ export default function Timeline(){
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
-                <select value={range} onChange={e=>setRange(e.target.value as any)} className="w-full rounded-md border px-2 py-1 text-xs sm:w-auto">
+                <label
+                  htmlFor="timeline-date-range"
+                  className="text-xs font-medium text-muted-foreground text-start"
+                  aria-label={t("All dates")}
+                >
+                  {t("All dates")}
+                </label>
+                <select
+                  id="timeline-date-range"
+                  value={range}
+                  onChange={e=>setRange(e.target.value as any)}
+                  className="w-full rounded-md border px-2 py-1 text-xs sm:w-auto"
+                >
                   <option value="ALL">{t("All dates")}</option>
                   <option value="7">{t("Last 7d")}</option>
                   <option value="30">{t("Last 30d")}</option>
@@ -486,7 +505,8 @@ export default function Timeline(){
                 {range==="CUSTOM" && <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="w-full rounded-md border px-2 py-1 text-xs sm:w-auto" />}
               </div>
               <input
-                placeholder={t("Search…")}
+                placeholder={t("Search...")}
+                aria-label={t("Search...")}
                 value={q}
                 onChange={e=>setQ(e.target.value)}
                 className="w-full min-w-0 rounded-md border px-2 py-1 text-xs sm:ml-auto sm:w-[200px]"
@@ -498,7 +518,7 @@ export default function Timeline(){
               const observedAt = it?.observed_at ? new Date(it.observed_at).toLocaleString() : null;
               const title = getDisplayTitle(it);
               const short = getShortSummary(it);
-              const chipLabel = getChipLabel(it, t);
+              const chipLabel = getChipLabel(it, BADGE_LABELS);
               return (
                 <li
                   key={`${it.kind}:${it.id}`}
