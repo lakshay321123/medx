@@ -112,7 +112,8 @@ export function ChatInput({
         ref={textareaRef}
         value={text}
         onChange={e => setText(e.target.value)}
-        placeholder={`${t("Type a message")}…`}
+        placeholder={t("Send a message")}
+        aria-label={t("Send a message")}
         rows={1}
         onKeyDown={event => {
           if (event.key === "Enter" && !event.shiftKey) {
