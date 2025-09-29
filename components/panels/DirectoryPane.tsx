@@ -39,6 +39,8 @@ export default function DirectoryPane() {
       })
     : countLine;
   const summaryText = loading ? t("Loading") : resultsLine;
+  const locationLabel =
+    locLabel === "Current location" ? t("Current location") : locLabel;
 
   const typeOptions: { key: DirectoryType; label: string }[] = [
     { key: "all", label: t("All") },
@@ -57,7 +59,7 @@ export default function DirectoryPane() {
       <div className="sticky top-0 z-10 space-y-1 border-b border-black/5 bg-white/85 px-2 pb-1 pt-1 backdrop-blur dark:border-white/10 dark:bg-slate-950/60 md:space-y-3 md:px-3 md:pb-3 md:pt-2">
         <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 md:gap-2 md:text-[11px]">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500"></span>
-          <span className="truncate">{t("Using:")} {locLabel}</span>
+          <span className="truncate">{t("Using:")} {locationLabel}</span>
           <button
             onClick={actions.useMyLocation}
             className="ml-auto inline-flex h-[30px] items-center gap-1 truncate rounded-full border border-slate-200 px-2.5 text-[11px] font-medium text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:px-3 md:text-[11px]"
@@ -280,13 +282,20 @@ export default function DirectoryPane() {
               )}
 
               <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400 md:mt-2 md:text-[11px]">
-                {t("Data")}: {place.source} ·
-                {" "}
-                {tfmt(t("Last checked: {date}"), {
-                  date: dateFormatter.format(
-                    place.last_checked ? new Date(place.last_checked) : new Date(),
-                  ),
-                })}
+                {t("Data")}: {place.source ?? "—"}
+                {(() => {
+                  if (!place.last_checked) return null;
+                  const parsed = new Date(place.last_checked);
+                  if (Number.isNaN(parsed.getTime())) return null;
+                  return (
+                    <>
+                      {" · "}
+                      {tfmt(t("Last checked: {date}"), {
+                        date: dateFormatter.format(parsed),
+                      })}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           );
