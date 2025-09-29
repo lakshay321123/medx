@@ -1,34 +1,70 @@
 "use client";
-import { Phone, MapPin, MessageSquare, Navigation, Star } from "lucide-react";
+import { useMemo } from "react";
+import { Phone, MessageSquare, Navigation, Star } from "lucide-react";
 import AddressPicker from "@/components/directory/AddressPicker";
+import { tfmt, useT } from "@/components/hooks/useI18n";
+import { usePrefs } from "@/components/providers/PreferencesProvider";
 import { useDirectory } from "@/hooks/useDirectory";
 
 type DirectoryType = ReturnType<typeof useDirectory>["state"]["type"];
 
-const TYPES: { key: DirectoryType; label: string }[] = [
-  { key: "doctor", label: "Doctors" },
-  { key: "pharmacy", label: "Pharmacies" },
-  { key: "lab", label: "Labs" },
-  { key: "hospital", label: "Hospitals" },
-  { key: "clinic", label: "Clinics" },
-  { key: "all", label: "All" },
-];
-
 export default function DirectoryPane() {
-  const { state, actions } = useDirectory();
-  const { locLabel, type, q, openNow, minRating, maxKm, data, loading, summary } = state;
+  const { lang } = usePrefs();
+  const { state, actions } = useDirectory({ lang });
+  const { locLabel, type, q, openNow, minRating, maxKm, data, loading, updatedAt } = state;
+  const t = useT();
+
+  const dateFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(lang, {
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+      }),
+    [lang],
+  );
+  const numberFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(lang, {
+        maximumFractionDigits: 1,
+      }),
+    [lang],
+  );
+  const updatedAtDate = updatedAt ? new Date(updatedAt) : null;
+  const countLine = tfmt(t("{count} results"), { count: data.length });
+  const resultsLine = updatedAtDate
+    ? tfmt(t("{count} results · updated {date}"), {
+        count: data.length,
+        date: dateFormatter.format(updatedAtDate),
+      })
+    : countLine;
+  const summaryText = loading ? t("Loading") : resultsLine;
+  const locationLabel =
+    locLabel === "Current location" ? t("Current location") : locLabel;
+
+  const typeOptions: { key: DirectoryType; label: string }[] = [
+    { key: "all", label: t("All") },
+    { key: "doctor", label: t("Doctors") },
+    { key: "pharmacy", label: t("Pharmacies") },
+    { key: "lab", label: t("Labs") },
+    { key: "hospital", label: t("Hospitals") },
+    { key: "clinic", label: t("Clinics") },
+  ];
+  const cardTypeLabels: Partial<Record<DirectoryType, string>> = {
+    doctor: t("Doctor"),
+  };
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-[388px] flex-col md:mx-0 md:max-w-none">
       <div className="sticky top-0 z-10 space-y-1 border-b border-black/5 bg-white/85 px-2 pb-1 pt-1 backdrop-blur dark:border-white/10 dark:bg-slate-950/60 md:space-y-3 md:px-3 md:pb-3 md:pt-2">
         <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 md:gap-2 md:text-[11px]">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500"></span>
-          <span className="truncate">Using: {locLabel}</span>
+          <span className="truncate">{t("Using:")} {locationLabel}</span>
           <button
             onClick={actions.useMyLocation}
             className="ml-auto inline-flex h-[30px] items-center gap-1 truncate rounded-full border border-slate-200 px-2.5 text-[11px] font-medium text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:px-3 md:text-[11px]"
           >
-            Use my location
+            {t("Use my location")}
           </button>
         </div>
 
@@ -36,7 +72,7 @@ export default function DirectoryPane() {
           <div className="flex-1">
             <input
               className="h-[34px] w-full rounded-[10px] border border-slate-200 bg-white/90 px-3 text-[12px] text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none focus:ring-0 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 md:h-10 md:rounded-[10px] md:px-3 md:text-[13px]"
-              placeholder="Search doctors, pharmacies, labs"
+              placeholder={t("Search doctors, pharmacies, labs")}
               value={q}
               onChange={(event) => actions.setQ(event.target.value)}
             />
@@ -47,12 +83,12 @@ export default function DirectoryPane() {
         </div>
 
         <div className="flex flex-wrap gap-1 pb-0.5 md:flex-nowrap md:gap-2 md:overflow-x-auto">
-          {TYPES.map((t) => {
-            const selected = type === t.key;
+          {typeOptions.map((option) => {
+            const selected = type === option.key;
             return (
               <button
-                key={t.key}
-                onClick={() => actions.setType(t.key)}
+                key={option.key}
+                onClick={() => actions.setType(option.key)}
                 className={`inline-flex h-[26px] min-w-[64px] items-center justify-center whitespace-nowrap rounded-full border px-2.5 text-[11.5px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-[30px] md:min-w-[72px] md:px-3 md:text-[12.5px] ${
                   selected
                     ? "border-blue-500 bg-blue-500 text-white"
@@ -60,7 +96,7 @@ export default function DirectoryPane() {
                 }`}
                 aria-pressed={selected}
               >
-                {t.label}
+                {option.label}
               </button>
             );
           })}
@@ -76,7 +112,7 @@ export default function DirectoryPane() {
             }`}
             aria-pressed={openNow}
           >
-            Open now
+            {t("Open now")}
           </button>
           <button
             onClick={() => actions.setMinRating((r) => (r ? null : 4))}
@@ -87,7 +123,7 @@ export default function DirectoryPane() {
             }`}
             aria-pressed={Boolean(minRating)}
           >
-            Star 4 plus
+            {t("4+ stars")}
           </button>
           <button
             onClick={() => actions.setMaxKm((k) => (k ? null : 3))}
@@ -98,90 +134,95 @@ export default function DirectoryPane() {
             }`}
             aria-pressed={Boolean(maxKm)}
           >
-            Under 3 km
+            {tfmt(t("Under {km} km"), { km: 3 })}
           </button>
         </div>
       </div>
 
       <div className="flex items-center justify-between px-2 py-1 text-[11px] text-slate-500 dark:text-slate-400 md:px-3 md:py-2 md:text-[12px]">
-        <div className="truncate">{loading ? "Loading" : summary}</div>
+        <div className="truncate">{summaryText}</div>
         <div className="inline-flex h-[22px] items-center rounded-full border border-slate-200 px-2.5 text-[11px] font-medium text-slate-600 dark:border-white/10 dark:text-slate-200 md:h-[27px] md:px-3 md:text-[12px]">
-          Map
+          {t("Map")}
         </div>
       </div>
 
       <div className="mobile-scroll-safe flex-1 space-y-1.5 overflow-y-auto px-2 pb-2 md:space-y-3 md:px-3 md:pb-4">
         {!loading && data.length === 0 && (
           <div className="rounded-[10px] border border-slate-200 bg-white/75 p-2.5 text-[12px] text-slate-600 shadow-sm dark:border-white/10 dark:bg-slate-950/60 dark:text-slate-300 md:rounded-[12px] md:p-4 md:text-[13px]">
-            No results. Try All, increase radius, or change the address.
+            {t("No results. Try All, increase radius, or change the address.")}
           </div>
         )}
         {data.map((place) => {
+          const typeLabel =
+            place.category_display ??
+            cardTypeLabels[place.type] ??
+            typeOptions.find((option) => option.key === place.type)?.label ??
+            place.type;
+
+          const reviewsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+            place.name,
+          )}`;
+
           const actionsList = [
-            place.phones?.[0]
-              ? {
-                  key: "call",
-                  label: "Call",
-                  element: (
-                    <a
-                      href={`tel:${place.phones[0].replace(/\s+/g, "")}`}
-                      className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
-                    >
-                      <Phone size={14} aria-hidden /> Call
-                    </a>
-                  ),
-                }
-              : null,
             {
               key: "directions",
-              label: "Directions",
-              element: (
+              render: (
                 <a
                   href={`https://www.google.com/maps/dir/?api=1&destination=${place.geo.lat},${place.geo.lng}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
                 >
-                  <Navigation size={14} aria-hidden /> Directions
+                  <Navigation size={14} aria-hidden /> {t("Directions")}
                 </a>
               ),
             },
+            place.phones?.[0]
+              ? {
+                  key: "call",
+                  render: (
+                    <a
+                      href={`tel:${place.phones[0].replace(/\s+/g, "")}`}
+                      className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
+                    >
+                      <Phone size={14} aria-hidden /> {t("Call")}
+                    </a>
+                  ),
+                }
+              : null,
             place.whatsapp
               ? {
-                  key: "whatsapp",
-                  label: "WhatsApp",
-                  element: (
+                  key: "message",
+                  render: (
                     <a
                       href={`https://wa.me/${place.whatsapp.replace(/\D/g, "")}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
                     >
-                      <MessageSquare size={14} aria-hidden /> WhatsApp
+                      <MessageSquare size={14} aria-hidden /> {t("Message")}
                     </a>
                   ),
                 }
               : null,
-            place.address_short
+            place.rating != null
               ? {
-                  key: "copy",
-                  label: "Copy",
-                  element: (
-                    <button
-                      onClick={() => navigator.clipboard.writeText(place.address_short ?? "")}
+                  key: "reviews",
+                  render: (
+                    <a
+                      href={reviewsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
-                      title="Copy address"
-                      aria-label="Copy address"
                     >
-                      <MapPin size={14} aria-hidden /> Copy
-                    </button>
+                      <Star size={14} aria-hidden /> {t("Reviews")}
+                    </a>
                   ),
                 }
               : null,
           ].filter(Boolean) as {
             key: string;
-            label: string;
-            element: JSX.Element;
+            render: JSX.Element;
           }[];
 
           return (
@@ -198,24 +239,26 @@ export default function DirectoryPane() {
                     >
                       {place.name}
                     </div>
-                    <div className="inline-flex h-[16px] items-center whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-1.5 text-[9px] capitalize text-blue-900 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-100 md:h-[22px] md:px-2 md:text-[11px]">
-                      {place.type}
-                    </div>
+                  <div className="inline-flex h-[16px] items-center whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-1.5 text-[9px] capitalize text-blue-900 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-100 md:h-[22px] md:px-2 md:text-[11px]">
+                      {typeLabel}
                   </div>
+                </div>
 
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11.5px] text-slate-600 dark:text-slate-300 md:flex-nowrap md:gap-2 md:text-[12px]">
-                    <span className="inline-flex shrink-0 items-center gap-1">
-                      <Star size={14} aria-hidden /> {place.rating ?? "—"}
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11.5px] text-slate-600 dark:text-slate-300 md:flex-nowrap md:gap-2 md:text-[12px]">
+                  <span className="inline-flex shrink-0 items-center gap-1">
+                    <Star size={14} aria-hidden /> {place.rating ?? "—"}
+                  </span>
+                  {typeof place.distance_m === "number" && (
+                    <span className="shrink-0">
+                      • {`${numberFormatter.format(place.distance_m / 1000)} ${t("km")}`}
                     </span>
-                    {typeof place.distance_m === "number" && (
-                      <span className="shrink-0">• {(place.distance_m / 1000).toFixed(1)} km</span>
-                    )}
-                    <span className="truncate md:whitespace-nowrap">
-                      • {place.open_now ? "Open now" : "Hours not available"}
-                    </span>
-                  </div>
+                  )}
+                  <span className="truncate md:whitespace-nowrap">
+                    • {place.open_now ? t("Open now") : t("Hours not available")}
+                  </span>
+                </div>
 
-                  {place.address_short && (
+                {place.address_short && (
                     <div
                       className="mt-1 text-[12px] leading-snug text-slate-700 dark:text-slate-200 md:mt-1.5 md:truncate md:text-[13px]"
                       title={place.address_short}
@@ -229,18 +272,31 @@ export default function DirectoryPane() {
               {actionsList.length > 0 && (
                 <div
                   className="mt-1.5 flex flex-wrap gap-1.5 md:mt-3 md:grid md:grid-cols-4 md:gap-2"
-                  aria-label="Primary actions"
+                  aria-label={t("Primary actions")}
                 >
                   {actionsList.map((action) => (
                     <div key={action.key} className="flex min-w-[76px] flex-1 md:min-w-0">
-                      {action.element}
+                      {action.render}
                     </div>
                   ))}
                 </div>
               )}
 
               <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400 md:mt-2 md:text-[11px]">
-                Data: OpenStreetMap • Last checked {new Date(place.last_checked ?? Date.now()).toLocaleDateString()}
+                {t("Data")}: {place.source ?? "—"}
+                {(() => {
+                  if (!place.last_checked) return null;
+                  const parsed = new Date(place.last_checked);
+                  if (Number.isNaN(parsed.getTime())) return null;
+                  return (
+                    <>
+                      {" · "}
+                      {tfmt(t("Last checked: {date}"), {
+                        date: dateFormatter.format(parsed),
+                      })}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           );

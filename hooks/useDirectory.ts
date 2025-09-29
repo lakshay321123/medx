@@ -1,11 +1,12 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 export type DirType = "all" | "doctor" | "pharmacy" | "lab" | "hospital" | "clinic";
 export type Place = {
   id: string;
   name: string;
   type: DirType;
+  category_display?: string;
   distance_m?: number;
   open_now?: boolean;
   rating?: number;
@@ -13,11 +14,12 @@ export type Place = {
   whatsapp?: string | null;
   address_short?: string;
   geo: { lat: number; lng: number };
-  source: "osm";
+  source: "google" | "osm";
   last_checked?: string;
 };
 
-export function useDirectory() {
+export function useDirectory({ lang: inputLang }: { lang?: string } = {}) {
+  const lang = inputLang && inputLang.length > 0 ? inputLang : "en";
   const [lat, setLat] = useState<number | null>(28.567);
   const [lng, setLng] = useState<number | null>(77.209);
   const [locLabel, setLocLabel] = useState("South Delhi");
@@ -40,6 +42,7 @@ export function useDirectory() {
       url.searchParams.set("lng", String(lng));
       url.searchParams.set("radius", String(radius));
       url.searchParams.set("type", type);
+      url.searchParams.set("lang", lang);
       if (q) url.searchParams.set("q", q);
       if (openNow) url.searchParams.set("open_now", "1");
       if (minRating) url.searchParams.set("min_rating", String(minRating));
@@ -59,7 +62,7 @@ export function useDirectory() {
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lat, lng, radius, type, q, openNow, minRating, maxKm]);
+  }, [lat, lng, radius, type, q, openNow, minRating, maxKm, lang]);
 
   function setAddress(option: { label: string; lat: number; lng: number }) {
     setLocLabel(option.label);
@@ -82,11 +85,6 @@ export function useDirectory() {
     );
   }
 
-  const summary = useMemo(() => {
-    const updated = updatedAt ? ` • updated ${new Date(updatedAt).toLocaleDateString()}` : "";
-    return `${data.length} results${updated}`;
-  }, [data.length, updatedAt]);
-
   return {
     state: {
       lat,
@@ -100,7 +98,7 @@ export function useDirectory() {
       radius,
       data,
       loading,
-      summary,
+      updatedAt,
     },
     actions: {
       setType,
