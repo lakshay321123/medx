@@ -1150,7 +1150,7 @@ export default function MedicalProfile() {
             </div>
             {showClinicalSections ? (
               <div className="rounded-lg border bg-muted/20 p-3 text-sm">
-                <div className="text-xs uppercase tracking-wide text-muted-foreground">AI prediction</div>
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">{t("AI prediction")}</div>
                 <div className="mt-1 whitespace-pre-wrap text-base font-medium">
                   {predictionText && predictionText !== NO_DATA_TEXT
                     ? predictionText
