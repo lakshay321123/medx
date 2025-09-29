@@ -53,12 +53,12 @@ type ObservationMap = Record<string, { value: any; unit: string | null; observed
 
 type PanelMode = "wellness" | "clinical" | "ai-doc";
 
-function ageFromDob(dob?: string | null) {
-  if (!dob) return "";
+function ageFromDob(dob?: string | null): number | null {
+  if (!dob) return null;
   const d = new Date(dob);
-  if (Number.isNaN(d.getTime())) return "";
+  if (Number.isNaN(d.getTime())) return null;
   const diff = Date.now() - d.getTime();
-  return String(Math.floor(diff / (365.25 * 24 * 3600 * 1000)));
+  return Math.floor(diff / (365.25 * 24 * 3600 * 1000));
 }
 
 function dedupeStrings(values: string[]) {
@@ -132,7 +132,7 @@ export default function MedicalProfile() {
   const params = useSearchParams();
   const { theme } = useTheme();
   const panelMode = useMemo(() => derivePanelMode(params, theme), [params, theme]);
-  const t = useT();
+  const { t, n } = useT();
 
   const { mutate: mutateGlobal } = useSWRConfig();
   const { data, error, isLoading, mutate: mutateProfile } = useProfile();
@@ -164,6 +164,9 @@ export default function MedicalProfile() {
   const [nextStepsDraft, setNextStepsDraft] = useState("");
   const [savingNextSteps, setSavingNextSteps] = useState(false);
   const [summaryMedsEditing, setSummaryMedsEditing] = useState(false);
+
+  const noDataText = t(NO_DATA_TEXT);
+  const noMedicationsText = t("No medications recorded yet.");
 
   const extractedMedications = useMemo(() => extractMedicationEntries(data), [data]);
 
@@ -346,21 +349,27 @@ export default function MedicalProfile() {
     void loadSummary();
   }, [loadSummary]);
 
+  const ageValue = ageFromDob(dob);
+
   const vitalsDisplay = [
     {
       label: t("BLOOD PRESSURE"),
       value:
         profileVitals.systolic != null && profileVitals.diastolic != null
-          ? `${profileVitals.systolic}/${profileVitals.diastolic} mmHg`
+          ? `${n(profileVitals.systolic)}/${n(profileVitals.diastolic)} mmHg`
           : "—",
     },
     {
       label: t("HEART RATE"),
-      value: profileVitals.heartRate != null ? `${profileVitals.heartRate} bpm` : "—",
+      value:
+        profileVitals.heartRate != null ? `${n(profileVitals.heartRate)} ${t("bpm")}` : "—",
     },
     {
       label: t("BMI"),
-      value: profileVitals.bmi != null ? `${profileVitals.bmi}` : "—",
+      value:
+        profileVitals.bmi != null
+          ? n(profileVitals.bmi, { maximumFractionDigits: 1 })
+          : "—",
     },
   ];
 
@@ -738,7 +747,9 @@ export default function MedicalProfile() {
               max={new Date().toISOString().slice(0, 10)}
               onChange={e => setDob(e.target.value)}
             />
-            <span className="text-xs text-muted-foreground">{t("Age")}: {ageFromDob(dob) || "—"}</span>
+            <span className="text-xs text-muted-foreground">
+              {t("Age")}: {ageValue != null ? n(ageValue) : "—"}
+            </span>
           </label>
           <label className="flex flex-col gap-1">
             <span>{t("Sex")}</span>
@@ -960,7 +971,7 @@ export default function MedicalProfile() {
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-1 text-sm text-muted-foreground">No medications recorded yet.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{noMedicationsText}</p>
                 )}
                 {summaryMedsEditing ? (
                   <div className="space-y-3">
@@ -990,7 +1001,7 @@ export default function MedicalProfile() {
                 {displayedNotes && !notesEditing ? (
                   <p className="mt-1 text-sm whitespace-pre-wrap">{displayedNotes}</p>
                 ) : !notesEditing ? (
-                  <p className="mt-1 text-sm text-muted-foreground">{NO_DATA_TEXT}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{noDataText}</p>
                 ) : null}
                 {notesEditing ? (
                   <div className="mt-2 space-y-2">
@@ -1072,7 +1083,7 @@ export default function MedicalProfile() {
                 {displayedNextSteps && !nextStepsEditing ? (
                   <p className="mt-1 text-sm whitespace-pre-wrap">{displayedNextSteps}</p>
                 ) : !nextStepsEditing ? (
-                  <p className="mt-1 text-sm text-muted-foreground">{NO_DATA_TEXT}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{noDataText}</p>
                 ) : null}
                 {nextStepsEditing ? (
                   <div className="mt-2 space-y-2">
@@ -1166,7 +1177,7 @@ export default function MedicalProfile() {
         <ProfileSection
           title={t("Active medication")}
           isEmpty={medsEmpty}
-          emptyMessage="No medications recorded yet."
+          emptyMessage={noMedicationsText}
         >
           {medications.length ? (
             <div className="flex flex-wrap gap-2">
@@ -1464,34 +1475,56 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
     onAddNextStep,
   } = props;
 
-  const t = useT();
+  const { t, n, lang } = useT();
+  const noDataDisplay = t(NO_DATA);
+  const noMedicationsDisplay = t("No medications recorded yet.");
 
   if (!isMobile) return null;
 
   const safeName = typeof personal.name === "string" && personal.name.trim()
     ? personal.name
-    : NO_DATA;
+    : noDataDisplay;
   const safeSex = typeof personal.sex === "string" && personal.sex.trim()
     ? personal.sex
-    : NO_DATA;
+    : noDataDisplay;
   const safeBloodGroup = typeof personal.bloodGroup === "string" && personal.bloodGroup.trim()
     ? personal.bloodGroup
-    : NO_DATA;
+    : noDataDisplay;
   const safePredispositions = typeof personal.predispositions === "string" && personal.predispositions.trim()
     ? personal.predispositions
-    : NO_DATA;
+    : noDataDisplay;
   const safeChronic = typeof personal.chronicConditions === "string" && personal.chronicConditions.trim()
     ? personal.chronicConditions
-    : NO_DATA;
-  const safeHeight = personal.heightCm === "" || personal.heightCm == null ? "—" : personal.heightCm;
-  const safeWeight = personal.weightKg === "" || personal.weightKg == null ? "—" : personal.weightKg;
-  const safeAge = personal.age === "" || personal.age == null ? "—" : personal.age;
+    : noDataDisplay;
+  const safeHeight = personal.heightCm === "" || personal.heightCm == null
+    ? "—"
+    : typeof personal.heightCm === "number"
+    ? n(personal.heightCm, { maximumFractionDigits: 1 })
+    : personal.heightCm;
+  const safeWeight = personal.weightKg === "" || personal.weightKg == null
+    ? "—"
+    : typeof personal.weightKg === "number"
+    ? n(personal.weightKg, { maximumFractionDigits: 1 })
+    : personal.weightKg;
+  const safeAge = personal.age === "" || personal.age == null
+    ? "—"
+    : typeof personal.age === "number"
+    ? n(personal.age)
+    : personal.age;
 
   const safeBp = vitals.bloodPressure === "" || vitals.bloodPressure == null ? "—" : vitals.bloodPressure;
-  const safeHeartRate = vitals.heartRate === "" || vitals.heartRate == null ? "—" : vitals.heartRate;
-  const safeBmi = vitals.bmi === "" || vitals.bmi == null ? "—" : vitals.bmi;
+  const safeHeartRate = vitals.heartRate === "" || vitals.heartRate == null
+    ? "—"
+    : typeof vitals.heartRate === "number"
+    ? `${n(vitals.heartRate)} ${t("bpm")}`
+    : vitals.heartRate;
+  const safeBmi = vitals.bmi === "" || vitals.bmi == null
+    ? "—"
+    : typeof vitals.bmi === "number"
+    ? n(vitals.bmi, { maximumFractionDigits: 1 })
+    : vitals.bmi;
 
-  const labsLine = buildLabsLine(labs, 5);
+  const labsLine = buildLabsLine(labs, 5, lang, noDataDisplay);
 
   const medsCount = Array.isArray(medications) ? medications.length : 0;
   const notesCount = Array.isArray(notes) ? notes.length : 0;
@@ -1512,7 +1545,7 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
           label={t("DOB")}
           value={
             <span>
-              {fmtDOB(personal.dob)}
+              {fmtDOB(personal.dob, lang, noDataDisplay)}
               <span className="mx-1">•</span>
               {t("Age")}: {safeAge}
             </span>
@@ -1540,14 +1573,14 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
 
       <Section title={t("AI Summary")}>
         <p className="text-[13px] leading-5 text-slate-600 dark:text-slate-300">
-          Patient: {safeName} ({safeSex === NO_DATA ? "—" : safeSex}, {safeAge} y, {safeBloodGroup === NO_DATA ? "—" : safeBloodGroup})
+          Patient: {safeName} ({safeSex === noDataDisplay ? "—" : safeSex}, {safeAge} y, {safeBloodGroup === noDataDisplay ? "—" : safeBloodGroup})
           <br />Chronic conditions: {safeChronic}
           <br />Predispositions: {safePredispositions}
-          <br />Active meds: {medsCount > 0 ? `${medsCount} item(s)` : NO_DATA}
+          <br />Active meds: {medsCount > 0 ? `${n(medsCount)} item(s)` : noDataDisplay}
           <br />Recent labs: {labsLine}
-          <br />AI Prediction: {NO_DATA}
-          <br />Symptoms/Notes: {notesCount > 0 ? `${notesCount} item(s)` : NO_DATA}
-          <br />Next Steps: {nextStepsCount > 0 ? `${nextStepsCount} item(s)` : NO_DATA}
+          <br />AI Prediction: {noDataDisplay}
+          <br />Symptoms/Notes: {notesCount > 0 ? `${n(notesCount)} item(s)` : noDataDisplay}
+          <br />Next Steps: {nextStepsCount > 0 ? `${n(nextStepsCount)} item(s)` : noDataDisplay}
         </p>
 
         <div className="mt-3 flex gap-2">
@@ -1578,7 +1611,7 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
       </Section>
 
       <Section title={t("Medications")}>
-        <Empty text={medsCount > 0 ? "" : "No medications recorded yet."} />
+        <Empty text={medsCount > 0 ? "" : noMedicationsDisplay} />
         {onAddMedication ? (
           <div className="pt-2">
             <Button variant="outline" onClick={onAddMedication} aria-label="Add medication">
@@ -1589,7 +1622,7 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
       </Section>
 
       <Section title={t("Symptoms & Notes")}>
-        <Empty text={notesCount > 0 ? "" : NO_DATA} />
+        <Empty text={notesCount > 0 ? "" : noDataDisplay} />
         {onAddNote ? (
           <div className="pt-2">
             <Button variant="outline" onClick={onAddNote} aria-label="Add notes">
@@ -1600,7 +1633,7 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
       </Section>
 
       <Section title={t("Next Steps")}>
-        <Empty text={nextStepsCount > 0 ? "" : NO_DATA} />
+        <Empty text={nextStepsCount > 0 ? "" : noDataDisplay} />
         {onAddNextStep ? (
           <div className="pt-2">
             <Button variant="outline" onClick={onAddNextStep} aria-label="Add next steps">
@@ -1613,26 +1646,28 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
   );
 }
 
-function fmtDOB(d?: string | Date) {
-  if (!d) return NO_DATA;
+function fmtDOB(d?: string | Date, lang?: string, fallback: string = NO_DATA) {
+  if (!d) return fallback;
   const dt = new Date(d);
   return Number.isNaN(dt.getTime())
-    ? NO_DATA
-    : new Intl.DateTimeFormat(undefined, {
+    ? fallback
+    : new Intl.DateTimeFormat(lang, {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
       }).format(dt);
 }
 
-function fmtMonthYear(d?: string | number | Date) {
+function fmtMonthYear(d?: string | number | Date, lang?: string) {
   if (!d) return "";
   const dt = new Date(d);
-  return Number.isNaN(dt.getTime()) ? "" : dt.toLocaleString(undefined, { month: "short", year: "numeric" });
+  return Number.isNaN(dt.getTime())
+    ? ""
+    : new Intl.DateTimeFormat(lang, { month: "short", year: "numeric" }).format(dt);
 }
 
-function buildLabsLine(list?: LabItem[], limit = 5): string {
-  if (!Array.isArray(list) || list.length === 0) return NO_DATA;
+function buildLabsLine(list?: LabItem[], limit = 5, lang?: string, fallback: string = NO_DATA): string {
+  if (!Array.isArray(list) || list.length === 0) return fallback;
   const parts: string[] = [];
   [...list]
     .sort((a, b) => new Date(b.collectedAt ?? 0).getTime() - new Date(a.collectedAt ?? 0).getTime())
@@ -1641,14 +1676,14 @@ function buildLabsLine(list?: LabItem[], limit = 5): string {
       const name = lab.name?.trim();
       const val = (lab.value ?? "").toString().trim();
       const unit = lab.unit?.trim();
-      const when = fmtMonthYear(lab.collectedAt);
+      const when = fmtMonthYear(lab.collectedAt, lang);
       let piece = name || "";
       if (val) piece += (piece ? " " : "") + val;
       if (unit) piece += ` ${unit}`;
       if (when) piece += ` (${when})`;
       if (piece) parts.push(piece);
     });
-  return parts.length ? parts.join(", ") : NO_DATA;
+  return parts.length ? parts.join(", ") : fallback;
 }
 
 type SectionProps = {

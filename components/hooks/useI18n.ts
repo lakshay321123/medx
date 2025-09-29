@@ -65,6 +65,8 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "AI Summary": "AI Summary",
     "AI prediction": "AI prediction",
     "Active medication": "Active medication",
+    "No medications recorded yet.": "No medications recorded yet.",
+    "No data available": "No data available",
     Name: "Name",
     DOB: "DOB",
     Age: "Age",
@@ -77,6 +79,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "BLOOD PRESSURE": "BLOOD PRESSURE",
     "HEART RATE": "HEART RATE",
     BMI: "BMI",
+    bpm: "bpm",
     "Discuss in chat": "Discuss in chat",
     "Recompute risk": "Recompute risk",
     "Computing…": "Computing…",
@@ -233,6 +236,8 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "AI Summary": "एआई सारांश",
     "AI prediction": "एआई पूर्वानुमान",
     "Active medication": "सक्रिय दवा",
+    "No medications recorded yet.": "अभी कोई दवाएँ दर्ज नहीं हैं।",
+    "No data available": "कोई डेटा उपलब्ध नहीं है",
     Name: "नाम",
     DOB: "जन्म तिथि",
     Age: "आयु",
@@ -245,6 +250,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "BLOOD PRESSURE": "रक्तचाप",
     "HEART RATE": "हृदय दर",
     BMI: "बीएमआई",
+    bpm: "बीपीएम",
     "Discuss in chat": "चैट में चर्चा करें",
     "Recompute risk": "जोखिम पुनर्गणना करें",
     "Computing…": "गणना हो रही है…",
@@ -401,6 +407,8 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "AI Summary": "ملخص الذكاء الاصطناعي",
     "AI prediction": "توقع الذكاء الاصطناعي",
     "Active medication": "دواء نشط",
+    "No medications recorded yet.": "لا توجد أدوية مسجلة بعد.",
+    "No data available": "لا توجد بيانات متاحة",
     Name: "الاسم",
     DOB: "تاريخ الميلاد",
     Age: "العمر",
@@ -413,6 +421,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "BLOOD PRESSURE": "ضغط الدم",
     "HEART RATE": "معدل ضربات القلب",
     BMI: "مؤشر كتلة الجسم",
+    bpm: "نبضة/دقيقة",
     "Discuss in chat": "ناقش في الدردشة",
     "Recompute risk": "أعد حساب المخاطر",
     "Computing…": "جارٍ الحساب…",
@@ -568,6 +577,8 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "AI Summary": "Riepilogo IA",
     "AI prediction": "Previsione IA",
     "Active medication": "Farmaco attivo",
+    "No medications recorded yet.": "Nessun farmaco registrato.",
+    "No data available": "Nessun dato disponibile",
     Name: "Nome",
     DOB: "Data di nascita",
     Age: "Età",
@@ -580,6 +591,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "BLOOD PRESSURE": "PRESSIONE ARTERIOSA",
     "HEART RATE": "FREQUENZA CARDIACA",
     BMI: "IMC",
+    bpm: "bpm",
     "Discuss in chat": "Discuti in chat",
     "Recompute risk": "Ricalcola rischio",
     "Computing…": "Calcolo in corso…",
@@ -735,6 +747,8 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "AI Summary": "AI 总结",
     "AI prediction": "AI 预测",
     "Active medication": "当前用药",
+    "No medications recorded yet.": "尚未记录任何药物。",
+    "No data available": "暂无可用数据",
     Name: "姓名",
     DOB: "出生日期",
     Age: "年龄",
@@ -747,6 +761,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "BLOOD PRESSURE": "血压",
     "HEART RATE": "心率",
     BMI: "体质指数",
+    bpm: "次/分",
     "Discuss in chat": "在聊天中讨论",
     "Recompute risk": "重新计算风险",
     "Computing…": "正在计算…",
@@ -902,6 +917,8 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "AI Summary": "Resumen de IA",
     "AI prediction": "Predicción de IA",
     "Active medication": "Medicación activa",
+    "No medications recorded yet.": "No hay medicamentos registrados aún.",
+    "No data available": "No hay datos disponibles",
     Name: "Nombre",
     DOB: "Fecha de nacimiento",
     Age: "Edad",
@@ -914,6 +931,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "BLOOD PRESSURE": "PRESIÓN ARTERIAL",
     "HEART RATE": "FRECUENCIA CARDÍACA",
     BMI: "IMC",
+    bpm: "lpm",
     "Discuss in chat": "Debatir en el chat",
     "Recompute risk": "Recalcular riesgo",
     "Computing…": "Calculando…",
@@ -1026,6 +1044,31 @@ const DICTIONARY: Record<string, Record<string, string>> = {
 
 export function useT() {
   const { lang } = usePrefs();
-  const dict = DICTIONARY[lang] ?? DICTIONARY.en;
-  return (key: string) => dict[key] ?? key;
+  const activeLang = lang ?? "en";
+  const dict = DICTIONARY[activeLang] ?? DICTIONARY.en;
+
+  const translate = (s: string) => dict[s] ?? s;
+
+  const n = (value: number, opts?: Intl.NumberFormatOptions) =>
+    new Intl.NumberFormat(activeLang, opts).format(value);
+
+  const d = (date: Date | number | string, opts?: Intl.DateTimeFormatOptions) => {
+    const dt = typeof date === "string" || typeof date === "number" ? new Date(date) : date;
+    return new Intl.DateTimeFormat(
+      activeLang,
+      opts ?? { year: "numeric", month: "short", day: "numeric" },
+    ).format(dt);
+  };
+
+  const nd = (value: number, opts?: Intl.NumberFormatOptions) => {
+    const lc = activeLang.toLowerCase();
+    const tag = lc.startsWith("hi")
+      ? `${activeLang}-u-nu-deva`
+      : lc.startsWith("ar")
+      ? `${activeLang}-u-nu-arab`
+      : activeLang;
+    return new Intl.NumberFormat(tag, opts).format(value);
+  };
+
+  return Object.assign(translate, { t: translate, n, d, nd, lang: activeLang });
 }
