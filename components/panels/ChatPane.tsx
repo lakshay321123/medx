@@ -19,6 +19,7 @@ import { detectFollowupIntent } from '@/lib/intents';
 import { BRAND_NAME } from "@/lib/brand";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
 import { useT } from "@/components/hooks/useI18n";
+import ModeBanner from "@/components/modes/ModeBanner";
 import SuggestionChips from "@/components/chat/SuggestionChips";
 import SuggestBar from "@/components/suggest/SuggestBar";
 import ComposerFocus from "@/components/chat/ComposerFocus";
@@ -3513,9 +3514,10 @@ ${systemCommon}` + baseSys;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {showWelcomeCard && welcomeContent ? (
-        <div className="px-6 pt-6">
-          <div className="mx-auto w-full max-w-3xl">
+      <div className="px-6 pt-6">
+        <div className="mx-auto w-full max-w-3xl space-y-4">
+          <ModeBanner />
+          {showWelcomeCard && welcomeContent ? (
             <WelcomeCard
               header={
                 welcomeContent.header
@@ -3532,9 +3534,9 @@ ${systemCommon}` + baseSys;
               }
               onDismiss={dismissWelcome}
             />
-          </div>
+          ) : null}
         </div>
-      ) : null}
+      </div>
       <div
         ref={chatRef}
         id="chat-scroll-container"
@@ -3542,9 +3544,9 @@ ${systemCommon}` + baseSys;
           hasScrollableContent
             ? 'overflow-y-auto mobile-chat-scroll'
             : 'overflow-hidden mobile-chat-scroll-empty'
-        }${showWelcomeCard ? ' mt-4' : ''} md:overflow-y-auto`}
+        } mt-4 md:overflow-y-auto`}
       >
-        <div className={`flex min-h-full flex-col justify-end px-6${showWelcomeCard ? '' : ' pt-6'}`}>
+        <div className="flex min-h-full flex-col justify-end px-6">
           {mode === "doctor" && researchMode && (
             <div className="mb-6 space-y-4">
               <ResearchFilters mode="research" onResults={handleTrials} />
