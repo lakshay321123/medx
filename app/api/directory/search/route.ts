@@ -190,7 +190,11 @@ async function googlePlaceDetailsV1(placeId: string, key: string, lang: string):
     "internationalPhoneNumber",
     "regularOpeningHours",
   ].join(",");
-  const endpoint = `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?fields=${encodeURIComponent(fields)}`;
+  const endpoint = new URL(
+    `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`,
+  );
+  endpoint.searchParams.set("fields", fields);
+  endpoint.searchParams.set("languageCode", lang);
   console.debug("GOOGLE params", { languageOrHeader: lang });
   const res = await fetch(endpoint, {
     headers: {
