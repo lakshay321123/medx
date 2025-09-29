@@ -1,7 +1,9 @@
 "use client";
+import { useMemo } from "react";
 import { Phone, MessageSquare, Navigation, Star } from "lucide-react";
 import AddressPicker from "@/components/directory/AddressPicker";
 import { tfmt, useT } from "@/components/hooks/useI18n";
+import { usePrefs } from "@/components/providers/PreferencesProvider";
 import { useDirectory } from "@/hooks/useDirectory";
 
 type DirectoryType = ReturnType<typeof useDirectory>["state"]["type"];
@@ -9,7 +11,34 @@ type DirectoryType = ReturnType<typeof useDirectory>["state"]["type"];
 export default function DirectoryPane() {
   const { state, actions } = useDirectory();
   const { locLabel, type, q, openNow, minRating, maxKm, data, loading, updatedAt } = state;
+  const { lang } = usePrefs();
   const t = useT();
+
+  const dateFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(lang, {
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+      }),
+    [lang],
+  );
+  const numberFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(lang, {
+        maximumFractionDigits: 1,
+      }),
+    [lang],
+  );
+  const updatedAtDate = updatedAt ? new Date(updatedAt) : null;
+  const countLine = tfmt(t("{count} results"), { count: data.length });
+  const resultsLine = updatedAtDate
+    ? tfmt(t("{count} results · updated {date}"), {
+        count: data.length,
+        date: dateFormatter.format(updatedAtDate),
+      })
+    : countLine;
+  const summaryText = loading ? t("Loading") : resultsLine;
 
   const typeOptions: { key: DirectoryType; label: string }[] = [
     { key: "all", label: t("All") },
@@ -19,29 +48,16 @@ export default function DirectoryPane() {
     { key: "hospital", label: t("Hospitals") },
     { key: "clinic", label: t("Clinics") },
   ];
-
-  const summaryText = loading
-    ? t("Loading")
-    : [
-        tfmt(
-          data.length === 1 ? t("{count} result") : t("{count} results"),
-          { count: data.length },
-        ),
-        updatedAt
-          ? tfmt(t("updated {date}"), {
-              date: new Date(updatedAt).toLocaleDateString(),
-            })
-          : "",
-      ]
-        .filter(Boolean)
-        .join(" • ");
+  const cardTypeLabels: Partial<Record<DirectoryType, string>> = {
+    doctor: t("Doctor"),
+  };
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-[388px] flex-col md:mx-0 md:max-w-none">
       <div className="sticky top-0 z-10 space-y-1 border-b border-black/5 bg-white/85 px-2 pb-1 pt-1 backdrop-blur dark:border-white/10 dark:bg-slate-950/60 md:space-y-3 md:px-3 md:pb-3 md:pt-2">
         <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 md:gap-2 md:text-[11px]">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500"></span>
-          <span className="truncate">{tfmt(t("Using: {location}"), { location: locLabel })}</span>
+          <span className="truncate">{t("Using:")} {locLabel}</span>
           <button
             onClick={actions.useMyLocation}
             className="ml-auto inline-flex h-[30px] items-center gap-1 truncate rounded-full border border-slate-200 px-2.5 text-[11px] font-medium text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:px-3 md:text-[11px]"
@@ -136,7 +152,9 @@ export default function DirectoryPane() {
         )}
         {data.map((place) => {
           const typeLabel =
-            typeOptions.find((option) => option.key === place.type)?.label ?? place.type;
+            cardTypeLabels[place.type] ??
+            typeOptions.find((option) => option.key === place.type)?.label ??
+            place.type;
 
           const reviewsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
             place.name,
@@ -228,7 +246,9 @@ export default function DirectoryPane() {
                     <Star size={14} aria-hidden /> {place.rating ?? "—"}
                   </span>
                   {typeof place.distance_m === "number" && (
-                    <span className="shrink-0">• {(place.distance_m / 1000).toFixed(1)} km</span>
+                    <span className="shrink-0">
+                      • {`${numberFormatter.format(place.distance_m / 1000)} ${t("km")}`}
+                    </span>
                   )}
                   <span className="truncate md:whitespace-nowrap">
                     • {place.open_now ? t("Open now") : t("Hours not available")}
@@ -260,8 +280,12 @@ export default function DirectoryPane() {
               )}
 
               <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400 md:mt-2 md:text-[11px]">
-                {t("Data: OpenStreetMap")} • {tfmt(t("Last checked {date}"), {
-                  date: new Date(place.last_checked ?? Date.now()).toLocaleDateString(),
+                {t("Data")}: {place.source} ·
+                {" "}
+                {tfmt(t("Last checked: {date}"), {
+                  date: dateFormatter.format(
+                    place.last_checked ? new Date(place.last_checked) : new Date(),
+                  ),
                 })}
               </div>
             </div>
