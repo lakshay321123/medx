@@ -691,7 +691,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const { country } = useCountry();
   const prefs = usePrefs();
   const t = useT();
-  const isEnglish = prefs.lang === "en";
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userText, setUserText] = useState('');
@@ -3518,9 +3517,9 @@ ${systemCommon}` + baseSys;
         <div className="px-6 pt-6">
           <div className="mx-auto w-full max-w-3xl">
             <WelcomeCard
-              header={isEnglish ? welcomeContent.header : undefined}
-              body={isEnglish ? welcomeContent.body : undefined}
-              status={welcomeContent.status}
+              header={t(welcomeContent.header)}
+              body={t(welcomeContent.body)}
+              status={welcomeContent.status ? t(welcomeContent.status) : undefined}
               onDismiss={dismissWelcome}
             />
           </div>
