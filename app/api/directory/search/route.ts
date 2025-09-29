@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { providerLang } from "@/lib/i18n/providerLang";
 
 // meters per degree latitude (simple distance estimate)
 const M_PER_DEG = 111_320;
@@ -293,7 +294,8 @@ export async function GET(req: Request) {
   const maxKm = parseFloat(searchParams.get("max_km") || "");
   const minRating = parseFloat(searchParams.get("min_rating") || "");
   const openNow = searchParams.get("open_now") === "1";
-  const lang = (searchParams.get("lang") || "en").trim() || "en";
+  const appLang = (searchParams.get("lang") || "en").trim() || "en";
+  const lang = providerLang(appLang);
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return NextResponse.json({ error: "lat and lng required" }, { status: 400 });
