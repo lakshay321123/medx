@@ -71,7 +71,7 @@ export default function AddressPicker({
                 setQ(option.label);
                 setOpen(false);
               }}
-              className="block w-full px-2.5 py-1.5 text-left text-[11px] text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus-visible:bg-slate-800 md:px-3 md:py-2 md:text-[12.5px]"
+              className="block w-full px-2.5 py-1.5 text-start text-[11px] text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus-visible:bg-slate-800 md:px-3 md:py-2 md:text-[12.5px]"
             >
               {option.label}
             </button>
