@@ -45,7 +45,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
       "Preview and select the voice used for spoken responses.",
     "New chat": "New chat",
     Search: "Search",
-    "Search...": "Search...",
+    "Search…": "Search…",
     Directory: "Directory",
     "Using:": "Using:",
     "Using: {location}": "Using: {location}",
