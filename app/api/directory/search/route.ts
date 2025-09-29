@@ -5,6 +5,7 @@ import { providerLang } from "@/lib/i18n/providerLang";
 const M_PER_DEG = 111_320;
 const NAME_CACHE_TTL_SECONDS = 86_400;
 const NAME_CACHE_TTL_MS = NAME_CACHE_TTL_SECONDS * 1000;
+const DETAILS_CACHE_TTL_MS = 86_400 * 1000;
 
 type SupportedLang = "en" | "hi" | "ar" | "it" | "zh" | "es";
 type TermNumber = "singular" | "plural";
@@ -295,6 +296,7 @@ type Place = {
   id: string;
   name: string;
   address?: string;
+  address_localized?: string;
   localizedName?: string;
   localizedAddress?: string;
   name_original?: string;
@@ -708,6 +710,16 @@ type GoogleDetails = {
   composedAddress?: string;
 };
 
+type GoogleDetailsCacheEntry = { value: GoogleDetails; expiresAt: number };
+
+const globalWithDetailsCache = globalThis as typeof globalThis & {
+  __dirDetailsCache?: Map<string, GoogleDetailsCacheEntry>;
+};
+
+if (!globalWithDetailsCache.__dirDetailsCache) {
+  globalWithDetailsCache.__dirDetailsCache = new Map();
+}
+
 async function googlePlaceDetailsV1(placeId: string, key: string, lang: string): Promise<GoogleDetails> {
   const fields = [
     "displayName",
@@ -757,7 +769,10 @@ async function googleLegacyDetails(placeId: string, key: string, lang: string): 
   url.searchParams.set("fields", fields);
   url.searchParams.set("key", key);
   url.searchParams.set("language", lang);
-  const r = await fetch(url.toString(), { cache: "no-store" });
+  const r = await fetch(url.toString(), {
+    cache: "no-store",
+    headers: { "Accept-Language": lang },
+  });
   if (!r.ok) {
     throw new Error("google legacy details failed");
   }
@@ -780,21 +795,36 @@ async function googleDetailsBatch(placeIds: string[], key: string, lang: string,
   // We limit N to 12 to keep latency and quota sane.
   const N = Math.min(placeIds.length, 12);
   const out = new Map<string, GoogleDetails>();
+  const cache = globalWithDetailsCache.__dirDetailsCache!;
+  const now = Date.now();
+  const langKey = lang.toLowerCase();
 
   for (let i = 0; i < N; i++) {
     const id = placeIds[i];
+    const cacheKey = `${id}:${langKey}`;
+    const cached = cache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+      out.set(id, cached.value);
+      continue;
+    }
+
+    let detail: GoogleDetails | null = null;
     try {
       const v1 = await googlePlaceDetailsV1(id, key, lang);
       const composedAddress =
         v1.addressComponents?.length ? composeAddress(v1.addressComponents, appLang) : undefined;
-      out.set(id, { ...v1, composedAddress });
+      detail = { ...v1, composedAddress };
     } catch (v1Error) {
       try {
         const legacy = await googleLegacyDetails(id, key, lang);
-        out.set(id, { ...legacy, composedAddress: legacy.formattedAddress });
+        detail = { ...legacy, composedAddress: legacy.formattedAddress };
       } catch {
         // ignore errors for individual details calls
       }
+    }
+    if (detail) {
+      out.set(id, detail);
+      cache.set(cacheKey, { value: detail, expiresAt: now + DETAILS_CACHE_TTL_MS });
     }
   }
   return out;
@@ -1005,6 +1035,7 @@ async function osmFallback(
       id: String(el.id),
       name,
       address,
+      address_localized: localizedAddressCandidate || address || undefined,
       localizedName,
       localizedAddress,
       type: "clinic",
@@ -1086,6 +1117,9 @@ export async function GET(req: Request) {
         const d = details.get(p.id);
         if (d?.phone) p.phones = [d.phone];
         if (d?.hours) p.hours = d.hours;
+        if (d?.formattedAddress) {
+          p.address_localized = d.formattedAddress;
+        }
         const composedAddress = d?.composedAddress ?? d?.formattedAddress;
         if (composedAddress) {
           if (!p.address) {
@@ -1103,6 +1137,12 @@ export async function GET(req: Request) {
             p.name = providerName;
           } else if (p.name !== providerName) {
             p.localizedName = providerName;
+          }
+        }
+        if (!p.address_localized) {
+          const fallback = p.localizedAddress ?? p.address;
+          if (fallback) {
+            p.address_localized = fallback;
           }
         }
       }
@@ -1134,6 +1174,12 @@ export async function GET(req: Request) {
       place.localizedName = meta.name_localized;
     } else if (place.localizedName && meta.name_localized === meta.name_original) {
       place.localizedName = undefined;
+    }
+    if (!place.address_localized) {
+      const fallbackAddress = place.localizedAddress ?? place.address;
+      if (fallbackAddress) {
+        place.address_localized = fallbackAddress;
+      }
     }
     return place;
   });
