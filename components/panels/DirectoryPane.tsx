@@ -124,7 +124,7 @@ export default function DirectoryPane() {
             />
           </div>
           <div className="md:w-[320px]">
-            <AddressPicker value={locLabel} onSelect={actions.setAddress} />
+            <AddressPicker value={locLabel} onSelect={actions.setAddress} lang={appLang} />
           </div>
         </div>
 

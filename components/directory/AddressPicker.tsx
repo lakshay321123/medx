@@ -1,17 +1,22 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { useT } from "@/components/hooks/useI18n";
 
 export default function AddressPicker({
   value,
   onSelect,
+  lang,
 }: {
   value: string;
   onSelect: (opt: { label: string; lat: number; lng: number }) => void;
+  lang: string;
 }) {
   const [q, setQ] = useState(value);
   const [opts, setOpts] = useState<{ label: string; lat: number; lng: number }[]>([]);
   const [open, setOpen] = useState(false);
   const timeoutRef = useRef<number | null>(null);
+  const t = useT();
+  const placeholder = t("Enter area, city, or address");
 
   useEffect(() => {
     setQ(value);
@@ -30,7 +35,8 @@ export default function AddressPicker({
 
     timeoutRef.current = window.setTimeout(async () => {
       try {
-        const response = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, { cache: "no-store" });
+        const params = new URLSearchParams({ q, lang });
+        const response = await fetch(`/api/geocode?${params.toString()}`, { cache: "no-store" });
         const json = await response.json();
         setOpts(json.data || []);
         setOpen(true);
@@ -44,13 +50,13 @@ export default function AddressPicker({
         window.clearTimeout(timeoutRef.current);
       }
     };
-  }, [q]);
+  }, [q, lang]);
 
   return (
     <div className="relative w-full">
       <input
         className="h-[34px] w-full rounded-[10px] border border-slate-200 bg-white/90 px-3 text-[12px] text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 md:h-10 md:rounded-[10px] md:px-3 md:text-[13px]"
-        placeholder="Enter area, city, or address"
+        placeholder={placeholder}
         value={q}
         onChange={(event) => setQ(event.target.value)}
         onFocus={() => q && setOpen(true)}

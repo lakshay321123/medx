@@ -1,8 +1,17 @@
 import { NextResponse } from "next/server";
+import { providerLang } from "@/lib/i18n/providerLang";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const q = (searchParams.get("q") || "").trim();
+  const langParam = (searchParams.get("lang") || "en").trim();
+  const appLang = langParam.length > 0 ? langParam : "en";
+  const normalized = providerLang(appLang);
+  const acceptLanguage = Array.from(
+    new Set(
+      [appLang, normalized, "en"].map(value => value?.trim()).filter((value): value is string => Boolean(value)),
+    ),
+  ).join(", ");
   if (!q) {
     return NextResponse.json({ data: [] });
   }
@@ -16,7 +25,7 @@ export async function GET(req: Request) {
   const resp = await fetch(url.toString(), {
     headers: {
       "User-Agent": "SecondOpinion/1.0 (geocode) contact: support@secondopinion.local",
-      "Accept-Language": "en",
+      "Accept-Language": acceptLanguage,
     },
     cache: "no-store",
   });
