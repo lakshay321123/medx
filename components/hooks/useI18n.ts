@@ -1114,21 +1114,6 @@ const DICTIONARY: Record<string, Record<string, string>> = {
   },
 };
 
-const UNTITLED_TITLE_KEY = "New chat";
-
-const UNTITLED_THREAD_TITLES = new Set<string>(
-  Object.values(DICTIONARY)
-    .map(dict => dict[UNTITLED_TITLE_KEY])
-    .filter((value): value is string => typeof value === "string" && value.length > 0),
-);
-
-export function isLegacyUntitledThreadTitle(title?: string | null): boolean {
-  if (typeof title !== "string") return false;
-  const normalized = title.trim();
-  if (!normalized) return true;
-  return UNTITLED_THREAD_TITLES.has(normalized);
-}
-
 export function useT() {
   const { lang } = usePrefs();
   const activeLang = lang ?? "en";
