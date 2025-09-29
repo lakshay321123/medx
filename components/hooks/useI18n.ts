@@ -76,6 +76,8 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "Add medication": "Add medication",
     "⚠️ AI support, not a medical diagnosis.": "⚠️ AI support, not a medical diagnosis.",
     "Always consult a clinician.": "Always consult a clinician.",
+    "⚠️ This is AI-generated support, not a medical diagnosis. Always consult a clinician.":
+      "⚠️ This is AI-generated support, not a medical diagnosis. Always consult a clinician.",
     "No medications recorded yet.": "No medications recorded yet.",
     "No data available": "No data available",
     Name: "Name",
@@ -261,6 +263,8 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "Add medication": "दवा जोड़ें",
     "⚠️ AI support, not a medical diagnosis.": "⚠️ एआई समर्थन है, यह चिकित्सीय निदान नहीं है।",
     "Always consult a clinician.": "हमेशा किसी चिकित्सक से परामर्श करें।",
+    "⚠️ यह एआई-जनित सहायता है, चिकित्सा निदान नहीं है। हमेशा किसी चिकित्सक से परामर्श करें।":
+      "⚠️ यह एआई-जनित सहायता है, चिकित्सा निदान नहीं है। हमेशा किसी चिकित्सक से परामर्श करें।",
     "No medications recorded yet.": "अभी कोई दवाएँ दर्ज नहीं हैं।",
     "No data available": "कोई डेटा उपलब्ध नहीं है",
     Name: "नाम",
@@ -446,6 +450,8 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "Add medication": "إضافة دواء",
     "⚠️ AI support, not a medical diagnosis.": "⚠️ دعم ذكاء اصطناعي، وليس تشخيصًا طبيًا.",
     "Always consult a clinician.": "استشر دائمًا طبيبًا مختصًا.",
+    "⚠️ هذا دعم مولد بالذكاء الاصطناعي وليس تشخيصًا طبيًا. استشر طبيبًا دائمًا.":
+      "⚠️ هذا دعم مولد بالذكاء الاصطناعي وليس تشخيصًا طبيًا. استشر طبيبًا دائمًا.",
     "No medications recorded yet.": "لا توجد أدوية مسجلة بعد.",
     "No data available": "لا توجد بيانات متاحة",
     Name: "الاسم",
@@ -630,6 +636,8 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "Add medication": "Aggiungi farmaco",
     "⚠️ AI support, not a medical diagnosis.": "⚠️ Supporto IA, non una diagnosi medica.",
     "Always consult a clinician.": "Consulta sempre un medico.",
+    "⚠️ Questo è supporto generato dall'IA, non una diagnosi medica. Consulta sempre un medico.":
+      "⚠️ Questo è supporto generato dall'IA, non una diagnosi medica. Consulta sempre un medico.",
     "No medications recorded yet.": "Nessun farmaco registrato.",
     "No data available": "Nessun dato disponibile",
     Name: "Nome",
@@ -814,6 +822,8 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "Add medication": "添加药物",
     "⚠️ AI support, not a medical diagnosis.": "⚠️ AI 支持，并非医疗诊断。",
     "Always consult a clinician.": "请始终咨询临床医生。",
+    "⚠️ 这是由人工智能生成的支持，并非医疗诊断。请务必咨询临床医生。":
+      "⚠️ 这是由人工智能生成的支持，并非医疗诊断。请务必咨询临床医生。",
     "No medications recorded yet.": "尚未记录任何药物。",
     "No data available": "暂无可用数据",
     Name: "姓名",
@@ -998,6 +1008,8 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "Add medication": "Agregar medicamento",
     "⚠️ AI support, not a medical diagnosis.": "⚠️ Soporte de IA, no un diagnóstico médico.",
     "Always consult a clinician.": "Consulta siempre con un clínico.",
+    "⚠️ Esto es apoyo generado por IA, no un diagnóstico médico. Consulta siempre a un profesional clínico.":
+      "⚠️ Esto es apoyo generado por IA, no un diagnóstico médico. Consulta siempre a un profesional clínico.",
     "No medications recorded yet.": "No hay medicamentos registrados aún.",
     "No data available": "No hay datos disponibles",
     Name: "Nombre",

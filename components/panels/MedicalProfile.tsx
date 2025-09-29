@@ -963,7 +963,9 @@ export default function MedicalProfile() {
           <div className="space-y-3 text-sm">
             <p className="whitespace-pre-wrap leading-relaxed">{summaryText}</p>
             <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
-              ⚠️ This is AI-generated support, not a medical diagnosis. Always consult a clinician.
+              {t(
+                "⚠️ This is AI-generated support, not a medical diagnosis. Always consult a clinician.",
+              )}
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div className="space-y-2">
