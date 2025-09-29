@@ -7,7 +7,7 @@ export const QUALIFIERS: Record<string, Record<string, string>> = {
   },
   zh: {
     Clinic: "诊所",
-    Physician: "内科医生",
+    Physician: "医生",
     "General Physician": "全科医生",
     Center: "中心",
   },

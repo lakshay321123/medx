@@ -8,9 +8,27 @@ import { useDirectory } from "@/hooks/useDirectory";
 
 type DirectoryType = ReturnType<typeof useDirectory>["state"]["type"];
 
+const PREFS_STORAGE_KEY = "medx-prefs-v1";
+
 export default function DirectoryPane() {
   const { lang } = usePrefs();
-  const appLang = lang && lang.length > 0 ? lang : "en";
+  const storedLang = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.localStorage.getItem(PREFS_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { lang?: string } | null;
+      const saved = typeof parsed?.lang === "string" ? parsed.lang : null;
+      return saved && saved.length > 0 ? saved : null;
+    } catch {
+      return null;
+    }
+  }, []);
+  const appLang = useMemo(() => {
+    if (lang && lang !== "en") return lang;
+    if (storedLang && storedLang !== "en") return storedLang;
+    return lang || storedLang || "en";
+  }, [lang, storedLang]);
   const { state, actions } = useDirectory({ lang: appLang });
   const { locLabel, type, q, openNow, minRating, maxKm, data, loading, updatedAt } = state;
   const t = useT();

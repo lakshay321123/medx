@@ -120,8 +120,15 @@ async function googleDetailsBatch(placeIds: string[], key: string, lang: string)
     }
   >();
 
-  const fields =
-    "formatted_phone_number,international_phone_number,opening_hours,formatted_address,name";
+  const fields = [
+    "formatted_phone_number",
+    "international_phone_number",
+    "opening_hours",
+    "formatted_address",
+    "name",
+    "displayName",
+    "primaryTypeDisplayName",
+  ].join(",");
   for (let i = 0; i < N; i++) {
     const id = placeIds[i];
     const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
@@ -172,6 +179,7 @@ function normalizeGoogleResults(
         ? localizeQualifiers(providerName, appLang)
         : providerName;
       const formattedAddress =
+        r?.formattedAddress ??
         r?.formatted_address ??
         r?.vicinity ??
         r?.plus_code?.compound_code;
@@ -349,6 +357,15 @@ export async function GET(req: Request) {
   const openNow = searchParams.get("open_now") === "1";
   const appLang = (searchParams.get("lang") || "en").trim() || "en";
   const lang = providerLang(appLang);
+  const cacheKey = [
+    "dir",
+    q,
+    searchParams.get("lat") ?? "",
+    searchParams.get("lng") ?? "",
+    searchParams.get("radius") ?? "",
+    lang,
+  ].join("|");
+  void cacheKey;
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return NextResponse.json({ error: "lat and lng required" }, { status: 400 });
