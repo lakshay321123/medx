@@ -137,7 +137,6 @@ async function googleNearby({
   if (kw) url.searchParams.set("keyword", kw);
   url.searchParams.set("key", key);
   url.searchParams.set("language", lang);
-  console.debug("GOOGLE params", { languageOrHeader: lang });
 
   const resp = await fetch(url.toString(), { cache: "no-store" });
   if (!resp.ok) throw new Error("google nearby failed");
@@ -186,9 +185,7 @@ async function googlePlaceDetailsV1(placeId: string, key: string, lang: string):
   const endpoint = new URL(
     `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`,
   );
-  endpoint.searchParams.set("fields", fields);
   endpoint.searchParams.set("languageCode", lang);
-  console.debug("GOOGLE params", { languageOrHeader: lang });
   const res = await fetch(endpoint, {
     headers: {
       "X-Goog-Api-Key": key,
@@ -394,7 +391,6 @@ async function osmFallback(
       out tags center 200;`;
   }
   const body = buildOverpassQL(kindFilters(uiType));
-  console.debug("OSM header", { acceptLanguage: lang });
   const r = await fetch("https://overpass-api.de/api/interpreter", {
     method: "POST",
     headers: {
@@ -484,8 +480,6 @@ export async function GET(req: Request) {
     searchParams.get("radius") ?? "",
     lang,
   ].join("|");
-  console.debug("DIR api", { appLang, mapped: lang });
-
   const globalAny = globalThis as typeof globalThis & {
     __dirCache?: Map<string, { data: Place[]; updatedAt: string; provider: "google" | "osm" }>;
   };
