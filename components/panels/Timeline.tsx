@@ -161,6 +161,13 @@ const VITAL_KINDS = new Set([
   "vitals",
 ]);
 
+type DrawerTranslation = {
+  summaryLong?: string | null;
+  summaryShort?: string | null;
+  text?: string | null;
+  valueText?: string | null;
+};
+
 const getChipLabel = (ob: any, translate: (value: string) => string) => {
   const kind = normalizeKind(ob?.kind);
   if (kind === "medication") return translate("Med");
@@ -255,6 +262,27 @@ const matchesCategory = (it: any, cat: Cat) => {
 export default function Timeline(){
   const isAiDoc = useIsAiDocMode();
   const t = useT();
+  const lang = t.lang;
+  const dateFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(lang, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }),
+    [lang],
+  );
+  const formatDateTime = useCallback(
+    (value: string | number | Date | null | undefined) => {
+      if (!value) return null;
+      const dt =
+        typeof value === "string" || typeof value === "number"
+          ? new Date(value)
+          : value;
+      if (!(dt instanceof Date) || Number.isNaN(dt.getTime())) return null;
+      return dateFormatter.format(dt);
+    },
+    [dateFormatter],
+  );
   const catOptions = useMemo<{ id: Cat; label: string }[]>(
     () => [
       { id: "ALL", label: t("All") },
@@ -264,7 +292,7 @@ export default function Timeline(){
       { id: "NOTES", label: t("Notes") },
       { id: "IMPORTANT", label: t("Important signals") },
       { id: "IMAGING", label: t("Imaging") },
-      { id: "AI", label: t("AI extracts") },
+      { id: "AI", label: t("AI Extracts") },
       { id: "VITALS", label: t("Vitals") },
     ],
     [t],
@@ -319,6 +347,9 @@ export default function Timeline(){
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<any|null>(null);
   const [signedUrl, setSignedUrl] = useState<string|null>(null);
+  const translationCacheRef = useRef<Map<string, DrawerTranslation>>(new Map());
+  const [translated, setTranslated] = useState<DrawerTranslation | null>(null);
+  const [showOriginal, setShowOriginal] = useState(false);
   const overlayHistoryRef = useRef(false);
   const overlayPopActiveRef = useRef(false);
   const router = useRouter();
@@ -385,15 +416,69 @@ export default function Timeline(){
     fetch(`/api/uploads/signed-url${qs}`).then(r=>r.json()).then(d=>{ if (d?.url) setSignedUrl(d.url); });
   }, [open, active]);
 
+  useEffect(() => {
+    setShowOriginal(false);
+    if (!open || !active) {
+      setTranslated(null);
+      return;
+    }
+    if (!active.id) return;
+    if (lang === "en") {
+      setTranslated(null);
+      return;
+    }
+    const meta = active?.meta ?? {};
+    const hasTranslatable = [meta.summary_long, meta.summary, meta.text, active?.value_text].some(
+      value => typeof value === "string" && value.trim(),
+    );
+    if (!hasTranslatable) {
+      setTranslated(null);
+      return;
+    }
+    const cacheKey = `${active.id}:${lang}`;
+    const cached = translationCacheRef.current.get(cacheKey);
+    if (cached) {
+      setTranslated(cached);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/timeline/summary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: active.id, lang }),
+    })
+      .then(res => (res.ok ? res.json() : null))
+      .then(payload => {
+        if (cancelled || !payload) return;
+        const translatedData: DrawerTranslation = payload?.translated ?? {};
+        translationCacheRef.current.set(cacheKey, translatedData);
+        setTranslated(translatedData);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          translationCacheRef.current.delete(cacheKey);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, active, lang]);
+
   if (!isAiDoc) return null;
 
   if (isLoading) return <PanelLoader label={t("Timeline")} />;
-  if (error)     return <div className="p-6 text-sm text-red-500">Couldn’t load timeline. Retrying in background…</div>;
+  if (error)
+    return (
+      <div className="p-6 text-sm text-red-500">{t("Couldn’t load timeline. Retrying…")}</div>
+    );
 
-  if (!observations.length) return <div className="p-6 text-sm text-muted-foreground">No events yet.</div>;
+  if (!observations.length)
+    return (
+      <div className="p-6 text-sm text-muted-foreground">{t("No events yet.")}</div>
+    );
 
   const displayTitle = active ? getDisplayTitle(active) : "Observation";
-  const shortSummary = active ? getShortSummary(active) : "";
+  const originalShortSummary = active ? getShortSummary(active) : "";
   const summaryLong = active?.meta?.summary_long;
   const summaryShort = active?.meta?.summary;
   const text = active?.meta?.text;
@@ -404,12 +489,28 @@ export default function Timeline(){
     (active?.value_num != null
       ? `${active.value_num}${active.unit ? ` ${active.unit}` : ""}`
       : null);
-  const observed = active?.observed_at
-    ? new Date(active.observed_at).toLocaleString()
-    : null;
+  const observed = formatDateTime(active?.observed_at);
   const source = active?.meta?.source;
   const hasFallbackFacts = Boolean(dose || observed || source || (active?.unit && !dose));
   const chipLabel = active ? getChipLabel(active, t) : null;
+  const hasTranslatedContent =
+    lang !== "en" &&
+    translated &&
+    Object.values(translated).some(v => typeof v === "string" && v.trim().length > 0);
+  const displaySummaryLong =
+    !showOriginal && translated?.summaryLong ? translated.summaryLong : summaryLong;
+  const displaySummaryShort =
+    !showOriginal && translated?.summaryShort ? translated.summaryShort : summaryShort;
+  const displayText = !showOriginal && translated?.text ? translated.text : text;
+  const displayShortSummary =
+    !showOriginal && translated?.summaryShort ? translated.summaryShort : originalShortSummary;
+  const displayValueText =
+    !showOriginal && translated?.valueText ? translated.valueText : active?.value_text;
+  const summaryAvailable = Boolean(summaryLong || summaryShort);
+  const textAvailable = Boolean(text);
+  const translationToggleLabel = showOriginal
+    ? t("Show translation")
+    : t("Show original");
 
   async function handleDelete(ob: { id: string }) {
     if (typeof window !== "undefined") {
@@ -447,7 +548,7 @@ export default function Timeline(){
       <div className="-mx-6 sm:mx-0">
         <div className="mx-auto w-full max-w-[380px] overflow-x-hidden px-4 pb-6 pt-4 sm:mx-0 sm:max-w-none sm:overflow-visible sm:px-6">
           <div className="mb-4 flex flex-wrap items-center gap-2 sm:flex-nowrap sm:justify-between">
-            <h2 className="text-lg font-semibold">Timeline</h2>
+            <h2 className="text-lg font-semibold">{t("Timeline")}</h2>
             <button
               onClick={async () => {
                 if (!confirm('Reset all observations and predictions?')) return;
@@ -457,7 +558,7 @@ export default function Timeline(){
                 await mutate();
               }}
               className="text-xs px-2 py-1 rounded-md border sm:ml-auto"
-            >Reset</button>
+            >{t("Reset")}</button>
           </div>
           {resetError && <div className="mb-2 text-xs text-rose-600">{resetError}</div>}
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
@@ -494,59 +595,65 @@ export default function Timeline(){
             </div>
           </div>
           <ul className="space-y-2 text-sm">
-            {filtered.map((it:any)=>{
-              const observedAt = it?.observed_at ? new Date(it.observed_at).toLocaleString() : null;
-              const title = getDisplayTitle(it);
-              const short = getShortSummary(it);
-              const chipLabel = getChipLabel(it, t);
-              return (
-                <li
-                  key={`${it.kind}:${it.id}`}
-                  className="w-full rounded-xl p-3 cursor-pointer medx-surface text-medx"
-                  onClick={() => {
-                    setActive(it);
-                    setOpen(true);
-                  }}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      {observedAt && (
-                        <div className="text-xs text-muted-foreground">
-                          {observedAt}
+            {filtered.length === 0 ? (
+              <li className="rounded-xl p-4 text-center text-xs text-muted-foreground">
+                {t("No results for this filter.")}
+              </li>
+            ) : (
+              filtered.map((it:any)=>{
+                const observedAt = formatDateTime(it?.observed_at);
+                const title = getDisplayTitle(it);
+                const short = getShortSummary(it);
+                const chipLabel = getChipLabel(it, t);
+                return (
+                  <li
+                    key={`${it.kind}:${it.id}`}
+                    className="w-full rounded-xl p-3 cursor-pointer medx-surface text-medx"
+                    onClick={() => {
+                      setActive(it);
+                      setOpen(true);
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        {observedAt && (
+                          <div className="text-xs text-muted-foreground">
+                            {observedAt}
+                          </div>
+                        )}
+                        <div className="mt-1 font-medium truncate">
+                          {title}
                         </div>
-                      )}
-                      <div className="mt-1 font-medium truncate">
-                        {title}
+                        {short && (
+                          <div className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+                            {short}
+                          </div>
+                        )}
                       </div>
-                      {short && (
-                        <div className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
-                          {short}
-                        </div>
-                      )}
+                      <div className="flex items-start gap-1">
+                        {chipLabel && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted whitespace-nowrap">
+                            {chipLabel}
+                          </span>
+                        )}
+                        <button
+                          className="shrink-0 p-2 rounded-md hover:bg-slate-100 dark:hover:bg-gray-800"
+                          aria-label={t("Delete")}
+                          title={t("Delete")}
+                          disabled={isDeletingId === it.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(it);
+                          }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-start gap-1">
-                      {chipLabel && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted whitespace-nowrap">
-                          {chipLabel}
-                        </span>
-                      )}
-                      <button
-                        className="shrink-0 p-2 rounded-md hover:bg-slate-100 dark:hover:bg-gray-800"
-                        aria-label="Delete observation"
-                        title="Delete"
-                        disabled={isDeletingId === it.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(it);
-                        }}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
+                  </li>
+                );
+              })
+            )}
           </ul>
         </div>
       </div>
@@ -580,12 +687,17 @@ export default function Timeline(){
                   <a href={signedUrl} download className="text-xs px-2 py-1 rounded-md border">Download</a>
                 )}
                 {!hasFile && hasAiSummary && (
-                  <a href={`/api/observations/${active.id}/export`} className="text-xs px-2 py-1 rounded-md border">Download Summary</a>
+                  <a
+                    href={`/api/observations/${active.id}/export`}
+                    className="text-xs px-2 py-1 rounded-md border"
+                  >
+                    {t("Download Summary")}
+                  </a>
                 )}
                 <button
                   className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-gray-800"
-                  aria-label="Delete observation"
-                  title="Delete"
+                  aria-label={t("Delete")}
+                  title={t("Delete")}
                   disabled={isDeletingId === active.id}
                   onClick={() => handleDelete(active)}
                 >
@@ -595,7 +707,7 @@ export default function Timeline(){
                   onClick={() => closeOverlay()}
                   className="hidden sm:inline-flex text-xs px-2 py-1 rounded-md border"
                 >
-                  Close
+                  {t("Close")}
                 </button>
               </div>
             </header>
@@ -614,40 +726,72 @@ export default function Timeline(){
                 <>
                   {(summaryLong || summaryShort || text) ? (
                     <Tabs defaultValue={summaryLong ? 'summary' : (summaryShort ? 'summary' : 'text')}>
-                  {(summaryLong || summaryShort) && (
-                    <div className="mb-3 flex items-center gap-2">
-                      <TabsList className="mx-0 flex-1 justify-start sm:flex-none">
-                        <TabsTrigger value="summary">Summary</TabsTrigger>
-                        {text && <TabsTrigger value="text">Full text</TabsTrigger>}
-                      </TabsList>
-                      <button
-                        type="button"
-                        onClick={() => closeOverlay()}
-                        className="sm:hidden inline-flex items-center justify-center whitespace-nowrap rounded-md border px-2 py-1 text-xs"
-                      >
-                        Close
-                      </button>
-                    </div>
-                  )}
-                      {(summaryLong || summaryShort) && (
+                      {(summaryAvailable || hasTranslatedContent) && (
+                        <div className="mb-3 flex flex-wrap items-center gap-2">
+                          {summaryAvailable && (
+                            <TabsList className="mx-0 flex-1 justify-start sm:flex-none">
+                              <TabsTrigger value="summary">{t("Summary")}</TabsTrigger>
+                              {textAvailable && (
+                                <TabsTrigger value="text">{t("Full text")}</TabsTrigger>
+                              )}
+                            </TabsList>
+                          )}
+                          <div
+                            className={`ml-auto flex items-center gap-2 ${
+                              summaryAvailable ? '' : 'w-full justify-end'
+                            }`}
+                          >
+                            {hasTranslatedContent && (
+                              <button
+                                type="button"
+                                onClick={() => setShowOriginal(prev => !prev)}
+                                className="text-xs underline"
+                              >
+                                {translationToggleLabel}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => closeOverlay()}
+                              className="sm:hidden inline-flex items-center justify-center whitespace-nowrap rounded-md border px-2 py-1 text-xs"
+                            >
+                              {t("Close")}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      {summaryAvailable && (
                         <TabsContent value="summary">
                           <article className="prose prose-zinc dark:prose-invert max-w-none whitespace-pre-wrap select-text">
-                            {(summaryLong || summaryShort) as string}
+                            {displaySummaryLong || displaySummaryShort || ""}
                           </article>
                         </TabsContent>
                       )}
-                      {text && (
+                      {textAvailable && (
                         <TabsContent value="text">
-                          <pre className="whitespace-pre-wrap break-words text-sm leading-6 select-text">{text}</pre>
+                          <pre className="whitespace-pre-wrap break-words text-sm leading-6 select-text">
+                            {displayText || ""}
+                          </pre>
                         </TabsContent>
                       )}
                     </Tabs>
                   ) : null}
                   {!hasFile && !summaryLong && !summaryShort && !text && (
                     <div className="space-y-3 text-sm">
-                      {shortSummary && (
+                      {hasTranslatedContent && (
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setShowOriginal(prev => !prev)}
+                            className="text-xs underline"
+                          >
+                            {translationToggleLabel}
+                          </button>
+                        </div>
+                      )}
+                      {displayShortSummary && (
                         <div className="rounded-md border px-3 py-2 leading-6">
-                          {shortSummary}
+                          {displayShortSummary}
                         </div>
                       )}
 
@@ -680,9 +824,9 @@ export default function Timeline(){
                         </div>
                       )}
 
-                      {active?.value_text && active.value_text !== shortSummary && (
+                      {active?.value_text && active.value_text !== originalShortSummary && (
                         <div className="rounded-md border px-3 py-2">
-                          {active.value_text}
+                          {displayValueText}
                         </div>
                       )}
                     </div>
