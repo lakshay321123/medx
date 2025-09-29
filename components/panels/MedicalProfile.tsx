@@ -9,6 +9,7 @@ import ProfileSection from "@/components/profile/ProfileSection";
 import VitalsEditor from "@/components/profile/VitalsEditor";
 import MedicationInput from "@/components/meds/MedicationInput";
 import MedicationTag from "@/components/meds/MedicationTag";
+import { useT } from "@/components/hooks/useI18n";
 import { useProfile } from "@/lib/hooks/useAppData";
 import { pushToast } from "@/lib/ui/toast";
 import { fromSearchParams } from "@/lib/modes/url";
@@ -52,12 +53,12 @@ type ObservationMap = Record<string, { value: any; unit: string | null; observed
 
 type PanelMode = "wellness" | "clinical" | "ai-doc";
 
-function ageFromDob(dob?: string | null) {
-  if (!dob) return "";
+function ageFromDob(dob?: string | null): number | null {
+  if (!dob) return null;
   const d = new Date(dob);
-  if (Number.isNaN(d.getTime())) return "";
+  if (Number.isNaN(d.getTime())) return null;
   const diff = Date.now() - d.getTime();
-  return String(Math.floor(diff / (365.25 * 24 * 3600 * 1000)));
+  return Math.floor(diff / (365.25 * 24 * 3600 * 1000));
 }
 
 function dedupeStrings(values: string[]) {
@@ -131,6 +132,7 @@ export default function MedicalProfile() {
   const params = useSearchParams();
   const { theme } = useTheme();
   const panelMode = useMemo(() => derivePanelMode(params, theme), [params, theme]);
+  const { t, n } = useT();
 
   const { mutate: mutateGlobal } = useSWRConfig();
   const { data, error, isLoading, mutate: mutateProfile } = useProfile();
@@ -162,6 +164,9 @@ export default function MedicalProfile() {
   const [nextStepsDraft, setNextStepsDraft] = useState("");
   const [savingNextSteps, setSavingNextSteps] = useState(false);
   const [summaryMedsEditing, setSummaryMedsEditing] = useState(false);
+
+  const noDataText = t(NO_DATA_TEXT);
+  const noMedicationsText = t("No medications recorded yet.");
 
   const extractedMedications = useMemo(() => extractMedicationEntries(data), [data]);
 
@@ -344,21 +349,27 @@ export default function MedicalProfile() {
     void loadSummary();
   }, [loadSummary]);
 
+  const ageValue = ageFromDob(dob);
+
   const vitalsDisplay = [
     {
-      label: "Blood pressure",
+      label: t("BLOOD PRESSURE"),
       value:
         profileVitals.systolic != null && profileVitals.diastolic != null
-          ? `${profileVitals.systolic}/${profileVitals.diastolic} mmHg`
+          ? `${n(profileVitals.systolic)}/${n(profileVitals.diastolic)} mmHg`
           : "—",
     },
     {
-      label: "Heart rate",
-      value: profileVitals.heartRate != null ? `${profileVitals.heartRate} bpm` : "—",
+      label: t("HEART RATE"),
+      value:
+        profileVitals.heartRate != null ? `${n(profileVitals.heartRate)} ${t("bpm")}` : "—",
     },
     {
-      label: "BMI",
-      value: profileVitals.bmi != null ? `${profileVitals.bmi}` : "—",
+      label: t("BMI"),
+      value:
+        profileVitals.bmi != null
+          ? n(profileVitals.bmi, { maximumFractionDigits: 1 })
+          : "—",
     },
   ];
 
@@ -683,7 +694,7 @@ export default function MedicalProfile() {
   const showWellnessSections = panelMode !== "clinical";
   const showClinicalSections = panelMode !== "wellness";
 
-  if (isLoading) return <PanelLoader label="Medical Profile" />;
+  if (isLoading) return <PanelLoader label={t("Medical Profile")} />;
   if (error) {
     return (
       <div className="p-6 text-sm text-red-500">Couldn’t load profile. Retrying in background…</div>
@@ -696,7 +707,7 @@ export default function MedicalProfile() {
   return (
     <div className="space-y-4 p-4 md:p-6">
       <ProfileSection
-        title="Personal details"
+        title={t("Personal details")}
         actions={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
             <button
@@ -704,7 +715,7 @@ export default function MedicalProfile() {
               className="w-full rounded-md border px-3 py-1.5 text-sm sm:w-auto"
               onClick={() => router.push("/?panel=chat&threadId=med-profile&context=profile")}
             >
-              Open in chat
+              {t("Open in chat")}
             </button>
             <button
               type="button"
@@ -712,14 +723,14 @@ export default function MedicalProfile() {
               onClick={handleProfileSave}
               disabled={savingProfile}
             >
-              {savingProfile ? "Saving…" : "Save"}
+              {savingProfile ? t("Saving…") : t("Save")}
             </button>
           </div>
         }
       >
         <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
           <label className="flex flex-col gap-1">
-            <span>Name</span>
+            <span>{t("Name")}</span>
             <input
               className="rounded-md border px-3 py-2"
               value={fullName}
@@ -728,7 +739,7 @@ export default function MedicalProfile() {
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span>DOB</span>
+            <span>{t("DOB")}</span>
             <input
               type="date"
               className="rounded-md border px-3 py-2"
@@ -736,10 +747,12 @@ export default function MedicalProfile() {
               max={new Date().toISOString().slice(0, 10)}
               onChange={e => setDob(e.target.value)}
             />
-            <span className="text-xs text-muted-foreground">Age: {ageFromDob(dob) || "—"}</span>
+            <span className="text-xs text-muted-foreground">
+              {t("Age")}: {ageValue != null ? n(ageValue) : "—"}
+            </span>
           </label>
           <label className="flex flex-col gap-1">
-            <span>Sex</span>
+            <span>{t("Sex")}</span>
             <select
               className="rounded-md border px-3 py-2"
               value={sex || ""}
@@ -754,7 +767,7 @@ export default function MedicalProfile() {
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span>Blood group</span>
+            <span>{t("Blood group")}</span>
             <select
               className="rounded-md border px-3 py-2"
               value={bloodGroup || ""}
@@ -769,7 +782,7 @@ export default function MedicalProfile() {
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span>Height (cm)</span>
+            <span>{t("Height (cm)")}</span>
             <input
               type="number"
               inputMode="decimal"
@@ -780,7 +793,7 @@ export default function MedicalProfile() {
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span>Weight (kg)</span>
+            <span>{t("Weight (kg)")}</span>
             <input
               type="number"
               inputMode="decimal"
@@ -791,7 +804,7 @@ export default function MedicalProfile() {
             />
           </label>
           <label className="flex flex-col gap-1 md:col-span-1">
-            <span>Predispositions</span>
+            <span>{t("Predispositions")}</span>
             <input
               className="rounded-md border px-3 py-2"
               placeholder="Type to add (Enter)…"
@@ -825,7 +838,7 @@ export default function MedicalProfile() {
             </div>
           </label>
           <label className="flex flex-col gap-1 md:col-span-1">
-            <span>Chronic conditions</span>
+            <span>{t("Chronic conditions")}</span>
             <input
               className="rounded-md border px-3 py-2"
               placeholder="Type to add (Enter)…"
@@ -858,14 +871,14 @@ export default function MedicalProfile() {
 
       {showWellnessSections ? (
         <ProfileSection
-          title="Vitals"
+          title={t("Vitals")}
           actions={
             <button
               type="button"
               className="rounded-md border px-3 py-1.5 text-sm"
               onClick={() => setEditingVitals(open => !open)}
             >
-              {editingVitals ? "Close" : "Edit"}
+              {editingVitals ? "Close" : t("Edit")}
             </button>
           }
         >
@@ -916,7 +929,7 @@ export default function MedicalProfile() {
 
       {showWellnessSections || showClinicalSections ? (
         <ProfileSection
-          title="AI Summary"
+          title={t("AI Summary")}
           actions={
             <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
               <button
@@ -924,7 +937,7 @@ export default function MedicalProfile() {
                 className="w-full rounded-md border px-3 py-1.5 text-sm sm:w-auto"
                 onClick={() => router.push("/?panel=chat&threadId=med-profile&context=profile")}
               >
-                Discuss in chat
+                {t("Discuss in chat")}
               </button>
               <button
                 type="button"
@@ -932,7 +945,7 @@ export default function MedicalProfile() {
                 onClick={onRecomputeRisk}
                 disabled={recomputeBusy}
               >
-                {recomputeBusy ? "Computing…" : "Recompute risk"}
+                {recomputeBusy ? t("Computing…") : t("Recompute risk")}
               </button>
             </div>
           }
@@ -945,7 +958,7 @@ export default function MedicalProfile() {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Active Meds
+                  {t("Active medication")}
                 </h4>
                 {medications.length ? (
                   <div className="mt-1 flex flex-wrap gap-2">
@@ -958,7 +971,7 @@ export default function MedicalProfile() {
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-1 text-sm text-muted-foreground">No medications recorded yet.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{noMedicationsText}</p>
                 )}
                 {summaryMedsEditing ? (
                   <div className="space-y-3">
@@ -968,7 +981,7 @@ export default function MedicalProfile() {
                       className="inline-flex items-center rounded-md border px-3 py-1.5 text-xs"
                       onClick={() => setSummaryMedsEditing(false)}
                     >
-                      Done
+                      {t("Done")}
                     </button>
                   </div>
                 ) : (
@@ -977,18 +990,18 @@ export default function MedicalProfile() {
                     className="inline-flex items-center rounded-md border px-3 py-1.5 text-xs"
                     onClick={() => setSummaryMedsEditing(true)}
                   >
-                    Add medication
+                    {t("Add")} {t("Medications")}
                   </button>
                 )}
               </div>
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Symptoms & Notes
+                  {t("Symptoms & Notes")}
                 </h4>
                 {displayedNotes && !notesEditing ? (
                   <p className="mt-1 text-sm whitespace-pre-wrap">{displayedNotes}</p>
                 ) : !notesEditing ? (
-                  <p className="mt-1 text-sm text-muted-foreground">{NO_DATA_TEXT}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{noDataText}</p>
                 ) : null}
                 {notesEditing ? (
                   <div className="mt-2 space-y-2">
@@ -1005,7 +1018,7 @@ export default function MedicalProfile() {
                         onClick={handleSaveNotes}
                         disabled={savingNotes}
                       >
-                        {savingNotes ? "Saving…" : "Save"}
+                        {savingNotes ? t("Saving…") : t("Save")}
                       </button>
                       <button
                         type="button"
@@ -1013,7 +1026,7 @@ export default function MedicalProfile() {
                         onClick={() => setNotesEditing(false)}
                         disabled={savingNotes}
                       >
-                        Cancel
+                        {t("Cancel")}
                       </button>
                       {manualNotes ? (
                         <button
@@ -1022,7 +1035,7 @@ export default function MedicalProfile() {
                           onClick={handleClearNotes}
                           disabled={savingNotes}
                         >
-                          Delete
+                          {t("Delete")}
                         </button>
                       ) : null}
                     </div>
@@ -1037,7 +1050,7 @@ export default function MedicalProfile() {
                         setNotesEditing(true);
                       }}
                     >
-                      Edit
+                      {t("Edit")}
                     </button>
                     {manualNotes ? (
                       <button
@@ -1046,7 +1059,7 @@ export default function MedicalProfile() {
                         onClick={handleClearNotes}
                         disabled={savingNotes}
                       >
-                        Delete
+                        {t("Delete")}
                       </button>
                     ) : null}
                   </div>
@@ -1059,18 +1072,18 @@ export default function MedicalProfile() {
                       setNotesEditing(true);
                     }}
                   >
-                    Add notes
+                    {t("Add notes")}
                   </button>
                 )}
               </div>
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Next Steps
-                </h4>
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {t("Next Steps")}
+                  </h4>
                 {displayedNextSteps && !nextStepsEditing ? (
                   <p className="mt-1 text-sm whitespace-pre-wrap">{displayedNextSteps}</p>
                 ) : !nextStepsEditing ? (
-                  <p className="mt-1 text-sm text-muted-foreground">{NO_DATA_TEXT}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{noDataText}</p>
                 ) : null}
                 {nextStepsEditing ? (
                   <div className="mt-2 space-y-2">
@@ -1087,7 +1100,7 @@ export default function MedicalProfile() {
                         onClick={handleSaveNextSteps}
                         disabled={savingNextSteps}
                       >
-                        {savingNextSteps ? "Saving…" : "Save"}
+                        {savingNextSteps ? t("Saving…") : t("Save")}
                       </button>
                       <button
                         type="button"
@@ -1095,7 +1108,7 @@ export default function MedicalProfile() {
                         onClick={() => setNextStepsEditing(false)}
                         disabled={savingNextSteps}
                       >
-                        Cancel
+                        {t("Cancel")}
                       </button>
                       {manualNextSteps ? (
                         <button
@@ -1104,7 +1117,7 @@ export default function MedicalProfile() {
                           onClick={handleClearNextSteps}
                           disabled={savingNextSteps}
                         >
-                          Delete
+                          {t("Delete")}
                         </button>
                       ) : null}
                     </div>
@@ -1119,7 +1132,7 @@ export default function MedicalProfile() {
                         setNextStepsEditing(true);
                       }}
                     >
-                      Edit
+                      {t("Edit")}
                     </button>
                     {manualNextSteps ? (
                       <button
@@ -1128,7 +1141,7 @@ export default function MedicalProfile() {
                         onClick={handleClearNextSteps}
                         disabled={savingNextSteps}
                       >
-                        Delete
+                        {t("Delete")}
                       </button>
                     ) : null}
                   </div>
@@ -1141,14 +1154,14 @@ export default function MedicalProfile() {
                       setNextStepsEditing(true);
                     }}
                   >
-                    Add next steps
+                    {t("Add next steps")}
                   </button>
                 )}
               </div>
             </div>
             {showClinicalSections ? (
               <div className="rounded-lg border bg-muted/20 p-3 text-sm">
-                <div className="text-xs uppercase tracking-wide text-muted-foreground">AI prediction</div>
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">{t("AI prediction")}</div>
                 <div className="mt-1 whitespace-pre-wrap text-base font-medium">
                   {predictionText && predictionText !== NO_DATA_TEXT
                     ? predictionText
@@ -1162,9 +1175,9 @@ export default function MedicalProfile() {
 
       {showClinicalSections ? (
         <ProfileSection
-          title="Active Meds"
+          title={t("Active medication")}
           isEmpty={medsEmpty}
-          emptyMessage="No medications recorded yet."
+          emptyMessage={noMedicationsText}
         >
           {medications.length ? (
             <div className="flex flex-wrap gap-2">
@@ -1462,32 +1475,56 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
     onAddNextStep,
   } = props;
 
+  const { t, n, lang } = useT();
+  const noDataDisplay = t(NO_DATA);
+  const noMedicationsDisplay = t("No medications recorded yet.");
+
   if (!isMobile) return null;
 
   const safeName = typeof personal.name === "string" && personal.name.trim()
     ? personal.name
-    : NO_DATA;
+    : noDataDisplay;
   const safeSex = typeof personal.sex === "string" && personal.sex.trim()
     ? personal.sex
-    : NO_DATA;
+    : noDataDisplay;
   const safeBloodGroup = typeof personal.bloodGroup === "string" && personal.bloodGroup.trim()
     ? personal.bloodGroup
-    : NO_DATA;
+    : noDataDisplay;
   const safePredispositions = typeof personal.predispositions === "string" && personal.predispositions.trim()
     ? personal.predispositions
-    : NO_DATA;
+    : noDataDisplay;
   const safeChronic = typeof personal.chronicConditions === "string" && personal.chronicConditions.trim()
     ? personal.chronicConditions
-    : NO_DATA;
-  const safeHeight = personal.heightCm === "" || personal.heightCm == null ? "—" : personal.heightCm;
-  const safeWeight = personal.weightKg === "" || personal.weightKg == null ? "—" : personal.weightKg;
-  const safeAge = personal.age === "" || personal.age == null ? "—" : personal.age;
+    : noDataDisplay;
+  const safeHeight = personal.heightCm === "" || personal.heightCm == null
+    ? "—"
+    : typeof personal.heightCm === "number"
+    ? n(personal.heightCm, { maximumFractionDigits: 1 })
+    : personal.heightCm;
+  const safeWeight = personal.weightKg === "" || personal.weightKg == null
+    ? "—"
+    : typeof personal.weightKg === "number"
+    ? n(personal.weightKg, { maximumFractionDigits: 1 })
+    : personal.weightKg;
+  const safeAge = personal.age === "" || personal.age == null
+    ? "—"
+    : typeof personal.age === "number"
+    ? n(personal.age)
+    : personal.age;
 
   const safeBp = vitals.bloodPressure === "" || vitals.bloodPressure == null ? "—" : vitals.bloodPressure;
-  const safeHeartRate = vitals.heartRate === "" || vitals.heartRate == null ? "—" : vitals.heartRate;
-  const safeBmi = vitals.bmi === "" || vitals.bmi == null ? "—" : vitals.bmi;
+  const safeHeartRate = vitals.heartRate === "" || vitals.heartRate == null
+    ? "—"
+    : typeof vitals.heartRate === "number"
+    ? `${n(vitals.heartRate)} ${t("bpm")}`
+    : vitals.heartRate;
+  const safeBmi = vitals.bmi === "" || vitals.bmi == null
+    ? "—"
+    : typeof vitals.bmi === "number"
+    ? n(vitals.bmi, { maximumFractionDigits: 1 })
+    : vitals.bmi;
 
-  const labsLine = buildLabsLine(labs, 5);
+  const labsLine = buildLabsLine(labs, 5, lang, noDataDisplay);
 
   const medsCount = Array.isArray(medications) ? medications.length : 0;
   const notesCount = Array.isArray(notes) ? notes.length : 0;
@@ -1496,111 +1533,119 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
   return (
     <div className="space-y-4">
       <Section
-        title="Personal details"
-        actionLabel={onEditPersonal ? "Edit" : undefined}
+        title={t("Personal details")}
+        actionLabel={onEditPersonal ? t("Edit") : undefined}
         onAction={onEditPersonal}
-        actionAriaLabel="Edit personal details"
+        actionAriaLabel={t("Edit personal details")}
         primary
       >
-        <KV label="NAME" value={safeName} />
-        <KV label="SEX" value={safeSex} />
+        <KV label={t("Name")} value={safeName} />
+        <KV label={t("Sex")} value={safeSex} />
         <KV
-          label="DOB"
+          label={t("DOB")}
           value={
             <span>
-              {fmtDOB(personal.dob)}
+              {fmtDOB(personal.dob, lang, noDataDisplay)}
               <span className="mx-1">•</span>
-              Age: {safeAge}
+              {t("Age")}: {safeAge}
             </span>
           }
         />
-        <KV label="BLOOD GROUP" value={safeBloodGroup} />
-        <KV label="HEIGHT (cm)" value={safeHeight} />
-        <KV label="WEIGHT (kg)" value={safeWeight} />
+        <KV label={t("Blood group")} value={safeBloodGroup} />
+        <KV label={t("Height (cm)")} value={safeHeight} />
+        <KV label={t("Weight (kg)")} value={safeWeight} />
         <Divider />
-        <KV label="PREDISPOSITIONS" value={safePredispositions} />
-        <KV label="CHRONIC CONDITIONS" value={safeChronic} />
+        <KV label={t("Predispositions")} value={safePredispositions} />
+        <KV label={t("Chronic conditions")} value={safeChronic} />
       </Section>
 
       <Section
-        title="Vitals"
-        actionLabel={onEditVitals ? "Edit" : undefined}
+        title={t("Vitals")}
+        actionLabel={onEditVitals ? t("Edit") : undefined}
         onAction={onEditVitals}
-        actionAriaLabel="Edit vitals"
+        actionAriaLabel={t("Edit vitals")}
         primary
       >
-        <Row label="BLOOD PRESSURE" value={<span className="text-slate-400">{safeBp}</span>} />
-        <Row label="HEART RATE" value={<span className="font-semibold">{safeHeartRate}</span>} />
-        <Row label="BMI" value={<span className="font-semibold">{safeBmi}</span>} />
+        <Row label={t("BLOOD PRESSURE")} value={<span className="text-slate-400">{safeBp}</span>} />
+        <Row label={t("HEART RATE")} value={<span className="font-semibold">{safeHeartRate}</span>} />
+        <Row label={t("BMI")} value={<span className="font-semibold">{safeBmi}</span>} />
       </Section>
 
-      <Section title="AI Summary">
+      <Section title={t("AI Summary")}>
         <p className="text-[13px] leading-5 text-slate-600 dark:text-slate-300">
-          Patient: {safeName} ({safeSex === NO_DATA ? "—" : safeSex}, {safeAge} y, {safeBloodGroup === NO_DATA ? "—" : safeBloodGroup})
-          <br />Chronic conditions: {safeChronic}
-          <br />Predispositions: {safePredispositions}
-          <br />Active meds: {medsCount > 0 ? `${medsCount} item(s)` : NO_DATA}
-          <br />Recent labs: {labsLine}
-          <br />AI Prediction: {NO_DATA}
-          <br />Symptoms/Notes: {notesCount > 0 ? `${notesCount} item(s)` : NO_DATA}
-          <br />Next Steps: {nextStepsCount > 0 ? `${nextStepsCount} item(s)` : NO_DATA}
+          {t("Patient")}: {safeName} (
+          {t("Sex")}: {safeSex === noDataDisplay ? "—" : safeSex}, {t("Age")}: {safeAge}, {t("Blood group")}: {safeBloodGroup === noDataDisplay ? "—" : safeBloodGroup})
+          <br />
+          {t("Chronic conditions")}: {safeChronic}
+          <br />
+          {t("Predispositions")}: {safePredispositions}
+          <br />
+          {t("Active meds")}: {medsCount > 0 ? `${n(medsCount)} ${t("items")}` : noDataDisplay}
+          <br />
+          {t("Recent labs")}: {labsLine}
+          <br />
+          {t("AI prediction")}: {noDataDisplay}
+          <br />
+          {t("Symptoms/Notes")}: {notesCount > 0 ? `${n(notesCount)} ${t("items")}` : noDataDisplay}
+          <br />
+          {t("Next Steps")}: {nextStepsCount > 0 ? `${n(nextStepsCount)} ${t("items")}` : noDataDisplay}
         </p>
 
         <div className="mt-3 flex gap-2">
           {onDiscussAI ? (
             <Button
               variant="outline"
-              aria-label="Discuss AI summary in chat"
+              aria-label={t("Discuss AI summary in chat")}
               onClick={onDiscussAI}
             >
-              Discuss in chat
+              {t("Discuss in chat")}
             </Button>
           ) : null}
           {onRecomputeRisk ? (
             <Button
               primary
-              aria-label="Recompute risk"
+              aria-label={t("Recompute risk")}
               onClick={onRecomputeRisk}
             >
-              Recompute risk
+              {t("Recompute risk")}
             </Button>
           ) : null}
         </div>
 
         <div className="mt-4 rounded-xl border border-amber-300/60 bg-amber-50 px-3 py-3 text-[13px] dark:border-amber-800 dark:bg-amber-900/20">
-          <div className="font-medium">⚠️ AI support, not a medical diagnosis.</div>
-          <div>Always consult a clinician.</div>
+          <div className="font-medium">{t("⚠️ AI support, not a medical diagnosis.")}</div>
+          <div>{t("Always consult a clinician.")}</div>
         </div>
       </Section>
 
-      <Section title="Medications">
-        <Empty text={medsCount > 0 ? "" : "No medications recorded yet."} />
+      <Section title={t("Medications")}>
+        <Empty text={medsCount > 0 ? "" : noMedicationsDisplay} />
         {onAddMedication ? (
           <div className="pt-2">
-            <Button variant="outline" onClick={onAddMedication} aria-label="Add medication">
-              Add medication
+            <Button variant="outline" onClick={onAddMedication} aria-label={t("Add medication")}>
+              {t("Add")} {t("Medications")}
             </Button>
           </div>
         ) : null}
       </Section>
 
-      <Section title="Symptoms & Notes">
-        <Empty text={notesCount > 0 ? "" : NO_DATA} />
+      <Section title={t("Symptoms & Notes")}>
+        <Empty text={notesCount > 0 ? "" : noDataDisplay} />
         {onAddNote ? (
           <div className="pt-2">
-            <Button variant="outline" onClick={onAddNote} aria-label="Add notes">
-              Add notes
+            <Button variant="outline" onClick={onAddNote} aria-label={t("Add notes")}>
+              {t("Add notes")}
             </Button>
           </div>
         ) : null}
       </Section>
 
-      <Section title="Next Steps">
-        <Empty text={nextStepsCount > 0 ? "" : NO_DATA} />
+      <Section title={t("Next Steps")}>
+        <Empty text={nextStepsCount > 0 ? "" : noDataDisplay} />
         {onAddNextStep ? (
           <div className="pt-2">
-            <Button variant="outline" onClick={onAddNextStep} aria-label="Add next steps">
-              Add next steps
+            <Button variant="outline" onClick={onAddNextStep} aria-label={t("Add next steps")}>
+              {t("Add next steps")}
             </Button>
           </div>
         ) : null}
@@ -1609,26 +1654,28 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
   );
 }
 
-function fmtDOB(d?: string | Date) {
-  if (!d) return NO_DATA;
+function fmtDOB(d?: string | Date, lang?: string, fallback: string = NO_DATA) {
+  if (!d) return fallback;
   const dt = new Date(d);
   return Number.isNaN(dt.getTime())
-    ? NO_DATA
-    : new Intl.DateTimeFormat(undefined, {
+    ? fallback
+    : new Intl.DateTimeFormat(lang, {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
       }).format(dt);
 }
 
-function fmtMonthYear(d?: string | number | Date) {
+function fmtMonthYear(d?: string | number | Date, lang?: string) {
   if (!d) return "";
   const dt = new Date(d);
-  return Number.isNaN(dt.getTime()) ? "" : dt.toLocaleString(undefined, { month: "short", year: "numeric" });
+  return Number.isNaN(dt.getTime())
+    ? ""
+    : new Intl.DateTimeFormat(lang, { month: "short", year: "numeric" }).format(dt);
 }
 
-function buildLabsLine(list?: LabItem[], limit = 5): string {
-  if (!Array.isArray(list) || list.length === 0) return NO_DATA;
+function buildLabsLine(list?: LabItem[], limit = 5, lang?: string, fallback: string = NO_DATA): string {
+  if (!Array.isArray(list) || list.length === 0) return fallback;
   const parts: string[] = [];
   [...list]
     .sort((a, b) => new Date(b.collectedAt ?? 0).getTime() - new Date(a.collectedAt ?? 0).getTime())
@@ -1637,14 +1684,14 @@ function buildLabsLine(list?: LabItem[], limit = 5): string {
       const name = lab.name?.trim();
       const val = (lab.value ?? "").toString().trim();
       const unit = lab.unit?.trim();
-      const when = fmtMonthYear(lab.collectedAt);
+      const when = fmtMonthYear(lab.collectedAt, lang);
       let piece = name || "";
       if (val) piece += (piece ? " " : "") + val;
       if (unit) piece += ` ${unit}`;
       if (when) piece += ` (${when})`;
       if (piece) parts.push(piece);
     });
-  return parts.length ? parts.join(", ") : NO_DATA;
+  return parts.length ? parts.join(", ") : fallback;
 }
 
 type SectionProps = {
