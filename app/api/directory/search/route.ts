@@ -29,6 +29,36 @@ type Place = {
   rank_score?: number;
 };
 
+type GoogleAddressComponent = {
+  longText?: string;
+  shortText?: string;
+  types?: string[];
+};
+
+function composeAddress(components: GoogleAddressComponent[], appLang: string) {
+  const lang = providerLang(appLang);
+  const by = (t: string) =>
+    components.find(c => Array.isArray(c.types) && c.types.includes(t));
+
+  const street = [by("street_number")?.longText, by("route")?.longText]
+    .filter(Boolean)
+    .join(" ");
+  const sublocality = by("sublocality")?.longText ?? by("sublocality_level_1")?.longText;
+  const locality = by("locality")?.longText ?? by("postal_town")?.longText;
+  const admin2 = by("administrative_area_level_2")?.longText;
+  const admin1 = by("administrative_area_level_1")?.longText;
+  const postal = by("postal_code")?.longText;
+  const countryCode = by("country")?.shortText;
+
+  const country = countryCode
+    ? new Intl.DisplayNames(lang, { type: "region" }).of(countryCode)
+    : undefined;
+
+  return [street, sublocality, locality, admin2, admin1, postal, country]
+    .filter(Boolean)
+    .join(", ");
+}
+
 function distMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const dx = (b.lng - a.lng) * (Math.cos(((a.lat + b.lat) / 2) * Math.PI / 180) * M_PER_DEG);
   const dy = (b.lat - a.lat) * M_PER_DEG;
@@ -107,7 +137,6 @@ async function googleNearby({
   if (kw) url.searchParams.set("keyword", kw);
   url.searchParams.set("key", key);
   url.searchParams.set("language", lang);
-  console.debug("GOOGLE params", { languageOrHeader: lang });
 
   const resp = await fetch(url.toString(), { cache: "no-store" });
   if (!resp.ok) throw new Error("google nearby failed");
@@ -140,6 +169,8 @@ type GoogleDetails = {
   formattedAddress?: string;
   displayNameText?: string;
   primaryTypeDisplayNameText?: string;
+  addressComponents?: GoogleAddressComponent[];
+  composedAddress?: string;
 };
 
 async function googlePlaceDetailsV1(placeId: string, key: string, lang: string): Promise<GoogleDetails> {
@@ -147,11 +178,14 @@ async function googlePlaceDetailsV1(placeId: string, key: string, lang: string):
     "displayName",
     "primaryTypeDisplayName",
     "formattedAddress",
+    "addressComponents",
     "internationalPhoneNumber",
     "regularOpeningHours",
   ].join(",");
-  const endpoint = `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?fields=${encodeURIComponent(fields)}`;
-  console.debug("GOOGLE params", { languageOrHeader: lang });
+  const endpoint = new URL(
+    `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`,
+  );
+  endpoint.searchParams.set("languageCode", lang);
   const res = await fetch(endpoint, {
     headers: {
       "X-Goog-Api-Key": key,
@@ -170,6 +204,7 @@ async function googlePlaceDetailsV1(placeId: string, key: string, lang: string):
     formattedAddress: j?.formattedAddress ?? undefined,
     displayNameText: j?.displayName?.text ?? undefined,
     primaryTypeDisplayNameText: j?.primaryTypeDisplayName?.text ?? undefined,
+    addressComponents: Array.isArray(j?.addressComponents) ? j.addressComponents : undefined,
   };
 }
 
@@ -205,7 +240,7 @@ async function googleLegacyDetails(placeId: string, key: string, lang: string): 
   };
 }
 
-async function googleDetailsBatch(placeIds: string[], key: string, lang: string) {
+async function googleDetailsBatch(placeIds: string[], key: string, lang: string, appLang: string) {
   // Enrich top N results for phone and opening hours.
   // We limit N to 12 to keep latency and quota sane.
   const N = Math.min(placeIds.length, 12);
@@ -215,11 +250,13 @@ async function googleDetailsBatch(placeIds: string[], key: string, lang: string)
     const id = placeIds[i];
     try {
       const v1 = await googlePlaceDetailsV1(id, key, lang);
-      out.set(id, v1);
+      const composedAddress =
+        v1.addressComponents?.length ? composeAddress(v1.addressComponents, appLang) : undefined;
+      out.set(id, { ...v1, composedAddress });
     } catch (v1Error) {
       try {
         const legacy = await googleLegacyDetails(id, key, lang);
-        out.set(id, legacy);
+        out.set(id, { ...legacy, composedAddress: legacy.formattedAddress });
       } catch {
         // ignore errors for individual details calls
       }
@@ -234,7 +271,6 @@ function normalizeGoogleResults(
   uiType: string,
   appLang: string,
 ): Place[] {
-  const shouldLocalizeQualifiers = !appLang.toLowerCase().startsWith("en");
   const now = new Date().toISOString();
   return results
     .map((r: any) => {
@@ -247,9 +283,7 @@ function normalizeGoogleResults(
         r?.vicinity ??
         r?.plus_code?.compound_code ??
         "Unnamed";
-      const localizedName = shouldLocalizeQualifiers
-        ? localizeQualifiers(providerName, appLang)
-        : providerName;
+      const localizedName = localizeQualifiers(providerName, appLang);
       const formattedAddress =
         r?.formattedAddress ??
         r?.formatted_address ??
@@ -357,7 +391,6 @@ async function osmFallback(
       out tags center 200;`;
   }
   const body = buildOverpassQL(kindFilters(uiType));
-  console.debug("OSM header", { acceptLanguage: lang });
   const r = await fetch("https://overpass-api.de/api/interpreter", {
     method: "POST",
     headers: {
@@ -447,8 +480,6 @@ export async function GET(req: Request) {
     searchParams.get("radius") ?? "",
     lang,
   ].join("|");
-  console.debug("DIR api", { appLang, mapped: lang });
-
   const globalAny = globalThis as typeof globalThis & {
     __dirCache?: Map<string, { data: Place[]; updatedAt: string; provider: "google" | "osm" }>;
   };
@@ -490,21 +521,19 @@ export async function GET(req: Request) {
 
       // enrich top items with phone and hours
       const ids = normalized.map(p => p.id);
-      const details = await googleDetailsBatch(ids, key, lang);
-      const shouldLocalizeQualifiers = !appLang.toLowerCase().startsWith("en");
+      const details = await googleDetailsBatch(ids, key, lang, appLang);
       for (const p of normalized) {
         const d = details.get(p.id);
         if (d?.phone) p.phones = [d.phone];
         if (d?.hours) p.hours = d.hours;
-        if (d?.formattedAddress) p.address_short = d.formattedAddress;
+        const composedAddress = d?.composedAddress ?? d?.formattedAddress ?? p.address_short;
+        if (composedAddress) p.address_short = composedAddress;
         if (d?.primaryTypeDisplayNameText) {
           p.category_display = d.primaryTypeDisplayNameText;
         }
         if (d?.displayNameText) {
           const providerName = d.displayNameText;
-          p.name = shouldLocalizeQualifiers
-            ? localizeQualifiers(providerName, appLang)
-            : providerName;
+          p.name = localizeQualifiers(providerName, appLang);
         }
       }
 
