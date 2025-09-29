@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
+import useSWR from "swr";
 
 export type DirType = "all" | "doctor" | "pharmacy" | "lab" | "hospital" | "clinic";
 export type Place = {
@@ -29,40 +30,51 @@ export function useDirectory({ lang: inputLang }: { lang?: string } = {}) {
   const [minRating, setMinRating] = useState<number | null>(null);
   const [maxKm, setMaxKm] = useState<number | null>(null);
   const [radius, setRadius] = useState(5000);
-  const [data, setData] = useState<Place[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
-
-  async function fetchData() {
-    if (lat == null || lng == null) return;
-    setLoading(true);
-    try {
-      const url = new URL("/api/directory/search", window.location.origin);
-      url.searchParams.set("lat", String(lat));
-      url.searchParams.set("lng", String(lng));
-      url.searchParams.set("radius", String(radius));
-      url.searchParams.set("type", type);
-      url.searchParams.set("lang", lang);
-      if (q) url.searchParams.set("q", q);
-      if (openNow) url.searchParams.set("open_now", "1");
-      if (minRating) url.searchParams.set("min_rating", String(minRating));
-      if (maxKm) url.searchParams.set("max_km", String(maxKm));
-
-      const response = await fetch(url.toString(), { cache: "no-store" });
-      const json = await response.json();
-      setData(json.data || []);
-      setUpdatedAt(json.updatedAt || null);
-    } catch (error) {
-      setData([]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const swrKey = useMemo(() => {
+    if (lat == null || lng == null) return null;
+    const radiusKm = Math.round(radius / 100) / 10; // one decimal precision for key stability
+    return [
+      "directory",
+      q || "",
+      lat,
+      lng,
+      radiusKm,
+      type,
+      openNow ? "1" : "0",
+      minRating ? String(minRating) : "",
+      maxKm ? String(maxKm) : "",
+      lang,
+    ] as const;
   }, [lat, lng, radius, type, q, openNow, minRating, maxKm, lang]);
+
+  const fetcher = async () => {
+    if (lat == null || lng == null) return { data: [], updatedAt: null };
+    const url = new URL("/api/directory/search", window.location.origin);
+    url.searchParams.set("lat", String(lat));
+    url.searchParams.set("lng", String(lng));
+    url.searchParams.set("radius", String(radius));
+    url.searchParams.set("type", type);
+    url.searchParams.set("lang", lang);
+    if (q) url.searchParams.set("q", q);
+    if (openNow) url.searchParams.set("open_now", "1");
+    if (minRating) url.searchParams.set("min_rating", String(minRating));
+    if (maxKm) url.searchParams.set("max_km", String(maxKm));
+    console.debug("DIR fetch", { lang });
+    const response = await fetch(url.toString(), { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error("directory fetch failed");
+    }
+    return response.json();
+  };
+
+  const { data: swrData, isLoading, mutate } = useSWR(swrKey, fetcher, {
+    revalidateOnFocus: false,
+    keepPreviousData: false,
+  });
+
+  const data = (swrData?.data as Place[] | undefined) ?? [];
+  const updatedAt = (swrData?.updatedAt as string | undefined) ?? null;
+  const loading = isLoading;
 
   function setAddress(option: { label: string; lat: number; lng: number }) {
     setLocLabel(option.label);
@@ -109,7 +121,9 @@ export function useDirectory({ lang: inputLang }: { lang?: string } = {}) {
       setRadius,
       setAddress,
       useMyLocation,
-      refetch: fetchData,
+      refetch: () => {
+        void mutate();
+      },
     },
   } as const;
 }
