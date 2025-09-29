@@ -18,6 +18,7 @@ import { isFollowUp } from '@/lib/followup';
 import { detectFollowupIntent } from '@/lib/intents';
 import { BRAND_NAME } from "@/lib/brand";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
+import { useT } from "@/components/hooks/useI18n";
 import SuggestionChips from "@/components/chat/SuggestionChips";
 import SuggestBar from "@/components/suggest/SuggestBar";
 import ComposerFocus from "@/components/chat/ComposerFocus";
@@ -494,7 +495,7 @@ function AnalysisCard({
 }) {
   const header = titleForCategory(m.category);
   return (
-    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl space-y-2">
+    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-start whitespace-normal max-w-3xl space-y-2">
       <header className="flex items-center gap-2">
         <h2 className="text-lg md:text-xl font-semibold">{header}</h2>
         {researchOn && (
@@ -580,7 +581,7 @@ function ChatCard({
   }
   return (
     <div
-      className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl"
+      className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-start whitespace-normal max-w-3xl"
     >
       {m.replacedByNewer && (
         <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
@@ -689,6 +690,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const { country } = useCountry();
   const prefs = usePrefs();
+  const t = useT();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userText, setUserText] = useState('');
@@ -3359,7 +3361,7 @@ ${systemCommon}` + baseSys;
 
           return (
             <div key={derivedKey} className="space-y-2">
-              <div className="ml-auto max-w-3xl whitespace-normal rounded-2xl bg-slate-200 px-4 py-3 text-left text-slate-900 shadow-sm dark:bg-gray-700 dark:text-gray-100">
+              <div className="ml-auto max-w-3xl whitespace-normal rounded-2xl bg-slate-200 px-4 py-3 text-start text-slate-900 shadow-sm dark:bg-gray-700 dark:text-gray-100">
                 <ChatMarkdown content={m.content ?? ''} />
               </div>
             </div>
@@ -3515,9 +3517,19 @@ ${systemCommon}` + baseSys;
         <div className="px-6 pt-6">
           <div className="mx-auto w-full max-w-3xl">
             <WelcomeCard
-              header={welcomeContent.header}
-              body={welcomeContent.body}
-              status={welcomeContent.status}
+              header={
+                welcomeContent.header
+                  ? t(welcomeContent.header)
+                  : undefined
+              }
+              body={
+                welcomeContent.body ? t(welcomeContent.body) : undefined
+              }
+              status={
+                welcomeContent.status
+                  ? t(welcomeContent.status)
+                  : undefined
+              }
               onDismiss={dismissWelcome}
             />
           </div>

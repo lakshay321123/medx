@@ -104,6 +104,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "Recompute risk": "Recompute risk",
     "Computing…": "Computing…",
     "Saving…": "Saving…",
+    "saving…": "saving…",
     Add: "Add",
     Edit: "Edit",
     Done: "Done",
@@ -120,12 +121,50 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     Research: "Research",
     Clinical: "Clinical",
     "AI Doc": "AI Doc",
+    "Wellness Mode: ON": "Wellness Mode: ON",
+    "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.":
+      "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.",
+    "Everything health, without the jargon. From lab reports to daily habits—meds, diet, fitness—made easy to act on.":
+      "Everything health, without the jargon. From lab reports to daily habits—meds, diet, fitness—made easy to act on.",
+    "Clarity for everyday care. Reports, guidance, medication, diet, and fitness—understood at a glance.":
+      "Clarity for everyday care. Reports, guidance, medication, diet, and fitness—understood at a glance.",
+    "All your health, decoded. Reports, tips, meds, diet, and fitness—concise and actionable.":
+      "All your health, decoded. Reports, tips, meds, diet, and fitness—concise and actionable.",
+    "Clinical Mode: ON": "Clinical Mode: ON",
+    "Clinical reasoning on demand. Built for doctors, nurses, and medical students.":
+      "Clinical reasoning on demand. Built for doctors, nurses, and medical students.",
+    "Depth when it matters. Structured differentials, red flags, and management—professional grade.":
+      "Depth when it matters. Structured differentials, red flags, and management—professional grade.",
+    "Evidence-ready, clinician-first.": "Evidence-ready, clinician-first.",
+    "Precision over prose. Concise clinical answers with clear next steps.":
+      "Precision over prose. Concise clinical answers with clear next steps.",
+    "Therapy Mode: ON": "Therapy Mode: ON",
+    "Therapy guidance, made clear. Tools and support; not for emergencies.":
+      "Therapy guidance, made clear. Tools and support; not for emergencies.",
+    "Calm, structured support. Practical techniques and next steps.":
+      "Calm, structured support. Practical techniques and next steps.",
+    "Clarity for tough days. Grounded guidance, actionable exercises.":
+      "Clarity for tough days. Grounded guidance, actionable exercises.",
+    "Steady help, simple words. Skills you can use today.":
+      "Steady help, simple words. Skills you can use today.",
+    "AI Doc: ON": "AI Doc: ON",
+    "Your records, organized. Upload, store, and retrieve securely.":
+      "Your records, organized. Upload, store, and retrieve securely.",
+    "All your reports in one place. Fast search, clear summaries.":
+      "All your reports in one place. Fast search, clear summaries.",
+    "Medical files that make sense. Structured, searchable, shareable.":
+      "Medical files that make sense. Structured, searchable, shareable.",
+    "From paper to clarity. Digitize reports; get clean overviews.":
+      "From paper to clarity. Digitize reports; get clean overviews.",
+    "Research: On — web evidence": "Research: On — web evidence",
+    "Research: Off — enable web evidence": "Research: Off — enable web evidence",
     "Type a message": "Type a message",
     "Send a message": "Send a message",
     Send: "Send",
     "Start a new conversation": "Start a new conversation",
     "Ask about wellness, therapy, research or clinical topics.":
       "Ask about wellness, therapy, research or clinical topics.",
+    Welcome: "Welcome",
     "Open in chat": "Open in chat",
     Delete: "Delete",
     Save: "Save",
@@ -151,6 +190,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "Upload clearer image or side view.": "Upload clearer image or side view.",
     "Each image must be under 5 MB.": "Each image must be under 5 MB.",
     Dismiss: "Dismiss",
+    "Dismiss welcome": "Dismiss welcome",
     "Legal marquee notice": "{brand} can make mistakes… Always consult a clinician.",
     Introduction: "Introduction",
     "Introduction body":
@@ -305,6 +345,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "Recompute risk": "जोखिम पुनर्गणना करें",
     "Computing…": "गणना हो रही है…",
     "Saving…": "सहेजा जा रहा है…",
+    "saving…": "सहेजा जा रहा है…",
     Add: "जोड़ें",
     Edit: "संपादित करें",
     Done: "पूर्ण",
@@ -321,12 +362,50 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     Research: "रिसर्च",
     Clinical: "क्लिनिकल",
     "AI Doc": "एआई डॉक",
+    "Wellness Mode: ON": "वेलनेस मोड: चालू",
+    "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.":
+      "आपका स्वास्थ्य, अब सरल. रिपोर्ट, टिप्स, दवाएं, आहार और फिटनेस—सब कुछ साफ़ भाषा में समझाया गया।",
+    "Everything health, without the jargon. From lab reports to daily habits—meds, diet, fitness—made easy to act on.":
+      "स्वास्थ्य की हर बात, बिना कठिन शब्दों के. लैब रिपोर्ट से लेकर दैनिक आदतों तक—दवाएं, आहार, फिटनेस—आसानी से अपनाने योग्य।",
+    "Clarity for everyday care. Reports, guidance, medication, diet, and fitness—understood at a glance.":
+      "हर रोज़ की देखभाल में स्पष्टता. रिपोर्ट, मार्गदर्शन, दवाएं, आहार और फिटनेस—एक नज़र में समझें।",
+    "All your health, decoded. Reports, tips, meds, diet, and fitness—concise and actionable.":
+      "आपके स्वास्थ्य की हर बात, स्पष्ट. रिपोर्ट, टिप्स, दवाएं, आहार और फिटनेस—संक्षिप्त और उपयोगी।",
+    "Clinical Mode: ON": "क्लिनिकल मोड: चालू",
+    "Clinical reasoning on demand. Built for doctors, nurses, and medical students.":
+      "ज़रूरत पर उपलब्ध क्लिनिकल तर्क. डॉक्टरों, नर्सों और मेडिकल विद्यार्थियों के लिए बनाया गया।",
+    "Depth when it matters. Structured differentials, red flags, and management—professional grade.":
+      "जहां गहराई ज़रूरी हो. संरचित डिफरेंशियल्स, रेड फ्लैग्स और प्रबंधन—पेशेवर स्तर पर।",
+    "Evidence-ready, clinician-first.": "साक्ष्य-तैयार, क्लिनिशियन-प्रथम।",
+    "Precision over prose. Concise clinical answers with clear next steps.":
+      "शब्दों से ज्यादा सटीकता. स्पष्ट अगले चरणों के साथ संक्षिप्त क्लिनिकल उत्तर।",
+    "Therapy Mode: ON": "थेरेपी मोड: चालू",
+    "Therapy guidance, made clear. Tools and support; not for emergencies.":
+      "थेरेपी मार्गदर्शन, सरल भाषा में. उपकरण और समर्थन; आपात स्थिति के लिए नहीं।",
+    "Calm, structured support. Practical techniques and next steps.":
+      "शांत, संरचित समर्थन. व्यावहारिक तकनीकें और अगले कदम।",
+    "Clarity for tough days. Grounded guidance, actionable exercises.":
+      "कठिन दिनों के लिए स्पष्टता. व्यवहारिक मार्गदर्शन और करने योग्य अभ्यास।",
+    "Steady help, simple words. Skills you can use today.":
+      "स्थिर सहायता, सरल शब्द. ऐसे कौशल जिन्हें आप आज ही अपना सकते हैं।",
+    "AI Doc: ON": "AI डॉक: चालू",
+    "Your records, organized. Upload, store, and retrieve securely.":
+      "आपके रिकॉर्ड व्यवस्थित. सुरक्षित रूप से अपलोड करें, सहेजें और प्राप्त करें।",
+    "All your reports in one place. Fast search, clear summaries.":
+      "आपकी सभी रिपोर्ट एक जगह. तेज़ खोज और स्पष्ट सारांश।",
+    "Medical files that make sense. Structured, searchable, shareable.":
+      "समझ में आने वाली मेडिकल फाइलें. संरचित, खोजने योग्य और साझा करने योग्य।",
+    "From paper to clarity. Digitize reports; get clean overviews.":
+      "कागज़ से स्पष्टता तक. रिपोर्ट्स को डिजिटल बनाएं; स्पष्ट सारांश पाएं।",
+    "Research: On — web evidence": "रिसर्च: चालू — वेब साक्ष्य",
+    "Research: Off — enable web evidence": "रिसर्च: बंद — वेब साक्ष्य सक्षम करें",
     "Type a message": "संदेश लिखें",
     "Send a message": "संदेश भेजें",
     Send: "भेजें",
     "Start a new conversation": "नई बातचीत शुरू करें",
     "Ask about wellness, therapy, research or clinical topics.":
       "वेलनेस, थेरेपी, रिसर्च या क्लिनिकल विषय पूछें।",
+    Welcome: "स्वागत",
     "Open in chat": "चैट में खोलें",
     Delete: "हटाएँ",
     Save: "सहेजें",
@@ -351,6 +430,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "Upload clearer image or side view.": "कृपया अधिक स्पष्ट या साइड व्यू छवि अपलोड करें।",
     "Each image must be under 5 MB.": "प्रत्येक छवि 5 MB से कम होनी चाहिए।",
     Dismiss: "बंद करें",
+    "Dismiss welcome": "स्वागत संदेश हटाएं",
     "Legal marquee notice": "{brand} कभी-कभी गलतियाँ कर सकता है… हमेशा किसी चिकित्सक से परामर्श करें।",
     Introduction: "परिचय",
     "Introduction body":
@@ -506,6 +586,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "Recompute risk": "أعد حساب المخاطر",
     "Computing…": "جارٍ الحساب…",
     "Saving…": "جارٍ الحفظ…",
+    "saving…": "جارٍ الحفظ…",
     Add: "إضافة",
     Edit: "تعديل",
     Done: "تم",
@@ -522,11 +603,49 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     Research: "البحث",
     Clinical: "سريري",
     "AI Doc": "مستند ذكي",
+    "Wellness Mode: ON": "وضع العافية: قيد التشغيل",
+    "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.":
+      "صحتك بسهولة. تقارير، نصائح، أدوية، حميات ولياقة—بشرح واضح.",
+    "Everything health, without the jargon. From lab reports to daily habits—meds, diet, fitness—made easy to act on.":
+      "كل ما يخص الصحة بلا مصطلحات معقدة. من تقارير المختبر إلى العادات اليومية—الأدوية، الحمية، اللياقة—بأسلوب سهل التطبيق.",
+    "Clarity for everyday care. Reports, guidance, medication, diet, and fitness—understood at a glance.":
+      "وضوح للرعاية اليومية. التقارير، الإرشادات، الأدوية، الحمية واللياقة—مفهومة من النظرة الأولى.",
+    "All your health, decoded. Reports, tips, meds, diet, and fitness—concise and actionable.":
+      "كل ما يخص صحتك، موضح. تقارير، نصائح، أدوية، حمية ولياقة—مختصرة وقابلة للتطبيق.",
+    "Clinical Mode: ON": "الوضع السريري: قيد التشغيل",
+    "Clinical reasoning on demand. Built for doctors, nurses, and medical students.":
+      "استدلال سريري عند الحاجة. مصمم للأطباء والممرضين وطلاب الطب.",
+    "Depth when it matters. Structured differentials, red flags, and management—professional grade.":
+      "العمق حيث يهم. تفريقات منظمة، إشارات خطر وإدارة—بمستوى احترافي.",
+    "Evidence-ready, clinician-first.": "جاهز بالأدلة، يضع الأطباء أولًا.",
+    "Precision over prose. Concise clinical answers with clear next steps.":
+      "الدقة أهم من السرد. إجابات سريرية موجزة مع خطوات تالية واضحة.",
+    "Therapy Mode: ON": "وضع العلاج: قيد التشغيل",
+    "Therapy guidance, made clear. Tools and support; not for emergencies.":
+      "إرشاد علاجي واضح. أدوات ودعم؛ ليس للطوارئ.",
+    "Calm, structured support. Practical techniques and next steps.":
+      "دعم هادئ ومنظم. تقنيات عملية وخطوات تالية.",
+    "Clarity for tough days. Grounded guidance, actionable exercises.":
+      "وضوح للأيام الصعبة. إرشاد واقعي وتمارين قابلة للتنفيذ.",
+    "Steady help, simple words. Skills you can use today.":
+      "مساعدة ثابتة، بكلمات بسيطة. مهارات يمكنك استخدامها اليوم.",
+    "AI Doc: ON": "طبيب الذكاء الاصطناعي: قيد التشغيل",
+    "Your records, organized. Upload, store, and retrieve securely.":
+      "سجلاتك مرتبة. حمّل، خزّن واسترجع بأمان.",
+    "All your reports in one place. Fast search, clear summaries.":
+      "كل تقاريرك في مكان واحد. بحث سريع وملخصات واضحة.",
+    "Medical files that make sense. Structured, searchable, shareable.":
+      "ملفات طبية مفهومة. منظمة، قابلة للبحث وللمشاركة.",
+    "From paper to clarity. Digitize reports; get clean overviews.":
+      "من الورق إلى الوضوح. رقّم التقارير؛ احصل على لمحات نظيفة.",
+    "Research: On — web evidence": "البحث: قيد التشغيل — أدلة الويب",
+    "Research: Off — enable web evidence": "البحث: متوقف — فعّل أدلة الويب",
     "Type a message": "اكتب رسالة",
     Send: "إرسال",
     "Start a new conversation": "ابدأ محادثة جديدة",
     "Ask about wellness, therapy, research or clinical topics.":
       "اسأل عن العافية أو العلاج أو البحث أو السريري.",
+    Welcome: "مرحبًا",
     Upload: "رفع",
     "Upload more views": "حمّل المزيد من اللقطات",
     "Upload failed": "فشل الرفع",
@@ -537,6 +656,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "Upload clearer image or side view.": "حمّل صورة أوضح أو زاوية جانبية.",
     "Each image must be under 5 MB.": "يجب أن يكون حجم كل صورة أقل من 5 ميغابايت.",
     Dismiss: "تجاهل",
+    "Dismiss welcome": "إغلاق رسالة الترحيب",
     "Open in chat": "افتح في الدردشة",
     Delete: "حذف",
     Save: "حفظ",
@@ -706,6 +826,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "Recompute risk": "Ricalcola rischio",
     "Computing…": "Calcolo in corso…",
     "Saving…": "Salvataggio in corso…",
+    "saving…": "salvataggio in corso…",
     Add: "Aggiungi",
     Edit: "Modifica",
     Done: "Fatto",
@@ -722,11 +843,49 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     Research: "Ricerca",
     Clinical: "Clinico",
     "AI Doc": "AI Doc",
+    "Wellness Mode: ON": "Modalità Wellness: attiva",
+    "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.":
+      "La tua salute, resa semplice. Referti, consigli, farmaci, diete e fitness—spiegati con parole chiare.",
+    "Everything health, without the jargon. From lab reports to daily habits—meds, diet, fitness—made easy to act on.":
+      "Tutto sulla salute, senza gergo. Dai referti di laboratorio alle abitudini quotidiane—farmaci, dieta, fitness—facili da seguire.",
+    "Clarity for everyday care. Reports, guidance, medication, diet, and fitness—understood at a glance.":
+      "Chiarezza per la cura quotidiana. Referti, indicazioni, farmaci, dieta e fitness—comprensibili a colpo d'occhio.",
+    "All your health, decoded. Reports, tips, meds, diet, and fitness—concise and actionable.":
+      "Tutta la tua salute, decifrata. Referti, consigli, farmaci, dieta e fitness—concisi e pratici.",
+    "Clinical Mode: ON": "Modalità Clinica: attiva",
+    "Clinical reasoning on demand. Built for doctors, nurses, and medical students.":
+      "Ragionamento clinico on demand. Progettato per medici, infermieri e studenti di medicina.",
+    "Depth when it matters. Structured differentials, red flags, and management—professional grade.":
+      "Profondità quando serve. Diagnosi differenziali strutturate, segnali di allarme e gestione—di livello professionale.",
+    "Evidence-ready, clinician-first.": "Pronto con le evidenze, pensato per i clinici.",
+    "Precision over prose. Concise clinical answers with clear next steps.":
+      "Precisione prima della prosa. Risposte cliniche concise con passaggi successivi chiari.",
+    "Therapy Mode: ON": "Modalità Terapia: attiva",
+    "Therapy guidance, made clear. Tools and support; not for emergencies.":
+      "Orientamento terapeutico, reso chiaro. Strumenti e supporto; non per emergenze.",
+    "Calm, structured support. Practical techniques and next steps.":
+      "Supporto calmo e strutturato. Tecniche pratiche e passi successivi.",
+    "Clarity for tough days. Grounded guidance, actionable exercises.":
+      "Chiarezza per i giorni difficili. Guida concreta ed esercizi applicabili.",
+    "Steady help, simple words. Skills you can use today.":
+      "Aiuto costante, parole semplici. Abilità da usare subito.",
+    "AI Doc: ON": "AI Doc: attivo",
+    "Your records, organized. Upload, store, and retrieve securely.":
+      "I tuoi documenti, organizzati. Carica, archivia e recupera in sicurezza.",
+    "All your reports in one place. Fast search, clear summaries.":
+      "Tutti i tuoi referti in un unico posto. Ricerca rapida, riepiloghi chiari.",
+    "Medical files that make sense. Structured, searchable, shareable.":
+      "Documenti medici chiari. Strutturati, ricercabili e condivisibili.",
+    "From paper to clarity. Digitize reports; get clean overviews.":
+      "Dal cartaceo alla chiarezza. Digitalizza i referti; ottieni panoramiche pulite.",
+    "Research: On — web evidence": "Ricerca: attiva — evidenze dal web",
+    "Research: Off — enable web evidence": "Ricerca: disattiva — abilita evidenze dal web",
     "Type a message": "Scrivi un messaggio",
     Send: "Invia",
     "Start a new conversation": "Inizia una nuova conversazione",
     "Ask about wellness, therapy, research or clinical topics.":
       "Chiedi su benessere, terapia, ricerca o clinico.",
+    Welcome: "Benvenuto",
     Upload: "Carica",
     "Upload more views": "Carica altre viste",
     "Upload failed": "Caricamento non riuscito",
@@ -737,6 +896,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "Upload clearer image or side view.": "Carica un'immagine più nitida o una vista laterale.",
     "Each image must be under 5 MB.": "Ogni immagine deve essere inferiore a 5 MB.",
     Dismiss: "Chiudi",
+    "Dismiss welcome": "Chiudi messaggio di benvenuto",
     "Open in chat": "Apri in chat",
     Delete: "Elimina",
     Save: "Salva",
@@ -906,6 +1066,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "Recompute risk": "重新计算风险",
     "Computing…": "正在计算…",
     "Saving…": "正在保存…",
+    "saving…": "正在保存…",
     Add: "添加",
     Edit: "编辑",
     Done: "完成",
@@ -922,11 +1083,49 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     Research: "研究",
     Clinical: "临床",
     "AI Doc": "智能文档",
+    "Wellness Mode: ON": "健康模式：开启",
+    "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.":
+      "你的健康，更简单。报告、建议、用药、饮食与健身——用清晰的语言解读。",
+    "Everything health, without the jargon. From lab reports to daily habits—meds, diet, fitness—made easy to act on.":
+      "健康资讯无行话。从化验报告到日常习惯——用药、饮食、健身——轻松采取行动。",
+    "Clarity for everyday care. Reports, guidance, medication, diet, and fitness—understood at a glance.":
+      "日常护理更清楚。报告、指导、用药、饮食与健身——一目了然。",
+    "All your health, decoded. Reports, tips, meds, diet, and fitness—concise and actionable.":
+      "健康信息全部拆解。报告、提示、用药、饮食与健身——精炼又实用。",
+    "Clinical Mode: ON": "临床模式：开启",
+    "Clinical reasoning on demand. Built for doctors, nurses, and medical students.":
+      "临床思维随时可用。为医生、护士和医学生打造。",
+    "Depth when it matters. Structured differentials, red flags, and management—professional grade.":
+      "在关键时刻深入。结构化鉴别诊断、危险信号与处理——专业水准。",
+    "Evidence-ready, clinician-first.": "证据就绪，以临床为先。",
+    "Precision over prose. Concise clinical answers with clear next steps.":
+      "精准胜于冗长。简明临床答案，下一步清晰。",
+    "Therapy Mode: ON": "治疗模式：开启",
+    "Therapy guidance, made clear. Tools and support; not for emergencies.":
+      "疗法指引，更加明晰。提供工具与支持；不适用于急救。",
+    "Calm, structured support. Practical techniques and next steps.":
+      "平稳、有序的支持。实用技巧与下一步行动。",
+    "Clarity for tough days. Grounded guidance, actionable exercises.":
+      "困难日子的清晰指引。扎实建议与可执行练习。",
+    "Steady help, simple words. Skills you can use today.":
+      "持续帮助，浅显语言。今日即可上手的技能。",
+    "AI Doc: ON": "AI Doc：开启",
+    "Your records, organized. Upload, store, and retrieve securely.":
+      "整理你的记录。安全上传、存储并取回。",
+    "All your reports in one place. Fast search, clear summaries.":
+      "所有报告集中一处。快速搜索，清晰摘要。",
+    "Medical files that make sense. Structured, searchable, shareable.":
+      "让医疗文件易懂。结构化、可搜索、可分享。",
+    "From paper to clarity. Digitize reports; get clean overviews.":
+      "从纸质到清晰。数字化报告，获得干净概览。",
+    "Research: On — web evidence": "研究：开启 — 网络证据",
+    "Research: Off — enable web evidence": "研究：关闭 — 启用网络证据",
     "Type a message": "输入消息",
     Send: "发送",
     "Start a new conversation": "开始新会话",
     "Ask about wellness, therapy, research or clinical topics.":
       "询问健康、治疗、研究或临床话题。",
+    Welcome: "欢迎",
     Upload: "上传",
     "Upload more views": "上传更多视图",
     "Upload failed": "上传失败",
@@ -937,6 +1136,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "Upload clearer image or side view.": "请上传更清晰或侧位的图像。",
     "Each image must be under 5 MB.": "每张图像大小须小于 5 MB。",
     Dismiss: "关闭",
+    "Dismiss welcome": "关闭欢迎提示",
     "Open in chat": "在聊天中打开",
     Delete: "删除",
     Save: "保存",
@@ -1106,6 +1306,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "Recompute risk": "Recalcular riesgo",
     "Computing…": "Calculando…",
     "Saving…": "Guardando…",
+    "saving…": "guardando…",
     Add: "Agregar",
     Edit: "Editar",
     Done: "Listo",
@@ -1122,12 +1323,50 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     Research: "Investigación",
     Clinical: "Clínico",
     "AI Doc": "Doc IA",
+    "Wellness Mode: ON": "Modo Bienestar: activado",
+    "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.":
+      "Tu salud, en sencillo. Informes, consejos, medicación, dietas y ejercicio—explicado con lenguaje claro.",
+    "Everything health, without the jargon. From lab reports to daily habits—meds, diet, fitness—made easy to act on.":
+      "Todo sobre salud, sin jerga. Desde informes de laboratorio hasta hábitos diarios—medicación, dieta, ejercicio—listo para poner en práctica.",
+    "Clarity for everyday care. Reports, guidance, medication, diet, and fitness—understood at a glance.":
+      "Claridad para el cuidado diario. Informes, guía, medicación, dieta y ejercicio—entendido de un vistazo.",
+    "All your health, decoded. Reports, tips, meds, diet, and fitness—concise and actionable.":
+      "Toda tu salud, descifrada. Informes, consejos, medicación, dieta y ejercicio—concisos y accionables.",
+    "Clinical Mode: ON": "Modo Clínico: activado",
+    "Clinical reasoning on demand. Built for doctors, nurses, and medical students.":
+      "Razonamiento clínico a demanda. Diseñado para médicos, enfermeras y estudiantes de medicina.",
+    "Depth when it matters. Structured differentials, red flags, and management—professional grade.":
+      "Profundidad cuando importa. Diferenciales estructurados, alertas y manejo—nivel profesional.",
+    "Evidence-ready, clinician-first.": "Listo con evidencia, pensado para el clínico.",
+    "Precision over prose. Concise clinical answers with clear next steps.":
+      "Precisión antes que prosa. Respuestas clínicas concisas con pasos claros a seguir.",
+    "Therapy Mode: ON": "Modo Terapia: activado",
+    "Therapy guidance, made clear. Tools and support; not for emergencies.":
+      "Guía terapéutica, clara. Herramientas y apoyo; no para emergencias.",
+    "Calm, structured support. Practical techniques and next steps.":
+      "Apoyo sereno y estructurado. Técnicas prácticas y próximos pasos.",
+    "Clarity for tough days. Grounded guidance, actionable exercises.":
+      "Claridad para los días difíciles. Guía con los pies en la tierra y ejercicios accionables.",
+    "Steady help, simple words. Skills you can use today.":
+      "Ayuda constante, palabras sencillas. Habilidades que puedes usar hoy.",
+    "AI Doc: ON": "AI Doc: activado",
+    "Your records, organized. Upload, store, and retrieve securely.":
+      "Tus registros, organizados. Sube, guarda y recupera con seguridad.",
+    "All your reports in one place. Fast search, clear summaries.":
+      "Todos tus informes en un solo lugar. Búsqueda rápida, resúmenes claros.",
+    "Medical files that make sense. Structured, searchable, shareable.":
+      "Archivos médicos que se entienden. Estructurados, buscables y compartibles.",
+    "From paper to clarity. Digitize reports; get clean overviews.":
+      "Del papel a la claridad. Digitaliza informes; obtén resúmenes limpios.",
+    "Research: On — web evidence": "Investigación: activada — evidencia web",
+    "Research: Off — enable web evidence": "Investigación: desactivada — habilita evidencia web",
     "Type a message": "Escribe un mensaje",
     "Send a message": "Enviar un mensaje",
     Send: "Enviar",
     "Start a new conversation": "Inicia una nueva conversación",
     "Ask about wellness, therapy, research or clinical topics.":
       "Pregunta sobre bienestar, terapia, investigación o clínica.",
+    Welcome: "Bienvenido",
     Upload: "Subir",
     "Upload more views": "Subir más vistas",
     "Upload failed": "Error al subir",
@@ -1138,6 +1377,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     "Upload clearer image or side view.": "Sube una imagen más nítida o una vista lateral.",
     "Each image must be under 5 MB.": "Cada imagen debe pesar menos de 5 MB.",
     Dismiss: "Cerrar",
+    "Dismiss welcome": "Cerrar bienvenida",
     "Open in chat": "Abrir en el chat",
     Delete: "Eliminar",
     Save: "Guardar",
