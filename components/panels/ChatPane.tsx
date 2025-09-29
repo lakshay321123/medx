@@ -27,6 +27,7 @@ import { getDefaultSuggestions, getInlineSuggestions } from "@/lib/suggestions/e
 import { safeJson } from '@/lib/safeJson';
 import { splitFollowUps } from '@/lib/splitFollowUps';
 import { getTrials } from "@/lib/hooks/useTrials";
+import { useT } from "@/components/hooks/useI18n";
 import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials";
 import MessageActions from "@/components/chat/MessageActions";
 import SharePanel from "@/components/panels/SharePanel";
@@ -686,6 +687,7 @@ function AssistantMessage(props: {
 }
 
 export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: RefObject<HTMLInputElement> } = {}) {
+  const t = useT();
 
   const { country } = useCountry();
   const prefs = usePrefs();
@@ -3515,9 +3517,9 @@ ${systemCommon}` + baseSys;
         <div className="px-6 pt-6">
           <div className="mx-auto w-full max-w-3xl">
             <WelcomeCard
-              header={welcomeContent.header}
-              body={welcomeContent.body}
-              status={welcomeContent.status}
+              header={welcomeContent.header ? t(welcomeContent.header) : undefined}
+              body={welcomeContent.body ? t(welcomeContent.body) : undefined}
+              status={welcomeContent.status ? t(welcomeContent.status) : undefined}
               onDismiss={dismissWelcome}
             />
           </div>
@@ -3840,10 +3842,11 @@ ${systemCommon}` + baseSys;
               >
                 <label
                   className="inline-flex cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
-                  title="Upload PDF or image"
+                  title={t("Upload PDF or image")}
+                  aria-label={t("Upload")}
                 >
                   <Paperclip size={16} aria-hidden="true" />
-                  <span className="hidden sm:inline">Upload</span>
+                  <span className="hidden sm:inline">{t("Upload")}</span>
                   <input
                     type="file"
                     accept="application/pdf,image/*"
@@ -3864,7 +3867,7 @@ ${systemCommon}` + baseSys;
                     placeholder={
                       pendingFiles.length > 0
                         ? 'Add a note or question for this document (optional)'
-                        : 'Send a message'
+                        : t('Send a message')
                     }
                     value={userText}
                     onChange={(e) => setUserText(e.target.value)}
@@ -3901,8 +3904,8 @@ ${systemCommon}` + baseSys;
                     className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50"
                     type="submit"
                     disabled={pendingFiles.length === 0 && !userText.trim()}
-                    aria-label="Send"
-                    title="Send"
+                    aria-label={t("Send")}
+                    title={t("Send")}
                   >
                     <Send size={16} />
                   </button>

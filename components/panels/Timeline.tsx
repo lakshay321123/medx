@@ -131,7 +131,7 @@ const getShortSummary = (ob: any) => {
   return (meta?.text as string) || "";
 };
 
-const getChipLabel = (ob: any) => {
+const getChipKey = (ob: any) => {
   const kind = normalizeKind(ob?.kind);
   if (kind === "medication") return "Med";
   if (kind === "lab") return "Lab";
@@ -173,7 +173,7 @@ export default function Timeline(){
     LABS: t("Labs"),
     VITALS: t("Vitals"),
     IMAGING: t("Imaging"),
-    AI: t("AI Summary"),
+    AI: t("AI extracts"),
     NOTES: t("Notes"),
   };
 
@@ -307,6 +307,14 @@ export default function Timeline(){
     : null;
   const source = active?.meta?.source;
   const hasFallbackFacts = Boolean(dose || observed || source || (active?.unit && !dose));
+  const getChipLabel = useCallback(
+    (ob: any) => {
+      if (!ob) return "";
+      const key = getChipKey(ob);
+      return key ? t(key) : "";
+    },
+    [t],
+  );
   const chipLabel = active ? getChipLabel(active) : null;
 
   async function handleDelete(ob: { id: string }) {
@@ -374,7 +382,7 @@ export default function Timeline(){
                 {range==="CUSTOM" && <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="w-full rounded-md border px-2 py-1 text-xs sm:w-auto" />}
               </div>
               <input
-                placeholder={t("Search…")}
+                placeholder={t("Search...")}
                 value={q}
                 onChange={e=>setQ(e.target.value)}
                 className="w-full min-w-0 rounded-md border px-2 py-1 text-xs sm:ml-auto sm:w-[200px]"

@@ -11,6 +11,24 @@ export type ChatMsg = { id: string; role: "user"|"assistant"; content: string; t
 const LS_KEY = "medx.chat.threads";
 const LS_MSG = (id:string)=>`medx.chat.thread.${id}.msgs`;
 
+const UNTITLED_TITLES = new Set(
+  [
+    "New chat",
+    "नई चैट",
+    "محادثة جديدة",
+    "Nuova chat",
+    "新建对话",
+    "Nueva conversación",
+  ].map(title => title.toLowerCase()),
+);
+
+export function normalizeThreadTitle(title?: string | null): string {
+  if (typeof title !== "string") return "";
+  const trimmed = title.trim();
+  if (!trimmed) return "";
+  return UNTITLED_TITLES.has(trimmed.toLowerCase()) ? "" : trimmed;
+}
+
 export const createNewThreadId = () => crypto.randomUUID();
 
 type CreateThreadOpts = {
@@ -24,7 +42,7 @@ export async function createThread(opts: CreateThreadOpts = {}): Promise<Thread>
   const id = createNewThreadId();
   const thread: Thread = {
     id,
-    title: opts.title ?? "New chat",
+    title: normalizeThreadTitle(opts.title),
     createdAt: now,
     updatedAt: now,
     mode: opts.mode ?? "patient",
@@ -48,7 +66,15 @@ export async function createThread(opts: CreateThreadOpts = {}): Promise<Thread>
 }
 
 export function listThreads(): Thread[] {
-  try { return JSON.parse(localStorage.getItem(LS_KEY) || "[]"); } catch { return []; }
+  try {
+    const raw = localStorage.getItem(LS_KEY) || "[]";
+    const parsed = JSON.parse(raw) as Thread[];
+    return Array.isArray(parsed)
+      ? parsed.map(thread => ({ ...thread, title: normalizeThreadTitle(thread?.title) }))
+      : [];
+  } catch {
+    return [];
+  }
 }
 export function saveThreads(list: Thread[]) {
   localStorage.setItem(LS_KEY, JSON.stringify(list.slice(0,200)));
@@ -60,7 +86,7 @@ export function loadMessages(id: string): ChatMsg[] {
 export function saveMessages(id: string, msgs: ChatMsg[]) {
   localStorage.setItem(LS_MSG(id), JSON.stringify(msgs.slice(-500)));
 }
-export function ensureThread(id: string, initialTitle = "New chat"): Thread {
+export function ensureThread(id: string, initialTitle = ""): Thread {
   const all = listThreads();
   const existing = all.find(t=>t.id===id);
   if (existing) {
@@ -68,7 +94,13 @@ export function ensureThread(id: string, initialTitle = "New chat"): Thread {
     try { upsertThreadIndex(existing.id, existing.title); } catch {}
     return existing;
   }
-  const t: Thread = { id, title: initialTitle, createdAt: Date.now(), updatedAt: Date.now(), mode: "patient" };
+  const t: Thread = {
+    id,
+    title: normalizeThreadTitle(initialTitle),
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    mode: "patient",
+  };
   saveThreads([t, ...all]);
   try { upsertThreadIndex(t.id, t.title); } catch {}
   return t;
@@ -88,7 +120,7 @@ export function updateThreadTitle(id: string, title: string) {
   const all = listThreads();
   const idx = all.findIndex(t => t.id === id);
   if (idx >= 0) {
-    all[idx] = { ...all[idx], title, updatedAt: Date.now() };
+    all[idx] = { ...all[idx], title: normalizeThreadTitle(title), updatedAt: Date.now() };
     saveThreads(all);
     window.dispatchEvent(new Event("chat-threads-updated"));
   }
@@ -111,7 +143,7 @@ export function getThreadsIndex(): ThreadMeta[] {
 export function upsertThreadIndex(id: string, title: string) {
   const list = getThreadsIndex();
   const idx = list.findIndex(t => t.id === id);
-  const meta: ThreadMeta = { id, title, updatedAt: Date.now() };
+  const meta: ThreadMeta = { id, title: normalizeThreadTitle(title), updatedAt: Date.now() };
   if (idx >= 0) list[idx] = meta; else list.unshift(meta);
   try { localStorage.setItem(THREADS_INDEX_KEY, JSON.stringify(list)); } catch {}
 }

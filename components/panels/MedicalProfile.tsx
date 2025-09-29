@@ -348,18 +348,18 @@ export default function MedicalProfile() {
 
   const vitalsDisplay = [
     {
-      label: "Blood pressure",
+      label: t("BLOOD PRESSURE"),
       value:
         profileVitals.systolic != null && profileVitals.diastolic != null
           ? `${profileVitals.systolic}/${profileVitals.diastolic} mmHg`
           : "—",
     },
     {
-      label: "Heart rate",
+      label: t("HEART RATE"),
       value: profileVitals.heartRate != null ? `${profileVitals.heartRate} bpm` : "—",
     },
     {
-      label: "BMI",
+      label: t("BMI"),
       value: profileVitals.bmi != null ? `${profileVitals.bmi}` : "—",
     },
   ];
@@ -721,7 +721,7 @@ export default function MedicalProfile() {
       >
         <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
           <label className="flex flex-col gap-1">
-            <span>Name</span>
+            <span>{t("Name")}</span>
             <input
               className="rounded-md border px-3 py-2"
               value={fullName}
@@ -730,7 +730,7 @@ export default function MedicalProfile() {
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span>DOB</span>
+            <span>{t("DOB")}</span>
             <input
               type="date"
               className="rounded-md border px-3 py-2"
@@ -738,10 +738,10 @@ export default function MedicalProfile() {
               max={new Date().toISOString().slice(0, 10)}
               onChange={e => setDob(e.target.value)}
             />
-            <span className="text-xs text-muted-foreground">Age: {ageFromDob(dob) || "—"}</span>
+            <span className="text-xs text-muted-foreground">{t("Age")}: {ageFromDob(dob) || "—"}</span>
           </label>
           <label className="flex flex-col gap-1">
-            <span>Sex</span>
+            <span>{t("Sex")}</span>
             <select
               className="rounded-md border px-3 py-2"
               value={sex || ""}
@@ -756,7 +756,7 @@ export default function MedicalProfile() {
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span>Blood group</span>
+            <span>{t("Blood group")}</span>
             <select
               className="rounded-md border px-3 py-2"
               value={bloodGroup || ""}
@@ -771,7 +771,7 @@ export default function MedicalProfile() {
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span>Height (cm)</span>
+            <span>{t("Height (cm)")}</span>
             <input
               type="number"
               inputMode="decimal"
@@ -782,7 +782,7 @@ export default function MedicalProfile() {
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span>Weight (kg)</span>
+            <span>{t("Weight (kg)")}</span>
             <input
               type="number"
               inputMode="decimal"
@@ -793,7 +793,7 @@ export default function MedicalProfile() {
             />
           </label>
           <label className="flex flex-col gap-1 md:col-span-1">
-            <span>Predispositions</span>
+            <span>{t("Predispositions")}</span>
             <input
               className="rounded-md border px-3 py-2"
               placeholder="Type to add (Enter)…"
@@ -827,7 +827,7 @@ export default function MedicalProfile() {
             </div>
           </label>
           <label className="flex flex-col gap-1 md:col-span-1">
-            <span>Chronic conditions</span>
+            <span>{t("Chronic conditions")}</span>
             <input
               className="rounded-md border px-3 py-2"
               placeholder="Type to add (Enter)…"
@@ -1506,24 +1506,24 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
         actionAriaLabel={t("Edit personal details")}
         primary
       >
-        <KV label="NAME" value={safeName} />
-        <KV label="SEX" value={safeSex} />
+        <KV label={t("Name")} value={safeName} />
+        <KV label={t("Sex")} value={safeSex} />
         <KV
-          label="DOB"
+          label={t("DOB")}
           value={
             <span>
               {fmtDOB(personal.dob)}
               <span className="mx-1">•</span>
-              Age: {safeAge}
+              {t("Age")}: {safeAge}
             </span>
           }
         />
-        <KV label="BLOOD GROUP" value={safeBloodGroup} />
-        <KV label="HEIGHT (cm)" value={safeHeight} />
-        <KV label="WEIGHT (kg)" value={safeWeight} />
+        <KV label={t("Blood group")} value={safeBloodGroup} />
+        <KV label={t("Height (cm)")} value={safeHeight} />
+        <KV label={t("Weight (kg)")} value={safeWeight} />
         <Divider />
-        <KV label="PREDISPOSITIONS" value={safePredispositions} />
-        <KV label="CHRONIC CONDITIONS" value={safeChronic} />
+        <KV label={t("Predispositions")} value={safePredispositions} />
+        <KV label={t("Chronic conditions")} value={safeChronic} />
       </Section>
 
       <Section
@@ -1533,9 +1533,9 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
         actionAriaLabel={t("Edit vitals")}
         primary
       >
-        <Row label="BLOOD PRESSURE" value={<span className="text-slate-400">{safeBp}</span>} />
-        <Row label="HEART RATE" value={<span className="font-semibold">{safeHeartRate}</span>} />
-        <Row label="BMI" value={<span className="font-semibold">{safeBmi}</span>} />
+        <Row label={t("BLOOD PRESSURE")} value={<span className="text-slate-400">{safeBp}</span>} />
+        <Row label={t("HEART RATE")} value={<span className="font-semibold">{safeHeartRate}</span>} />
+        <Row label={t("BMI")} value={<span className="font-semibold">{safeBmi}</span>} />
       </Section>
 
       <Section title={t("AI Summary")}>
@@ -1554,7 +1554,7 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
           {onDiscussAI ? (
             <Button
               variant="outline"
-              aria-label="Discuss AI summary in chat"
+              aria-label={t("Discuss in chat")}
               onClick={onDiscussAI}
             >
               {t("Discuss in chat")}
@@ -1563,7 +1563,7 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
           {onRecomputeRisk ? (
             <Button
               primary
-              aria-label="Recompute risk"
+              aria-label={t("Recompute risk")}
               onClick={onRecomputeRisk}
             >
               {t("Recompute risk")}

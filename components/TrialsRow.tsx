@@ -2,6 +2,8 @@
 
 import * as React from "react";
 
+import { useT } from "@/components/hooks/useI18n";
+
 function useIsDoctor() {
   if (typeof window === "undefined") return false;
   return new URLSearchParams(window.location.search).get("mode") === "doctor";
@@ -84,6 +86,7 @@ export function TrialsMobileCard({
   onCopy,
   onSummarize,
 }: TrialsMobileCardProps) {
+  const t = useT();
   return (
     <div
       className="
@@ -96,12 +99,12 @@ export function TrialsMobileCard({
       <p className="meta mt-1 text-[12.5px] opacity-80">{statusLine}</p>
       <p className="meta text-[11px] opacity-70">{registryLine}</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
-        <span className="chip chip-sm">Recruiting: {recruitingLabel}</span>
+        <span className="chip chip-sm">{t("Recruiting")}: {recruitingLabel}</span>
         <button type="button" className="btn chip-sm" onClick={onCopy}>
-          Copy
+          {t("Copy")}
         </button>
         <button type="button" className="btn chip-sm" onClick={onSummarize}>
-          Summarize
+          {t("Summarize")}
         </button>
       </div>
     </div>

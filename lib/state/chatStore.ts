@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { nanoid } from "nanoid";
 
+import { normalizeThreadTitle } from "@/lib/chatThreads";
+
 type Msg = { id: string; role: "user"|"assistant"|"system"; content: string; ts: number };
 type Thread = { id: string; title: string; createdAt: number; updatedAt: number; messages: Msg[]; isTemp?: boolean };
 
@@ -20,15 +22,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
   startNewThread: () => {
     const id = `temp_${nanoid(8)}`;
     const now = Date.now();
-    const t: Thread = { id, title: "New chat", createdAt: now, updatedAt: now, messages: [], isTemp: true };
+    const t: Thread = { id, title: "", createdAt: now, updatedAt: now, messages: [], isTemp: true };
     set(s => ({ currentId: id, threads: { ...s.threads, [id]: t } }));
     return id;
   },
 
   upsertThread: (t) => {
     set(s => {
-      const prev = s.threads[t.id] ?? { id: t.id, title: "New chat", createdAt: Date.now(), updatedAt: Date.now(), messages: [] };
-      const merged = { ...prev, ...t, updatedAt: Date.now() };
+      const prev =
+        s.threads[t.id] ?? {
+          id: t.id,
+          title: "",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          messages: [],
+        };
+      const merged = {
+        ...prev,
+        ...t,
+        title: normalizeThreadTitle(t.title ?? prev.title),
+        updatedAt: Date.now(),
+      };
       return { ...s, threads: { ...s.threads, [t.id]: merged } };
     });
   },
