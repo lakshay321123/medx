@@ -57,9 +57,7 @@ function mapUiTypeToGoogle(uiType: string) {
   }
 }
 
-function normDetailsHours(opening: any): Record<string, string> | undefined {
-  // Google returns weekday_text like ["Monday: 9 AM–9 PM", "Tuesday: 9 AM–9 PM"]
-  const rows: string[] | undefined = opening?.weekday_text;
+function normalizeHoursRows(rows: string[] | undefined): Record<string, string> | undefined {
   if (!rows || !Array.isArray(rows)) return undefined;
   const out: Record<string, string> = {};
   rows.forEach((r: string) => {
@@ -70,6 +68,17 @@ function normDetailsHours(opening: any): Record<string, string> | undefined {
     }
   });
   return Object.keys(out).length ? out : undefined;
+}
+
+function normDetailsHours(opening: any): Record<string, string> | undefined {
+  // Google returns weekday_text like ["Monday: 9 AM–9 PM", "Tuesday: 9 AM–9 PM"]
+  const rows: string[] | undefined = opening?.weekday_text;
+  return normalizeHoursRows(rows);
+}
+
+function normDetailsHoursV1(opening: any): Record<string, string> | undefined {
+  const rows: string[] | undefined = opening?.weekdayDescriptions;
+  return normalizeHoursRows(rows);
 }
 
 async function googleNearby({
@@ -98,6 +107,7 @@ async function googleNearby({
   if (kw) url.searchParams.set("keyword", kw);
   url.searchParams.set("key", key);
   url.searchParams.set("language", lang);
+  console.debug("GOOGLE params", { languageOrHeader: lang });
 
   const resp = await fetch(url.toString(), { cache: "no-store" });
   if (!resp.ok) throw new Error("google nearby failed");
@@ -124,60 +134,95 @@ function humanizeGoogleType(type?: string | null) {
     .join(" ");
 }
 
-async function googleDetailsBatch(placeIds: string[], key: string, lang: string) {
-  // Enrich top N results for phone and opening hours.
-  // We limit N to 12 to keep latency and quota sane.
-  const N = Math.min(placeIds.length, 12);
-  const out = new Map<
-    string,
-    {
-      phone?: string;
-      hours?: Record<string, string>;
-      formattedAddress?: string;
-      displayNameText?: string;
-      primaryTypeDisplayNameText?: string;
-    }
-  >();
+type GoogleDetails = {
+  phone?: string;
+  hours?: Record<string, string>;
+  formattedAddress?: string;
+  displayNameText?: string;
+  primaryTypeDisplayNameText?: string;
+};
 
+async function googlePlaceDetailsV1(placeId: string, key: string, lang: string): Promise<GoogleDetails> {
+  const fields = [
+    "displayName",
+    "primaryTypeDisplayName",
+    "formattedAddress",
+    "internationalPhoneNumber",
+    "regularOpeningHours",
+  ].join(",");
+  const endpoint = `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?fields=${encodeURIComponent(fields)}`;
+  console.debug("GOOGLE params", { languageOrHeader: lang });
+  const res = await fetch(endpoint, {
+    headers: {
+      "X-Goog-Api-Key": key,
+      "Accept-Language": lang,
+      "X-Goog-FieldMask": fields,
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error("google v1 details failed");
+  }
+  const j = await res.json();
+  return {
+    phone: j?.internationalPhoneNumber ?? undefined,
+    hours: normDetailsHoursV1(j?.regularOpeningHours),
+    formattedAddress: j?.formattedAddress ?? undefined,
+    displayNameText: j?.displayName?.text ?? undefined,
+    primaryTypeDisplayNameText: j?.primaryTypeDisplayName?.text ?? undefined,
+  };
+}
+
+async function googleLegacyDetails(placeId: string, key: string, lang: string): Promise<GoogleDetails> {
   const fields = [
     "formatted_phone_number",
     "international_phone_number",
     "opening_hours",
     "formatted_address",
     "name",
-    "displayName",
-    "primaryTypeDisplayName",
     "types",
   ].join(",");
+  const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
+  url.searchParams.set("place_id", placeId);
+  url.searchParams.set("fields", fields);
+  url.searchParams.set("key", key);
+  url.searchParams.set("language", lang);
+  const r = await fetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) {
+    throw new Error("google legacy details failed");
+  }
+  const j = await r.json();
+  const d = j?.result;
+  const phone = d?.international_phone_number || d?.formatted_phone_number;
+  const formattedAddress = d?.formatted_address ?? d?.vicinity ?? undefined;
+  const rawTypes = Array.isArray(d?.types) ? d.types : [];
+  return {
+    phone: phone ?? undefined,
+    hours: normDetailsHours(d?.opening_hours),
+    formattedAddress,
+    displayNameText: d?.name ?? undefined,
+    primaryTypeDisplayNameText: humanizeGoogleType(rawTypes[0]) ?? undefined,
+  };
+}
+
+async function googleDetailsBatch(placeIds: string[], key: string, lang: string) {
+  // Enrich top N results for phone and opening hours.
+  // We limit N to 12 to keep latency and quota sane.
+  const N = Math.min(placeIds.length, 12);
+  const out = new Map<string, GoogleDetails>();
+
   for (let i = 0; i < N; i++) {
     const id = placeIds[i];
-    const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
-    url.searchParams.set("place_id", id);
-    url.searchParams.set("fields", fields);
-    url.searchParams.set("key", key);
-    url.searchParams.set("language", lang);
     try {
-      const r = await fetch(url.toString(), { cache: "no-store" });
-      const j = await r.json();
-      const d = j?.result;
-      const phone = d?.international_phone_number || d?.formatted_phone_number;
-      const rawTypes = Array.isArray(d?.types) ? d?.types : [];
-      const primaryTypeDisplayNameText =
-        d?.primaryTypeDisplayName?.text ??
-        d?.primary_type_display_name ??
-        humanizeGoogleType(rawTypes[0]);
-      const formattedAddress =
-        d?.formattedAddress ?? d?.formatted_address ?? d?.vicinity ?? undefined;
-      const displayNameText = d?.displayName?.text ?? d?.name ?? undefined;
-      out.set(id, {
-        phone,
-        hours: normDetailsHours(d?.opening_hours),
-        formattedAddress,
-        displayNameText,
-        primaryTypeDisplayNameText,
-      });
-    } catch {
-      // ignore errors for individual details calls
+      const v1 = await googlePlaceDetailsV1(id, key, lang);
+      out.set(id, v1);
+    } catch (v1Error) {
+      try {
+        const legacy = await googleLegacyDetails(id, key, lang);
+        out.set(id, legacy);
+      } catch {
+        // ignore errors for individual details calls
+      }
     }
   }
   return out;
@@ -312,6 +357,7 @@ async function osmFallback(
       out tags center 200;`;
   }
   const body = buildOverpassQL(kindFilters(uiType));
+  console.debug("OSM header", { acceptLanguage: lang });
   const r = await fetch("https://overpass-api.de/api/interpreter", {
     method: "POST",
     headers: {
@@ -330,10 +376,15 @@ async function osmFallback(
   const langCandidates = Array.from(new Set([langLower, langBase].filter(Boolean)));
   const res: Place[] = (j.elements || []).map((el: any) => {
     const center = el.center || { lat: el.lat, lon: el.lon };
+    const namedetails = el?.namedetails ?? {};
     const localizedName = langCandidates
-      .map(code => el?.tags?.[`name:${code}`])
+      .map(code => namedetails?.[`name:${code}`] ?? el?.tags?.[`name:${code}`])
       .find(Boolean);
-    const fallbackName = el?.tags?.name || el?.tags?.["addr:housename"] || el?.tags?.["brand"];
+    const fallbackName =
+      namedetails?.name ||
+      el?.tags?.name ||
+      el?.tags?.["addr:housename"] ||
+      el?.tags?.["brand"];
     const providerName = localizedName || el?.localname || fallbackName || "Unnamed";
     const name = shouldLocalizeQualifiers ? localizeQualifiers(providerName, appLang) : providerName;
     const localizedStreet = langCandidates
@@ -354,7 +405,11 @@ async function osmFallback(
       localizedNeighbourhood || el?.tags?.["addr:neighbourhood"],
       localizedCity || el?.tags?.["addr:city"],
     ];
-    const addr = (localizedFull || addrParts.filter(Boolean).join(", ")) || el?.tags?.["addr:full"];
+    const addr =
+      localizedFull ||
+      namedetails?.[`addr:full:${langLower}`] ||
+      addrParts.filter(Boolean).join(", ") ||
+      el?.tags?.["addr:full"];
     const p: Place = {
       id: String(el.id),
       name,
@@ -392,7 +447,20 @@ export async function GET(req: Request) {
     searchParams.get("radius") ?? "",
     lang,
   ].join("|");
-  void cacheKey;
+  console.debug("DIR api", { appLang, mapped: lang });
+
+  const globalAny = globalThis as typeof globalThis & {
+    __dirCache?: Map<string, { data: Place[]; updatedAt: string; provider: "google" | "osm" }>;
+  };
+  if (!globalAny.__dirCache) {
+    globalAny.__dirCache = new Map();
+  }
+  const cache = globalAny.__dirCache;
+
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    return NextResponse.json(cached);
+  }
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return NextResponse.json({ error: "lat and lng required" }, { status: 400 });
@@ -456,9 +524,13 @@ export async function GET(req: Request) {
     places = filtered.slice(0, 120);
   }
 
-  return NextResponse.json({
+  const payload = {
     data: places,
     updatedAt: new Date().toISOString(),
     provider: usedGoogle ? "google" : "osm",
-  });
+  } as const;
+
+  cache.set(cacheKey, payload);
+
+  return NextResponse.json(payload);
 }
