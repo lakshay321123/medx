@@ -9,9 +9,9 @@ import { useDirectory } from "@/hooks/useDirectory";
 type DirectoryType = ReturnType<typeof useDirectory>["state"]["type"];
 
 export default function DirectoryPane() {
-  const { state, actions } = useDirectory();
-  const { locLabel, type, q, openNow, minRating, maxKm, data, loading, updatedAt } = state;
   const { lang } = usePrefs();
+  const { state, actions } = useDirectory({ lang });
+  const { locLabel, type, q, openNow, minRating, maxKm, data, loading, updatedAt } = state;
   const t = useT();
 
   const dateFormatter = useMemo(

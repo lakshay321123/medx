@@ -17,7 +17,8 @@ export type Place = {
   last_checked?: string;
 };
 
-export function useDirectory() {
+export function useDirectory({ lang: inputLang }: { lang?: string } = {}) {
+  const lang = inputLang && inputLang.length > 0 ? inputLang : "en";
   const [lat, setLat] = useState<number | null>(28.567);
   const [lng, setLng] = useState<number | null>(77.209);
   const [locLabel, setLocLabel] = useState("South Delhi");
@@ -40,6 +41,7 @@ export function useDirectory() {
       url.searchParams.set("lng", String(lng));
       url.searchParams.set("radius", String(radius));
       url.searchParams.set("type", type);
+      url.searchParams.set("lang", lang);
       if (q) url.searchParams.set("q", q);
       if (openNow) url.searchParams.set("open_now", "1");
       if (minRating) url.searchParams.set("min_rating", String(minRating));
@@ -59,7 +61,7 @@ export function useDirectory() {
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lat, lng, radius, type, q, openNow, minRating, maxKm]);
+  }, [lat, lng, radius, type, q, openNow, minRating, maxKm, lang]);
 
   function setAddress(option: { label: string; lat: number; lng: number }) {
     setLocLabel(option.label);

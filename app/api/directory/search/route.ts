@@ -76,6 +76,7 @@ async function googleNearby({
   uiType,
   q,
   key,
+  lang,
 }: {
   lat: number;
   lng: number;
@@ -83,6 +84,7 @@ async function googleNearby({
   uiType: string;
   q: string;
   key: string;
+  lang: string;
 }) {
   const { gType, keyword } = mapUiTypeToGoogle(uiType);
   const url = new URL("https://maps.googleapis.com/maps/api/place/nearbysearch/json");
@@ -92,6 +94,7 @@ async function googleNearby({
   const kw = [keyword, q].filter(Boolean).join(" ");
   if (kw) url.searchParams.set("keyword", kw);
   url.searchParams.set("key", key);
+  url.searchParams.set("language", lang);
 
   const resp = await fetch(url.toString(), { cache: "no-store" });
   if (!resp.ok) throw new Error("google nearby failed");
@@ -99,11 +102,14 @@ async function googleNearby({
   return j?.results ?? [];
 }
 
-async function googleDetailsBatch(placeIds: string[], key: string) {
+async function googleDetailsBatch(placeIds: string[], key: string, lang: string) {
   // Enrich top N results for phone and opening hours.
   // We limit N to 12 to keep latency and quota sane.
   const N = Math.min(placeIds.length, 12);
-  const out = new Map<string, { phone?: string; hours?: Record<string, string> }>();
+  const out = new Map<
+    string,
+    { phone?: string; hours?: Record<string, string>; formattedAddress?: string }
+  >();
 
   const fields =
     "formatted_phone_number,international_phone_number,opening_hours,formatted_address";
@@ -113,6 +119,7 @@ async function googleDetailsBatch(placeIds: string[], key: string) {
     url.searchParams.set("place_id", id);
     url.searchParams.set("fields", fields);
     url.searchParams.set("key", key);
+    url.searchParams.set("language", lang);
     try {
       const r = await fetch(url.toString(), { cache: "no-store" });
       const j = await r.json();
@@ -121,6 +128,7 @@ async function googleDetailsBatch(placeIds: string[], key: string) {
       out.set(id, {
         phone,
         hours: normDetailsHours(d?.opening_hours),
+        formattedAddress: d?.formatted_address,
       });
     } catch {
       // ignore errors for individual details calls
@@ -183,7 +191,13 @@ function uniqueByNameAddr(list: Place[]) {
 }
 
 // OSM fallback if Google unavailable or empty
-async function osmFallback(lat: number, lng: number, radius: number, uiType: string) {
+async function osmFallback(
+  lat: number,
+  lng: number,
+  radius: number,
+  uiType: string,
+  lang: string,
+) {
   function kindFilters(type: string) {
     switch (type) {
       case "pharmacy":
@@ -227,6 +241,7 @@ async function osmFallback(lat: number, lng: number, radius: number, uiType: str
     headers: {
       "Content-Type": "text/plain;charset=UTF-8",
       "User-Agent": "SecondOpinion/1.0 (directory search) support@secondopinion.local",
+      "Accept-Language": lang,
     },
     body,
   });
@@ -234,11 +249,23 @@ async function osmFallback(lat: number, lng: number, radius: number, uiType: str
   const j = await r.json();
   const origin = { lat, lng };
   const now = new Date().toISOString();
+  const langBase = lang.split("-")[0] || lang;
+  const langCode = langBase ? langBase.toLowerCase() : "";
   const res: Place[] = (j.elements || []).map((el: any) => {
     const center = el.center || { lat: el.lat, lon: el.lon };
-    const name = el?.tags?.name || el?.tags?.["addr:housename"] || "Unnamed";
-    const addr = [el?.tags?.["addr:housenumber"], el?.tags?.["addr:street"], el?.tags?.["addr:neighbourhood"], el?.tags?.["addr:city"]]
-      .filter(Boolean).join(", ");
+    const localizedName = langCode ? el?.tags?.[`name:${langCode}`] : undefined;
+    const name = localizedName || el?.tags?.name || el?.tags?.["addr:housename"] || "Unnamed";
+    const localizedStreet = langCode ? el?.tags?.[`addr:street:${langCode}`] : undefined;
+    const localizedNeighbourhood = langCode ? el?.tags?.[`addr:neighbourhood:${langCode}`] : undefined;
+    const localizedCity = langCode ? el?.tags?.[`addr:city:${langCode}`] : undefined;
+    const localizedFull = langCode ? el?.tags?.[`addr:full:${langCode}`] : undefined;
+    const addrParts = [
+      el?.tags?.["addr:housenumber"],
+      localizedStreet || el?.tags?.["addr:street"],
+      localizedNeighbourhood || el?.tags?.["addr:neighbourhood"],
+      localizedCity || el?.tags?.["addr:city"],
+    ];
+    const addr = (localizedFull || addrParts.filter(Boolean).join(", ")) || el?.tags?.["addr:full"];
     const p: Place = {
       id: String(el.id),
       name,
@@ -266,6 +293,7 @@ export async function GET(req: Request) {
   const maxKm = parseFloat(searchParams.get("max_km") || "");
   const minRating = parseFloat(searchParams.get("min_rating") || "");
   const openNow = searchParams.get("open_now") === "1";
+  const lang = (searchParams.get("lang") || "en").trim() || "en";
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return NextResponse.json({ error: "lat and lng required" }, { status: 400 });
@@ -279,7 +307,7 @@ export async function GET(req: Request) {
 
   if (key) {
     try {
-      const results = await googleNearby({ lat, lng, radius, uiType, q, key });
+      const results = await googleNearby({ lat, lng, radius, uiType, q, key, lang });
       let normalized = normalizeGoogleResults(results, origin, uiType);
 
       // optional post filter by rating
@@ -295,11 +323,12 @@ export async function GET(req: Request) {
 
       // enrich top items with phone and hours
       const ids = normalized.map(p => p.id);
-      const details = await googleDetailsBatch(ids, key);
+      const details = await googleDetailsBatch(ids, key, lang);
       for (const p of normalized) {
         const d = details.get(p.id);
         if (d?.phone) p.phones = [d.phone];
         if (d?.hours) p.hours = d.hours;
+        if (d?.formattedAddress) p.address_short = d.formattedAddress;
       }
 
       normalized.sort((a, b) => (a.distance_m ?? 1e9) - (b.distance_m ?? 1e9));
@@ -311,7 +340,7 @@ export async function GET(req: Request) {
   }
 
   if (!usedGoogle) {
-    const osm = await osmFallback(lat, lng, radius, uiType);
+    const osm = await osmFallback(lat, lng, radius, uiType, lang);
     let filtered = osm;
     if (Number.isFinite(maxKm)) filtered = filtered.filter(p => (p.distance_m ?? 1e9) <= maxKm * 1000);
     filtered.sort((a, b) => (a.distance_m ?? 1e9) - (b.distance_m ?? 1e9));
