@@ -110,6 +110,19 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     Research: "Research",
     Clinical: "Clinical",
     "AI Doc": "AI Doc",
+    "Wellness Mode: ON": "Wellness Mode: ON",
+    "Clinical Mode: ON": "Clinical Mode: ON",
+    "AI Doc: ON": "AI Doc: ON",
+    "Therapy Mode: ON": "Therapy Mode: ON",
+    "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.":
+      "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.",
+    "Evidence-ready, clinician-first.": "Evidence-ready, clinician-first.",
+    "Your records, organized. Upload, store, and retrieve securely.":
+      "Your records, organized. Upload, store, and retrieve securely.",
+    "Therapy guidance, made clear. Tools and support; not for emergencies.":
+      "Therapy guidance, made clear. Tools and support; not for emergencies.",
+    "Research: On — web evidence": "Research: On — web evidence",
+    "Research: Off — enable web evidence": "Research: Off — enable web evidence",
     "Type a message": "Type a message",
     "Send a message": "Send a message",
     Send: "Send",
@@ -293,6 +306,19 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     Research: "रिसर्च",
     Clinical: "क्लिनिकल",
     "AI Doc": "एआई डॉक",
+    "Wellness Mode: ON": "वेलनेस मोड: चालू",
+    "Clinical Mode: ON": "क्लिनिकल मोड: चालू",
+    "AI Doc: ON": "एआई डॉक: चालू",
+    "Therapy Mode: ON": "थेरेपी मोड: चालू",
+    "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.":
+      "आपका स्वास्थ्य, सरल बनाया गया। रिपोर्ट, सुझाव, दवा, आहार और फिटनेस—सब कुछ स्पष्ट भाषा में समझाया गया है।",
+    "Evidence-ready, clinician-first.": "साक्ष्य तैयार, पहले चिकित्सकों के लिए।",
+    "Your records, organized. Upload, store, and retrieve securely.":
+      "आपके रिकॉर्ड, व्यवस्थित। सुरक्षित रूप से अपलोड करें, सहेजें और प्राप्त करें।",
+    "Therapy guidance, made clear. Tools and support; not for emergencies.":
+      "थेरेपी मार्गदर्शन, साफ़-सुथरा। उपकरण और समर्थन; आपात स्थितियों के लिए नहीं।",
+    "Research: On — web evidence": "रिसर्च: चालू — वेब साक्ष्य",
+    "Research: Off — enable web evidence": "रिसर्च: बंद — वेब साक्ष्य सक्षम करें",
     "Type a message": "संदेश लिखें",
     "Send a message": "संदेश भेजें",
     Send: "भेजें",
@@ -476,6 +502,19 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     Research: "البحث",
     Clinical: "سريري",
     "AI Doc": "مستند ذكي",
+    "Wellness Mode: ON": "وضع العافية: مُفعل",
+    "Clinical Mode: ON": "الوضع السريري: مُفعل",
+    "AI Doc: ON": "طبيب الذكاء الاصطناعي: مُفعل",
+    "Therapy Mode: ON": "وضع العلاج: مُفعل",
+    "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.":
+      "صحتك ببساطة. تقارير ونصائح وأدوية وحميات ولياقة — موضحة بلغة واضحة.",
+    "Evidence-ready, clinician-first.": "جاهز بالأدلة، موجه أولًا للأطباء.",
+    "Your records, organized. Upload, store, and retrieve securely.":
+      "سجلاتك منظمة. ارفعها وخزنها واسترجعها بأمان.",
+    "Therapy guidance, made clear. Tools and support; not for emergencies.":
+      "إرشاد علاجي واضح. أدوات ودعم؛ غير مخصص للطوارئ.",
+    "Research: On — web evidence": "البحث: مُفعل — أدلة من الويب",
+    "Research: Off — enable web evidence": "البحث: متوقف — فعّل أدلة الويب",
     "Type a message": "اكتب رسالة",
     Send: "إرسال",
     "Start a new conversation": "ابدأ محادثة جديدة",
@@ -658,6 +697,19 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     Research: "Ricerca",
     Clinical: "Clinico",
     "AI Doc": "AI Doc",
+    "Wellness Mode: ON": "Modalità Benessere: ATTIVA",
+    "Clinical Mode: ON": "Modalità Clinica: ATTIVA",
+    "AI Doc: ON": "AI Doc: ATTIVO",
+    "Therapy Mode: ON": "Modalità Terapia: ATTIVA",
+    "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.":
+      "La tua salute, resa semplice. Referti, consigli, farmaci, diete e fitness — spiegati con parole chiare.",
+    "Evidence-ready, clinician-first.": "Pronto all’evidenza, pensato prima per i clinici.",
+    "Your records, organized. Upload, store, and retrieve securely.":
+      "I tuoi referti, organizzati. Carica, archivia e recupera in modo sicuro.",
+    "Therapy guidance, made clear. Tools and support; not for emergencies.":
+      "Supporto terapeutico reso chiaro. Strumenti e sostegno; non per le emergenze.",
+    "Research: On — web evidence": "Ricerca: Attiva — evidenze dal web",
+    "Research: Off — enable web evidence": "Ricerca: Disattiva — abilita le evidenze dal web",
     "Type a message": "Scrivi un messaggio",
     Send: "Invia",
     "Start a new conversation": "Inizia una nuova conversazione",
@@ -840,6 +892,19 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     Research: "研究",
     Clinical: "临床",
     "AI Doc": "智能文档",
+    "Wellness Mode: ON": "健康模式：已开启",
+    "Clinical Mode: ON": "临床模式：已开启",
+    "AI Doc: ON": "AI Doc：已开启",
+    "Therapy Mode: ON": "治疗模式：已开启",
+    "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.":
+      "让健康更简单。报告、建议、用药、饮食与健身——用清晰语言讲解。",
+    "Evidence-ready, clinician-first.": "证据就绪，优先服务临床。",
+    "Your records, organized. Upload, store, and retrieve securely.":
+      "您的病历井然有序。安全上传、存储与调取。",
+    "Therapy guidance, made clear. Tools and support; not for emergencies.":
+      "治疗指导，简单明了。提供工具与支持；非紧急用途。",
+    "Research: On — web evidence": "研究：已开启 — 网络证据",
+    "Research: Off — enable web evidence": "研究：已关闭 — 启用网络证据",
     "Type a message": "输入消息",
     Send: "发送",
     "Start a new conversation": "开始新会话",
@@ -1022,6 +1087,19 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     Research: "Investigación",
     Clinical: "Clínico",
     "AI Doc": "Doc IA",
+    "Wellness Mode: ON": "Modo bienestar: ACTIVADO",
+    "Clinical Mode: ON": "Modo clínico: ACTIVADO",
+    "AI Doc: ON": "AI Doc: ACTIVADO",
+    "Therapy Mode: ON": "Modo terapia: ACTIVADO",
+    "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.":
+      "Tu salud, simplificada. Informes, consejos, medicación, dietas y ejercicio, explicados con un lenguaje claro.",
+    "Evidence-ready, clinician-first.": "Listo con evidencia, diseñado primero para clínicos.",
+    "Your records, organized. Upload, store, and retrieve securely.":
+      "Tus registros, organizados. Sube, guarda y recupera de forma segura.",
+    "Therapy guidance, made clear. Tools and support; not for emergencies.":
+      "Guía terapéutica clara. Herramientas y apoyo; no apto para emergencias.",
+    "Research: On — web evidence": "Investigación: Activada — evidencia web",
+    "Research: Off — enable web evidence": "Investigación: Desactivada — habilita evidencia web",
     "Type a message": "Escribe un mensaje",
     "Send a message": "Enviar un mensaje",
     Send: "Enviar",
