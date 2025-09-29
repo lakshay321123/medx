@@ -3,6 +3,293 @@ import { providerLang } from "@/lib/i18n/providerLang";
 
 // meters per degree latitude (simple distance estimate)
 const M_PER_DEG = 111_320;
+const NAME_CACHE_TTL_SECONDS = 86_400;
+const NAME_CACHE_TTL_MS = NAME_CACHE_TTL_SECONDS * 1000;
+
+type SupportedLang = "en" | "hi" | "ar" | "it" | "zh" | "es";
+type TermNumber = "singular" | "plural";
+
+type TermVariant = {
+  label: string;
+  number: TermNumber;
+};
+
+type TermTranslations = Partial<
+  Record<SupportedLang, { singular: string; plural?: string }>
+>;
+
+type GenericTerm = {
+  key: string;
+  variants: TermVariant[];
+  translations: TermTranslations;
+};
+
+const GENERIC_TERMS: GenericTerm[] = [
+  {
+    key: "hospital",
+    variants: [
+      { label: "hospital", number: "singular" },
+      { label: "hosp", number: "singular" },
+      { label: "hospitals", number: "plural" },
+    ],
+    translations: {
+      hi: { singular: "अस्पताल", plural: "अस्पताल" },
+      ar: { singular: "مستشفى", plural: "مستشفيات" },
+      it: { singular: "Ospedale", plural: "Ospedali" },
+      zh: { singular: "医院" },
+      es: { singular: "Hospital", plural: "Hospitales" },
+    },
+  },
+  {
+    key: "clinic",
+    variants: [
+      { label: "clinic", number: "singular" },
+      { label: "polyclinic", number: "singular" },
+      { label: "clinics", number: "plural" },
+      { label: "polyclinics", number: "plural" },
+    ],
+    translations: {
+      hi: { singular: "क्लिनिक", plural: "क्लिनिक" },
+      ar: { singular: "عيادة", plural: "عيادات" },
+      it: { singular: "Clinica", plural: "Cliniche" },
+      zh: { singular: "诊所" },
+      es: { singular: "Clínica", plural: "Clínicas" },
+    },
+  },
+  {
+    key: "pharmacy",
+    variants: [
+      { label: "pharmacy", number: "singular" },
+      { label: "chemist", number: "singular" },
+      { label: "pharmacies", number: "plural" },
+      { label: "chemists", number: "plural" },
+      { label: "drugstore", number: "singular" },
+      { label: "drugstores", number: "plural" },
+      { label: "medical store", number: "singular" },
+      { label: "medical stores", number: "plural" },
+    ],
+    translations: {
+      hi: { singular: "फार्मेसी", plural: "फार्मेसी" },
+      ar: { singular: "صيدلية", plural: "صيدليات" },
+      it: { singular: "Farmacia", plural: "Farmacie" },
+      zh: { singular: "药店" },
+      es: { singular: "Farmacia", plural: "Farmacias" },
+    },
+  },
+  {
+    key: "diagnostic",
+    variants: [
+      { label: "diagnostic", number: "singular" },
+      { label: "diagnostics", number: "plural" },
+      { label: "diagnostic center", number: "singular" },
+      { label: "diagnostic centre", number: "singular" },
+      { label: "diagnostics center", number: "plural" },
+      { label: "diagnostics centre", number: "plural" },
+    ],
+    translations: {
+      hi: { singular: "डायग्नोस्टिक", plural: "डायग्नोस्टिक" },
+      ar: { singular: "تشخيص", plural: "تشخيصات" },
+      it: { singular: "Diagnostica" },
+      zh: { singular: "诊断" },
+      es: { singular: "Diagnóstico", plural: "Diagnósticos" },
+    },
+  },
+  {
+    key: "lab",
+    variants: [
+      { label: "lab", number: "singular" },
+      { label: "labs", number: "plural" },
+      { label: "laboratory", number: "singular" },
+      { label: "laboratories", number: "plural" },
+    ],
+    translations: {
+      hi: { singular: "लैब", plural: "लैब्स" },
+      ar: { singular: "مختبر", plural: "مختبرات" },
+      it: { singular: "Laboratorio", plural: "Laboratori" },
+      zh: { singular: "实验室" },
+      es: { singular: "Laboratorio", plural: "Laboratorios" },
+    },
+  },
+  {
+    key: "eye",
+    variants: [
+      { label: "eye", number: "singular" },
+      { label: "eyecare", number: "singular" },
+      { label: "eye care", number: "singular" },
+      { label: "ophthalmology", number: "singular" },
+    ],
+    translations: {
+      hi: { singular: "नेत्र" },
+      ar: { singular: "عيون" },
+      it: { singular: "Oculistica" },
+      zh: { singular: "眼科" },
+      es: { singular: "Oftalmología" },
+    },
+  },
+  {
+    key: "dental",
+    variants: [
+      { label: "dental", number: "singular" },
+      { label: "dentist", number: "singular" },
+      { label: "dentistry", number: "singular" },
+      { label: "dentists", number: "plural" },
+    ],
+    translations: {
+      hi: { singular: "डेंटल" },
+      ar: { singular: "أسنان" },
+      it: { singular: "Dentale" },
+      zh: { singular: "牙科" },
+      es: { singular: "Odontología" },
+    },
+  },
+  {
+    key: "cardiac",
+    variants: [
+      { label: "cardiac", number: "singular" },
+      { label: "cardio", number: "singular" },
+      { label: "heart", number: "singular" },
+    ],
+    translations: {
+      hi: { singular: "कार्डियक" },
+      ar: { singular: "قلبي" },
+      it: { singular: "Cardiologia" },
+      zh: { singular: "心脏科" },
+      es: { singular: "Cardiología" },
+    },
+  },
+  {
+    key: "gynecology",
+    variants: [
+      { label: "gynecology", number: "singular" },
+      { label: "gynaecology", number: "singular" },
+      { label: "obstetrics", number: "plural" },
+      { label: "obgyn", number: "singular" },
+    ],
+    translations: {
+      hi: { singular: "गाइनकोलॉजी" },
+      ar: { singular: "نسائية" },
+      it: { singular: "Ginecologia" },
+      zh: { singular: "妇科" },
+      es: { singular: "Ginecología" },
+    },
+  },
+  {
+    key: "orthopedic",
+    variants: [
+      { label: "orthopedic", number: "singular" },
+      { label: "orthopaedic", number: "singular" },
+      { label: "ortho", number: "singular" },
+    ],
+    translations: {
+      hi: { singular: "ऑर्थोपेडिक" },
+      ar: { singular: "عظام" },
+      it: { singular: "Ortopedia" },
+      zh: { singular: "骨科" },
+      es: { singular: "Ortopedia" },
+    },
+  },
+  {
+    key: "pediatric",
+    variants: [
+      { label: "pediatric", number: "singular" },
+      { label: "paediatric", number: "singular" },
+      { label: "children", number: "plural" },
+      { label: "child care", number: "singular" },
+    ],
+    translations: {
+      hi: { singular: "पीडियाट्रिक" },
+      ar: { singular: "أطفال" },
+      it: { singular: "Pediatria" },
+      zh: { singular: "儿科" },
+      es: { singular: "Pediatría" },
+    },
+  },
+  {
+    key: "dermatology",
+    variants: [
+      { label: "dermatology", number: "singular" },
+      { label: "dermat", number: "singular" },
+      { label: "skin", number: "singular" },
+      { label: "cosmetology", number: "singular" },
+    ],
+    translations: {
+      hi: { singular: "डर्मेटोलॉजी" },
+      ar: { singular: "جلدية" },
+      it: { singular: "Dermatologia" },
+      zh: { singular: "皮肤科" },
+      es: { singular: "Dermatología" },
+    },
+  },
+  {
+    key: "ent",
+    variants: [
+      { label: "ent", number: "singular" },
+      { label: "ear nose throat", number: "singular" },
+      { label: "ear nose & throat", number: "singular" },
+    ],
+    translations: {
+      hi: { singular: "ईएनटी" },
+      ar: { singular: "أنف وأذن وحنجرة" },
+      it: { singular: "Otorinolaringoiatria" },
+      zh: { singular: "耳鼻喉科" },
+      es: { singular: "Otorrinolaringología" },
+    },
+  },
+  {
+    key: "physiotherapy",
+    variants: [
+      { label: "physiotherapy", number: "singular" },
+      { label: "physio", number: "singular" },
+      { label: "physical therapy", number: "singular" },
+      { label: "rehab", number: "singular" },
+    ],
+    translations: {
+      hi: { singular: "फिजियोथेरेपी" },
+      ar: { singular: "علاج طبيعي" },
+      it: { singular: "Fisioterapia" },
+      zh: { singular: "物理治疗" },
+      es: { singular: "Fisioterapia" },
+    },
+  },
+  {
+    key: "maternity",
+    variants: [
+      { label: "maternity", number: "singular" },
+      { label: "maternal", number: "singular" },
+    ],
+    translations: {
+      hi: { singular: "मैटरनिटी" },
+      ar: { singular: "أمومة" },
+      it: { singular: "Maternità" },
+      zh: { singular: "产科" },
+      es: { singular: "Maternidad" },
+    },
+  },
+  {
+    key: "multispeciality",
+    variants: [
+      { label: "multispeciality", number: "singular" },
+      { label: "multispecialty", number: "singular" },
+      { label: "multi speciality", number: "singular" },
+      { label: "multi specialty", number: "singular" },
+    ],
+    translations: {
+      hi: { singular: "मल्टीस्पेशियलिटी" },
+      ar: { singular: "متعدد التخصصات" },
+      it: { singular: "Polispecialistico" },
+      zh: { singular: "多专科" },
+      es: { singular: "Multiespecialidad" },
+    },
+  },
+];
+
+const TITLE_TRANSLATIONS: Partial<Record<SupportedLang, string>> = {
+  hi: "डॉ.",
+  ar: "د.",
+  it: "Dott.",
+  zh: "医生",
+  es: "Dr.",
+};
 
 type Place = {
   id: string;
@@ -10,6 +297,11 @@ type Place = {
   address?: string;
   localizedName?: string;
   localizedAddress?: string;
+  name_original?: string;
+  name_localized?: string;
+  name_method?: "provider" | "translate" | "transliterate" | "fallback";
+  name_display?: string;
+  name_cache_ttl?: number;
   type: "doctor" | "pharmacy" | "lab" | "hospital" | "clinic";
   category_display?: string;
   rating?: number;
@@ -29,6 +321,248 @@ type Place = {
   last_checked?: string;
   rank_score?: number;
 };
+
+type NameMetadata = {
+  name_original: string;
+  name_localized: string;
+  name_method: "provider" | "translate" | "transliterate" | "fallback";
+  name_display: string;
+  name_cache_ttl: number;
+};
+
+type NameCacheEntry = { value: NameMetadata; expiresAt: number; original: string };
+
+const wordPatternCache = new Map<string, RegExp>();
+const possessivePatternCache = new Map<string, RegExp>();
+
+function escapeWordSegment(segment: string) {
+  return segment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function buildWordPattern(label: string) {
+  const normalized = label.trim().replace(/\s+/g, " ");
+  const parts = normalized.split(" ").map(escapeWordSegment);
+  const pattern = parts.join("[\\s-]*");
+  return new RegExp(`\\b${pattern}\\b`, "giu");
+}
+
+function getWordPattern(label: string) {
+  const key = label.toLowerCase();
+  let cached = wordPatternCache.get(key);
+  if (!cached) {
+    cached = buildWordPattern(label);
+    wordPatternCache.set(key, cached);
+  }
+  return cached;
+}
+
+function buildPossessivePattern(label: string) {
+  const normalized = label.trim().replace(/\s+/g, " ");
+  const parts = normalized.split(" ").map(escapeWordSegment);
+  const pattern = parts.join("[\\s-]*");
+  const owner = "[\\p{L}\\p{M}\\p{N}.&-]+(?:\\s+[\\p{L}\\p{M}\\p{N}.&-]+)*";
+  return new RegExp(`(${owner})[’']s\\s+(${pattern})`, "giu");
+}
+
+function getPossessivePattern(label: string) {
+  const key = label.toLowerCase();
+  let cached = possessivePatternCache.get(key);
+  if (!cached) {
+    cached = buildPossessivePattern(label);
+    possessivePatternCache.set(key, cached);
+  }
+  return cached;
+}
+
+function applyMatchCase(source: string, replacement: string) {
+  if (!replacement) return replacement;
+  if (!source) return replacement;
+  if (source.toUpperCase() === source) return replacement.toUpperCase();
+  if (source.toLowerCase() === source) return replacement.toLowerCase();
+  const first = source[0];
+  if (first && first === first.toUpperCase()) {
+    return replacement[0]?.toUpperCase() + replacement.slice(1);
+  }
+  return replacement;
+}
+
+function cleanupNameSpacing(input: string) {
+  return input
+    .replace(/\s+([,;:])/g, " $1")
+    .replace(/\s+([—–-])/g, " $1")
+    .replace(/([—–-])\s+/g, "$1 ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function normalizeForComparison(input: string) {
+  return input
+    .toLowerCase()
+    .replace(/[’']/g, "")
+    .replace(/[^\p{L}\p{M}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeLang(lang: string): SupportedLang {
+  const lower = lang.toLowerCase();
+  const base = (lower.split("-")[0] || lower) as SupportedLang;
+  const supported: SupportedLang[] = ["en", "hi", "ar", "it", "zh", "es"];
+  if (supported.includes(base)) return base;
+  return "en";
+}
+
+function translateDoctorTitles(name: string, lang: SupportedLang) {
+  let output = name;
+  let changed = false;
+
+  if (lang === "it") {
+    output = output.replace(
+      /\b(Dr\.?)(\s+)([\p{L}\p{M}'-]+)/giu,
+      (match, drPart: string, spacing: string, firstName: string) => {
+        const feminine = /a$/i.test(firstName);
+        const base = feminine ? "Dott.ssa" : "Dott.";
+        const formatted = applyMatchCase(drPart, base);
+        changed = true;
+        return `${formatted}${spacing}${firstName}`;
+      },
+    );
+    output = output.replace(/\bDr\.?\b/giu, match => {
+      changed = true;
+      return applyMatchCase(match, "Dott.");
+    });
+    return { value: output, changed };
+  }
+
+  const replacement = TITLE_TRANSLATIONS[lang];
+  if (!replacement) {
+    return { value: output, changed };
+  }
+
+  output = output.replace(/\bDr\.?\b/giu, match => {
+    changed = true;
+    return applyMatchCase(match, replacement);
+  });
+
+  return { value: output, changed };
+}
+
+function translateGenericTerms(name: string, lang: SupportedLang) {
+  if (lang === "en") return { value: name, changed: false };
+  let output = name;
+  let changed = false;
+
+  for (const term of GENERIC_TERMS) {
+    const translation = term.translations[lang];
+    if (!translation) continue;
+
+    for (const variant of term.variants) {
+      const pattern = getWordPattern(variant.label);
+      const possessivePattern = getPossessivePattern(variant.label);
+      const singular = translation.singular;
+      const plural = translation.plural ?? translation.singular;
+      const target = variant.number === "plural" ? plural : singular;
+      if (!target) continue;
+
+      output = output.replace(
+        possessivePattern,
+        (match, owner: string, termMatch: string) => {
+          const formattedTarget = applyMatchCase(termMatch, target);
+          changed = true;
+          return `${formattedTarget} ${owner}`;
+        },
+      );
+
+      output = output.replace(pattern, match => {
+        const formatted = applyMatchCase(match, target);
+        if (formatted !== match) {
+          changed = true;
+        }
+        return formatted;
+      });
+    }
+  }
+
+  const titleResult = translateDoctorTitles(output, lang);
+  output = titleResult.value;
+  if (titleResult.changed) changed = true;
+
+  if (changed) {
+    output = cleanupNameSpacing(output);
+  }
+
+  return { value: output, changed };
+}
+
+const globalWithNameCache = globalThis as typeof globalThis & {
+  __dirNameCache?: Map<string, NameCacheEntry>;
+};
+
+if (!globalWithNameCache.__dirNameCache) {
+  globalWithNameCache.__dirNameCache = new Map();
+}
+
+function computeNameMetadata(place: Place, lang: string): NameMetadata {
+  const langKey = normalizeLang(lang);
+  const rawOriginal = typeof place.name === "string" ? place.name : "";
+  const nameOriginal = rawOriginal.trim() || rawOriginal || "";
+  const providerName = typeof place.localizedName === "string" ? place.localizedName.trim() : "";
+  const normalizedOriginal = normalizeForComparison(nameOriginal);
+  const normalizedProvider = providerName ? normalizeForComparison(providerName) : "";
+
+  let name_localized = nameOriginal;
+  let name_method: NameMetadata["name_method"] = "fallback";
+
+  if (providerName && normalizedProvider && normalizedProvider !== normalizedOriginal) {
+    name_localized = providerName;
+    name_method = "provider";
+  }
+
+  if (name_method === "fallback") {
+    const translated = translateGenericTerms(nameOriginal, langKey);
+    if (translated.changed && translated.value.trim()) {
+      name_localized = translated.value;
+      name_method = "translate";
+    }
+  }
+
+  if (name_method === "fallback" && !name_localized) {
+    name_localized = nameOriginal;
+  }
+
+  const name_display =
+    name_localized && name_localized !== nameOriginal
+      ? `${name_localized} (${nameOriginal})`
+      : nameOriginal;
+
+  return {
+    name_original: nameOriginal,
+    name_localized: name_localized || nameOriginal,
+    name_method,
+    name_display,
+    name_cache_ttl: NAME_CACHE_TTL_SECONDS,
+  };
+}
+
+function localizePlaceName(place: Place, lang: string): NameMetadata {
+  const cacheKey = `${place.id}|${lang.toLowerCase()}`;
+  const cache = globalWithNameCache.__dirNameCache!;
+  const cached = cache.get(cacheKey);
+  const now = Date.now();
+  const original = typeof place.name === "string" ? place.name : "";
+
+  if (cached && cached.expiresAt > now && cached.original === original) {
+    return cached.value;
+  }
+
+  const computed = computeNameMetadata(place, lang);
+  cache.set(cacheKey, {
+    value: computed,
+    expiresAt: now + NAME_CACHE_TTL_MS,
+    original,
+  });
+  return computed;
+}
 
 type GoogleAddressComponent = {
   longText?: string;
@@ -589,8 +1123,23 @@ export async function GET(req: Request) {
     places = filtered.slice(0, 120);
   }
 
+  const localizedPlaces = places.map(place => {
+    const meta = localizePlaceName(place, lang);
+    place.name_original = meta.name_original;
+    place.name_localized = meta.name_localized;
+    place.name_method = meta.name_method;
+    place.name_display = meta.name_display;
+    place.name_cache_ttl = meta.name_cache_ttl;
+    if (meta.name_localized !== meta.name_original) {
+      place.localizedName = meta.name_localized;
+    } else if (place.localizedName && meta.name_localized === meta.name_original) {
+      place.localizedName = undefined;
+    }
+    return place;
+  });
+
   const payload = {
-    data: places,
+    data: localizedPlaces,
     updatedAt: new Date().toISOString(),
     provider: usedGoogle ? "google" : "osm",
   } as const;

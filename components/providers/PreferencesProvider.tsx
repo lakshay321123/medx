@@ -21,6 +21,8 @@ export type Prefs = {
   labUpdates: boolean;
   weeklyDigest: boolean;
 
+  directoryShowOriginalName: boolean;
+
   passcode: boolean;
   maskSensitive: boolean;
   sessionTimeout: "Never" | "5m" | "15m" | "1h";
@@ -57,6 +59,8 @@ const DEFAULT: Prefs = {
   medReminders: false,
   labUpdates: false,
   weeklyDigest: false,
+
+  directoryShowOriginalName: true,
 
   passcode: false,
   maskSensitive: false,

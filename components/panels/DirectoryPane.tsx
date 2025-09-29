@@ -12,7 +12,7 @@ type DirectoryType = ReturnType<typeof useDirectory>["state"]["type"];
 const PREFS_STORAGE_KEY = "medx-prefs-v1";
 
 export default function DirectoryPane() {
-  const { lang } = usePrefs();
+  const { lang, directoryShowOriginalName } = usePrefs();
   const storedLang = useMemo(() => {
     if (typeof window === "undefined") return null;
     try {
@@ -199,7 +199,17 @@ export default function DirectoryPane() {
           </div>
         )}
         {data.map((place) => {
-          const displayName = place.localizedName ?? place.name;
+          const enriched = place as typeof place & {
+            name_display?: string;
+            name_localized?: string;
+          };
+          const showOriginal = directoryShowOriginalName !== false;
+          const displayName = showOriginal
+            ? enriched.name_display ?? enriched.name_localized ?? place.localizedName ?? place.name
+            : enriched.name_localized ?? place.localizedName ?? enriched.name_display ?? place.name;
+          const titleName = showOriginal
+            ? enriched.name_display ?? place.localizedName ?? place.name
+            : enriched.name_localized ?? place.localizedName ?? place.name;
           const displayAddress = place.localizedAddress ?? place.address;
           const typeLabel =
             place.category_display ??
@@ -283,7 +293,7 @@ export default function DirectoryPane() {
                   <div className="flex items-start justify-between gap-2 md:gap-3">
                     <div
                       className="break-words text-start text-[12.5px] font-semibold leading-[1.35] text-slate-900 dark:text-slate-50 md:truncate md:text-[14px]"
-                      title={place.name}
+                      title={titleName}
                     >
                       {displayName}
                     </div>

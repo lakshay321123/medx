@@ -23,6 +23,7 @@ import DataControlsPanel from "./panels/DataControls";
 import SecurityPanel from "./panels/Security";
 import AccountPanel from "./panels/Account";
 import { useT } from "@/components/hooks/useI18n";
+import { usePrefs } from "@/components/providers/PreferencesProvider";
 
 type TabKey =
   | "General"
@@ -33,6 +34,48 @@ type TabKey =
   | "Data controls"
   | "Security"
   | "Account";
+
+function DirectoryPreferencesSection() {
+  const prefs = usePrefs();
+  const t = useT();
+  const showOriginal = prefs.directoryShowOriginalName !== false;
+
+  return (
+    <div className="divide-y divide-black/5 dark:divide-white/10">
+      <div className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        {t("Directory")}
+      </div>
+      <div className="flex items-center justify-between gap-4 px-5 py-4">
+        <div className="max-w-[460px]">
+          <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-50">
+            {t("Show original name alongside translation")}
+          </div>
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {t("Display the provider’s original name in parentheses when translations are available.")}
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={showOriginal}
+          aria-label={t("Show original name alongside translation")}
+          onClick={() => prefs.set("directoryShowOriginalName", !showOriginal)}
+          className={cn(
+            "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50",
+            showOriginal ? "bg-blue-500" : "bg-slate-300 dark:bg-slate-700",
+          )}
+        >
+          <span
+            className={cn(
+              "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
+              showOriginal ? "translate-x-[22px]" : "translate-x-[2px]",
+            )}
+          />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function PreferencesModal({
   open,
@@ -134,7 +177,12 @@ export default function PreferencesModal({
   const Panel = useMemo(() => {
     switch (tab) {
       case "General":
-        return <GeneralPanel />;
+        return (
+          <>
+            <GeneralPanel />
+            <DirectoryPreferencesSection />
+          </>
+        );
       case "Notifications":
         return <NotificationsPanel />;
       case "Personalization":
