@@ -9,26 +9,59 @@ import AlertsPane from "@/components/panels/AlertsPane";
 import { ResearchFiltersProvider } from "@/store/researchFilters";
 import AiDocPane from "@/components/panels/AiDocPane";
 import DirectoryPane from "@/components/panels/DirectoryPane";
+import { useUIStore, type PreferencesTab } from "@/components/hooks/useUIStore";
 
 type Search = Record<string, string | string[] | undefined>;
 
 const getFirst = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : value;
 
+const PREFERENCE_TABS = new Set<PreferencesTab>([
+  "General",
+  "Notifications",
+  "Personalization",
+  "Connectors",
+  "Schedules",
+  "Data controls",
+  "Security",
+  "Account",
+]);
+
+const isPreferencesTab = (value: string): value is PreferencesTab =>
+  PREFERENCE_TABS.has(value as PreferencesTab);
+
 export default function Page({ searchParams }: { searchParams: Search }) {
   const panelValue = getFirst(searchParams.panel);
   const panel = typeof panelValue === "string" ? panelValue.toLowerCase() : "chat";
-  const showPrefs = panel === "settings" || panel === "preferences";
-  const defaultTab = getFirst(searchParams.tab) || "General";
-  const mainPanel = showPrefs ? "chat" : panel;
+  const mainPanel = panel === "settings" || panel === "preferences" ? "chat" : panel;
   const router = useRouter();
   const chatInputRef = useRef<HTMLInputElement>(null);
+  const openPrefs = useUIStore((state) => state.openPrefs);
+
+  const requestedTabValue = getFirst(searchParams.tab);
+  const requestedTab =
+    typeof requestedTabValue === "string" && isPreferencesTab(requestedTabValue)
+      ? (requestedTabValue as PreferencesTab)
+      : undefined;
 
   useEffect(() => {
     const handler = () => chatInputRef.current?.focus();
     window.addEventListener("focus-chat-input", handler);
     return () => window.removeEventListener("focus-chat-input", handler);
   }, []);
+
+  useEffect(() => {
+    if (panel === "settings" || panel === "preferences") {
+      openPrefs(requestedTab);
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        params.delete("panel");
+        params.delete("tab");
+        const query = params.toString();
+        router.replace(query ? `/?${query}` : "/", { scroll: false });
+      }
+    }
+  }, [panel, requestedTab, openPrefs, router]);
 
   const renderPane = () => {
     switch (mainPanel) {
@@ -60,15 +93,7 @@ export default function Page({ searchParams }: { searchParams: Search }) {
           </div>
         </div>
       )}
-      <PreferencesModal
-        open={showPrefs}
-        defaultTab={defaultTab as any}
-        onClose={() => {
-          const params = new URLSearchParams(window.location.search);
-          params.set("panel", "chat");
-          router.push(`/?${params.toString()}`);
-        }}
-      />
+      <PreferencesModal />
     </div>
   );
 }

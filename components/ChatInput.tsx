@@ -1,12 +1,12 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { useChatStore } from "@/lib/state/chatStore";
 import { useOpenPass } from "@/hooks/useOpenPass";
 import { Paperclip, SendHorizontal } from "lucide-react";
 import { useT } from "@/components/hooks/useI18n";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
+import { useUIStore } from "@/components/hooks/useUIStore";
 
 export function ChatInput({
   onSend,
@@ -21,19 +21,13 @@ export function ChatInput({
   const openPass = useOpenPass();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const t = useT();
   const { lang } = usePrefs();
+  const openPrefs = useUIStore((state) => state.openPrefs);
 
   const redirectToAccount = useCallback(() => {
-    const q = new URLSearchParams(searchParams?.toString() || "");
-    const tid = q.get("threadId");
-    q.set("panel", "settings");
-    q.set("tab", "Account");
-    if (tid) q.set("threadId", tid);
-    router.push(`/?${q.toString()}`);
-  }, [router, searchParams]);
+    openPrefs("Account");
+  }, [openPrefs]);
 
   const ensureThread = useCallback(() => {
     const state = useChatStore.getState();

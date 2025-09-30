@@ -2,23 +2,22 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ReactNode, TouchEvent as ReactTouchEvent } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Check, Globe2, Moon, Search, Settings, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useMobileUiStore } from "@/lib/state/mobileUiStore";
 import { useCountry } from "@/lib/country";
 import { COUNTRIES } from "@/data/countries";
 import { useModeController } from "@/hooks/useModeController";
+import { useUIStore } from "@/components/hooks/useUIStore";
 
 export default function MobileActionsSheet() {
   const { sheetOpen, sheetView, closeSheet, setSheetView } = useMobileUiStore();
   const { theme, setTheme } = useTheme();
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const { country, setCountry } = useCountry();
   const [query, setQuery] = useState("");
   const titleId = useId();
   const { state, selectMode, therapyBusy } = useModeController();
+  const openPrefs = useUIStore((state) => state.openPrefs);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -89,9 +88,7 @@ export default function MobileActionsSheet() {
   };
 
   const goToSettings = () => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("panel", "settings");
-    router.push(`/?${params.toString()}`);
+    openPrefs();
     closeSheet();
   };
 

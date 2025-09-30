@@ -23,25 +23,18 @@ import SchedulesPanel from "@/components/settings/panels/Schedules";
 import DataControlsPanel from "@/components/settings/panels/DataControls";
 import SecurityPanel from "@/components/settings/panels/Security";
 import AccountPanel from "@/components/settings/panels/Account";
+import { useUIStore, type PreferencesTab } from "@/components/hooks/useUIStore";
 
-export type TabKey =
-  | "General"
-  | "Notifications"
-  | "Personalization"
-  | "Connectors"
-  | "Schedules"
-  | "Data controls"
-  | "Security"
-  | "Account";
+export type TabKey = PreferencesTab;
 
 type Props = {
-  defaultTab?: TabKey;
+  defaultTab?: PreferencesTab;
   onClose: () => void;
   asMobile?: boolean;
 };
 
 type Section = {
-  id: TabKey;
+  id: PreferencesTab;
   titleKey: string;
   icon: LucideIcon;
 };
@@ -52,6 +45,7 @@ export default function SettingsPane({
   asMobile,
 }: Props) {
   const t = useT();
+  const setPrefsTab = useUIStore((state) => state.setPrefsTab);
   const sections = useMemo<Section[]>(
     () => [
       { id: "General", titleKey: "General", icon: Home },
@@ -66,11 +60,20 @@ export default function SettingsPane({
     []
   );
 
-  const [activeId, setActive] = useState<TabKey>(defaultTab);
+  const [activeId, setActive] = useState<PreferencesTab>(defaultTab);
 
   useEffect(() => {
     setActive(defaultTab);
   }, [defaultTab]);
+
+  useEffect(() => {
+    setPrefsTab(defaultTab);
+  }, [defaultTab, setPrefsTab]);
+
+  const handleSelect = (id: PreferencesTab) => {
+    setActive(id);
+    setPrefsTab(id);
+  };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -126,7 +129,7 @@ export default function SettingsPane({
               aria-selected={active}
               aria-controls={`panel-${slug}`}
               id={`tab-${slug}`}
-              onClick={() => setActive(id)}
+              onClick={() => handleSelect(id)}
               className={clsx(
                 "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px]",
                 "hover:bg-[var(--surface)]",

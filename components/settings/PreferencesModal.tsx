@@ -5,16 +5,14 @@ import clsx from "clsx";
 import { X } from "lucide-react";
 
 import { useScrollLock } from "@/components/hooks/useScrollLock";
-import SettingsPane, { type TabKey } from "@/components/panels/SettingsPane";
+import SettingsPane from "@/components/panels/SettingsPane";
 import { useT } from "@/components/hooks/useI18n";
+import { useUIStore } from "@/components/hooks/useUIStore";
 
-type Props = {
-  open: boolean;
-  defaultTab?: TabKey;
-  onClose: () => void;
-};
-
-export default function PreferencesModal({ open, defaultTab = "General", onClose }: Props) {
+export default function PreferencesModal() {
+  const open = useUIStore((state) => state.prefsOpen);
+  const defaultTab = useUIStore((state) => state.prefsTab);
+  const close = useUIStore((state) => state.closePrefs);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const titleRef = useRef<HTMLHeadingElement | null>(null);
   const t = useT();
@@ -25,13 +23,13 @@ export default function PreferencesModal({ open, defaultTab = "General", onClose
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onClose();
+        close();
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose]);
+  }, [open, close]);
 
   useEffect(() => {
     if (open) {
@@ -86,7 +84,16 @@ export default function PreferencesModal({ open, defaultTab = "General", onClose
       <div
         className="fixed inset-0 z-[60] bg-[var(--backdrop)] transition-opacity sm:bg-black/50"
         aria-hidden="true"
-        onClick={onClose}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) {
+            close();
+          }
+        }}
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) {
+            close();
+          }
+        }}
       />
       <div
         role="dialog"
@@ -102,6 +109,8 @@ export default function PreferencesModal({ open, defaultTab = "General", onClose
           "grid grid-rows-[auto,1fr,auto] overflow-hidden",
           "min-h-[40svh] max-h-[85svh] [@supports(height:100dvh)]:max-h-[85dvh] sm:h-[min(92vh,620px)]"
         )}
+        onClick={(event) => event.stopPropagation()}
+        onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
           <h2
@@ -116,17 +125,17 @@ export default function PreferencesModal({ open, defaultTab = "General", onClose
             type="button"
             aria-label={t("Close")}
             className="rounded-lg p-2 hover:opacity-80 focus-visible:ring-2"
-            onClick={onClose}
+            onClick={close}
           >
             <X size={18} />
           </button>
         </div>
         <div className="overflow-y-auto px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
-          <SettingsPane defaultTab={defaultTab} onClose={onClose} asMobile />
+          <SettingsPane defaultTab={defaultTab} onClose={close} asMobile />
         </div>
         <div className="border-t border-[var(--border)] bg-[var(--surface-2)]/85 px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-2 backdrop-blur">
           <div className="flex gap-2">
-            <button type="button" className="btn-ghost flex-1" onClick={onClose}>
+            <button type="button" className="btn-ghost flex-1" onClick={close}>
               {t("Cancel")}
             </button>
             <button type="submit" form="preferences-form" className="btn-primary flex-1">

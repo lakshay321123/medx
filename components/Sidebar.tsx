@@ -7,6 +7,7 @@ import { createNewThreadId, listThreads, Thread } from "@/lib/chatThreads";
 import ThreadKebab from "@/components/chat/ThreadKebab";
 import { useMobileUiStore } from "@/lib/state/mobileUiStore";
 import { useT } from "@/components/hooks/useI18n";
+import { useUIStore } from "@/components/hooks/useUIStore";
 
 export default function Sidebar() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export default function Sidebar() {
   const [q, setQ] = useState("");
   const closeSidebar = useMobileUiStore((state) => state.closeSidebar);
   const t = useT();
+  const openPrefs = useUIStore((state) => state.openPrefs);
 
   useEffect(() => {
     const load = () => setThreads(listThreads());
@@ -102,16 +104,7 @@ export default function Sidebar() {
           e.preventDefault();
           e.stopPropagation();
           closeSidebar?.();
-          const params = new URLSearchParams(
-            typeof window !== "undefined" ? window.location.search : searchParams?.toString() || "",
-          );
-          const tid = params.get("threadId");
-          params.set("panel", "settings");
-          params.delete("tab");
-          if (tid) {
-            params.set("threadId", tid);
-          }
-          router.push(`/?${params.toString()}`);
+          openPrefs();
         }}
         className="fixed bottom-3 left-3 z-20 flex items-center gap-1.5 rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm shadow-sm hover:bg-white/90 dark:border-white/10 dark:bg-slate-900/70 dark:hover:bg-slate-900"
         aria-label={t("Preferences")}
