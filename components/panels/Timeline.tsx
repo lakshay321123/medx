@@ -298,7 +298,7 @@ export default function Timeline(){
     [t],
   );
   const [resetError, setResetError] = useState<string|null>(null);
-  const { data, error, isLoading, mutate } = useTimeline(isAiDoc);
+  const { data, error, isLoading, mutate } = useTimeline(isAiDoc, lang);
   const items = data?.items ?? [];
 
   const [observations, setObservations] = useState<any[]>(() =>
@@ -608,8 +608,9 @@ export default function Timeline(){
             ) : (
               filtered.map((it:any)=>{
                 const observedAt = formatDateTime(it?.observed_at);
-                const title = getDisplayTitle(it);
-                const short = getShortSummary(it);
+                const fallbackTitle = getDisplayTitle(it);
+                const title = it?.name_display ?? fallbackTitle;
+                const short = it?.summary_display ?? getShortSummary(it);
                 const chipLabel = getChipLabel(it, t);
                 return (
                   <li

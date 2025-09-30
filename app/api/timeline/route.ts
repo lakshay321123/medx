@@ -189,6 +189,68 @@ export async function GET(req: Request) {
       new Date(b.observed_at).getTime() - new Date(a.observed_at).getTime()
   );
 
+  const lang = url.searchParams.get("lang") || "en";
+  const translateTimeline = process.env.FORCE_TRANSLATE_TIMELINE !== "false";
+
+  if (translateTimeline && lang && items.length) {
+    try {
+      const origin = url.origin;
+
+      const names = items.map((it) => String(it?.name ?? "Observation"));
+      const summaries = items.map((it) => {
+        const m = (it?.meta ?? {}) as any;
+        return String(m?.summary ?? m?.text ?? it?.value_text ?? "");
+      });
+
+      const [namesRes, sumsRes] = await Promise.all([
+        fetch(`${origin}/api/translate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ textBlocks: names, target: lang }),
+          cache: "no-store",
+        }),
+        fetch(`${origin}/api/translate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ textBlocks: summaries, target: lang }),
+          cache: "no-store",
+        }),
+      ]);
+
+      const namesTx = namesRes.ok
+        ? ((await namesRes.json())?.blocks as string[]) ?? []
+        : [];
+      const sumsTx = sumsRes.ok
+        ? ((await sumsRes.json())?.blocks as string[]) ?? []
+        : [];
+
+      items.forEach((it, i) => {
+        const txName =
+          typeof namesTx[i] === "string" && namesTx[i].trim()
+            ? namesTx[i]
+            : it.name;
+        const txSum =
+          typeof sumsTx[i] === "string" && sumsTx[i].trim()
+            ? sumsTx[i]
+            : (it.meta ?? {}).summary ?? "";
+        it.name_display = txName;
+        it.summary_display = txSum;
+      });
+    } catch (err) {
+      console.warn("[timeline] translate failed", err);
+    }
+  }
+
+  items.forEach((it) => {
+    if (typeof it.name_display !== "string" || !it.name_display.trim()) {
+      it.name_display = it.name ?? "Observation";
+    }
+    const meta = (it.meta ?? {}) as any;
+    if (typeof it.summary_display !== "string") {
+      it.summary_display = meta?.summary ?? "";
+    }
+  });
+
   // Always 200 — prevents SWR error loop; you still get console warnings.
   return NextResponse.json({ items }, { headers: noStore });
 }
