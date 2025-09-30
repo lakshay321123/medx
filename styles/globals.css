@@ -1,0 +1,21 @@
+:root {
+  --surface: var(--medx-surface);
+  --surface-2: var(--medx-panel);
+  --border: var(--medx-outline);
+  --text: var(--medx-text);
+  --muted: var(--medx-subtext);
+  --brand: var(--medx-accent);
+  --brand-contrast: var(--medx-bg-c);
+  --backdrop: rgba(0, 0, 0, 0.6);
+}
+
+.dark {
+  --surface: var(--medx-surface);
+  --surface-2: var(--medx-panel);
+  --border: var(--medx-outline);
+  --text: var(--medx-text);
+  --muted: var(--medx-subtext);
+  --brand: var(--medx-accent);
+  --brand-contrast: var(--medx-surface);
+  --backdrop: rgba(0, 0, 0, 0.6);
+}
