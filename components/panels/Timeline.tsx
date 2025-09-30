@@ -592,7 +592,7 @@ export default function Timeline(){
 
   async function handleDelete(ob: { id: string }) {
     if (typeof window !== "undefined") {
-      const ok = window.confirm("Delete this from your timeline?\nThis action can’t be undone.");
+      const ok = window.confirm(t("Delete this from your timeline?\nThis action can’t be undone."));
       if (!ok) return;
     }
 
@@ -608,12 +608,12 @@ export default function Timeline(){
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
-      pushToast({ title: "Deleted" });
+      pushToast({ title: t("Deleted") });
     } catch (err) {
       setObservations(previous);
       await mutate();
       pushToast({
-        title: "Couldn't delete. Please try again.",
+        title: t("Couldn't delete. Please try again."),
         variant: "destructive",
       });
     } finally {
@@ -629,10 +629,10 @@ export default function Timeline(){
             <h2 className="text-lg font-semibold">{t("Timeline")}</h2>
             <button
               onClick={async () => {
-                if (!confirm('Reset all observations and predictions?')) return;
+                if (!confirm(t("Reset all observations and predictions?"))) return;
                 setResetError(null);
                 const res = await fetch('/api/observations/reset', { method: 'POST' });
-                if (res.status === 401) { setResetError('Please sign in'); return; }
+                if (res.status === 401) { setResetError(t("Please sign in")); return; }
                 await mutate();
               }}
               className="text-xs px-2 py-1 rounded-md border sm:ml-auto"

@@ -191,7 +191,7 @@ async function handleTimelineSummary(
       timeoutId = setTimeout(() => {
         controller.abort();
         resolve({ blocks: [] });
-      }, 2500);
+      }, 6500);
     });
 
     try {
