@@ -206,8 +206,9 @@ export async function GET(req: Request) {
   });
 
   const lang = langBase(url.searchParams.get("lang") || undefined);
+  const needsTranslation = lang !== "en";
 
-  if (lang !== "en" && items.length) {
+  if (needsTranslation && items.length) {
     const origin = url.origin;
 
     const titles = items.map(it => String(it?.name ?? "Observation"));
@@ -217,21 +218,50 @@ export async function GET(req: Request) {
     });
 
     const translate = async (blocks: string[]) => {
-      const p = fetch(`${origin}/api/translate`, {
+      if (!blocks?.length) return [];
+
+      const controller = new AbortController();
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+      const request = fetch(`${origin}/api/translate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ textBlocks: blocks, target: lang }),
         cache: "no-store",
+        signal: controller.signal,
+      })
+        .then(res => (res.ok ? res.json() : { blocks: [] }))
+        .catch(() => ({ blocks: [] }));
+
+      const timeout = new Promise<{ blocks: string[] }>(resolve => {
+        timeoutId = setTimeout(() => {
+          controller.abort();
+          resolve({ blocks: [] });
+        }, 2000);
       });
-      // Hard cap at 2s so UI never hangs
-      const res = (await Promise.race([
-        p.then(r => (r.ok ? r.json() : { blocks: [] })),
-        new Promise(resolve => setTimeout(() => resolve({ blocks: [] }), 2000)),
-      ])) as { blocks: string[] };
-      return Array.isArray(res.blocks) ? res.blocks : [];
+
+      try {
+        const res = await Promise.race([request, timeout]);
+        return Array.isArray(res.blocks) ? res.blocks : [];
+      } catch (err) {
+        console.warn("[timeline] translate failed", err);
+        return [];
+      } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      }
     };
 
-    const [tTitles, tShorts] = await Promise.all([translate(titles), translate(shorts)]);
+    let tTitles: string[] = [];
+    let tShorts: string[] = [];
+    try {
+      [tTitles, tShorts] = await Promise.all([translate(titles), translate(shorts)]);
+    } catch (err) {
+      console.warn("[timeline] batch translation failed", err);
+      tTitles = [];
+      tShorts = [];
+    }
 
     items.forEach((it, i) => {
       it.name_display = tTitles[i]?.trim() || it.name || "Observation";

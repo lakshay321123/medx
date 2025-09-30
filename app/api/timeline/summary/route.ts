@@ -35,6 +35,43 @@ type TimelineSummaryData = {
   fullText_display: string;
 };
 
+type MeasurementPlaceholder = {
+  token: string;
+  value: string;
+};
+
+type GuardedBlock = {
+  original: string;
+  masked: string;
+  placeholders: MeasurementPlaceholder[];
+};
+
+const MEASUREMENT_REGEX =
+  /\b\d[\d.,]*(?:\s?[\/-]\s?\d[\d.,]*)*(?:\s?(?:%|°[CF]|[a-zA-Zµμ]+(?:\/[a-zA-Z]+)?))*\b/g;
+
+function guardMeasurements(input: string): GuardedBlock {
+  const original = String(input ?? "");
+  const placeholders: MeasurementPlaceholder[] = [];
+  let index = 0;
+
+  const masked = original.replace(MEASUREMENT_REGEX, match => {
+    const token = `__MEDX_MEAS_${index++}__`;
+    placeholders.push({ token, value: match });
+    return token;
+  });
+
+  return { original, masked, placeholders };
+}
+
+function restoreMeasurements(translated: string, guard: GuardedBlock) {
+  let restored = String(translated ?? "");
+  for (const { token, value } of guard.placeholders) {
+    if (!token) continue;
+    restored = restored.split(token).join(value);
+  }
+  return restored;
+}
+
 async function handleTimelineSummary(
   req: Request,
   idParam: string | null,
@@ -133,26 +170,51 @@ async function handleTimelineSummary(
 
   if (lang !== "en" && hasTranslatableContent) {
     const url = new URL(req.url);
-    const blocks = [String(data.summary || ""), String(data.fullText || "")];
 
-    const p = fetch(`${url.origin}/api/translate`, {
+    const guards = [data.summary, data.fullText].map(block => guardMeasurements(block || ""));
+    const maskedBlocks = guards.map(block => block.masked);
+
+    const controller = new AbortController();
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const request = fetch(`${url.origin}/api/translate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ textBlocks: blocks, target: lang }),
+      body: JSON.stringify({ textBlocks: maskedBlocks, target: lang }),
       cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(res => (res.ok ? res.json() : { blocks: [] }))
+      .catch(() => ({ blocks: [] }));
+
+    const timeout = new Promise<{ blocks: string[] }>(resolve => {
+      timeoutId = setTimeout(() => {
+        controller.abort();
+        resolve({ blocks: [] });
+      }, 2500);
     });
 
     try {
-      // 2.5s cap for modal
-      const res = (await Promise.race([
-        p.then(r => (r.ok ? r.json() : { blocks: [] })),
-        new Promise(resolve => setTimeout(() => resolve({ blocks: [] }), 2500)),
-      ])) as { blocks: string[] };
+      const res = (await Promise.race([request, timeout])) as { blocks: string[] };
+      const translatedBlocks = Array.isArray(res.blocks) ? res.blocks : [];
 
-      data.summary_display = res.blocks?.[0]?.trim() || data.summary || "";
-      data.fullText_display = res.blocks?.[1]?.trim() || data.fullText || "";
+      const summaryTranslated = translatedBlocks[0]
+        ? restoreMeasurements(translatedBlocks[0], guards[0]).trim()
+        : "";
+      const fullTextTranslated = translatedBlocks[1]
+        ? restoreMeasurements(translatedBlocks[1], guards[1]).trim()
+        : "";
+
+      data.summary_display = summaryTranslated || data.summary || "";
+      data.fullText_display = fullTextTranslated || data.fullText || "";
     } catch (err) {
       console.warn("[timeline/summary] translation failed", err);
+      data.summary_display = data.summary || "";
+      data.fullText_display = data.fullText || "";
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
   } else {
     data.summary_display = data.summary || "";
