@@ -190,81 +190,40 @@ export async function GET(req: Request) {
       new Date(b.observed_at).getTime() - new Date(a.observed_at).getTime()
   );
 
-  items.forEach(it => {
-    const meta = (it?.meta ?? {}) as Record<string, any>;
-    const fallbackTitle = String(it?.name ?? "Observation").trim();
-    const fallbackShort =
-      typeof meta?.summary === "string" && meta.summary.trim()
-        ? meta.summary
-        : typeof meta?.text === "string" && meta.text.trim()
-        ? meta.text
-        : typeof it?.value_text === "string"
-        ? it.value_text
-        : "";
-    it.name_display = fallbackTitle || "Observation";
-    it.summary_display = fallbackShort;
-  });
-
   const lang = langBase(url.searchParams.get("lang") || undefined);
-  const needsTranslation = lang !== "en";
 
-  if (needsTranslation && items.length) {
+  if (lang !== "en" && Array.isArray(items) && items.length) {
     const origin = url.origin;
 
-    const titles = items.map(it => String(it?.name ?? "Observation"));
-    const shorts = items.map(it => {
+    const titles: string[] = items.map(it => String(it?.name ?? "Observation"));
+    const shorts: string[] = items.map(it => {
       const m = (it?.meta ?? {}) as any;
       return String(m?.summary ?? m?.text ?? it?.value_text ?? "");
     });
 
-    const translate = async (blocks: string[]) => {
-      if (!blocks?.length) return [];
-
-      const controller = new AbortController();
-      let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-      const request = fetch(`${origin}/api/translate`, {
+    const translate = async (blocks: string[], timeoutMs = 2000) => {
+      const p = fetch(`${origin}/api/translate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ textBlocks: blocks, target: lang }),
         cache: "no-store",
-        signal: controller.signal,
-      })
-        .then(res => (res.ok ? res.json() : { blocks: [] }))
-        .catch(() => ({ blocks: [] }));
-
-      const timeout = new Promise<{ blocks: string[] }>(resolve => {
-        timeoutId = setTimeout(() => {
-          controller.abort();
-          resolve({ blocks: [] });
-        }, 2000);
       });
-
-      try {
-        const res = await Promise.race([request, timeout]);
-        return Array.isArray(res.blocks) ? res.blocks : [];
-      } catch (err) {
-        console.warn("[timeline] translate failed", err);
-        return [];
-      } finally {
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-        }
-      }
+      const res = (await Promise.race([
+        p.then(r => (r.ok ? r.json() : { blocks: [] })),
+        new Promise(res => setTimeout(() => res({ blocks: [] }), timeoutMs)),
+      ])) as { blocks?: string[] };
+      return Array.isArray(res.blocks) ? res.blocks : [];
     };
 
-    let tTitles: string[] = [];
-    let tShorts: string[] = [];
-    try {
-      [tTitles, tShorts] = await Promise.all([translate(titles), translate(shorts)]);
-    } catch (err) {
-      console.warn("[timeline] batch translation failed", err);
-      tTitles = [];
-      tShorts = [];
-    }
+    const [tTitles, tShorts] = await Promise.all([
+      translate(titles, 2000),
+      translate(shorts, 2000),
+    ]);
 
-    items.forEach((it, i) => {
-      it.name_display = tTitles[i]?.trim() || it.name || "Observation";
+    items.forEach((it: any, i: number) => {
+      const txTitle = tTitles[i]?.trim();
+      const txShort = tShorts[i]?.trim();
+      it.name_display = txTitle || it.name || "Observation";
       const meta = (it?.meta ?? {}) as Record<string, any>;
       const originalShort =
         typeof meta?.summary === "string" && meta.summary.trim()
@@ -274,7 +233,7 @@ export async function GET(req: Request) {
           : typeof it?.value_text === "string"
           ? it.value_text
           : "";
-      it.summary_display = tShorts[i]?.trim() || originalShort;
+      it.summary_display = txShort || originalShort;
     });
   }
 
