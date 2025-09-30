@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ensureMinDelay } from "@/lib/utils/ensureMinDelay";
 import { callGroqChat, callOpenAIChat } from "@/lib/medx/providers";
+import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 
 // Optional calculator prelude (safe if absent)
 let composeCalcPrelude: any, extractAll: any, canonicalizeInputs: any, computeAll: any;
@@ -17,7 +18,13 @@ function pickProvider(mode?: string) {
 }
 
 export async function POST(req: Request) {
-  const { messages = [], mode } = await req.json();
+  const payload = await req.json();
+  const { messages = [], mode } = payload ?? {};
+  const requestedLang = typeof payload?.lang === "string" ? payload.lang : undefined;
+  const headerLang = req.headers.get("x-user-lang") || req.headers.get("x-lang") || undefined;
+  const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
+  const lang = langTag.toLowerCase();
+  const langDirective = languageDirectiveFor(lang);
   const provider = pickProvider(mode);
 
   if (provider === "groq") {
@@ -37,6 +44,8 @@ export async function POST(req: Request) {
       if (prelude) system = `Use and verify these pre-computed values first:\n${prelude}`;
     } catch { /* ignore */ }
   }
+
+  system = [system, langDirective].filter(Boolean).join("\n\n");
 
   const reply = await ensureMinDelay(callOpenAIChat([{ role: "system", content: system }, ...messages]));
   return new Response(JSON.stringify({ ok: true, provider: "openai", reply }), {

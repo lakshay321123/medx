@@ -1,14 +1,14 @@
 import { loadState } from "@/lib/context/stateStore";
 import { loadTopicStack, titleOf } from "@/lib/context/topicStack";
 import { prisma } from "@/lib/prisma";
-import { buildSystemPrompt } from "@/lib/prompt/system";
+import { buildSystemPrompt, languageDirectiveFor, resolveLocaleForLang, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 
 export async function buildPromptContext({
   threadId,
   options,
 }: {
   threadId: string;
-  options: { mode?: string; researchOn?: boolean };
+  options: { mode?: string; researchOn?: boolean; lang?: string };
 }) {
   const thread = await prisma.chatThread.findUnique({
     where: { id: threadId },
@@ -19,8 +19,13 @@ export async function buildPromptContext({
   const stack = await loadTopicStack(threadId);
   const activeTitle = titleOf(stack);
 
+  const lang = (options?.lang || SYSTEM_DEFAULT_LANG).toLowerCase();
+  const locale = resolveLocaleForLang(lang);
+  const baseSystem = buildSystemPrompt({ locale, lang, includeDirective: false });
+  const langDirective = languageDirectiveFor(lang);
+
   const system = [
-    buildSystemPrompt({ locale: "en-IN" }),
+    baseSystem,
     "Active topic:",
     activeTitle || "(none)",
 
@@ -46,5 +51,5 @@ export async function buildPromptContext({
   });
   recent.reverse();
 
-  return { system, recent };
+  return { system, recent, langDirective };
 }

@@ -2635,7 +2635,7 @@ ${systemCommon}` + baseSys;
           'Content-Type': 'application/json',
           'x-conversation-id': conversationId,
           'x-new-chat': messages.length === 0 ? 'true' : 'false',
-          'x-lang': prefs.lang
+          'x-user-lang': prefs.lang
         },
         body: JSON.stringify({
           mode: mode === 'doctor' ? 'doctor' : 'patient',
