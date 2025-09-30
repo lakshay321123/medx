@@ -5,9 +5,23 @@ import type { TrialRow } from '@/types/trials';
 import { useT } from '@/components/hooks/useI18n';
 import { PHASES, STATUSES, REGIONS } from '@/components/clinicalTrials.const';
 
-const STATUS_API_MAP = new Map(STATUSES.map(status => [status.value, status.apiValue]));
+type PhaseValue = (typeof PHASES)[number]['value'];
+type StatusValue = (typeof STATUSES)[number]['value'];
+type RegionValue = (typeof REGIONS)[number]['value'];
 
-function mapStatusKeyToApi(key?: string) {
+type LocalState = {
+  query: string;
+  phase: PhaseValue | '';
+  status: StatusValue;
+  countries: RegionValue[];
+  genes: string;
+};
+
+const STATUS_API_MAP = new Map<StatusValue, (typeof STATUSES)[number]['apiValue']>(
+  STATUSES.map(status => [status.value, status.apiValue]),
+);
+
+function mapStatusKeyToApi(key?: StatusValue) {
   if (!key) return undefined;
   return STATUS_API_MAP.get(key);
 }
@@ -21,11 +35,11 @@ export default function ResearchFilters({ mode, onResults }: Props) {
   const { filters, setFilters, reset } = useResearchFilters();
   const t = useT();
 
-  const [local, setLocal] = useState({
+  const [local, setLocal] = useState<LocalState>({
     query: filters.query || '',
-    phase: filters.phase || '',
-    status: filters.status || 'recruiting',
-    countries: filters.countries || [],
+    phase: (filters.phase as PhaseValue | undefined) || '',
+    status: (filters.status as StatusValue | undefined) || 'recruiting',
+    countries: (filters.countries as RegionValue[] | undefined) || [],
     genes: (filters.genes || []).join(', '),
   });
   const [source, setSource] = useState<string>(filters.source || 'All');
@@ -33,11 +47,11 @@ export default function ResearchFilters({ mode, onResults }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const togglePhase = (p: string) =>
+  const togglePhase = (p: PhaseValue) =>
     setLocal(s => ({ ...s, phase: s.phase === p ? '' : p }));
 
   // Single-select country (clean & predictable)
-  const toggleCountry = (name: string) =>
+  const toggleCountry = (name: RegionValue) =>
     setLocal(s => ({
       ...s,
       countries: s.countries.includes(name) ? [] : [name],
@@ -46,8 +60,8 @@ export default function ResearchFilters({ mode, onResults }: Props) {
   function applyLocalToStore() {
     setFilters({
       query: local.query.trim() || undefined,
-      phase: (local.phase as any) || undefined,
-      status: (local.status as any) || 'recruiting',
+      phase: (local.phase || undefined) as PhaseValue | undefined,
+      status: local.status,
       countries: local.countries,
       genes: local.genes.split(',').map(s => s.trim()).filter(Boolean),
       source,
@@ -62,7 +76,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
       const country = local.countries[0];
       const payload = {
         query: local.query.trim() || undefined,
-        phase: (local.phase || undefined) as "1"|"2"|"3"|"4"|undefined,
+        phase: (local.phase || undefined) as PhaseValue | undefined,
         status: mapStatusKeyToApi(local.status),
         country: country === 'Worldwide' ? undefined : country,
         genes: local.genes.split(',').map(s => s.trim()).filter(Boolean),
@@ -115,15 +129,15 @@ export default function ResearchFilters({ mode, onResults }: Props) {
           value={local.query}
           onChange={(e)=>setLocal(s=>({ ...s, query: e.target.value }))}
           onKeyDown={(e)=> e.key === 'Enter' && (e.currentTarget as any).form?.requestSubmit()}
-          placeholder={t('Search trials (e.g., condition, gene, topic)…')}
-          aria-label={t('Search trials (e.g., condition, gene, topic)…')}
+          placeholder={t('Search trials (e.g., condition, gene, topic)')}
+          aria-label={t('Search trials (e.g., condition, gene, topic)')}
           className="w-full rounded-lg border px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700"
         />
         <button
           type="submit"
           className="px-3 py-2 rounded-lg text-sm border bg-blue-600 text-white dark:border-blue-600 disabled:opacity-50"
           disabled={busy}
-          aria-label={busy ? t('Searching…') : t('Search')}
+          aria-label={t('Search')}
         >
           {busy ? t('Searching…') : t('Search')}
         </button>
@@ -150,7 +164,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
       <div className="mt-2">
         <select
           value={local.status}
-          onChange={(e)=>setLocal(s=>({ ...s, status: e.target.value as any }))}
+          onChange={(e)=>setLocal(s=>({ ...s, status: e.target.value as StatusValue }))}
           className="rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
           aria-label={t('Status')}
         >
@@ -205,7 +219,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
           type="submit"
           className="px-3 py-1.5 rounded-lg text-sm border bg-blue-600 text-white dark:border-blue-600 disabled:opacity-50"
           disabled={busy}
-          aria-label={busy ? t('Searching…') : t('Apply')}
+          aria-label={t('Apply')}
         >
           {busy ? t('Searching…') : t('Apply')}
         </button>
