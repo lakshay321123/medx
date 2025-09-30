@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import ChatPane from "@/components/panels/ChatPane";
 import MedicalProfile from "@/components/panels/MedicalProfile";
 import Timeline from "@/components/panels/Timeline";
-import AlertsPane from "@/components/panels/AlertsPane";
 import { ResearchFiltersProvider } from "@/store/researchFilters";
 import AiDocPane from "@/components/panels/AiDocPane";
 import DirectoryPane from "@/components/panels/DirectoryPane";
@@ -84,8 +83,6 @@ export default function Page({ searchParams }: { searchParams: Search }) {
         return <MedicalProfile />;
       case "timeline":
         return <Timeline />;
-      case "alerts":
-        return <AlertsPane />;
       case "ai-doc":
         return <AiDocPane />;
       case "directory":
