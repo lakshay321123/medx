@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/getUserId";
 import { buildShortSummaryFromText } from "@/lib/shortSummary";
+import { langBase } from "@/lib/i18n/langBase";
 
 const noStore = { "Cache-Control": "no-store, max-age=0" };
 const iso = (ts: any) => {
@@ -188,6 +189,94 @@ export async function GET(req: Request) {
     (a, b) =>
       new Date(b.observed_at).getTime() - new Date(a.observed_at).getTime()
   );
+
+  items.forEach(it => {
+    const meta = (it?.meta ?? {}) as Record<string, any>;
+    const fallbackTitle = String(it?.name ?? "Observation").trim();
+    const fallbackShort =
+      typeof meta?.summary === "string" && meta.summary.trim()
+        ? meta.summary
+        : typeof meta?.text === "string" && meta.text.trim()
+        ? meta.text
+        : typeof it?.value_text === "string"
+        ? it.value_text
+        : "";
+    it.name_display = fallbackTitle || "Observation";
+    it.summary_display = fallbackShort;
+  });
+
+  const lang = langBase(url.searchParams.get("lang") || undefined);
+  const needsTranslation = lang !== "en";
+
+  if (needsTranslation && items.length) {
+    const origin = url.origin;
+
+    const titles = items.map(it => String(it?.name ?? "Observation"));
+    const shorts = items.map(it => {
+      const m = (it?.meta ?? {}) as any;
+      return String(m?.summary ?? m?.text ?? it?.value_text ?? "");
+    });
+
+    const translate = async (blocks: string[]) => {
+      if (!blocks?.length) return [];
+
+      const controller = new AbortController();
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+      const request = fetch(`${origin}/api/translate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ textBlocks: blocks, target: lang }),
+        cache: "no-store",
+        signal: controller.signal,
+      })
+        .then(res => (res.ok ? res.json() : { blocks: [] }))
+        .catch(() => ({ blocks: [] }));
+
+      const timeout = new Promise<{ blocks: string[] }>(resolve => {
+        timeoutId = setTimeout(() => {
+          controller.abort();
+          resolve({ blocks: [] });
+        }, 2000);
+      });
+
+      try {
+        const res = await Promise.race([request, timeout]);
+        return Array.isArray(res.blocks) ? res.blocks : [];
+      } catch (err) {
+        console.warn("[timeline] translate failed", err);
+        return [];
+      } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      }
+    };
+
+    let tTitles: string[] = [];
+    let tShorts: string[] = [];
+    try {
+      [tTitles, tShorts] = await Promise.all([translate(titles), translate(shorts)]);
+    } catch (err) {
+      console.warn("[timeline] batch translation failed", err);
+      tTitles = [];
+      tShorts = [];
+    }
+
+    items.forEach((it, i) => {
+      it.name_display = tTitles[i]?.trim() || it.name || "Observation";
+      const meta = (it?.meta ?? {}) as Record<string, any>;
+      const originalShort =
+        typeof meta?.summary === "string" && meta.summary.trim()
+          ? meta.summary
+          : typeof meta?.text === "string" && meta.text.trim()
+          ? meta.text
+          : typeof it?.value_text === "string"
+          ? it.value_text
+          : "";
+      it.summary_display = tShorts[i]?.trim() || originalShort;
+    });
+  }
 
   // Always 200 — prevents SWR error loop; you still get console warnings.
   return NextResponse.json({ items }, { headers: noStore });
