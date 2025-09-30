@@ -97,13 +97,12 @@ export async function POST(req: Request) {
     researchOn = true;
   }
 
-  console.log(`[chat] mode=${mode} research=${!!researchOn} lang=${lang}`);
-
   const headers = req.headers;
   const requestedLang = typeof body?.lang === "string" ? body.lang : undefined;
   const headerLang = headers.get("x-user-lang") || headers.get("x-lang") || undefined;
   const langInput = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
   const lang = normalizeLanguageTag(langInput);
+  console.log(`[chat] mode=${mode} research=${!!researchOn} lang=${lang}`);
   const languageName = languageNameFor(lang);
   const langInstruction = languageInstruction(lang);
   let conversationId = headers.get("x-conversation-id");

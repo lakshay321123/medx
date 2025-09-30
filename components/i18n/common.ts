@@ -77,7 +77,7 @@ export const common = {
     'common.ui.send': 'Envoyer',
     'common.ui.suggestions': 'Suggestions',
     'common.ui.try_these': 'Essayez ceci',
-    'common.ui.upload': 'Télécharger',
+    'common.ui.upload': 'Téléverser',
     'common.triggers.medication_for_acne': 'Quel est le médicament pour l\'acné?',
     'common.triggers.medication_for_anxiety': 'Quel est le médicament pour l\'anxiété?',
     'common.triggers.medication_for_back_pain': 'Quel est le médicament pour les maux de dos?',
