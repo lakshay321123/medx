@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
   const long = reqUrl.searchParams.get('long') === '1';
   let body: any = {};
   try { body = await req.json(); } catch {}
-  const { context, clientRequestId, mode } = body;
+  const { context, clientRequestId } = body;
   const requestedLang = typeof body?.lang === 'string' ? body.lang : undefined;
   const headerLang = req.headers.get('x-lang');
   const lang = (requestedLang || headerLang || 'en').toString().trim() || 'en';
@@ -67,6 +67,10 @@ export async function POST(req: NextRequest) {
 
   const research =
     qp === '1' || qp === 'true' || body?.research === true || body?.research === 'true';
+
+  const rawMode = body?.mode;
+  const mode = typeof rawMode === 'string' && rawMode.trim() ? rawMode : 'patient';
+  console.log(`[chat] incoming: mode=${mode} research=${research} lang=${lang}`);
 
   // 1) Gather existing conversation
   const history: Array<{role:'system'|'user'|'assistant'; content:string}> =
@@ -188,7 +192,6 @@ export async function POST(req: NextRequest) {
     ? (isShortQuery || briefTopic ? 220 : 360)
     : (isShortQuery || briefTopic ? 180 : 280);
   const brevitySystem = [
-    ...(languageNote ? [languageNote] : []),
     `You are ${BRAND_NAME} chat. Be concise and structured.`,
     `Aim to keep the entire answer under ${targetWordCap} words (SOFT cap).`,
     'If you are finishing a sentence, you may exceed the cap slightly to complete it (≤ +40 words).',

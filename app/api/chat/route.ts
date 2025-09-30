@@ -100,6 +100,7 @@ export async function POST(req: Request) {
   const headerLang = headers.get("x-lang");
   const lang = (requestedLang || headerLang || "en").toString().trim() || "en";
   const languageNote = languageInstruction(lang);
+  console.log(`[chat] incoming: mode=${mode} research=${Boolean(researchOn)} lang=${lang}`);
   let conversationId = headers.get("x-conversation-id");
   let isNewChat = headers.get("x-new-chat") === "true";
   if (!conversationId) {
@@ -136,7 +137,7 @@ export async function POST(req: Request) {
       ? singleTrialClinicianPrompt(trial)
       : singleTrialPatientPrompt(trial);
     const trialSystem = [
-      ...(languageNote ? [languageNote] : []),
+      languageNote,
       mode === "doctor"
         ? "You are a concise clinical evidence summarizer for clinicians."
         : "You explain clinical trials in plain language for laypeople.",
@@ -198,7 +199,7 @@ export async function POST(req: Request) {
           : `Summarize these trials in plain English for a patient. Explain what each is testing, status, and where. Keep it clear and short.\n\n${list}`;
 
       const trialSystem = [
-        ...(languageNote ? [languageNote] : []),
+        languageNote,
         mode === "doctor"
           ? "You are a clinical evidence summarizer for clinicians."
           : "You are a health explainer for laypeople.",
@@ -223,9 +224,7 @@ export async function POST(req: Request) {
 
   if (mode === "doctor") {
     const patient = await buildPatientSnapshot(thread_id);
-    const systemPrompt = languageNote
-      ? `${languageNote}\n\n${DOCTOR_JSON_SYSTEM}`
-      : DOCTOR_JSON_SYSTEM;
+    const systemPrompt = `${languageNote}\n\n${DOCTOR_JSON_SYSTEM}`;
     const msg: ChatCompletionMessageParam[] = [
       { role: "system", content: systemPrompt },
       ...(incomingMessages || []),
@@ -316,10 +315,7 @@ export async function POST(req: Request) {
   await saveState(threadId, state);
 
   // 4) Decide routing for current turn
-  const systemExtra: string[] = [];
-  if (languageNote) {
-    systemExtra.push(languageNote);
-  }
+  const systemExtra: string[] = [languageNote];
   const routeDecision = decideRoute(text, state.topic);
   if (routeDecision === "clarify-quick") {
     systemExtra.push("If the user intent may have changed, ask one concise clarification question, then proceed.");

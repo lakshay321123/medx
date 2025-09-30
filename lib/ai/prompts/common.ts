@@ -1,19 +1,19 @@
-export function languageInstruction(lang: string | null | undefined): string {
-  const raw = typeof lang === 'string' ? lang : '';
-  const normalized = raw.trim();
-  if (!normalized) return '';
-  if (normalized.toLowerCase().startsWith('en')) return '';
+export function languageInstruction(lang?: string | null): string {
+  const normalized = (typeof lang === 'string' ? lang : 'en').trim() || 'en';
 
-  let humanReadable = normalized;
+  let human = normalized;
   try {
     const display = new Intl.DisplayNames([normalized], { type: 'language' });
-    const parts = normalized.split('-');
-    const base = parts[0];
-    const human = display.of(base || normalized);
-    if (human) humanReadable = human;
+    const base = normalized.split('-')[0];
+    const label = display.of(base || normalized);
+    if (label) human = label;
   } catch {
-    // no-op: fallback to raw tag
+    // fall back to the normalized tag if Intl.DisplayNames is unavailable
   }
 
-  return `IMPORTANT: Answer in ${humanReadable} (${normalized}). Do not switch languages unless explicitly asked.`;
+  return [
+    `IMPORTANT: Answer ONLY in ${human} (${normalized}).`,
+    'Do not switch languages even if the user writes in another language.',
+    'Do not translate user quotes or code; keep quoted/code content verbatim.',
+  ].join(' ');
 }
