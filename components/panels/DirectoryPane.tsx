@@ -88,16 +88,28 @@ export default function DirectoryPane() {
     return locLabel;
   }, [locLabel, regionDisplay, appLang, t]);
 
-  const typeOptions: { key: DirectoryType; label: string }[] = [
-    { key: "all", label: t("All") },
-    { key: "doctor", label: t("Doctors") },
-    { key: "pharmacy", label: t("Pharmacies") },
-    { key: "lab", label: t("Labs") },
-    { key: "hospital", label: t("Hospitals") },
-    { key: "clinic", label: t("Clinics") },
-  ];
+  const typeLabels: Record<DirectoryType, string> = {
+    all: t("All"),
+    doctor: t("Doctors"),
+    pharmacy: t("Pharmacies"),
+    lab: t("Labs"),
+    hospital: t("Hospitals"),
+    clinic: t("Clinics"),
+  };
+  const typeOptions: { value: DirectoryType; label: string }[] = [
+    "all",
+    "doctor",
+    "pharmacy",
+    "lab",
+    "hospital",
+    "clinic",
+  ].map((value) => ({ value, label: typeLabels[value] }));
   const cardTypeLabels: Partial<Record<DirectoryType, string>> = {
     doctor: t("Doctor"),
+    pharmacy: t("Pharmacy"),
+    lab: t("Lab"),
+    hospital: t("Hospital"),
+    clinic: t("Clinic"),
   };
 
   return (
@@ -130,11 +142,11 @@ export default function DirectoryPane() {
 
         <div className="flex flex-wrap gap-1 pb-0.5 md:flex-nowrap md:gap-2 md:overflow-x-auto">
           {typeOptions.map((option) => {
-            const selected = type === option.key;
+            const selected = type === option.value;
             return (
               <button
-                key={option.key}
-                onClick={() => actions.setType(option.key)}
+                key={option.value}
+                onClick={() => actions.setType(option.value)}
                 className={`inline-flex h-[26px] min-w-[64px] items-center justify-center whitespace-nowrap rounded-full border px-2.5 text-[11.5px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-[30px] md:min-w-[72px] md:px-3 md:text-[12.5px] ${
                   selected
                     ? "border-blue-500 bg-blue-500 text-white"
@@ -204,7 +216,7 @@ export default function DirectoryPane() {
           const typeLabel =
             place.category_display ??
             cardTypeLabels[place.type] ??
-            typeOptions.find((option) => option.key === place.type)?.label ??
+            typeLabels[place.type] ??
             place.type;
 
           const reviewsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(

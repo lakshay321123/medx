@@ -4,6 +4,15 @@ import { providerLang } from "@/lib/i18n/providerLang";
 // meters per degree latitude (simple distance estimate)
 const M_PER_DEG = 111_320;
 
+const ALLOWED_DIRECTORY_TYPES = new Set([
+  "all",
+  "doctor",
+  "pharmacy",
+  "lab",
+  "hospital",
+  "clinic",
+]);
+
 type Place = {
   id: string;
   name: string;
@@ -491,7 +500,10 @@ export async function GET(req: Request) {
   const lat = parseFloat(searchParams.get("lat") || "");
   const lng = parseFloat(searchParams.get("lng") || "");
   const radius = Math.min(parseInt(searchParams.get("radius") || "5000", 10), 20000);
-  const uiType = (searchParams.get("type") || "all").toLowerCase();
+  let uiType = (searchParams.get("type") || "all").toLowerCase();
+  if (!ALLOWED_DIRECTORY_TYPES.has(uiType)) {
+    uiType = "all";
+  }
   const q = (searchParams.get("q") || "").trim();
   const maxKm = parseFloat(searchParams.get("max_km") || "");
   const minRating = parseFloat(searchParams.get("min_rating") || "");
@@ -504,6 +516,10 @@ export async function GET(req: Request) {
     searchParams.get("lat") ?? "",
     searchParams.get("lng") ?? "",
     searchParams.get("radius") ?? "",
+    uiType,
+    openNow ? "1" : "0",
+    Number.isFinite(minRating) ? String(minRating) : "",
+    Number.isFinite(maxKm) ? String(maxKm) : "",
     lang,
   ].join("|");
   const globalAny = globalThis as typeof globalThis & {
