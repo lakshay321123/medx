@@ -33,7 +33,7 @@ export default function ModeBar() {
         className={btn(wellnessActive)}
         onClick={() => togglePatient()}
       >
-        {t("Wellness")}
+        {t("ui.modes.wellness")}
       </button>
       <button
         className={btn(state.therapy, aidocOn || state.base !== "patient" || therapyBusy)}
@@ -41,7 +41,7 @@ export default function ModeBar() {
         onClick={() => toggleTherapy()}
         aria-busy={therapyBusy}
       >
-        <span>{t("Therapy")}</span>
+        <span>{t("ui.modes.therapy")}</span>
         {therapyBusy && !state.therapy ? (
           <span className="ml-2 inline-flex h-3 w-3 items-center" aria-hidden="true">
             <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -53,19 +53,19 @@ export default function ModeBar() {
         disabled={aidocOn}
         onClick={() => toggleResearch()}
       >
-        {t("Research")}
+        {t("ui.modes.research")}
       </button>
       <button
         className={btn(doctorActive)}
         onClick={() => toggleDoctor()}
       >
-        {t("Clinical")}
+        {t("ui.modes.clinical")}
       </button>
 
       <div className="mx-1 h-5 w-px bg-black/10 dark:bg-white/10" />
 
       <button className={btn(aidocOn)} onClick={() => toggleAidoc()}>
-        {t("AI Doc")}
+        {t("ui.modes.ai_doc")}
       </button>
     </div>
   );

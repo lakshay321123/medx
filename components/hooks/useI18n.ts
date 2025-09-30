@@ -23,8 +23,36 @@ export function tfmt(
   );
 }
 
+const RTL_LOCALES = new Set(["ar", "he", "fa", "ur"]);
+
+type DigitsPolicy = "latn" | "locale";
+const DEFAULT_DIGITS_POLICY: DigitsPolicy = "latn";
+
 const BASE_DICTIONARY: Record<string, Record<string, string>> = {
   en: {
+    "ui.composer.placeholder": "Send a message",
+    "ui.composer.send": "Send",
+    "ui.composer.upload": "Upload",
+    "ui.composer.send_aria": "Send message",
+    "ui.composer.upload_aria": "Upload a file",
+    "ui.nav.directory": "Directory",
+    "ui.nav.medical_profile": "Medical profile",
+    "ui.nav.timeline": "Timeline",
+    "ui.nav.alerts": "Alerts",
+    "ui.modes.wellness": "Wellness",
+    "ui.modes.therapy": "Therapy",
+    "ui.modes.research": "Research",
+    "ui.modes.clinical": "Clinical",
+    "ui.modes.ai_doc": "AI Doc",
+    "system.autoGreeting.therapy":
+      "I'm here to support you, but I'm not a licensed therapist. What would you like to talk about today?",
+    "system.autoGreeting.ai_doc":
+      "Share your document or question and I'll help you analyze it.",
+    "therapy.banner.status_on": "Therapy mode: On",
+    "therapy.banner.subtitle": "Calm, empathetic, practical techniques and next steps.",
+    "threads.systemTitles.new_chat": "New chat",
+    "threads.systemTitles.therapy_session": "Therapy session",
+    "locale.language_label": "{language}",
     Preferences: "Preferences",
     General: "General",
     Notifications: "Notifications",
@@ -280,6 +308,28 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "Custom…": "Custom…",
   },
   hi: {
+    "ui.composer.placeholder": "संदेश भेजें",
+    "ui.composer.send": "भेजें",
+    "ui.composer.upload": "अपलोड",
+    "ui.composer.send_aria": "संदेश भेजें",
+    "ui.composer.upload_aria": "फ़ाइल अपलोड करें",
+    "ui.nav.directory": "निर्देशिका",
+    "ui.nav.medical_profile": "मेडिकल प्रोफ़ाइल",
+    "ui.nav.timeline": "टाइमलाइन",
+    "ui.nav.alerts": "अलर्ट",
+    "ui.modes.wellness": "वेलनेस",
+    "ui.modes.therapy": "थेरेपी",
+    "ui.modes.research": "रिसर्च",
+    "ui.modes.clinical": "क्लिनिकल",
+    "ui.modes.ai_doc": "एआई डॉक",
+    "system.autoGreeting.therapy":
+      "मैं आपकी मदद के लिए यहाँ हूँ, पर मैं लाइसेंसधारी चिकित्सक नहीं हूँ। आज आप किस बारे में बात करना चाहेंगे?",
+    "system.autoGreeting.ai_doc": "अपना दस्तावेज़ या सवाल साझा करें, मैं विश्लेषण करके मदद करूँगा।",
+    "therapy.banner.status_on": "थेरेपी मोड: चालू",
+    "therapy.banner.subtitle": "शांत, सहानुभूतिपूर्ण, व्यवहारिक तकनीकें और अगले कदम।",
+    "threads.systemTitles.new_chat": "नई चैट",
+    "threads.systemTitles.therapy_session": "थेरेपी सत्र",
+    "locale.language_label": "{language}",
     Preferences: "प्राथमिकताएँ",
     General: "जनरल",
     Notifications: "सूचनाएँ",
@@ -536,6 +586,28 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "Custom…": "कस्टम…",
   },
   ar: {
+    "ui.composer.placeholder": "أرسل رسالة",
+    "ui.composer.send": "إرسال",
+    "ui.composer.upload": "رفع",
+    "ui.composer.send_aria": "إرسال رسالة",
+    "ui.composer.upload_aria": "رفع ملف",
+    "ui.nav.directory": "الدليل",
+    "ui.nav.medical_profile": "الملف الطبي",
+    "ui.nav.timeline": "الجدول الزمني",
+    "ui.nav.alerts": "التنبيهات",
+    "ui.modes.wellness": "العافية",
+    "ui.modes.therapy": "العلاج",
+    "ui.modes.research": "البحث",
+    "ui.modes.clinical": "السريري",
+    "ui.modes.ai_doc": "مستندات الذكاء",
+    "system.autoGreeting.therapy":
+      "أنا هنا لدعمك، لكنني لست معالجًا مرخصًا. عن ماذا تود التحدث اليوم؟",
+    "system.autoGreeting.ai_doc": "شارك مستندك أو سؤالك وسأساعدك في تحليله.",
+    "therapy.banner.status_on": "وضع العلاج: قيد التشغيل",
+    "therapy.banner.subtitle": "دعم هادئ ومتعاطف مع تقنيات عملية وخطوات تالية.",
+    "threads.systemTitles.new_chat": "محادثة جديدة",
+    "threads.systemTitles.therapy_session": "جلسة علاج",
+    "locale.language_label": "{language}",
     Preferences: "التفضيلات",
     General: "عام",
     Notifications: "الإشعارات",
@@ -791,6 +863,28 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "Custom…": "مخصص…",
   },
   it: {
+    "ui.composer.placeholder": "Invia un messaggio",
+    "ui.composer.send": "Invia",
+    "ui.composer.upload": "Carica",
+    "ui.composer.send_aria": "Invia messaggio",
+    "ui.composer.upload_aria": "Carica un file",
+    "ui.nav.directory": "Directory",
+    "ui.nav.medical_profile": "Profilo medico",
+    "ui.nav.timeline": "Cronologia",
+    "ui.nav.alerts": "Avvisi",
+    "ui.modes.wellness": "Benessere",
+    "ui.modes.therapy": "Terapia",
+    "ui.modes.research": "Ricerca",
+    "ui.modes.clinical": "Clinico",
+    "ui.modes.ai_doc": "AI Doc",
+    "system.autoGreeting.therapy":
+      "Sono qui per sostenerti, ma non sono uno psicoterapeuta abilitato. Di cosa vuoi parlare oggi?",
+    "system.autoGreeting.ai_doc": "Condividi il tuo documento o la tua domanda e ti aiuterò ad analizzarlo.",
+    "therapy.banner.status_on": "Modalità terapia: attiva",
+    "therapy.banner.subtitle": "Tecniche calme, empatiche e pratiche con i prossimi passi.",
+    "threads.systemTitles.new_chat": "Nuova chat",
+    "threads.systemTitles.therapy_session": "Sessione di terapia",
+    "locale.language_label": "{language}",
     Preferences: "Preferenze",
     General: "Generale",
     Notifications: "Notifiche",
@@ -1046,6 +1140,27 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "Custom…": "Personalizzato…",
   },
   zh: {
+    "ui.composer.placeholder": "发送消息",
+    "ui.composer.send": "发送",
+    "ui.composer.upload": "上传",
+    "ui.composer.send_aria": "发送消息",
+    "ui.composer.upload_aria": "上传文件",
+    "ui.nav.directory": "目录",
+    "ui.nav.medical_profile": "医疗档案",
+    "ui.nav.timeline": "时间线",
+    "ui.nav.alerts": "提醒",
+    "ui.modes.wellness": "健康",
+    "ui.modes.therapy": "治疗",
+    "ui.modes.research": "研究",
+    "ui.modes.clinical": "临床",
+    "ui.modes.ai_doc": "AI 文档",
+    "system.autoGreeting.therapy": "我会尽力支持你，但我不是持证治疗师。今天你想聊些什么？",
+    "system.autoGreeting.ai_doc": "分享你的文档或问题，我会帮你分析。",
+    "therapy.banner.status_on": "治疗模式：开启",
+    "therapy.banner.subtitle": "平静、共情、实用的技巧与下一步行动。",
+    "threads.systemTitles.new_chat": "新建对话",
+    "threads.systemTitles.therapy_session": "治疗会话",
+    "locale.language_label": "{language}",
     Preferences: "偏好设置",
     General: "通用",
     Notifications: "通知",
@@ -1296,6 +1411,28 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "Custom…": "自定义…",
   },
   es: {
+    "ui.composer.placeholder": "Enviar un mensaje",
+    "ui.composer.send": "Enviar",
+    "ui.composer.upload": "Subir",
+    "ui.composer.send_aria": "Enviar mensaje",
+    "ui.composer.upload_aria": "Subir un archivo",
+    "ui.nav.directory": "Directorio",
+    "ui.nav.medical_profile": "Perfil médico",
+    "ui.nav.timeline": "Cronología",
+    "ui.nav.alerts": "Alertas",
+    "ui.modes.wellness": "Bienestar",
+    "ui.modes.therapy": "Terapia",
+    "ui.modes.research": "Investigación",
+    "ui.modes.clinical": "Clínico",
+    "ui.modes.ai_doc": "AI Doc",
+    "system.autoGreeting.therapy":
+      "Estoy aquí para apoyarte, pero no soy un terapeuta con licencia. ¿De qué quieres hablar hoy?",
+    "system.autoGreeting.ai_doc": "Comparte tu documento o pregunta y te ayudaré a analizarlo.",
+    "therapy.banner.status_on": "Modo terapia: activado",
+    "therapy.banner.subtitle": "Técnicas calmadas, empáticas y prácticas con próximos pasos.",
+    "threads.systemTitles.new_chat": "Nueva conversación",
+    "threads.systemTitles.therapy_session": "Sesión de terapia",
+    "locale.language_label": "{language}",
     Preferences: "Preferencias",
     General: "General",
     Notifications: "Notificaciones",
@@ -1581,6 +1718,8 @@ export function useT() {
   const { lang } = usePrefs();
   const activeLang = lang ?? "en";
   const dict = DICTIONARY[activeLang] ?? DICTIONARY.en;
+  const dir: "ltr" | "rtl" = RTL_LOCALES.has(activeLang.split("-")[0]) ? "rtl" : "ltr";
+  const digitsPolicy = DEFAULT_DIGITS_POLICY;
 
   const translate = (s: string) => {
     const localized = dict[s];
@@ -1622,13 +1761,18 @@ export function useT() {
 
   const nd = (value: number, opts?: Intl.NumberFormatOptions) => {
     const lc = activeLang.toLowerCase();
-    const tag = lc.startsWith("hi")
-      ? `${activeLang}-u-nu-deva`
-      : lc.startsWith("ar")
-      ? `${activeLang}-u-nu-arab`
-      : activeLang;
-    return new Intl.NumberFormat(tag, opts).format(value);
+    const baseTag = digitsPolicy === "latn" ? `${lc}-u-nu-latn` : activeLang;
+    return new Intl.NumberFormat(baseTag, opts).format(value);
   };
 
-  return Object.assign(translate, { t: translate, n, d, nd, lang: activeLang });
+  return Object.assign(translate, {
+    t: translate,
+    n,
+    d,
+    nd,
+    lang: activeLang,
+    locale: activeLang,
+    dir,
+    digitsPolicy,
+  });
 }
