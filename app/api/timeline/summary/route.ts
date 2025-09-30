@@ -63,6 +63,52 @@ function guardMeasurements(input: string): GuardedBlock {
   return { original, masked, placeholders };
 }
 
+function splitForTranslation(raw: string): { blocks: string[]; separators: string[] } {
+  // Split by newline boundaries, but remember separators so we can stitch the text back exactly.
+  const parts = raw.split(/(\n+)/); // this keeps newline groups as separate items
+  const blocks: string[] = [];
+  const separators: string[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 === 0) blocks.push(parts[i]); // text chunk
+    else separators.push(parts[i]); // the newline(s)
+  }
+  return { blocks, separators };
+}
+
+function joinWithSeparators(chunks: string[], separators: string[]): string {
+  let out = "";
+  for (let i = 0; i < chunks.length; i++) {
+    out += chunks[i];
+    if (i < separators.length) out += separators[i];
+  }
+  return out;
+}
+
+function guardFormatting(block: string) {
+  // Protect common list markers so MT doesn’t drop them.
+  // We replace leading markers with tokens and restore later.
+  const lines = String(block ?? "").split("\n");
+  const placeholders: { token: string; value: string }[] = [];
+  const guarded = lines
+    .map((line, idx) => {
+      const m = line.match(/^(\s*)([-*•]\s+|\d+\.\s+)/);
+      if (!m) return line;
+      const token = `__MEDX_LM_${idx}__`;
+      placeholders.push({ token, value: m[1] + m[2] });
+      return token + line.slice(m[0].length);
+    })
+    .join("\n");
+  return { masked: guarded, placeholders };
+}
+
+function restoreFormatting(translated: string, ph: { token: string; value: string }[]) {
+  let s = String(translated ?? "");
+  for (const { token, value } of ph) {
+    s = s.split(token).join(value);
+  }
+  return s;
+}
+
 function restoreMeasurements(translated: string, guard: GuardedBlock) {
   let restored = String(translated ?? "");
   for (const { token, value } of guard.placeholders) {
@@ -171,8 +217,17 @@ async function handleTimelineSummary(
   if (lang !== "en" && hasTranslatableContent) {
     const url = new URL(req.url);
 
-    const guards = [data.summary, data.fullText].map(block => guardMeasurements(block || ""));
-    const maskedBlocks = guards.map(block => block.masked);
+    // Prepare guards: measurements (existing) + formatting (new)
+    const guardsMeas = [data.summary, data.fullText].map(block => guardMeasurements(block || ""));
+    const guardsFmt = guardsMeas.map(block => guardFormatting(block.masked || ""));
+
+    // Apply formatting guard before splitting
+    const maskedSummary = guardsFmt[0].masked;
+    const maskedFull = guardsFmt[1].masked;
+
+    // Split by lines/paragraphs to preserve layout
+    const S = splitForTranslation(maskedSummary);
+    const F = splitForTranslation(maskedFull);
 
     const controller = new AbortController();
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -180,7 +235,11 @@ async function handleTimelineSummary(
     const request = fetch(`${url.origin}/api/translate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ textBlocks: maskedBlocks, target: lang }),
+      body: JSON.stringify({
+        // Translate all chunks, summary first then full text, one big batch
+        textBlocks: [...S.blocks, ...F.blocks],
+        target: lang,
+      }),
       cache: "no-store",
       signal: controller.signal,
     })
@@ -189,32 +248,47 @@ async function handleTimelineSummary(
 
     const timeout = new Promise<{ blocks: string[] }>(resolve => {
       timeoutId = setTimeout(() => {
-        controller.abort();
         resolve({ blocks: [] });
       }, 6500);
     });
 
     try {
-      const res = (await Promise.race([request, timeout])) as { blocks: string[] };
-      const translatedBlocks = Array.isArray(res.blocks) ? res.blocks : [];
+      const res = (await Promise.race([request, timeout])) as any;
+      const translatedBlocks: string[] = Array.isArray(res?.blocks) ? res.blocks : [];
 
-      const summaryTranslated = translatedBlocks[0]
-        ? restoreMeasurements(translatedBlocks[0], guards[0]).trim()
-        : "";
-      const fullTextTranslated = translatedBlocks[1]
-        ? restoreMeasurements(translatedBlocks[1], guards[1]).trim()
-        : "";
+      if (translatedBlocks.length === S.blocks.length + F.blocks.length) {
+        const sBlocks = translatedBlocks.slice(0, S.blocks.length);
+        const fBlocks = translatedBlocks.slice(S.blocks.length);
 
-      data.summary_display = summaryTranslated || data.summary || "";
-      data.fullText_display = fullTextTranslated || data.fullText || "";
+        // Rejoin with original newlines
+        let summaryTranslated = joinWithSeparators(sBlocks, S.separators);
+        let fullTextTranslated = joinWithSeparators(fBlocks, F.separators);
+
+        // Restore formatting placeholders then measurements
+        summaryTranslated = restoreMeasurements(
+          restoreFormatting(summaryTranslated, guardsFmt[0].placeholders),
+          guardsMeas[0],
+        ).trim();
+
+        fullTextTranslated = restoreMeasurements(
+          restoreFormatting(fullTextTranslated, guardsFmt[1].placeholders),
+          guardsMeas[1],
+        ).trim();
+
+        data.summary_display = summaryTranslated || data.summary || "";
+        data.fullText_display = fullTextTranslated || data.fullText || "";
+      } else {
+        // fallback to original if batch shape mismatched
+        data.summary_display = data.summary || "";
+        data.fullText_display = data.fullText || "";
+      }
     } catch (err) {
       console.warn("[timeline/summary] translation failed", err);
       data.summary_display = data.summary || "";
       data.fullText_display = data.fullText || "";
     } finally {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
+      if (timeoutId) clearTimeout(timeoutId);
+      controller.abort();
     }
   } else {
     data.summary_display = data.summary || "";

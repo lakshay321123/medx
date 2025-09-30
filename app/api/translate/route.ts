@@ -66,6 +66,18 @@ async function translateOne(text: string, lang: string, order: Array<'google'|'o
   throw lastError || new Error('MT providers unavailable');
 }
 
+function decodeHtmlEntities(s: string): string {
+  // minimal decoder for common entities returned by Google
+  return String(s || '')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#34;', '"')
+    .replaceAll('&apos;', "'")
+    .replaceAll('&#39;', "'")
+    .replaceAll('&amp;', '&')
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>');
+}
+
 async function translateGoogle(text: string, lang: string): Promise<string> {
   const key = process.env.GOOGLE_TRANSLATE_API_KEY;
   if (!key) throw new Error('GOOGLE_TRANSLATE_API_KEY missing');
@@ -74,13 +86,15 @@ async function translateGoogle(text: string, lang: string): Promise<string> {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    // Important: do NOT strip newlines, pass as-is
     body: JSON.stringify({ q: text, target: lang })
   });
   if (!res.ok) throw new Error(`Google MT HTTP ${res.status}`);
   const data = await res.json().catch(() => ({}));
   const translated = data?.data?.translations?.[0]?.translatedText;
   if (!translated) throw new Error('Google MT empty');
-  return String(translated);
+  // Fix entities → proper Unicode, keep original line structure
+  return decodeHtmlEntities(translated);
 }
 
 async function translateOpenAI(text: string, lang: string): Promise<string> {
