@@ -319,7 +319,8 @@ export default function PreferencesModal({ open, defaultTab = "General", onClose
   const renderRow = (sectionId: string, row: PrefRow) => {
     const key = `${sectionId}:${row.id}`;
     const label = t(row.labelKey);
-    const description = row.descKey ? t(row.descKey) : null;
+    const description =
+      "descKey" in row && row.descKey ? t(row.descKey) : null;
 
     if (row.type === "toggle") {
       const binding = getToggleBinding(row.id);
