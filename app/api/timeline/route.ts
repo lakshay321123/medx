@@ -189,6 +189,64 @@ export async function GET(req: Request) {
       new Date(b.observed_at).getTime() - new Date(a.observed_at).getTime()
   );
 
+  items.forEach(it => {
+    const meta = (it?.meta ?? {}) as Record<string, any>;
+    const fallbackTitle = String(it?.name ?? "Observation").trim();
+    const fallbackShort =
+      typeof meta?.summary === "string" && meta.summary.trim()
+        ? meta.summary
+        : typeof meta?.text === "string" && meta.text.trim()
+        ? meta.text
+        : typeof it?.value_text === "string"
+        ? it.value_text
+        : "";
+    it.name_display = fallbackTitle || "Observation";
+    it.summary_display = fallbackShort;
+  });
+
+  const lang = (url.searchParams.get("lang") || "en").trim();
+
+  if (lang !== "en" && items.length) {
+    const origin = url.origin;
+
+    const titles = items.map(it => String(it?.name ?? "Observation"));
+    const shorts = items.map(it => {
+      const m = (it?.meta ?? {}) as any;
+      return String(m?.summary ?? m?.text ?? it?.value_text ?? "");
+    });
+
+    const translate = async (blocks: string[]) => {
+      const p = fetch(`${origin}/api/translate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ textBlocks: blocks, target: lang }),
+        cache: "no-store",
+      });
+      // Hard cap at 2s so UI never hangs
+      const res = (await Promise.race([
+        p.then(r => (r.ok ? r.json() : { blocks: [] })),
+        new Promise(resolve => setTimeout(() => resolve({ blocks: [] }), 2000)),
+      ])) as { blocks: string[] };
+      return Array.isArray(res.blocks) ? res.blocks : [];
+    };
+
+    const [tTitles, tShorts] = await Promise.all([translate(titles), translate(shorts)]);
+
+    items.forEach((it, i) => {
+      it.name_display = tTitles[i]?.trim() || it.name || "Observation";
+      const meta = (it?.meta ?? {}) as Record<string, any>;
+      const originalShort =
+        typeof meta?.summary === "string" && meta.summary.trim()
+          ? meta.summary
+          : typeof meta?.text === "string" && meta.text.trim()
+          ? meta.text
+          : typeof it?.value_text === "string"
+          ? it.value_text
+          : "";
+      it.summary_display = tShorts[i]?.trim() || originalShort;
+    });
+  }
+
   // Always 200 — prevents SWR error loop; you still get console warnings.
   return NextResponse.json({ items }, { headers: noStore });
 }

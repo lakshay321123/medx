@@ -161,11 +161,29 @@ const VITAL_KINDS = new Set([
   "vitals",
 ]);
 
-type DrawerTranslation = {
-  summaryLong?: string | null;
-  summaryShort?: string | null;
-  text?: string | null;
-  valueText?: string | null;
+type TimelineDetailData = {
+  summaryLong: string | null;
+  summaryShort: string | null;
+  text: string | null;
+  valueText: string | null;
+  summary: string;
+  fullText: string;
+  summary_display: string;
+  fullText_display: string;
+};
+
+const firstNonEmptyString = (...values: any[]): string | null => {
+  for (const value of values) {
+    if (Array.isArray(value)) {
+      const joined = value.join("\n").trim();
+      if (joined) return joined;
+    }
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed) return trimmed;
+    }
+  }
+  return null;
 };
 
 const getChipLabel = (ob: any, translate: (value: string) => string) => {
@@ -298,7 +316,7 @@ export default function Timeline(){
     [t],
   );
   const [resetError, setResetError] = useState<string|null>(null);
-  const { data, error, isLoading, mutate } = useTimeline(isAiDoc);
+  const { data, error, isLoading, mutate } = useTimeline(isAiDoc, lang);
   const items = data?.items ?? [];
 
   const [observations, setObservations] = useState<any[]>(() =>
@@ -347,8 +365,8 @@ export default function Timeline(){
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<any|null>(null);
   const [signedUrl, setSignedUrl] = useState<string|null>(null);
-  const translationCacheRef = useRef<Map<string, DrawerTranslation>>(new Map());
-  const [translated, setTranslated] = useState<DrawerTranslation | null>(null);
+  const detailCacheRef = useRef<Map<string, TimelineDetailData>>(new Map());
+  const [detailData, setDetailData] = useState<TimelineDetailData | null>(null);
   const [showOriginal, setShowOriginal] = useState(false);
   const overlayHistoryRef = useRef(false);
   const overlayPopActiveRef = useRef(false);
@@ -419,52 +437,92 @@ export default function Timeline(){
   useEffect(() => {
     setShowOriginal(false);
     if (!open || !active) {
-      setTranslated(null);
+      setDetailData(null);
       return;
     }
     if (!active.id) return;
-    if (lang === "en") {
-      setTranslated(null);
-      return;
-    }
+
     const meta = active?.meta ?? {};
-    const hasTranslatable = [meta.summary_long, meta.summary, meta.text, active?.value_text].some(
-      value => typeof value === "string" && value.trim(),
-    );
-    if (!hasTranslatable) {
-      setTranslated(null);
-      return;
-    }
+    const baseSummaryLong = firstNonEmptyString(meta.summary_long, meta.summaryLong);
+    const baseSummaryShort = firstNonEmptyString(meta.summary, meta.summaryShort);
+    const baseText = firstNonEmptyString(meta.text);
+    const baseValueText = firstNonEmptyString(active?.value_text, meta.value_text);
+
+    const fallbackSummary =
+      baseSummaryLong ??
+      baseSummaryShort ??
+      baseValueText ??
+      baseText ??
+      "";
+    const fallbackFull = baseText ?? baseValueText ?? "";
+
+    const fallbackDetail: TimelineDetailData = {
+      summaryLong: baseSummaryLong ?? null,
+      summaryShort: baseSummaryShort ?? null,
+      text: baseText ?? null,
+      valueText: baseValueText ?? null,
+      summary: fallbackSummary,
+      fullText: fallbackFull,
+      summary_display: fallbackSummary,
+      fullText_display: fallbackFull,
+    };
+
+    setDetailData(fallbackDetail);
+
     const englishSnapshot = JSON.stringify({
-      summaryLong: meta.summary_long ?? meta.summaryLong ?? "",
-      summaryShort: meta.summary ?? meta.summaryShort ?? "",
-      text: meta.text ?? "",
-      valueText: active?.value_text ?? "",
+      summary: fallbackSummary,
+      fullText: fallbackFull,
     });
     const cacheKey = `${active.id}:${lang}:${englishSnapshot}`;
-    const cached = translationCacheRef.current.get(cacheKey);
+    const cached = detailCacheRef.current.get(cacheKey);
     if (cached) {
-      setTranslated(cached);
+      setDetailData(cached);
       return;
     }
+
+    const url = `/api/timeline/summary?id=${encodeURIComponent(active.id)}&lang=${encodeURIComponent(lang)}`;
     let cancelled = false;
-    fetch("/api/timeline/summary", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: active.id, lang }),
-    })
+
+    fetch(url, { cache: "no-store" })
       .then(res => (res.ok ? res.json() : null))
       .then(payload => {
-        if (cancelled || !payload) return;
-        const translatedData: DrawerTranslation = payload?.translated ?? {};
-        translationCacheRef.current.set(cacheKey, translatedData);
-        setTranslated(translatedData);
+        if (cancelled || !payload?.ok || !payload?.data) return;
+        const remote = payload.data as any;
+        const next: TimelineDetailData = {
+          summaryLong: firstNonEmptyString(remote.summaryLong, baseSummaryLong) ?? null,
+          summaryShort: firstNonEmptyString(remote.summaryShort, baseSummaryShort) ?? null,
+          text: firstNonEmptyString(remote.text, baseText) ?? null,
+          valueText: firstNonEmptyString(remote.valueText, baseValueText) ?? null,
+          summary:
+            typeof remote.summary === "string" && remote.summary.length > 0
+              ? remote.summary
+              : fallbackSummary,
+          fullText:
+            typeof remote.fullText === "string" && remote.fullText.length > 0
+              ? remote.fullText
+              : fallbackFull,
+          summary_display:
+            typeof remote.summary_display === "string" && remote.summary_display.trim()
+              ? remote.summary_display
+              : typeof remote.summary === "string" && remote.summary.trim()
+              ? remote.summary
+              : fallbackSummary,
+          fullText_display:
+            typeof remote.fullText_display === "string" && remote.fullText_display.trim()
+              ? remote.fullText_display
+              : typeof remote.fullText === "string" && remote.fullText.trim()
+              ? remote.fullText
+              : fallbackFull,
+        };
+        detailCacheRef.current.set(cacheKey, next);
+        setDetailData(next);
       })
       .catch(() => {
         if (!cancelled) {
-          translationCacheRef.current.delete(cacheKey);
+          detailCacheRef.current.delete(cacheKey);
         }
       });
+
     return () => {
       cancelled = true;
     };
@@ -485,11 +543,16 @@ export default function Timeline(){
 
   const displayTitle = active ? getDisplayTitle(active) : "Observation";
   const originalShortSummary = active ? getShortSummary(active) : "";
-  const summaryLong = active?.meta?.summary_long;
-  const summaryShort = active?.meta?.summary;
-  const text = active?.meta?.text;
+  const metaForActive = active?.meta ?? {};
+  const summaryLong = firstNonEmptyString(detailData?.summaryLong, metaForActive.summary_long, metaForActive.summaryLong);
+  const summaryShort = firstNonEmptyString(detailData?.summaryShort, metaForActive.summary, metaForActive.summaryShort);
+  const text = firstNonEmptyString(detailData?.text, metaForActive.text);
   const hasFile = Boolean(active?.file?.path || active?.file?.upload_id);
-  const hasAiSummary = Boolean(summaryLong || summaryShort || text);
+  const hasAiSummary = Boolean(
+    (summaryLong && summaryLong.trim()) ||
+      (summaryShort && summaryShort.trim()) ||
+      (text && text.trim()),
+  );
   const dose =
     active?.meta?.doseLabel ||
     (active?.value_num != null
@@ -499,21 +562,28 @@ export default function Timeline(){
   const source = active?.meta?.source;
   const hasFallbackFacts = Boolean(dose || observed || source || (active?.unit && !dose));
   const chipLabel = active ? getChipLabel(active, t) : null;
+  const summaryOriginalContent = detailData?.summary ?? summaryLong ?? summaryShort ?? "";
+  const summaryTranslatedContent = detailData?.summary_display ?? summaryOriginalContent;
+  const fullTextOriginal = detailData?.fullText ?? text ?? firstNonEmptyString(active?.value_text, metaForActive.value_text) ?? "";
+  const fullTextTranslated = detailData?.fullText_display ?? fullTextOriginal;
+  const trimmedSummaryOriginal = summaryOriginalContent.trim();
+  const trimmedSummaryTranslated = summaryTranslatedContent.trim();
+  const trimmedFullOriginal = fullTextOriginal.trim();
+  const trimmedFullTranslated = fullTextTranslated.trim();
   const hasTranslatedContent =
     lang !== "en" &&
-    translated &&
-    Object.values(translated).some(v => typeof v === "string" && v.trim().length > 0);
-  const displaySummaryLong =
-    !showOriginal && translated?.summaryLong ? translated.summaryLong : summaryLong;
-  const displaySummaryShort =
-    !showOriginal && translated?.summaryShort ? translated.summaryShort : summaryShort;
-  const displayText = !showOriginal && translated?.text ? translated.text : text;
-  const displayShortSummary =
-    !showOriginal && translated?.summaryShort ? translated.summaryShort : originalShortSummary;
-  const displayValueText =
-    !showOriginal && translated?.valueText ? translated.valueText : active?.value_text;
-  const summaryAvailable = Boolean(summaryLong || summaryShort);
-  const textAvailable = Boolean(text);
+    detailData != null &&
+    ((trimmedSummaryTranslated && trimmedSummaryTranslated !== trimmedSummaryOriginal) ||
+      (trimmedFullTranslated && trimmedFullTranslated !== trimmedFullOriginal));
+  const displaySummaryLong = showOriginal ? summaryOriginalContent : summaryTranslatedContent;
+  const displaySummaryShort = showOriginal ? summaryOriginalContent : summaryTranslatedContent;
+  const displayText = showOriginal ? fullTextOriginal : fullTextTranslated;
+  const displayShortSummary = showOriginal
+    ? originalShortSummary
+    : active?.summary_display ?? originalShortSummary;
+  const displayValueText = active?.value_text ?? "";
+  const summaryAvailable = Boolean((showOriginal ? trimmedSummaryOriginal : trimmedSummaryTranslated) || trimmedSummaryOriginal);
+  const textAvailable = Boolean((showOriginal ? trimmedFullOriginal : trimmedFullTranslated) || trimmedFullOriginal);
   const translationToggleLabel = showOriginal
     ? t("Show translation")
     : t("Show original");
@@ -608,8 +678,8 @@ export default function Timeline(){
             ) : (
               filtered.map((it:any)=>{
                 const observedAt = formatDateTime(it?.observed_at);
-                const title = getDisplayTitle(it);
-                const short = getShortSummary(it);
+                const title = it?.name_display ?? it?.name ?? t("Observation");
+                const short = it?.summary_display ?? getShortSummary(it);
                 const chipLabel = getChipLabel(it, t);
                 return (
                   <li

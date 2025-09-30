@@ -8,8 +8,10 @@ const fetcher = async (url: string) => {
 };
 
 // Cached across routes; no revalidate on focus (prevents reload on tab switch)
-export function useTimeline(enabled = true) {
-  const key = enabled ? "/api/timeline?mode=ai-doc" : null;
+export function useTimeline(enabled = true, lang?: string) {
+  const normalizedLang = (lang || "en").trim() || "en";
+  const params = new URLSearchParams({ mode: "ai-doc", lang: normalizedLang });
+  const key = enabled ? `/api/timeline?${params.toString()}` : null;
   return useSWR<{ items: any[] }>(key, fetcher, {
     revalidateOnFocus: false,
     shouldRetryOnError: true,
