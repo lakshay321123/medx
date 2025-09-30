@@ -3,7 +3,7 @@ import { profileChatSystem } from '@/lib/profileChatSystem';
 import { extractAll, canonicalizeInputs } from '@/lib/medical/engine/extract';
 import { BRAND_NAME } from "@/lib/brand";
 import { computeAll } from '@/lib/medical/engine/computeAll';
-import { languageInstruction } from '@/lib/ai/prompts/common';
+import { languageInstruction, normalizeLanguageTag } from '@/lib/ai/prompts/common';
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
   const { context, clientRequestId } = body;
   const requestedLang = typeof body?.lang === 'string' ? body.lang : undefined;
   const headerLang = req.headers.get('x-lang');
-  const lang = (requestedLang || headerLang || 'en').toString().trim() || 'en';
+  const lang = normalizeLanguageTag(requestedLang || headerLang || 'en');
   const languageNote = languageInstruction(lang);
 
   const research =

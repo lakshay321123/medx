@@ -11,6 +11,7 @@ import { runRules } from "@/lib/aidoc/rules";
 import { buildPersonalPlan } from "@/lib/aidoc/planner";
 import { extractPrefsFromUser } from "@/lib/aidoc/extractors/prefs";
 import { buildAiDocPrompt } from "@/lib/ai/prompts/aidoc";
+import { normalizeLanguageTag } from "@/lib/ai/prompts/common";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { extractAll, canonicalizeInputs } from "@/lib/medical/engine/extract";
 import { computeAll } from "@/lib/medical/engine/computeAll";
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
   const { threadId, message, profileIntent, newProfile } = payload;
   const requestedLang = typeof payload?.lang === "string" ? payload.lang : undefined;
   const headerLang = req.headers.get("x-lang");
-  const lang = (requestedLang || headerLang || "en").toString().trim() || "en";
+  const lang = normalizeLanguageTag(requestedLang || headerLang || "en");
   if (!message) return NextResponse.json({ error: "no message" }, { status: 400 });
 
   // Ensure profile & load clinical state + memory

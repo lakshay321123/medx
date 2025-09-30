@@ -1,5 +1,18 @@
+export function normalizeLanguageTag(input: unknown, fallback = 'en'): string {
+  const raw = String(input ?? '').trim();
+  if (!raw) return fallback;
+  const safe = raw.replace(/[^A-Za-z0-9-]/g, '');
+  if (!safe) return fallback;
+  try {
+    const [canonical] = Intl.getCanonicalLocales(safe);
+    return canonical || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export function languageInstruction(lang?: string | null): string {
-  const normalized = (typeof lang === 'string' ? lang : 'en').trim() || 'en';
+  const normalized = normalizeLanguageTag(lang, 'en');
 
   let human = normalized;
   try {

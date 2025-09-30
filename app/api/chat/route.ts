@@ -36,7 +36,7 @@ import { singleTrialPatientPrompt, singleTrialClinicianPrompt } from "@/lib/prom
 import { searchTrials, dedupeTrials, rankValue } from "@/lib/trials/search";
 import { byName } from "@/data/countries";
 import { searchNearby } from "@/lib/openpass";
-import { languageInstruction } from "@/lib/ai/prompts/common";
+import { languageInstruction, normalizeLanguageTag } from "@/lib/ai/prompts/common";
 
 type WebHit = { title: string; snippet: string; url: string; source: string };
 
@@ -98,7 +98,7 @@ export async function POST(req: Request) {
   const headers = req.headers;
   const requestedLang = typeof body?.lang === "string" ? body.lang : undefined;
   const headerLang = headers.get("x-lang");
-  const lang = (requestedLang || headerLang || "en").toString().trim() || "en";
+  const lang = normalizeLanguageTag(requestedLang || headerLang || "en");
   const languageNote = languageInstruction(lang);
   console.log(`[chat] incoming: mode=${mode} research=${Boolean(researchOn)} lang=${lang}`);
   let conversationId = headers.get("x-conversation-id");
