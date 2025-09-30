@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/getUserId";
@@ -8,7 +9,45 @@ import { buildShortSummaryFromText } from "@/lib/shortSummary";
 
 const NO_STORE = { "Cache-Control": "no-store, max-age=0" };
 
-const PROTECTED_UNIT = /^(?:mg\/dl|mmol\/l|bpm|cm|kg|%)$/i;
+const TRANSLATION_TTL_MS = 24 * 60 * 60 * 1000;
+
+const LAB_TOKEN_LIST = [
+  "HbA1c",
+  "LDL",
+  "HDL",
+  "CRP",
+  "ALT",
+  "AST",
+  "eGFR",
+  "ESR",
+  "BMI",
+  "BUN",
+  "TSH",
+  "T4",
+  "T3",
+  "WBC",
+  "RBC",
+  "Hb",
+  "A1C",
+  "BP",
+  "HR",
+  "RR",
+  "SpO2",
+  "Na",
+  "K",
+  "Cl",
+  "Ca",
+  "CR",
+  "GFR",
+  "Glucose",
+];
+
+const PROTECTED_REGEX_FACTORIES: Array<() => RegExp> = [
+  () =>
+    /\b\d{1,4}(?:[.,]\d+)?\s?(?:mg\/dL|mg\/dl|mcg|µg|ug|mmol\/L|mmol\/l|mEq\/L|meq\/l|IU\/L|iu\/l|U\/L|u\/l|bpm|cm|mm|kg|lbs|lb|g\/dL|g\/dl|mL|ml|L|l|%)\b/gi,
+  () => /\b\d{1,4}(?:[.,]\d+)?(?:\s?-\s?\d{1,4}(?:[.,]\d+)?)?\b/g,
+  () => new RegExp(`\\b(?:${LAB_TOKEN_LIST.join("|")})\\b`, "gi"),
+];
 
 type DrawerField = "summaryLong" | "summaryShort" | "text" | "valueText";
 
@@ -17,6 +56,13 @@ type PreparedBlock = {
   sanitized: string;
   replacements: string[];
 };
+
+type TranslationCacheValue = {
+  expiresAt: number;
+  translated: Partial<Record<DrawerField, string>>;
+};
+
+const translationCache = new Map<string, TranslationCacheValue>();
 
 function firstString(...values: any[]): string | null {
   for (const value of values) {
@@ -33,18 +79,39 @@ function firstString(...values: any[]): string | null {
 }
 
 function protectText(text: string) {
-  const tokens = text.split(/(\s+)/);
-  const replacements: string[] = [];
-  const sanitizedTokens = tokens.map(token => {
-    if (!token.trim()) return token;
-    if (/^\d/.test(token) || PROTECTED_UNIT.test(token)) {
-      const placeholder = `__MEDX_PROTECTED_${replacements.length}__`;
-      replacements.push(token);
-      return placeholder;
+  if (!text) {
+    return { sanitized: text, replacements: [] };
+  }
+  const segments: { start: number; end: number; value: string }[] = [];
+  for (const factory of PROTECTED_REGEX_FACTORIES) {
+    const regex = factory();
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(text)) !== null) {
+      const value = match[0];
+      if (!value) continue;
+      const start = match.index;
+      const end = start + value.length;
+      if (segments.some(segment => start < segment.end && end > segment.start)) {
+        continue;
+      }
+      segments.push({ start, end, value });
     }
-    return token;
+  }
+  if (!segments.length) {
+    return { sanitized: text, replacements: [] };
+  }
+  segments.sort((a, b) => a.start - b.start);
+  const replacements: string[] = [];
+  let cursor = 0;
+  let sanitized = "";
+  segments.forEach((segment, index) => {
+    sanitized += text.slice(cursor, segment.start);
+    sanitized += `__MEDX_PROTECTED_${index}__`;
+    replacements.push(segment.value);
+    cursor = segment.end;
   });
-  return { sanitized: sanitizedTokens.join(""), replacements };
+  sanitized += text.slice(cursor);
+  return { sanitized, replacements };
 }
 
 function restoreText(text: string, replacements: string[]) {
@@ -66,8 +133,10 @@ export async function POST(req: Request) {
   } catch {}
 
   const id = body?.id ? String(body.id) : null;
-  const langRaw = body?.lang ? String(body.lang) : "en";
-  const lang = langRaw || "en";
+  const url = new URL(req.url);
+  const langParam = url.searchParams.get("lang");
+  const langRaw = (langParam || body?.lang || "en") as string;
+  const lang = (langRaw || "en").toLowerCase();
 
   if (!id) {
     return NextResponse.json({ error: "id required" }, { status: 400, headers: NO_STORE });
@@ -116,39 +185,88 @@ export async function POST(req: Request) {
 
   const translated: Partial<Record<DrawerField, string>> = {};
 
-  if (lang.toLowerCase() !== "en") {
-    const prepared: PreparedBlock[] = [];
+  if (lang !== "en") {
+    const hash = createHash("sha256");
     (Object.entries(base) as [DrawerField, string | null][]).forEach(([key, value]) => {
-      if (typeof value === "string" && value.trim()) {
-        const { sanitized, replacements } = protectText(value);
-        prepared.push({ key, sanitized, replacements });
+      if (typeof value === "string" && value.length) {
+        hash.update(`${key}:${value}\u0000`);
       }
     });
+    const contentHash = hash.digest("hex");
+    const cacheKey = `${id}:${lang}:${contentHash}`;
+    const now = Date.now();
+    const cached = translationCache.get(cacheKey);
+    let needsTranslation = true;
+    if (cached) {
+      if (cached.expiresAt > now) {
+        Object.assign(translated, cached.translated);
+        needsTranslation = false;
+      } else {
+        translationCache.delete(cacheKey);
+      }
+    }
 
-    if (prepared.length) {
-      const url = new URL(req.url);
-      try {
-        const res = await fetch(`${url.origin}/api/translate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ textBlocks: prepared.map(p => p.sanitized), target: lang }),
-          cache: "no-store",
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const blocks = Array.isArray(data?.blocks) ? data.blocks : [];
-          prepared.forEach((item, index) => {
-            const candidate = typeof blocks[index] === "string" ? blocks[index] : "";
-            if (candidate && candidate.trim()) {
-              translated[item.key] = restoreText(candidate, item.replacements);
-            }
-          });
+    if (needsTranslation) {
+      const prepared: PreparedBlock[] = [];
+      (Object.entries(base) as [DrawerField, string | null][]).forEach(([key, value]) => {
+        if (typeof value === "string" && value.trim()) {
+          const { sanitized, replacements } = protectText(value);
+          prepared.push({ key, sanitized, replacements });
         }
-      } catch (err) {
-        console.warn("[timeline/summary] translation failed", err);
+      });
+
+      if (prepared.length) {
+        try {
+          const glossary = Array.from(
+            new Set(
+              prepared.flatMap(block => block.replacements.filter(Boolean)),
+            ),
+          );
+          const response = await fetch(`${url.origin}/api/translate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              textBlocks: prepared.map(p => p.sanitized),
+              target: lang,
+              glossary,
+            }),
+            cache: "no-store",
+          });
+          if (response.ok) {
+            const data = await response.json();
+            const blocks = Array.isArray(data?.blocks) ? data.blocks : [];
+            prepared.forEach((item, index) => {
+              const candidate = typeof blocks[index] === "string" ? blocks[index] : "";
+              if (candidate && candidate.trim()) {
+                translated[item.key] = restoreText(candidate, item.replacements);
+              }
+            });
+            translationCache.set(cacheKey, {
+              expiresAt: now + TRANSLATION_TTL_MS,
+              translated: { ...translated },
+            });
+          } else {
+            translationCache.delete(cacheKey);
+          }
+        } catch (err) {
+          console.warn("[timeline/summary] translation failed", err);
+          translationCache.delete(cacheKey);
+        }
+      } else {
+        translationCache.set(cacheKey, {
+          expiresAt: now + TRANSLATION_TTL_MS,
+          translated: {},
+        });
       }
     }
   }
+
+  const summaryLongLocalized = translated.summaryLong ?? null;
+  const summaryShortLocalized = translated.summaryShort ?? null;
+  const textLocalized = translated.text ?? null;
+  const valueTextLocalized = translated.valueText ?? null;
+  const summaryLocalized = summaryLongLocalized ?? summaryShortLocalized ?? null;
+  const fullTextLocalized = textLocalized ?? null;
 
   return NextResponse.json(
     {
@@ -157,6 +275,12 @@ export async function POST(req: Request) {
       summaryShort,
       text,
       valueText,
+      summaryLocalized,
+      summaryLongLocalized,
+      summaryShortLocalized,
+      fullTextLocalized,
+      textLocalized,
+      valueTextLocalized,
       translated,
     },
     { headers: NO_STORE },

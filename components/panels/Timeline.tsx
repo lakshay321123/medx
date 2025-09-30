@@ -162,10 +162,12 @@ const VITAL_KINDS = new Set([
 ]);
 
 type DrawerTranslation = {
-  summaryLong?: string | null;
-  summaryShort?: string | null;
-  text?: string | null;
-  valueText?: string | null;
+  summaryLocalized?: string | null;
+  summaryLongLocalized?: string | null;
+  summaryShortLocalized?: string | null;
+  fullTextLocalized?: string | null;
+  textLocalized?: string | null;
+  valueTextLocalized?: string | null;
 };
 
 const getChipLabel = (ob: any, translate: (value: string) => string) => {
@@ -435,28 +437,60 @@ export default function Timeline(){
       setTranslated(null);
       return;
     }
+    const langCode = (lang || "en").toLowerCase();
     const englishSnapshot = JSON.stringify({
       summaryLong: meta.summary_long ?? meta.summaryLong ?? "",
       summaryShort: meta.summary ?? meta.summaryShort ?? "",
       text: meta.text ?? "",
       valueText: active?.value_text ?? "",
     });
-    const cacheKey = `${active.id}:${lang}:${englishSnapshot}`;
+    const cacheKey = `${active.id}:${langCode}:${englishSnapshot}`;
     const cached = translationCacheRef.current.get(cacheKey);
     if (cached) {
       setTranslated(cached);
       return;
     }
     let cancelled = false;
-    fetch("/api/timeline/summary", {
+    const endpoint = `/api/timeline/summary?lang=${encodeURIComponent(langCode)}`;
+    fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: active.id, lang }),
+      body: JSON.stringify({ id: active.id, lang: langCode }),
     })
       .then(res => (res.ok ? res.json() : null))
       .then(payload => {
         if (cancelled || !payload) return;
-        const translatedData: DrawerTranslation = payload?.translated ?? {};
+        const coerce = (value: unknown) => {
+          if (typeof value !== "string") return null;
+          const trimmed = value.trim();
+          return trimmed.length ? trimmed : null;
+        };
+        const translatedData: DrawerTranslation = {
+          summaryLocalized:
+            coerce(payload?.summaryLocalized) ||
+            coerce(payload?.summaryLongLocalized) ||
+            coerce(payload?.summaryShortLocalized) ||
+            coerce(payload?.translated?.summaryLong) ||
+            coerce(payload?.translated?.summaryShort),
+          summaryLongLocalized:
+            coerce(payload?.summaryLongLocalized) ||
+            coerce(payload?.translated?.summaryLong),
+          summaryShortLocalized:
+            coerce(payload?.summaryShortLocalized) ||
+            coerce(payload?.summaryLocalized) ||
+            coerce(payload?.translated?.summaryShort),
+          fullTextLocalized:
+            coerce(payload?.fullTextLocalized) ||
+            coerce(payload?.textLocalized) ||
+            coerce(payload?.translated?.text),
+          textLocalized:
+            coerce(payload?.textLocalized) ||
+            coerce(payload?.fullTextLocalized) ||
+            coerce(payload?.translated?.text),
+          valueTextLocalized:
+            coerce(payload?.valueTextLocalized) ||
+            coerce(payload?.translated?.valueText),
+        };
         translationCacheRef.current.set(cacheKey, translatedData);
         setTranslated(translatedData);
       })
@@ -499,19 +533,29 @@ export default function Timeline(){
   const source = active?.meta?.source;
   const hasFallbackFacts = Boolean(dose || observed || source || (active?.unit && !dose));
   const chipLabel = active ? getChipLabel(active, t) : null;
+  const langCode = (lang || "en").toLowerCase();
   const hasTranslatedContent =
-    lang !== "en" &&
+    langCode !== "en" &&
     translated &&
-    Object.values(translated).some(v => typeof v === "string" && v.trim().length > 0);
+    Object.values(translated).some(value => typeof value === "string" && value.trim().length > 0);
+  const localizedSummaryLong =
+    translated?.summaryLongLocalized ?? translated?.summaryLocalized ?? null;
+  const localizedSummaryShort =
+    translated?.summaryShortLocalized ??
+    translated?.summaryLocalized ??
+    translated?.summaryLongLocalized ??
+    null;
+  const localizedFullText = translated?.fullTextLocalized ?? translated?.textLocalized ?? null;
+  const localizedValueText = translated?.valueTextLocalized ?? null;
   const displaySummaryLong =
-    !showOriginal && translated?.summaryLong ? translated.summaryLong : summaryLong;
+    !showOriginal && localizedSummaryLong ? localizedSummaryLong : summaryLong;
   const displaySummaryShort =
-    !showOriginal && translated?.summaryShort ? translated.summaryShort : summaryShort;
-  const displayText = !showOriginal && translated?.text ? translated.text : text;
+    !showOriginal && localizedSummaryShort ? localizedSummaryShort : summaryShort;
+  const displayText = !showOriginal && localizedFullText ? localizedFullText : text;
   const displayShortSummary =
-    !showOriginal && translated?.summaryShort ? translated.summaryShort : originalShortSummary;
+    !showOriginal && localizedSummaryShort ? localizedSummaryShort : originalShortSummary;
   const displayValueText =
-    !showOriginal && translated?.valueText ? translated.valueText : active?.value_text;
+    !showOriginal && localizedValueText ? localizedValueText : active?.value_text;
   const summaryAvailable = Boolean(summaryLong || summaryShort);
   const textAvailable = Boolean(text);
   const translationToggleLabel = showOriginal
