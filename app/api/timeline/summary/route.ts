@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { NextResponse } from "next/server";
+import { createHash } from "crypto";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/getUserId";
 import { buildShortSummaryFromText } from "@/lib/shortSummary";
@@ -163,12 +164,42 @@ async function handleTimelineSummary(
     fullText_display: String(fullTextSource ?? ""),
   };
 
+  const englishSummary = data.summary || "";
+  const englishFullText = data.fullText || "";
+  const englishHash = createHash("sha256")
+    .update(`${englishSummary}|||${englishFullText}`)
+    .digest("hex");
+
+  data.summary_display = englishSummary;
+  data.fullText_display = englishFullText;
+
   const hasTranslatableContent = Boolean(
     (data.summary && data.summary.trim()) ||
       (data.fullText && data.fullText.trim()),
   );
 
   if (lang !== "en" && hasTranslatableContent) {
+    try {
+      const { data: cachedTranslation } = await sb
+        .from("timeline_translations")
+        .select("summary_display, fulltext_display")
+        .eq("observation_id", data.id)
+        .eq("lang", lang)
+        .eq("english_hash", englishHash)
+        .maybeSingle();
+
+      if (cachedTranslation) {
+        data.summary_display = String(cachedTranslation.summary_display ?? englishSummary);
+        data.fullText_display = String(cachedTranslation.fulltext_display ?? englishFullText);
+        return NextResponse.json(
+          { ok: true, data },
+          { headers: NO_STORE },
+        );
+      }
+    } catch (cacheErr) {
+      console.warn("[timeline/summary] translation cache read failed", cacheErr);
+    }
+
     const url = new URL(req.url);
 
     const guards = [data.summary, data.fullText].map(block => guardMeasurements(block || ""));
@@ -191,7 +222,7 @@ async function handleTimelineSummary(
       timeoutId = setTimeout(() => {
         controller.abort();
         resolve({ blocks: [] });
-      }, 6500);
+      }, Number(process.env.MT_TIMEOUT_MS || 3500));
     });
 
     try {
@@ -207,6 +238,21 @@ async function handleTimelineSummary(
 
       data.summary_display = summaryTranslated || data.summary || "";
       data.fullText_display = fullTextTranslated || data.fullText || "";
+
+      if (summaryTranslated || fullTextTranslated) {
+        const { error: cacheWriteError } = await sb
+          .from("timeline_translations")
+          .upsert({
+            observation_id: data.id,
+            lang,
+            english_hash: englishHash,
+            summary_display: data.summary_display,
+            fulltext_display: data.fullText_display,
+          });
+        if (cacheWriteError) {
+          console.warn("[timeline/summary] translation cache write failed", cacheWriteError);
+        }
+      }
     } catch (err) {
       console.warn("[timeline/summary] translation failed", err);
       data.summary_display = data.summary || "";

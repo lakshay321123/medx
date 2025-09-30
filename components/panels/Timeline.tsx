@@ -759,10 +759,10 @@ export default function Timeline(){
               </h3>
               <div className="ml-auto flex gap-2">
                 {(active.file?.path || active.file?.upload_id) && signedUrl && (
-                  <button onClick={() => window.open(signedUrl, '_blank')} className="text-xs px-2 py-1 rounded-md border">Open</button>
+                  <button onClick={() => window.open(signedUrl, '_blank')} className="text-xs px-2 py-1 rounded-md border">{t("Open")}</button>
                 )}
                 {(active.file?.path || active.file?.upload_id) && signedUrl && (
-                  <a href={signedUrl} download className="text-xs px-2 py-1 rounded-md border">Download</a>
+                  <a href={signedUrl} download className="text-xs px-2 py-1 rounded-md border">{t("Download")}</a>
                 )}
                 {!hasFile && hasAiSummary && (
                   <a
@@ -798,7 +798,7 @@ export default function Timeline(){
                 ) : /\.(png|jpe?g|gif|webp)(\?|$)/i.test(signedUrl) ? (
                   <img src={signedUrl} className="max-w-full max-h-[80vh] object-contain" />
                 ) : (
-                  <div className="text-sm text-muted-foreground text-center">Preview unavailable. Use <b>Open</b> or <b>Download</b>.</div>
+                  <div className="text-sm text-muted-foreground text-center">{t("Preview unavailable. Use <b>Open</b> or <b>Download</b>.")}</div>
                 )
               ) : (
                 <>
@@ -877,19 +877,19 @@ export default function Timeline(){
                         <div className="grid grid-cols-2 gap-2">
                           {dose && (
                             <div className="rounded-md border px-2 py-1">
-                              <div className="text-[11px] uppercase opacity-70">Dose</div>
+                              <div className="text-[11px] uppercase opacity-70">{t("Dose")}</div>
                               <div>{dose}</div>
                             </div>
                           )}
                           {observed && (
                             <div className="rounded-md border px-2 py-1">
-                              <div className="text-[11px] uppercase opacity-70">Observed</div>
+                              <div className="text-[11px] uppercase opacity-70">{t("Observed")}</div>
                               <div>{observed}</div>
                             </div>
                           )}
                           {source && (
                             <div className="rounded-md border px-2 py-1">
-                              <div className="text-[11px] uppercase opacity-70">Source</div>
+                              <div className="text-[11px] uppercase opacity-70">{t("Source")}</div>
                               <div className="capitalize">{String(source)}</div>
                             </div>
                           )}
