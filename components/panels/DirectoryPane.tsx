@@ -96,14 +96,17 @@ export default function DirectoryPane() {
     hospital: t("Hospitals"),
     clinic: t("Clinics"),
   };
-  const typeOptions: { value: DirectoryType; label: string }[] = [
+  const typeCodes: DirectoryType[] = [
     "all",
     "doctor",
     "pharmacy",
     "lab",
     "hospital",
     "clinic",
-  ].map((value) => ({ value, label: typeLabels[value] }));
+  ];
+  const typeOptions: { value: DirectoryType; label: string }[] = typeCodes.map(
+    (value) => ({ value, label: typeLabels[value] }),
+  );
   const cardTypeLabels: Partial<Record<DirectoryType, string>> = {
     doctor: t("Doctor"),
     pharmacy: t("Pharmacy"),
