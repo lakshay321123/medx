@@ -1030,7 +1030,8 @@ body {
 }
 
 .dark {
-  --on-brand: var(--medx-bg-a);
+  /* High-contrast text on brand surfaces in dark mode */
+  --on-brand: var(--medx-text);
 }
 
 /* Hide scrollbars on horizontal tab scrollers (mobile pills) */

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { ChevronDown, Play } from "lucide-react";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
 import { useT } from "@/components/hooks/useI18n";
+import { applyTheme } from "@/lib/theme";
 
 const LANG_LABELS = {
   en: "English",
@@ -128,6 +129,7 @@ export default function GeneralPanel() {
               const theme = THEME_OPTIONS[value as keyof typeof THEME_OPTIONS];
               if (theme) {
                 prefs.set("theme", theme);
+                applyTheme(theme);
               }
             }}
             items={[...THEME_ITEMS]}

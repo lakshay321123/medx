@@ -51,6 +51,21 @@ export default function Page({ searchParams }: { searchParams: Search }) {
   }, []);
 
   useEffect(() => {
+    let dispose: (() => void) | undefined;
+    let cancelled = false;
+    if (typeof window !== "undefined") {
+      import("@/lib/theme").then((mod) => {
+        if (cancelled) return;
+        dispose = mod.initTheme();
+      });
+    }
+    return () => {
+      cancelled = true;
+      dispose?.();
+    };
+  }, []);
+
+  useEffect(() => {
     if (panel === "settings" || panel === "preferences") {
       openPrefs(requestedTab);
       if (typeof window !== "undefined") {

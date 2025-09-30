@@ -89,11 +89,6 @@ export default function PreferencesModal() {
             close();
           }
         }}
-        onMouseDown={(event) => {
-          if (event.target === event.currentTarget) {
-            close();
-          }
-        }}
       />
       <div
         role="dialog"
