@@ -9,6 +9,14 @@ export type Place = {
   address?: string;
   localizedName?: string;
   localizedAddress?: string;
+  name_original?: string;
+  name_localized?: string;
+  name_method?: "provider" | "transliterate" | "fallback" | "none";
+  name_display?: string;
+  address_original?: string;
+  address_localized?: string;
+  address_method?: "provider" | "translate" | "fallback" | "none";
+  address_display?: string;
   type: DirType;
   category_display?: string;
   distance_m?: number;
