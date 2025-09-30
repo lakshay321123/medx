@@ -2,30 +2,28 @@
 import { useState } from 'react';
 import { useResearchFilters } from '@/store/researchFilters';
 import type { TrialRow } from '@/types/trials';
+import { useT } from '@/components/hooks/useI18n';
+import { PHASES, STATUSES, REGIONS } from '@/components/clinicalTrials.const';
 
-const phaseOptions = ['1','2','3','4'] as const;
-const statusLabels = [
-  { key: 'recruiting', api: 'Recruiting', label: 'Recruiting' },
-  { key: 'active', api: 'Active, not recruiting', label: 'Active (not recruiting)' },
-  { key: 'completed', api: 'Completed', label: 'Completed' },
-  { key: 'any', api: undefined, label: 'Any' },
-] as const;
+type PhaseValue = (typeof PHASES)[number]['value'];
+type StatusValue = (typeof STATUSES)[number]['value'];
+type RegionValue = (typeof REGIONS)[number]['value'];
 
-// Add China, keep Worldwide (treated as no filter)
-const countryOptions = [
-  'United States',
-  'India',
-  'European Union',
-  'United Kingdom',
-  'Japan',
-  'China',        // NEW
-  'Worldwide',    // special: mapped to no filter
-] as const;
+type LocalState = {
+  query: string;
+  phase: PhaseValue | '';
+  status: StatusValue;
+  countries: RegionValue[];
+  genes: string;
+};
 
-function mapStatusKeyToApi(key?: string) {
-  if (!key || key === 'any') return undefined;
-  const m = statusLabels.find(s => s.key === key);
-  return m?.api;
+const STATUS_API_MAP = new Map<StatusValue, (typeof STATUSES)[number]['apiValue']>(
+  STATUSES.map(status => [status.value, status.apiValue]),
+);
+
+function mapStatusKeyToApi(key?: StatusValue) {
+  if (!key) return undefined;
+  return STATUS_API_MAP.get(key);
 }
 
 type Props = {
@@ -35,12 +33,13 @@ type Props = {
 
 export default function ResearchFilters({ mode, onResults }: Props) {
   const { filters, setFilters, reset } = useResearchFilters();
+  const t = useT();
 
-  const [local, setLocal] = useState({
+  const [local, setLocal] = useState<LocalState>({
     query: filters.query || '',
-    phase: filters.phase || '',
-    status: filters.status || 'recruiting',
-    countries: filters.countries || [],
+    phase: (filters.phase as PhaseValue | undefined) || '',
+    status: (filters.status as StatusValue | undefined) || 'recruiting',
+    countries: (filters.countries as RegionValue[] | undefined) || [],
     genes: (filters.genes || []).join(', '),
   });
   const [source, setSource] = useState<string>(filters.source || 'All');
@@ -48,11 +47,11 @@ export default function ResearchFilters({ mode, onResults }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const togglePhase = (p: string) =>
+  const togglePhase = (p: PhaseValue) =>
     setLocal(s => ({ ...s, phase: s.phase === p ? '' : p }));
 
   // Single-select country (clean & predictable)
-  const toggleCountry = (name: string) =>
+  const toggleCountry = (name: RegionValue) =>
     setLocal(s => ({
       ...s,
       countries: s.countries.includes(name) ? [] : [name],
@@ -61,8 +60,8 @@ export default function ResearchFilters({ mode, onResults }: Props) {
   function applyLocalToStore() {
     setFilters({
       query: local.query.trim() || undefined,
-      phase: (local.phase as any) || undefined,
-      status: (local.status as any) || 'recruiting',
+      phase: (local.phase || undefined) as PhaseValue | undefined,
+      status: local.status,
       countries: local.countries,
       genes: local.genes.split(',').map(s => s.trim()).filter(Boolean),
       source,
@@ -77,7 +76,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
       const country = local.countries[0];
       const payload = {
         query: local.query.trim() || undefined,
-        phase: (local.phase || undefined) as "1"|"2"|"3"|"4"|undefined,
+        phase: (local.phase || undefined) as PhaseValue | undefined,
         status: mapStatusKeyToApi(local.status),
         country: country === 'Worldwide' ? undefined : country,
         genes: local.genes.split(',').map(s => s.trim()).filter(Boolean),
@@ -126,34 +125,37 @@ export default function ResearchFilters({ mode, onResults }: Props) {
       {/* Top-style search input + button */}
       <div className="flex items-center gap-2">
         <input
+          key={t.lang}
           value={local.query}
           onChange={(e)=>setLocal(s=>({ ...s, query: e.target.value }))}
           onKeyDown={(e)=> e.key === 'Enter' && (e.currentTarget as any).form?.requestSubmit()}
-          placeholder="Search trials (e.g., condition, gene, topic)…"
+          placeholder={t('Search trials (e.g., condition, gene, topic)')}
+          aria-label={t('Search trials (e.g., condition, gene, topic)')}
           className="w-full rounded-lg border px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700"
         />
         <button
           type="submit"
           className="px-3 py-2 rounded-lg text-sm border bg-blue-600 text-white dark:border-blue-600 disabled:opacity-50"
           disabled={busy}
+          aria-label={t('Search')}
         >
-          {busy ? 'Searching…' : 'Search'}
+          {busy ? t('Searching…') : t('Search')}
         </button>
       </div>
 
       {/* Phase chips */}
       <div className="mt-3 flex flex-wrap gap-2">
-        {phaseOptions.map(p=>(
+        {PHASES.map(phase=>(
           <button
-            key={p}
+            key={phase.value}
             type="button"
-            onClick={()=>togglePhase(p)}
+            onClick={()=>togglePhase(phase.value)}
             className={`px-2 py-1 rounded border text-xs ${
-              local.phase === p ? 'bg-blue-600 text-white border-blue-600' :
+              local.phase === phase.value ? 'bg-blue-600 text-white border-blue-600' :
               'bg-white dark:bg-slate-800 dark:border-slate-700'
             }`}
           >
-            Phase {p}
+            {t(phase.labelKey)}
           </button>
         ))}
       </div>
@@ -162,11 +164,12 @@ export default function ResearchFilters({ mode, onResults }: Props) {
       <div className="mt-2">
         <select
           value={local.status}
-          onChange={(e)=>setLocal(s=>({ ...s, status: e.target.value as any }))}
+          onChange={(e)=>setLocal(s=>({ ...s, status: e.target.value as StatusValue }))}
           className="rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
+          aria-label={t('Status')}
         >
-          {statusLabels.map(o=>(
-            <option key={o.key} value={o.key}>{o.label}</option>
+          {STATUSES.map(option=>(
+            <option key={option.value} value={option.value}>{t(option.labelKey)}</option>
           ))}
         </select>
       </div>
@@ -188,17 +191,17 @@ export default function ResearchFilters({ mode, onResults }: Props) {
 
       {/* Country chips */}
       <div className="mt-2 flex flex-wrap gap-2">
-        {countryOptions.map(name=>(
+        {REGIONS.map(region=>(
           <button
-            key={name}
+            key={region.value}
             type="button"
-            onClick={()=>toggleCountry(name)}
+            onClick={()=>toggleCountry(region.value)}
             className={`px-2 py-1 rounded border text-xs ${
-              local.countries.includes(name) ? 'bg-blue-600 text-white border-blue-600' :
+              local.countries.includes(region.value) ? 'bg-blue-600 text-white border-blue-600' :
               'bg-white dark:bg-slate-800 dark:border-slate-700'
             }`}
           >
-            {name}
+            {t(region.labelKey)}
           </button>
         ))}
       </div>
@@ -206,16 +209,27 @@ export default function ResearchFilters({ mode, onResults }: Props) {
       {/* Genes + Apply / Reset */}
       <div className="mt-3 flex items-center gap-2">
         <input
-          placeholder="Genes (comma separated)"
+          placeholder={t('Genes (comma separated)')}
+          aria-label={t('Genes (comma separated)')}
           value={local.genes}
           onChange={(e)=>setLocal(s=>({ ...s, genes: e.target.value }))}
           className="flex-1 rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
         />
-        <button type="submit" className="px-3 py-1.5 rounded-lg text-sm border bg-blue-600 text-white dark:border-blue-600 disabled:opacity-50" disabled={busy}>
-          {busy ? 'Searching…' : 'Apply'}
+        <button
+          type="submit"
+          className="px-3 py-1.5 rounded-lg text-sm border bg-blue-600 text-white dark:border-blue-600 disabled:opacity-50"
+          disabled={busy}
+          aria-label={t('Apply')}
+        >
+          {busy ? t('Searching…') : t('Apply')}
         </button>
-        <button type="button" onClick={onReset} className="px-3 py-1.5 rounded-lg text-sm border">
-          Reset
+        <button
+          type="button"
+          onClick={onReset}
+          className="px-3 py-1.5 rounded-lg text-sm border"
+          aria-label={t('Reset')}
+        >
+          {t('Reset')}
         </button>
       </div>
 
