@@ -30,6 +30,27 @@ body.font-loading *::after {
          dark:bg-gray-800 dark:text-slate-100 dark:border-gray-600 dark:hover:bg-gray-700;
 }
 
+.btn-primary {
+  @apply inline-flex items-center justify-center rounded-lg px-3.5 py-1.5 text-sm font-semibold transition;
+  background: var(--brand);
+  color: var(--on-brand);
+}
+
+.btn-primary:hover {
+  filter: brightness(1.05);
+}
+
+.btn-ghost {
+  @apply inline-flex items-center justify-center rounded-lg border px-3.5 py-1.5 text-sm transition;
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.btn-ghost:hover {
+  filter: brightness(1.03);
+}
+
 /* Compact action buttons for mobile trial cards */
 .chip-sm {
   border-radius: 0.5rem;
@@ -147,6 +168,16 @@ body.font-loading *::after {
   --medx-surface: rgba(255,255,255,0.80);
   --medx-panel:   rgba(255,255,255,0.90);
   --medx-outline: rgba(15, 23, 42, 0.10);
+
+  /* preferences tokens */
+  --surface: var(--medx-surface);
+  --surface-2: var(--medx-panel);
+  --border: var(--medx-outline);
+  --text: var(--medx-text);
+  --muted: var(--medx-subtext);
+  --brand: var(--medx-accent);
+  --on-brand: rgba(255,255,255,1);
+  --backdrop: rgba(0,0,0,0.6);
 }
 .dark {
   --medx-bg-a: #06122E;   /* deep navy */
@@ -164,6 +195,15 @@ body.font-loading *::after {
   --medx-surface: rgba(0,0,0,0.35);
   --medx-panel:   rgba(3,7,18,0.55);
   --medx-outline: rgba(255,255,255,0.12);
+
+  --surface: var(--medx-surface);
+  --surface-2: var(--medx-panel);
+  --border: var(--medx-outline);
+  --text: var(--medx-text);
+  --muted: var(--medx-subtext);
+  --brand: var(--medx-accent);
+  --on-brand: rgba(255,255,255,1);
+  --backdrop: rgba(0,0,0,0.6);
 }
 
 /* Background painted behind UI (never affects layout) */
