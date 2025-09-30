@@ -37,7 +37,11 @@ export async function POST(req: NextRequest) {
   const userId = await getUserId(req);
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const { threadId, message, profileIntent, newProfile } = await req.json();
+  const payload = await req.json();
+  const { threadId, message, profileIntent, newProfile } = payload;
+  const requestedLang = typeof payload?.lang === "string" ? payload.lang : undefined;
+  const headerLang = req.headers.get("x-lang");
+  const lang = (requestedLang || headerLang || "en").toString().trim() || "en";
   if (!message) return NextResponse.json({ error: "no message" }, { status: 400 });
 
   // Ensure profile & load clinical state + memory
@@ -114,7 +118,7 @@ export async function POST(req: NextRequest) {
   }
 
   // System prompt with guardrails
-  let system = buildAiDocPrompt({ profile, labs, meds, conditions });
+  let system = buildAiDocPrompt({ profile, labs, meds, conditions, lang });
 
   const userText = String(message || "");
   const ctx = canonicalizeInputs(extractAll(userText));

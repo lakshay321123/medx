@@ -36,6 +36,7 @@ import { singleTrialPatientPrompt, singleTrialClinicianPrompt } from "@/lib/prom
 import { searchTrials, dedupeTrials, rankValue } from "@/lib/trials/search";
 import { byName } from "@/data/countries";
 import { searchNearby } from "@/lib/openpass";
+import { languageInstruction } from "@/lib/ai/prompts/common";
 
 type WebHit = { title: string; snippet: string; url: string; source: string };
 
@@ -96,16 +97,9 @@ export async function POST(req: Request) {
 
   const headers = req.headers;
   const requestedLang = typeof body?.lang === "string" ? body.lang : undefined;
-  const lang = (requestedLang || headers.get("x-lang") || "en").toLowerCase();
-  const languageNames: Record<string, string> = {
-    en: "English",
-    hi: "Hindi",
-    ar: "Arabic",
-    it: "Italian",
-    zh: "Simplified Chinese",
-    es: "Spanish",
-  };
-  const languageName = languageNames[lang] || "English";
+  const headerLang = headers.get("x-lang");
+  const lang = (requestedLang || headerLang || "en").toString().trim() || "en";
+  const languageNote = languageInstruction(lang);
   let conversationId = headers.get("x-conversation-id");
   let isNewChat = headers.get("x-new-chat") === "true";
   if (!conversationId) {
@@ -141,13 +135,16 @@ export async function POST(req: Request) {
     const prompt = mode === "doctor"
       ? singleTrialClinicianPrompt(trial)
       : singleTrialPatientPrompt(trial);
+    const trialSystem = [
+      ...(languageNote ? [languageNote] : []),
+      mode === "doctor"
+        ? "You are a concise clinical evidence summarizer for clinicians."
+        : "You explain clinical trials in plain language for laypeople.",
+    ].join("\n\n");
     const reply = await callGroq([
       {
         role: "system",
-        content:
-          mode === "doctor"
-            ? "You are a concise clinical evidence summarizer for clinicians."
-            : "You explain clinical trials in plain language for laypeople.",
+        content: trialSystem,
       },
       { role: "user", content: prompt },
     ], { temperature: 0.25, max_tokens: 1200 });
@@ -200,13 +197,17 @@ export async function POST(req: Request) {
           ? `Summarize these trials for a clinician audience. Focus on phase, design, endpoints, status, sponsor.\n\n${list}`
           : `Summarize these trials in plain English for a patient. Explain what each is testing, status, and where. Keep it clear and short.\n\n${list}`;
 
+      const trialSystem = [
+        ...(languageNote ? [languageNote] : []),
+        mode === "doctor"
+          ? "You are a clinical evidence summarizer for clinicians."
+          : "You are a health explainer for laypeople.",
+      ].join("\n\n");
+
       const reply = await callGroq([
         {
           role: "system",
-          content:
-            mode === "doctor"
-              ? "You are a clinical evidence summarizer for clinicians."
-              : "You are a health explainer for laypeople.",
+          content: trialSystem,
         },
         { role: "user", content: prompt },
       ]);
@@ -222,7 +223,9 @@ export async function POST(req: Request) {
 
   if (mode === "doctor") {
     const patient = await buildPatientSnapshot(thread_id);
-    const systemPrompt = DOCTOR_JSON_SYSTEM;
+    const systemPrompt = languageNote
+      ? `${languageNote}\n\n${DOCTOR_JSON_SYSTEM}`
+      : DOCTOR_JSON_SYSTEM;
     const msg: ChatCompletionMessageParam[] = [
       { role: "system", content: systemPrompt },
       ...(incomingMessages || []),
@@ -314,9 +317,9 @@ export async function POST(req: Request) {
 
   // 4) Decide routing for current turn
   const systemExtra: string[] = [];
-  systemExtra.push(
-    `You are MedX. Always answer in ${languageName} only (no mixed languages). If the user writes in another language, translate to ${languageName} unless they explicitly ask otherwise. For Arabic, use RTL; for Chinese, use Simplified.`
-  );
+  if (languageNote) {
+    systemExtra.push(languageNote);
+  }
   const routeDecision = decideRoute(text, state.topic);
   if (routeDecision === "clarify-quick") {
     systemExtra.push("If the user intent may have changed, ask one concise clarification question, then proceed.");

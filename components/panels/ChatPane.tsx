@@ -691,6 +691,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const { country } = useCountry();
   const prefs = usePrefs();
   const t = useT();
+  const appLang = (t.lang || prefs.lang || 'en').trim();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userText, setUserText] = useState('');
@@ -2635,7 +2636,7 @@ ${systemCommon}` + baseSys;
           'Content-Type': 'application/json',
           'x-conversation-id': conversationId,
           'x-new-chat': messages.length === 0 ? 'true' : 'false',
-          'x-lang': prefs.lang
+          'x-lang': appLang
         },
         body: JSON.stringify({
           mode: mode === 'doctor' ? 'doctor' : 'patient',
@@ -2644,7 +2645,7 @@ ${systemCommon}` + baseSys;
           context,
           clientRequestId,
           research: researchMode,
-          lang: prefs.lang
+          lang: appLang
         }),
         signal: ctrl.signal
       });
@@ -3485,7 +3486,8 @@ ${systemCommon}` + baseSys;
           threadId,
           message: text,
           profileIntent,
-          newProfile
+          newProfile,
+          lang: appLang
         })
       });
       const data = await r.json();

@@ -3,6 +3,7 @@ import { profileChatSystem } from '@/lib/profileChatSystem';
 import { extractAll, canonicalizeInputs } from '@/lib/medical/engine/extract';
 import { BRAND_NAME } from "@/lib/brand";
 import { computeAll } from '@/lib/medical/engine/computeAll';
+import { languageInstruction } from '@/lib/ai/prompts/common';
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
@@ -59,6 +60,10 @@ export async function POST(req: NextRequest) {
   let body: any = {};
   try { body = await req.json(); } catch {}
   const { context, clientRequestId, mode } = body;
+  const requestedLang = typeof body?.lang === 'string' ? body.lang : undefined;
+  const headerLang = req.headers.get('x-lang');
+  const lang = (requestedLang || headerLang || 'en').toString().trim() || 'en';
+  const languageNote = languageInstruction(lang);
 
   const research =
     qp === '1' || qp === 'true' || body?.research === true || body?.research === 'true';
@@ -110,6 +115,24 @@ export async function POST(req: NextRequest) {
       : history.length
       ? history
       : [latestUser];
+
+  const injectLanguageInstruction = (
+    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+  ) => {
+    if (!languageNote) return;
+    const idx = messages.findIndex(m => m.role === 'system');
+    if (idx >= 0) {
+      const current = messages[idx];
+      if (current.content.includes(languageNote)) return;
+      messages[idx] = { ...current, content: `${languageNote}\n\n${current.content}` };
+    } else {
+      messages.unshift({ role: 'system', content: languageNote });
+    }
+  };
+
+  if (research && !long) {
+    injectLanguageInstruction(briefMessages);
+  }
 
   // 4) Tighter generation when research brief is active
   const modelOptions = (research && !long)
@@ -165,6 +188,7 @@ export async function POST(req: NextRequest) {
     ? (isShortQuery || briefTopic ? 220 : 360)
     : (isShortQuery || briefTopic ? 180 : 280);
   const brevitySystem = [
+    ...(languageNote ? [languageNote] : []),
     `You are ${BRAND_NAME} chat. Be concise and structured.`,
     `Aim to keep the entire answer under ${targetWordCap} words (SOFT cap).`,
     'If you are finishing a sentence, you may exceed the cap slightly to complete it (≤ +40 words).',
@@ -235,6 +259,8 @@ export async function POST(req: NextRequest) {
     finalMessages = [{ role: 'system', content: __calcPrelude }, ...finalMessages];
   }
   // === [MEDX_CALC_PRELUDE_END] ===
+
+  injectLanguageInstruction(finalMessages);
 
   const upstream = await fetch(url, {
     method: 'POST',
