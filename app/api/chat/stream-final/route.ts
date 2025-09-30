@@ -1,5 +1,6 @@
 import { ensureMinDelay, minDelayMs } from "@/lib/utils/ensureMinDelay";
 import { callOpenAIChat } from "@/lib/medx/providers";
+import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 
 // Optional calculator prelude (safe if engine absent)
 let composeCalcPrelude: any, extractAll: any, canonicalizeInputs: any, computeAll: any;
@@ -13,7 +14,13 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  const { messages = [], mode } = await req.json();
+  const payload = await req.json();
+  const { messages = [], mode } = payload ?? {};
+  const requestedLang = typeof payload?.lang === 'string' ? payload.lang : undefined;
+  const headerLang = req.headers.get('x-user-lang') || req.headers.get('x-lang') || undefined;
+  const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
+  const lang = langTag.toLowerCase();
+  const langDirective = languageDirectiveFor(lang);
 
   // This endpoint is explicitly the OpenAI (final say) stream for non-basic modes.
   // Keep your current /api/chat/stream for Groq/basic.
@@ -28,6 +35,8 @@ export async function POST(req: Request) {
       if (prelude) system = `Use and verify these pre-computed values first:\n${prelude}`;
     } catch {}
   }
+
+  system = [system, langDirective].filter(Boolean).join('\n\n');
 
   const minMs = minDelayMs();
   const upstream = await ensureMinDelay<Response>(

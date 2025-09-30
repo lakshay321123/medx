@@ -161,7 +161,7 @@ export function ChatWindow() {
       if (locationToken) {
         const res = await fetch("/api/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-lang": lang },
+          headers: { "Content-Type": "application/json", "x-user-lang": lang },
           body: JSON.stringify({
             query: content,
             locationToken,
@@ -186,7 +186,7 @@ export function ChatWindow() {
       } else {
         const res = await fetch("/api/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-lang": lang },
+          headers: { "Content-Type": "application/json", "x-user-lang": lang },
           body: JSON.stringify({
             text: content,
             lang,

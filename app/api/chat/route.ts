@@ -6,6 +6,7 @@ import { decideContext } from "@/lib/memory/contextRouter";
 import { seedTopicEmbedding } from "@/lib/memory/outOfContext";
 import { updateSummary, persistUpdatedSummary } from "@/lib/memory/summary";
 import { buildPromptContext } from "@/lib/memory/contextBuilder";
+import { languageNameFor, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 import { buildContextBundle } from "@/lib/prompt/contextBuilder";
 
 import { loadState, saveState } from "@/lib/context/stateStore";
@@ -96,16 +97,10 @@ export async function POST(req: Request) {
 
   const headers = req.headers;
   const requestedLang = typeof body?.lang === "string" ? body.lang : undefined;
-  const lang = (requestedLang || headers.get("x-lang") || "en").toLowerCase();
-  const languageNames: Record<string, string> = {
-    en: "English",
-    hi: "Hindi",
-    ar: "Arabic",
-    it: "Italian",
-    zh: "Simplified Chinese",
-    es: "Spanish",
-  };
-  const languageName = languageNames[lang] || "English";
+  const headerLang = headers.get("x-user-lang") || headers.get("x-lang") || undefined;
+  const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
+  const lang = langTag.toLowerCase();
+  const languageName = languageNameFor(lang);
   let conversationId = headers.get("x-conversation-id");
   let isNewChat = headers.get("x-new-chat") === "true";
   if (!conversationId) {
@@ -314,9 +309,6 @@ export async function POST(req: Request) {
 
   // 4) Decide routing for current turn
   const systemExtra: string[] = [];
-  systemExtra.push(
-    `You are MedX. Always answer in ${languageName} only (no mixed languages). If the user writes in another language, translate to ${languageName} unless they explicitly ask otherwise. For Arabic, use RTL; for Chinese, use Simplified.`
-  );
   const routeDecision = decideRoute(text, state.topic);
   if (routeDecision === "clarify-quick") {
     systemExtra.push("If the user intent may have changed, ask one concise clarification question, then proceed.");
@@ -342,8 +334,9 @@ export async function POST(req: Request) {
   }
 
   // 5) Build system + recent messages
-  const { system, recent } = await buildPromptContext({ threadId, options: { mode, researchOn } });
-  const baseSystem = [system, ...systemExtra].join("\n");
+  const { system, recent, langDirective } = await buildPromptContext({ threadId, options: { mode, researchOn, lang } });
+  const systemParts = [system, ...systemExtra].filter(Boolean);
+  const baseSystem = [...systemParts, langDirective].join("\n\n");
 
   // --- Topic Locking disabled (no recipe/dish behaviors) ---
   const fullSystem = baseSystem;
@@ -378,6 +371,8 @@ export async function POST(req: Request) {
       feedback_summary,
       app: "medx",
       mode: mode ?? "chat",
+      language: lang,
+      languageName,
     },
   });
   // 6) Polish and append recap (if any constraints present)
