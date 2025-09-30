@@ -10,8 +10,17 @@ import { ISO_COUNTRIES } from "@/lib/i18n/isoCountries";
 type DirectoryType = ReturnType<typeof useDirectory>["state"]["type"];
 
 const PREFS_STORAGE_KEY = "medx-prefs-v1";
-const DIRECTORY_I18N_V1_ENABLED =
-  ((process.env.NEXT_PUBLIC_DIRECTORY_I18N_V1 ?? "true").toString().toLowerCase() || "true") !== "false";
+
+function parseFlag(value: string | undefined, defaultValue: boolean) {
+  if (value == null) return defaultValue;
+  const normalized = value.toString().trim().toLowerCase();
+  if (!normalized) return defaultValue;
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return defaultValue;
+}
+
+const DIRECTORY_NAME_I18N_ENABLED = parseFlag(process.env.NEXT_PUBLIC_DIRECTORY_NAME_I18N, true);
 
 export default function DirectoryPane() {
   const prefs = usePrefs();
@@ -209,12 +218,12 @@ export default function DirectoryPane() {
           };
           const showOriginalName = prefs.directoryShowOriginalName !== false;
           const fallbackName = place.localizedName ?? place.name;
-          const displayName = DIRECTORY_I18N_V1_ENABLED
+          const displayName = DIRECTORY_NAME_I18N_ENABLED
             ? showOriginalName
               ? nameFields.name_display ?? nameFields.name_localized ?? fallbackName
               : nameFields.name_localized ?? fallbackName
             : fallbackName;
-          const titleAttr = DIRECTORY_I18N_V1_ENABLED
+          const titleAttr = DIRECTORY_NAME_I18N_ENABLED
             ? nameFields.name_original ?? displayName
             : place.name;
           const displayAddress = place.localizedAddress ?? place.address;

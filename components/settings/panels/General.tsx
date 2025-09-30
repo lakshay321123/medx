@@ -5,6 +5,17 @@ import { ChevronDown, Play } from "lucide-react";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
 import { useT } from "@/components/hooks/useI18n";
 
+function parseFlag(value: string | undefined, defaultValue: boolean) {
+  if (value == null) return defaultValue;
+  const normalized = value.toString().trim().toLowerCase();
+  if (!normalized) return defaultValue;
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return defaultValue;
+}
+
+const DIRECTORY_NAME_I18N_ENABLED = parseFlag(process.env.NEXT_PUBLIC_DIRECTORY_NAME_I18N, true);
+
 const LANG_LABELS = {
   en: "English",
   hi: "Hindi",
@@ -150,32 +161,36 @@ export default function GeneralPanel() {
           </>
         }
       />
-      <div className="px-5 pt-6 text-[13px] text-slate-500 dark:text-slate-400">{t("Directory")}</div>
-      <div className="flex items-center justify-between gap-4 px-5 py-4">
-        <div>
-          <div className="text-[13px] font-semibold">
-            {t("Show original name alongside translation")}
+      {DIRECTORY_NAME_I18N_ENABLED && (
+        <>
+          <div className="px-5 pt-6 text-[13px] text-slate-500 dark:text-slate-400">{t("Directory")}</div>
+          <div className="flex items-center justify-between gap-4 px-5 py-4">
+            <div>
+              <div className="text-[13px] font-semibold">
+                {t("Show original name alongside translation")}
+              </div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                {t("Display localized provider names with originals in parentheses.")}
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={showOriginal}
+              onClick={() => prefs.set("directoryShowOriginalName", !showOriginal)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 dark:focus-visible:ring-blue-500/50 ${
+                showOriginal ? "bg-blue-500" : "bg-slate-300 dark:bg-slate-700"
+              }`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                  showOriginal ? "translate-x-5" : "translate-x-1"
+                }`}
+              />
+            </button>
           </div>
-          <div className="text-xs text-slate-500 dark:text-slate-400">
-            {t("Display localized provider names with originals in parentheses.")}
-          </div>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={showOriginal}
-          onClick={() => prefs.set("directoryShowOriginalName", !showOriginal)}
-          className={`relative inline-flex h-6 w-11 items-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 dark:focus-visible:ring-blue-500/50 ${
-            showOriginal ? "bg-blue-500" : "bg-slate-300 dark:bg-slate-700"
-          }`}
-        >
-          <span
-            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
-              showOriginal ? "translate-x-5" : "translate-x-1"
-            }`}
-          />
-        </button>
-      </div>
+        </>
+      )}
     </>
   );
 }

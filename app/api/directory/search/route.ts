@@ -3,11 +3,27 @@ import { providerLang } from "@/lib/i18n/providerLang";
 
 // meters per degree latitude (simple distance estimate)
 const M_PER_DEG = 111_320;
-const DIRECTORY_I18N_V1 =
-  ((process.env.DIRECTORY_I18N_V1 ?? process.env.NEXT_PUBLIC_DIRECTORY_I18N_V1 ?? "true").toString().toLowerCase() ||
-    "true") !== "false";
+
+function flagEnabled(value: string | undefined, defaultValue: boolean) {
+  if (value == null) return defaultValue;
+  const normalized = value.toString().trim().toLowerCase();
+  if (!normalized) return defaultValue;
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return defaultValue;
+}
+
+const DIRECTORY_NAME_I18N_ENABLED = flagEnabled(
+  process.env.DIRECTORY_NAME_I18N ?? process.env.NEXT_PUBLIC_DIRECTORY_NAME_I18N,
+  true,
+);
+const DIRECTORY_ADDRESS_I18N_ENABLED = flagEnabled(
+  process.env.DIRECTORY_ADDRESS_I18N ?? process.env.NEXT_PUBLIC_DIRECTORY_ADDRESS_I18N,
+  false,
+);
 const NAME_CACHE_TTL_SECONDS = 86_400;
-const DETAILS_CACHE_TTL_MS = NAME_CACHE_TTL_SECONDS * 1000;
+const NAME_CACHE_TTL_MS = NAME_CACHE_TTL_SECONDS * 1000;
+const DETAILS_CACHE_TTL_MS = 86_400 * 1000;
 
 type NameLocalization = {
   name_original: string;
@@ -27,8 +43,12 @@ const GENERIC_TRANSLATIONS: Record<string, Record<string, string>> = {
   hi: {
     "medical center": "मेडिकल सेंटर",
     "medical centre": "मेडिकल सेंटर",
+    "medical centers": "मेडिकल सेंटर्स",
+    "medical centres": "मेडिकल सेंटर्स",
     center: "केंद्र",
     centre: "केंद्र",
+    centers: "केंद्र",
+    centres: "केंद्र",
     multispeciality: "बहु-विशेषता",
     multispecialty: "बहु-विशेषता",
     maternity: "मातृत्व",
@@ -36,27 +56,40 @@ const GENERIC_TRANSLATIONS: Record<string, Record<string, string>> = {
     ent: "ईएनटी",
     dermatology: "त्वचा रोग",
     pediatric: "बाल चिकित्सा",
+    pediatrics: "बाल चिकित्सा",
     paediatric: "बाल चिकित्सा",
+    paediatrics: "बाल चिकित्सा",
     orthopedic: "अस्थि रोग",
     orthopaedic: "अस्थि रोग",
+    orthopedics: "अस्थि रोग",
+    orthopaedics: "अस्थि रोग",
     gynecology: "स्त्री रोग",
     gynaecology: "स्त्री रोग",
     cardiac: "हृदय",
     dental: "दंत",
     eye: "नेत्र",
+    diagnostic: "डायग्नोस्टिक",
     diagnostics: "डायग्नोस्टिक्स",
     labs: "लैब्स",
     lab: "लैब",
+    clinics: "क्लिनिक",
     clinic: "क्लिनिक",
+    hospitals: "अस्पताल",
     hospital: "अस्पताल",
+    pharmacies: "फार्मेसियाँ",
     pharmacy: "फार्मेसी",
+    doctors: "डॉक्टर",
     doctor: "डॉक्टर",
   },
   ar: {
     "medical center": "مركز طبي",
     "medical centre": "مركز طبي",
+    "medical centers": "مراكز طبية",
+    "medical centres": "مراكز طبية",
     center: "مركز",
     centre: "مركز",
+    centers: "مراكز",
+    centres: "مراكز",
     multispeciality: "متعدد التخصصات",
     multispecialty: "متعدد التخصصات",
     maternity: "أمومة",
@@ -64,27 +97,40 @@ const GENERIC_TRANSLATIONS: Record<string, Record<string, string>> = {
     ent: "أنف وأذن وحنجرة",
     dermatology: "جلدية",
     pediatric: "أطفال",
+    pediatrics: "أطفال",
     paediatric: "أطفال",
+    paediatrics: "أطفال",
     orthopedic: "عظام",
     orthopaedic: "عظام",
+    orthopedics: "عظام",
+    orthopaedics: "عظام",
     gynecology: "نسائية",
     gynaecology: "نسائية",
     cardiac: "قلبي",
     dental: "أسنان",
     eye: "عيون",
+    diagnostic: "تشخيصي",
     diagnostics: "تشخيص",
     labs: "مختبرات",
     lab: "مختبر",
+    clinics: "عيادات",
     clinic: "عيادة",
+    hospitals: "مستشفيات",
     hospital: "مستشفى",
+    pharmacies: "صيدليات",
     pharmacy: "صيدلية",
+    doctors: "أطباء",
     doctor: "طبيب",
   },
   it: {
     "medical center": "Centro Medico",
     "medical centre": "Centro Medico",
+    "medical centers": "Centri Medici",
+    "medical centres": "Centri Medici",
     center: "Centro",
     centre: "Centro",
+    centers: "Centri",
+    centres: "Centri",
     multispeciality: "Polispecialistica",
     multispecialty: "Polispecialistica",
     maternity: "Maternità",
@@ -92,27 +138,40 @@ const GENERIC_TRANSLATIONS: Record<string, Record<string, string>> = {
     ent: "Otorinolaringoiatria",
     dermatology: "Dermatologia",
     pediatric: "Pediatria",
+    pediatrics: "Pediatria",
     paediatric: "Pediatria",
+    paediatrics: "Pediatria",
     orthopedic: "Ortopedia",
     orthopaedic: "Ortopedia",
+    orthopedics: "Ortopedia",
+    orthopaedics: "Ortopedia",
     gynecology: "Gynecologia",
     gynaecology: "Gynecologia",
     cardiac: "Cardiologia",
     dental: "Odontoiatria",
     eye: "Oculistica",
+    diagnostic: "Diagnostico",
     diagnostics: "Diagnostica",
     labs: "Laboratori",
     lab: "Laboratorio",
+    clinics: "Cliniche",
     clinic: "Clinica",
+    hospitals: "Ospedali",
     hospital: "Ospedale",
+    pharmacies: "Farmacie",
     pharmacy: "Farmacia",
+    doctors: "Medici",
     doctor: "Medico",
   },
   es: {
     "medical center": "Centro Médico",
     "medical centre": "Centro Médico",
+    "medical centers": "Centros Médicos",
+    "medical centres": "Centros Médicos",
     center: "Centro",
     centre: "Centro",
+    centers: "Centros",
+    centres: "Centros",
     multispeciality: "Multiespecialidad",
     multispecialty: "Multiespecialidad",
     maternity: "Maternidad",
@@ -120,27 +179,81 @@ const GENERIC_TRANSLATIONS: Record<string, Record<string, string>> = {
     ent: "Otorrinolaringología",
     dermatology: "Dermatología",
     pediatric: "Pediatría",
+    pediatrics: "Pediatría",
     paediatric: "Pediatría",
+    paediatrics: "Pediatría",
     orthopedic: "Ortopedia",
     orthopaedic: "Ortopedia",
+    orthopedics: "Ortopedia",
+    orthopaedics: "Ortopedia",
     gynecology: "Ginecología",
     gynaecology: "Ginecología",
     cardiac: "Cardiología",
     dental: "Dental",
     eye: "Oftalmología",
-    diagnostics: "Diagnóstico",
+    diagnostic: "Diagnóstico",
+    diagnostics: "Diagnósticos",
     labs: "Laboratorios",
     lab: "Laboratorio",
+    clinics: "Clínicas",
     clinic: "Clínica",
+    hospitals: "Hospitales",
     hospital: "Hospital",
+    pharmacies: "Farmacias",
     pharmacy: "Farmacia",
+    doctors: "Doctores",
     doctor: "Doctor",
+  },
+  fr: {
+    "medical center": "Centre médical",
+    "medical centre": "Centre médical",
+    "medical centers": "Centres médicaux",
+    "medical centres": "Centres médicaux",
+    center: "Centre",
+    centre: "Centre",
+    centers: "Centres",
+    centres: "Centres",
+    multispeciality: "Pluridisciplinaire",
+    multispecialty: "Pluridisciplinaire",
+    maternity: "Maternité",
+    physiotherapy: "Kinésithérapie",
+    ent: "ORL",
+    dermatology: "Dermatologie",
+    pediatric: "Pédiatrie",
+    pediatrics: "Pédiatrie",
+    paediatric: "Pédiatrie",
+    paediatrics: "Pédiatrie",
+    orthopedic: "Orthopédie",
+    orthopaedic: "Orthopédie",
+    orthopedics: "Orthopédie",
+    orthopaedics: "Orthopédie",
+    gynecology: "Gynécologie",
+    gynaecology: "Gynécologie",
+    cardiac: "Cardiologie",
+    dental: "Dentaire",
+    eye: "Ophtalmologie",
+    diagnostic: "Diagnostic",
+    diagnostics: "Diagnostics",
+    labs: "Laboratoires",
+    lab: "Laboratoire",
+    clinics: "Cliniques",
+    clinic: "Clinique",
+    hospitals: "Hôpitaux",
+    hospital: "Hôpital",
+    pharmacies: "Pharmacies",
+    pharmacy: "Pharmacie",
+    doctors: "Médecins",
+    doctor: "Médecin",
   },
   zh: {
     "medical center": "医疗中心",
     "medical centre": "医疗中心",
+    "medical centers": "医疗中心",
+    "medical centres": "医疗中心",
     center: "中心",
     centre: "中心",
+    centers: "中心",
+    centres: "中心",
     multispeciality: "多专科",
     multispecialty: "多专科",
     maternity: "产科",
@@ -148,20 +261,29 @@ const GENERIC_TRANSLATIONS: Record<string, Record<string, string>> = {
     ent: "耳鼻喉科",
     dermatology: "皮肤科",
     pediatric: "儿科",
+    pediatrics: "儿科",
     paediatric: "儿科",
+    paediatrics: "儿科",
     orthopedic: "骨科",
     orthopaedic: "骨科",
+    orthopedics: "骨科",
+    orthopaedics: "骨科",
     gynecology: "妇科",
     gynaecology: "妇科",
     cardiac: "心脏科",
     dental: "牙科",
     eye: "眼科",
+    diagnostic: "诊断",
     diagnostics: "诊断",
     labs: "实验室",
     lab: "实验室",
+    clinics: "诊所",
     clinic: "诊所",
+    hospitals: "医院",
     hospital: "医院",
+    pharmacies: "药店",
     pharmacy: "药店",
+    doctors: "医生",
     doctor: "医生",
   },
 };
@@ -171,6 +293,7 @@ const ABBREVIATION_TRANSLATIONS: Record<string, { pattern: RegExp; replacement: 
   ar: { pattern: /\bDr\.?/gi, replacement: "د." },
   it: { pattern: /\bDr\.?/gi, replacement: "Dott.ssa" },
   es: { pattern: /\bDr\.?/gi, replacement: "Dr." },
+  fr: { pattern: /\bDr\.?/gi, replacement: "Dr" },
   zh: { pattern: /\bDr\.?/gi, replacement: "医生" },
 };
 
@@ -280,8 +403,10 @@ function translateGenericTerms(name: string, lang: string) {
   const abbr = resolveLangMap(ABBREVIATION_TRANSLATIONS, lang);
   if (abbr) {
     const { pattern, replacement } = abbr;
-    if (pattern.test(text)) {
-      text = text.replace(pattern, replacement);
+    const regex = new RegExp(pattern.source, pattern.flags);
+    const updated = text.replace(regex, replacement);
+    if (updated !== text) {
+      text = updated;
       changed = true;
     }
   }
@@ -357,7 +482,7 @@ function localizeName(place: Place, lang: string, caches: DirectoryCaches): Name
     name_cache_ttl: NAME_CACHE_TTL_SECONDS,
   };
 
-  caches.__dirNameCache.set(cacheKey, { entry, expiresAt: now + DETAILS_CACHE_TTL_MS });
+  caches.__dirNameCache.set(cacheKey, { entry, expiresAt: now + NAME_CACHE_TTL_MS });
   return entry;
 }
 
@@ -391,6 +516,41 @@ type Place = {
   last_checked?: string;
   rank_score?: number;
 };
+
+function stripNameFields(place: Place & Partial<NameLocalization>): Place {
+  const { name_display, name_localized, name_original, name_method, name_cache_ttl, ...rest } = place;
+  return rest as Place;
+}
+
+function applyDirectoryFeatures(places: Place[], lang: string, caches: DirectoryCaches) {
+  return places.map(place => {
+    const base = place as Place & Partial<NameLocalization>;
+    let next: Place & Partial<NameLocalization> = { ...base };
+
+    if (DIRECTORY_ADDRESS_I18N_ENABLED) {
+      const localized = base.localizedAddress;
+      const fallback = base.address;
+      const resolved = localized ?? fallback ?? "";
+      next = { ...next, address: resolved };
+      if ("localizedAddress" in next) {
+        delete (next as Record<string, unknown>).localizedAddress;
+      }
+    }
+
+    if (DIRECTORY_NAME_I18N_ENABLED) {
+      const localizedName = localizeName(base, lang, caches);
+      next = { ...next, ...localizedName };
+    } else {
+      delete (next as Record<string, unknown>).name_display;
+      delete (next as Record<string, unknown>).name_localized;
+      delete (next as Record<string, unknown>).name_original;
+      delete (next as Record<string, unknown>).name_method;
+      delete (next as Record<string, unknown>).name_cache_ttl;
+    }
+
+    return next;
+  });
+}
 
 type GoogleAddressComponent = {
   longText?: string;
@@ -891,7 +1051,6 @@ export async function GET(req: Request) {
     searchParams.get("lng") ?? "",
     searchParams.get("radius") ?? "",
     lang,
-    DIRECTORY_I18N_V1 ? "i18n" : "base",
   ].join("|");
   const globalAny = globalThis as typeof globalThis & DirectoryCaches;
   globalAny.__dirCache ||= new Map();
@@ -899,7 +1058,8 @@ export async function GET(req: Request) {
 
   const cached = cache.get(cacheKey);
   if (cached) {
-    return NextResponse.json(cached);
+    const enriched = applyDirectoryFeatures(cached.data, lang, globalAny);
+    return NextResponse.json({ ...cached, data: enriched });
   }
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
@@ -936,16 +1096,7 @@ export async function GET(req: Request) {
         if (d?.phone) p.phones = [d.phone];
         if (d?.hours) p.hours = d.hours;
         const formattedAddress = d?.formattedAddress ?? d?.composedAddress;
-        if (DIRECTORY_I18N_V1) {
-          if (formattedAddress) {
-            p.address = formattedAddress;
-          } else if (!p.address) {
-            p.address = "";
-          }
-          if (p.localizedAddress) {
-            delete p.localizedAddress;
-          }
-        } else if (formattedAddress) {
+        if (formattedAddress) {
           if (!p.address) {
             p.address = formattedAddress;
           } else if (p.address !== formattedAddress) {
@@ -967,9 +1118,6 @@ export async function GET(req: Request) {
 
       normalized.sort((a, b) => (a.distance_m ?? 1e9) - (b.distance_m ?? 1e9));
       places = uniqueByNameAddr(normalized).slice(0, 120);
-      if (DIRECTORY_I18N_V1) {
-        places = places.map(p => ({ ...p, ...localizeName(p, lang, globalAny) }));
-      }
       usedGoogle = places.length > 0;
     } catch {
       // fall through to OSM
@@ -982,18 +1130,23 @@ export async function GET(req: Request) {
     if (Number.isFinite(maxKm)) filtered = filtered.filter(p => (p.distance_m ?? 1e9) <= maxKm * 1000);
     filtered.sort((a, b) => (a.distance_m ?? 1e9) - (b.distance_m ?? 1e9));
     places = filtered.slice(0, 120);
-    if (DIRECTORY_I18N_V1) {
-      places = places.map(p => ({ ...p, ...localizeName(p, lang, globalAny) }));
-    }
   }
 
+  const responsePlaces = applyDirectoryFeatures(places, lang, globalAny);
+  const updatedAtIso = new Date().toISOString();
+  const provider = usedGoogle ? "google" : "osm";
+
   const payload = {
-    data: places,
-    updatedAt: new Date().toISOString(),
-    provider: usedGoogle ? "google" : "osm",
+    data: responsePlaces,
+    updatedAt: updatedAtIso,
+    provider,
   } as const;
 
-  cache.set(cacheKey, payload);
+  cache.set(cacheKey, {
+    data: places.map(stripNameFields),
+    updatedAt: updatedAtIso,
+    provider,
+  });
 
   return NextResponse.json(payload);
 }

@@ -2,6 +2,20 @@
 import { useEffect, useRef, useState } from "react";
 import { useT } from "@/components/hooks/useI18n";
 
+function parseFlag(value: string | undefined, defaultValue: boolean) {
+  if (value == null) return defaultValue;
+  const normalized = value.toString().trim().toLowerCase();
+  if (!normalized) return defaultValue;
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return defaultValue;
+}
+
+const DIRECTORY_LOCATION_INPUT_STABILITY_ENABLED = parseFlag(
+  process.env.NEXT_PUBLIC_DIRECTORY_LOCATION_INPUT_STABILITY,
+  true,
+);
+
 export default function AddressPicker({
   value,
   onSelect,
@@ -40,7 +54,10 @@ export default function AddressPicker({
 
     timeoutRef.current = window.setTimeout(async () => {
       try {
-        const params = new URLSearchParams({ q, lang: langRef.current });
+        const params = new URLSearchParams({
+          q,
+          lang: DIRECTORY_LOCATION_INPUT_STABILITY_ENABLED ? langRef.current : lang,
+        });
         const response = await fetch(`/api/geocode?${params.toString()}`, { cache: "no-store" });
         const json = await response.json();
         setOpts(json.data || []);
@@ -55,7 +72,7 @@ export default function AddressPicker({
         window.clearTimeout(timeoutRef.current);
       }
     };
-  }, [q]);
+  }, [q, lang]);
 
   return (
     <div className="relative w-full">
