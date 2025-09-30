@@ -8,6 +8,17 @@ type MTProvider = "google" | "openai";
 const PROVIDER = (process.env.MT_PROVIDER as MTProvider) || "google";
 const TARGETS = new Set(["en", "hi", "ar", "es", "it", "zh"]);
 
+function decodeHtmlEntities(s: string): string {
+  return String(s || "")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#34;", '"')
+    .replaceAll("&apos;", "'")
+    .replaceAll("&#39;", "'")
+    .replaceAll("&amp;", "&")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">");
+}
+
 type Entry<T> = { v: T; exp: number };
 const cache = new Map<string, Entry<string>>();
 const DEFAULT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -125,7 +136,7 @@ async function googleTranslateV2(texts: string[], target: string): Promise<strin
     const arr = Array.isArray(json?.data?.translations) ? json.data.translations : [];
     return arr.map((item: any, idx: number) => {
       const translated = typeof item?.translatedText === "string" ? item.translatedText : undefined;
-      return translated ?? texts[idx] ?? "";
+      return decodeHtmlEntities(translated ?? texts[idx] ?? "");
     });
   } catch {
     return texts;
