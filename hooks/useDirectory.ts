@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
 export type DirType = "all" | "doctor" | "pharmacy" | "lab" | "hospital" | "clinic";
@@ -26,7 +26,8 @@ export function useDirectory({ lang: inputLang }: { lang?: string } = {}) {
   const [lat, setLat] = useState<number | null>(28.567);
   const [lng, setLng] = useState<number | null>(77.209);
   const [locLabel, setLocLabel] = useState("South Delhi");
-  const [type, setType] = useState<DirType>("doctor");
+  const defaultTypeRef = useRef<DirType>("doctor");
+  const [type, setType] = useState<DirType>(defaultTypeRef.current);
   const [q, setQ] = useState("");
   const [openNow, setOpenNow] = useState(false);
   const [minRating, setMinRating] = useState<number | null>(null);
