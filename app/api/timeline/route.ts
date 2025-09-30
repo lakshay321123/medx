@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/getUserId";
 import { buildShortSummaryFromText } from "@/lib/shortSummary";
+import { langBase } from "@/lib/i18n/langBase";
 
 const noStore = { "Cache-Control": "no-store, max-age=0" };
 const iso = (ts: any) => {
@@ -204,7 +205,7 @@ export async function GET(req: Request) {
     it.summary_display = fallbackShort;
   });
 
-  const lang = (url.searchParams.get("lang") || "en").trim();
+  const lang = langBase(url.searchParams.get("lang") || undefined);
 
   if (lang !== "en" && items.length) {
     const origin = url.origin;

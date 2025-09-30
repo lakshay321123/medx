@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/getUserId";
 import { buildShortSummaryFromText } from "@/lib/shortSummary";
+import { langBase } from "@/lib/i18n/langBase";
 
 const NO_STORE = { "Cache-Control": "no-store, max-age=0" };
 
@@ -55,7 +56,7 @@ async function handleTimelineSummary(
     );
   }
 
-  const lang = (langParam || "en").trim() || "en";
+  const lang = langBase(langParam || undefined);
 
   const sb = supabaseAdmin();
   const { data: obsRow } = await sb

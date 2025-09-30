@@ -8,6 +8,7 @@ import PanelLoader from "@/components/mobile/PanelLoader";
 import { pushToast } from "@/lib/ui/toast";
 import { useRouter } from "next/navigation";
 import { useT } from "@/components/hooks/useI18n";
+import { langBase } from "@/lib/i18n/langBase";
 
 function normalizeKind(k?: string) {
   const raw = String(k ?? "").toLowerCase().trim();
@@ -280,14 +281,15 @@ const matchesCategory = (it: any, cat: Cat) => {
 export default function Timeline(){
   const isAiDoc = useIsAiDocMode();
   const t = useT();
-  const lang = t.lang;
+  const langFull = t.lang;
+  const lang = langBase(langFull);
   const dateFormatter = useMemo(
     () =>
-      new Intl.DateTimeFormat(lang, {
+      new Intl.DateTimeFormat(langFull, {
         dateStyle: "medium",
         timeStyle: "short",
       }),
-    [lang],
+    [langFull],
   );
   const formatDateTime = useCallback(
     (value: string | number | Date | null | undefined) => {
@@ -316,7 +318,7 @@ export default function Timeline(){
     [t],
   );
   const [resetError, setResetError] = useState<string|null>(null);
-  const { data, error, isLoading, mutate } = useTimeline(isAiDoc, lang);
+  const { data, error, isLoading, mutate } = useTimeline(isAiDoc, langFull);
   const items = data?.items ?? [];
 
   const [observations, setObservations] = useState<any[]>(() =>

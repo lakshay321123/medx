@@ -1,6 +1,8 @@
 "use client";
 import useSWR from "swr";
 
+import { langBase } from "@/lib/i18n/langBase";
+
 const fetcher = async (url: string) => {
   const res = await fetch(url, { credentials: "include", cache: "no-store" });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -9,8 +11,8 @@ const fetcher = async (url: string) => {
 
 // Cached across routes; no revalidate on focus (prevents reload on tab switch)
 export function useTimeline(enabled = true, lang?: string) {
-  const normalizedLang = (lang || "en").trim() || "en";
-  const params = new URLSearchParams({ mode: "ai-doc", lang: normalizedLang });
+  const lb = langBase(lang);
+  const params = new URLSearchParams({ mode: "ai-doc", lang: lb });
   const key = enabled ? `/api/timeline?${params.toString()}` : null;
   return useSWR<{ items: any[] }>(key, fetcher, {
     revalidateOnFocus: false,
