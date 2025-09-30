@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { ChevronDown, Play } from "lucide-react";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
 import { useT } from "@/components/hooks/useI18n";
+import { applyTheme } from "@/lib/theme";
 
 const LANG_LABELS = {
   en: "English",
@@ -23,14 +24,16 @@ const THEME_OPTIONS = {
 const THEME_ITEMS = ["System", "Light", "Dark"] as const;
 
 type MenuProps = {
+  label: string;
   value: string;
   onPick: (value: string) => void;
   items: string[];
 };
 
-function Menu({ value, onPick, items }: MenuProps) {
+function Menu({ label, value, onPick, items }: MenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const menuId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -57,23 +60,33 @@ function Menu({ value, onPick, items }: MenuProps) {
   return (
     <div ref={ref} className="relative">
       <button
+        type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="inline-flex items-center justify-between gap-2 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60"
+        className="inline-flex items-center justify-between gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--text)] focus-visible:outline-none focus-visible:ring-2"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={menuId}
+        aria-label={label}
       >
         {value}
         <ChevronDown size={14} className="opacity-70" />
       </button>
       <div
-        className={`absolute right-0 z-10 mt-2 w-44 overflow-hidden rounded-md border border-black/10 bg-white shadow-md dark:border-white/10 dark:bg-slate-900 ${open ? "block" : "hidden"}`}
+        id={menuId}
+        role="listbox"
+        className={`absolute right-0 z-10 mt-2 w-44 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] shadow-md ${open ? "block" : "hidden"}`}
       >
         {items.map((item) => (
           <button
             key={item}
+            type="button"
             onClick={() => {
               onPick(item);
               setOpen(false);
             }}
-            className="block w-full px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10"
+            className="block w-full px-3 py-2 text-left text-sm hover:bg-[var(--surface-2)]"
+            role="option"
+            aria-selected={item === value}
           >
             {item}
           </button>
@@ -110,11 +123,13 @@ export default function GeneralPanel() {
         sub={t("Select how the interface adapts to your system.")}
         right={
           <Menu
+            label={t("Theme")}
             value={themeLabel}
             onPick={(value) => {
               const theme = THEME_OPTIONS[value as keyof typeof THEME_OPTIONS];
               if (theme) {
                 prefs.set("theme", theme);
+                applyTheme(theme);
               }
             }}
             items={[...THEME_ITEMS]}
@@ -125,16 +140,24 @@ export default function GeneralPanel() {
         title={t("Language")}
         sub={t("Choose your preferred conversational language.")}
         right={
-          <Menu
-            value={LANG_LABELS[prefs.lang]}
-            onPick={(value) => {
-              const match = languages.find(([, label]) => label === value);
+          <select
+            value={prefs.lang}
+            onChange={(event) => {
+              const next = event.target.value;
+              const match = languages.find(([code]) => code === next);
               if (match) {
                 prefs.setLang(match[0]);
               }
             }}
-            items={languages.map(([, label]) => label)}
-          />
+            className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--text)] focus-visible:outline-none focus-visible:ring-2"
+            aria-label={t("Language")}
+          >
+            {languages.map(([code, label]) => (
+              <option key={code} value={code}>
+                {label}
+              </option>
+            ))}
+          </select>
         }
       />
       <Row
@@ -142,10 +165,13 @@ export default function GeneralPanel() {
         sub={t("Preview and select the voice used for spoken responses.")}
         right={
           <>
-            <button className="inline-flex items-center gap-1.5 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--text)] focus-visible:outline-none focus-visible:ring-2"
+            >
               <Play size={14} /> Play
             </button>
-            <Menu value="Cove" onPick={() => {}} items={["Cove"]} />
+            <Menu label={t("Voice")} value="Cove" onPick={() => {}} items={["Cove"]} />
           </>
         }
       />

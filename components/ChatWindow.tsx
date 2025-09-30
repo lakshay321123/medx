@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { useChatStore } from "@/lib/state/chatStore";
 import { ChatInput } from "@/components/ChatInput";
 import { persistIfTemp } from "@/lib/chat/persist";
@@ -13,6 +12,7 @@ import { usePendingAssistantStages } from "@/hooks/usePendingAssistantStages";
 import type { AppMode } from "@/lib/welcomeMessages";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
 import WelcomeCard from "@/components/chat/WelcomeCard";
+import { useUIStore } from "@/components/hooks/useUIStore";
 
 const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== "0";
 
@@ -38,17 +38,11 @@ export function ChatWindow() {
   const showWelcomeCard = messages.length === 0 && results.length === 0 && !pendingMessage;
   const hasScrollableContent =
     messages.length > 0 || results.length > 0 || !!pendingMessage || showWelcomeCard;
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const openPrefs = useUIStore((state) => state.openPrefs);
 
   const gotoAccount = useCallback(() => {
-    const q = new URLSearchParams(searchParams?.toString() || "");
-    const tid = q.get("threadId");
-    q.set("panel", "settings");
-    q.set("tab", "Account");
-    if (tid) q.set("threadId", tid);
-    router.push(`/?${q.toString()}`);
-  }, [router, searchParams]);
+    openPrefs("Account");
+  }, [openPrefs]);
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
