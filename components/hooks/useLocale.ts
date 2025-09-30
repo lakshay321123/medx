@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 
-import { tfmt, useT } from "@/components/hooks/useI18n";
 import { usePrefs } from "@/components/hooks/usePrefs";
 
 export type LocaleDescriptor = {
@@ -27,14 +26,9 @@ const FALLBACK_LOCALE = LOCALE_METADATA.en;
 
 export function useLocale(): LocaleDescriptor {
   const prefs = usePrefs();
-  const t = useT();
-
   return useMemo(() => {
     const info = LOCALE_METADATA[prefs.lang] ?? FALLBACK_LOCALE;
-    const label = tfmt(t("locale.language_label"), {
-      language: info.language,
-      region: info.region,
-    });
+    const label = info.language;
 
     return {
       lang: prefs.lang,
@@ -44,5 +38,5 @@ export function useLocale(): LocaleDescriptor {
       label,
       dir: info.dir,
     };
-  }, [prefs.lang, t]);
+  }, [prefs.lang]);
 }
