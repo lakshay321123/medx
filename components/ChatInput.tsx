@@ -22,6 +22,16 @@ export function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const t = useT();
+  const uploadKey = "common.ui.upload";
+  const uploadLabel = t(uploadKey);
+  const uploadText = uploadLabel === uploadKey ? t("Upload") : uploadLabel;
+  const sendKey = "common.ui.send";
+  const sendLabel = t(sendKey);
+  const sendText = sendLabel === sendKey ? t("Send") : sendLabel;
+  const placeholderKey = "common.composer.placeholder";
+  const placeholderLabel = t(placeholderKey);
+  const composerPlaceholder =
+    placeholderLabel === placeholderKey ? t("Type a message") : placeholderLabel;
   const { lang } = usePrefs();
   const openPrefs = useUIStore((state) => state.openPrefs);
 
@@ -81,7 +91,7 @@ export function ChatInput({
     >
       <button
         type="button"
-        aria-label={t("Upload")}
+        aria-label={uploadText}
         className="flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--medx-text)] transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-[color:var(--medx-text)] dark:hover:bg-white/10"
         onClick={() => {
           ensureThread();
@@ -108,8 +118,8 @@ export function ChatInput({
         ref={textareaRef}
         value={text}
         onChange={e => setText(e.target.value)}
-        placeholder={t("Type a message")}
-        aria-label={t("Type a message")}
+        placeholder={composerPlaceholder}
+        aria-label={composerPlaceholder}
         rows={1}
         onKeyDown={event => {
           if (event.key === "Enter" && !event.shiftKey) {
@@ -121,8 +131,8 @@ export function ChatInput({
       />
       <button
         type="submit"
-        aria-label={t("Send")}
-        title={t("Send")}
+        aria-label={sendText}
+        title={sendText}
         disabled={!text.trim()}
         className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-sky-500 dark:hover:bg-sky-400"
       >

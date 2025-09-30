@@ -2,7 +2,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { ChevronDown, Play } from "lucide-react";
-import { usePrefs } from "@/components/providers/PreferencesProvider";
+import { usePrefs } from "@/components/hooks/usePrefs";
 import { useT } from "@/components/hooks/useI18n";
 import { applyTheme } from "@/lib/theme";
 
@@ -10,9 +10,9 @@ const LANG_LABELS = {
   en: "English",
   hi: "Hindi",
   ar: "Arabic",
-  it: "Italian",
-  zh: "Chinese",
   es: "Spanish",
+  fr: "French",
+  it: "Italian",
 } as const;
 
 const THEME_OPTIONS = {
@@ -146,7 +146,7 @@ export default function GeneralPanel() {
               const next = event.target.value;
               const match = languages.find(([code]) => code === next);
               if (match) {
-                prefs.setLang(match[0]);
+                prefs.setLang(match[0], "user");
               }
             }}
             className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--text)] focus-visible:outline-none focus-visible:ring-2"
