@@ -214,8 +214,13 @@ export default function DirectoryPane() {
           </div>
         )}
         {data.map((place) => {
-          const displayName = place.name_display ?? place.localizedName ?? place.name;
-          const displayAddress = place.address_display ?? place.localizedAddress ?? place.address;
+          const displayName =
+            place.name_display || place.name_translated || place.localizedName || place.name;
+          const displayAddress =
+            place.address_display ||
+            place.address_translated ||
+            place.localizedAddress ||
+            place.address;
           const typeLabel =
             place.category_display ??
             cardTypeLabels[place.type] ??

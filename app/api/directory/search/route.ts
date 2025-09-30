@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { providerLang } from "@/lib/i18n/providerLang";
-import { transliterateNameSafe, translateAddressGenericWords } from "../_i18nFallback";
-import { getCache, setCache } from "../_cache";
+import { MT_CACHE_TTL_MS, translateBatchStrict } from "../_mt";
 
 // meters per degree latitude (simple distance estimate)
 const M_PER_DEG = 111_320;
@@ -15,23 +14,14 @@ const ALLOWED_DIRECTORY_TYPES = new Set([
   "clinic",
 ]);
 
-type NameMethod = "provider" | "transliterate" | "fallback" | "none";
-type AddressMethod = "provider" | "translate" | "fallback" | "none";
+type TranslationMethod = "provider" | "translate";
 
-type Place = {
+type BasePlace = {
   id: string;
   name: string;
   address?: string;
   localizedName?: string;
   localizedAddress?: string;
-  name_original?: string;
-  name_localized?: string;
-  name_method?: NameMethod;
-  name_display?: string;
-  address_original?: string;
-  address_localized?: string;
-  address_method?: AddressMethod;
-  address_display?: string;
   type: "doctor" | "pharmacy" | "lab" | "hospital" | "clinic";
   category_display?: string;
   rating?: number;
@@ -52,70 +42,17 @@ type Place = {
   rank_score?: number;
 };
 
-function withLocalizationFallback<T extends Place>(place: T, lang: string) {
-  const normalizedLang = lang.toLowerCase();
-  const baseLang = normalizedLang.split("-")[0] || normalizedLang || "en";
-
-  const nameOriginal = place.name ?? "";
-  const addressOriginal = place.address ?? "";
-
-  let derivedName = place.localizedName;
-  let nameMethod: NameMethod = "none";
-
-  if (derivedName && derivedName !== nameOriginal) {
-    nameMethod = "provider";
-  } else {
-    const cacheKey = `dir:name:${place.id || nameOriginal}:${baseLang}`;
-    const cached = getCache<string>(cacheKey);
-    if (cached) {
-      derivedName = cached;
-      nameMethod = "transliterate";
-    } else {
-      const result = transliterateNameSafe(nameOriginal, baseLang);
-      derivedName = result.text;
-      nameMethod = result.method === "transliterate" ? "transliterate" : "fallback";
-      if (result.method === "transliterate" && derivedName && derivedName !== nameOriginal) {
-        setCache(cacheKey, derivedName);
-      }
-    }
-  }
-
-  let derivedAddress = place.localizedAddress;
-  let addressMethod: AddressMethod = "none";
-
-  if (derivedAddress && derivedAddress !== addressOriginal) {
-    addressMethod = "provider";
-  } else {
-    const cacheKey = `dir:addr:${place.id || addressOriginal}:${baseLang}`;
-    const cached = getCache<string>(cacheKey);
-    if (cached) {
-      derivedAddress = cached;
-      addressMethod = "translate";
-    } else {
-      const result = translateAddressGenericWords(addressOriginal, baseLang);
-      derivedAddress = result.text;
-      addressMethod = result.method === "translate" ? "translate" : "fallback";
-      if (result.method === "translate" && derivedAddress && derivedAddress !== addressOriginal) {
-        setCache(cacheKey, derivedAddress);
-      }
-    }
-  }
-
-  const nameDisplay = derivedName || nameOriginal;
-  const addressDisplay = derivedAddress || addressOriginal;
-
-  return {
-    ...place,
-    name_original: nameOriginal,
-    name_localized: derivedName,
-    name_method: nameMethod,
-    name_display: nameDisplay,
-    address_original: addressOriginal,
-    address_localized: derivedAddress,
-    address_method: addressMethod,
-    address_display: addressDisplay,
-  };
-}
+type Place = BasePlace & {
+  name_original: string;
+  name_translated: string;
+  name_method: TranslationMethod;
+  name_display: string;
+  address_original: string;
+  address_translated: string;
+  address_method: TranslationMethod;
+  address_display: string;
+  mt_cache_ttl: number;
+};
 
 type GoogleAddressComponent = {
   longText?: string;
@@ -357,7 +294,7 @@ function normalizeGoogleResults(
   results: any[],
   origin: { lat: number; lng: number },
   uiType: string,
-): Place[] {
+): BasePlace[] {
   const now = new Date().toISOString();
   return results
     .map((r: any) => {
@@ -388,13 +325,13 @@ function normalizeGoogleResults(
         r?.primaryTypeDisplayName?.text ??
         r?.primary_type_display_name ??
         humanizeGoogleType(Array.isArray(r?.types) ? r.types[0] : undefined);
-      const p: Place = {
+      const p: BasePlace = {
         id: r.place_id,
         name: canonicalName,
         address,
         localizedName: localizedName && localizedName !== canonicalName ? localizedName : undefined,
         localizedAddress,
-        type: (uiType === "all" ? inferTypeFromGoogle(r.types || []) : (uiType as Place["type"])) || "clinic",
+        type: (uiType === "all" ? inferTypeFromGoogle(r.types || []) : (uiType as BasePlace["type"])) || "clinic",
         rating: r.rating,
         reviews_count: r.user_ratings_total,
         price_level: r.price_level,
@@ -413,10 +350,10 @@ function normalizeGoogleResults(
       }
       return p;
     })
-    .filter(Boolean) as Place[];
+    .filter(Boolean) as BasePlace[];
 }
 
-function inferTypeFromGoogle(types: string[]): Place["type"] {
+function inferTypeFromGoogle(types: string[]): BasePlace["type"] {
   // order matters
   if (types.includes("pharmacy")) return "pharmacy";
   if (types.includes("hospital")) return "hospital";
@@ -426,10 +363,10 @@ function inferTypeFromGoogle(types: string[]): Place["type"] {
   return "clinic";
 }
 
-function uniqueByNameAddr(list: Place[]) {
-  const key = (p: Place) => `${(p.name || "").toLowerCase()}|${(p.address || "").toLowerCase()}`;
+function uniqueByNameAddr(list: BasePlace[]) {
+  const key = (p: BasePlace) => `${(p.name || "").toLowerCase()}|${(p.address || "").toLowerCase()}`;
   const seen = new Set<string>();
-  const out: Place[] = [];
+  const out: BasePlace[] = [];
   for (const p of list) {
     const k = key(p);
     if (!seen.has(k)) {
@@ -447,7 +384,7 @@ async function osmFallback(
   radius: number,
   uiType: string,
   lang: string,
-) {
+): Promise<BasePlace[]> {
   function kindFilters(type: string) {
     switch (type) {
       case "pharmacy":
@@ -502,7 +439,7 @@ async function osmFallback(
   const langLower = lang.toLowerCase();
   const langBase = langLower.split("-")[0] || langLower;
   const langCandidates = Array.from(new Set([langLower, langBase].filter(Boolean)));
-  const res: Place[] = (j.elements || []).map((el: any) => {
+  const res: BasePlace[] = (j.elements || []).map((el: any) => {
     const center = el.center || { lat: el.lat, lon: el.lon };
     const namedetails = el?.namedetails ?? {};
     const localizedNameCandidate = langCandidates
@@ -554,7 +491,7 @@ async function osmFallback(
     const address = canonicalAddress || localizedAddressCandidate || undefined;
     const localizedAddress =
       localizedAddressCandidate && localizedAddressCandidate !== address ? localizedAddressCandidate : undefined;
-    const p: Place = {
+    const p: BasePlace = {
       id: String(el.id),
       name,
       address,
@@ -620,7 +557,7 @@ export async function GET(req: Request) {
   const origin = { lat, lng };
   const key = process.env.GOOGLE_PLACES_API_KEY;
 
-  let places: Place[] = [];
+  let places: BasePlace[] = [];
   let usedGoogle = false;
 
   if (key) {
@@ -683,8 +620,79 @@ export async function GET(req: Request) {
     places = filtered.slice(0, 120);
   }
 
-  const fallbackLang = appLang.split("-")[0]?.toLowerCase() || appLang.toLowerCase() || "en";
-  const enrichedPlaces = places.map(place => withLocalizationFallback(place, fallbackLang));
+  const normalizedTarget = appLang.toLowerCase().split("-")[0] || appLang.toLowerCase() || "en";
+
+  const nameSources = places.map(p => p.localizedName || p.name || "");
+  const addressSources = places.map(p => p.localizedAddress || p.address || "");
+  const providerNameFlags = places.map(p => Boolean(p.localizedName && p.localizedName !== p.name));
+  const providerAddressFlags = places.map(
+    p => Boolean(p.localizedAddress && p.localizedAddress !== p.address),
+  );
+
+  const nameTranslateIndices: number[] = [];
+  const namesToTranslate: string[] = [];
+  nameSources.forEach((value, index) => {
+    if (!providerNameFlags[index] && value) {
+      nameTranslateIndices.push(index);
+      namesToTranslate.push(value);
+    }
+  });
+
+  const addressTranslateIndices: number[] = [];
+  const addressesToTranslate: string[] = [];
+  addressSources.forEach((value, index) => {
+    if (!providerAddressFlags[index] && value) {
+      addressTranslateIndices.push(index);
+      addressesToTranslate.push(value);
+    }
+  });
+
+  let nameTranslations: string[] = [];
+  let addressTranslations: string[] = [];
+  if (namesToTranslate.length > 0 || addressesToTranslate.length > 0) {
+    [nameTranslations, addressTranslations] = await Promise.all([
+      translateBatchStrict(namesToTranslate, normalizedTarget),
+      translateBatchStrict(addressesToTranslate, normalizedTarget),
+    ]);
+  }
+
+  const nameTranslationByIndex = new Map<number, string>();
+  nameTranslateIndices.forEach((idx, arrIdx) => {
+    const fallback = nameSources[idx] || places[idx].name || "";
+    nameTranslationByIndex.set(idx, nameTranslations[arrIdx] ?? fallback);
+  });
+
+  const addressTranslationByIndex = new Map<number, string>();
+  addressTranslateIndices.forEach((idx, arrIdx) => {
+    const fallback = addressSources[idx] || places[idx].address || "";
+    addressTranslationByIndex.set(idx, addressTranslations[arrIdx] ?? fallback);
+  });
+
+  const enrichedPlaces: Place[] = places.map((place, index) => {
+    const nameOriginal = place.name ?? "";
+    const addressOriginal = place.address ?? "";
+    const hasProviderName = providerNameFlags[index];
+    const hasProviderAddress = providerAddressFlags[index];
+    const translatedName = hasProviderName
+      ? nameSources[index] || nameOriginal
+      : nameTranslationByIndex.get(index) ?? nameSources[index] ?? nameOriginal;
+    const translatedAddress = hasProviderAddress
+      ? addressSources[index] || addressOriginal
+      : addressTranslationByIndex.get(index) ?? addressSources[index] ?? addressOriginal;
+
+    return {
+      ...place,
+      name_original: nameOriginal,
+      name_translated: translatedName,
+      name_method: hasProviderName ? "provider" : "translate",
+      name_display: translatedName,
+      address_original: addressOriginal,
+      address_translated: translatedAddress,
+      address_method: hasProviderAddress ? "provider" : "translate",
+      address_display: translatedAddress,
+      mt_cache_ttl: MT_CACHE_TTL_MS,
+    };
+  });
 
   const payload = {
     data: enrichedPlaces,
