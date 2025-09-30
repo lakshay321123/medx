@@ -1,5 +1,12 @@
 "use client";
-import { usePrefs } from "@/components/providers/PreferencesProvider";
+import { usePrefs } from "@/components/hooks/usePrefs";
+import { aidoc } from "@/components/i18n/aidoc";
+import { clinical } from "@/components/i18n/clinical";
+import { clinical_research } from "@/components/i18n/clinical_research";
+import { common } from "@/components/i18n/common";
+import { therapy } from "@/components/i18n/therapy";
+import { wellness } from "@/components/i18n/wellness";
+import { wellness_research } from "@/components/i18n/wellness_research";
 
 export type TranslationTokens = Record<string, string | number>;
 
@@ -16,7 +23,7 @@ export function tfmt(
   );
 }
 
-const DICTIONARY: Record<string, Record<string, string>> = {
+const BASE_DICTIONARY: Record<string, Record<string, string>> = {
   en: {
     Preferences: "Preferences",
     General: "General",
@@ -1553,12 +1560,54 @@ const DICTIONARY: Record<string, Record<string, string>> = {
   },
 };
 
+const NAMESPACE_BUNDLES = [common, clinical, clinical_research, wellness, wellness_research, therapy, aidoc];
+
+const DICTIONARY: Record<string, Record<string, string>> = (() => {
+  const result: Record<string, Record<string, string>> = {};
+  for (const [lang, entries] of Object.entries(BASE_DICTIONARY)) {
+    result[lang] = { ...entries };
+  }
+  for (const bundle of NAMESPACE_BUNDLES) {
+    for (const [lang, entries] of Object.entries(bundle)) {
+      result[lang] = { ...(result[lang] ?? {}), ...entries };
+    }
+  }
+  return result;
+})();
+
+const MISSING_KEY_LOG: Set<string> = new Set();
+
 export function useT() {
   const { lang } = usePrefs();
   const activeLang = lang ?? "en";
   const dict = DICTIONARY[activeLang] ?? DICTIONARY.en;
 
-  const translate = (s: string) => dict[s] ?? s;
+  const translate = (s: string) => {
+    const localized = dict[s];
+    if (localized !== undefined) {
+      return localized;
+    }
+
+    const fallback = DICTIONARY.en?.[s];
+    if (fallback !== undefined) {
+      if (activeLang !== "en") {
+        const logKey = `${activeLang}:${s}`;
+        if (!MISSING_KEY_LOG.has(logKey)) {
+          MISSING_KEY_LOG.add(logKey);
+          console.warn(`Missing translation for "${s}" in ${activeLang}; falling back to English.`);
+        }
+      }
+      return fallback;
+    }
+
+    const missingKey = `base:${s}`;
+    if (!MISSING_KEY_LOG.has(missingKey)) {
+      MISSING_KEY_LOG.add(missingKey);
+      console.warn(`Missing base translation for "${s}"; returning token.`);
+    }
+
+    return s;
+  };
 
   const n = (value: number, opts?: Intl.NumberFormatOptions) =>
     new Intl.NumberFormat(activeLang, opts).format(value);

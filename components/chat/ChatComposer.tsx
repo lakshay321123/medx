@@ -15,6 +15,10 @@ const ChatComposer = forwardRef<HTMLFormElement, ChatComposerProps>(function Cha
   ref,
 ) {
   const t = useT();
+  const placeholderKey = "common.composer.placeholder";
+  const placeholderText = t(placeholderKey);
+  const composerPlaceholder =
+    placeholderText === placeholderKey ? t("Type a message") : placeholderText;
 
   return (
     <form ref={ref} {...formProps}>
@@ -22,8 +26,8 @@ const ChatComposer = forwardRef<HTMLFormElement, ChatComposerProps>(function Cha
         {...inputProps}
         ref={inputRef}
         key={t.lang}
-        placeholder={t("Send a message")}
-        aria-label={t("Send a message")}
+        placeholder={composerPlaceholder}
+        aria-label={composerPlaceholder}
       />
       {children}
     </form>
