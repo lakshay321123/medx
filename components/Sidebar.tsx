@@ -7,7 +7,27 @@ import { createNewThreadId, listThreads, Thread } from "@/lib/chatThreads";
 import ThreadKebab from "@/components/chat/ThreadKebab";
 import { useMobileUiStore } from "@/lib/state/mobileUiStore";
 import { useT } from "@/components/hooks/useI18n";
+import { useLocale } from "@/components/hooks/useLocale";
 import { useUIStore } from "@/components/hooks/useUIStore";
+
+const LEGACY_NEW_CHAT_TITLES = new Set([
+  "New chat",
+  "Nueva conversación",
+  "Nouvelle discussion",
+  "Nuova chat",
+  "新建对话",
+  "नई चैट",
+  "محادثة جديدة",
+]);
+
+const LEGACY_THERAPY_TITLES = new Set([
+  "Therapy session",
+  "Sesión de terapia",
+  "Sessione di terapia",
+  "治疗会话",
+  "थेरेपी सत्र",
+  "جلسة علاج",
+]);
 
 export default function Sidebar() {
   const router = useRouter();
@@ -18,6 +38,7 @@ export default function Sidebar() {
   const closeSidebar = useMobileUiStore((state) => state.closeSidebar);
   const t = useT();
   const openPrefs = useUIStore((state) => state.openPrefs);
+  const locale = useLocale();
 
   useEffect(() => {
     const load = () => setThreads(listThreads());
@@ -44,11 +65,11 @@ export default function Sidebar() {
     <div className="sidebar-click-guard flex h-full w-full flex-col gap-4 px-4 pt-6 pb-0 text-medx">
       <button
         type="button"
-        aria-label={t("New chat")}
+        aria-label={t("threads.systemTitles.new_chat")}
         onClick={handleNewChat}
         className="w-full rounded-full bg-blue-600 px-4 py-2.5 text-left text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500"
       >
-        + {t("New chat")}
+        + {t("threads.systemTitles.new_chat")}
       </button>
 
       <div>
@@ -64,37 +85,46 @@ export default function Sidebar() {
       </div>
 
       <div className="mt-2 flex-1 space-y-1 overflow-y-auto pr-1 pb-16">
-        {filtered.map((t) => (
-          <div
-            key={t.id}
-            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/60 p-2 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/60"
-          >
-            <button
-              onClick={() => {
-                closeSidebar();
-                router.push(`/?panel=chat&threadId=${t.id}`);
-              }}
-              className="truncate text-left text-sm font-medium"
-              title={t.title}
+        {filtered.map((thread) => {
+          const rawTitle = (thread.title ?? "").trim();
+          const systemKey = thread.therapy && LEGACY_THERAPY_TITLES.has(rawTitle)
+            ? "threads.systemTitles.therapy_session"
+            : LEGACY_NEW_CHAT_TITLES.has(rawTitle)
+            ? "threads.systemTitles.new_chat"
+            : null;
+          const displayTitle = systemKey ? t(systemKey) : rawTitle;
+          return (
+            <div
+              key={thread.id}
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/60 p-2 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/60"
             >
-              {t.title}
-            </button>
+              <button
+                onClick={() => {
+                  closeSidebar();
+                  router.push(`/?panel=chat&threadId=${thread.id}`);
+                }}
+                className="truncate text-left text-sm font-medium"
+                title={displayTitle || rawTitle}
+              >
+                {displayTitle || t("threads.systemTitles.new_chat")}
+              </button>
             <div className="ml-auto">
               <ThreadKebab
-                id={t.id}
-                title={t.title}
+                id={thread.id}
+                title={thread.title}
                 onRenamed={(nt) => {
                   setThreads((prev) =>
-                    prev.map((x) => (x.id === t.id ? { ...x, title: nt, updatedAt: Date.now() } : x))
+                    prev.map((x) => (x.id === thread.id ? { ...x, title: nt, updatedAt: Date.now() } : x))
                   );
                 }}
                 onDeleted={() => {
-                  setThreads((prev) => prev.filter((x) => x.id !== t.id));
+                  setThreads((prev) => prev.filter((x) => x.id !== thread.id));
                 }}
               />
             </div>
-          </div>
-        ))}
+            </div>
+          );
+        })}
       </div>
 
       <div className="mt-auto" />
@@ -107,9 +137,13 @@ export default function Sidebar() {
           openPrefs();
         }}
         className="fixed bottom-3 left-3 z-20 flex items-center gap-1.5 rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm shadow-sm hover:bg-white/90 dark:border-white/10 dark:bg-slate-900/70 dark:hover:bg-slate-900"
-        aria-label={t("Preferences")}
+        aria-label={`${t("Preferences")} · ${locale.label}`}
       >
-        <Settings size={14} /> {t("Preferences")}
+        <Settings size={14} />
+        <span>{t("Preferences")}</span>
+        <span className="ml-1 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
+          {locale.label}
+        </span>
       </button>
     </div>
   );

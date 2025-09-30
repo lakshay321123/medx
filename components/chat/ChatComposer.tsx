@@ -15,10 +15,7 @@ const ChatComposer = forwardRef<HTMLFormElement, ChatComposerProps>(function Cha
   ref,
 ) {
   const t = useT();
-  const placeholderKey = "common.composer.placeholder";
-  const placeholderText = t(placeholderKey);
-  const composerPlaceholder =
-    placeholderText === placeholderKey ? t("Type a message") : placeholderText;
+  const composerPlaceholder = t("ui.composer.placeholder");
 
   return (
     <form ref={ref} {...formProps}>

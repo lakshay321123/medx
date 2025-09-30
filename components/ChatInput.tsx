@@ -22,16 +22,9 @@ export function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const t = useT();
-  const uploadKey = "common.ui.upload";
-  const uploadLabel = t(uploadKey);
-  const uploadText = uploadLabel === uploadKey ? t("Upload") : uploadLabel;
-  const sendKey = "common.ui.send";
-  const sendLabel = t(sendKey);
-  const sendText = sendLabel === sendKey ? t("Send") : sendLabel;
-  const placeholderKey = "common.composer.placeholder";
-  const placeholderLabel = t(placeholderKey);
-  const composerPlaceholder =
-    placeholderLabel === placeholderKey ? t("Type a message") : placeholderLabel;
+  const uploadText = t("ui.composer.upload");
+  const sendText = t("ui.composer.send");
+  const composerPlaceholder = t("ui.composer.placeholder");
   const { lang } = usePrefs();
   const openPrefs = useUIStore((state) => state.openPrefs);
 

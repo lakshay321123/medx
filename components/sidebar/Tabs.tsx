@@ -12,10 +12,10 @@ type Tab = {
 };
 
 const TAB_DEFS: Tab[] = [
-  { key: "directory", labelKey: "Directory", panel: "directory" },
-  { key: "profile", labelKey: "Medical Profile", panel: "profile" },
-  { key: "timeline", labelKey: "Timeline", panel: "timeline" },
-  { key: "alerts", labelKey: "Alerts", panel: "alerts" },
+  { key: "directory", labelKey: "ui.nav.directory", panel: "directory" },
+  { key: "profile", labelKey: "ui.nav.medical_profile", panel: "profile" },
+  { key: "timeline", labelKey: "ui.nav.timeline", panel: "timeline" },
+  { key: "alerts", labelKey: "ui.nav.alerts", panel: "alerts" },
 ];
 
 function NavLink({
