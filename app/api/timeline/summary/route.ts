@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/getUserId";
 import { buildShortSummaryFromText } from "@/lib/shortSummary";
@@ -63,24 +64,25 @@ function guardMeasurements(input: string): GuardedBlock {
   return { original, masked, placeholders };
 }
 
-function splitForTranslation(raw: string): { blocks: string[]; separators: string[] } {
-  // Split by newline boundaries, but remember separators so we can stitch the text back exactly.
-  const parts = raw.split(/(\n+)/); // this keeps newline groups as separate items
-  const blocks: string[] = [];
-  const separators: string[] = [];
-  for (let i = 0; i < parts.length; i++) {
-    if (i % 2 === 0) blocks.push(parts[i]); // text chunk
-    else separators.push(parts[i]); // the newline(s)
-  }
-  return { blocks, separators };
+function sha256(s: string): string {
+  return crypto.createHash("sha256").update(s).digest("hex");
 }
 
-function joinWithSeparators(chunks: string[], separators: string[]): string {
-  let out = "";
-  for (let i = 0; i < chunks.length; i++) {
-    out += chunks[i];
-    if (i < separators.length) out += separators[i];
+// Merge tiny lines so we don’t explode block count
+function coalesceLines(input: string, maxChunkLen = 500): string[] {
+  const lines = String(input || "").split("\n");
+  const out: string[] = [];
+  let buf = "";
+  for (const line of lines) {
+    const next = buf ? `${buf}\n${line}` : line;
+    if (next.length >= maxChunkLen) {
+      if (buf) out.push(buf);
+      buf = line;
+    } else {
+      buf = next;
+    }
   }
+  if (buf) out.push(buf);
   return out;
 }
 
@@ -197,17 +199,57 @@ async function handleTimelineSummary(
     "";
   const fullTextSource = text ?? valueText ?? "";
 
+  const englishSummary = String(summarySource ?? "");
+  const englishFull = String(fullTextSource ?? "");
+  const englishSnapshot = `${englishSummary}\n---\n${englishFull}`;
+  const englishHash = sha256(englishSnapshot);
+
   const data: TimelineSummaryData = {
     id: String(row?.id ?? id),
     summaryLong: summaryLong ?? null,
     summaryShort: summaryShort ?? null,
     text: text ?? null,
     valueText: valueText ?? null,
-    summary: String(summarySource ?? ""),
-    fullText: String(fullTextSource ?? ""),
-    summary_display: String(summarySource ?? ""),
-    fullText_display: String(fullTextSource ?? ""),
+    summary: englishSummary,
+    fullText: englishFull,
+    summary_display: englishSummary,
+    fullText_display: englishFull,
   };
+
+  // Attempt DB cache read
+  try {
+    const sb = supabaseAdmin();
+    const { data: cachedRows } = await sb
+      .from("timeline_translations")
+      .select("summary_display, fulltext_display, updated_at")
+      .eq("observation_id", id)
+      .eq("lang", lang)
+      .eq("english_hash", englishHash)
+      .limit(1);
+
+    if (Array.isArray(cachedRows) && cachedRows.length) {
+      const row = cachedRows[0];
+      return NextResponse.json(
+        {
+          ok: true,
+          data: {
+            id: data.id,
+            summaryLong: summaryLong ?? null,
+            summaryShort: summaryShort ?? null,
+            text: text ?? null,
+            valueText: valueText ?? null,
+            summary: englishSummary,
+            fullText: englishFull,
+            summary_display: row.summary_display || englishSummary,
+            fullText_display: row.fulltext_display || englishFull,
+          },
+        },
+        { headers: NO_STORE },
+      );
+    }
+  } catch (e) {
+    console.warn("[timeline/summary] cache read failed", e);
+  }
 
   const hasTranslatableContent = Boolean(
     (data.summary && data.summary.trim()) ||
@@ -221,74 +263,111 @@ async function handleTimelineSummary(
     const guardsMeas = [data.summary, data.fullText].map(block => guardMeasurements(block || ""));
     const guardsFmt = guardsMeas.map(block => guardFormatting(block.masked || ""));
 
-    // Apply formatting guard before splitting
-    const maskedSummary = guardsFmt[0].masked;
-    const maskedFull = guardsFmt[1].masked;
+    // Coalesce to preserve structure but reduce block count
+    const sumChunks = coalesceLines(guardsFmt[0].masked, 500);
+    const fullChunks = coalesceLines(guardsFmt[1].masked, 500);
 
-    // Split by lines/paragraphs to preserve layout
-    const S = splitForTranslation(maskedSummary);
-    const F = splitForTranslation(maskedFull);
+    const MAX = 64;
+    const combinedChunks = [...sumChunks, ...fullChunks];
+    const cappedChunks = combinedChunks.slice(0, MAX);
+    const summaryChunkCount = Math.min(sumChunks.length, cappedChunks.length);
+    const fullChunkCount = Math.max(0, cappedChunks.length - summaryChunkCount);
+    const summaryChunksToTranslate = sumChunks.slice(0, summaryChunkCount);
+    const fullChunksToTranslate = fullChunks.slice(0, fullChunkCount);
 
     const controller = new AbortController();
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-    const request = fetch(`${url.origin}/api/translate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        // Translate all chunks, summary first then full text, one big batch
-        textBlocks: [...S.blocks, ...F.blocks],
-        target: lang,
-      }),
-      cache: "no-store",
-      signal: controller.signal,
-    })
-      .then(res => (res.ok ? res.json() : { blocks: [] }))
-      .catch(() => ({ blocks: [] }));
-
-    const timeout = new Promise<{ blocks: string[] }>(resolve => {
-      timeoutId = setTimeout(() => {
-        resolve({ blocks: [] });
-      }, 6500);
-    });
-
-    try {
-      const res = (await Promise.race([request, timeout])) as any;
-      const translatedBlocks: string[] = Array.isArray(res?.blocks) ? res.blocks : [];
-
-      if (translatedBlocks.length === S.blocks.length + F.blocks.length) {
-        const sBlocks = translatedBlocks.slice(0, S.blocks.length);
-        const fBlocks = translatedBlocks.slice(S.blocks.length);
-
-        // Rejoin with original newlines
-        let summaryTranslated = joinWithSeparators(sBlocks, S.separators);
-        let fullTextTranslated = joinWithSeparators(fBlocks, F.separators);
-
-        // Restore formatting placeholders then measurements
-        summaryTranslated = restoreMeasurements(
-          restoreFormatting(summaryTranslated, guardsFmt[0].placeholders),
-          guardsMeas[0],
-        ).trim();
-
-        fullTextTranslated = restoreMeasurements(
-          restoreFormatting(fullTextTranslated, guardsFmt[1].placeholders),
-          guardsMeas[1],
-        ).trim();
-
-        data.summary_display = summaryTranslated || data.summary || "";
-        data.fullText_display = fullTextTranslated || data.fullText || "";
-      } else {
-        // fallback to original if batch shape mismatched
-        data.summary_display = data.summary || "";
-        data.fullText_display = data.fullText || "";
-      }
-    } catch (err) {
-      console.warn("[timeline/summary] translation failed", err);
+    if (cappedChunks.length === 0) {
       data.summary_display = data.summary || "";
       data.fullText_display = data.fullText || "";
-    } finally {
-      if (timeoutId) clearTimeout(timeoutId);
-      controller.abort();
+    } else {
+      const request = fetch(`${url.origin}/api/translate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ textBlocks: cappedChunks, target: lang }),
+        cache: "no-store",
+        signal: controller.signal,
+      })
+        .then(res => (res.ok ? res.json() : { blocks: [] }))
+        .catch(() => ({ blocks: [] }));
+
+      const timeout = new Promise<{ blocks: string[] }>(resolve => {
+        timeoutId = setTimeout(() => {
+          resolve({ blocks: [] });
+        }, 6500);
+      });
+
+      try {
+        const res = (await Promise.race([request, timeout])) as any;
+        const translatedBlocks: string[] = Array.isArray(res?.blocks) ? res.blocks : [];
+
+        if (translatedBlocks.length === cappedChunks.length) {
+          const translatedSummaryBlocks = translatedBlocks.slice(0, summaryChunksToTranslate.length);
+          const translatedFullBlocks = translatedBlocks.slice(summaryChunksToTranslate.length);
+
+          let summaryTranslated = translatedSummaryBlocks.join("\n");
+          let fullTextTranslated = translatedFullBlocks.join("\n");
+
+          if (sumChunks.length > summaryChunksToTranslate.length) {
+            const remainder = sumChunks.slice(summaryChunksToTranslate.length).join("\n");
+            if (remainder) {
+              summaryTranslated = summaryTranslated
+                ? `${summaryTranslated}\n${remainder}`
+                : remainder;
+            }
+          }
+
+          if (fullChunks.length > fullChunksToTranslate.length) {
+            const remainder = fullChunks.slice(fullChunksToTranslate.length).join("\n");
+            if (remainder) {
+              fullTextTranslated = fullTextTranslated
+                ? `${fullTextTranslated}\n${remainder}`
+                : remainder;
+            }
+          }
+
+          // Restore formatting placeholders then measurements
+          summaryTranslated = restoreMeasurements(
+            restoreFormatting(summaryTranslated, guardsFmt[0].placeholders),
+            guardsMeas[0],
+          ).trim();
+
+          fullTextTranslated = restoreMeasurements(
+            restoreFormatting(fullTextTranslated, guardsFmt[1].placeholders),
+            guardsMeas[1],
+          ).trim();
+
+          data.summary_display = summaryTranslated || data.summary || "";
+          data.fullText_display = fullTextTranslated || data.fullText || "";
+
+          // Upsert into DB cache
+          try {
+            const sb = supabaseAdmin();
+            await sb.from("timeline_translations").upsert({
+              observation_id: id,
+              lang,
+              english_hash: englishHash,
+              summary_display: data.summary_display || englishSummary,
+              fulltext_display: data.fullText_display || englishFull,
+              updated_at: new Date().toISOString(),
+            });
+          } catch (e) {
+            console.warn("[timeline/summary] cache write failed", e);
+          }
+        } else {
+          // fallback to original if batch shape mismatched
+          data.summary_display = data.summary || "";
+          data.fullText_display = data.fullText || "";
+        }
+      } catch (err) {
+        console.warn("[timeline/summary] translation failed", err);
+        data.summary_display = data.summary || "";
+        data.fullText_display = data.fullText || "";
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+        controller.abort();
+      }
     }
   } else {
     data.summary_display = data.summary || "";
