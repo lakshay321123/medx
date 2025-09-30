@@ -200,20 +200,23 @@ export default function UnifiedUpload() {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
-        <label
+        <button
+          type="button"
           className="px-4 py-2 rounded bg-black text-white cursor-pointer"
           onClick={() => fileInputRef.current?.click()}
+          aria-label={t("Upload")}
+          title={t("Upload")}
         >
-          <span>{t("Upload")}</span>
-          <input
-            type="file"
-            accept="application/pdf,image/*"
-            multiple
-            onChange={onChange}
-            className="hidden"
-            ref={fileInputRef}
-          />
-        </label>
+          {t("Upload")}
+        </button>
+        <input
+          type="file"
+          accept="application/pdf,image/*"
+          multiple
+          onChange={onChange}
+          className="hidden"
+          ref={fileInputRef}
+        />
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={doctorMode} onChange={e=>setDoctorMode(e.target.checked)} />
           <span>Clinical Mode</span>
