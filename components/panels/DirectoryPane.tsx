@@ -214,8 +214,13 @@ export default function DirectoryPane() {
           </div>
         )}
         {data.map((place) => {
-          const displayName = place.localizedName ?? place.name;
-          const displayAddress = place.localizedAddress ?? place.address;
+          const displayName =
+            place.name_display || place.name_translated || place.localizedName || place.name;
+          const displayAddress =
+            place.address_display ||
+            place.address_translated ||
+            place.localizedAddress ||
+            place.address;
           const typeLabel =
             place.category_display ??
             cardTypeLabels[place.type] ??
@@ -298,7 +303,7 @@ export default function DirectoryPane() {
                   <div className="flex items-start justify-between gap-2 md:gap-3">
                     <div
                       className="break-words text-start text-[12.5px] font-semibold leading-[1.35] text-slate-900 dark:text-slate-50 md:truncate md:text-[14px]"
-                      title={place.name}
+                      title={displayName ?? place.name}
                     >
                       {displayName}
                     </div>
