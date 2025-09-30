@@ -78,35 +78,60 @@ export async function translateBatchStrict(texts: string[], to: string): Promise
 
 async function callProviderBatch(texts: string[], target: string): Promise<string[]> {
   if (!texts.length) return [];
-  switch (PROVIDER) {
-    case "google":
-      return googleTranslateV2(texts, target);
-    case "openai":
-      return openAITranslate(texts, target);
-    default:
-      return texts;
+  const prefer = (PROVIDER || "google").toLowerCase();
+
+  const tryGoogle = async () => googleTranslateV2(texts, target);
+  const tryOpenAI = async (subset?: string[]) => openAITranslate(subset ?? texts, target);
+
+  const safe = (arr: string[]) => {
+    return arr?.length === texts.length ? arr : texts;
+  };
+
+  if (prefer === "google") {
+    const g = await tryGoogle();
+    if (g && g.some(Boolean)) return safe(g);
+
+    const o = await tryOpenAI();
+    return safe(o);
+  } else if (prefer === "openai") {
+    const o = await tryOpenAI();
+    if (o && o.some(Boolean)) return safe(o);
+
+    const g = await tryGoogle();
+    return safe(g);
   }
+
+  return texts;
 }
 
 // GOOGLE Translate v2 (paid). Ensure GOOGLE_TRANSLATE_API_KEY is set.
 async function googleTranslateV2(texts: string[], target: string): Promise<string[]> {
   const key = process.env.GOOGLE_TRANSLATE_API_KEY;
   if (!key) return texts;
-  const url = `https://translation.googleapis.com/language/translate/v2?key=${key}`;
-  const body = { q: texts, target, format: "text" };
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  });
-  if (!res.ok) return texts;
-  const json = await res.json();
-  const arr = Array.isArray(json?.data?.translations) ? json.data.translations : [];
-  return arr.map((item: any, idx: number) => {
-    const translated = typeof item?.translatedText === "string" ? item.translatedText : undefined;
-    return translated ?? texts[idx] ?? "";
-  });
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 7000);
+  try {
+    const url = `https://translation.googleapis.com/language/translate/v2?key=${key}`;
+    const body = { q: texts, target, format: "text" };
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (!res.ok) return texts;
+    const json = await res.json();
+    const arr = Array.isArray(json?.data?.translations) ? json.data.translations : [];
+    return arr.map((item: any, idx: number) => {
+      const translated = typeof item?.translatedText === "string" ? item.translatedText : undefined;
+      return translated ?? texts[idx] ?? "";
+    });
+  } catch {
+    return texts;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 // OPENAI (cheap MT via small model). Ensure OPENAI_API_KEY is set.
