@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from "react";
 
 type Plan = "free" | "pro";
-type Lang = "en" | "hi" | "ar" | "it" | "zh" | "es";
+type Lang = "en" | "hi" | "ar" | "it" | "zh" | "es" | "fr";
 
 export type Prefs = {
   theme: "system" | "light" | "dark";
