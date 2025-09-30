@@ -166,14 +166,7 @@ export async function GET(req: Request) {
   });
 
   // Minimal diagnostics to confirm server sees rows
-  console.log(
-    "[timeline] user:",
-    userId,
-    "obs:",
-    obsRows.length,
-    "preds:",
-    predRows.length
-  );
+  console.log("[timeline] obs:", obsRows.length, "preds:", predRows.length);
 
   // Deduplicate + sort
   const dedup = new Map<string, any>();
@@ -205,10 +198,13 @@ export async function GET(req: Request) {
     it.summary_display = fallbackShort;
   });
 
-  const lang = langBase(url.searchParams.get("lang") || undefined);
+  const langRaw = (url.searchParams.get("lang") || "en").trim();
+  const langNormalized = (langRaw || "en").toLowerCase().replace(/_/g, "-");
+  const lang = langBase(langNormalized);
+  const needsTranslation = lang !== "en";
 
-  if (lang !== "en" && items.length) {
-    const origin = url.origin;
+  if (needsTranslation && items.length) {
+    const translateUrl = new URL("/api/translate", url).toString();
 
     const titles = items.map(it => String(it?.name ?? "Observation"));
     const shorts = items.map(it => {
@@ -217,18 +213,27 @@ export async function GET(req: Request) {
     });
 
     const translate = async (blocks: string[]) => {
-      const p = fetch(`${origin}/api/translate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ textBlocks: blocks, target: lang }),
-        cache: "no-store",
-      });
-      // Hard cap at 2s so UI never hangs
-      const res = (await Promise.race([
-        p.then(r => (r.ok ? r.json() : { blocks: [] })),
-        new Promise(resolve => setTimeout(() => resolve({ blocks: [] }), 2000)),
-      ])) as { blocks: string[] };
-      return Array.isArray(res.blocks) ? res.blocks : [];
+      if (!blocks?.length) return [];
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000);
+      try {
+        const response = await fetch(translateUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ textBlocks: blocks, target: langNormalized || lang }),
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) return [];
+        const json = await response.json();
+        const outBlocks = Array.isArray(json?.blocks) ? (json.blocks as string[]) : [];
+        return outBlocks;
+      } catch (err) {
+        console.warn("[timeline] translation failed", err);
+        return [];
+      } finally {
+        clearTimeout(timeout);
+      }
     };
 
     const [tTitles, tShorts] = await Promise.all([translate(titles), translate(shorts)]);

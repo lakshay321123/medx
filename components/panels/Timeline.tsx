@@ -482,7 +482,9 @@ export default function Timeline(){
       return;
     }
 
-    const url = `/api/timeline/summary?id=${encodeURIComponent(active.id)}&lang=${encodeURIComponent(lang)}`;
+    const url = `/api/timeline/summary?mode=ai-doc&id=${encodeURIComponent(
+      active.id,
+    )}&lang=${encodeURIComponent(lang)}`;
     let cancelled = false;
 
     fetch(url, { cache: "no-store" })

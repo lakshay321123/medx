@@ -23,6 +23,36 @@ function firstString(...values: any[]): string | null {
   return null;
 }
 
+const NUMERIC_TOKEN =
+  /(\b\d+(?:[.,]\d+)?(?:\s?(?:mg\/dL|g\/dL|mmol\/L|mcg\/dL|mcg|μg|ug|mg|g|kg|lb|lbs|oz|mm|cm|m|km|in|ft|yd|bpm|mmHg|kPa|mEq\/L|mOsm\/kg|mL|L|dL|%)?)\b)/gi;
+
+type ProtectedSpan = {
+  placeholder: string;
+  original: string;
+};
+
+function protectNumericTokens(text: string) {
+  const spans: ProtectedSpan[] = [];
+  let index = 0;
+  const safe = text.replace(NUMERIC_TOKEN, match => {
+    const placeholder = `__NUM_${index++}__`;
+    spans.push({ placeholder, original: match });
+    return placeholder;
+  });
+
+  const restore = (translated: string) => {
+    if (!spans.length) return translated;
+    let out = translated;
+    for (const { placeholder, original } of spans) {
+      if (!placeholder) continue;
+      out = out.split(placeholder).join(original);
+    }
+    return out;
+  };
+
+  return { text: safe, restore };
+}
+
 type TimelineSummaryData = {
   id: string;
   summaryLong: string | null;
@@ -40,6 +70,15 @@ async function handleTimelineSummary(
   idParam: string | null,
   langParam: string | null,
 ) {
+  const url = new URL(req.url);
+  const mode = url.searchParams.get("mode")?.toLowerCase();
+  if (mode !== "ai-doc") {
+    return NextResponse.json(
+      { ok: false, error: "Timeline summary is available only in AI Doc mode" },
+      { status: 403, headers: NO_STORE },
+    );
+  }
+
   const userId = await getUserId();
   if (!userId) {
     return NextResponse.json(
@@ -56,7 +95,11 @@ async function handleTimelineSummary(
     );
   }
 
-  const lang = langBase(langParam || undefined);
+  const langNormalized = ((langParam || "en").trim().toLowerCase() || "en").replace(
+    /_/g,
+    "-",
+  );
+  const lang = langBase(langNormalized);
 
   const sb = supabaseAdmin();
   const { data: obsRow } = await sb
@@ -132,27 +175,39 @@ async function handleTimelineSummary(
   );
 
   if (lang !== "en" && hasTranslatableContent) {
-    const url = new URL(req.url);
-    const blocks = [String(data.summary || ""), String(data.fullText || "")];
+    const blocks = [String(data.summary || ""), String(data.fullText || "")].map(block =>
+      block.slice(0, 8000),
+    );
+    const protectedBlocks = blocks.map(protectNumericTokens);
+    const requestPayload = protectedBlocks.map(p => p.text);
 
-    const p = fetch(`${url.origin}/api/translate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ textBlocks: blocks, target: lang }),
-      cache: "no-store",
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
 
     try {
-      // 2.5s cap for modal
-      const res = (await Promise.race([
-        p.then(r => (r.ok ? r.json() : { blocks: [] })),
-        new Promise(resolve => setTimeout(() => resolve({ blocks: [] }), 2500)),
-      ])) as { blocks: string[] };
+      const response = await fetch(`${url.origin}/api/translate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ textBlocks: requestPayload, target: langNormalized || lang }),
+        cache: "no-store",
+        signal: controller.signal,
+      });
 
-      data.summary_display = res.blocks?.[0]?.trim() || data.summary || "";
-      data.fullText_display = res.blocks?.[1]?.trim() || data.fullText || "";
+      if (response.ok) {
+        const json = await response.json();
+        const translatedBlocks = Array.isArray(json?.blocks) ? (json.blocks as string[]) : [];
+
+        const [summaryTranslated, fullTranslated] = protectedBlocks.map((protector, idx) =>
+          protector.restore(String(translatedBlocks[idx] ?? "")),
+        );
+
+        data.summary_display = summaryTranslated.trim() || data.summary || "";
+        data.fullText_display = fullTranslated.trim() || data.fullText || "";
+      }
     } catch (err) {
       console.warn("[timeline/summary] translation failed", err);
+    } finally {
+      clearTimeout(timeout);
     }
   } else {
     data.summary_display = data.summary || "";
