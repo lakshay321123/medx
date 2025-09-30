@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { providerLang } from "@/lib/i18n/providerLang";
+import { transliterateNameSafe, translateAddressGenericWords } from "../_i18nFallback";
+import { getCache, setCache } from "../_cache";
 
 // meters per degree latitude (simple distance estimate)
 const M_PER_DEG = 111_320;
@@ -13,12 +15,23 @@ const ALLOWED_DIRECTORY_TYPES = new Set([
   "clinic",
 ]);
 
+type NameMethod = "provider" | "transliterate" | "fallback" | "none";
+type AddressMethod = "provider" | "translate" | "fallback" | "none";
+
 type Place = {
   id: string;
   name: string;
   address?: string;
   localizedName?: string;
   localizedAddress?: string;
+  name_original?: string;
+  name_localized?: string;
+  name_method?: NameMethod;
+  name_display?: string;
+  address_original?: string;
+  address_localized?: string;
+  address_method?: AddressMethod;
+  address_display?: string;
   type: "doctor" | "pharmacy" | "lab" | "hospital" | "clinic";
   category_display?: string;
   rating?: number;
@@ -38,6 +51,71 @@ type Place = {
   last_checked?: string;
   rank_score?: number;
 };
+
+function withLocalizationFallback<T extends Place>(place: T, lang: string) {
+  const normalizedLang = lang.toLowerCase();
+  const baseLang = normalizedLang.split("-")[0] || normalizedLang || "en";
+
+  const nameOriginal = place.name ?? "";
+  const addressOriginal = place.address ?? "";
+
+  let derivedName = place.localizedName;
+  let nameMethod: NameMethod = "none";
+
+  if (derivedName && derivedName !== nameOriginal) {
+    nameMethod = "provider";
+  } else {
+    const cacheKey = `dir:name:${place.id || nameOriginal}:${baseLang}`;
+    const cached = getCache<string>(cacheKey);
+    if (cached) {
+      derivedName = cached;
+      nameMethod = "transliterate";
+    } else {
+      const result = transliterateNameSafe(nameOriginal, baseLang);
+      derivedName = result.text;
+      nameMethod = result.method === "transliterate" ? "transliterate" : "fallback";
+      if (result.method === "transliterate" && derivedName && derivedName !== nameOriginal) {
+        setCache(cacheKey, derivedName);
+      }
+    }
+  }
+
+  let derivedAddress = place.localizedAddress;
+  let addressMethod: AddressMethod = "none";
+
+  if (derivedAddress && derivedAddress !== addressOriginal) {
+    addressMethod = "provider";
+  } else {
+    const cacheKey = `dir:addr:${place.id || addressOriginal}:${baseLang}`;
+    const cached = getCache<string>(cacheKey);
+    if (cached) {
+      derivedAddress = cached;
+      addressMethod = "translate";
+    } else {
+      const result = translateAddressGenericWords(addressOriginal, baseLang);
+      derivedAddress = result.text;
+      addressMethod = result.method === "translate" ? "translate" : "fallback";
+      if (result.method === "translate" && derivedAddress && derivedAddress !== addressOriginal) {
+        setCache(cacheKey, derivedAddress);
+      }
+    }
+  }
+
+  const nameDisplay = derivedName || nameOriginal;
+  const addressDisplay = derivedAddress || addressOriginal;
+
+  return {
+    ...place,
+    name_original: nameOriginal,
+    name_localized: derivedName,
+    name_method: nameMethod,
+    name_display: nameDisplay,
+    address_original: addressOriginal,
+    address_localized: derivedAddress,
+    address_method: addressMethod,
+    address_display: addressDisplay,
+  };
+}
 
 type GoogleAddressComponent = {
   longText?: string;
@@ -605,8 +683,11 @@ export async function GET(req: Request) {
     places = filtered.slice(0, 120);
   }
 
+  const fallbackLang = appLang.split("-")[0]?.toLowerCase() || appLang.toLowerCase() || "en";
+  const enrichedPlaces = places.map(place => withLocalizationFallback(place, fallbackLang));
+
   const payload = {
-    data: places,
+    data: enrichedPlaces,
     updatedAt: new Date().toISOString(),
     provider: usedGoogle ? "google" : "osm",
   } as const;
