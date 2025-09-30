@@ -116,6 +116,7 @@ export default function PreferencesModal({ open, defaultTab = "General", onClose
     return (match ?? PREF_SECTIONS[0]).id;
   });
   const cardRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const [ignoreFirst, setIgnoreFirst] = useState(false);
   const t = useT();
   const prefs = usePreferenceState();
@@ -145,12 +146,30 @@ export default function PreferencesModal({ open, defaultTab = "General", onClose
   }, [open, onClose]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const set = () => {
+      document.documentElement.style.setProperty(
+        "--vh",
+        `${window.innerHeight * 0.01}px`,
+      );
+    };
+    set();
+    window.addEventListener("resize", set);
+    return () => window.removeEventListener("resize", set);
+  }, []);
+
+  useEffect(() => {
     if (!open) return;
     const prev = document.documentElement.style.overflow;
     document.documentElement.style.overflow = "hidden";
     return () => {
-      document.documentElement.style.overflow = prev;
+      document.documentElement.style.overflow = prev || "";
     };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    titleRef.current?.focus();
   }, [open]);
 
   useEffect(() => {
@@ -191,8 +210,6 @@ export default function PreferencesModal({ open, defaultTab = "General", onClose
       }
     };
     root.addEventListener("keydown", onKey as any);
-    const closeBtn = root.querySelector<HTMLButtonElement>("[data-close]");
-    closeBtn?.focus();
     return () => root.removeEventListener("keydown", onKey as any);
   }, [open]);
 
@@ -451,11 +468,157 @@ export default function PreferencesModal({ open, defaultTab = "General", onClose
 
   if (!open) return null;
 
+  const desktopDialog = (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="prefs-title"
+      ref={cardRef}
+      onMouseDown={(e) => e.stopPropagation()}
+      className={cn(
+        "pointer-events-auto flex h-full w-full flex-col bg-[var(--surface-2)] text-[var(--text)] ring-1 ring-[var(--border)] shadow-xl sm:absolute sm:left-1/2 sm:top-1/2 sm:h-[min(92vh,620px)] sm:w-[min(96vw,980px)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:flex-row sm:overflow-hidden sm:rounded-2xl sm:shadow-2xl",
+        "z-[70]",
+      )}
+    >
+      <aside className="hidden w-[280px] flex-shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)] sm:flex">
+        <div className="flex items-center justify-between px-3 py-3">
+          <h2
+            id="prefs-title"
+            ref={!useSheet ? titleRef : undefined}
+            tabIndex={-1}
+            className="sr-only text-sm font-semibold text-[var(--muted)] sm:not-sr-only"
+          >
+            {t("Preferences")}
+          </h2>
+          <CloseButton onClick={onClose} />
+        </div>
+        <PreferencesTabs
+          sections={PREF_SECTIONS}
+          activeId={activeSectionId}
+          onSelect={setActiveSectionId}
+          icons={ICONS}
+          translate={t}
+          variant="desktop"
+        />
+      </aside>
+      <section className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 sm:hidden">
+          <h2 className="text-base font-semibold">
+            {t("Preferences")}
+          </h2>
+          <CloseButton onClick={onClose} />
+        </header>
+        <div className="sm:hidden">
+          <PreferencesTabs
+            sections={PREF_SECTIONS}
+            activeId={activeSectionId}
+            onSelect={setActiveSectionId}
+            icons={ICONS}
+            translate={t}
+            variant="mobile"
+          />
+        </div>
+        <div className="hidden border-b border-[var(--border)] px-5 py-3 text-[15px] font-semibold sm:block">
+          {t(activeSection.titleKey)}
+        </div>
+        <div
+          id="prefs-panel"
+          role="tabpanel"
+          aria-labelledby={`pref-tab-${activeSectionId}`}
+          className="flex-1 overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+72px)] sm:px-6 sm:pb-6"
+        >
+          <div className="space-y-2">
+            {activeSection.rows.map((row) => renderRow(activeSection.id, row))}
+          </div>
+        </div>
+        <footer className="sticky bottom-0 flex items-center justify-end gap-2 border-t border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 sm:static sm:px-5 sm:py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-sm font-medium text-[var(--text)]"
+          >
+            {t("Cancel")}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg bg-[var(--brand)] px-3.5 py-2 text-sm font-semibold text-[var(--brand-contrast)]"
+          >
+            {t("Save changes")}
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+
+  const mobileSheet = (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="prefs-title"
+      ref={cardRef}
+      onMouseDown={(e) => e.stopPropagation()}
+      className={cn(
+        "pointer-events-auto fixed inset-x-0 bottom-0 grid min-h-[40svh] w-full grid-rows-[auto,1fr,auto] overflow-hidden rounded-t-2xl bg-[var(--surface-2)] text-[var(--text)] shadow-xl sm:inset-0 sm:rounded-2xl",
+        "max-h-[85svh] sm:max-h-[80vh] [@supports(height:100dvh)]:max-h-[85dvh] [@supports(height:100svh)]:max-h-[85svh] max-h-[calc(var(--vh,1vh)*85)]",
+        "z-[70]",
+      )}
+    >
+      <div className="row-span-1 sticky top-0 flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
+        <h2
+          id="prefs-title"
+          ref={useSheet ? titleRef : undefined}
+          tabIndex={-1}
+          className="text-base font-semibold"
+        >
+          {t("Preferences")}
+        </h2>
+        <CloseButton onClick={onClose} />
+      </div>
+      <div className="row-span-1 overflow-y-auto px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+        <PreferencesTabs
+          sections={PREF_SECTIONS}
+          activeId={activeSectionId}
+          onSelect={setActiveSectionId}
+          icons={ICONS}
+          translate={t}
+          variant="mobile"
+        />
+        <div
+          id="prefs-panel"
+          role="tabpanel"
+          aria-labelledby={`pref-tab-${activeSectionId}`}
+          className="space-y-2 pt-3"
+        >
+          {activeSection.rows.map((row) => renderRow(activeSection.id, row))}
+        </div>
+      </div>
+      <div className="row-span-1 border-t border-[var(--border)] bg-[var(--surface-2)]/85 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+12px)] backdrop-blur">
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-sm font-medium text-[var(--text)]"
+          >
+            {t("Cancel")}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-lg bg-[var(--brand)] px-3.5 py-2 text-sm font-semibold text-[var(--brand-contrast)]"
+          >
+            {t("Save changes")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 z-[100]">
+    <div className="fixed inset-0 z-[60]">
       <div
         className={cn(
-          "absolute inset-0 bg-[var(--backdrop)] transition-opacity",
+          "absolute inset-0 z-[60] bg-[var(--backdrop)] transition-opacity",
           ignoreFirst && "pointer-events-none",
         )}
         onMouseDown={(e) => {
@@ -463,111 +626,22 @@ export default function PreferencesModal({ open, defaultTab = "General", onClose
           if (e.target === e.currentTarget) onClose();
         }}
       />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("Preferences")}
-        ref={cardRef}
-        onMouseDown={(e) => e.stopPropagation()}
-        className={cn(
-          "pointer-events-auto flex flex-col bg-[var(--surface-2)] text-[var(--text)] ring-1 ring-[var(--border)] shadow-xl",
-          useSheet
-            ? "fixed inset-x-0 bottom-0 max-h-[85vh] w-full overflow-hidden rounded-t-2xl"
-            : "sm:absolute sm:left-1/2 sm:top-1/2 sm:h-[min(92vh,620px)] sm:w-[min(96vw,980px)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:overflow-hidden sm:rounded-2xl sm:shadow-2xl",
-          "sm:flex-row",
-        )}
-      >
-        <aside className="hidden w-[280px] flex-shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)] sm:flex">
-          <div className="flex items-center justify-between px-3 py-3">
-            <div className="text-sm font-semibold text-[var(--muted)]">{t("Preferences")}</div>
-            <button
-              data-close
-              onClick={onClose}
-              className="rounded-md p-1.5 text-[var(--muted)] hover:bg-[var(--surface-2)]"
-              aria-label={t("Close dialog")}
-            >
-              <X size={16} />
-            </button>
-          </div>
-          <PreferencesTabs
-            sections={PREF_SECTIONS}
-            activeId={activeSectionId}
-            onSelect={setActiveSectionId}
-            icons={ICONS}
-            translate={t}
-            variant="desktop"
-          />
-        </aside>
-        <section className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 sm:hidden">
-            <h2 id="preferences-title" className="text-base font-semibold">
-              {t("Preferences")}
-            </h2>
-            <button
-              data-close
-              onClick={onClose}
-              className="rounded-md p-1.5 text-[var(--muted)] hover:bg-[var(--surface)]"
-              aria-label={t("Close dialog")}
-            >
-              <X size={16} />
-            </button>
-          </header>
-          <div className="sm:hidden">
-            <PreferencesTabs
-              sections={PREF_SECTIONS}
-              activeId={activeSectionId}
-              onSelect={setActiveSectionId}
-              icons={ICONS}
-              translate={t}
-              variant="mobile"
-            />
-          </div>
-          <div className="hidden border-b border-[var(--border)] px-5 py-3 text-[15px] font-semibold sm:block">
-            {t(activeSection.titleKey)}
-          </div>
-          <div className="flex-1 overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+72px)] sm:px-6 sm:pb-6">
-            <div className="space-y-2">
-              {activeSection.rows.map((row) => renderRow(activeSection.id, row))}
-            </div>
-          </div>
-          <footer className="sticky bottom-0 flex items-center justify-end gap-2 border-t border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 sm:static sm:px-5 sm:py-4">
-            <button
-              onClick={onClose}
-              className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-sm text-[var(--text)]"
-            >
-              {t("Cancel")}
-            </button>
-            <button
-              onClick={onClose}
-              className="rounded-lg bg-[var(--brand)] px-3.5 py-2 text-sm font-semibold text-[var(--brand-contrast)]"
-            >
-              {t("Save changes")}
-            </button>
-          </footer>
-        </section>
-      </div>
-      <style jsx global>{`
-        :root {
-          --surface: var(--medx-surface);
-          --surface-2: var(--medx-panel);
-          --border: var(--medx-outline);
-          --text: var(--medx-text);
-          --muted: var(--medx-subtext);
-          --brand: var(--medx-accent);
-          --brand-contrast: var(--medx-bg-c);
-          --backdrop: rgba(0, 0, 0, 0.6);
-        }
-        .dark {
-          --surface: var(--medx-surface);
-          --surface-2: var(--medx-panel);
-          --border: var(--medx-outline);
-          --text: var(--medx-text);
-          --muted: var(--medx-subtext);
-          --brand: var(--medx-accent);
-          --brand-contrast: var(--medx-surface);
-          --backdrop: rgba(0, 0, 0, 0.6);
-        }
-      `}</style>
+      {useSheet ? mobileSheet : desktopDialog}
     </div>
+  );
+}
+
+function CloseButton({ onClick }: { onClick: () => void }) {
+  const t = useT();
+  return (
+    <button
+      data-close
+      type="button"
+      onClick={onClick}
+      className="rounded-md p-1.5 text-[var(--muted)] hover:bg-[var(--surface)]"
+      aria-label={t("Close dialog")}
+    >
+      <X size={16} />
+    </button>
   );
 }

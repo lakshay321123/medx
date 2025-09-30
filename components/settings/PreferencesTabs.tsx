@@ -21,18 +21,27 @@ export default function PreferencesTabs({
   translate,
   variant,
 }: PreferencesTabsProps) {
+  const panelId = "prefs-panel";
+
   if (variant === "mobile") {
     return (
-      <nav
-        className="flex gap-2 overflow-x-auto px-4 py-3 [scrollbar-width:none] [-ms-overflow-style:none]"
+      <div
+        role="tablist"
         aria-label={translate("Preferences")}
+        className="flex gap-2 overflow-x-auto border-b border-[var(--border)] px-3 pt-2 pb-1 no-scrollbar"
       >
         {sections.map((section) => {
           const active = section.id === activeId;
+          const tabId = `pref-tab-${section.id}`;
           return (
             <button
               key={section.id}
+              id={tabId}
+              role="tab"
               type="button"
+              tabIndex={active ? 0 : -1}
+              aria-selected={active}
+              aria-controls={panelId}
               onClick={() => onSelect(section.id)}
               className={clsx(
                 "whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-medium",
@@ -45,19 +54,29 @@ export default function PreferencesTabs({
             </button>
           );
         })}
-      </nav>
+      </div>
     );
   }
 
   return (
-    <nav className="mt-1 space-y-1 overflow-auto pr-1" aria-label={translate("Preferences")}>
+    <nav
+      role="tablist"
+      aria-label={translate("Preferences")}
+      className="mt-1 space-y-1 overflow-auto pr-1"
+    >
       {sections.map((section) => {
         const Icon = icons[section.id];
         const active = section.id === activeId;
+        const tabId = `pref-tab-${section.id}`;
         return (
           <button
             key={section.id}
+            id={tabId}
+            role="tab"
             type="button"
+            tabIndex={active ? 0 : -1}
+            aria-selected={active}
+            aria-controls={panelId}
             onClick={() => onSelect(section.id)}
             className={clsx(
               "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px]",
