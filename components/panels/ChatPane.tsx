@@ -2629,13 +2629,14 @@ ${systemCommon}` + baseSys;
       }
 
       const url = `/api/chat/stream${researchMode ? '?research=1' : ''}`;
+      const activeLang = t.lang || "en";
       const res = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-conversation-id': conversationId,
           'x-new-chat': messages.length === 0 ? 'true' : 'false',
-          'x-user-lang': prefs.lang
+          'x-user-lang': activeLang
         },
         body: JSON.stringify({
           mode: mode === 'doctor' ? 'doctor' : 'patient',
@@ -2644,7 +2645,7 @@ ${systemCommon}` + baseSys;
           context,
           clientRequestId,
           research: researchMode,
-          lang: prefs.lang
+          lang: activeLang
         }),
         signal: ctrl.signal
       });

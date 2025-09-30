@@ -219,7 +219,7 @@ export default function UnifiedUpload() {
         />
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={doctorMode} onChange={e=>setDoctorMode(e.target.checked)} />
-          <span>Clinical Mode</span>
+          <span>{t("Clinical Mode")}</span>
         </label>
       </div>
 

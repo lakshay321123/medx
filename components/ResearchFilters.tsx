@@ -2,24 +2,31 @@
 import { useState } from 'react';
 import { useResearchFilters } from '@/store/researchFilters';
 import type { TrialRow } from '@/types/trials';
+import { useT } from '@/components/hooks/useI18n';
 
-const phaseOptions = ['1','2','3','4'] as const;
+const phaseOptions = [
+  { value: '1', labelKey: 'Phase 1' },
+  { value: '2', labelKey: 'Phase 2' },
+  { value: '3', labelKey: 'Phase 3' },
+  { value: '4', labelKey: 'Phase 4' },
+] as const;
+
 const statusLabels = [
-  { key: 'recruiting', api: 'Recruiting', label: 'Recruiting' },
-  { key: 'active', api: 'Active, not recruiting', label: 'Active (not recruiting)' },
-  { key: 'completed', api: 'Completed', label: 'Completed' },
-  { key: 'any', api: undefined, label: 'Any' },
+  { key: 'recruiting', api: 'Recruiting', labelKey: 'Recruiting' },
+  { key: 'active', api: 'Active, not recruiting', labelKey: 'Active (not recruiting)' },
+  { key: 'completed', api: 'Completed', labelKey: 'Completed' },
+  { key: 'any', api: undefined, labelKey: 'Any' },
 ] as const;
 
 // Add China, keep Worldwide (treated as no filter)
 const countryOptions = [
-  'United States',
-  'India',
-  'European Union',
-  'United Kingdom',
-  'Japan',
-  'China',        // NEW
-  'Worldwide',    // special: mapped to no filter
+  { value: 'United States', labelKey: 'United States' },
+  { value: 'India', labelKey: 'India' },
+  { value: 'European Union', labelKey: 'European Union' },
+  { value: 'United Kingdom', labelKey: 'United Kingdom' },
+  { value: 'Japan', labelKey: 'Japan' },
+  { value: 'China', labelKey: 'China' },
+  { value: 'Worldwide', labelKey: 'Worldwide' },
 ] as const;
 
 function mapStatusKeyToApi(key?: string) {
@@ -35,6 +42,7 @@ type Props = {
 
 export default function ResearchFilters({ mode, onResults }: Props) {
   const { filters, setFilters, reset } = useResearchFilters();
+  const t = useT();
 
   const [local, setLocal] = useState({
     query: filters.query || '',
@@ -90,10 +98,10 @@ export default function ResearchFilters({ mode, onResults }: Props) {
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Search failed');
+      if (!res.ok) throw new Error(data?.error || t('Search failed'));
       onResults?.(data.trials || []);
     } catch (e:any) {
-      setError(e.message || 'Failed to fetch trials');
+      setError(e.message || t('Failed to fetch trials'));
       onResults?.([]);
     } finally {
       setBusy(false);
@@ -129,7 +137,8 @@ export default function ResearchFilters({ mode, onResults }: Props) {
           value={local.query}
           onChange={(e)=>setLocal(s=>({ ...s, query: e.target.value }))}
           onKeyDown={(e)=> e.key === 'Enter' && (e.currentTarget as any).form?.requestSubmit()}
-          placeholder="Search trials (e.g., condition, gene, topic)…"
+          key={t.lang}
+          placeholder={t('Search trials (e.g., condition, gene, topic)')}
           className="w-full rounded-lg border px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700"
         />
         <button
@@ -137,23 +146,23 @@ export default function ResearchFilters({ mode, onResults }: Props) {
           className="px-3 py-2 rounded-lg text-sm border bg-blue-600 text-white dark:border-blue-600 disabled:opacity-50"
           disabled={busy}
         >
-          {busy ? 'Searching…' : 'Search'}
+          {busy ? t('Searching…') : t('Search')}
         </button>
       </div>
 
       {/* Phase chips */}
       <div className="mt-3 flex flex-wrap gap-2">
-        {phaseOptions.map(p=>(
+        {phaseOptions.map(option=>(
           <button
-            key={p}
+            key={option.value}
             type="button"
-            onClick={()=>togglePhase(p)}
+            onClick={()=>togglePhase(option.value)}
             className={`px-2 py-1 rounded border text-xs ${
-              local.phase === p ? 'bg-blue-600 text-white border-blue-600' :
+              local.phase === option.value ? 'bg-blue-600 text-white border-blue-600' :
               'bg-white dark:bg-slate-800 dark:border-slate-700'
             }`}
           >
-            Phase {p}
+            {t(option.labelKey)}
           </button>
         ))}
       </div>
@@ -166,7 +175,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
           className="rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
         >
           {statusLabels.map(o=>(
-            <option key={o.key} value={o.key}>{o.label}</option>
+            <option key={o.key} value={o.key}>{t(o.labelKey)}</option>
           ))}
         </select>
       </div>
@@ -178,7 +187,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
           onChange={(e)=>setSource(e.target.value)}
           className="rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
         >
-          <option>All</option>
+          <option value="All">{t('All')}</option>
           <option>CTgov</option>
           <option>EUCTR</option>
           <option>CTRI</option>
@@ -188,36 +197,37 @@ export default function ResearchFilters({ mode, onResults }: Props) {
 
       {/* Country chips */}
       <div className="mt-2 flex flex-wrap gap-2">
-        {countryOptions.map(name=>(
+        {countryOptions.map(option=>(
           <button
-            key={name}
+            key={option.value}
             type="button"
-            onClick={()=>toggleCountry(name)}
+            onClick={()=>toggleCountry(option.value)}
             className={`px-2 py-1 rounded border text-xs ${
-              local.countries.includes(name) ? 'bg-blue-600 text-white border-blue-600' :
+              local.countries.includes(option.value) ? 'bg-blue-600 text-white border-blue-600' :
               'bg-white dark:bg-slate-800 dark:border-slate-700'
             }`}
           >
-            {name}
+            {t(option.labelKey)}
           </button>
         ))}
       </div>
 
       {/* Genes + Apply / Reset */}
-      <div className="mt-3 flex items-center gap-2">
-        <input
-          placeholder="Genes (comma separated)"
-          value={local.genes}
-          onChange={(e)=>setLocal(s=>({ ...s, genes: e.target.value }))}
-          className="flex-1 rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
-        />
-        <button type="submit" className="px-3 py-1.5 rounded-lg text-sm border bg-blue-600 text-white dark:border-blue-600 disabled:opacity-50" disabled={busy}>
-          {busy ? 'Searching…' : 'Apply'}
-        </button>
-        <button type="button" onClick={onReset} className="px-3 py-1.5 rounded-lg text-sm border">
-          Reset
-        </button>
-      </div>
+        <div className="mt-3 flex items-center gap-2">
+          <input
+            key={t.lang}
+            placeholder={t('Genes (comma separated)')}
+            value={local.genes}
+            onChange={(e)=>setLocal(s=>({ ...s, genes: e.target.value }))}
+            className="flex-1 rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
+          />
+          <button type="submit" className="px-3 py-1.5 rounded-lg text-sm border bg-blue-600 text-white dark:border-blue-600 disabled:opacity-50" disabled={busy}>
+            {busy ? t('Searching…') : t('Apply')}
+          </button>
+          <button type="button" onClick={onReset} className="px-3 py-1.5 rounded-lg text-sm border">
+            {t('Reset')}
+          </button>
+        </div>
 
       {error && <div className="text-red-600 text-sm mt-2">{error}</div>}
     </form>

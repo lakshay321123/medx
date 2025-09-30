@@ -37,6 +37,8 @@ import { singleTrialPatientPrompt, singleTrialClinicianPrompt } from "@/lib/prom
 import { searchTrials, dedupeTrials, rankValue } from "@/lib/trials/search";
 import { byName } from "@/data/countries";
 import { searchNearby } from "@/lib/openpass";
+import { normalizeLanguageTag } from "@/lib/i18n/lang";
+import { languageInstruction } from "@/lib/ai/prompts/common";
 
 type WebHit = { title: string; snippet: string; url: string; source: string };
 
@@ -95,12 +97,15 @@ export async function POST(req: Request) {
     researchOn = true;
   }
 
+  console.log(`[chat] mode=${mode} research=${!!researchOn} lang=${lang}`);
+
   const headers = req.headers;
   const requestedLang = typeof body?.lang === "string" ? body.lang : undefined;
   const headerLang = headers.get("x-user-lang") || headers.get("x-lang") || undefined;
-  const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
-  const lang = langTag.toLowerCase();
+  const langInput = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
+  const lang = normalizeLanguageTag(langInput);
   const languageName = languageNameFor(lang);
+  const langInstruction = languageInstruction(lang);
   let conversationId = headers.get("x-conversation-id");
   let isNewChat = headers.get("x-new-chat") === "true";
   if (!conversationId) {
@@ -137,6 +142,7 @@ export async function POST(req: Request) {
       ? singleTrialClinicianPrompt(trial)
       : singleTrialPatientPrompt(trial);
     const reply = await callGroq([
+      { role: "system", content: langInstruction },
       {
         role: "system",
         content:
@@ -196,6 +202,7 @@ export async function POST(req: Request) {
           : `Summarize these trials in plain English for a patient. Explain what each is testing, status, and where. Keep it clear and short.\n\n${list}`;
 
       const reply = await callGroq([
+        { role: "system", content: langInstruction },
         {
           role: "system",
           content:
@@ -219,6 +226,7 @@ export async function POST(req: Request) {
     const patient = await buildPatientSnapshot(thread_id);
     const systemPrompt = DOCTOR_JSON_SYSTEM;
     const msg: ChatCompletionMessageParam[] = [
+      { role: "system", content: langInstruction },
       { role: "system", content: systemPrompt },
       ...(incomingMessages || []),
     ];
@@ -336,7 +344,7 @@ export async function POST(req: Request) {
   // 5) Build system + recent messages
   const { system, recent, langDirective } = await buildPromptContext({ threadId, options: { mode, researchOn, lang } });
   const systemParts = [system, ...systemExtra].filter(Boolean);
-  const baseSystem = [...systemParts, langDirective].join("\n\n");
+  const baseSystem = [langDirective, ...systemParts].filter(Boolean).join("\n\n");
 
   // --- Topic Locking disabled (no recipe/dish behaviors) ---
   const fullSystem = baseSystem;

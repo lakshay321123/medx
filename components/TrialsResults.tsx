@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
 
@@ -9,6 +9,7 @@ import { TrialsMobileCard } from "./TrialsRow";
 import { sendMessage } from "@/lib/chat/sendMessage";
 import { fromSearchParams } from "@/lib/modes/url";
 import type { TrialRow } from "@/types/trials";
+import { useT, tfmt } from "@/components/hooks/useI18n";
 
 const MOBILE_MAX_WIDTH = 480;
 
@@ -70,56 +71,6 @@ function getCountries(trial: TrialRow): string[] {
   return Array.from(new Set(values.map(v => v.trim()).filter(Boolean)));
 }
 
-function getRecruitingLabel(trial: TrialRow) {
-  if (Array.isArray(trial.locations) && trial.locations.length > 0) {
-    return String(trial.locations.length);
-  }
-  if (trial.status) {
-    const status = trial.status.toLowerCase().trim();
-
-    if (
-      status.includes("not recruiting") ||
-      status.includes("no longer recruiting") ||
-      status.includes("active, not recruiting")
-    ) {
-      return "No";
-    }
-
-    if (status.startsWith("recruit") || status === "recruiting") {
-      return "Yes";
-    }
-
-    return trial.status;
-  }
-  return "Unknown";
-}
-
-function copyTrial(trial: TrialRow) {
-  if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
-  const registryId = getRegistryId(trial);
-  const pieces = [trial.title, registryId];
-  if (trial.url) pieces.push(trial.url);
-  const text = pieces.filter(Boolean).join(" — ");
-  navigator.clipboard.writeText(text).catch(() => {});
-}
-
-function summarizeTrialIntoChat(trial: TrialRow) {
-  const registryId = getRegistryId(trial);
-  const countries = getCountries(trial);
-  const status = trial.status || "—";
-  const phase = trial.phase || "—";
-  const label = registryId.startsWith("NCT") ? "NCT" : "Registry ID";
-  const lines = [
-    "Summarize this clinical trial for a clinician:",
-    `• ${label}: ${registryId}`,
-    `• Title: ${trial.title}`,
-    `• Status/Phase: ${status} / Phase ${phase}`,
-    `• Countries: ${countries.length ? countries.join(", ") : "—"}`,
-    trial.url ? `• Registry: ${trial.url}` : "",
-  ].filter(Boolean);
-  sendMessage(lines.join("\n"));
-}
-
 async function exportTrials(rows: TrialRow[]) {
   try {
     const res = await fetch("/api/trials/export", {
@@ -142,6 +93,7 @@ async function exportTrials(rows: TrialRow[]) {
 export default function TrialsResults({ trials }: { trials: TrialRow[] }) {
   const searchParams = useSearchParams();
   const { resolvedTheme } = useTheme();
+  const t = useT();
   const theme = resolvedTheme === "dark" ? "dark" : "light";
   const searchParamsString = searchParams.toString();
   const modeState = useMemo(
@@ -152,6 +104,61 @@ export default function TrialsResults({ trials }: { trials: TrialRow[] }) {
   const researchEnabled = Boolean(modeState.research);
   const isMobile = useIsMobile();
   const mobileContrast = isMobile && mode === "clinical" && researchEnabled && theme === "light";
+
+  const getRecruitingLabel = useCallback(
+    (trial: TrialRow) => {
+      if (Array.isArray(trial.locations) && trial.locations.length > 0) {
+        return String(trial.locations.length);
+      }
+      if (trial.status) {
+        const status = trial.status.toLowerCase().trim();
+        if (
+          status.includes("not recruiting") ||
+          status.includes("no longer recruiting") ||
+          status.includes("active, not recruiting")
+        ) {
+          return t("No");
+        }
+        if (status.startsWith("recruit") || status === "recruiting") {
+          return t("Yes");
+        }
+        return trial.status;
+      }
+      return t("Unknown");
+    },
+    [t],
+  );
+
+  const copyTrial = useCallback((trial: TrialRow) => {
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
+    const registryId = getRegistryId(trial);
+    const pieces = [trial.title, registryId];
+    if (trial.url) pieces.push(trial.url);
+    const text = pieces.filter(Boolean).join(" — ");
+    navigator.clipboard.writeText(text).catch(() => {});
+  }, []);
+
+  const summarizeTrialIntoChat = useCallback(
+    (trial: TrialRow) => {
+      const registryId = getRegistryId(trial);
+      const countries = getCountries(trial);
+      const status = trial.status ? t(trial.status) : "—";
+      const phase = trial.phase ? t(trial.phase) : "—";
+      const label = registryId.startsWith("NCT") ? "NCT" : t("Registry ID");
+      const lines = [
+        t("Summarize this clinical trial for a clinician:"),
+        tfmt(t("• {label}: {value}"), { label, value: registryId }),
+        tfmt(t("• Title: {title}"), { title: trial.title }),
+        tfmt(t("• Status/Phase: {status} / Phase {phase}"), { status, phase }),
+        tfmt(t("• Countries: {countries}"), {
+          countries: countries.length ? countries.join(", ") : "—",
+        }),
+        trial.url ? tfmt(t("• Registry: {url}"), { url: trial.url }) : "",
+      ].filter(Boolean);
+      sendMessage(lines.join("\n"));
+    },
+    [t],
+  );
 
   if (!trials || trials.length === 0) return null;
 
@@ -164,7 +171,7 @@ export default function TrialsResults({ trials }: { trials: TrialRow[] }) {
               onClick={() => exportTrials(trials)}
               className="rounded-full border border-slate-200 px-3 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
             >
-              Export CSV
+              {t("Export CSV")}
             </button>
           </div>
           <TrialsTable rows={trials} />
@@ -181,11 +188,18 @@ export default function TrialsResults({ trials }: { trials: TrialRow[] }) {
             const registryLabel = getRegistryLabel(trial.source);
             const countries = getCountries(trial);
             const recruiting = getRecruitingLabel(trial);
-            const phase = trial.phase || "—";
-            const status = trial.status || "—";
+            const phaseText = trial.phase ? t(trial.phase) : "—";
+            const statusText = trial.status ? t(trial.status) : "—";
             const countriesLabel = countries.length ? countries.join(", ") : "—";
-            const statusLine = `${status} • Phase ${phase} • ${countriesLabel}`;
-            const registryLine = `${registryId} • ${registryLabel}`;
+            const statusLine = tfmt(t("{status} • {phaseLabel} • {countries}"), {
+              status: statusText,
+              phaseLabel: phaseText,
+              countries: countriesLabel,
+            });
+            const registryLine = tfmt(t("{registryId} • {registryLabel}"), {
+              registryId,
+              registryLabel,
+            });
 
             return (
               <TrialsMobileCard
@@ -194,6 +208,9 @@ export default function TrialsResults({ trials }: { trials: TrialRow[] }) {
                 statusLine={statusLine}
                 registryLine={registryLine}
                 recruitingLabel={recruiting}
+                recruitingPrefix={t("Recruiting:")}
+                copyLabel={t("Copy")}
+                summarizeLabel={t("Summarize")}
                 onCopy={() => copyTrial(trial)}
                 onSummarize={() => summarizeTrialIntoChat(trial)}
               />

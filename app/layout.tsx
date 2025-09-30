@@ -16,6 +16,8 @@ import dynamic from "next/dynamic";
 import Script from "next/script";
 import PreferencesProvider from "@/components/providers/PreferencesProvider";
 import LangDirEffect from "@/components/providers/LangDirEffect";
+import { cookies } from "next/headers";
+import { normalizeLanguageTag } from "@/lib/i18n/lang";
 
 // Mobile-only UI (loaded client-side)
 const MobileHeader = dynamic(() => import("@/components/mobile/MobileHeader"), { ssr: false });
@@ -25,8 +27,12 @@ const MobileActionsSheet = dynamic(() => import("@/components/mobile/MobileActio
 export const metadata = { title: BRAND_NAME, description: "Global medical AI" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const cookieStore = cookies();
+  const langCookie = cookieStore.get("medx-lang")?.value;
+  const initialLang = normalizeLanguageTag(langCookie);
+  const initialDir = initialLang === "ar" ? "rtl" : "ltr";
   return (
-    <html lang="en" dir="ltr" suppressHydrationWarning>
+    <html lang={initialLang} dir={initialDir} suppressHydrationWarning>
       <head>
         <link rel="dns-prefetch" href="https://fonts.cdnfonts.com" />
         <link rel="preconnect" href="https://fonts.cdnfonts.com" crossOrigin="anonymous" />

@@ -1,4 +1,5 @@
 import { BRAND_NAME } from "@/lib/brand";
+import { languageInstruction } from "@/lib/ai/prompts/common";
 
 export const SYSTEM_DEFAULT_LANG = "en";
 const DEFAULT_LOCALE = "en-IN";
@@ -51,8 +52,7 @@ export function languageDirectiveFor(lang?: string): string {
   if (LANGUAGE_DIRECTIVES[code]) {
     return LANGUAGE_DIRECTIVES[code];
   }
-  const languageName = languageNameFor(code);
-  return `Answer in ${languageName}. If the user writes in another language, still respond in ${languageName} unless they explicitly request otherwise.`;
+  return languageInstruction(code);
 }
 
 type BuildSystemPromptOptions = {

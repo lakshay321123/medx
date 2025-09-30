@@ -1,8 +1,9 @@
 "use client";
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { normalizeLanguageTag, type SupportedLang } from "@/lib/i18n/lang";
 
 type Plan = "free" | "pro";
-type Lang = "en" | "hi" | "ar" | "it" | "zh" | "es" | "fr";
+type Lang = SupportedLang;
 
 export type Prefs = {
   theme: "system" | "light" | "dark";
@@ -31,7 +32,7 @@ export type Prefs = {
 
   // actions
   set<K extends keyof Prefs>(key: K, val: Prefs[K]): void;
-  setLang(l: Lang): void;
+  setLang(l: Lang, source?: "user" | "system"): void;
   incUsage(): void;
   resetWindowIfNeeded(): boolean;
   setPlan(p: Plan): void;
@@ -84,6 +85,14 @@ export default function PreferencesProvider({ children }: { children: React.Reac
   const mounted = useRef(false);
   const [state, setState] = useState<Prefs>(DEFAULT);
 
+  const persistLangCookie = useCallback((value: Lang) => {
+    if (typeof document === "undefined") return;
+    try {
+      const maxAge = 60 * 60 * 24 * 365;
+      document.cookie = `medx-lang=${value}; path=/; max-age=${maxAge}; SameSite=Lax`;
+    } catch {}
+  }, []);
+
   const persist = useCallback((value: Prefs) => {
     if (typeof window === "undefined") return;
     const {
@@ -98,7 +107,8 @@ export default function PreferencesProvider({ children }: { children: React.Reac
     try {
       window.localStorage.setItem(KEY, JSON.stringify(rest));
     } catch {}
-  }, []);
+    persistLangCookie(value.lang);
+  }, [persistLangCookie]);
 
   // load after mount (no SSR localStorage)
   useEffect(() => {
@@ -114,7 +124,10 @@ export default function PreferencesProvider({ children }: { children: React.Reac
     if (parsed && typeof parsed === "object") {
       setState((s) => {
         const snapshot = parsed as Record<string, unknown>;
-        const lang = typeof snapshot.lang === "string" ? (snapshot.lang as Lang) : s.lang;
+        const lang =
+          typeof snapshot.lang === "string"
+            ? (normalizeLanguageTag(snapshot.lang) as Lang)
+            : s.lang;
         const windowEndsAt =
           typeof snapshot.windowEndsAt === "number"
             ? snapshot.windowEndsAt
@@ -141,8 +154,10 @@ export default function PreferencesProvider({ children }: { children: React.Reac
   }, [persist, state]);
 
   const api = useMemo<Prefs>(() => {
-    const setLang = (l: Lang) => {
-      setState((s) => ({ ...s, lang: l, dir: l === "ar" ? "rtl" : "ltr" } as Prefs));
+    const setLang = (l: Lang, _source?: "user" | "system") => {
+      const next = normalizeLanguageTag(l) as Lang;
+      persistLangCookie(next);
+      setState((s) => ({ ...s, lang: next, dir: next === "ar" ? "rtl" : "ltr" } as Prefs));
     };
     const set = <K extends keyof Prefs>(key: K, val: Prefs[K]) => {
       if (key === "lang") {
@@ -192,7 +207,7 @@ export default function PreferencesProvider({ children }: { children: React.Reac
       setPlan,
       canSend,
     };
-  }, [persist, state]);
+  }, [persist, persistLangCookie, state]);
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

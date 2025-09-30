@@ -11,6 +11,7 @@ import { AssistantPendingMessage } from "@/components/chat/AssistantPendingMessa
 import { usePendingAssistantStages } from "@/hooks/usePendingAssistantStages";
 import type { AppMode } from "@/lib/welcomeMessages";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
+import { normalizeLanguageTag } from "@/lib/i18n/lang";
 import WelcomeCard from "@/components/chat/WelcomeCard";
 import { useUIStore } from "@/components/hooks/useUIStore";
 
@@ -144,7 +145,7 @@ export function ChatWindow() {
       return;
     }
 
-    const lang = langOverride ?? prefs.lang;
+    const lang = normalizeLanguageTag(langOverride ?? prefs.lang);
 
     // after sending user message, persist thread if needed
     await persistIfTemp();

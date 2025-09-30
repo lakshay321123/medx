@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { profileChatSystem } from '@/lib/profileChatSystem';
-import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from '@/lib/prompt/system';
+import { SYSTEM_DEFAULT_LANG } from '@/lib/prompt/system';
 import { extractAll, canonicalizeInputs } from '@/lib/medical/engine/extract';
 import { BRAND_NAME } from "@/lib/brand";
 import { computeAll } from '@/lib/medical/engine/computeAll';
@@ -8,6 +8,8 @@ import { computeAll } from '@/lib/medical/engine/computeAll';
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
 import { RESEARCH_BRIEF_STYLE } from '@/lib/styles';
+import { normalizeLanguageTag } from '@/lib/i18n/lang';
+import { languageInstruction } from '@/lib/ai/prompts/common';
 
 // --- tiny helper: keep only the last N non-system turns (cheap token control)
 function takeRecentTurns(
@@ -62,12 +64,14 @@ export async function POST(req: NextRequest) {
   const { context, clientRequestId, mode } = body;
   const requestedLang = typeof body?.lang === 'string' ? body.lang : undefined;
   const headerLang = req.headers.get('x-user-lang') || req.headers.get('x-lang') || undefined;
-  const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
-  const lang = langTag.toLowerCase();
-  const langDirective = languageDirectiveFor(lang);
+  const langInput = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
+  const lang = normalizeLanguageTag(langInput);
+  const langDirective = languageInstruction(lang);
 
   const research =
     qp === '1' || qp === 'true' || body?.research === true || body?.research === 'true';
+
+  console.log(`[chat] mode=${body.mode} research=${research} lang=${lang}`);
 
   // 1) Gather existing conversation
   const history: Array<{role:'system'|'user'|'assistant'; content:string}> =
@@ -245,7 +249,7 @@ export async function POST(req: NextRequest) {
   const systemMessages = finalMessages.filter((m: any) => m.role === 'system');
   const nonSystemMessages = finalMessages.filter((m: any) => m.role !== 'system');
   const combinedSystem = systemMessages.map((m: any) => m.content).filter(Boolean).join('\n\n');
-  const finalSystem = [combinedSystem, langDirective].filter(Boolean).join('\n\n');
+  const finalSystem = [langDirective, combinedSystem].filter(Boolean).join('\n\n');
   finalMessages = finalSystem ? [{ role: 'system', content: finalSystem }, ...nonSystemMessages] : nonSystemMessages;
 
   const upstream = await fetch(url, {

@@ -745,7 +745,7 @@ export default function Timeline(){
                 type="button"
                 onClick={() => closeOverlay()}
                 className="sm:hidden -ml-1 rounded-md p-2 hover:bg-slate-100 dark:hover:bg-gray-800"
-                aria-label="Close details"
+                aria-label={t("Close details")}
               >
                 <ArrowLeft size={18} />
               </button>
@@ -792,7 +792,7 @@ export default function Timeline(){
             <div className="px-5 py-4">
               {hasFile ? (
                 !signedUrl ? (
-                  <div className="text-xs text-muted-foreground">Fetching file…</div>
+                  <div className="text-xs text-muted-foreground">{t("Fetching file…")}</div>
                 ) : /\.pdf(\?|$)/i.test(signedUrl) ? (
                   <iframe src={signedUrl} className="w-full h-[80vh] bg-white" />
                 ) : /\.(png|jpe?g|gif|webp)(\?|$)/i.test(signedUrl) ? (
@@ -895,7 +895,7 @@ export default function Timeline(){
                           )}
                           {active?.unit && !dose && (
                             <div className="rounded-md border px-2 py-1">
-                              <div className="text-[11px] uppercase opacity-70">Unit</div>
+                              <div className="text-[11px] uppercase opacity-70">{t("Unit")}</div>
                               <div>{active.unit}</div>
                             </div>
                           )}

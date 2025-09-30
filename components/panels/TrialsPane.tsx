@@ -5,8 +5,10 @@ import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials
 import { askLLM } from "@/lib/llm";
 import { hintEligibility } from "@/lib/eligibility";
 import type { TrialRow } from "@/types/trials";
+import { useT } from "@/components/hooks/useI18n";
 
 export default function TrialsPane() {
+  const t = useT();
   const [form, setForm] = useState({
     condition: "",
     status: "Recruiting,Enrolling by invitation",
@@ -56,8 +58,9 @@ export default function TrialsPane() {
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
         <input
+          key={`${t.lang}-condition`}
           className="border rounded p-2"
-          placeholder="Condition (e.g., Type 2 Diabetes)"
+          placeholder={t("Condition (e.g., Type 2 Diabetes)")}
           value={form.condition}
           onChange={(e) => setForm({ ...form, condition: e.target.value })}
         />
@@ -66,32 +69,54 @@ export default function TrialsPane() {
           value={country}
           onChange={(e) => setCountry(e.target.value)}
         >
-          <option value="auto">Auto</option>
-          <option value="India">India</option>
-          <option value="USA">USA</option>
-          <option value="EU">EU</option>
+          <option value="auto">{t("Auto")}</option>
+          <option value="India">{t("India")}</option>
+          <option value="USA">{t("United States")}</option>
+          <option value="EU">{t("European Union")}</option>
         </select>
         <input
+          key={`${t.lang}-status`}
           className="border rounded p-2"
-          placeholder="Status (e.g., Recruiting,Active)"
+          placeholder={t("Status (e.g., Recruiting,Active)")}
           value={form.status || ""}
           onChange={(e) => setForm({ ...form, status: e.target.value || undefined })}
         />
         <input
+          key={`${t.lang}-phase`}
           className="border rounded p-2"
-          placeholder="Phase (e.g., Phase 2,Phase 3)"
+          placeholder={t("Phase (e.g., Phase 2,Phase 3)")}
           value={form.phase || ""}
           onChange={(e) => setForm({ ...form, phase: e.target.value || undefined })}
         />
       </div>
 
       <div className="flex gap-2">
-        <button className="px-3 py-2 rounded bg-black text-white" onClick={onSearch} disabled={loading}>Search trials</button>
-        <button className="px-3 py-2 rounded border" onClick={()=>summarize("patient")} disabled={!rows.length}>Summarize (Wellness)</button>
-        <button className="px-3 py-2 rounded border" onClick={()=>summarize("doctor")} disabled={!rows.length}>Summarize (Clinical)</button>
+        <button
+          className="px-3 py-2 rounded bg-black text-white"
+          onClick={onSearch}
+          disabled={loading}
+        >
+          {loading ? t("Searching…") : t("Search trials")}
+        </button>
+        <button
+          className="px-3 py-2 rounded border"
+          onClick={()=>summarize("patient")}
+          disabled={!rows.length}
+        >
+          {t("Summarize (Wellness)")}
+        </button>
+        <button
+          className="px-3 py-2 rounded border"
+          onClick={()=>summarize("doctor")}
+          disabled={!rows.length}
+        >
+          {t("Summarize (Clinical)")}
+        </button>
       </div>
 
-      <div className="text-sm text-gray-500">Informational only; not medical advice. Confirm eligibility with the sponsor.</div>
+      <div className="text-sm text-gray-500">
+        {t("Informational only; not medical advice. Confirm eligibility with the sponsor.")}
+      </div>
 
       {rows.length > 0 && (
         <ul className="space-y-2">
@@ -118,7 +143,7 @@ export default function TrialsPane() {
                 )}
                 {t.when?.updated && (
                   <span className="text-[11px] px-1.5 py-0.5 rounded border">
-                    Updated: {t.when.updated.slice(0, 10)}
+                    {t("Updated:")} {t.d(t.when.updated)}
                   </span>
                 )}
               </div>

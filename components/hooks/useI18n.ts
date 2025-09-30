@@ -1,4 +1,5 @@
 "use client";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePrefs } from "@/components/hooks/usePrefs";
 import { aidoc } from "@/components/i18n/aidoc";
 import { clinical } from "@/components/i18n/clinical";
@@ -7,6 +8,9 @@ import { common } from "@/components/i18n/common";
 import { therapy } from "@/components/i18n/therapy";
 import { wellness } from "@/components/i18n/wellness";
 import { wellness_research } from "@/components/i18n/wellness_research";
+import { normalizeLanguageTag } from "@/lib/i18n/lang";
+
+export { normalizeLanguageTag, SUPPORTED_LANGS } from "@/lib/i18n/lang";
 
 export type TranslationTokens = Record<string, string | number>;
 
@@ -59,6 +63,18 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "Current location": "Current location",
     "Search doctors, pharmacies, labs": "Search doctors, pharmacies, labs",
     "Enter area, city, or address": "Enter area, city, or address",
+    "Condition (e.g., Type 2 Diabetes)": "Condition (e.g., Type 2 Diabetes)",
+    "Status (e.g., Recruiting,Active)": "Status (e.g., Recruiting,Active)",
+    "Phase (e.g., Phase 2,Phase 3)": "Phase (e.g., Phase 2,Phase 3)",
+    "Search trials": "Search trials",
+    "United States": "United States",
+    India: "India",
+    "European Union": "European Union",
+    "United Kingdom": "United Kingdom",
+    Japan: "Japan",
+    China: "China",
+    Worldwide: "Worldwide",
+    Auto: "Auto",
     All: "All",
     Doctors: "Doctors",
     Doctor: "Doctor",
@@ -137,6 +153,7 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     Therapy: "Therapy",
     Research: "Research",
     Clinical: "Clinical",
+    "Clinical Mode": "Clinical Mode",
     "AI Doc": "AI Doc",
     "Wellness Mode: ON": "Wellness Mode: ON",
     "Your health, made simple. Reports, tips, medication, diets, and fitness—explained in clear language.":
@@ -188,9 +205,29 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "Full text": "Full text",
     "Download Summary": "Download Summary",
     Close: "Close",
+    "Close details": "Close details",
     Save: "Save",
     Apply: "Apply",
     Reset: "Reset",
+    "Search trials (e.g., condition, gene, topic)": "Search trials (e.g., condition, gene, topic)",
+    "Search failed": "Search failed",
+    "Failed to fetch trials": "Failed to fetch trials",
+    "Informational only; not medical advice. Confirm eligibility with the sponsor.":
+      "Informational only; not medical advice. Confirm eligibility with the sponsor.",
+    "Summarize (Wellness)": "Summarize (Wellness)",
+    "Summarize (Clinical)": "Summarize (Clinical)",
+    "Updated:": "Updated:",
+    "Genes (comma separated)": "Genes (comma separated)",
+    "Summarize this clinical trial for a clinician:": "Summarize this clinical trial for a clinician:",
+    "• {label}: {value}": "• {label}: {value}",
+    "• Title: {title}": "• Title: {title}",
+    "• Status/Phase: {status} / Phase {phase}": "• Status/Phase: {status} / Phase {phase}",
+    "• Countries: {countries}": "• Countries: {countries}",
+    "• Registry: {url}": "• Registry: {url}",
+    "{status} • {phaseLabel} • {countries}": "{status} • {phaseLabel} • {countries}",
+    "Phase {value}": "Phase {value}",
+    "{registryId} • {registryLabel}": "{registryId} • {registryLabel}",
+    "Recruiting:": "Recruiting:",
     Copy: "Copy",
     Export: "Export",
     Summarize: "Summarize",
@@ -200,6 +237,10 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     Registry: "Registry",
     Status: "Status",
     Phase: "Phase",
+    "Phase 1": "Phase 1",
+    "Phase 2": "Phase 2",
+    "Phase 3": "Phase 3",
+    "Phase 4": "Phase 4",
     Upload: "Upload",
     "Upload more views": "Upload more views",
     "Upload failed": "Upload failed",
@@ -210,6 +251,18 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
       "Upload up to {count} images (PA, lateral, oblique).",
     "Upload clearer image or side view.": "Upload clearer image or side view.",
     "Each image must be under 5 MB.": "Each image must be under 5 MB.",
+    "Fetching file…": "Fetching file…",
+    "Active (not recruiting)": "Active (not recruiting)",
+    Recruiting: "Recruiting",
+    Yes: "Yes",
+    No: "No",
+    Unknown: "Unknown",
+    Completed: "Completed",
+    Any: "Any",
+    "⚠️ Could not summarize: invalid Registry ID": "⚠️ Could not summarize: invalid Registry ID",
+    "⚠️ Could not summarize **{id}**: {message}": "⚠️ Could not summarize **{id}**: {message}",
+    "_Summarizing trial…_": "_Summarizing trial…_",
+    "Registry ID": "Registry ID",
     Dismiss: "Dismiss",
     "Dismiss welcome": "Dismiss welcome",
     "Legal marquee notice": "{brand} can make mistakes… Always consult a clinician.",
@@ -271,6 +324,15 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "Contact body suffix": ".",
     "I agree to the Legal & Privacy terms, including the handling of my data and cookie preferences as described above.":
       "I agree to the Legal & Privacy terms, including the handling of my data and cookie preferences as described above.",
+    Open: "Open",
+    Download: "Download",
+    "Preview unavailable. Use <b>Open</b> or <b>Download</b>.": "Preview unavailable. Use <b>Open</b> or <b>Download</b>.",
+    Deleted: "Deleted",
+    "Couldn't delete. Please try again.": "Couldn't delete. Please try again.",
+    Dose: "Dose",
+    Observed: "Observed",
+    Source: "Source",
+    Unit: "Unit",
     Med: "Med",
     Obs: "Obs",
     "All dates": "All dates",
@@ -1560,6 +1622,12 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
   },
 };
 
+const RESOURCES: Record<string, () => Promise<Record<string, string>>> = {
+  fr: () => import("@/i18n/fr.json").then((mod) => mod.default as Record<string, string>),
+};
+
+const RESOURCE_CACHE: Record<string, Record<string, string>> = {};
+
 const NAMESPACE_BUNDLES = [common, clinical, clinical_research, wellness, wellness_research, therapy, aidoc];
 
 const DICTIONARY: Record<string, Record<string, string>> = (() => {
@@ -1579,56 +1647,110 @@ const MISSING_KEY_LOG: Set<string> = new Set();
 
 export function useT() {
   const { lang } = usePrefs();
-  const activeLang = lang ?? "en";
-  const dict = DICTIONARY[activeLang] ?? DICTIONARY.en;
+  const activeLang = normalizeLanguageTag(lang);
+  const baseDict = useMemo(() => DICTIONARY[activeLang] ?? DICTIONARY.en, [activeLang]);
+  const [dict, setDict] = useState<Record<string, string>>(baseDict);
 
-  const translate = (s: string) => {
-    const localized = dict[s];
-    if (localized !== undefined) {
-      return localized;
+  useEffect(() => {
+    let cancelled = false;
+    const loader = RESOURCES[activeLang];
+    const cached = loader ? RESOURCE_CACHE[activeLang] : null;
+
+    if (cached) {
+      setDict({ ...baseDict, ...cached });
+      return () => {
+        cancelled = true;
+      };
     }
 
-    const fallback = DICTIONARY.en?.[s];
-    if (fallback !== undefined) {
-      if (activeLang !== "en") {
-        const logKey = `${activeLang}:${s}`;
-        if (!MISSING_KEY_LOG.has(logKey)) {
-          MISSING_KEY_LOG.add(logKey);
-          console.warn(`Missing translation for "${s}" in ${activeLang}; falling back to English.`);
+    setDict(baseDict);
+
+    if (!loader) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    loader()
+      .then((extra) => {
+        if (cancelled || !extra) return;
+        RESOURCE_CACHE[activeLang] = extra;
+        setDict({ ...baseDict, ...extra });
+      })
+      .catch((error) => {
+        if (process.env.NODE_ENV !== "production") {
+          console.warn(`[i18n] Failed to load ${activeLang} bundle`, error);
         }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeLang, baseDict]);
+
+  const translate = useCallback(
+    (s: string) => {
+      const localized = dict[s];
+      if (localized !== undefined) {
+        return localized;
       }
-      return fallback;
-    }
 
-    const missingKey = `base:${s}`;
-    if (!MISSING_KEY_LOG.has(missingKey)) {
-      MISSING_KEY_LOG.add(missingKey);
-      console.warn(`Missing base translation for "${s}"; returning token.`);
-    }
+      const fallback = DICTIONARY.en?.[s];
+      if (fallback !== undefined) {
+        if (activeLang !== "en") {
+          const logKey = `${activeLang}:${s}`;
+          if (!MISSING_KEY_LOG.has(logKey)) {
+            MISSING_KEY_LOG.add(logKey);
+            if (process.env.NODE_ENV !== "production" && activeLang === "fr") {
+              console.warn(`[i18n] Missing FR key: ${s}`);
+            } else {
+              console.warn(`Missing translation for "${s}" in ${activeLang}; falling back to English.`);
+            }
+          }
+        }
+        return fallback;
+      }
 
-    return s;
-  };
+      const missingKey = `base:${s}`;
+      if (!MISSING_KEY_LOG.has(missingKey)) {
+        MISSING_KEY_LOG.add(missingKey);
+        console.warn(`Missing base translation for "${s}"; returning token.`);
+      }
 
-  const n = (value: number, opts?: Intl.NumberFormatOptions) =>
-    new Intl.NumberFormat(activeLang, opts).format(value);
+      return s;
+    },
+    [dict, activeLang],
+  );
 
-  const d = (date: Date | number | string, opts?: Intl.DateTimeFormatOptions) => {
-    const dt = typeof date === "string" || typeof date === "number" ? new Date(date) : date;
-    return new Intl.DateTimeFormat(
-      activeLang,
-      opts ?? { year: "numeric", month: "short", day: "numeric" },
-    ).format(dt);
-  };
+  const n = useCallback(
+    (value: number, opts?: Intl.NumberFormatOptions) =>
+      new Intl.NumberFormat(activeLang, opts).format(value),
+    [activeLang],
+  );
 
-  const nd = (value: number, opts?: Intl.NumberFormatOptions) => {
-    const lc = activeLang.toLowerCase();
-    const tag = lc.startsWith("hi")
-      ? `${activeLang}-u-nu-deva`
-      : lc.startsWith("ar")
-      ? `${activeLang}-u-nu-arab`
-      : activeLang;
-    return new Intl.NumberFormat(tag, opts).format(value);
-  };
+  const d = useCallback(
+    (date: Date | number | string, opts?: Intl.DateTimeFormatOptions) => {
+      const dt = typeof date === "string" || typeof date === "number" ? new Date(date) : date;
+      return new Intl.DateTimeFormat(
+        activeLang,
+        opts ?? { year: "numeric", month: "short", day: "numeric" },
+      ).format(dt);
+    },
+    [activeLang],
+  );
+
+  const nd = useCallback(
+    (value: number, opts?: Intl.NumberFormatOptions) => {
+      const lc = activeLang.toLowerCase();
+      const tag = lc.startsWith("hi")
+        ? `${activeLang}-u-nu-deva`
+        : lc.startsWith("ar")
+        ? `${activeLang}-u-nu-arab`
+        : activeLang;
+      return new Intl.NumberFormat(tag, opts).format(value);
+    },
+    [activeLang],
+  );
 
   return Object.assign(translate, { t: translate, n, d, nd, lang: activeLang });
 }

@@ -1,7 +1,9 @@
 import { loadState } from "@/lib/context/stateStore";
 import { loadTopicStack, titleOf } from "@/lib/context/topicStack";
 import { prisma } from "@/lib/prisma";
-import { buildSystemPrompt, languageDirectiveFor, resolveLocaleForLang, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
+import { buildSystemPrompt, resolveLocaleForLang, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
+import { normalizeLanguageTag } from "@/lib/i18n/lang";
+import { languageInstruction } from "@/lib/ai/prompts/common";
 
 export async function buildPromptContext({
   threadId,
@@ -19,10 +21,10 @@ export async function buildPromptContext({
   const stack = await loadTopicStack(threadId);
   const activeTitle = titleOf(stack);
 
-  const lang = (options?.lang || SYSTEM_DEFAULT_LANG).toLowerCase();
+  const lang = normalizeLanguageTag(options?.lang || SYSTEM_DEFAULT_LANG);
   const locale = resolveLocaleForLang(lang);
   const baseSystem = buildSystemPrompt({ locale, lang, includeDirective: false });
-  const langDirective = languageDirectiveFor(lang);
+  const langDirective = languageInstruction(lang);
 
   const system = [
     baseSystem,

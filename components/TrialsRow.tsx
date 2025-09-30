@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useT, tfmt } from "@/components/hooks/useI18n";
 
 function useIsDoctor() {
   if (typeof window === "undefined") return false;
@@ -20,6 +21,7 @@ export function TrialsRow({
 }: {
   row: { nctId: string; title: string; phase?: string; status?: string; country?: string };
 }) {
+  const t = useT();
   const isDoctor = useIsDoctor();
 
   const onSummarize = async (e: React.MouseEvent) => {
@@ -29,11 +31,11 @@ export function TrialsRow({
 
     const nct = extractNctId(row.nctId);
     if (!nct) {
-      pushAssistantToChat(`⚠️ Could not summarize: invalid Registry ID`);
+      pushAssistantToChat(t("⚠️ Could not summarize: invalid Registry ID"));
       return;
     }
 
-    pushAssistantToChat("_Summarizing trial…_");
+    pushAssistantToChat(t("_Summarizing trial…_"));
     try {
       const r = await fetch(`/api/trials/${nct}/summary`, { cache: "no-store" });
       const text = await r.text();
@@ -44,7 +46,12 @@ export function TrialsRow({
       const md = formatTrialBriefMarkdown(nct, j);
       pushAssistantToChat(md);
     } catch (err: any) {
-      pushAssistantToChat(`⚠️ Could not summarize **${nct}**: ${err?.message || "error"}`);
+      pushAssistantToChat(
+        tfmt(t("⚠️ Could not summarize **{id}**: {message}"), {
+          id: nct,
+          message: err?.message || "error",
+        }),
+      );
     }
   };
 
@@ -72,6 +79,9 @@ export type TrialsMobileCardProps = {
   statusLine: string;
   registryLine: string;
   recruitingLabel: string;
+  recruitingPrefix: string;
+  copyLabel: string;
+  summarizeLabel: string;
   onCopy: () => void;
   onSummarize: () => void;
 };
@@ -81,6 +91,9 @@ export function TrialsMobileCard({
   statusLine,
   registryLine,
   recruitingLabel,
+  recruitingPrefix,
+  copyLabel,
+  summarizeLabel,
   onCopy,
   onSummarize,
 }: TrialsMobileCardProps) {
@@ -96,12 +109,12 @@ export function TrialsMobileCard({
       <p className="meta mt-1 text-[12.5px] opacity-80">{statusLine}</p>
       <p className="meta text-[11px] opacity-70">{registryLine}</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
-        <span className="chip chip-sm">Recruiting: {recruitingLabel}</span>
+        <span className="chip chip-sm">{recruitingPrefix} {recruitingLabel}</span>
         <button type="button" className="btn chip-sm" onClick={onCopy}>
-          Copy
+          {copyLabel}
         </button>
         <button type="button" className="btn chip-sm" onClick={onSummarize}>
-          Summarize
+          {summarizeLabel}
         </button>
       </div>
     </div>
