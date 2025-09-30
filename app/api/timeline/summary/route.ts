@@ -8,6 +8,12 @@ import { buildShortSummaryFromText } from "@/lib/shortSummary";
 import { langBase } from "@/lib/i18n/langBase";
 
 const NO_STORE = { "Cache-Control": "no-store, max-age=0" };
+const PROTECTED_UNIT = /^(?:mg\/dl|mmol\/l|bpm|cm|kg|%)$/i;
+
+type ProtectedBlock = {
+  sanitized: string;
+  replacements: string[];
+};
 
 function firstString(...values: any[]): string | null {
   for (const value of values) {
@@ -34,6 +40,30 @@ type TimelineSummaryData = {
   summary_display: string;
   fullText_display: string;
 };
+
+function protectText(text: string): ProtectedBlock {
+  const tokens = text.split(/(\s+)/);
+  const replacements: string[] = [];
+
+  const sanitizedTokens = tokens.map(token => {
+    if (!token.trim()) return token;
+    if (/^\d/.test(token) || PROTECTED_UNIT.test(token)) {
+      const placeholder = `__MEDX_PROTECTED_${replacements.length}__`;
+      replacements.push(token);
+      return placeholder;
+    }
+    return token;
+  });
+
+  return { sanitized: sanitizedTokens.join(""), replacements };
+}
+
+function restoreText(text: string, replacements: string[]): string {
+  return replacements.reduce(
+    (acc, value, index) => acc.replaceAll(`__MEDX_PROTECTED_${index}__`, value),
+    text,
+  );
+}
 
 async function handleTimelineSummary(
   req: Request,
@@ -133,7 +163,11 @@ async function handleTimelineSummary(
 
   if (lang !== "en" && hasTranslatableContent) {
     const url = new URL(req.url);
-    const blocks = [String(data.summary || ""), String(data.fullText || "")];
+    const preparedBlocks = [
+      protectText(String(data.summary || "")),
+      protectText(String(data.fullText || "")),
+    ];
+    const blocks = preparedBlocks.map(block => block.sanitized);
 
     const p = fetch(`${url.origin}/api/translate`, {
       method: "POST",
@@ -149,8 +183,17 @@ async function handleTimelineSummary(
         new Promise(resolve => setTimeout(() => resolve({ blocks: [] }), 2500)),
       ])) as { blocks: string[] };
 
-      data.summary_display = res.blocks?.[0]?.trim() || data.summary || "";
-      data.fullText_display = res.blocks?.[1]?.trim() || data.fullText || "";
+      const summaryCandidate = restoreText(
+        typeof res.blocks?.[0] === "string" ? res.blocks[0] : "",
+        preparedBlocks[0].replacements,
+      ).trim();
+      const fullTextCandidate = restoreText(
+        typeof res.blocks?.[1] === "string" ? res.blocks[1] : "",
+        preparedBlocks[1].replacements,
+      ).trim();
+
+      data.summary_display = summaryCandidate || data.summary || "";
+      data.fullText_display = fullTextCandidate || data.fullText || "";
     } catch (err) {
       console.warn("[timeline/summary] translation failed", err);
     }
