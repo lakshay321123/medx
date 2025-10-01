@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { nanoid } from "nanoid";
+import type { AppMode } from "@/lib/welcomeMessages";
 
 export type ChatMessageMeta = {
   error?: boolean;
@@ -7,7 +8,7 @@ export type ChatMessageMeta = {
   req?: unknown;
   headers?: Record<string, string>;
   retryMeta?: {
-    mode: string;
+    mode: AppMode;
     research: boolean;
     text: string;
   };
