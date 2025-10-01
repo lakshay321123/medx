@@ -3,6 +3,7 @@ import { Search, Settings } from "lucide-react";
 import Tabs from "./sidebar/Tabs";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { IconNewChat } from "@/components/icons/IconNewChat";
 import { createNewThreadId, listThreads, Thread } from "@/lib/chatThreads";
 import ThreadKebab from "@/components/chat/ThreadKebab";
 import { useMobileUiStore } from "@/lib/state/mobileUiStore";
@@ -39,6 +40,7 @@ export default function Sidebar() {
   const t = useT();
   const openPrefs = useUIStore((state) => state.openPrefs);
   const locale = useLocale();
+  const newChatLabel = t("threads.systemTitles.new_chat");
 
   useEffect(() => {
     const load = () => setThreads(listThreads());
@@ -65,11 +67,17 @@ export default function Sidebar() {
     <div className="sidebar-click-guard flex h-full w-full flex-col gap-4 px-4 pt-6 pb-0 text-medx">
       <button
         type="button"
-        aria-label={t("threads.systemTitles.new_chat")}
+        aria-label={newChatLabel}
         onClick={handleNewChat}
-        className="w-full rounded-full bg-blue-600 px-4 py-2.5 text-left text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500"
+        className="flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500"
       >
-        + {t("threads.systemTitles.new_chat")}
+        <IconNewChat
+          width={20}
+          height={20}
+          title={newChatLabel}
+          className="h-5 w-5"
+        />
+        <span>{newChatLabel}</span>
       </button>
 
       <div>
