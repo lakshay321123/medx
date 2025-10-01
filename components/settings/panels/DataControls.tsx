@@ -1,9 +1,11 @@
 "use client";
 
-import { usePrefs } from "@/components/providers/PreferencesProvider";
+import { usePrefsDraft } from "@/components/providers/PrefsDraftProvider";
 
 export default function DataControlsPanel() {
-  const prefs = usePrefs();
+  const { draft, set } = usePrefsDraft();
+  const memoryEnabled = Boolean(draft.memoryEnabled);
+  const memoryAutosave = Boolean(draft.memoryAutosave);
 
   const Toggle = (checked: boolean, onChange: () => void) => (
     <label className="relative inline-flex cursor-pointer items-center">
@@ -22,11 +24,11 @@ export default function DataControlsPanel() {
         </div>
         <div className="flex items-center justify-between py-2">
           <div className="text-sm">Enabled</div>
-          {Toggle(prefs.memoryEnabled, () => prefs.set("memoryEnabled", !prefs.memoryEnabled))}
+          {Toggle(memoryEnabled, () => set("memoryEnabled", !memoryEnabled))}
         </div>
         <div className="flex items-center justify-between py-2">
           <div className="text-sm">Auto-save detected memories</div>
-          {Toggle(prefs.memoryAutosave, () => prefs.set("memoryAutosave", !prefs.memoryAutosave))}
+          {Toggle(memoryAutosave, () => set("memoryAutosave", !memoryAutosave))}
         </div>
       </div>
     </div>

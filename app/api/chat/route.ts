@@ -6,7 +6,7 @@ import { decideContext } from "@/lib/memory/contextRouter";
 import { seedTopicEmbedding } from "@/lib/memory/outOfContext";
 import { updateSummary, persistUpdatedSummary } from "@/lib/memory/summary";
 import { buildPromptContext } from "@/lib/memory/contextBuilder";
-import { languageNameFor, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
+import { languageNameFor, personaFromPrefs, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 import { buildContextBundle } from "@/lib/prompt/contextBuilder";
 
 import { loadState, saveState } from "@/lib/context/stateStore";
@@ -81,6 +81,10 @@ function contextStringFrom(messages: ChatCompletionMessageParam[]): string {
 
 export async function POST(req: Request) {
   const body: any = await req.json().catch(() => ({}));
+  const { personalization, include } = body;
+  const includeMemories = !!include?.memories;
+  const includeChatHistory = include?.chatHistory !== false;
+  const includeRecordHistory = !!include?.recordHistory;
   const { query, locationToken } = body;
   if (query && /near me/i.test(query) && locationToken) {
     const results = await searchNearby(locationToken, query);
@@ -91,6 +95,9 @@ export async function POST(req: Request) {
   const userMessage = incomingMessages?.[incomingMessages.length - 1]?.content || "";
   let { userId, activeThreadId, text, researchOn, clarifySelectId, research } = body;
   if (researchOn === undefined) researchOn = research;
+  if (typeof text !== "string" || text.trim() === "") {
+    text = typeof userMessage === "string" ? userMessage : "";
+  }
   if (researchOn === undefined && (mode === "doctor" || mode === "research")) {
     researchOn = true;
   }
@@ -101,6 +108,14 @@ export async function POST(req: Request) {
   const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
   const lang = langTag.toLowerCase();
   const languageName = languageNameFor(lang);
+  const persona = personaFromPrefs({
+    enabled: personalization?.enabled,
+    personality: personalization?.personality,
+    customInstructions: personalization?.customInstructions,
+    nickname: personalization?.nickname,
+    occupation: personalization?.occupation,
+    about: personalization?.about,
+  });
   let conversationId = headers.get("x-conversation-id");
   let isNewChat = headers.get("x-new-chat") === "true";
   if (!conversationId) {
@@ -334,17 +349,26 @@ export async function POST(req: Request) {
   }
 
   // 5) Build system + recent messages
-  const { system, recent, langDirective } = await buildPromptContext({ threadId, options: { mode, researchOn, lang } });
-  const systemParts = [system, ...systemExtra].filter(Boolean);
-  const baseSystem = [...systemParts, langDirective].join("\n\n");
+  const { system, recent, langDirective } = await buildPromptContext({
+    threadId,
+    options: { mode, researchOn, lang, includeHistory: includeChatHistory },
+  });
+  const contextBlock = [system, ...systemExtra].filter(Boolean).join("\n\n");
+
+  const systemBlocks: string[] = [];
+  if (persona) systemBlocks.push(persona);
+  if (langDirective) systemBlocks.push(langDirective);
+  if (contextBlock) systemBlocks.push(contextBlock);
 
   // --- Topic Locking disabled (no recipe/dish behaviors) ---
-  const fullSystem = baseSystem;
+  const fullSystem = systemBlocks.join("\n\n");
 
   // 6) Groq call
   const messages: ChatCompletionMessageParam[] = [
     { role: "system", content: fullSystem },
-    ...(sourceBlock ? [{ role: "system", content: sourceBlock }] : []),
+    ...(sourceBlock
+      ? ([{ role: "system", content: sourceBlock }] as ChatCompletionMessageParam[])
+      : []),
     ...recent.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
     { role: "user", content: text },
   ];
@@ -356,8 +380,12 @@ export async function POST(req: Request) {
   }
 
   // Clarification check (with memory)
-  const bundle = await buildContextBundle(threadId);
-  const clarifierWithMem = disambiguateWithMemory(text, bundle.memories ?? []);
+  const bundle = includeMemories
+    ? await buildContextBundle(includeRecordHistory ? threadId : undefined)
+    : {};
+  const clarifierWithMem = includeMemories
+    ? disambiguateWithMemory(text, (bundle as any).memories ?? [])
+    : undefined;
   if (clarifierWithMem) {
     return respond({ ok: true, threadId, text: clarifierWithMem });
   }

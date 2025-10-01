@@ -8,7 +8,7 @@ export async function buildPromptContext({
   options,
 }: {
   threadId: string;
-  options: { mode?: string; researchOn?: boolean; lang?: string };
+  options: { mode?: string; researchOn?: boolean; lang?: string; includeHistory?: boolean };
 }) {
   const thread = await prisma.chatThread.findUnique({
     where: { id: threadId },
@@ -23,33 +23,40 @@ export async function buildPromptContext({
   const locale = resolveLocaleForLang(lang);
   const baseSystem = buildSystemPrompt({ locale, lang, includeDirective: false });
   const langDirective = languageDirectiveFor(lang);
+  const includeHistory = options?.includeHistory !== false;
+  const parts: string[] = [];
+  parts.push(baseSystem, "Active topic:", activeTitle || "(none)");
 
-  const system = [
-    baseSystem,
-    "Active topic:",
-    activeTitle || "(none)",
+  if (includeHistory) {
+    parts.push(
+      "Conversation summary:",
+      thread?.runningSummary || "(none)",
+      "Conversation state (JSON):",
+      JSON.stringify(convState, null, 2),
+      "Constraint ledger (must be respected):",
+      JSON.stringify(convState?.constraints ?? {}, null, 2),
+      "Mode flags:",
+      JSON.stringify({ mode: options.mode, researchOn: options.researchOn }),
+    );
+  } else {
+    parts.push(
+      "Mode flags:",
+      JSON.stringify({ mode: options.mode, researchOn: options.researchOn }),
+    );
+  }
 
-    "Conversation summary:",
-    thread?.runningSummary || "(none)",
+  const system = parts.join("\n\n");
 
-    "Conversation state (JSON):",
-    JSON.stringify(convState, null, 2),
-
-    "Constraint ledger (must be respected):",
-    JSON.stringify(convState?.constraints ?? {}, null, 2),
-
-    "Mode flags:",
-    JSON.stringify({ mode: options.mode, researchOn: options.researchOn }),
-  ].join("\n\n");
-
-  // Include last ~8 messages (or however you did before)
-  const recent = await prisma.message.findMany({
-    where: { threadId },
-    orderBy: { createdAt: "desc" },
-    take: 8,
-    select: { role: true, content: true },
-  });
-  recent.reverse();
+  let recent: { role: string; content: string }[] = [];
+  if (includeHistory) {
+    const r = await prisma.message.findMany({
+      where: { threadId },
+      orderBy: { createdAt: "desc" },
+      take: 8,
+      select: { role: true, content: true },
+    });
+    recent = r.reverse();
+  }
 
   return { system, recent, langDirective };
 }

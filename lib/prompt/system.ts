@@ -29,6 +29,60 @@ const LANGUAGE_DIRECTIVES: Record<string, string> = {
   it: "Rispondi in italiano. Se l’utente scrive in un’altra lingua, rispondi comunque in italiano a meno che non lo richieda esplicitamente.",
 };
 
+export function personaFromPrefs(p?: {
+  enabled?: boolean;
+  personality?: string;
+  customInstructions?: string;
+  nickname?: string;
+  occupation?: string;
+  about?: string;
+}) {
+  if (!p?.enabled) return undefined;
+
+  const lines: string[] = [];
+  if (p.nickname) lines.push(`Call the user “${p.nickname}”.`);
+  if (p.occupation) lines.push(`The user’s occupation is: ${p.occupation}.`);
+  if (p.about) lines.push(`Keep in mind about the user: ${p.about}.`);
+
+  const styleMap: Record<string, string[]> = {
+    nerd: [
+      "Be unabashedly precise and cite definitions plainly.",
+      "Explain reasoning stepwise but concise; avoid fluff.",
+    ],
+    chatty: [
+      "Use friendly, conversational tone with short sentences.",
+      "Keep answers compact; don’t ramble.",
+    ],
+    witty: [
+      "Keep it crisp with a light, tasteful wit; never snark.",
+      "Avoid jokes that obscure clarity.",
+    ],
+    straight: [
+      "Be direct and outcome-oriented; no preamble.",
+      "Bullets over paragraphs when it improves clarity.",
+    ],
+    encouraging: [
+      "Be positive, supportive, and confidence-building.",
+      "Offer next steps and gentle nudges.",
+    ],
+    genz: [
+      "Use modern, casual phrasing without slang overload.",
+      "Stay clear and respectful; no memes unless asked.",
+    ],
+  };
+  const style = p.personality && styleMap[p.personality] ? styleMap[p.personality] : [];
+
+  const custom = p.customInstructions?.trim();
+  const persona = [
+    `You are ${BRAND_NAME}, a medical assistant and health copilot.`,
+    ...style.map((s) => `- ${s}`),
+    ...(custom ? [custom] : []),
+    ...(lines.length ? ["", ...lines] : []),
+  ].join("\n");
+
+  return persona;
+}
+
 function normalizeLang(input?: string): string {
   if (!input) return SYSTEM_DEFAULT_LANG;
   const trimmed = input.trim().toLowerCase();

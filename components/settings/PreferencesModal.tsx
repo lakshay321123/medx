@@ -8,6 +8,10 @@ import { useScrollLock } from "@/components/hooks/useScrollLock";
 import SettingsPane from "@/components/panels/SettingsPane";
 import { useT } from "@/components/hooks/useI18n";
 import { useUIStore } from "@/components/hooks/useUIStore";
+import {
+  PrefsDraftProvider,
+  usePrefsDraft,
+} from "@/components/providers/PrefsDraftProvider";
 
 export default function PreferencesModal() {
   const open = useUIStore((state) => state.prefsOpen);
@@ -125,20 +129,46 @@ export default function PreferencesModal() {
             <X size={18} />
           </button>
         </div>
-        <div className="overflow-y-auto px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
-          <SettingsPane defaultTab={defaultTab} onClose={close} asMobile />
-        </div>
-        <div className="border-t border-[var(--border)] bg-[var(--surface-2)]/85 px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-2 backdrop-blur">
-          <div className="flex gap-2">
-            <button type="button" className="btn-ghost flex-1" onClick={close}>
-              {t("Cancel")}
-            </button>
-            <button type="submit" form="preferences-form" className="btn-primary flex-1">
-              {t("Save changes")}
-            </button>
+        <PrefsDraftProvider>
+          <div className="overflow-y-auto px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+            <SettingsPane defaultTab={defaultTab} onClose={close} asMobile />
           </div>
-        </div>
+          <FooterActions onCancel={close} />
+        </PrefsDraftProvider>
       </div>
     </>
+  );
+}
+
+function FooterActions({ onCancel }: { onCancel: () => void }) {
+  const { reset, commit, hasChanges } = usePrefsDraft();
+  const t = useT();
+
+  return (
+    <div className="border-t border-[var(--border)] bg-[var(--surface-2)]/85 px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-2 backdrop-blur">
+      <div className="flex gap-2">
+        <button
+          type="button"
+          className="btn-ghost flex-1"
+          onClick={() => {
+            reset();
+            onCancel();
+          }}
+        >
+          {t("Cancel")}
+        </button>
+        <button
+          type="button"
+          className="btn-primary flex-1"
+          disabled={!hasChanges}
+          onClick={() => {
+            commit();
+            onCancel();
+          }}
+        >
+          {t("Save changes")}
+        </button>
+      </div>
+    </div>
   );
 }
