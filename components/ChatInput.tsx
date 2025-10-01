@@ -18,6 +18,10 @@ export function ChatInput({
   const [text, setText] = useState("");
   const currentId = useChatStore(s => s.currentId);
   const addMessage = useChatStore(s => s.addMessage);
+  const draft = useChatStore(s => s.draft);
+  const setDraftText = useChatStore(s => s.setDraftText);
+  const clearDraft = useChatStore(s => s.clearDraft);
+  const addDraftAttachments = useChatStore(s => s.addDraftAttachments);
   const openPass = useOpenPass();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -37,12 +41,14 @@ export function ChatInput({
     return state.currentId ?? state.startNewThread();
   }, []);
 
-  // auto-create a new thread when the user starts typing in a fresh session
   useEffect(() => {
-    if (!currentId && text.trim().length > 0) {
-      ensureThread();
+    if (currentId) {
+      setText("");
+      return;
     }
-  }, [text, currentId, ensureThread]);
+    const pendingText = draft?.text ?? "";
+    setText(pendingText);
+  }, [currentId, draft?.text]);
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -62,6 +68,9 @@ export function ChatInput({
     ensureThread();
     // add user message locally (this also sets the title from first words)
     addMessage({ role: "user", content });
+    if (!currentId) {
+      clearDraft();
+    }
     setText("");
 
     let locationToken: string | undefined;
@@ -87,7 +96,6 @@ export function ChatInput({
         aria-label={uploadText}
         className="flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--medx-text)] transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-[color:var(--medx-text)] dark:hover:bg-white/10"
         onClick={() => {
-          ensureThread();
           fileInputRef.current?.click();
         }}
       >
@@ -102,7 +110,9 @@ export function ChatInput({
         onChange={event => {
           const files = Array.from(event.target.files ?? []);
           if (files.length === 0) return;
-          ensureThread();
+          if (!currentId) {
+            addDraftAttachments(files);
+          }
           // Placeholder for future upload handling: reset immediately so repeat selections work.
           event.target.value = "";
         }}
@@ -110,7 +120,13 @@ export function ChatInput({
       <textarea
         ref={textareaRef}
         value={text}
-        onChange={e => setText(e.target.value)}
+        onChange={e => {
+          const value = e.target.value;
+          setText(value);
+          if (!currentId) {
+            setDraftText(value);
+          }
+        }}
         placeholder={composerPlaceholder}
         aria-label={composerPlaceholder}
         rows={1}

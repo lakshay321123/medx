@@ -386,6 +386,8 @@ export function ChatWindow() {
     const lang = langOverride ?? prefs.lang;
 
     await persistIfTemp();
+    const persistedThreadId = useChatStore.getState().currentId;
+    const effectiveThreadId = persistedThreadId ?? currentId;
     const research = getResearchFlagFromUrl();
     const pendingId =
       typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -420,8 +422,8 @@ export function ChatWindow() {
           locationToken,
           research,
           lang,
-          activeThreadId: currentId,
-          threadId: currentId,
+          activeThreadId: effectiveThreadId,
+          threadId: effectiveThreadId,
           mode: modeChoice,
           personalization,
           include: includeFlags,
@@ -429,8 +431,8 @@ export function ChatWindow() {
       : {
           text: content,
           lang,
-          activeThreadId: currentId,
-          threadId: currentId,
+          activeThreadId: effectiveThreadId,
+          threadId: effectiveThreadId,
           mode: modeChoice,
           researchOn: research,
           personalization,
@@ -458,7 +460,7 @@ export function ChatWindow() {
       const { replyText, results: nextResults } = await runAssistantRequest(
         pendingId,
         snapshot,
-        currentId,
+        effectiveThreadId,
       );
       setResults(nextResults);
       markPendingAssistantStreaming(pendingId);
