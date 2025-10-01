@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from "react";
 
 type Plan = "free" | "pro";
-type Lang = "en" | "hi" | "ar" | "it" | "zh" | "es";
+type Lang = "en" | "hi" | "ar" | "it" | "zh" | "es" | "fr";
 
 export type Prefs = {
   theme: "system" | "light" | "dark";
@@ -139,6 +139,18 @@ export default function PreferencesProvider({ children }: { children: React.Reac
     if (!mounted.current) return;
     persist(state);
   }, [persist, state]);
+
+  // Sync document direction + language after hydration to reflect user preferences.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    try {
+      root.setAttribute("lang", state.lang);
+      root.setAttribute("dir", state.dir);
+    } catch {
+      // no-op
+    }
+  }, [state.lang, state.dir]);
 
   const api = useMemo<Prefs>(() => {
     const setLang = (l: Lang) => {
