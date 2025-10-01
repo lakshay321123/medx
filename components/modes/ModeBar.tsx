@@ -1,6 +1,7 @@
 "use client";
 import { useModeController } from "@/hooks/useModeController";
 import { useT } from "@/components/hooks/useI18n";
+import CenterCol from "@/components/layout/CenterCol";
 
 export default function ModeBar() {
   const {
@@ -27,7 +28,7 @@ export default function ModeBar() {
   const wellnessActive = state.base === "patient" && !state.therapy;
   const doctorActive = state.base === "doctor";
 
-  return (
+  const Pills = () => (
     <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-black/10 bg-white/60 px-2 py-1 backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
       <button
         className={btn(wellnessActive)}
@@ -68,5 +69,16 @@ export default function ModeBar() {
         {t("ui.modes.ai_doc")}
       </button>
     </div>
+  );
+
+  return (
+    <>
+      <div className="lg:hidden">
+        <Pills />
+      </div>
+      <CenterCol className="py-0">
+        <Pills />
+      </CenterCol>
+    </>
   );
 }

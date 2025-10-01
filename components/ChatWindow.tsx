@@ -18,6 +18,7 @@ import { newIdempotencyKey } from "@/lib/net/idempotency";
 import { retryFetch } from "@/lib/net/retry";
 import { normalizeNetworkError } from "@/lib/net/errors";
 import { pollJob } from "@/lib/net/pollJob";
+import CenterCol from "@/components/layout/CenterCol";
 
 const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== "0";
 const JOB_STORAGE_KEY = "lastJob";
@@ -580,6 +581,8 @@ export function ChatWindow() {
     ],
   );
 
+  const welcomeCard = <WelcomeCard />;
+
   return (
     <div className="flex h-full flex-col" dir={prefs.dir}>
       <div
@@ -592,9 +595,10 @@ export function ChatWindow() {
       >
         <div className="px-4">
           {showWelcomeCard ? (
-            <div className="py-10">
-              <WelcomeCard />
-            </div>
+            <>
+              <div className="py-10 lg:hidden">{welcomeCard}</div>
+              <CenterCol className="py-10">{welcomeCard}</CenterCol>
+            </>
           ) : null}
           {messages.map(m => {
             if (m.role === "assistant" && m.error) {

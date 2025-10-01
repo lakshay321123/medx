@@ -12,6 +12,7 @@ import { useResearchFilters } from '@/store/researchFilters';
 import { Send, Paperclip, Clipboard, Stethoscope, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { useCountry } from '@/lib/country';
 import WelcomeCard from '@/components/ui/WelcomeCard';
+import CenterCol from '@/components/layout/CenterCol';
 import { getWelcomeOptions, pickWelcome, type AppMode, type WelcomeMessage } from '@/lib/welcomeMessages';
 import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
@@ -3524,26 +3525,48 @@ ${systemCommon}` + baseSys;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {showWelcomeCard && welcomeContent ? (
-        <div className="px-6 pt-6">
-          <div className="mx-auto w-full max-w-3xl">
-            <WelcomeCard
-              header={
-                welcomeContent.header
-                  ? t(welcomeContent.header)
-                  : undefined
-              }
-              body={
-                welcomeContent.body ? t(welcomeContent.body) : undefined
-              }
-              status={
-                welcomeContent.status
-                  ? t(welcomeContent.status)
-                  : undefined
-              }
-              onDismiss={dismissWelcome}
-            />
+        <>
+          <div className="px-6 pt-6 lg:hidden">
+            <div className="mx-auto w-full max-w-3xl">
+              <WelcomeCard
+                header={
+                  welcomeContent.header
+                    ? t(welcomeContent.header)
+                    : undefined
+                }
+                body={
+                  welcomeContent.body ? t(welcomeContent.body) : undefined
+                }
+                status={
+                  welcomeContent.status
+                    ? t(welcomeContent.status)
+                    : undefined
+                }
+                onDismiss={dismissWelcome}
+              />
+            </div>
           </div>
-        </div>
+          <CenterCol className="pt-6 pb-0">
+            <div className="w-full">
+              <WelcomeCard
+                header={
+                  welcomeContent.header
+                    ? t(welcomeContent.header)
+                    : undefined
+                }
+                body={
+                  welcomeContent.body ? t(welcomeContent.body) : undefined
+                }
+                status={
+                  welcomeContent.status
+                    ? t(welcomeContent.status)
+                    : undefined
+                }
+                onDismiss={dismissWelcome}
+              />
+            </div>
+          </CenterCol>
+        </>
       ) : null}
       <div
         ref={chatRef}
