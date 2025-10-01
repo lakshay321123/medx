@@ -1844,6 +1844,51 @@ const DICTIONARY: Record<string, Record<string, string>> = (() => {
 
 const MISSING_KEY_LOG: Set<string> = new Set();
 
+function resolveImmediateLang(): string {
+  const attr =
+    typeof document !== "undefined" ? document.documentElement.getAttribute("lang") : null;
+  const normalized = typeof attr === "string" ? attr.toLowerCase() : null;
+  if (normalized) {
+    if (DICTIONARY[normalized]) {
+      return normalized;
+    }
+    const base = normalized.split("-")[0];
+    if (DICTIONARY[base]) {
+      return base;
+    }
+  }
+
+  const navLang =
+    typeof navigator !== "undefined" && typeof navigator.language === "string"
+      ? navigator.language.toLowerCase()
+      : null;
+  if (navLang) {
+    if (DICTIONARY[navLang]) {
+      return navLang;
+    }
+    const base = navLang.split("-")[0];
+    if (DICTIONARY[base]) {
+      return base;
+    }
+  }
+
+  return "en";
+}
+
+function translateInstant(key: string, lang: string): string {
+  const dict = DICTIONARY[lang] ?? DICTIONARY.en ?? {};
+  const direct = dict[key];
+  if (direct !== undefined) {
+    return direct;
+  }
+  const fallback = DICTIONARY.en?.[key];
+  return fallback ?? key;
+}
+
+export function t(key: string): string {
+  return translateInstant(key, resolveImmediateLang());
+}
+
 export function useT() {
   const { lang } = usePrefs();
   const activeLang = lang ?? "en";

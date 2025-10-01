@@ -5,12 +5,17 @@ export async function pollJob(route: string, jobId: string, { attempts = 20, int
     if (!res.ok) {
       throw new Error("Network error");
     }
-    const payload = await res.json();
+    let payload: any;
+    try {
+      payload = await res.json();
+    } catch {
+      throw new Error("Network error");
+    }
     if (payload?.status === "done") {
-      return payload.responseText as string;
+      return typeof payload.responseText === "string" ? payload.responseText : "";
     }
     if (payload?.status === "error") {
-      throw new Error(typeof payload.errorText === "string" && payload.errorText ? payload.errorText : "Network error");
+      throw new Error("Network error");
     }
     await new Promise((resolve) => setTimeout(resolve, interval));
   }

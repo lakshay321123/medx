@@ -20,9 +20,28 @@ import { normalizeNetworkError } from "@/lib/net/errors";
 import { pollJob } from "@/lib/net/pollJob";
 
 const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== "0";
-const JOB_STORAGE_KEY = "medx:lastJob";
+const JOB_STORAGE_KEY = "lastJob";
 
 type ApiRoute = "/api/chat" | "/api/therapy" | "/api/ai-doc";
+
+function storeJobSafe(meta: {
+  route: ApiRoute;
+  jobId: string;
+  threadId: string | null;
+  messageId?: string;
+}) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    const serialized = JSON.stringify(meta);
+    if (serialized.length <= 50_000) {
+      window.sessionStorage.setItem(JOB_STORAGE_KEY, serialized);
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
 
 type AssistantRequestSnapshot = {
   route: ApiRoute;
@@ -34,6 +53,38 @@ type AssistantRequestSnapshot = {
     text: string;
   };
 };
+
+function isAppMode(value: unknown): value is AppMode {
+  return (
+    value === "wellness" || value === "therapy" || value === "clinical" || value === "aidoc"
+  );
+}
+
+function inferModeFromRequest(route: ApiRoute, req: Record<string, unknown>): AppMode {
+  const raw = req["mode"];
+  if (isAppMode(raw)) {
+    return raw;
+  }
+
+  switch (route) {
+    case "/api/therapy":
+      return "therapy";
+    case "/api/ai-doc":
+      return "aidoc";
+    default:
+      return "wellness";
+  }
+}
+
+function inferResearchFlag(req: Record<string, unknown>): boolean {
+  if (typeof req["researchOn"] === "boolean") {
+    return req["researchOn"] as boolean;
+  }
+  if (typeof req["research"] === "boolean") {
+    return req["research"] as boolean;
+  }
+  return false;
+}
 
 function MessageRow({ m }: { m: ChatMessage }) {
   return (
@@ -176,8 +227,7 @@ export function ChatWindow() {
       route: ApiRoute;
       jobId: string;
       threadId: string | null;
-      messageId: string;
-      snapshot: AssistantRequestSnapshot;
+      messageId?: string;
     } | null = null;
 
     try {
@@ -196,22 +246,23 @@ export function ChatWindow() {
       return;
     }
 
-    const { messageId, snapshot, route, jobId } = payload;
+    const snapshot = pendingMessage?.snapshot ?? null;
+    const messageId = payload.messageId ?? pendingMessage?.id ?? null;
 
-    if (!messageId) {
+    if (!snapshot || !messageId) {
       window.sessionStorage.removeItem(JOB_STORAGE_KEY);
       return;
     }
 
     if (!pendingMessage || pendingMessage.id !== messageId) {
-      setPendingMessage({ id: messageId, content: "", snapshot });
+      setPendingMessage({ id: messageId, content: pendingMessage?.content ?? "", snapshot });
       if (!pendingAssistantState || pendingAssistantState.id !== messageId) {
         beginPendingAssistant(messageId, snapshot.meta);
       }
     }
 
     try {
-      const text = await pollJob(route, jobId);
+      const text = await pollJob(payload.route, payload.jobId);
       setResults([]);
       markPendingAssistantStreaming(messageId);
       if (text) {
@@ -272,7 +323,6 @@ export function ChatWindow() {
 
   const runAssistantRequest = useCallback(
     async (messageId: string, snapshot: AssistantRequestSnapshot, threadId: string | null) => {
-      let storedJob = false;
       try {
         const response = await retryFetch(
           snapshot.route,
@@ -284,35 +334,21 @@ export function ChatWindow() {
           { retries: 2 },
         );
 
-        let data: any = {};
+        let data: any;
         try {
           data = await response.json();
         } catch {
-          data = {};
+          throw new Error("Network error");
         }
 
         if (!response.ok && !data?.pending) {
-          throw new Error("request_failed");
+          throw new Error("Network error");
         }
 
         const jobId = typeof data?.jobId === "string" ? data.jobId : null;
 
-        if (typeof window !== "undefined" && jobId) {
-          try {
-            window.sessionStorage.setItem(
-              JOB_STORAGE_KEY,
-              JSON.stringify({
-                route: snapshot.route,
-                jobId,
-                threadId,
-                messageId,
-                snapshot,
-              }),
-            );
-            storedJob = true;
-          } catch {
-            storedJob = false;
-          }
+        if (jobId) {
+          storeJobSafe({ route: snapshot.route, jobId, threadId, messageId });
         }
 
         let replyText = "";
@@ -333,7 +369,7 @@ export function ChatWindow() {
 
         return { replyText, results } as const;
       } finally {
-        if (storedJob && typeof window !== "undefined") {
+        if (typeof window !== "undefined") {
           window.sessionStorage.removeItem(JOB_STORAGE_KEY);
         }
       }
@@ -461,6 +497,7 @@ export function ChatWindow() {
       }
 
       const reqData = message.req as Record<string, unknown>;
+      const route = message.route as ApiRoute;
       let originalText = "";
       if (typeof reqData.text === "string") {
         originalText = reqData.text;
@@ -469,14 +506,14 @@ export function ChatWindow() {
       }
 
       const storedMeta = message.retryMeta ?? {
-        mode: modeChoice,
-        research: false,
+        mode: inferModeFromRequest(route, reqData),
+        research: inferResearchFlag(reqData),
         text: originalText,
       };
 
       const snapshot: AssistantRequestSnapshot = {
-        route: message.route as ApiRoute,
-        req: message.req as Record<string, unknown>,
+        route,
+        req: reqData,
         headers: message.headers as Record<string, string>,
         meta: storedMeta,
       };
@@ -523,7 +560,6 @@ export function ChatWindow() {
       currentId,
       enqueuePendingAssistant,
       markPendingAssistantStreaming,
-      modeChoice,
       prefs.incUsage,
       removeMessage,
       finishPendingAssistant,

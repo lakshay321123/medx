@@ -23,11 +23,7 @@ export default function ChatErrorBubble({
   };
 
   return (
-    <div
-      className={`max-w-[80%] rounded-2xl border px-3 py-2 text-sm
-      border-[var(--border)] bg-[var(--bubble-bg)] text-[var(--fg)]
-      dark:border-white/10 dark:bg-white/5`}
-    >
+    <div className="chat-error-bubble max-w-[80%] rounded-2xl border px-3 py-2 text-sm">
       <div className="flex items-center gap-2">
         <span className="font-medium">{t("Network error")}</span>
         <span className="opacity-60">•</span>
@@ -35,10 +31,7 @@ export default function ChatErrorBubble({
           type="button"
           onClick={handleRetry}
           disabled={loading}
-          className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1
-            border-[var(--border)] hover:bg-[var(--hover)]
-            disabled:opacity-60 disabled:cursor-not-allowed
-            dark:border-white/10`}
+          className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 disabled:opacity-60 disabled:cursor-not-allowed"
           aria-label={t("Retry")}
           title={t("Retry")}
         >
@@ -51,15 +44,24 @@ export default function ChatErrorBubble({
         </div>
       )}
       <style jsx>{`
-        :root {
+        .chat-error-bubble {
           --bubble-bg: var(--card);
-          --hover: rgba(0,0,0,0.04);
-          --border: rgba(0,0,0,0.12);
+          --hover: rgba(0, 0, 0, 0.04);
+          --border: rgba(0, 0, 0, 0.12);
           --fg: inherit;
+          background: var(--bubble-bg);
+          border-color: var(--border);
+          color: var(--fg);
         }
-        .dark :global(&) {
-          --hover: rgba(255,255,255,0.06);
-          --border: rgba(255,255,255,0.12);
+        :global(.dark) .chat-error-bubble {
+          --hover: rgba(255, 255, 255, 0.06);
+          --border: rgba(255, 255, 255, 0.12);
+        }
+        .chat-error-bubble button {
+          border-color: var(--border);
+        }
+        .chat-error-bubble button:not(:disabled):hover {
+          background: var(--hover);
         }
       `}</style>
     </div>
