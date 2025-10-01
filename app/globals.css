@@ -24,6 +24,41 @@ body.font-loading *::after {
   }
 }
 
+:root {
+  --sidebar-icon-size: 20px;
+  --sidebar-icon-weight: 1.6;
+  --sidebar-icon-active: 1.9;
+  --sidebar-icon-opacity: 0.72;
+}
+
+@media (max-width: 860px) {
+  :root {
+    --sidebar-icon-size: 18px;
+  }
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  height: 40px;
+  padding: 0 0.75rem;
+  border-radius: 10px;
+}
+
+.sidebar-item svg {
+  width: var(--sidebar-icon-size);
+  height: var(--sidebar-icon-size);
+  opacity: var(--sidebar-icon-opacity);
+  stroke-width: var(--sidebar-icon-weight);
+  transition: opacity 0.15s ease, stroke-width 0.15s ease, transform 0.15s ease;
+}
+
+.sidebar-item[aria-current="page"] svg {
+  opacity: 1;
+  stroke-width: var(--sidebar-icon-active);
+}
+
 .btn-secondary{
   @apply inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm transition
          bg-white text-slate-700 border-slate-200 hover:bg-slate-50
