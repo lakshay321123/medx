@@ -573,13 +573,13 @@ export function ChatWindow() {
     <div className="flex h-full flex-col" dir={prefs.dir}>
       <div
         ref={chatRef}
-        className={`flex-1 pt-4 md:px-0 md:pt-0 ${
+        className={`flex-1 pt-4 md:pt-0 ${
           hasScrollableContent
             ? "overflow-y-auto mobile-chat-scroll"
             : "overflow-hidden mobile-chat-scroll-empty"
         } md:pb-0 md:overflow-y-auto`}
       >
-        <div className="px-4">
+        <div className="so-container pb-4">
           {showWelcomeCard ? (
             <div className="py-10">
               <WelcomeCard />
@@ -644,7 +644,9 @@ export function ChatWindow() {
         </div>
       </div>
       <div ref={composerRef} className="mobile-composer md:static md:bg-transparent md:p-0 md:shadow-none">
-        <ChatInput onSend={handleSend} canSend={prefs.canSend} />
+        <div className="so-container composer">
+          <ChatInput onSend={handleSend} canSend={prefs.canSend} />
+        </div>
       </div>
       <ScrollToBottom targetRef={chatRef} rebindKey={currentId} />
     </div>

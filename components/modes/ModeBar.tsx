@@ -28,7 +28,7 @@ export default function ModeBar() {
   const doctorActive = state.base === "doctor";
 
   return (
-    <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-black/10 bg-white/60 px-2 py-1 backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
+    <div className="flex flex-wrap items-center justify-center gap-3 rounded-full border border-black/10 bg-white/60 px-2 py-1 backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
       <button
         className={btn(wellnessActive)}
         onClick={() => togglePatient()}

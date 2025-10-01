@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Shared desktop container */
+.so-container {
+  max-width: 1100px;
+  margin-inline: auto;
+  padding-inline: 24px;
+  width: 100%;
+}
+
+:root {
+  --so-gap-1: 8px;
+  --so-gap-2: 12px;
+  --so-gap-3: 16px;
+  --so-gap-4: 24px;
+  --so-row-h: 48px;
+}
+
 /* smooth theme transitions */
 * { transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
 
@@ -194,6 +210,21 @@ body.font-loading *::after {
 
 /* tiny hover polish without shifting layout */
 .medx-surface:hover { filter: brightness(1.03); }
+
+
+.composer {
+  margin-bottom: var(--so-gap-2);
+}
+
+.footer-disclaimer {
+  margin-top: var(--so-gap-2);
+}
+
+.banner .close {
+  height: 32px;
+  width: 32px;
+  line-height: 32px;
+}
 
 
 @keyframes caret {
