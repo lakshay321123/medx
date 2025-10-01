@@ -1,8 +1,8 @@
 "use client";
 
-import { X } from "lucide-react";
 import { useEffect, useRef, type TouchEvent as ReactTouchEvent } from "react";
-import Sidebar from "@/components/Sidebar";
+
+import { SidebarContent } from "@/components/Sidebar";
 import { useMobileUiStore } from "@/lib/state/mobileUiStore";
 
 export default function MobileSidebarOverlay() {
@@ -136,39 +136,27 @@ export default function MobileSidebarOverlay() {
 
   return (
     <div
-      className="mobile-sidebar-overlay md:hidden"
+      className="fixed inset-0 z-50 flex md:hidden"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
     >
-      <button
-        type="button"
-        className="mobile-sidebar-backdrop"
-        aria-label="Close menu"
-        onClick={close}
-      />
       <div
         ref={panelRef}
-        className="mobile-sidebar-panel"
+        className="relative h-full w-[88%] max-w-[320px] -translate-x-full bg-transparent"
         role="dialog"
         aria-modal="true"
         aria-label="Navigation menu"
       >
-        <div className="mobile-sidebar-header">
-          <button
-            type="button"
-            className="mobile-icon-btn"
-            aria-label="Close menu"
-            onClick={close}
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="mobile-sidebar-content">
-          <Sidebar />
-        </div>
+        <SidebarContent />
       </div>
+      <button
+        type="button"
+        className="flex-1 bg-black/30"
+        aria-label="Close menu"
+        onClick={close}
+      />
     </div>
   );
 }
