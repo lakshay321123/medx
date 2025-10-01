@@ -60,10 +60,13 @@ export default function Logo({
     <Link
       href="/"
       aria-label={`${BRAND_NAME} — Home`}
-      className={`inline-flex items-center gap-2 shrink-0 ${className}`}
+      className={`inline-flex items-center justify-center gap-2 shrink-0 ${className}`}
+      style={{ width, height }}
     >
       {showText || !src ? (
-        <span className="font-semibold tracking-tight">{BRAND_NAME}</span>
+        <span className="font-semibold tracking-tight text-center">
+          {BRAND_NAME}
+        </span>
       ) : (
         <Image
           key={src} // force re-render on src change
