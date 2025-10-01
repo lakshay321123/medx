@@ -23,11 +23,11 @@ function MessageRow({ m }: { m: { id: string; role: string; content: string } })
 
   return (
     <div className="p-2 space-y-1">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between overflow-visible">
         <div className="text-xs uppercase tracking-wide text-slate-500">{m.role}</div>
         {/* Keep always visible on mobile (no hover-only) */}
         {m.role !== "user" && text?.trim()?.length ? (
-          <ListenButton getText={() => text} lang={lang} />
+          <ListenButton getText={() => text} lang={lang} className="relative z-[2]" />
         ) : null}
       </div>
       <ChatMarkdown content={text} />

@@ -41,14 +41,28 @@ export default function Message({ message }: MessageProps) {
     );
   }
 
+  const isAssistant = message.role === "assistant";
+  const hasReadableText = textContent.trim().length > 0;
+
   return (
     <div>
-      {message.role === "assistant" && textContent.trim() && (
-        <div className="mb-2 flex justify-end">
-          <ListenButton getText={() => textContent} lang={lang} className="text-[11px]" />
+      {isAssistant && hasReadableText ? (
+        <div className="mb-2">
+          <div className="flex items-center justify-between overflow-visible">
+            <span className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Assistant
+            </span>
+            <ListenButton
+              getText={() => textContent}
+              lang={lang}
+              className="relative z-[2] text-[11px]"
+            />
+          </div>
+          <Markdown>{textContent}</Markdown>
         </div>
+      ) : (
+        <Markdown>{textContent}</Markdown>
       )}
-      <Markdown>{textContent}</Markdown>
       <div className="mt-2">
         <FeedbackControls messageId={message.id} />
       </div>
