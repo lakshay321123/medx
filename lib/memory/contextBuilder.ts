@@ -8,7 +8,7 @@ export async function buildPromptContext({
   options,
 }: {
   threadId: string;
-  options: { mode?: string; researchOn?: boolean; lang?: string; includeHistory?: boolean; includeRecords?: boolean };
+  options: { mode?: string; researchOn?: boolean; lang?: string; includeHistory?: boolean };
 }) {
   const thread = await prisma.chatThread.findUnique({
     where: { id: threadId },

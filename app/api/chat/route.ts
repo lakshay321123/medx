@@ -95,6 +95,9 @@ export async function POST(req: Request) {
   const userMessage = incomingMessages?.[incomingMessages.length - 1]?.content || "";
   let { userId, activeThreadId, text, researchOn, clarifySelectId, research } = body;
   if (researchOn === undefined) researchOn = research;
+  if (typeof text !== "string" || text.trim() === "") {
+    text = typeof userMessage === "string" ? userMessage : "";
+  }
   if (researchOn === undefined && (mode === "doctor" || mode === "research")) {
     researchOn = true;
   }
@@ -348,7 +351,7 @@ export async function POST(req: Request) {
   // 5) Build system + recent messages
   const { system, recent, langDirective } = await buildPromptContext({
     threadId,
-    options: { mode, researchOn, lang, includeHistory: includeChatHistory, includeRecords: includeRecordHistory },
+    options: { mode, researchOn, lang, includeHistory: includeChatHistory },
   });
   const contextBlock = [system, ...systemExtra].filter(Boolean).join("\n\n");
 
