@@ -144,12 +144,35 @@ export default function MobileSidebarOverlay() {
     >
       <div
         ref={panelRef}
-        className="relative h-full w-[88%] max-w-[320px] -translate-x-full overflow-y-auto bg-white dark:bg-slate-950 md:bg-transparent"
+        className="relative flex h-full w-[88%] max-w-[320px] -translate-x-full flex-col bg-white dark:bg-slate-950 md:bg-transparent"
         role="dialog"
         aria-modal="true"
         aria-label="Navigation menu"
       >
-        <SidebarContent />
+        <div
+          className="sticky top-0 z-10 flex h-[56px] items-center justify-between border-b border-black/10 bg-white px-3 dark:border-white/10 dark:bg-slate-950 md:bg-white/95 md:backdrop-blur md:dark:bg-slate-950/95"
+          style={{ paddingTop: "env(safe-area-inset-top)" }}
+        >
+          <div className="flex items-center gap-2">
+            <img src="/icon-192.png" alt="MedX" className="h-6 w-6 rounded" />
+            <span className="text-sm font-semibold">MedX</span>
+          </div>
+
+          <button
+            onClick={close}
+            className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-black/5 dark:hover:bg-white/10"
+            aria-label="Close"
+            title="Close"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-3 pb-[env(safe-area-inset-bottom)] pt-3">
+          <SidebarContent paddingBottomClass="pb-0" />
+        </div>
       </div>
       <button
         type="button"

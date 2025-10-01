@@ -141,7 +141,8 @@ function useSidebarState(): SidebarState {
 }
 
 type SidebarContentBodyProps = SidebarState & {
-  paddingBottomClass: string;
+  className?: string;
+  paddingBottomClass?: string;
 };
 
 function SidebarContentBody({
@@ -158,6 +159,7 @@ function SidebarContentBody({
   t,
   userName,
   planLabel,
+  className,
   paddingBottomClass,
 }: SidebarContentBodyProps) {
   const newChatLabel = t("threads.systemTitles.new_chat") || "New Chat";
@@ -192,7 +194,13 @@ function SidebarContentBody({
   const planValue = planLabel || "Free";
 
   return (
-    <div className={clsx("flex h-full w-full flex-col bg-transparent px-3 pt-3", paddingBottomClass)}>
+    <div
+      className={clsx(
+        "flex h-full w-full flex-col bg-transparent",
+        className,
+        paddingBottomClass,
+      )}
+    >
       <div className="mb-2">
         <button
           type="button"
@@ -278,9 +286,22 @@ function SidebarContentBody({
   );
 }
 
-export function SidebarContent() {
+type SidebarContentProps = {
+  className?: string;
+  paddingBottomClass?: string;
+};
+
+export function SidebarContent({ className, paddingBottomClass }: SidebarContentProps = {}) {
   const state = useSidebarState();
-  return <SidebarContentBody {...state} paddingBottomClass="pb-[calc(env(safe-area-inset-bottom)+0.5rem)]" />;
+  return (
+    <SidebarContentBody
+      {...state}
+      className={className}
+      paddingBottomClass={
+        paddingBottomClass ?? "pb-[calc(env(safe-area-inset-bottom)+0.5rem)]"
+      }
+    />
+  );
 }
 
 export default function Sidebar() {
