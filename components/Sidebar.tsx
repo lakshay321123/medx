@@ -8,7 +8,7 @@ import { createNewThreadId, listThreads, type Thread } from "@/lib/chatThreads";
 import { useMobileUiStore } from "@/lib/state/mobileUiStore";
 import { useT } from "@/components/hooks/useI18n";
 import { useUIStore } from "@/components/hooks/useUIStore";
-import { usePrefs } from "@/components/hooks/usePrefs";
+import { useLocale } from "@/components/hooks/useLocale";
 import { useProfile } from "@/lib/hooks/useAppData";
 import { IconDirectory, IconMedicalProfile, IconNewChat, IconTimeline } from "@/components/icons";
 
@@ -46,7 +46,7 @@ type SidebarState = {
   onThreadDeleted: (id: string) => void;
   t: ReturnType<typeof useT>;
   userName: string | null;
-  planLabel: string;
+  currentLocaleName: string | null;
 };
 
 function useSidebarState(): SidebarState {
@@ -57,7 +57,7 @@ function useSidebarState(): SidebarState {
   const closeSidebar = useMobileUiStore((state) => state.closeSidebar);
   const t = useT();
   const openPrefs = useUIStore((state) => state.openPrefs);
-  const { plan } = usePrefs();
+  const { label: localeLabel } = useLocale();
   const { data: profile } = useProfile();
 
   useEffect(() => {
@@ -104,12 +104,6 @@ function useSidebarState(): SidebarState {
     setThreads((prev) => prev.filter((thread) => thread.id !== id));
   };
 
-  const planLabel = useMemo(() => {
-    if (plan === "pro") return "Pro";
-    if (plan === "free") return "Free";
-    return plan ?? "Free";
-  }, [plan]);
-
   const userName = useMemo(() => {
     const data = profile as
       | { profile?: { fullName?: string | null; name?: string | null }; user?: { name?: string | null }; name?: string | null }
@@ -136,7 +130,7 @@ function useSidebarState(): SidebarState {
     onThreadDeleted,
     t,
     userName,
-    planLabel,
+    currentLocaleName: localeLabel ?? null,
   };
 }
 
@@ -157,8 +151,7 @@ function SidebarContentBody({
   onThreadRenamed,
   onThreadDeleted,
   t,
-  userName,
-  planLabel,
+  currentLocaleName,
   className,
   paddingBottomClass,
 }: SidebarContentBodyProps) {
@@ -190,8 +183,6 @@ function SidebarContentBody({
 
   const chatsLabel = t("Chats") || "Chats";
   const preferencesLabel = t("Preferences") || "Preferences";
-  const planLabelText = t("Plan") || "Plan";
-  const planValue = planLabel || "Free";
 
   return (
     <div
@@ -264,24 +255,32 @@ function SidebarContentBody({
       </div>
 
       <div className="mt-2 border-t border-black/10 dark:border-white/10" />
-      <button
-        onClick={openPreferences}
-        className="mt-2 flex items-center gap-3 rounded-xl border border-black/10 bg-white p-2 shadow-sm transition hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-black/20 dark:border-white/10 dark:bg-slate-900 md:bg-white/60 md:backdrop-blur md:dark:bg-slate-900/60 dark:hover:bg-slate-900"
-        aria-label={preferencesLabel}
-        title={preferencesLabel}
-      >
-        <div className="h-7 w-7 shrink-0 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800" />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold">{userName || "You"}</div>
-          <div className="text-xs opacity-70">
-            {planLabelText}: {planValue}
-          </div>
-        </div>
-        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-          <path d="M12 8.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7z" stroke="currentColor" fill="none" />
-          <path d="M19 12a7 7 0 11-14 0 7 7 0 0114 0z" stroke="currentColor" fill="none" />
-        </svg>
-      </button>
+
+      <div className="sticky bottom-0 bg-white pt-2 pb-[calc(env(safe-area-inset-bottom)+8px)] dark:bg-slate-950 md:bg-transparent md:pt-2 md:pb-2 md:dark:bg-transparent">
+        <button
+          onClick={openPreferences}
+          className="flex h-9 w-full items-center gap-2 rounded-lg border border-black/10 bg-white px-2 text-xs font-medium transition hover:bg-black/5 focus:outline-none focus:ring-2 focus:ring-black/20 dark:border-white/10 dark:bg-slate-900 dark:hover:bg-white/5 dark:focus:ring-white/20 md:h-12 md:rounded-xl md:border-black/10 md:bg-white/60 md:px-3 md:text-sm md:shadow-sm md:backdrop-blur md:hover:bg-white/80 md:dark:border-white/10 md:dark:bg-slate-900/60 md:dark:hover:bg-slate-900"
+          aria-label={preferencesLabel}
+          title={preferencesLabel}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            aria-hidden="true"
+            className="opacity-80 md:h-4 md:w-4"
+          >
+            <path d="M12 8.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 0 0 0-7Z" stroke="currentColor" fill="none" />
+            <path d="M19 12a7 7 0 1 1-14 0a7 7 0 0 1 14 0Z" stroke="currentColor" fill="none" />
+          </svg>
+
+          <span className="truncate">{preferencesLabel}</span>
+
+          <span className="ml-auto inline-flex h-[22px] items-center rounded-md border border-black/10 px-1.5 text-[10px] leading-[14px] dark:border-white/10">
+            {currentLocaleName || "English"}
+          </span>
+        </button>
+      </div>
     </div>
   );
 }
@@ -297,9 +296,7 @@ export function SidebarContent({ className, paddingBottomClass }: SidebarContent
     <SidebarContentBody
       {...state}
       className={className}
-      paddingBottomClass={
-        paddingBottomClass ?? "pb-[calc(env(safe-area-inset-bottom)+0.5rem)]"
-      }
+      paddingBottomClass={paddingBottomClass ?? ""}
     />
   );
 }
