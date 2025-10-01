@@ -70,13 +70,19 @@ export default function Sidebar() {
             type="button"
             aria-label={t("threads.systemTitles.new_chat")}
             onClick={handleNewChat}
-            className="group flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-100/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 dark:text-slate-300 dark:hover:bg-white/5 dark:focus-visible:outline-slate-500"
+            className={[
+              "flex w-full items-center gap-2 rounded-md h-9 px-3",
+              "text-slate-600 hover:bg-slate-100/70 dark:text-slate-300 dark:hover:bg-white/5",
+              "text-sm leading-5 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 dark:focus-visible:outline-slate-500",
+            ].join(" ")}
           >
-            <IconNewChat
-              title={t("threads.systemTitles.new_chat")}
-              size={20}
-              className="shrink-0 text-slate-500 transition group-hover:text-slate-700 dark:text-slate-300 dark:group-hover:text-slate-100"
-            />
+            <span className="flex h-4 w-4 items-center justify-center" aria-hidden>
+              <IconNewChat
+                title={t("threads.systemTitles.new_chat")}
+                size={16}
+                className="text-slate-500 dark:text-slate-300"
+              />
+            </span>
             <span className="truncate">{t("threads.systemTitles.new_chat")}</span>
           </button>
         </li>
@@ -101,7 +107,14 @@ export default function Sidebar() {
         <Search size={16} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400" />
       </div>
 
-      <div className="flex-1 space-y-1 overflow-y-auto pr-1 pb-16">
+      {/* Section heading above chat threads */}
+      <div className="px-3 pb-0 pt-1">
+        <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">
+          {t?.("Chats") ?? "Chats"}
+        </h3>
+      </div>
+
+      <div className="mt-1 flex-1 space-y-1 overflow-y-auto pr-1 pb-16">
         {filtered.map((thread) => {
           const rawTitle = (thread.title ?? "").trim();
           const systemKey = thread.therapy && LEGACY_THERAPY_TITLES.has(rawTitle)
@@ -110,37 +123,55 @@ export default function Sidebar() {
             ? "threads.systemTitles.new_chat"
             : null;
           const displayTitle = systemKey ? t(systemKey) : rawTitle;
-          return (
-            <div
-              key={thread.id}
-              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/60 p-2 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/60"
-            >
-              <button
-                onClick={() => {
-                  closeSidebar();
-                  router.push(`/?panel=chat&threadId=${thread.id}`);
-                }}
-                className="truncate text-left text-sm font-medium"
+          return (() => {
+            const active = thread.id === threadId;
+
+            return (
+              <div
+                key={thread.id}
+                className={[
+                  "group flex items-center gap-2 rounded-md h-9 px-3",
+                  "transition-colors focus-within:ring-2 focus-within:ring-offset-0",
+                  active
+                    ? "bg-blue-600/10 font-semibold text-blue-600 dark:bg-sky-500/20 dark:text-sky-300"
+                    : "text-slate-600 hover:bg-slate-100/70 dark:text-slate-300 dark:hover:bg-white/5",
+                ].join(" ")}
+                aria-current={active ? "page" : undefined}
                 title={displayTitle || rawTitle}
               >
-                {displayTitle || t("threads.systemTitles.new_chat")}
-              </button>
-            <div className="ml-auto">
-              <ThreadKebab
-                id={thread.id}
-                title={thread.title}
-                onRenamed={(nt) => {
-                  setThreads((prev) =>
-                    prev.map((x) => (x.id === thread.id ? { ...x, title: nt, updatedAt: Date.now() } : x))
-                  );
-                }}
-                onDeleted={() => {
-                  setThreads((prev) => prev.filter((x) => x.id !== thread.id));
-                }}
-              />
-            </div>
-            </div>
-          );
+                <span className="shrink-0 h-4 w-4" aria-hidden>
+                  <svg viewBox="0 0 24 24" className="h-4 w-4">
+                    <path d="M4 5h16v10H8l-3 3V5z" fill="currentColor" />
+                  </svg>
+                </span>
+
+                <button
+                  onClick={() => {
+                    closeSidebar();
+                    router.push(`/?panel=chat&threadId=${thread.id}`);
+                  }}
+                  className="min-w-0 flex-1 truncate text-left text-sm leading-5 py-0 my-0"
+                >
+                  {displayTitle || t("threads.systemTitles.new_chat")}
+                </button>
+
+                <div className="ml-auto opacity-80 group-hover:opacity-100 leading-none">
+                  <ThreadKebab
+                    id={thread.id}
+                    title={thread.title}
+                    onRenamed={(nt) => {
+                      setThreads((prev) =>
+                        prev.map((x) => (x.id === thread.id ? { ...x, title: nt, updatedAt: Date.now() } : x))
+                      );
+                    }}
+                    onDeleted={() => {
+                      setThreads((prev) => prev.filter((x) => x.id !== thread.id));
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })();
         })}
       </div>
 
