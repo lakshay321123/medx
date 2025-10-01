@@ -1,5 +1,6 @@
 "use client";
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { fromSearchParams } from "@/lib/modes/url";
 
 type Plan = "free" | "pro";
 type Lang = "en" | "hi" | "ar" | "it" | "zh" | "es" | "fr";
@@ -35,6 +36,8 @@ export type Prefs = {
   tone: "plain" | "clinical" | "friendly";
   compact: boolean;
   quickActions: boolean;
+
+  persistAssistantDrafts: boolean;
 
   lang: Lang;
   dir: "ltr" | "rtl";
@@ -78,12 +81,29 @@ export type Prefs = {
 const KEY = "medx-prefs-v1";
 const WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
+function resolvePersistDraftsDefault(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const mode = fromSearchParams(params, "light");
+    if (mode.base === "aidoc") return true;
+    if (mode.base === "patient" && mode.therapy) return true;
+    if (mode.base === "patient") return false;
+    if (mode.base === "doctor") return false;
+  } catch {
+    // ignore parse errors
+  }
+  return true;
+}
+
 const DEFAULT: Prefs = {
   theme: "system",
   accent: "purple",
   tone: "plain",
   compact: false,
   quickActions: true,
+
+  persistAssistantDrafts: resolvePersistDraftsDefault(),
 
   lang: "en",
   dir: "ltr",
@@ -163,6 +183,7 @@ export default function PreferencesProvider({ children }: { children: React.Reac
     if (parsed && typeof parsed === "object") {
       setState((s) => {
         const snapshot = parsed as Record<string, unknown>;
+        const { persistAssistantDrafts: storedPersistDrafts, ...rest } = snapshot;
         const lang = typeof snapshot.lang === "string" ? (snapshot.lang as Lang) : s.lang;
         const windowEndsAt =
           typeof snapshot.windowEndsAt === "number"
@@ -170,16 +191,24 @@ export default function PreferencesProvider({ children }: { children: React.Reac
             : typeof snapshot.windowStart === "number"
             ? snapshot.windowStart + WINDOW_MS
             : s.windowEndsAt;
+        const persistAssistantDrafts =
+          typeof storedPersistDrafts === "boolean"
+            ? storedPersistDrafts
+            : resolvePersistDraftsDefault();
         return {
           ...s,
-          ...snapshot,
+          ...rest,
           lang,
           dir: lang === "ar" ? "rtl" : "ltr",
           windowEndsAt,
+          persistAssistantDrafts,
         } as Prefs;
       });
-    } else if (raw) {
-      window.localStorage.removeItem(KEY);
+    } else {
+      setState((s) => ({ ...s, persistAssistantDrafts: resolvePersistDraftsDefault() }));
+      if (raw) {
+        window.localStorage.removeItem(KEY);
+      }
     }
   }, []);
 

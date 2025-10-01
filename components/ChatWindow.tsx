@@ -114,6 +114,7 @@ export function ChatWindow() {
   const finalizeMessage = useChatStore(s => s.finalize);
   const markErrorKeepText = useChatStore(s => s.markErrorKeepText);
   const hydratePartials = useChatStore(s => s.hydratePartials);
+  const setPersistDrafts = useChatStore(s => s.setPersistDrafts);
   const currentId = useChatStore(s => s.currentId);
   const [results, setResults] = useState<any[]>([]);
   const prefs = usePrefs();
@@ -121,6 +122,7 @@ export function ChatWindow() {
   const composerRef = useRef<HTMLDivElement>(null);
   const streamContentRef = useRef<Map<string, string>>(new Map());
   const hydratedChatsRef = useRef<Set<string>>(new Set());
+  const msgThreadRef = useRef<Map<string, string>>(new Map());
   const [pendingMessage, setPendingMessage] = useState<{
     id: string;
     content: string;
@@ -206,15 +208,22 @@ export function ChatWindow() {
   }, []);
 
   useEffect(() => {
+    setPersistDrafts(Boolean(prefs.persistAssistantDrafts));
+    if (!prefs.persistAssistantDrafts) {
+      hydratedChatsRef.current.clear();
+    }
+  }, [prefs.persistAssistantDrafts, setPersistDrafts]);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
     if (!currentId) return;
+    if (!prefs.persistAssistantDrafts) return;
     if (hydratedChatsRef.current.has(currentId)) return;
-    hydratedChatsRef.current.add(currentId);
     let cancelled = false;
     void (async () => {
       try {
         const cached = await persist.loadByChatPrefix(currentId);
-        if (cancelled || !cached) return;
+        if (cancelled || !Array.isArray(cached)) return;
         const filtered = (cached as ChatMessage[]).filter(
           (m) =>
             m &&
@@ -224,18 +233,20 @@ export function ChatWindow() {
         if (filtered.length > 0) {
           hydratePartials(currentId, filtered);
         }
+        hydratedChatsRef.current.add(currentId);
       } catch {
-        // ignore hydration failures
+        // ignore hydration failures; we'll retry next mount
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [currentId, hydratePartials]);
+  }, [currentId, hydratePartials, prefs.persistAssistantDrafts]);
 
   const handlePendingContentUpdate = useCallback((messageId: string, text: string) => {
     setPendingMessage(prev => (prev && prev.id === messageId ? { ...prev, content: text } : prev));
-    if (!currentId) return;
+    const chatId = msgThreadRef.current.get(messageId) ?? currentId;
+    if (!chatId) return;
     const previous = streamContentRef.current.get(messageId) ?? "";
     let chunk = text.slice(previous.length);
     if (chunk.length === 0 && text !== previous) {
@@ -243,7 +254,7 @@ export function ChatWindow() {
     }
     streamContentRef.current.set(messageId, text);
     if (chunk) {
-      appendChunk(currentId, messageId, chunk);
+      appendChunk(chatId, messageId, chunk);
     }
   }, [appendChunk, currentId]);
 
@@ -251,20 +262,29 @@ export function ChatWindow() {
     (messageId: string, finalContent: string) => {
       setPendingMessage(prev => (prev && prev.id === messageId ? { ...prev, content: finalContent } : prev));
       streamContentRef.current.set(messageId, finalContent);
-      addMessage({
-        id: messageId,
-        role: "assistant",
-        content: finalContent,
-        status: "assistant-final",
-        streamCursor: finalContent.length,
-      });
-      if (currentId) {
-        finalizeMessage(currentId, messageId);
+      const chatId = msgThreadRef.current.get(messageId) ?? currentId;
+      if (chatId) {
+        const timestamp = Date.now();
+        hydratePartials(chatId, [
+          {
+            id: messageId,
+            chatId,
+            role: "assistant",
+            content: finalContent,
+            status: "assistant-final",
+            streamCursor: finalContent.length,
+            ts: timestamp,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+        ]);
+        finalizeMessage(chatId, messageId);
       }
       streamContentRef.current.delete(messageId);
+      msgThreadRef.current.delete(messageId);
       setPendingMessage(null);
     },
-    [addMessage, currentId, finalizeMessage],
+    [currentId, finalizeMessage, hydratePartials],
   );
 
   const {
@@ -327,6 +347,11 @@ export function ChatWindow() {
       }
     }
 
+    const targetChatId = payload.threadId ?? currentId;
+    if (targetChatId) {
+      msgThreadRef.current.set(messageId, targetChatId);
+    }
+
     try {
       const text = await pollJob(payload.route, payload.jobId);
       setResults([]);
@@ -351,6 +376,7 @@ export function ChatWindow() {
         headers: snapshot.headers,
         retryMeta: snapshot.meta,
       });
+      msgThreadRef.current.delete(messageId);
     } finally {
       window.sessionStorage.removeItem(JOB_STORAGE_KEY);
     }
@@ -520,6 +546,7 @@ export function ChatWindow() {
     setPendingMessage({ id: pendingId, content: "", snapshot });
     streamContentRef.current.set(pendingId, "");
     if (activeChatId) {
+      msgThreadRef.current.set(pendingId, activeChatId);
       addMessage({
         id: pendingId,
         role: "assistant",
@@ -555,6 +582,7 @@ export function ChatWindow() {
       const partialContent = streamContentRef.current.get(pendingId) ?? pendingMessage?.content ?? "";
       setPendingMessage(null);
       setResults([]);
+      const originalChatId = msgThreadRef.current.get(pendingId) ?? activeChatId;
       if (partialContent) {
         addMessage({
           id: pendingId,
@@ -567,8 +595,8 @@ export function ChatWindow() {
           headers: snapshot.headers,
           retryMeta: snapshot.meta,
         });
-        if (activeChatId) {
-          markErrorKeepText(activeChatId, pendingId);
+        if (originalChatId) {
+          markErrorKeepText(originalChatId, pendingId);
         }
       } else {
         addMessage({
@@ -583,6 +611,7 @@ export function ChatWindow() {
         });
       }
       streamContentRef.current.delete(pendingId);
+      msgThreadRef.current.delete(pendingId);
     } finally {
       if (counted) {
         prefs.incUsage();
@@ -620,9 +649,11 @@ export function ChatWindow() {
       };
 
       removeMessage(message.id);
+      msgThreadRef.current.delete(message.id);
       setPendingMessage({ id: message.id, content: "", snapshot });
       streamContentRef.current.set(message.id, "");
       if (activeChatId) {
+        msgThreadRef.current.set(message.id, activeChatId);
         addMessage({
           id: message.id,
           role: "assistant",
@@ -657,6 +688,7 @@ export function ChatWindow() {
         const partialContent = streamContentRef.current.get(message.id) ?? pendingMessage?.content ?? message.content ?? "";
         setPendingMessage(null);
         setResults([]);
+        const originalChatId = msgThreadRef.current.get(message.id) ?? activeChatId;
         if (partialContent) {
           addMessage({
             id: message.id,
@@ -669,8 +701,8 @@ export function ChatWindow() {
             headers: snapshot.headers,
             retryMeta: snapshot.meta,
           });
-          if (activeChatId) {
-            markErrorKeepText(activeChatId, message.id);
+          if (originalChatId) {
+            markErrorKeepText(originalChatId, message.id);
           }
         } else {
           addMessage({
@@ -685,6 +717,7 @@ export function ChatWindow() {
           });
         }
         streamContentRef.current.delete(message.id);
+        msgThreadRef.current.delete(message.id);
       }
     },
     [
@@ -694,13 +727,14 @@ export function ChatWindow() {
       currentId,
       enqueuePendingAssistant,
       markPendingAssistantStreaming,
-      prefs.incUsage,
       removeMessage,
       finishPendingAssistant,
       runAssistantRequest,
       setPendingMessage,
       setResults,
       markErrorKeepText,
+      pendingMessage,
+      prefs,
     ],
   );
 

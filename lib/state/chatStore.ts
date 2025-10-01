@@ -42,6 +42,7 @@ type Thread = {
 type ChatState = {
   currentId: string | null;
   threads: Record<string, Thread>;
+  persistDrafts: boolean;
   startNewThread: () => string;
   upsertThread: (t: Partial<Thread> & { id: string }) => void;
   addMessage: (m: Omit<ChatMessage, "id" | "ts"> & { id?: string }) => void;
@@ -51,6 +52,7 @@ type ChatState = {
   finalize: (chatId: string, messageId: string) => void;
   markErrorKeepText: (chatId: string, messageId: string) => void;
   hydratePartials: (chatId: string, msgs: ChatMessage[]) => void;
+  setPersistDrafts: (enabled: boolean) => void;
 };
 
 const throttleMap: Record<string, number> = {};
@@ -59,6 +61,7 @@ const THROTTLE_MS = 200;
 export const useChatStore = create<ChatState>((set, get) => ({
   currentId: null,
   threads: {},
+  persistDrafts: true,
 
   startNewThread: () => {
     const id = `temp_${nanoid(8)}`;
@@ -102,10 +105,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       headers: m.headers ?? prevMessage?.headers,
       retryMeta: m.retryMeta ?? prevMessage?.retryMeta,
     };
-    const baseContent = typeof m.content === "string" ? m.content : "";
-    const title = thread.messages.length === 0 && m.role === "user"
-      ? baseContent.split(/\s+/).slice(0, 6).join(" ")
-      : thread.title;
+    const title = thread.title;
     const messages = existingIndex >= 0
       ? thread.messages.map((message, index) => (index === existingIndex ? msg : message))
       : [...thread.messages, msg];
@@ -171,7 +171,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (!updatedMessage) {
       return;
     }
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && get().persistDrafts) {
       const previous = throttleMap[messageId] ?? 0;
       if (!previous || now - previous > THROTTLE_MS) {
         throttleMap[messageId] = now;
@@ -200,10 +200,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (!updatedMessage) {
         return state;
       }
-      const updatedThread: Thread = { ...thread, messages, updatedAt: Date.now() };
+      const firstUser = messages.find(m => m.role === "user" && typeof m.content === "string" && m.content.trim().length > 0);
+      const derivedTitle = firstUser
+        ? firstUser.content.split(/\s+/).slice(0, 6).join(" ")
+        : thread.title;
+      const updatedThread: Thread = {
+        ...thread,
+        messages,
+        updatedAt: Date.now(),
+        title: thread.title === "New chat" && derivedTitle ? derivedTitle : thread.title,
+        isTemp: thread.isTemp ? false : thread.isTemp,
+      };
       return { ...state, threads: { ...state.threads, [chatId]: updatedThread } };
     });
-    if (updatedMessage && typeof window !== "undefined") {
+    if (updatedMessage && typeof window !== "undefined" && get().persistDrafts) {
       void p.save(chatId, updatedMessage);
     }
     delete throttleMap[messageId];
@@ -232,7 +242,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const updatedThread: Thread = { ...thread, messages, updatedAt: Date.now() };
       return { ...state, threads: { ...state.threads, [chatId]: updatedThread } };
     });
-    if (updatedMessage && typeof window !== "undefined") {
+    if (updatedMessage && typeof window !== "undefined" && get().persistDrafts) {
       void p.save(chatId, updatedMessage);
     }
   },
@@ -282,16 +292,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const bTime = b.createdAt ?? b.ts ?? 0;
         return aTime - bTime;
       });
+      const firstUser = mergedMessages.find(m => m.role === "user" && typeof m.content === "string" && m.content.trim().length > 0);
+      const derivedTitle = firstUser
+        ? firstUser.content.split(/\s+/).slice(0, 6).join(" ")
+        : thread.title;
       const updatedThread: Thread = {
         ...thread,
         messages: mergedMessages,
         updatedAt: Math.max(thread.updatedAt, now),
+        title: thread.title === "New chat" && derivedTitle ? derivedTitle : thread.title,
+        isTemp: derivedTitle ? false : thread.isTemp,
       };
       return {
         ...state,
         threads: { ...state.threads, [chatId]: updatedThread },
       };
     });
+  },
+  setPersistDrafts: (enabled) => {
+    set(state => ({ ...state, persistDrafts: enabled }));
   },
 }));
 
