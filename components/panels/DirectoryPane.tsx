@@ -240,6 +240,8 @@ export default function DirectoryPane() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
+                  aria-label={t("Directions")}
+                  title={t("Directions")}
                 >
                   <Navigation size={14} aria-hidden /> {t("Directions")}
                 </a>
@@ -252,6 +254,8 @@ export default function DirectoryPane() {
                     <a
                       href={`tel:${place.phones[0].replace(/\s+/g, "")}`}
                       className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
+                      aria-label={t("Call")}
+                      title={t("Call")}
                     >
                       <Phone size={14} aria-hidden /> {t("Call")}
                     </a>
@@ -267,6 +271,8 @@ export default function DirectoryPane() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
+                      aria-label={t("Message")}
+                      title={t("Message")}
                     >
                       <MessageSquare size={14} aria-hidden /> {t("Message")}
                     </a>
@@ -282,6 +288,8 @@ export default function DirectoryPane() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
+                      aria-label={t("Reviews")}
+                      title={t("Reviews")}
                     >
                       <Star size={14} aria-hidden /> {t("Reviews")}
                     </a>

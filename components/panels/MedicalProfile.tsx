@@ -498,14 +498,14 @@ export default function MedicalProfile() {
         throw new Error(await res.text());
       }
 
-      pushToast({ title: "Profile saved" });
+      pushToast({ title: t("Profile saved") });
       await mutateProfile();
       await mutateGlobal("/api/profile");
       await loadSummary();
     } catch (err: any) {
       pushToast({
-        title: "Couldn’t save profile",
-        description: err?.message || "Please try again.",
+        title: t("Couldn’t save profile"),
+        description: err?.message || t("Please try again."),
         variant: "destructive",
       });
     } finally {
@@ -519,7 +519,7 @@ export default function MedicalProfile() {
     rxnormId?: string | null;
   }) => {
     const normalizedName = med.name.trim();
-    if (!normalizedName) throw new Error("Medication name required");
+    if (!normalizedName) throw new Error(t("Medication name required"));
 
     const { doseLabel, doseUnit, doseValue } = parseDoseString(med.dose ?? null);
     const observedAt = new Date().toISOString();
@@ -552,14 +552,14 @@ export default function MedicalProfile() {
     });
 
     if (!res.ok) {
-      throw new Error((await res.text()) || "Failed to save medication");
+      throw new Error((await res.text()) || t("Failed to save medication"));
     }
 
     const body = await res.json().catch(() => ({}));
     const inserted = Array.isArray(body?.observations) ? body.observations : [];
     const observationId = inserted?.[0]?.id ?? inserted?.[0]?.observation?.id ?? null;
     if (!observationId) {
-      throw new Error("Medication saved but response was malformed");
+      throw new Error(t("Medication saved but response was malformed"));
     }
 
     const nextEntry: MedicationEntry = {
@@ -651,15 +651,15 @@ export default function MedicalProfile() {
         body: JSON.stringify(removalObservation),
       });
 
-      if (!res.ok) throw new Error((await res.text()) || "Failed to remove medication");
+      if (!res.ok) throw new Error((await res.text()) || t("Failed to remove medication"));
 
       setMedications(prev => prev.filter(item => item.key !== med.key));
       await Promise.all([mutateProfile?.(), mutateGlobal?.("/api/profile"), loadSummary?.()]);
-      pushToast({ title: "Medication removed" });
+      pushToast({ title: t("Medication removed") });
     } catch (err: any) {
       pushToast({
-        title: "Couldn’t remove medication",
-        description: err?.message || "Please try again.",
+        title: t("Couldn’t remove medication"),
+        description: err?.message || t("Please try again."),
         variant: "destructive",
       });
     }
@@ -671,15 +671,15 @@ export default function MedicalProfile() {
       const stored = await persistManualObservation(MANUAL_NOTES_KIND, "Symptoms / notes", notesDraft);
       setManualNotes(stored);
       setSummaryNotes(stored || NO_DATA_TEXT);
-      pushToast({ title: "Notes saved" });
+      pushToast({ title: t("Notes saved") });
       setNotesEditing(false);
       await mutateProfile();
       await mutateGlobal("/api/profile");
       await loadSummary();
     } catch (err: any) {
       pushToast({
-        title: "Couldn’t save notes",
-        description: err?.message || "Please try again.",
+        title: t("Couldn’t save notes"),
+        description: err?.message || t("Please try again."),
         variant: "destructive",
       });
     } finally {
@@ -695,14 +695,14 @@ export default function MedicalProfile() {
       setSummaryNotes(NO_DATA_TEXT);
       setNotesDraft("");
       setNotesEditing(false);
-      pushToast({ title: "Notes removed" });
+      pushToast({ title: t("Notes removed") });
       await mutateProfile();
       await mutateGlobal("/api/profile");
       await loadSummary();
     } catch (err: any) {
       pushToast({
-        title: "Couldn’t remove notes",
-        description: err?.message || "Please try again.",
+        title: t("Couldn’t remove notes"),
+        description: err?.message || t("Please try again."),
         variant: "destructive",
       });
     } finally {
@@ -716,15 +716,15 @@ export default function MedicalProfile() {
       const stored = await persistManualObservation(MANUAL_NEXT_STEPS_KIND, "Next steps", nextStepsDraft);
       setManualNextSteps(stored);
       setSummaryNextSteps(stored || NO_DATA_TEXT);
-      pushToast({ title: "Next steps saved" });
+      pushToast({ title: t("Next steps saved") });
       setNextStepsEditing(false);
       await mutateProfile();
       await mutateGlobal("/api/profile");
       await loadSummary();
     } catch (err: any) {
       pushToast({
-        title: "Couldn’t save next steps",
-        description: err?.message || "Please try again.",
+        title: t("Couldn’t save next steps"),
+        description: err?.message || t("Please try again."),
         variant: "destructive",
       });
     } finally {
@@ -740,14 +740,14 @@ export default function MedicalProfile() {
       setSummaryNextSteps(NO_DATA_TEXT);
       setNextStepsDraft("");
       setNextStepsEditing(false);
-      pushToast({ title: "Next steps removed" });
+      pushToast({ title: t("Next steps removed") });
       await mutateProfile();
       await mutateGlobal("/api/profile");
       await loadSummary();
     } catch (err: any) {
       pushToast({
-        title: "Couldn’t remove next steps",
-        description: err?.message || "Please try again.",
+        title: t("Couldn’t remove next steps"),
+        description: err?.message || t("Please try again."),
         variant: "destructive",
       });
     } finally {
@@ -771,17 +771,17 @@ export default function MedicalProfile() {
       if (summary) {
         parseSummary(summary);
         if (/insufficient data/i.test(summary)) {
-          setPredictionText("Not enough data to compute risk yet.");
+          setPredictionText(t("Not enough data to compute risk yet."));
         }
       } else {
-        setPredictionText("Not enough data to compute risk yet.");
+        setPredictionText(t("Not enough data to compute risk yet."));
       }
       pushToast({ title: t("Risk recomputed") });
       await loadSummary();
     } catch (err: any) {
       pushToast({
-        title: "Recompute failed",
-        description: err?.message || "Please try again.",
+        title: t("Recompute failed"),
+        description: err?.message || t("Please try again."),
         variant: "destructive",
       });
     } finally {
@@ -801,7 +801,7 @@ export default function MedicalProfile() {
     );
   }
   if (!data) {
-    return <div className="p-6 text-sm text-muted-foreground">No profile yet.</div>;
+    return <div className="p-6 text-sm text-muted-foreground">{t("No profile yet.")}</div>;
   }
 
   return (
@@ -835,7 +835,7 @@ export default function MedicalProfile() {
               className="rounded-md border px-3 py-2"
               value={fullName}
               onChange={e => setFullName(e.target.value)}
-              placeholder="Full name"
+              placeholder={t("Full name")}
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -887,7 +887,7 @@ export default function MedicalProfile() {
               type="number"
               inputMode="decimal"
               className="rounded-md border px-3 py-2"
-              placeholder="e.g. 170"
+              placeholder={t("e.g. 170")}
               value={heightInput}
               onChange={e => setHeightInput(e.target.value)}
             />
@@ -898,7 +898,7 @@ export default function MedicalProfile() {
               type="number"
               inputMode="decimal"
               className="rounded-md border px-3 py-2"
-              placeholder="e.g. 70"
+              placeholder={t("e.g. 70")}
               value={weightInput}
               onChange={e => setWeightInput(e.target.value)}
             />
@@ -978,7 +978,7 @@ export default function MedicalProfile() {
               className="rounded-md border px-3 py-1.5 text-sm"
               onClick={() => setEditingVitals(open => !open)}
             >
-              {editingVitals ? "Close" : t("Edit")}
+              {editingVitals ? t("Close") : t("Edit")}
             </button>
           }
         >
@@ -1077,7 +1077,7 @@ export default function MedicalProfile() {
                 )}
                 {summaryMedsEditing ? (
                   <div className="space-y-3">
-                    <MedicationInput onSave={handleAddMedication} placeholder="Add a medication" />
+                    <MedicationInput onSave={handleAddMedication} placeholder={t("Add a medication")} />
                     <button
                       type="button"
                       className="inline-flex items-center rounded-md border px-3 py-1.5 text-xs"
@@ -1267,7 +1267,7 @@ export default function MedicalProfile() {
                 <div className="mt-1 whitespace-pre-wrap text-base font-medium">
                   {predictionText && predictionText !== NO_DATA_TEXT
                     ? predictionText
-                    : "No prediction yet — add vitals, labs, or medications to compute risk."}
+                    : t("No prediction yet — add vitals, labs, or medications to compute risk.")}
                 </div>
               </div>
             ) : null}
