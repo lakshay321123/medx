@@ -1,45 +1,31 @@
 "use client";
 import { Search, Settings } from "lucide-react";
-import Tabs from "./sidebar/Tabs";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { createNewThreadId, listThreads, Thread } from "@/lib/chatThreads";
-import ThreadKebab from "@/components/chat/ThreadKebab";
+import { createNewThreadId, listThreads, saveThreads, Thread } from "@/lib/chatThreads";
 import { useMobileUiStore } from "@/lib/state/mobileUiStore";
 import { useT } from "@/components/hooks/useI18n";
 import { useLocale } from "@/components/hooks/useLocale";
 import { useUIStore } from "@/components/hooks/useUIStore";
 import { IconNewChat } from "@/components/icons";
-
-const LEGACY_NEW_CHAT_TITLES = new Set([
-  "New chat",
-  "Nueva conversación",
-  "Nouvelle discussion",
-  "Nuova chat",
-  "新建对话",
-  "नई चैट",
-  "محادثة جديدة",
-]);
-
-const LEGACY_THERAPY_TITLES = new Set([
-  "Therapy session",
-  "Sesión de terapia",
-  "Sessione di terapia",
-  "治疗会话",
-  "थेरेपी सत्र",
-  "جلسة علاج",
-]);
+import { usePrefs } from "@/components/providers/PreferencesProvider";
+import { useProjects } from "@/components/hooks/useProjects";
+import ProjectGroup from "./sidebar/ProjectGroup";
+import ThreadRow from "./sidebar/ThreadRow";
 
 export default function Sidebar() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const threadId = searchParams.get("threadId") ?? "";
+
   const [threads, setThreads] = useState<Thread[]>([]);
   const [q, setQ] = useState("");
+
   const closeSidebar = useMobileUiStore((state) => state.closeSidebar);
   const t = useT();
   const openPrefs = useUIStore((state) => state.openPrefs);
   const locale = useLocale();
+  const prefs = usePrefs();
 
   useEffect(() => {
     const load = () => setThreads(listThreads());
@@ -51,6 +37,7 @@ export default function Sidebar() {
       window.removeEventListener("chat-threads-updated", load);
     };
   }, []);
+
   const handleNewChat = () => {
     const id = createNewThreadId();
     closeSidebar();
@@ -61,92 +48,141 @@ export default function Sidebar() {
     setQ(value);
     window.dispatchEvent(new CustomEvent("search-chats", { detail: value }));
   };
-  const filtered = threads.filter((t) => t.title.toLowerCase().includes(q.toLowerCase()));
+
+  const { projects, createProject } = useProjects();
+  const filtered = threads.filter((thread) => (thread.title || "").toLowerCase().includes(q.toLowerCase()));
+  const ungrouped = filtered.filter((thread) => !thread.projectId);
+  const grouped = projects.map((project) => ({
+    project,
+    threads: filtered.filter((thread) => thread.projectId === project.id),
+  }));
+
+  const moveThread = (id: string, projectId: string | null) => {
+    setThreads((prev) => {
+      let changed = false;
+      const next = prev.map((thread) => {
+        if (thread.id !== id) return thread;
+        if (thread.projectId === projectId) return thread;
+        changed = true;
+        return { ...thread, projectId };
+      });
+      if (changed) {
+        saveThreads(next);
+        return next;
+      }
+      return prev;
+    });
+  };
+
+  const handleThreadRenamed = (id: string, title: string) => {
+    setThreads((prev) =>
+      prev.map((thread) => (thread.id === id ? { ...thread, title, updatedAt: Date.now() } : thread)),
+    );
+  };
+
+  const handleThreadDeleted = (id: string) => {
+    setThreads((prev) => prev.filter((thread) => thread.id !== id));
+  };
+
   return (
-    <div className="sidebar-click-guard flex h-full w-full flex-col gap-4 px-4 pt-6 pb-0 text-medx">
+    <div className="sidebar-click-guard flex h-full w-full flex-col gap-3 px-4 pt-4 pb-0 text-medx">
       <button
-        type="button"
-        aria-label={t("threads.systemTitles.new_chat")}
-        onClick={handleNewChat}
-        className="flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500"
+        onClick={() => openPrefs()}
+        className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white/60 p-2 shadow-sm backdrop-blur transition hover:bg-white/80 dark:border-white/10 dark:bg-slate-900/60 dark:hover:bg-slate-900"
+        aria-label={`${t("Preferences")} · ${locale.label}`}
+        title={t("Preferences")}
       >
-        <IconNewChat title={t("threads.systemTitles.new_chat")} active size={18} className="text-white" />
-        <span>{t("threads.systemTitles.new_chat")}</span>
+        <div className="h-7 w-7 shrink-0 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold">You</div>
+          <div className="text-xs opacity-70">
+            {t("Plan")}: {prefs.plan ?? "free"}
+          </div>
+        </div>
+        <Settings size={14} className="opacity-80" />
       </button>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          aria-label={t("threads.systemTitles.new_chat")}
+          onClick={handleNewChat}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500"
+        >
+          <IconNewChat title={t("threads.systemTitles.new_chat")} active size={18} className="text-white" />
+          <span>{t("threads.systemTitles.new_chat")}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const name = prompt(t("New project name"));
+            if (name) createProject(name);
+          }}
+          className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/60 px-3 py-2 text-sm font-medium shadow-sm backdrop-blur hover:bg-white/80 dark:border-white/10 dark:bg-slate-900/60 dark:hover:bg-slate-900"
+          aria-label={t("New Project")}
+        >
+          <span>▦</span>
+          <span>{t("New Project")}</span>
+        </button>
+      </div>
 
       <div>
         <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 opacity-60" size={16} />
           <input
-            className="w-full h-10 rounded-full border border-slate-200 bg-white/80 px-3 pr-8 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none focus:ring-0 dark:border-white/10 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-400"
+            type="search"
+            className="w-full rounded-xl border border-slate-200 bg-white/60 py-2 pl-8 pr-2 text-sm shadow-sm outline-none placeholder:opacity-60 focus:border-slate-300 dark:border-white/10 dark:bg-slate-900/60"
             placeholder={t("Search")}
+            value={q}
             onChange={(e) => handleSearch(e.target.value)}
           />
-          <Search size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400" />
         </div>
-        <Tabs />
       </div>
 
-      <div className="mt-2 flex-1 space-y-1 overflow-y-auto pr-1 pb-16">
-        {filtered.map((thread) => {
-          const rawTitle = (thread.title ?? "").trim();
-          const systemKey = thread.therapy && LEGACY_THERAPY_TITLES.has(rawTitle)
-            ? "threads.systemTitles.therapy_session"
-            : LEGACY_NEW_CHAT_TITLES.has(rawTitle)
-            ? "threads.systemTitles.new_chat"
-            : null;
-          const displayTitle = systemKey ? t(systemKey) : rawTitle;
-          return (
-            <div
-              key={thread.id}
-              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/60 p-2 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/60"
-            >
-              <button
-                onClick={() => {
-                  closeSidebar();
-                  router.push(`/?panel=chat&threadId=${thread.id}`);
-                }}
-                className="truncate text-left text-sm font-medium"
-                title={displayTitle || rawTitle}
-              >
-                {displayTitle || t("threads.systemTitles.new_chat")}
-              </button>
-            <div className="ml-auto">
-              <ThreadKebab
-                id={thread.id}
-                title={thread.title}
-                onRenamed={(nt) => {
-                  setThreads((prev) =>
-                    prev.map((x) => (x.id === thread.id ? { ...x, title: nt, updatedAt: Date.now() } : x))
-                  );
-                }}
-                onDeleted={() => {
-                  setThreads((prev) => prev.filter((x) => x.id !== thread.id));
-                }}
-              />
-            </div>
-            </div>
-          );
-        })}
-      </div>
+      <div className="mt-1 text-[11px] uppercase tracking-wide opacity-60">{t("Chats")}</div>
 
-      <div className="mt-auto" />
-      <button
-        type="button"
-        onClick={(e) => {
+      <div
+        className="mt-1 space-y-1"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
           e.preventDefault();
-          e.stopPropagation();
-          closeSidebar?.();
-          openPrefs();
+          const tid = e.dataTransfer.getData("text/thread-id");
+          if (tid) moveThread(tid, null);
         }}
-        className="fixed bottom-3 left-3 z-20 flex items-center gap-1.5 rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm shadow-sm hover:bg-white/90 dark:border-white/10 dark:bg-slate-900/70 dark:hover:bg-slate-900"
-        aria-label={`${t("Preferences")} · ${locale.label}`}
       >
-        <Settings size={14} />
-        <span>{t("Preferences")}</span>
-        <span className="ml-1 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
-          {locale.label}
-        </span>
-      </button>
+        {ungrouped.map((thread) => (
+          <ThreadRow
+            key={thread.id}
+            thread={thread}
+            draggable
+            active={thread.id === threadId}
+            onRenamed={(title) => handleThreadRenamed(thread.id, title)}
+            onDeleted={() => handleThreadDeleted(thread.id)}
+          />
+        ))}
+        {ungrouped.length === 0 && (
+          <div className="rounded-xl border border-dashed border-slate-200 p-2 text-xs opacity-60 dark:border-white/10">
+            {t("Drop a chat here")}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3 text-[11px] uppercase tracking-wide opacity-60">{t("Projects")}</div>
+
+      <div className="mb-16 flex-1 overflow-y-auto pr-1">
+        {grouped.map(({ project, threads }) => (
+          <ProjectGroup
+            key={project.id}
+            project={project}
+            threads={threads}
+            activeThreadId={threadId}
+            onMoveThread={moveThread}
+            onThreadRenamed={handleThreadRenamed}
+            onThreadDeleted={handleThreadDeleted}
+          />
+        ))}
+      </div>
     </div>
   );
 }

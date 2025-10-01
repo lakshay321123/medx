@@ -5,6 +5,7 @@ export type Thread = {
   updatedAt: number;
   mode: "patient" | "doctor";
   therapy?: boolean;
+  projectId?: string | null;
 };
 export type ChatMsg = { id: string; role: "user"|"assistant"; content: string; ts: number; };
 
