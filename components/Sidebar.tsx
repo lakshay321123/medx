@@ -9,6 +9,7 @@ import { useMobileUiStore } from "@/lib/state/mobileUiStore";
 import { useT } from "@/components/hooks/useI18n";
 import { useLocale } from "@/components/hooks/useLocale";
 import { useUIStore } from "@/components/hooks/useUIStore";
+import { IconNewChat } from "@/components/icons";
 
 const LEGACY_NEW_CHAT_TITLES = new Set([
   "New chat",
@@ -67,9 +68,10 @@ export default function Sidebar() {
         type="button"
         aria-label={t("threads.systemTitles.new_chat")}
         onClick={handleNewChat}
-        className="w-full rounded-full bg-blue-600 px-4 py-2.5 text-left text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500"
+        className="flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500"
       >
-        + {t("threads.systemTitles.new_chat")}
+        <IconNewChat title={t("threads.systemTitles.new_chat")} active size={18} className="text-white" />
+        <span>{t("threads.systemTitles.new_chat")}</span>
       </button>
 
       <div>
