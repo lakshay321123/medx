@@ -120,37 +120,38 @@ export function ChatInput({
     await handleSend();
   };
 
-  const attachUnavailableText = "Attach files is available before you start a new chat";
-  const attachControlLabel = currentId ? attachUnavailableText : uploadText;
+  const attachDisabled = Boolean(currentId);
+  const attachControlLabel = attachDisabled
+    ? "Attach files is available before you start a new chat"
+    : uploadText;
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="chat-input-container flex h-12 w-full items-center gap-2 rounded-2xl border border-[color:var(--medx-outline)] bg-[color:var(--medx-surface)] px-3 shadow-sm transition dark:border-white/10 dark:bg-[color:var(--medx-panel)] md:border-0 md:bg-transparent md:px-0 md:shadow-none"
+      className="chat-input-container flex h-12 w-full items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 shadow-sm transition focus-within:ring-2 focus-within:ring-slate-300/60 dark:border-white/10 dark:bg-slate-900 dark:focus-within:ring-white/20 md:border-0 md:bg-transparent md:px-0 md:shadow-none"
     >
       <label
-        htmlFor="chat-composer-file-input"
+        htmlFor="composer-file-input"
         role="button"
-        tabIndex={currentId ? -1 : 0}
-        aria-disabled={currentId ? true : undefined}
+        tabIndex={attachDisabled ? -1 : 0}
+        aria-disabled={attachDisabled ? true : undefined}
         aria-label={attachControlLabel}
         title={attachControlLabel}
         className={[
-          "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md",
-          "text-[color:var(--medx-text)] dark:text-[color:var(--medx-text)]",
-          "transition-colors",
-          currentId
+          "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors",
+          "text-slate-600 hover:bg-slate-100/70 dark:text-slate-300 dark:hover:bg-white/5",
+          attachDisabled
             ? "cursor-not-allowed opacity-60"
-            : "cursor-pointer hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:hover:bg-white/10",
+            : "cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500",
         ].join(" ")}
         onClick={event => {
-          if (currentId) {
+          if (attachDisabled) {
             event.preventDefault();
             event.stopPropagation();
           }
         }}
         onKeyDown={event => {
-          if (currentId) return;
+          if (attachDisabled) return;
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             fileInputRef.current?.click();
@@ -160,7 +161,7 @@ export function ChatInput({
         <Plus className="h-5 w-5" />
       </label>
       <input
-        id="chat-composer-file-input"
+        id="composer-file-input"
         ref={fileInputRef}
         type="file"
         accept="application/pdf,image/*"
@@ -195,7 +196,7 @@ export function ChatInput({
         aria-label={sendText}
         title={sendText}
         disabled={!text.trim() || isSending}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blue-600 text-white transition hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-sky-500 dark:hover:bg-sky-400"
+        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-indigo-500 text-white transition hover:bg-indigo-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-sky-500 dark:hover:bg-sky-400"
       >
         <SendHorizontal className="h-5 w-5" />
       </button>
