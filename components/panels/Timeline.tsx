@@ -8,6 +8,7 @@ import PanelLoader from "@/components/mobile/PanelLoader";
 import { pushToast } from "@/lib/ui/toast";
 import { useRouter } from "next/navigation";
 import { useT } from "@/components/hooks/useI18n";
+import { ListenButton } from "@/components/voice/ListenButton";
 import { langBase } from "@/lib/i18n/langBase";
 
 function normalizeKind(k?: string) {
@@ -683,6 +684,14 @@ export default function Timeline(){
                 const title = it?.name_display ?? it?.name ?? t("Observation");
                 const short = it?.summary_display ?? getShortSummary(it);
                 const chipLabel = getChipLabel(it, t);
+                const getListenText = () => {
+                  const parts: string[] = [];
+                  if (title) parts.push(title);
+                  if (observedAt) parts.push(observedAt);
+                  if (short) parts.push(short);
+                  if (chipLabel) parts.push(chipLabel);
+                  return parts.join(". ");
+                };
                 return (
                   <li
                     key={`${it.kind}:${it.id}`}
@@ -714,6 +723,12 @@ export default function Timeline(){
                             {chipLabel}
                           </span>
                         )}
+                        <ListenButton
+                          getText={getListenText}
+                          lang={langFull}
+                          className="text-[11px] shrink-0"
+                          stopPropagation
+                        />
                         <button
                           className="shrink-0 p-2 rounded-md hover:bg-slate-100 dark:hover:bg-gray-800"
                           aria-label={t("Delete")}

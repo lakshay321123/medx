@@ -12,15 +12,20 @@ import { Suspense } from "react";
 import MemorySnackbar from "@/components/memory/Snackbar";
 import UndoToast from "@/components/memory/UndoToast";
 import AppToastHost from "@/components/ui/AppToastHost";
-import dynamic from "next/dynamic";
 import Script from "next/script";
 import PreferencesProvider from "@/components/providers/PreferencesProvider";
 import LangDirEffect from "@/components/providers/LangDirEffect";
+import { ReaderProvider } from "@/components/voice/ReaderProvider";
+import dynamic from "next/dynamic";
 
 // Mobile-only UI (loaded client-side)
 const MobileHeader = dynamic(() => import("@/components/mobile/MobileHeader"), { ssr: false });
 const MobileSidebarOverlay = dynamic(() => import("@/components/mobile/MobileSidebarOverlay"), { ssr: false });
 const MobileActionsSheet = dynamic(() => import("@/components/mobile/MobileActionsSheet"), { ssr: false });
+const ReaderMiniPlayer = dynamic(
+  () => import("@/components/voice/ReaderMiniPlayer").then(mod => mod.ReaderMiniPlayer),
+  { ssr: false },
+);
 
 export const metadata = { title: BRAND_NAME, description: "Global medical AI" };
 
@@ -78,16 +83,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </Script>
         <PreferencesProvider>
           <LangDirEffect />
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            <CountryProvider>
-              <ContextProvider>
-                <TopicProvider>
-                  <div className="flex h-full min-h-screen flex-col medx-gradient">
+          <ReaderProvider>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange
+            >
+              <CountryProvider>
+                <ContextProvider>
+                  <TopicProvider>
+                    <div className="flex h-full min-h-screen flex-col medx-gradient">
                     {/* Desktop Header */}
                     <Suspense fallback={<div className="h-[62px]" />}>
                       <div className="hidden md:block">
@@ -127,11 +133,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     {/* Mobile overlays/sheets (client side) */}
                     <MobileSidebarOverlay />
                     <MobileActionsSheet />
-                  </div>
-                </TopicProvider>
-              </ContextProvider>
-            </CountryProvider>
-          </ThemeProvider>
+                    <ReaderMiniPlayer />
+                    </div>
+                  </TopicProvider>
+                </ContextProvider>
+              </CountryProvider>
+            </ThemeProvider>
+          </ReaderProvider>
         </PreferencesProvider>
       </body>
     </html>

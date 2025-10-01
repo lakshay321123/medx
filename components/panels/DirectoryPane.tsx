@@ -4,6 +4,7 @@ import { Phone, MessageSquare, Navigation, Star } from "lucide-react";
 import AddressPicker from "@/components/directory/AddressPicker";
 import { tfmt, useT } from "@/components/hooks/useI18n";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
+import { ListenButton } from "@/components/voice/ListenButton";
 import { useDirectory } from "@/hooks/useDirectory";
 import { ISO_COUNTRIES } from "@/lib/i18n/isoCountries";
 
@@ -293,6 +294,21 @@ export default function DirectoryPane() {
             render: JSX.Element;
           }[];
 
+          const getListenText = () => {
+            const parts: string[] = [];
+            if (displayName) parts.push(displayName);
+            if (typeLabel) parts.push(typeLabel);
+            if (typeof place.rating === "number") {
+              parts.push(`${t("Rating")}: ${numberFormatter.format(place.rating)}`);
+            }
+            if (typeof place.distance_m === "number") {
+              parts.push(`${numberFormatter.format(place.distance_m / 1000)} ${t("km")}`);
+            }
+            parts.push(place.open_now ? t("Open now") : t("Hours not available"));
+            if (displayAddress) parts.push(displayAddress);
+            return parts.filter(Boolean).join(". ");
+          };
+
           return (
             <div
               key={place.id}
@@ -307,8 +323,11 @@ export default function DirectoryPane() {
                     >
                       {displayName}
                     </div>
-                    <div className="inline-flex h-[16px] items-center whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-1.5 text-[9px] capitalize text-blue-900 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-100 md:h-[22px] md:px-2 md:text-[11px]">
-                      {typeLabel}
+                    <div className="flex items-center gap-1.5">
+                      <div className="inline-flex h-[16px] items-center whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-1.5 text-[9px] capitalize text-blue-900 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-100 md:h-[22px] md:px-2 md:text-[11px]">
+                        {typeLabel}
+                      </div>
+                      <ListenButton getText={getListenText} lang={appLang} className="text-[11px]" />
                     </div>
                   </div>
 

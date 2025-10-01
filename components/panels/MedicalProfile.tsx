@@ -14,6 +14,7 @@ import { useProfile } from "@/lib/hooks/useAppData";
 import { pushToast } from "@/lib/ui/toast";
 import { fromSearchParams } from "@/lib/modes/url";
 import { extractManualObservation } from "@/lib/profile/extractManualObservation";
+import { ListenButton } from "@/components/voice/ListenButton";
 import { useSWRConfig } from "swr";
 
 const SEXES = ["male", "female", "other"] as const;
@@ -1633,6 +1634,51 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
   const notesCount = Array.isArray(notes) ? notes.length : 0;
   const nextStepsCount = Array.isArray(nextSteps) ? nextSteps.length : 0;
 
+  const summarySpeech = useMemo(() => {
+    const entries: string[] = [];
+    entries.push(`${t("Patient")}: ${safeName}`);
+    const sexLabel = safeSex === noDataDisplay ? noDataDisplay : safeSexDisplay;
+    const bloodGroupLabel = safeBloodGroup === noDataDisplay ? noDataDisplay : safeBloodGroup;
+    entries.push(
+      `${t("Sex")}: ${sexLabel}, ${t("Age")}: ${safeAge}, ${t("Blood group")}: ${bloodGroupLabel}`,
+    );
+    entries.push(`${t("Chronic conditions")}: ${safeChronic}`);
+    entries.push(`${t("Predispositions")}: ${safePredispositions}`);
+    entries.push(
+      `${t("Active meds")}: ${
+        medsCount > 0 ? `${n(medsCount)} ${t("items")}` : noDataDisplay
+      }`,
+    );
+    entries.push(`${t("Recent labs")}: ${labsLine}`);
+    entries.push(`${t("AI prediction")}: ${noDataDisplay}`);
+    entries.push(
+      `${t("Symptoms/Notes")}: ${
+        notesCount > 0 ? `${n(notesCount)} ${t("items")}` : noDataDisplay
+      }`,
+    );
+    entries.push(
+      `${t("Next Steps")}: ${
+        nextStepsCount > 0 ? `${n(nextStepsCount)} ${t("items")}` : noDataDisplay
+      }`,
+    );
+    return entries.join(". ");
+  }, [
+    t,
+    safeName,
+    safeSex,
+    safeSexDisplay,
+    safeAge,
+    safeBloodGroup,
+    safeChronic,
+    safePredispositions,
+    medsCount,
+    n,
+    noDataDisplay,
+    labsLine,
+    notesCount,
+    nextStepsCount,
+  ]);
+
   return (
     <div className="space-y-4">
       <Section
@@ -1675,24 +1721,27 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
       </Section>
 
       <Section title={t("AI Summary")}>
-        <p className="text-[13px] leading-5 text-slate-600 dark:text-slate-300">
-          {t("Patient")}: {safeName} (
-          {t("Sex")}: {safeSex === noDataDisplay ? "—" : safeSexDisplay}, {t("Age")}: {safeAge}, {t("Blood group")}: {safeBloodGroup === noDataDisplay ? "—" : safeBloodGroup})
-          <br />
-          {t("Chronic conditions")}: {safeChronic}
-          <br />
-          {t("Predispositions")}: {safePredispositions}
-          <br />
-          {t("Active meds")}: {medsCount > 0 ? `${n(medsCount)} ${t("items")}` : noDataDisplay}
-          <br />
-          {t("Recent labs")}: {labsLine}
-          <br />
-          {t("AI prediction")}: {noDataDisplay}
-          <br />
-          {t("Symptoms/Notes")}: {notesCount > 0 ? `${n(notesCount)} ${t("items")}` : noDataDisplay}
-          <br />
-          {t("Next Steps")}: {nextStepsCount > 0 ? `${n(nextStepsCount)} ${t("items")}` : noDataDisplay}
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <p className="flex-1 text-[13px] leading-5 text-slate-600 dark:text-slate-300">
+            {t("Patient")}: {safeName} (
+            {t("Sex")}: {safeSex === noDataDisplay ? "—" : safeSexDisplay}, {t("Age")}: {safeAge}, {t("Blood group")}: {safeBloodGroup === noDataDisplay ? "—" : safeBloodGroup})
+            <br />
+            {t("Chronic conditions")}: {safeChronic}
+            <br />
+            {t("Predispositions")}: {safePredispositions}
+            <br />
+            {t("Active meds")}: {medsCount > 0 ? `${n(medsCount)} ${t("items")}` : noDataDisplay}
+            <br />
+            {t("Recent labs")}: {labsLine}
+            <br />
+            {t("AI prediction")}: {noDataDisplay}
+            <br />
+            {t("Symptoms/Notes")}: {notesCount > 0 ? `${n(notesCount)} ${t("items")}` : noDataDisplay}
+            <br />
+            {t("Next Steps")}: {nextStepsCount > 0 ? `${n(nextStepsCount)} ${t("items")}` : noDataDisplay}
+          </p>
+          <ListenButton getText={() => summarySpeech} lang={lang} className="text-[12px] shrink-0" />
+        </div>
 
         <div className="mt-3 flex gap-2">
           {onDiscussAI ? (

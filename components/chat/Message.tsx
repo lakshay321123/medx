@@ -1,5 +1,9 @@
+"use client";
+
 import Markdown from "react-markdown";
 import FeedbackControls from "./FeedbackControls";
+import { ListenButton } from "@/components/voice/ListenButton";
+import { useT } from "@/components/hooks/useI18n";
 
 type ChatMessage = {
   id: string;
@@ -16,6 +20,10 @@ interface MessageProps {
 }
 
 export default function Message({ message }: MessageProps) {
+  const t = useT();
+  const lang = t.lang;
+  const textContent = message.content ?? "";
+
   if (message.kind === "image" && message.imageUrl) {
     return (
       <div className={`my-2 flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -35,7 +43,12 @@ export default function Message({ message }: MessageProps) {
 
   return (
     <div>
-      <Markdown>{message.content ?? ""}</Markdown>
+      {message.role === "assistant" && textContent.trim() && (
+        <div className="mb-2 flex justify-end">
+          <ListenButton getText={() => textContent} lang={lang} className="text-[11px]" />
+        </div>
+      )}
+      <Markdown>{textContent}</Markdown>
       <div className="mt-2">
         <FeedbackControls messageId={message.id} />
       </div>
