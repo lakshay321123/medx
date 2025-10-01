@@ -9,7 +9,7 @@ import { LinkBadge } from '@/components/SafeLink';
 import TrialsResults from "@/components/TrialsResults";
 import type { TrialRow } from "@/types/trials";
 import { useResearchFilters } from '@/store/researchFilters';
-import { Send, Paperclip, Clipboard, Stethoscope, Users, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, Clipboard, Stethoscope, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { useCountry } from '@/lib/country';
 import WelcomeCard from '@/components/ui/WelcomeCard';
 import { getWelcomeOptions, pickWelcome, type AppMode, type WelcomeMessage } from '@/lib/welcomeMessages';
@@ -736,6 +736,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const researchModeRef = useRef<boolean>(false);
   const queueAbortRef = useRef<AbortController | null>(null);
   const { filters } = useResearchFilters();
+  const attachLabel = t("ui.composer.attach");
+  const askPlaceholder = t("ui.composer.placeholder");
   const recordShortMem = useCallback(
     (threadId: string | null | undefined, role: "user" | "assistant", text: string) => {
       if (!allowHistory || !threadId) return;
@@ -3858,35 +3860,39 @@ ${systemCommon}` + baseSys;
                   e.preventDefault();
                   onSubmit();
                 }}
-                className="flex w-full items-end gap-3 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80"
+                className="flex w-full items-center gap-2 rounded-2xl border border-slate-200/60 bg-white/90 px-3 h-12 dark:border-slate-700/60 dark:bg-slate-900/80"
               >
                 <label
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
-                  title="Upload PDF or image"
+                  htmlFor="chat-pane-composer-file-input"
+                  className="inline-flex items-center justify-center h-9 w-9 rounded-md text-slate-600 hover:bg-slate-100/70 dark:text-slate-300 dark:hover:bg-white/5 cursor-pointer select-none shrink-0"
+                  aria-label={attachLabel}
+                  title={attachLabel}
                 >
-                  <Paperclip size={16} aria-hidden="true" />
-                  <span className="hidden sm:inline">Upload</span>
-                  <input
-                    type="file"
-                    accept="application/pdf,image/*"
-                    multiple
-                    className="hidden"
-                    onChange={e => {
-                      const files = Array.from(e.target.files ?? []);
-                      if (files.length) onFilesSelected(files);
-                      e.currentTarget.value = '';
-                    }}
-                  />
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden>
+                    <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5z" fill="currentColor" />
+                  </svg>
                 </label>
-                <div className="relative flex-1">
+                <input
+                  id="chat-pane-composer-file-input"
+                  type="file"
+                  accept="application/pdf,image/*"
+                  multiple
+                  className="hidden"
+                  onChange={e => {
+                    const files = Array.from(e.target.files ?? []);
+                    if (files.length) onFilesSelected(files);
+                    e.currentTarget.value = '';
+                  }}
+                />
+                <div className="relative flex-1 min-w-0">
                   <textarea
                     ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
                     rows={1}
-                    className="w-full resize-none bg-transparent px-2 pr-12 text-sm leading-6 text-slate-900 outline-none placeholder:text-slate-500 dark:text-slate-100 dark:placeholder:text-slate-400"
+                    className="flex-1 min-w-0 w-full resize-none bg-transparent text-base leading-6 text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500 py-0 my-0 pr-12"
                     placeholder={
                       pendingFiles.length > 0
                         ? 'Add a note or question for this document (optional)'
-                        : 'Send a message'
+                        : askPlaceholder
                     }
                     value={userText}
                     onChange={(e) => setUserText(e.target.value)}
@@ -3920,13 +3926,13 @@ ${systemCommon}` + baseSys;
 
                 {!busy && (
                   <button
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50"
+                    className="inline-flex items-center justify-center h-9 w-9 rounded-md shrink-0 bg-blue-600 text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
                     type="submit"
                     disabled={pendingFiles.length === 0 && !userText.trim()}
                     aria-label="Send"
                     title="Send"
                   >
-                    <Send size={16} />
+                    <Send className="h-5 w-5" aria-hidden />
                   </button>
                 )}
               </form>
