@@ -77,7 +77,6 @@ export default function SettingsPane({
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onClose();
   };
 
   const activeSection = sections.find((section) => section.id === activeId) ?? sections[0];

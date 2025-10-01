@@ -2,9 +2,9 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { ChevronDown, Play } from "lucide-react";
-import { usePrefs } from "@/components/hooks/usePrefs";
+
 import { useT } from "@/components/hooks/useI18n";
-import { applyTheme } from "@/lib/theme";
+import { usePrefsDraft } from "@/components/providers/PrefsDraftProvider";
 
 const LANG_LABELS = {
   en: "English",
@@ -96,7 +96,7 @@ function Menu({ label, value, onPick, items }: MenuProps) {
 }
 
 export default function GeneralPanel() {
-  const prefs = usePrefs();
+  const { draft, set } = usePrefsDraft();
   const t = useT();
 
   const Row = ({ title, sub, right }: { title: string; sub?: string; right: ReactNode }) => (
@@ -109,8 +109,10 @@ export default function GeneralPanel() {
     </div>
   );
 
-  const themeLabel = prefs.theme === "system" ? "System" : prefs.theme === "light" ? "Light" : "Dark";
+  const themeValue = (draft.theme as keyof typeof THEME_OPTIONS | undefined) ?? "system";
+  const themeLabel = themeValue === "system" ? "System" : themeValue === "light" ? "Light" : "Dark";
   const languages = Object.entries(LANG_LABELS) as [keyof typeof LANG_LABELS, string][];
+  const languageValue = (draft.lang as string) ?? "en";
 
   return (
     <>
@@ -127,8 +129,7 @@ export default function GeneralPanel() {
             onPick={(value) => {
               const theme = THEME_OPTIONS[value as keyof typeof THEME_OPTIONS];
               if (theme) {
-                prefs.set("theme", theme);
-                applyTheme(theme);
+                set("theme", theme);
               }
             }}
             items={[...THEME_ITEMS]}
@@ -140,12 +141,13 @@ export default function GeneralPanel() {
         sub={t("Choose your preferred conversational language.")}
         right={
           <select
-            value={prefs.lang}
+            value={languageValue}
             onChange={(event) => {
               const next = event.target.value;
               const match = languages.find(([code]) => code === next);
               if (match) {
-                prefs.setLang(match[0], "user");
+                set("lang", match[0]);
+                set("lang.method" as any, "user");
               }
             }}
             className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--text)] focus-visible:outline-none focus-visible:ring-2"
