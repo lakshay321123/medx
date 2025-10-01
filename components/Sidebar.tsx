@@ -108,13 +108,13 @@ export default function Sidebar() {
       </div>
 
       {/* Section heading above chat threads */}
-      <div className="px-3 pb-1 pt-2">
+      <div className="px-3 pb-0 pt-1">
         <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">
           {t?.("Chats") ?? "Chats"}
         </h3>
       </div>
 
-      <div className="mt-2 flex-1 space-y-1 overflow-y-auto pr-1 pb-16">
+      <div className="mt-1 flex-1 space-y-1 overflow-y-auto pr-1 pb-16">
         {filtered.map((thread) => {
           const rawTitle = (thread.title ?? "").trim();
           const systemKey = thread.therapy && LEGACY_THERAPY_TITLES.has(rawTitle)
@@ -139,11 +139,6 @@ export default function Sidebar() {
                 aria-current={active ? "page" : undefined}
                 title={displayTitle || rawTitle}
               >
-                <span
-                  className={active ? "h-4 w-0.5 rounded bg-blue-600 dark:bg-sky-400" : "h-4 w-0.5"}
-                  aria-hidden
-                />
-
                 <span className="shrink-0 h-4 w-4" aria-hidden>
                   <svg viewBox="0 0 24 24" className="h-4 w-4">
                     <path d="M4 5h16v10H8l-3 3V5z" fill="currentColor" />
