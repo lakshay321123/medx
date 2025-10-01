@@ -136,6 +136,13 @@ body.font-loading *::after {
   --medx-text: #0F172A;
   --medx-subtext: #334155;
 
+  --composer-max-w: 820px;
+  --composer-pad: 12px;
+  --composer-radius: 1.5rem;
+  --composer-border: 1px solid rgba(0, 0, 0, 0.08);
+  --composer-bg: rgba(255, 255, 255, 0.9);
+  --composer-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+
   /* accents from reference */
   --medx-accent:  #2563EB;  /* blue */
   --medx-accent2: #0891B2;  /* teal/cyan */
@@ -164,6 +171,9 @@ body.font-loading *::after {
   --medx-surface: rgba(0,0,0,0.35);
   --medx-panel:   rgba(3,7,18,0.55);
   --medx-outline: rgba(255,255,255,0.12);
+
+  --composer-bg: rgba(22, 22, 24, 0.9);
+  --composer-border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 /* Background painted behind UI (never affects layout) */
@@ -195,6 +205,124 @@ body.font-loading *::after {
 /* tiny hover polish without shifting layout */
 .medx-surface:hover { filter: brightness(1.03); }
 
+
+/* Chat composer layout */
+.composer-root {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 12px 16px;
+  padding-bottom: 16px;
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+}
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .composer-root {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 12px);
+  }
+}
+
+.composer-wrap {
+  width: 100%;
+  max-width: var(--composer-max-w);
+  pointer-events: auto;
+}
+
+.composer-surface {
+  display: grid;
+  grid-template-columns: 40px 1fr 40px;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px var(--composer-pad);
+  border: var(--composer-border);
+  border-radius: var(--composer-radius);
+  background: var(--composer-bg);
+  box-shadow: var(--composer-shadow);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.composer-surface--drag {
+  border-color: rgba(59, 130, 246, 0.45);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35), var(--composer-shadow);
+}
+
+.composer-icon-btn,
+.composer-send-btn {
+  height: 36px;
+  width: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+@media (hover: hover) {
+  .composer-icon-btn:not(:disabled):hover,
+  .composer-send-btn:not(:disabled):hover {
+    background: rgba(15, 23, 42, 0.06);
+  }
+
+  .dark .composer-icon-btn:not(:disabled):hover,
+  .dark .composer-send-btn:not(:disabled):hover {
+    background: rgba(248, 250, 252, 0.12);
+  }
+}
+
+.composer-icon-btn:disabled,
+.composer-send-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.composer-send-btn:disabled svg {
+  opacity: 0.75;
+}
+
+.composer-file-input {
+  display: none;
+}
+
+.composer-textarea {
+  width: 100%;
+  max-height: 160px;
+  min-height: 24px;
+  line-height: 1.4;
+  padding: 10px 6px;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  overflow: auto;
+  font: inherit;
+  color: inherit;
+}
+
+.composer-textarea::placeholder {
+  text-align: center;
+  opacity: 0.7;
+}
+
+.composer-hint {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  text-align: center;
+  color: var(--medx-subtext);
+  opacity: 0.7;
+}
+
+.dark .composer-hint {
+  color: rgba(226, 232, 240, 0.7);
+}
 
 @keyframes caret {
   0%, 49% { opacity: 1; }
