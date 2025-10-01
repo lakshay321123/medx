@@ -3821,7 +3821,7 @@ ${systemCommon}` + baseSys;
               )}
 
               {pendingFiles.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/60 bg-white/80 px-3 py-2 text-xs text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200">
+                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/60 bg-white px-3 py-2 text-xs text-slate-600 shadow-sm md:bg-white/80 md:backdrop-blur dark:border-slate-700/60 dark:bg-slate-900 md:dark:bg-slate-900/70 dark:text-slate-200">
                   <span className="font-medium">
                     {pendingFiles.length} file{pendingFiles.length === 1 ? '' : 's'} ready
                   </span>
@@ -3851,7 +3851,7 @@ ${systemCommon}` + baseSys;
                   e.preventDefault();
                   onSubmit();
                 }}
-                className="flex w-full items-end gap-3 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80"
+                className="flex w-full items-end gap-3 rounded-2xl border border-slate-200/60 bg-white px-3 py-2 shadow-sm md:bg-white/90 md:backdrop-blur dark:border-slate-700/60 dark:bg-slate-900 md:dark:bg-slate-900/80"
               >
                 <label
                   className="inline-flex cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200/60 dark:text-slate-200 dark:hover:bg-slate-800/60"

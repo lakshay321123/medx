@@ -740,7 +740,7 @@ export default function Timeline(){
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={() => closeOverlay()} />
           <aside className="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-[640px] bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-2xl ring-1 ring-black/5 overflow-y-auto">
-            <header className="sticky top-0 bg-white/90 dark:bg-zinc-900/90 backdrop-blur border-b border-zinc-200/70 dark:border-zinc-800/70 px-4 py-3 flex items-center gap-2">
+            <header className="sticky top-0 bg-white dark:bg-zinc-950 md:bg-white/90 md:backdrop-blur border-b border-zinc-200/70 px-4 py-3 flex items-center gap-2 dark:border-zinc-800/70 md:dark:bg-zinc-900/90">
               <button
                 type="button"
                 onClick={() => closeOverlay()}

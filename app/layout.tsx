@@ -40,7 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <style>{"body.font-loading{opacity:1 !important}"}</style>
         </noscript>
       </head>
-      <body className="font-loading h-full bg-slate-100 text-slate-900 dark:bg-transparent dark:text-slate-100 font-sans antialiased">
+      <body className="font-loading h-full min-h-screen bg-white text-slate-900 dark:bg-slate-950 md:bg-transparent md:dark:bg-transparent dark:text-slate-100 font-sans antialiased">
         <Script id="ensure-proxima-first" strategy="beforeInteractive">
           {`
             (function() {

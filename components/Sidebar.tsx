@@ -258,7 +258,7 @@ function SidebarContentBody({
       <div className="mt-2 border-t border-black/10 dark:border-white/10" />
       <button
         onClick={openPreferences}
-        className="mt-2 flex items-center gap-3 rounded-xl border border-black/10 bg-white/60 p-2 shadow-sm backdrop-blur transition hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-black/20 dark:border-white/10 dark:bg-slate-900/60 dark:hover:bg-slate-900"
+        className="mt-2 flex items-center gap-3 rounded-xl border border-black/10 bg-white p-2 shadow-sm transition hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-black/20 dark:border-white/10 dark:bg-slate-900 md:bg-white/60 md:backdrop-blur md:dark:bg-slate-900/60 dark:hover:bg-slate-900"
         aria-label={preferencesLabel}
         title={preferencesLabel}
       >

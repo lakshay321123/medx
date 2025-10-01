@@ -144,7 +144,7 @@ export default function MobileSidebarOverlay() {
     >
       <div
         ref={panelRef}
-        className="relative h-full w-[88%] max-w-[320px] -translate-x-full bg-transparent"
+        className="relative h-full w-[88%] max-w-[320px] -translate-x-full overflow-y-auto bg-white dark:bg-slate-950 md:bg-transparent"
         role="dialog"
         aria-modal="true"
         aria-label="Navigation menu"

@@ -27,9 +27,9 @@ export default function ThreadRow({ thread, title, isActive, onRenamed, onDelete
   return (
     <div
       className={clsx(
-        "group flex h-11 w-full items-center gap-2 rounded-lg px-2 text-slate-700 transition dark:text-slate-200",
+        "group flex h-11 w-full items-center gap-2 rounded-lg border border-black/10 bg-white px-2 text-slate-700 shadow-sm transition dark:border-white/10 dark:bg-slate-900 md:bg-white/60 md:backdrop-blur md:dark:bg-slate-900/60",
         isActive
-          ? "bg-white/80 font-semibold text-slate-900 shadow-sm ring-1 ring-black/10 backdrop-blur dark:bg-slate-900/60 dark:text-slate-100 dark:ring-white/10"
+          ? "font-semibold text-slate-900 ring-1 ring-black/10 dark:text-slate-100 dark:ring-white/10"
           : "hover:bg-black/5 dark:hover:bg-white/5",
       )}
     >

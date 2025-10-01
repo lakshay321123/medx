@@ -117,7 +117,7 @@ export default function DirectoryPane() {
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-[388px] flex-col md:mx-0 md:max-w-none">
-      <div className="sticky top-0 z-10 space-y-1 border-b border-black/5 bg-white/85 px-2 pb-1 pt-1 backdrop-blur dark:border-white/10 dark:bg-slate-950/60 md:space-y-3 md:px-3 md:pb-3 md:pt-2">
+      <div className="sticky top-0 z-10 space-y-1 border-b border-black/5 bg-white px-2 pb-1 pt-1 dark:border-white/10 dark:bg-slate-950 md:bg-white/85 md:backdrop-blur md:dark:bg-slate-950/60 md:space-y-3 md:px-3 md:pb-3 md:pt-2">
         <div className="flex min-w-0 flex-wrap items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 sm:flex-nowrap md:gap-2 md:text-[11px]">
           <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-green-500"></span>
           <span className="min-w-0 flex-1 text-left sm:truncate">{t("Using:")} {locationLabel}</span>
@@ -296,7 +296,7 @@ export default function DirectoryPane() {
           return (
             <div
               key={place.id}
-              className="rounded-[10px] border border-slate-200 bg-white/85 p-2 shadow-sm backdrop-blur-sm transition hover:shadow-md dark:border-white/10 dark:bg-slate-950/60 md:rounded-[12px] md:p-3"
+              className="rounded-[10px] border border-slate-200 bg-white p-2 shadow-sm transition hover:shadow-md md:bg-white/85 md:backdrop-blur-sm dark:border-white/10 dark:bg-slate-950 md:dark:bg-slate-950/60 md:rounded-[12px] md:p-3"
             >
               <div className="flex items-start gap-1.5 md:gap-3">
                 <div className="min-w-0 flex-1">
