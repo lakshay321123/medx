@@ -11,6 +11,24 @@ type Personality =
   | "encouraging"
   | "genz";
 
+export type PersonalizationPayload = {
+  enabled: boolean;
+  personality: Personality | null;
+  customInstructions: string;
+  nickname: string;
+  occupation: string;
+  about: string;
+};
+
+export const buildPersonalizationPayload = (prefs: Partial<Prefs> | null | undefined): PersonalizationPayload => ({
+  enabled: !!prefs?.personalizationEnabled,
+  personality: (prefs?.personality as Personality | null | undefined) ?? null,
+  customInstructions: prefs?.customInstructions ?? "",
+  nickname: prefs?.nickname ?? "",
+  occupation: prefs?.occupation ?? "",
+  about: prefs?.about ?? "",
+});
+
 export type Prefs = {
   theme: "system" | "light" | "dark";
   accent: "purple";
@@ -23,6 +41,7 @@ export type Prefs = {
 
   memoryEnabled: boolean;
   memoryAutosave: boolean;
+  allowHistory: boolean;
 
   personalizationEnabled: boolean;
   personality: Personality;
@@ -71,6 +90,7 @@ const DEFAULT: Prefs = {
 
   memoryEnabled: true,
   memoryAutosave: true,
+  allowHistory: true,
 
   personalizationEnabled: true,
   personality: "nerd",

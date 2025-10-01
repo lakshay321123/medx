@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { profileChatSystem } from '@/lib/profileChatSystem';
-import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from '@/lib/prompt/system';
+import { languageDirectiveFor, personaFromPrefs, SYSTEM_DEFAULT_LANG } from '@/lib/prompt/system';
 import { extractAll, canonicalizeInputs } from '@/lib/medical/engine/extract';
 import { BRAND_NAME } from "@/lib/brand";
 import { computeAll } from '@/lib/medical/engine/computeAll';
@@ -60,18 +60,21 @@ export async function POST(req: NextRequest) {
   let body: any = {};
   try { body = await req.json(); } catch {}
   const { context, clientRequestId, mode } = body;
+  const allowHistory = body?.allowHistory !== false;
   const requestedLang = typeof body?.lang === 'string' ? body.lang : undefined;
   const headerLang = req.headers.get('x-user-lang') || req.headers.get('x-lang') || undefined;
   const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
   const lang = langTag.toLowerCase();
   const langDirective = languageDirectiveFor(lang);
+  const persona = personaFromPrefs(body?.personalization);
+  const sysPrelude = [langDirective, persona].filter(Boolean).join('\n\n');
 
   const research =
     qp === '1' || qp === 'true' || body?.research === true || body?.research === 'true';
 
   // 1) Gather existing conversation
   const history: Array<{role:'system'|'user'|'assistant'; content:string}> =
-    Array.isArray(body?.messages) ? body.messages : [];
+    allowHistory && Array.isArray(body?.messages) ? body.messages : [];
 
   // 2) Determine latest user turn for research sourcing + chat flow
   const recent = takeRecentTurns(history, 8);                 // keep continuity
@@ -245,7 +248,7 @@ export async function POST(req: NextRequest) {
   const systemMessages = finalMessages.filter((m: any) => m.role === 'system');
   const nonSystemMessages = finalMessages.filter((m: any) => m.role !== 'system');
   const combinedSystem = systemMessages.map((m: any) => m.content).filter(Boolean).join('\n\n');
-  const finalSystem = [combinedSystem, langDirective].filter(Boolean).join('\n\n');
+  const finalSystem = [combinedSystem, sysPrelude].filter(Boolean).join('\n\n');
   finalMessages = finalSystem ? [{ role: 'system', content: finalSystem }, ...nonSystemMessages] : nonSystemMessages;
 
   const upstream = await fetch(url, {

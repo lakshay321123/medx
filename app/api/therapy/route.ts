@@ -6,6 +6,7 @@ import { summarizeTherapyJSON, type ChatMessage as TM } from "@/lib/therapy/summ
 import { supabaseServer } from "@/lib/supabaseServer";
 import { getServerUserId } from "@/lib/auth/serverUser";
 import { extractTriggersFrom } from "@/lib/therapy/triggers";
+import { languageDirectiveFor, personaFromPrefs, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 
 export const runtime = "nodejs";
 
@@ -206,6 +207,15 @@ export async function POST(req: NextRequest) {
     let body: any = {};
     try { body = await req.json(); } catch { body = {}; }
 
+    const requestedLang = typeof body?.lang === "string" ? body.lang : undefined;
+    const headerLang = req.headers.get("x-user-lang") || req.headers.get("x-lang") || undefined;
+    const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
+    const lang = langTag.toLowerCase();
+    const sysPrelude = [languageDirectiveFor(lang), personaFromPrefs(body?.personalization)]
+      .filter(Boolean)
+      .join("\n\n");
+    const allowHistory = body?.allowHistory !== false;
+
     // Belt & suspenders: this route is therapy-only
     if (body?.mode && body.mode !== "therapy") {
       return NextResponse.json({ error: "Wrong mode for /api/therapy" }, { status: 400 });
@@ -270,7 +280,13 @@ Adaptation: ${adaptation || "Keep tone warm and concise."}
 Instruction: Reflect the user’s last message in ≤1 line, then ask exactly ONE question that advances this stage. Avoid multiple questions. End with "?". 
 Next question suggestion: ${nextQuestion(nextStage, knownName, profile?.personality)}`
     };
-    const messages = [style, director, ...clean];
+    const personalizationPrelude = sysPrelude ? { role: "system", content: sysPrelude } : null;
+    const messages = [
+      ...(personalizationPrelude ? [personalizationPrelude] : []),
+      style,
+      director,
+      ...clean,
+    ];
 
     tokenLimit = 2048;
     let result = await callOpenAI(messages);
@@ -289,65 +305,67 @@ Next question suggestion: ${nextQuestion(nextStage, knownName, profile?.personal
 
     // --------- save structured note (server-side) ----------
     let wrapup: string | null = null;
-    try {
-      const openai = new OpenAI({ apiKey: OAI_KEY, baseURL: OAI_URL });
-      const recent: TM[] = [
-        ...clean.map((m: any) => ({ role: m.role as TM["role"], content: String(m.content || "") })),
-        { role: "assistant", content: completion }
-      ];
+    if (allowHistory) {
+      try {
+        const openai = new OpenAI({ apiKey: OAI_KEY, baseURL: OAI_URL });
+        const recent: TM[] = [
+          ...clean.map((m: any) => ({ role: m.role as TM["role"], content: String(m.content || "") })),
+          { role: "assistant", content: completion }
+        ];
 
-      const userId = await getServerUserId(req);
-      if (userId) {
-        const note = (await summarizeTherapyJSON(openai, recent)) ?? null;
-        let fallback: any = null;
-        if (!note) fallback = synthFallbackNote(completion);
-        const sb = supabaseServer();
-
-        // Merge extra triggers from last user message for better recall
-        const lastUserText = lastUser?.content || "";
-        const extraTriggers = extractTriggersFrom(lastUserText);
-
-        const mergedMeta = {
-          topics: Array.from(new Set([...(note?.topics || []), ...(fallback?.meta?.topics || [])])).slice(0, 10),
-          triggers: Array.from(new Set([...(note?.triggers || []), ...(fallback?.meta?.triggers || []), ...extraTriggers])).slice(0, 10),
-          emotions: (note?.emotions || fallback?.meta?.emotions || []).slice(0, 10),
-          goals: ((note as any)?.goals || fallback?.meta?.goals || [])
-        };
-
-        await sb.from("therapy_notes").insert({
-          user_id: userId,
-          summary: (note?.summary || fallback?.summary),
-          meta: mergedMeta,
-          mood: (note?.mood || fallback?.mood || "neutral"),
-          breakthrough: note?.breakthrough ?? fallback?.breakthrough ?? null,
-          next_step: note?.nextStep ?? fallback?.nextStep ?? null
-        });
-        const usedNote: any = note || fallback;
-
-        try {
+        const userId = await getServerUserId(req);
+        if (userId) {
+          const note = (await summarizeTherapyJSON(openai, recent)) ?? null;
+          let fallback: any = null;
+          if (!note) fallback = synthFallbackNote(completion);
           const sb = supabaseServer();
-          // Count total notes for this user (fast: index on user_id, created_at)
-          const { count } = await sb
-            .from("therapy_notes")
-            .select("*", { count: "exact", head: true })
-            .eq("user_id", userId);
 
-          if (typeof count === "number" && count > 0 && PROFILE_REBUILD_EVERY > 0 && count % PROFILE_REBUILD_EVERY === 0) {
-            // Fire-and-forget call to rebuild profile from recent notes
-            fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/therapy/profile/rebuild?userId=${userId}&limit=50`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" }
-            }).catch(() => {});
-          }
-        } catch { /* fail-soft */ }
+          // Merge extra triggers from last user message for better recall
+          const lastUserText = lastUser?.content || "";
+          const extraTriggers = extractTriggersFrom(lastUserText);
 
-        try {
-          if (usedNote && (body?.wrapup === true || nextStage === "S8")) {
-            wrapup = buildWrapupFromNote(usedNote);
-          }
-        } catch {}
-      }
-    } catch { /* fail-soft: never block user reply */ }
+          const mergedMeta = {
+            topics: Array.from(new Set([...(note?.topics || []), ...(fallback?.meta?.topics || [])])).slice(0, 10),
+            triggers: Array.from(new Set([...(note?.triggers || []), ...(fallback?.meta?.triggers || []), ...extraTriggers])).slice(0, 10),
+            emotions: (note?.emotions || fallback?.meta?.emotions || []).slice(0, 10),
+            goals: ((note as any)?.goals || fallback?.meta?.goals || [])
+          };
+
+          await sb.from("therapy_notes").insert({
+            user_id: userId,
+            summary: (note?.summary || fallback?.summary),
+            meta: mergedMeta,
+            mood: (note?.mood || fallback?.mood || "neutral"),
+            breakthrough: note?.breakthrough ?? fallback?.breakthrough ?? null,
+            next_step: note?.nextStep ?? fallback?.nextStep ?? null
+          });
+          const usedNote: any = note || fallback;
+
+          try {
+            const sb = supabaseServer();
+            // Count total notes for this user (fast: index on user_id, created_at)
+            const { count } = await sb
+              .from("therapy_notes")
+              .select("*", { count: "exact", head: true })
+              .eq("user_id", userId);
+
+            if (typeof count === "number" && count > 0 && PROFILE_REBUILD_EVERY > 0 && count % PROFILE_REBUILD_EVERY === 0) {
+              // Fire-and-forget call to rebuild profile from recent notes
+              fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/therapy/profile/rebuild?userId=${userId}&limit=50`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" }
+              }).catch(() => {});
+            }
+          } catch { /* fail-soft */ }
+
+          try {
+            if (usedNote && (body?.wrapup === true || nextStage === "S8")) {
+              wrapup = buildWrapupFromNote(usedNote);
+            }
+          } catch {}
+        }
+      } catch { /* fail-soft: never block user reply */ }
+    }
 
     const resp: any = { ok: true, completion, nextStage };
     if (!body.name && details.maybeName) resp.name = details.maybeName;
