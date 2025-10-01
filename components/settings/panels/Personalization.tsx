@@ -27,6 +27,7 @@ export default function PersonalizationPanel() {
               type="checkbox"
               checked={personalizationEnabled}
               onChange={(event) => set("personalizationEnabled", event.target.checked)}
+              aria-label="Enable customization"
             />
             <span>{personalizationEnabled ? "On" : "Off"}</span>
           </label>
@@ -66,6 +67,7 @@ export default function PersonalizationPanel() {
           value={(draft.customInstructions as string) ?? ""}
           onChange={(event) => set("customInstructions", event.target.value)}
           placeholder="Be innovative and think outside the box."
+          aria-label="Custom instructions"
         />
       </div>
 
@@ -79,6 +81,7 @@ export default function PersonalizationPanel() {
               value={(draft.nickname as string) ?? ""}
               onChange={(event) => set("nickname", event.target.value)}
               placeholder="What should we call you?"
+              aria-label="Nickname"
             />
           </div>
           <div>
@@ -89,6 +92,7 @@ export default function PersonalizationPanel() {
               value={(draft.occupation as string) ?? ""}
               onChange={(event) => set("occupation", event.target.value)}
               placeholder="Interior designer"
+              aria-label="Occupation"
             />
           </div>
         </div>
@@ -100,6 +104,7 @@ export default function PersonalizationPanel() {
             value={(draft.about as string) ?? ""}
             onChange={(event) => set("about", event.target.value)}
             placeholder="Interests, values, or preferences to keep in mind"
+            aria-label="More about you"
           />
         </div>
       </div>
@@ -146,7 +151,12 @@ function ToggleRow({
         <div>{label}</div>
         <div className="text-xs opacity-70">{sub}</div>
       </div>
-      <input type="checkbox" checked={value} onChange={(event) => onChange(event.target.checked)} />
+      <input
+        type="checkbox"
+        checked={value}
+        onChange={(event) => onChange(event.target.checked)}
+        aria-label={label}
+      />
     </label>
   );
 }

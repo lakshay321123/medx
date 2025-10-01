@@ -6,7 +6,13 @@ import { decideContext } from "@/lib/memory/contextRouter";
 import { seedTopicEmbedding } from "@/lib/memory/outOfContext";
 import { updateSummary, persistUpdatedSummary } from "@/lib/memory/summary";
 import { buildPromptContext } from "@/lib/memory/contextBuilder";
-import { buildSystemPrompt, languageNameFor, personaFromPrefs, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
+import {
+  buildSystemPrompt,
+  languageNameFor,
+  personaFromPrefs,
+  sanitizePersonalization,
+  SYSTEM_DEFAULT_LANG,
+} from "@/lib/prompt/system";
 import { buildContextBundle } from "@/lib/prompt/contextBuilder";
 
 import { loadState, saveState } from "@/lib/context/stateStore";
@@ -110,7 +116,8 @@ export async function POST(req: Request) {
   const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
   const lang = langTag.toLowerCase();
   const languageName = languageNameFor(lang);
-  const persona = personaFromPrefs(personalization);
+  const sanitized = sanitizePersonalization(personalization);
+  const persona = personaFromPrefs(sanitized);
   let conversationId = headers.get("x-conversation-id");
   let isNewChat = headers.get("x-new-chat") === "true";
   if (!conversationId) {
@@ -287,9 +294,8 @@ export async function POST(req: Request) {
     }
 
     const baseSystem = buildSystemPrompt({ lang });
-    const systemBlocks: string[] = [];
+    const systemBlocks: string[] = [baseSystem];
     if (persona) systemBlocks.push(persona);
-    systemBlocks.push(baseSystem);
     if (systemExtra.length) systemBlocks.push(...systemExtra);
     const fullSystem = systemBlocks.filter(Boolean).join("\n\n");
 
@@ -437,8 +443,8 @@ export async function POST(req: Request) {
   const contextBlock = [system, ...systemExtra].filter(Boolean).join("\n\n");
 
   const systemBlocks: string[] = [];
-  if (persona) systemBlocks.push(persona);
   if (langDirective) systemBlocks.push(langDirective);
+  if (persona) systemBlocks.push(persona);
   if (contextBlock) systemBlocks.push(contextBlock);
 
   // --- Topic Locking disabled (no recipe/dish behaviors) ---
