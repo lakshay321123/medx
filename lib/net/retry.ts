@@ -50,14 +50,15 @@ export async function retryFetch(
         throw error;
       }
     } catch (error) {
+      const errorResponse =
+        error instanceof Response ? error : (error as { response?: Response }).response;
+      if (errorResponse && !shouldRetryStatus(errorResponse.status)) {
+        throw error;
+      }
       if (attempt >= retries) {
         throw error;
       }
-      const wait = computeDelay(
-        (error as Error & { response?: Response }).response ?? response,
-        attempt,
-        retryDelay,
-      );
+      const wait = computeDelay(errorResponse ?? response, attempt, retryDelay);
       await delay(wait);
       attempt += 1;
       continue;
