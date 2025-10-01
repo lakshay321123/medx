@@ -22,6 +22,12 @@ const THEME_OPTIONS = {
 
 const THEME_ITEMS = ["System", "Light", "Dark"] as const;
 
+const THEME_LABELS: Record<(typeof THEME_OPTIONS)[keyof typeof THEME_OPTIONS], (typeof THEME_ITEMS)[number]> = {
+  system: "System",
+  light: "Light",
+  dark: "Dark",
+};
+
 type MenuProps = {
   label: string;
   value: string;
@@ -109,8 +115,8 @@ export default function GeneralPanel() {
     </div>
   );
 
-  const themeValue = (draft.theme as keyof typeof THEME_OPTIONS | undefined) ?? "system";
-  const themeLabel = themeValue === "system" ? "System" : themeValue === "light" ? "Light" : "Dark";
+  const themeValue = (draft.theme as (typeof THEME_OPTIONS)[keyof typeof THEME_OPTIONS] | undefined) ?? "system";
+  const themeLabel = THEME_LABELS[themeValue];
   const languages = Object.entries(LANG_LABELS) as [keyof typeof LANG_LABELS, string][];
   const languageValue = (draft.lang as string) ?? "en";
 
