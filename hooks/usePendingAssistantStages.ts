@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AppMode } from "@/lib/welcomeMessages";
+import type { AssistantRetrySnapshot } from "@/lib/state/chatStore";
 import { loadAnalyzingPhrases } from "@/lib/ui/analyzingPhrases";
 import { parsePendingIntent, type PendingIntent } from "@/lib/chat/pendingIntent";
 
@@ -16,6 +17,7 @@ export type PendingAssistantExtras = {
   followUps?: unknown;
   citations?: unknown;
   error?: string | null;
+  retrySnapshot?: AssistantRetrySnapshot | null;
 };
 
 type TypewriterState = {

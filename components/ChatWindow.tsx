@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
+import ChatErrorBubble from "@/components/chat/ChatErrorBubble";
 import { useChatStore } from "@/lib/state/chatStore";
 import { ChatInput } from "@/components/ChatInput";
 import { persistIfTemp } from "@/lib/chat/persist";
@@ -13,14 +14,18 @@ import type { AppMode } from "@/lib/welcomeMessages";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
 import WelcomeCard from "@/components/chat/WelcomeCard";
 import { useUIStore } from "@/components/hooks/useUIStore";
+import type { ChatMessage, AssistantRetrySnapshot } from "@/lib/state/chatStore";
+import { newIdempotencyKey } from "@/lib/net/idempotency";
+import { retryFetch } from "@/lib/net/retry";
+import { normalizeNetworkError } from "@/lib/net/errors";
 
 const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== "0";
 
-function MessageRow({ m }: { m: { id: string; role: string; content: string } }) {
+function MessageRow({ m }: { m: ChatMessage }) {
   return (
     <div className="p-2 space-y-1">
       <div className="text-xs uppercase tracking-wide text-slate-500">{m.role}</div>
-      <ChatMarkdown content={m.content} />
+      <ChatMarkdown content={m.content ?? ""} />
     </div>
   );
 }
@@ -28,6 +33,7 @@ function MessageRow({ m }: { m: { id: string; role: string; content: string } })
 export function ChatWindow() {
   const messages = useChatStore(s => s.currentId ? s.threads[s.currentId]?.messages ?? [] : []);
   const addMessage = useChatStore(s => s.addMessage);
+  const removeMessage = useChatStore(s => s.removeMessage);
   const currentId = useChatStore(s => s.currentId);
   const [results, setResults] = useState<any[]>([]);
   const prefs = usePrefs();
@@ -118,10 +124,15 @@ export function ChatWindow() {
   }, []);
 
   const handlePendingFinalize = useCallback(
-    (messageId: string, finalContent: string) => {
+    (messageId: string, finalContent: string, extras?: { error?: string | null; retrySnapshot?: AssistantRetrySnapshot | null }) => {
       setPendingMessage(prev => (prev && prev.id === messageId ? { ...prev, content: finalContent } : prev));
-      addMessage({ role: "assistant", content: finalContent });
-      setPendingMessage(null);
+      if (extras?.error && extras.retrySnapshot) {
+        setPendingMessage(prev => (prev && prev.id === messageId ? null : prev));
+        addMessage({ id: messageId, role: "assistant", content: "", error: true, retrySnapshot: extras.retrySnapshot });
+        return;
+      }
+      addMessage({ id: messageId, role: "assistant", content: finalContent });
+      setPendingMessage(prev => (prev && prev.id === messageId ? null : prev));
     },
     [addMessage],
   );
@@ -146,7 +157,6 @@ export function ChatWindow() {
 
     const lang = langOverride ?? prefs.lang;
 
-    // after sending user message, persist thread if needed
     await persistIfTemp();
     const research = getResearchFlagFromUrl();
     const pendingId =
@@ -156,76 +166,83 @@ export function ChatWindow() {
     setPendingMessage({ id: pendingId, content: "" });
     beginPendingAssistant(pendingId, { mode: modeChoice, research, text: content });
     let counted = false;
+
+    const { useMemoryStore } = await import("@/lib/memory/useMemoryStore");
+    const includeFlags = {
+      memories: useMemoryStore.getState().enabled,
+      chatHistory: prefs.referenceChatHistory,
+      recordHistory: prefs.referenceRecordHistory,
+    };
+    const personalization = {
+      enabled: prefs.personalizationEnabled,
+      personality: prefs.personality,
+      customInstructions: prefs.customInstructions,
+      nickname: prefs.nickname,
+      occupation: prefs.occupation,
+      about: prefs.about,
+    };
+
+    const route = "/api/chat";
+    const idemKey = newIdempotencyKey();
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "x-user-lang": lang,
+      "x-idempotency-key": idemKey,
+    };
+
+    const reqBody = locationToken
+      ? {
+          query: content,
+          locationToken,
+          research,
+          lang,
+          activeThreadId: currentId,
+          threadId: currentId,
+          mode: modeChoice,
+          personalization,
+          include: includeFlags,
+          idemKey,
+        }
+      : {
+          text: content,
+          lang,
+          activeThreadId: currentId,
+          threadId: currentId,
+          mode: modeChoice,
+          researchOn: research,
+          personalization,
+          include: includeFlags,
+          idemKey,
+        };
+
+    const snapshot: AssistantRetrySnapshot = {
+      route,
+      req: reqBody,
+      headers,
+      prompt: content,
+      research,
+      mode: modeChoice,
+    };
+
     try {
-      let replyText = "";
-      const { useMemoryStore } = await import("@/lib/memory/useMemoryStore");
-      const includeFlags = {
-        memories: useMemoryStore.getState().enabled,
-        chatHistory: prefs.referenceChatHistory,
-        recordHistory: prefs.referenceRecordHistory,
-      };
-      const personalization = {
-        enabled: prefs.personalizationEnabled,
-        personality: prefs.personality,
-        customInstructions: prefs.customInstructions,
-        nickname: prefs.nickname,
-        occupation: prefs.occupation,
-        about: prefs.about,
-      };
-      if (locationToken) {
-        const res = await fetch("/api/chat", {
+      const res = await retryFetch(
+        route,
+        {
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-user-lang": lang },
-          body: JSON.stringify({
-            query: content,
-            locationToken,
-            research,
-            lang,
-            activeThreadId: currentId,
-            threadId: currentId,
-            mode: modeChoice,
-            personalization,
-            include: includeFlags,
-          }),
-        });
-        if (!res.ok) {
-          throw new Error(`Chat API error ${res.status}`);
-        }
-        const data = await res.json();
-        setResults(data.results || []);
-        replyText =
-          typeof data.text === "string"
-            ? data.text
-            : typeof data.reply === "string"
-            ? data.reply
-            : "";
-      } else {
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-user-lang": lang },
-          body: JSON.stringify({
-            text: content,
-            lang,
-            activeThreadId: currentId,
-            threadId: currentId,
-            mode: modeChoice,
-            researchOn: research,
-            personalization,
-            include: includeFlags,
-          }),
-        });
-        if (!res.ok) {
-          throw new Error(`Chat API error ${res.status}`);
-        }
-        const data = await res.json();
-        setResults([]);
-        replyText =
-          typeof data.text === "string"
-            ? data.text
-            : typeof data.reply === "string"
-            ? data.reply
-            : "";
-      }
+          headers,
+          body: JSON.stringify(reqBody),
+        },
+        { retries: 2 },
+      );
+      const data = await res.json();
+      const resultsList = Array.isArray(data.results) ? data.results : [];
+      setResults(resultsList);
+      const replyText =
+        typeof data.text === "string"
+          ? data.text
+          : typeof data.reply === "string"
+          ? data.reply
+          : "";
 
       markPendingAssistantStreaming(pendingId);
       if (replyText) {
@@ -235,10 +252,9 @@ export function ChatWindow() {
       counted = true;
     } catch (error) {
       console.error(error);
-      const fallback = "We couldn't complete that. Please try again.";
+      const normalized = normalizeNetworkError(error);
       markPendingAssistantStreaming(pendingId);
-      enqueuePendingAssistant(pendingId, fallback);
-      finishPendingAssistant(pendingId, fallback);
+      finishPendingAssistant(pendingId, "", { error: normalized.userMessage, retrySnapshot: snapshot });
       setResults([]);
     } finally {
       if (counted) {
@@ -246,6 +262,68 @@ export function ChatWindow() {
       }
     }
   };
+
+  const retryTurn = useCallback(
+    async (message: ChatMessage) => {
+      if (!message.retrySnapshot) return;
+      const snapshot = message.retrySnapshot;
+      removeMessage(message.id);
+      setPendingMessage({ id: message.id, content: "" });
+      beginPendingAssistant(message.id, {
+        mode: snapshot.mode ?? modeChoice,
+        research: snapshot.research,
+        text: snapshot.prompt,
+      });
+      let counted = false;
+      try {
+        const res = await retryFetch(
+          snapshot.route,
+          {
+            method: "POST",
+            headers: snapshot.headers,
+            body: JSON.stringify(snapshot.req),
+          },
+          { retries: 2 },
+        );
+        const data = await res.json();
+        const resultsList = Array.isArray(data.results) ? data.results : [];
+        setResults(resultsList);
+        const replyText =
+          typeof data.text === "string"
+            ? data.text
+            : typeof data.reply === "string"
+            ? data.reply
+            : "";
+        markPendingAssistantStreaming(message.id);
+        if (replyText) {
+          enqueuePendingAssistant(message.id, replyText);
+        }
+        finishPendingAssistant(message.id, replyText);
+        counted = true;
+      } catch (error) {
+        console.error(error);
+        const normalized = normalizeNetworkError(error);
+        markPendingAssistantStreaming(message.id);
+        finishPendingAssistant(message.id, "", { error: normalized.userMessage, retrySnapshot: snapshot });
+        setResults([]);
+      } finally {
+        if (counted) {
+          prefs.incUsage();
+        }
+      }
+    },
+    [
+      beginPendingAssistant,
+      enqueuePendingAssistant,
+      finishPendingAssistant,
+      markPendingAssistantStreaming,
+      modeChoice,
+      prefs,
+      removeMessage,
+      setPendingMessage,
+      setResults,
+    ],
+  );
 
   return (
     <div className="flex h-full flex-col" dir={prefs.dir}>
@@ -263,11 +341,23 @@ export function ChatWindow() {
               <WelcomeCard />
             </div>
           ) : null}
-          {messages.map(m => (
-            <div key={m.id} className="space-y-2">
-              <MessageRow m={m} />
-            </div>
-          ))}
+          {messages.map(m => {
+            if (m.role === "assistant" && m.error && m.retrySnapshot) {
+              return (
+                <div key={m.id} className="my-2 flex justify-start">
+                  <ChatErrorBubble
+                    compact={m.retrySnapshot.compact}
+                    onRetry={() => retryTurn(m)}
+                  />
+                </div>
+              );
+            }
+            return (
+              <div key={m.id} className="space-y-2">
+                <MessageRow m={m} />
+              </div>
+            );
+          })}
           {pendingMessage ? (
             <div className="space-y-2">
               {pendingAssistantState && pendingAssistantState.id === pendingMessage.id ? (
