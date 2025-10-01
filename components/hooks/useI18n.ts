@@ -35,6 +35,10 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "ui.composer.upload": "Upload",
     "ui.composer.send_aria": "Send message",
     "ui.composer.upload_aria": "Upload a file",
+    "Network error": "Network error",
+    Retry: "Retry",
+    "Retrying…": "Retrying…",
+    "We’ll try again using your last request.": "We’ll try again using your last request.",
     "ui.nav.directory": "Directory",
     "ui.nav.medical_profile": "Medical profile",
     "ui.nav.timeline": "Timeline",
@@ -330,6 +334,10 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "ui.composer.upload": "अपलोड",
     "ui.composer.send_aria": "संदेश भेजें",
     "ui.composer.upload_aria": "फ़ाइल अपलोड करें",
+    "Network error": "नेटवर्क त्रुटि",
+    Retry: "फिर से कोशिश करें",
+    "Retrying…": "पुनः प्रयास हो रहा है…",
+    "We’ll try again using your last request.": "हम आपके पिछले अनुरोध का उपयोग करके फिर से प्रयास करेंगे।",
     "ui.nav.directory": "निर्देशिका",
     "ui.nav.medical_profile": "मेडिकल प्रोफ़ाइल",
     "ui.nav.timeline": "टाइमलाइन",
@@ -625,6 +633,10 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "ui.composer.upload": "رفع",
     "ui.composer.send_aria": "إرسال رسالة",
     "ui.composer.upload_aria": "رفع ملف",
+    "Network error": "خطأ في الشبكة",
+    Retry: "إعادة المحاولة",
+    "Retrying…": "جاري إعادة المحاولة…",
+    "We’ll try again using your last request.": "سنحاول مرة أخرى باستخدام طلبك الأخير.",
     "ui.nav.directory": "الدليل",
     "ui.nav.medical_profile": "الملف الطبي",
     "ui.nav.timeline": "الجدول الزمني",
@@ -919,6 +931,10 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "ui.composer.upload": "Carica",
     "ui.composer.send_aria": "Invia messaggio",
     "ui.composer.upload_aria": "Carica un file",
+    "Network error": "Errore di rete",
+    Retry: "Riprova",
+    "Retrying…": "Nuovo tentativo…",
+    "We’ll try again using your last request.": "Riproveremo usando la tua ultima richiesta.",
     "ui.nav.directory": "Directory",
     "ui.nav.medical_profile": "Profilo medico",
     "ui.nav.timeline": "Cronologia",
@@ -1213,6 +1229,10 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "ui.composer.upload": "上传",
     "ui.composer.send_aria": "发送消息",
     "ui.composer.upload_aria": "上传文件",
+    "Network error": "网络错误",
+    Retry: "重试",
+    "Retrying…": "正在重试…",
+    "We’ll try again using your last request.": "我们会使用你上一次的请求再试一次。",
     "ui.nav.directory": "目录",
     "ui.nav.medical_profile": "医疗档案",
     "ui.nav.timeline": "时间线",
@@ -1501,6 +1521,10 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "ui.composer.upload": "Subir",
     "ui.composer.send_aria": "Enviar mensaje",
     "ui.composer.upload_aria": "Subir un archivo",
+    "Network error": "Error de red",
+    Retry: "Reintentar",
+    "Retrying…": "Reintentando…",
+    "We’ll try again using your last request.": "Volveremos a intentarlo usando tu última solicitud.",
     "ui.nav.directory": "Directorio",
     "ui.nav.medical_profile": "Perfil médico",
     "ui.nav.timeline": "Cronología",
@@ -1791,6 +1815,10 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "Custom…": "Personalizado…",
   },
   fr: {
+    "Network error": "Erreur réseau",
+    Retry: "Réessayer",
+    "Retrying…": "Nouvelle tentative…",
+    "We’ll try again using your last request.": "Nous réessaierons en utilisant votre dernière requête.",
     "Type to add (Enter)…": "Tapez pour ajouter (Entrée)…",
     "Risk recomputed": "Risque recalculé",
     "Couldn’t load profile. Retrying in background…":
@@ -1815,6 +1843,51 @@ const DICTIONARY: Record<string, Record<string, string>> = (() => {
 })();
 
 const MISSING_KEY_LOG: Set<string> = new Set();
+
+function resolveImmediateLang(): string {
+  const attr =
+    typeof document !== "undefined" ? document.documentElement.getAttribute("lang") : null;
+  const normalized = typeof attr === "string" ? attr.toLowerCase() : null;
+  if (normalized) {
+    if (DICTIONARY[normalized]) {
+      return normalized;
+    }
+    const base = normalized.split("-")[0];
+    if (DICTIONARY[base]) {
+      return base;
+    }
+  }
+
+  const navLang =
+    typeof navigator !== "undefined" && typeof navigator.language === "string"
+      ? navigator.language.toLowerCase()
+      : null;
+  if (navLang) {
+    if (DICTIONARY[navLang]) {
+      return navLang;
+    }
+    const base = navLang.split("-")[0];
+    if (DICTIONARY[base]) {
+      return base;
+    }
+  }
+
+  return "en";
+}
+
+function translateInstant(key: string, lang: string): string {
+  const dict = DICTIONARY[lang] ?? DICTIONARY.en ?? {};
+  const direct = dict[key];
+  if (direct !== undefined) {
+    return direct;
+  }
+  const fallback = DICTIONARY.en?.[key];
+  return fallback ?? key;
+}
+
+export function t(key: string): string {
+  return translateInstant(key, resolveImmediateLang());
+}
 
 export function useT() {
   const { lang } = usePrefs();
