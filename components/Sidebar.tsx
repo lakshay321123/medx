@@ -1,5 +1,6 @@
 "use client";
 import { Search, Settings } from "lucide-react";
+import { IconNewChat } from "@/components/icons/SidebarIcons";
 import Tabs from "./sidebar/Tabs";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -67,9 +68,18 @@ export default function Sidebar() {
         type="button"
         aria-label={t("threads.systemTitles.new_chat")}
         onClick={handleNewChat}
-        className="w-full rounded-full bg-blue-600 px-4 py-2.5 text-left text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500"
+        className="flex w-full items-center gap-2 rounded-full bg-blue-600 px-4 py-2.5 text-left text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500"
       >
-        + {t("threads.systemTitles.new_chat")}
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15">
+          <IconNewChat
+            size={18}
+            strokeWidth={2}
+            aria-hidden="true"
+            title={t("threads.systemTitles.new_chat")}
+            className="text-white"
+          />
+        </span>
+        <span>{t("threads.systemTitles.new_chat")}</span>
       </button>
 
       <div>
