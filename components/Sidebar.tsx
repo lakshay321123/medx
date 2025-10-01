@@ -201,7 +201,7 @@ function SidebarContentBody({
         paddingBottomClass,
       )}
     >
-      <div className="mb-2">
+      <div className="mt-2 mb-2 md:mt-0">
         <button
           type="button"
           onClick={handleNewChat}
