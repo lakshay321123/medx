@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { profileChatSystem } from '@/lib/profileChatSystem';
-import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from '@/lib/prompt/system';
+import { languageDirectiveFor, personaFromPrefs, SYSTEM_DEFAULT_LANG } from '@/lib/prompt/system';
 import { extractAll, canonicalizeInputs } from '@/lib/medical/engine/extract';
 import { BRAND_NAME } from "@/lib/brand";
 import { computeAll } from '@/lib/medical/engine/computeAll';
@@ -65,6 +65,8 @@ export async function POST(req: NextRequest) {
   const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
   const lang = langTag.toLowerCase();
   const langDirective = languageDirectiveFor(lang);
+  const persona = personaFromPrefs(body?.personalization);
+  const sysPrelude = [langDirective, persona].filter(Boolean).join('\n\n');
 
   const research =
     qp === '1' || qp === 'true' || body?.research === true || body?.research === 'true';
@@ -245,7 +247,7 @@ export async function POST(req: NextRequest) {
   const systemMessages = finalMessages.filter((m: any) => m.role === 'system');
   const nonSystemMessages = finalMessages.filter((m: any) => m.role !== 'system');
   const combinedSystem = systemMessages.map((m: any) => m.content).filter(Boolean).join('\n\n');
-  const finalSystem = [combinedSystem, langDirective].filter(Boolean).join('\n\n');
+  const finalSystem = [combinedSystem, sysPrelude].filter(Boolean).join('\n\n');
   finalMessages = finalSystem ? [{ role: 'system', content: finalSystem }, ...nonSystemMessages] : nonSystemMessages;
 
   const upstream = await fetch(url, {

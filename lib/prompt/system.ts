@@ -1,4 +1,5 @@
 import { BRAND_NAME } from "@/lib/brand";
+import type { PersonalizationPayload } from "@/components/providers/PreferencesProvider";
 
 export const SYSTEM_DEFAULT_LANG = "en";
 const DEFAULT_LOCALE = "en-IN";
@@ -21,67 +22,24 @@ const LOCALE_MAP: Record<string, string> = {
   it: "it-IT",
 };
 
-const LANGUAGE_DIRECTIVES: Record<string, string> = {
-  ar: "أجب بالعربية. إذا كتب المستخدم بلغة أخرى، فاستمر في الرد بالعربية ما لم يطلب غير ذلك صراحةً.",
-  es: "Responde en español. Si el usuario escribe en otro idioma, responde en español a menos que lo pida explícitamente.",
-  fr: "Répondez en français. Si l’utilisateur écrit dans une autre langue, répondez tout de même en français sauf s’il le demande explicitement.",
-  hi: "उत्तर हिंदी में दें. यदि उपयोगकर्ता किसी अन्य भाषा में लिखता है, तब भी हिंदी में उत्तर दें जब तक कि वह स्पष्ट रूप से कुछ और न कहे.",
-  it: "Rispondi in italiano. Se l’utente scrive in un’altra lingua, rispondi comunque in italiano a meno che non lo richieda esplicitamente.",
+export const personaFromPrefs = (
+  p?: Partial<PersonalizationPayload>,
+) => {
+  if (!p || !p.enabled) return "";
+  const tone = p.personality ? `Tone: ${p.personality}.` : "";
+  const custom = p.customInstructions?.trim()
+    ? `Custom instructions: ${p.customInstructions.trim()}`
+    : "";
+  const who = [
+    p.nickname && `Call the user “${p.nickname}”`,
+    p.occupation && `User occupation: ${p.occupation}`,
+    p.about && `About user: ${p.about}`,
+  ]
+    .filter(Boolean)
+    .join(". ");
+  const whoLine = who ? `Context: ${who}.` : "";
+  return [tone, custom, whoLine].filter(Boolean).join("\n");
 };
-
-export function personaFromPrefs(p?: {
-  enabled?: boolean;
-  personality?: string;
-  customInstructions?: string;
-  nickname?: string;
-  occupation?: string;
-  about?: string;
-}) {
-  if (!p?.enabled) return undefined;
-
-  const lines: string[] = [];
-  if (p.nickname) lines.push(`Call the user “${p.nickname}”.`);
-  if (p.occupation) lines.push(`The user’s occupation is: ${p.occupation}.`);
-  if (p.about) lines.push(`Keep in mind about the user: ${p.about}.`);
-
-  const styleMap: Record<string, string[]> = {
-    nerd: [
-      "Be unabashedly precise and cite definitions plainly.",
-      "Explain reasoning stepwise but concise; avoid fluff.",
-    ],
-    chatty: [
-      "Use friendly, conversational tone with short sentences.",
-      "Keep answers compact; don’t ramble.",
-    ],
-    witty: [
-      "Keep it crisp with a light, tasteful wit; never snark.",
-      "Avoid jokes that obscure clarity.",
-    ],
-    straight: [
-      "Be direct and outcome-oriented; no preamble.",
-      "Bullets over paragraphs when it improves clarity.",
-    ],
-    encouraging: [
-      "Be positive, supportive, and confidence-building.",
-      "Offer next steps and gentle nudges.",
-    ],
-    genz: [
-      "Use modern, casual phrasing without slang overload.",
-      "Stay clear and respectful; no memes unless asked.",
-    ],
-  };
-  const style = p.personality && styleMap[p.personality] ? styleMap[p.personality] : [];
-
-  const custom = p.customInstructions?.trim();
-  const persona = [
-    `You are ${BRAND_NAME}, a medical assistant and health copilot.`,
-    ...style.map((s) => `- ${s}`),
-    ...(custom ? [custom] : []),
-    ...(lines.length ? ["", ...lines] : []),
-  ].join("\n");
-
-  return persona;
-}
 
 function normalizeLang(input?: string): string {
   if (!input) return SYSTEM_DEFAULT_LANG;
@@ -100,14 +58,10 @@ export function resolveLocaleForLang(lang?: string): string {
   return LOCALE_MAP[code] ?? DEFAULT_LOCALE;
 }
 
-export function languageDirectiveFor(lang?: string): string {
+export const languageDirectiveFor = (lang?: string): string => {
   const code = normalizeLang(lang);
-  if (LANGUAGE_DIRECTIVES[code]) {
-    return LANGUAGE_DIRECTIVES[code];
-  }
-  const languageName = languageNameFor(code);
-  return `Answer in ${languageName}. If the user writes in another language, still respond in ${languageName} unless they explicitly request otherwise.`;
-}
+  return `Always answer in ${code}. If the user writes in another language, still answer in ${code}.`;
+};
 
 type BuildSystemPromptOptions = {
   persona?: string;

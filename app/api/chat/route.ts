@@ -108,14 +108,7 @@ export async function POST(req: Request) {
   const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
   const lang = langTag.toLowerCase();
   const languageName = languageNameFor(lang);
-  const persona = personaFromPrefs({
-    enabled: personalization?.enabled,
-    personality: personalization?.personality,
-    customInstructions: personalization?.customInstructions,
-    nickname: personalization?.nickname,
-    occupation: personalization?.occupation,
-    about: personalization?.about,
-  });
+  const persona = personaFromPrefs(personalization);
   let conversationId = headers.get("x-conversation-id");
   let isNewChat = headers.get("x-new-chat") === "true";
   if (!conversationId) {

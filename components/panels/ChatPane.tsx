@@ -17,7 +17,7 @@ import { useActiveContext } from '@/lib/context';
 import { isFollowUp } from '@/lib/followup';
 import { detectFollowupIntent } from '@/lib/intents';
 import { BRAND_NAME } from "@/lib/brand";
-import { usePrefs } from "@/components/providers/PreferencesProvider";
+import { usePrefs, buildPersonalizationPayload } from "@/components/providers/PreferencesProvider";
 import { useT } from "@/components/hooks/useI18n";
 import SuggestionChips from "@/components/chat/SuggestionChips";
 import SuggestBar from "@/components/suggest/SuggestBar";
@@ -690,6 +690,19 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const { country } = useCountry();
   const prefs = usePrefs();
+  const personalization = useMemo(
+    () => buildPersonalizationPayload(prefs),
+    [
+      prefs.personalizationEnabled,
+      prefs.personality,
+      prefs.customInstructions,
+      prefs.nickname,
+      prefs.occupation,
+      prefs.about,
+    ],
+  );
+  const lang = prefs.lang;
+  const allowHistory = prefs.allowHistory !== false;
   const t = useT();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -723,6 +736,32 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const researchModeRef = useRef<boolean>(false);
   const queueAbortRef = useRef<AbortController | null>(null);
   const { filters } = useResearchFilters();
+  const recordShortMem = useCallback(
+    (threadId: string | null | undefined, role: "user" | "assistant", text: string) => {
+      if (!allowHistory || !threadId) return;
+      const trimmed = text?.trim();
+      if (!trimmed) return;
+      try {
+        pushFullMem(threadId, role, trimmed);
+      } catch {
+        // ignore
+      }
+    },
+    [allowHistory],
+  );
+  const recordStructured = useCallback(
+    (threadId: string | null | undefined, text: string) => {
+      if (!allowHistory || !threadId) return;
+      const trimmed = text?.trim();
+      if (!trimmed) return;
+      try {
+        maybeIndexStructured(threadId, trimmed);
+      } catch {
+        // ignore
+      }
+    },
+    [allowHistory],
+  );
 
   const handlePendingContentUpdate = useCallback(
     (messageId: string, text: string) => {
@@ -2107,10 +2146,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     const visualEcho = opts.visualEcho !== false;
     const clientRequestId = opts.clientRequestId || crypto.randomUUID();
     if (!opts.skipUserMemory) {
-      if (threadId) pushFullMem(threadId, "user", messageText);
-      if (stableThreadId) {
-        try { pushFullMem(stableThreadId, "user", messageText); } catch {}
-      }
+      recordShortMem(threadId, "user", messageText);
+      recordShortMem(stableThreadId, "user", messageText);
     }
 
     // Social intent handling (strict + low-noise)
@@ -2198,13 +2235,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       markPendingAssistantStreaming(pendingId);
       enqueuePendingAssistant(pendingId, maybe.ask);
       finishPendingAssistant(pendingId, maybe.ask);
-      if (threadId && maybe.ask.trim()) {
-        pushFullMem(threadId, "assistant", maybe.ask);
-        maybeIndexStructured(threadId, maybe.ask);
-      }
-      if (stableThreadId) {
-        try { pushFullMem(stableThreadId, "assistant", maybe.ask); } catch {}
-      }
+      recordShortMem(threadId, "assistant", maybe.ask);
+      recordStructured(threadId, maybe.ask);
+      recordShortMem(stableThreadId, "assistant", maybe.ask);
       setBusy(false);
       setThinkingStartedAt(null);
       return; // wait for user Yes/No
@@ -2224,8 +2257,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     abortRef.current = ctrl;
     let acc = '';
     try {
-      const fullContext = buildFullContext(stableThreadId);
-      const contextBlock = fullContext ? `\n\nCONTEXT (recent conversation):\n${fullContext}` : "";
+      const fullContext = allowHistory && stableThreadId ? buildFullContext(stableThreadId) : "";
+      const contextBlock = allowHistory && fullContext ? `\n\nCONTEXT (recent conversation):\n${fullContext}` : "";
       if (isProfileThread) {
         const isLast = /last (blood )?(report|labs?)/i.test(messageText);
         const isChanges = /(all|my) (reports|labs?).*(changes|trend|improv|wors)/i.test(messageText);
@@ -2247,13 +2280,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               markPendingAssistantStreaming(pendingId);
               enqueuePendingAssistant(pendingId, summary);
               finishPendingAssistant(pendingId, summary);
-              if (threadId && summary.trim()) {
-                pushFullMem(threadId, 'assistant', summary);
-                maybeIndexStructured(threadId, summary);
-              }
-              if (stableThreadId) {
-                try { pushFullMem(stableThreadId, 'assistant', summary); } catch {}
-              }
+              recordShortMem(threadId, 'assistant', summary);
+              recordStructured(threadId, summary);
+              recordShortMem(stableThreadId, 'assistant', summary);
               setBusy(false);
               setThinkingStartedAt(null);
               return;
@@ -2262,23 +2291,27 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         }
 
     const history = opts.historyOverride ?? messages;
+    const baseHistory = allowHistory ? history : [];
     const thread = [
-      ...history
+      ...baseHistory
         .filter(m => !m.pending)
         .map(m => ({ role: m.role, content: (m as any).content || '' })),
-          { role: 'user', content: `${messageText}${contextBlock}` }
-        ];
+      { role: 'user', content: `${messageText}${contextBlock}` },
+    ];
 
         const endpoint = '/api/aidoc/chat';
         const res = await fetch(endpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-user-lang': lang },
           body: JSON.stringify({
             mode: mode === 'doctor' ? 'doctor' : 'patient',
             messages: thread,
             threadId,
             context,
-            clientRequestId
+            clientRequestId,
+            lang,
+            personalization,
+            allowHistory,
           }),
           signal: ctrl.signal
         });
@@ -2320,17 +2353,14 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         }
         const { main, followUps } = splitFollowUps(acc);
         finishPendingAssistant(pendingId, main, { followUps });
-        if (threadId && main && main.trim()) {
-          pushFullMem(threadId, "assistant", main);
-          maybeIndexStructured(threadId, main);
-        }
-        if (stableThreadId) {
-          try { pushFullMem(stableThreadId, "assistant", main); } catch {}
-        }
+        recordShortMem(threadId, "assistant", main);
+        recordStructured(threadId, main);
+        recordShortMem(stableThreadId, "assistant", main);
         return;
       }
       if (therapyMode) {
-        const thread = [...messages, { role: 'user', content: text }]
+        const history = allowHistory ? messages : [];
+        const thread = [...history, { role: 'user', content: text }]
           .map(m => ({
             role: m.role === 'assistant' ? 'assistant' : (m.role === 'system' ? 'system' : 'user'),
             content: String((m as any).content ?? (m as any).text ?? '').trim()
@@ -2341,59 +2371,43 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           j = await safeJson(
             fetch('/api/therapy', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ mode: 'therapy', messages: thread })
+              headers: { 'Content-Type': 'application/json', 'x-user-lang': lang },
+              body: JSON.stringify({ mode: 'therapy', messages: thread, personalization, lang, allowHistory })
             })
           );
         } catch (e: any) {
           const msg = String(e?.message || 'HTTP error');
           const content = `⚠ ${msg}`;
           finishPendingAssistant(pendingId, content, { error: msg });
-          if (threadId && content.trim()) {
-            pushFullMem(threadId, "assistant", content);
-            maybeIndexStructured(threadId, content);
-          }
-        if (stableThreadId) {
-          try { pushFullMem(stableThreadId, "assistant", content); } catch {}
+          recordShortMem(threadId, "assistant", content);
+          recordStructured(threadId, content);
+          recordShortMem(stableThreadId, "assistant", content);
+          opts.onError?.();
+          return;
         }
-        opts.onError?.();
-        return;
-      }
 
         if (j?.completion) {
           const content = j.completion;
           markPendingAssistantStreaming(pendingId);
           enqueuePendingAssistant(pendingId, content);
           finishPendingAssistant(pendingId, content);
-          if (threadId && content.trim()) {
-            pushFullMem(threadId, "assistant", content);
-            maybeIndexStructured(threadId, content);
-          }
-          if (stableThreadId) {
-            try { pushFullMem(stableThreadId, "assistant", content); } catch {}
-          }
+          recordShortMem(threadId, "assistant", content);
+          recordStructured(threadId, content);
+          recordShortMem(stableThreadId, "assistant", content);
         } else if (j?.starter) {
           const content = j.starter;
           markPendingAssistantStreaming(pendingId);
           enqueuePendingAssistant(pendingId, content);
           finishPendingAssistant(pendingId, content);
-          if (threadId && content.trim()) {
-            pushFullMem(threadId, "assistant", content);
-            maybeIndexStructured(threadId, content);
-          }
-          if (stableThreadId) {
-            try { pushFullMem(stableThreadId, "assistant", content); } catch {}
-          }
+          recordShortMem(threadId, "assistant", content);
+          recordStructured(threadId, content);
+          recordShortMem(stableThreadId, "assistant", content);
         } else {
           const content = '⚠ Empty response from server.';
           finishPendingAssistant(pendingId, content, { error: 'Empty response from server.' });
-          if (threadId && content.trim()) {
-            pushFullMem(threadId, "assistant", content);
-            maybeIndexStructured(threadId, content);
-          }
-          if (stableThreadId) {
-            try { pushFullMem(stableThreadId, "assistant", content); } catch {}
-          }
+          recordShortMem(threadId, "assistant", content);
+          recordStructured(threadId, content);
+          recordShortMem(stableThreadId, "assistant", content);
           opts.onError?.();
         }
         if (j?.wrapup) {
@@ -2401,13 +2415,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             ...prev,
             { id: uid(), role: 'assistant', kind: 'chat', content: j.wrapup, pending: false }
           ]);
-          if (threadId && j.wrapup.trim()) {
-            pushFullMem(threadId, 'assistant', j.wrapup);
-            maybeIndexStructured(threadId, j.wrapup);
-          }
-          if (stableThreadId) {
-            try { pushFullMem(stableThreadId, 'assistant', j.wrapup); } catch {}
-          }
+          recordShortMem(threadId, 'assistant', j.wrapup);
+          recordStructured(threadId, j.wrapup);
+          recordShortMem(stableThreadId, 'assistant', j.wrapup);
         }
         return;
       }
@@ -2425,19 +2435,15 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
       // Only show the "no context" warning if there is truly no stored conversation
       if (follow && !ctx && !(intent && ui.topic)) {
-        const hasAnyMemory = !!buildFullContext(stableThreadId);
+        const hasAnyMemory = allowHistory && stableThreadId ? !!buildFullContext(stableThreadId) : false;
         if (!hasAnyMemory) {
           const warn = "I don't have context from earlier in this session. Please reattach or restate it if you'd like me to use it.";
           markPendingAssistantStreaming(pendingId);
           enqueuePendingAssistant(pendingId, warn);
           finishPendingAssistant(pendingId, warn);
-          if (threadId && warn.trim()) {
-            pushFullMem(threadId, "assistant", warn);
-            maybeIndexStructured(threadId, warn);
-          }
-          if (stableThreadId) {
-            try { pushFullMem(stableThreadId, "assistant", warn); } catch {}
-          }
+          recordShortMem(threadId, "assistant", warn);
+          recordStructured(threadId, warn);
+          recordShortMem(stableThreadId, "assistant", warn);
           setBusy(false);
           setThinkingStartedAt(null);
           return;
@@ -2635,7 +2641,7 @@ ${systemCommon}` + baseSys;
           'Content-Type': 'application/json',
           'x-conversation-id': conversationId,
           'x-new-chat': messages.length === 0 ? 'true' : 'false',
-          'x-user-lang': prefs.lang
+          'x-user-lang': lang
         },
         body: JSON.stringify({
           mode: mode === 'doctor' ? 'doctor' : 'patient',
@@ -2644,7 +2650,9 @@ ${systemCommon}` + baseSys;
           context,
           clientRequestId,
           research: researchMode,
-          lang: prefs.lang
+          lang,
+          personalization,
+          allowHistory,
         }),
         signal: ctrl.signal
       });
@@ -2708,13 +2716,9 @@ ${systemCommon}` + baseSys;
           ));
         } catch {}
       }
-      if (threadId && main && main.trim()) {
-        pushFullMem(threadId, "assistant", main);
-        maybeIndexStructured(threadId, main);
-      }
-      if (stableThreadId) {
-        try { pushFullMem(stableThreadId, "assistant", main); } catch {}
-      }
+      recordShortMem(threadId, "assistant", main);
+      recordStructured(threadId, main);
+      recordShortMem(stableThreadId, "assistant", main);
       if (main.length > 400) {
         setFromChat({ id: pendingId, content: main });
         setUi(prev => ({ ...prev, contextFrom: 'Conversation summary' }));
@@ -2728,13 +2732,9 @@ ${systemCommon}` + baseSys;
       console.error(e);
       const content = `⚠️ ${String(e?.message || e)}`;
       finishPendingAssistant(pendingId, content, { error: String(e?.message || e) });
-      if (threadId && content.trim()) {
-        pushFullMem(threadId, 'assistant', content);
-        maybeIndexStructured(threadId, content);
-      }
-      if (stableThreadId) {
-        try { pushFullMem(stableThreadId, 'assistant', content); } catch {}
-      }
+      recordShortMem(threadId, 'assistant', content);
+      recordStructured(threadId, content);
+      recordShortMem(stableThreadId, 'assistant', content);
       opts.onError?.();
     } finally {
       setBusy(false);
@@ -3056,10 +3056,8 @@ ${systemCommon}` + baseSys;
           const nct = summarizeMatch[1].toUpperCase();
           setMessages(prev => [...prev, { id: uid(), role: 'user', kind: 'chat', content: trimmed, pending: false } as any]);
           setUserText('');
-          if (threadId) pushFullMem(threadId, 'user', trimmed);
-          if (stableThreadId) {
-            try { pushFullMem(stableThreadId, 'user', trimmed); } catch {}
-          }
+          recordShortMem(threadId, 'user', trimmed);
+          recordShortMem(stableThreadId, 'user', trimmed);
           setBusy(true);
           setThinkingStartedAt(Date.now());
           try {
@@ -3480,12 +3478,15 @@ ${systemCommon}` + baseSys;
       const text = (userText || '').trim() || lastUserMessageText || '';
       const r = await fetch('/api/ai-doc', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-user-lang': lang },
         body: JSON.stringify({
           threadId,
           message: text,
           profileIntent,
-          newProfile
+          newProfile,
+          lang,
+          personalization,
+          allowHistory,
         })
       });
       const data = await r.json();
