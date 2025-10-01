@@ -53,9 +53,9 @@ export default function AddressPicker({
   }, [q, lang]);
 
   return (
-    <div className="relative w-full min-w-0">
+    <div className="relative w-full min-w-0 sm:min-w-0 sm:max-w-full">
       <input
-        className="h-[34px] w-full rounded-[10px] border border-slate-200 bg-white/90 px-3 text-[12px] text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 md:h-10 md:rounded-[10px] md:px-3 md:text-[13px]"
+        className="h-[34px] w-full rounded-[10px] border border-slate-200 bg-white/90 px-3 text-[12px] text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 sm:overflow-hidden sm:text-ellipsis sm:whitespace-nowrap md:h-10 md:rounded-[10px] md:px-3 md:text-[13px]"
         placeholder={placeholder}
         value={q}
         onChange={(event) => setQ(event.target.value)}
