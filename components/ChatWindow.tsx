@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
-import { useChatStore } from "@/lib/state/chatStore";
+import { useChatStore, type ChatMessage } from "@/lib/state/chatStore";
 import { ChatInput } from "@/components/ChatInput";
 import { persistIfTemp } from "@/lib/chat/persist";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
@@ -13,10 +13,27 @@ import type { AppMode } from "@/lib/welcomeMessages";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
 import WelcomeCard from "@/components/chat/WelcomeCard";
 import { useUIStore } from "@/components/hooks/useUIStore";
+import ChatErrorBubble from "@/components/chat/ChatErrorBubble";
+import { newIdempotencyKey } from "@/lib/net/idempotency";
+import { retryFetch } from "@/lib/net/retry";
+import { normalizeNetworkError } from "@/lib/net/errors";
 
 const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== "0";
 
-function MessageRow({ m }: { m: { id: string; role: string; content: string } }) {
+type ApiRoute = "/api/chat" | "/api/therapy" | "/api/ai-doc";
+
+type AssistantRequestSnapshot = {
+  route: ApiRoute;
+  req: Record<string, unknown>;
+  headers: Record<string, string>;
+  meta: {
+    mode: AppMode;
+    research: boolean;
+    text: string;
+  };
+};
+
+function MessageRow({ m }: { m: ChatMessage }) {
   return (
     <div className="p-2 space-y-1">
       <div className="text-xs uppercase tracking-wide text-slate-500">{m.role}</div>
@@ -28,12 +45,17 @@ function MessageRow({ m }: { m: { id: string; role: string; content: string } })
 export function ChatWindow() {
   const messages = useChatStore(s => s.currentId ? s.threads[s.currentId]?.messages ?? [] : []);
   const addMessage = useChatStore(s => s.addMessage);
+  const removeMessage = useChatStore(s => s.removeMessage);
   const currentId = useChatStore(s => s.currentId);
   const [results, setResults] = useState<any[]>([]);
   const prefs = usePrefs();
   const chatRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
-  const [pendingMessage, setPendingMessage] = useState<{ id: string; content: string } | null>(null);
+  const [pendingMessage, setPendingMessage] = useState<{
+    id: string;
+    content: string;
+    snapshot: AssistantRequestSnapshot | null;
+  } | null>(null);
   const [modeChoice, setModeChoice] = useState<AppMode>('wellness');
   const showWelcomeCard = messages.length === 0 && results.length === 0 && !pendingMessage;
   const hasScrollableContent =
@@ -120,7 +142,7 @@ export function ChatWindow() {
   const handlePendingFinalize = useCallback(
     (messageId: string, finalContent: string) => {
       setPendingMessage(prev => (prev && prev.id === messageId ? { ...prev, content: finalContent } : prev));
-      addMessage({ role: "assistant", content: finalContent });
+      addMessage({ id: messageId, role: "assistant", content: finalContent });
       setPendingMessage(null);
     },
     [addMessage],
@@ -132,11 +154,35 @@ export function ChatWindow() {
     markStreaming: markPendingAssistantStreaming,
     enqueue: enqueuePendingAssistant,
     finish: finishPendingAssistant,
+    cancel: cancelPendingAssistant,
   } = usePendingAssistantStages({
     enabled: CHAT_UX_V2_ENABLED,
     onContentUpdate: handlePendingContentUpdate,
     onFinalize: handlePendingFinalize,
   });
+
+  const runAssistantRequest = useCallback(async (snapshot: AssistantRequestSnapshot) => {
+    const response = await retryFetch(snapshot.route, {
+      method: "POST",
+      headers: snapshot.headers,
+      body: JSON.stringify(snapshot.req),
+    }, { retries: 2 });
+
+    if (!response.ok) {
+      throw new Error("request_failed");
+    }
+
+    const data = await response.json();
+    const replyText =
+      typeof data.text === "string"
+        ? data.text
+        : typeof data.reply === "string"
+        ? data.reply
+        : "";
+    const results = Array.isArray(data.results) ? data.results : [];
+
+    return { replyText, results } as const;
+  }, []);
 
   const handleSend = async (content: string, locationToken?: string, langOverride?: string) => {
     if (!prefs.canSend()) {
@@ -146,87 +192,78 @@ export function ChatWindow() {
 
     const lang = langOverride ?? prefs.lang;
 
-    // after sending user message, persist thread if needed
     await persistIfTemp();
     const research = getResearchFlagFromUrl();
     const pendingId =
       typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
         ? crypto.randomUUID()
         : `pending-${Date.now()}`;
-    setPendingMessage({ id: pendingId, content: "" });
-    beginPendingAssistant(pendingId, { mode: modeChoice, research, text: content });
+
+    const { useMemoryStore } = await import("@/lib/memory/useMemoryStore");
+    const includeFlags = {
+      memories: useMemoryStore.getState().enabled,
+      chatHistory: prefs.referenceChatHistory,
+      recordHistory: prefs.referenceRecordHistory,
+    };
+    const personalization = {
+      enabled: prefs.personalizationEnabled,
+      personality: prefs.personality,
+      customInstructions: prefs.customInstructions,
+      nickname: prefs.nickname,
+      occupation: prefs.occupation,
+      about: prefs.about,
+    };
+
+    const idem = newIdempotencyKey();
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "x-user-lang": lang,
+      "x-idempotency-key": idem,
+    };
+
+    const baseBody = locationToken
+      ? {
+          query: content,
+          locationToken,
+          research,
+          lang,
+          activeThreadId: currentId,
+          threadId: currentId,
+          mode: modeChoice,
+          personalization,
+          include: includeFlags,
+        }
+      : {
+          text: content,
+          lang,
+          activeThreadId: currentId,
+          threadId: currentId,
+          mode: modeChoice,
+          researchOn: research,
+          personalization,
+          include: includeFlags,
+        };
+
+    const req = { ...baseBody, idemKey: idem } as Record<string, unknown>;
+
+    const snapshot: AssistantRequestSnapshot = {
+      route: "/api/chat",
+      req,
+      headers,
+      meta: {
+        mode: modeChoice,
+        research,
+        text: content,
+      },
+    };
+
+    setPendingMessage({ id: pendingId, content: "", snapshot });
+    beginPendingAssistant(pendingId, snapshot.meta);
+
     let counted = false;
     try {
-      let replyText = "";
-      const { useMemoryStore } = await import("@/lib/memory/useMemoryStore");
-      const includeFlags = {
-        memories: useMemoryStore.getState().enabled,
-        chatHistory: prefs.referenceChatHistory,
-        recordHistory: prefs.referenceRecordHistory,
-      };
-      const personalization = {
-        enabled: prefs.personalizationEnabled,
-        personality: prefs.personality,
-        customInstructions: prefs.customInstructions,
-        nickname: prefs.nickname,
-        occupation: prefs.occupation,
-        about: prefs.about,
-      };
-      if (locationToken) {
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-user-lang": lang },
-          body: JSON.stringify({
-            query: content,
-            locationToken,
-            research,
-            lang,
-            activeThreadId: currentId,
-            threadId: currentId,
-            mode: modeChoice,
-            personalization,
-            include: includeFlags,
-          }),
-        });
-        if (!res.ok) {
-          throw new Error(`Chat API error ${res.status}`);
-        }
-        const data = await res.json();
-        setResults(data.results || []);
-        replyText =
-          typeof data.text === "string"
-            ? data.text
-            : typeof data.reply === "string"
-            ? data.reply
-            : "";
-      } else {
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-user-lang": lang },
-          body: JSON.stringify({
-            text: content,
-            lang,
-            activeThreadId: currentId,
-            threadId: currentId,
-            mode: modeChoice,
-            researchOn: research,
-            personalization,
-            include: includeFlags,
-          }),
-        });
-        if (!res.ok) {
-          throw new Error(`Chat API error ${res.status}`);
-        }
-        const data = await res.json();
-        setResults([]);
-        replyText =
-          typeof data.text === "string"
-            ? data.text
-            : typeof data.reply === "string"
-            ? data.reply
-            : "";
-      }
-
+      const { replyText, results: nextResults } = await runAssistantRequest(snapshot);
+      setResults(nextResults);
       markPendingAssistantStreaming(pendingId);
       if (replyText) {
         enqueuePendingAssistant(pendingId, replyText);
@@ -235,17 +272,100 @@ export function ChatWindow() {
       counted = true;
     } catch (error) {
       console.error(error);
-      const fallback = "We couldn't complete that. Please try again.";
-      markPendingAssistantStreaming(pendingId);
-      enqueuePendingAssistant(pendingId, fallback);
-      finishPendingAssistant(pendingId, fallback);
+      normalizeNetworkError(error);
+      cancelPendingAssistant(pendingId);
+      setPendingMessage(null);
       setResults([]);
+      addMessage({
+        id: pendingId,
+        role: "assistant",
+        content: "",
+        error: true,
+        route: snapshot.route,
+        req: snapshot.req,
+        headers: snapshot.headers,
+        retryMeta: snapshot.meta,
+      });
     } finally {
       if (counted) {
         prefs.incUsage();
       }
     }
   };
+
+  const retryTurn = useCallback(
+    async (message: ChatMessage) => {
+      if (!message.route || !message.req || !message.headers) {
+        return;
+      }
+
+      const reqData = message.req as Record<string, unknown>;
+      let originalText = "";
+      if (typeof reqData.text === "string") {
+        originalText = reqData.text;
+      } else if (typeof reqData.query === "string") {
+        originalText = reqData.query;
+      }
+
+      const storedMeta = message.retryMeta ?? {
+        mode: modeChoice,
+        research: false,
+        text: originalText,
+      };
+
+      const snapshot: AssistantRequestSnapshot = {
+        route: message.route as ApiRoute,
+        req: message.req as Record<string, unknown>,
+        headers: message.headers as Record<string, string>,
+        meta: storedMeta,
+      };
+
+      removeMessage(message.id);
+      setPendingMessage({ id: message.id, content: "", snapshot });
+      beginPendingAssistant(message.id, snapshot.meta);
+
+      try {
+        const { replyText, results: nextResults } = await runAssistantRequest(snapshot);
+        setResults(nextResults);
+        markPendingAssistantStreaming(message.id);
+        if (replyText) {
+          enqueuePendingAssistant(message.id, replyText);
+        }
+        finishPendingAssistant(message.id, replyText);
+        prefs.incUsage();
+      } catch (error) {
+        console.error(error);
+        normalizeNetworkError(error);
+        cancelPendingAssistant(message.id);
+        setPendingMessage(null);
+        setResults([]);
+        addMessage({
+          id: message.id,
+          role: "assistant",
+          content: "",
+          error: true,
+          route: snapshot.route,
+          req: snapshot.req,
+          headers: snapshot.headers,
+          retryMeta: snapshot.meta,
+        });
+      }
+    },
+    [
+      addMessage,
+      beginPendingAssistant,
+      cancelPendingAssistant,
+      enqueuePendingAssistant,
+      markPendingAssistantStreaming,
+      modeChoice,
+      prefs.incUsage,
+      removeMessage,
+      finishPendingAssistant,
+      runAssistantRequest,
+      setPendingMessage,
+      setResults,
+    ],
+  );
 
   return (
     <div className="flex h-full flex-col" dir={prefs.dir}>
@@ -263,11 +383,20 @@ export function ChatWindow() {
               <WelcomeCard />
             </div>
           ) : null}
-          {messages.map(m => (
-            <div key={m.id} className="space-y-2">
-              <MessageRow m={m} />
-            </div>
-          ))}
+          {messages.map(m => {
+            if (m.role === "assistant" && m.error) {
+              return (
+                <div key={m.id} className="my-2 flex justify-start">
+                  <ChatErrorBubble onRetry={() => retryTurn(m)} />
+                </div>
+              );
+            }
+            return (
+              <div key={m.id} className="space-y-2">
+                <MessageRow m={m} />
+              </div>
+            );
+          })}
           {pendingMessage ? (
             <div className="space-y-2">
               {pendingAssistantState && pendingAssistantState.id === pendingMessage.id ? (
