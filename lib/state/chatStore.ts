@@ -251,17 +251,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const existingMessages = new Map(thread.messages.map(m => [m.id, m] as const));
       for (const raw of msgs) {
         if (!raw || raw.role !== "assistant") continue;
-        const prev = existingMessages.get(raw.id);
+        const id = raw.id;
+        if (!id) continue;
+        const prev = existingMessages.get(id);
         const createdAt = raw.createdAt ?? prev?.createdAt ?? raw.ts ?? now;
+        const updatedAt = raw.updatedAt ?? prev?.updatedAt ?? now;
+        const ts = raw.ts ?? prev?.ts ?? createdAt;
+        const content = raw.content ?? prev?.content ?? "";
         const merged: ChatMessage = {
-          ...(prev ?? {}),
-          ...(raw ?? {}),
+          id,
           chatId,
+          role: "assistant",
+          content,
+          ts,
+          status: raw.status ?? prev?.status,
           createdAt,
-          updatedAt: raw.updatedAt ?? now,
-          ts: raw.ts ?? prev?.ts ?? createdAt,
+          updatedAt,
+          streamCursor: raw.streamCursor ?? prev?.streamCursor ?? content.length,
+          parentId: raw.parentId ?? prev?.parentId,
+          error: raw.error ?? prev?.error,
+          route: raw.route ?? prev?.route,
+          req: raw.req ?? prev?.req,
+          headers: raw.headers ?? prev?.headers,
+          retryMeta: raw.retryMeta ?? prev?.retryMeta,
         };
-        existingMessages.set(raw.id, merged);
+        existingMessages.set(id, merged);
       }
       const mergedMessages = Array.from(existingMessages.values()).sort((a, b) => {
         const aTime = a.createdAt ?? a.ts ?? 0;
