@@ -12,6 +12,9 @@ export default function AccountPanel(){
   }, [p.resetWindowIfNeeded]);
 
   const remaining = Math.max(0, 10 - p.promptsUsed);
+  const planLabel = p.plan === "pro" ? t("Pro") : t("Free");
+  const currentPlanLabel = t("Current: {{plan}}").replace("{{plan}}", planLabel);
+  const remainingLabel = t("Remaining this window: {{count}}").replace("{{count}}", String(remaining));
 
   const Card = ({title, sub, cta, primary=false, onClick}:{title:string; sub:string; cta:string; primary?:boolean; onClick?:()=>void;}) => (
     <div className="flex items-center justify-between gap-4 rounded-xl border border-black/10 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-slate-900/60">
@@ -24,8 +27,8 @@ export default function AccountPanel(){
     <div className="space-y-3 p-5">
       <div className="text-xs opacity-70">Plan</div>
       <div className="flex items-center gap-2 text-[13px]">
-        <span className="rounded-full border border-black/10 bg-white/70 px-2 py-0.5 dark:border-white/10 dark:bg-slate-900/60">{t("Current: {{plan}}", { plan: p.plan === "pro" ? t("Pro") : t("Free") })}</span>
-        {p.plan === "free" && <span className="text-xs text-slate-500">{t("Remaining this window: {{count}}", { count: remaining })}</span>}
+        <span className="rounded-full border border-black/10 bg-white/70 px-2 py-0.5 dark:border-white/10 dark:bg-slate-900/60">{currentPlanLabel}</span>
+        {p.plan === "free" && <span className="text-xs text-slate-500">{remainingLabel}</span>}
       </div>
       <Card title={t("Free")} sub={t("Up to 10 prompts/month")} cta={t("Stay on Free")} onClick={()=> p.setPlan("free")} />
       <Card title={t("Pro — $1/month")} sub={t("Includes access to everything")} cta={t("Upgrade to Pro")} primary onClick={()=> p.setPlan("pro")} />
