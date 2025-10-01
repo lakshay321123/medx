@@ -116,7 +116,7 @@ export default function DirectoryPane() {
   };
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-[388px] flex-col md:mx-0 md:max-w-none">
+    <div className="mx-auto flex min-h-0 w-full max-w-[388px] flex-col md:mx-0 md:max-w-none lg:relative lg:w-full lg:max-w-[100vw] lg:overflow-x-hidden lg:overscroll-x-none">
       <div className="sticky top-0 z-10 space-y-1 border-b border-black/5 bg-white/85 px-2 pb-1 pt-1 backdrop-blur dark:border-white/10 dark:bg-slate-950/60 md:space-y-3 md:px-3 md:pb-3 md:pt-2">
         <div className="flex min-w-0 flex-wrap items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 sm:flex-nowrap md:gap-2 md:text-[11px]">
           <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-green-500"></span>
@@ -129,8 +129,8 @@ export default function DirectoryPane() {
           </button>
         </div>
 
-        <div className="flex flex-col gap-1 md:flex-row md:items-center md:gap-2">
-          <div className="flex-1 min-w-0">
+        <div className="flex flex-col gap-1 md:flex-row md:items-center md:gap-2 lg:overflow-x-hidden lg:[contain-intrinsic-inline-size:auto]">
+          <div className="flex-1 min-w-0 lg:min-w-0">
             <input
               className="h-[34px] w-full rounded-[10px] border border-slate-200 bg-white/90 px-3 text-[12px] text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none focus:ring-0 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 md:h-10 md:rounded-[10px] md:px-3 md:text-[13px]"
               placeholder={t("Search doctors, pharmacies, labs")}
@@ -138,12 +138,12 @@ export default function DirectoryPane() {
               onChange={(event) => actions.setQ(event.target.value)}
             />
           </div>
-          <div className="min-w-0 md:w-[320px]">
+          <div className="min-w-0 md:w-[320px] lg:min-w-0">
             <AddressPicker value={locLabel} onSelect={actions.setAddress} lang={appLang} />
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-1 pb-0.5 md:flex-nowrap md:gap-2 md:overflow-x-auto">
+        <div className="flex flex-wrap gap-1 pb-0.5 md:flex-nowrap md:gap-2 md:overflow-x-auto lg:overflow-x-hidden lg:[contain-intrinsic-inline-size:auto]">
           {typeOptions.map((option) => {
             const selected = type === option.value;
             return (
@@ -163,7 +163,7 @@ export default function DirectoryPane() {
           })}
         </div>
 
-        <div className="flex flex-wrap gap-1 pb-0.5 md:flex-nowrap md:gap-2 md:overflow-x-auto">
+        <div className="flex flex-wrap gap-1 pb-0.5 md:flex-nowrap md:gap-2 md:overflow-x-auto lg:overflow-x-hidden lg:[contain-intrinsic-inline-size:auto]">
           <button
             onClick={() => actions.setOpenNow((v) => !v)}
             className={`inline-flex h-[26px] items-center justify-center whitespace-nowrap rounded-full border px-2.5 text-[11.5px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-[30px] md:px-3 md:text-[12px] ${
@@ -207,7 +207,7 @@ export default function DirectoryPane() {
         </div>
       </div>
 
-      <div className="mobile-scroll-safe flex-1 space-y-1.5 overflow-y-auto px-2 pb-2 md:space-y-3 md:px-3 md:pb-4">
+      <div className="mobile-scroll-safe flex-1 space-y-1.5 overflow-y-auto px-2 pb-2 md:space-y-3 md:px-3 md:pb-4 lg:max-w-[100vw] lg:overflow-x-hidden">
         {!loading && data.length === 0 && (
           <div className="rounded-[10px] border border-slate-200 bg-white/75 p-2.5 text-[12px] text-slate-600 shadow-sm dark:border-white/10 dark:bg-slate-950/60 dark:text-slate-300 md:rounded-[12px] md:p-4 md:text-[13px]">
             {t("No results. Try All, increase radius, or change the address.")}
