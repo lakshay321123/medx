@@ -3,9 +3,45 @@
 import React from "react";
 import type { TrialRow } from "@/types/trials";
 import { TrialsRow } from "./TrialsRow";
+import { ListenButton } from "@/components/voice/ListenButton";
+import { usePrefs } from "@/components/providers/PreferencesProvider";
 
 export default function TrialsTable({ rows }: { rows: TrialRow[] }) {
   if (!rows || rows.length === 0) return null;
+
+  const { lang } = usePrefs();
+
+  const getListenText = React.useCallback((trial: TrialRow) => {
+    const title = (trial as any).title_display ?? trial.title ?? "";
+    const condition = Array.isArray(trial.conditions) && trial.conditions.length > 0
+      ? trial.conditions.filter(Boolean).join(", ")
+      : (trial as any).condition || "";
+    const phase = trial.phase ? `Phase: ${trial.phase}` : "";
+    const status = trial.status ? `Status: ${trial.status}` : "";
+    const location = (() => {
+      const fromLocations = Array.isArray(trial.locations) && trial.locations.length > 0
+        ? trial.locations[0]
+        : undefined;
+      if (fromLocations) {
+        return [fromLocations.facility, fromLocations.city, fromLocations.country]
+          .filter(Boolean)
+          .join(", ");
+      }
+      return [trial.site, trial.city, trial.country].filter(Boolean).join(", ");
+    })();
+    const summary = (trial as any).summary_short || (trial as any).summary || "";
+
+    const bits = [
+      title,
+      condition ? `Condition: ${condition}` : "",
+      phase,
+      status,
+      location ? `Location: ${location}` : "",
+      summary,
+    ].filter(Boolean);
+
+    return bits.join(". ");
+  }, []);
 
   return (
     <div className="overflow-x-auto">
@@ -36,6 +72,7 @@ export default function TrialsTable({ rows }: { rows: TrialRow[] }) {
         <tbody>
           {rows.map((row, i) => {
             const key = `${row.source || "src"}:${row.id || row.url || i}`;
+            const listenText = getListenText(row);
             return (
               <TrialsRow
                 key={key}
@@ -46,6 +83,11 @@ export default function TrialsTable({ rows }: { rows: TrialRow[] }) {
                   status: row.status,
                   country: row.country,
                 }}
+                listenControl={
+                  listenText.trim().length > 0 ? (
+                    <ListenButton getText={() => listenText} lang={lang} />
+                  ) : null
+                }
               />
             );
           })}

@@ -13,14 +13,24 @@ import type { AppMode } from "@/lib/welcomeMessages";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
 import WelcomeCard from "@/components/chat/WelcomeCard";
 import { useUIStore } from "@/components/hooks/useUIStore";
+import { ListenButton } from "@/components/voice/ListenButton";
 
 const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== "0";
 
 function MessageRow({ m }: { m: { id: string; role: string; content: string } }) {
+  const { lang } = usePrefs();
+  const text = typeof m.content === "string" ? m.content : "";
+
   return (
     <div className="p-2 space-y-1">
-      <div className="text-xs uppercase tracking-wide text-slate-500">{m.role}</div>
-      <ChatMarkdown content={m.content} />
+      <div className="flex items-center justify-between">
+        <div className="text-xs uppercase tracking-wide text-slate-500">{m.role}</div>
+        {/* Keep always visible on mobile (no hover-only) */}
+        {m.role !== "user" && text?.trim()?.length ? (
+          <ListenButton getText={() => text} lang={lang} />
+        ) : null}
+      </div>
+      <ChatMarkdown content={text} />
     </div>
   );
 }

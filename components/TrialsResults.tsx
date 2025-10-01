@@ -190,6 +190,7 @@ export default function TrialsResults({ trials }: { trials: TrialRow[] }) {
             return (
               <TrialsMobileCard
                 key={`${trial.source || "src"}:${trial.id || trial.url}`}
+                trial={trial}
                 title={trial.title}
                 statusLine={statusLine}
                 registryLine={registryLine}

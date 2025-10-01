@@ -1,6 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { ListenButton } from "@/components/voice/ListenButton";
+import { usePrefs } from "@/components/providers/PreferencesProvider";
+import type { TrialRow } from "@/types/trials";
 
 function useIsDoctor() {
   if (typeof window === "undefined") return false;
@@ -17,8 +20,10 @@ function extractNctId(s: string) {
 
 export function TrialsRow({
   row,
+  listenControl,
 }: {
   row: { nctId: string; title: string; phase?: string; status?: string; country?: string };
+  listenControl?: React.ReactNode;
 }) {
   const isDoctor = useIsDoctor();
 
@@ -59,7 +64,14 @@ export function TrialsRow({
           {row.nctId}
         </a>
       </td>
-      <td>{row.title}</td>
+      <td>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="truncate">{row.title}</div>
+          </div>
+          {listenControl || null}
+        </div>
+      </td>
       <td>{row.phase || "—"}</td>
       <td>{row.status || "—"}</td>
       <td>{row.country || "—"}</td>
@@ -67,7 +79,15 @@ export function TrialsRow({
   );
 }
 
+type TrialWithOptionalFields = TrialRow & {
+  title_display?: string | null;
+  summary_short?: string | null;
+  location_oneLine?: string | null;
+  condition?: string | null;
+};
+
 export type TrialsMobileCardProps = {
+  trial: TrialWithOptionalFields;
   title: string;
   statusLine: string;
   registryLine: string;
@@ -77,6 +97,7 @@ export type TrialsMobileCardProps = {
 };
 
 export function TrialsMobileCard({
+  trial,
   title,
   statusLine,
   registryLine,
@@ -84,6 +105,39 @@ export function TrialsMobileCard({
   onCopy,
   onSummarize,
 }: TrialsMobileCardProps) {
+  const { lang } = usePrefs();
+
+  const listenText = React.useMemo(() => {
+    const titleText = trial.title_display ?? title ?? trial.title ?? "";
+    const condition = Array.isArray(trial.conditions)
+      ? trial.conditions.filter(Boolean).join(", ")
+      : trial.condition;
+    const phase = trial.phase ? `Phase: ${trial.phase}` : "";
+    const status = trial.status ? `Status: ${trial.status}` : "";
+    const location = (() => {
+      if (trial.location_oneLine) return trial.location_oneLine;
+      if (Array.isArray(trial.locations) && trial.locations.length > 0) {
+        const first = trial.locations[0];
+        return [first?.facility, first?.city, first?.country].filter(Boolean).join(", ");
+      }
+      return [trial.site, trial.city, trial.country].filter(Boolean).join(", ");
+    })();
+    const summary = trial.summary_short || "";
+
+    const bits = [
+      titleText,
+      condition ? `Condition: ${condition}` : "",
+      phase,
+      status,
+      location ? `Location: ${location}` : "",
+      summary,
+    ].filter(Boolean);
+
+    return bits.join(". ");
+  }, [trial, title]);
+
+  const hasListenText = listenText.trim().length > 0;
+
   return (
     <div
       className="
@@ -92,7 +146,12 @@ export function TrialsMobileCard({
         bg-[var(--card-bg)] text-[var(--card-fg)] border-[var(--card-border)]
       "
     >
-      <h3 className="text-[15px] font-semibold leading-5 break-words hyphens-auto">{title}</h3>
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="text-[15px] font-semibold leading-5 break-words hyphens-auto">{title}</h3>
+        {hasListenText ? (
+          <ListenButton getText={() => listenText} lang={lang} />
+        ) : null}
+      </div>
       <p className="meta mt-1 text-[12.5px] opacity-80">{statusLine}</p>
       <p className="meta text-[11px] opacity-70">{registryLine}</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
