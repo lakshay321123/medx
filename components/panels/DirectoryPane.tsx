@@ -129,16 +129,16 @@ export default function DirectoryPane() {
           </button>
         </div>
 
-        <div className="flex flex-col gap-1 md:flex-row md:items-center md:gap-2">
-          <div className="flex-1 min-w-0">
+        <div className="flex w-full flex-col gap-1 md:flex-row md:items-center md:gap-2 lg:max-w-[100vw]">
+          <div className="flex-1 min-w-0 md:flex-1 md:min-w-0 lg:min-w-0 lg:flex-shrink">
             <input
-              className="h-[34px] w-full rounded-[10px] border border-slate-200 bg-white/90 px-3 text-[12px] text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none focus:ring-0 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 md:h-10 md:rounded-[10px] md:px-3 md:text-[13px]"
+              className="h-[34px] w-full rounded-[10px] border border-slate-200 bg-white/90 px-3 text-[12px] text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none focus:ring-0 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 md:h-10 md:rounded-[10px] md:px-3 md:text-[13px] md:w-full md:max-w-full md:overflow-x-auto md:whitespace-nowrap"
               placeholder={t("Search doctors, pharmacies, labs")}
               value={q}
               onChange={(event) => actions.setQ(event.target.value)}
             />
           </div>
-          <div className="min-w-0 md:w-[320px]">
+          <div className="min-w-0 md:flex-1 md:min-w-0 lg:min-w-0 lg:flex-shrink">
             <AddressPicker value={locLabel} onSelect={actions.setAddress} lang={appLang} />
           </div>
         </div>
