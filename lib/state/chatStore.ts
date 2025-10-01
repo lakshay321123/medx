@@ -54,10 +54,12 @@ type ChatState = {
 };
 
 export function createDefaultDraft(): PendingDraft {
-  mode: "wellness",
-  research: false,
-  text: "",
-  attachments: [],
+  return {
+    mode: "wellness",
+    research: false,
+    text: "",
+    attachments: [],
+  };
 }
 
 const initialDraft = createDefaultDraft();
