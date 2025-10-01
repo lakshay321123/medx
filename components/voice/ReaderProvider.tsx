@@ -8,7 +8,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { chunkText, hasSpeech, loadVoices, preferVoiceForLang } from "@/lib/tts";
 
 type ReaderStatus = "idle" | "loading" | "speaking" | "paused";
@@ -51,7 +51,6 @@ const MAX_SPEED = 1.8;
 
 export function ReaderProvider({ children, appLang }: ProviderProps) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [status, setStatus] = useState<ReaderStatus>("idle");
   const [speed, setSpeedState] = useState<number>(() => {
     if (typeof window === "undefined") return 1;
@@ -217,7 +216,7 @@ export function ReaderProvider({ children, appLang }: ProviderProps) {
   useEffect(() => {
     if (!pathname) return;
     stop();
-  }, [pathname, searchParams, stop]);
+  }, [pathname, stop]);
 
   const value = useMemo<ReaderCtx>(
     () => ({ status, lang, speed, reason, canUse, setSpeed, read, pause, resume, stop }),
