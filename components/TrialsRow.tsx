@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/hooks/useI18n";
 import * as React from "react";
 
 function useIsDoctor() {
@@ -84,6 +85,7 @@ export function TrialsMobileCard({
   onCopy,
   onSummarize,
 }: TrialsMobileCardProps) {
+  const t = useT();
   return (
     <div
       className="
@@ -97,12 +99,8 @@ export function TrialsMobileCard({
       <p className="meta text-[11px] opacity-70">{registryLine}</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
         <span className="chip chip-sm">Recruiting: {recruitingLabel}</span>
-        <button type="button" className="btn chip-sm" onClick={onCopy}>
-          Copy
-        </button>
-        <button type="button" className="btn chip-sm" onClick={onSummarize}>
-          Summarize
-        </button>
+        <button type="button" className="btn chip-sm" onClick={onCopy}>{t("Copy")}</button>
+        <button type="button" className="btn chip-sm" onClick={onSummarize}>{t("Summarize")}</button>
       </div>
     </div>
   );

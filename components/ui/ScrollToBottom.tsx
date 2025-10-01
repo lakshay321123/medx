@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/hooks/useI18n";
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { ArrowDown } from "lucide-react";
 
@@ -29,6 +30,7 @@ export default function ScrollToBottom({
   autohideMs = 2500,
   offsetBottom = 132,
 }: Props) {
+  const t = useT();
   const [container, setContainer] = useState<HTMLElement | null>(containerProp ?? targetRef?.current ?? null);
   const [visible, setVisible] = useState(false);
   const lastScrollTop = useRef(0);
@@ -147,7 +149,7 @@ export default function ScrollToBottom({
       <button
         type="button"
         className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition hover:opacity-90"
-        aria-label="Jump to newest messages"
+        aria-label={t("Jump to newest messages")}
         onClick={scrollToBottom}
       >
         <ArrowDown className="h-4 w-4" />

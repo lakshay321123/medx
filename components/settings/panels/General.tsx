@@ -169,7 +169,7 @@ export default function GeneralPanel() {
               type="button"
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--text)] focus-visible:outline-none focus-visible:ring-2"
             >
-              <Play size={14} /> Play
+              <Play size={14} /> {t("Play")}
             </button>
             <Menu label={t("Voice")} value="Cove" onPick={() => {}} items={["Cove"]} />
           </>

@@ -219,23 +219,23 @@ export default function UnifiedUpload() {
         />
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={doctorMode} onChange={e=>setDoctorMode(e.target.checked)} />
-          <span>Clinical Mode</span>
+          <span>{t("Clinical Mode")}</span>
         </label>
       </div>
 
       <p className="text-xs text-gray-500">
-        (Upload medical reports, prescriptions, discharge summaries, or hand X-rays — PDF or up to 3 image views: PA, lateral, oblique.)
+        {t("(Upload medical reports, prescriptions, discharge summaries, or hand X-rays — PDF or up to 3 image views: PA, lateral, oblique.)")}
       </p>
 
       <div className="rounded border border-dashed p-3">
-        <p className="text-sm font-medium">Quick injury checklist</p>
-        <p className="text-xs text-gray-500">Helps surface red flags for urgent follow-up.</p>
+        <p className="text-sm font-medium">{t("Quick injury checklist")}</p>
+        <p className="text-xs text-gray-500">{t("Helps surface red flags for urgent follow-up.")}</p>
         <div className="mt-2 grid gap-1 text-xs sm:text-sm">
           {(
             [
-              { key: "openCut" as const, label: "Open cut over the injured area" },
-              { key: "numbness" as const, label: "Numbness or tingling in fingers" },
-              { key: "severeSwelling" as const, label: "Severe swelling or obvious deformity" },
+              { key: "openCut" as const, label: t("Open cut over the injured area") },
+              { key: "numbness" as const, label: t("Numbness or tingling in fingers") },
+              { key: "severeSwelling" as const, label: t("Severe swelling or obvious deformity") },
             ] satisfies { key: keyof typeof checklist; label: string }[]
           ).map(item => (
             <label key={item.key} className="flex items-center gap-2">
@@ -255,7 +255,7 @@ export default function UnifiedUpload() {
         </div>
       </div>
 
-      {loading && <p>Analyzing…</p>}
+      {loading && <p>{t("Analyzing…")}</p>}
       {err && <p className="text-red-600">⚠️ {err}</p>}
 
       {out && (
@@ -263,12 +263,12 @@ export default function UnifiedUpload() {
           {out.type === "pdf" && (
             <>
               <section className="p-3 border rounded">
-                <h3 className="font-semibold mb-1">Wellness Summary</h3>
+                <h3 className="font-semibold mb-1">{t("Wellness Summary")}</h3>
                 <p className="whitespace-pre-wrap text-sm">{out.patient}</p>
               </section>
               {out.doctor && (
                 <section className="p-3 border rounded">
-                  <h3 className="font-semibold mb-1">Clinical Summary</h3>
+                  <h3 className="font-semibold mb-1">{t("Clinical Summary")}</h3>
                   <p className="whitespace-pre-wrap text-sm">{out.doctor}</p>
                 </section>
               )}
@@ -276,10 +276,10 @@ export default function UnifiedUpload() {
           )}
           {out.type === "image" && (
             <section className="p-3 border rounded space-y-2">
-              <h3 className="font-semibold">Imaging Findings</h3>
+              <h3 className="font-semibold">{t("Imaging Findings")}</h3>
               {out.quality && (
                 <div className={`rounded px-3 py-2 text-sm ${qualityPanelClass(out.quality.label)}`}>
-                  <p className="font-medium">Quality: {out.quality.label}</p>
+                  <p className="font-medium">{t("Quality:")} {out.quality.label}</p>
                   <p className="text-xs">{out.quality.tip}</p>
                 </div>
               )}
@@ -295,7 +295,7 @@ export default function UnifiedUpload() {
                   ))}
                   {out.views.duplicatesPruned > 0 && (
                     <span className="rounded-full border border-dashed border-slate-200 px-2 py-0.5">
-                      Duplicates removed: {out.views.duplicatesPruned}
+                      {t("Duplicates removed:")} {out.views.duplicatesPruned}
                     </span>
                   )}
                 </div>
@@ -343,24 +343,24 @@ export default function UnifiedUpload() {
                   return (
                     <div className="space-y-2 text-sm">
                       <p>
-                        <span className="font-medium">Fracture:</span> {tier}
-                        {confidenceRaw !== null && ` — Confidence: ${confidenceRaw}%`}
+                        <span className="font-medium">{t("Fracture:")}</span> {tier}
+                        {confidenceRaw !== null && ` — ${t("Confidence:")} ${confidenceRaw}%`}
                       </p>
                       <p>
-                        <span className="font-medium">Bone:</span> {boneSegment}
-                        {regionSegment ? ` — Region: ${regionSegment}` : ""}
+                        <span className="font-medium">{t("Bone:")}</span> {boneSegment}
+                        {regionSegment ? ` — ${t("Region:")} ${regionSegment}` : ""}
                       </p>
                       <p>
-                        <span className="font-medium">Type:</span> {suspected}
+                        <span className="font-medium">{t("Type:")}</span> {suspected}
                       </p>
                       {angulation !== null && (
                         <p>
-                          <span className="font-medium">Angle:</span> {angulation}°
+                          <span className="font-medium">{t("Angle:")}</span> {angulation}°
                         </p>
                       )}
                       {redFlags.length > 0 && (
                         <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                          <p className="font-semibold text-red-800">Red flags</p>
+                          <p className="font-semibold text-red-800">{t("Red flags")}</p>
                           <ul className="list-disc space-y-1 pl-4">
                             {redFlags.map((flag: string) => (
                               <li key={flag}>{flag}</li>
@@ -370,14 +370,14 @@ export default function UnifiedUpload() {
                       )}
                       {nextLine && (
                         <p>
-                          <span className="font-medium">Next:</span> {nextLine}
+                          <span className="font-medium">{t("Next:")}</span> {nextLine}
                         </p>
                       )}
                     </div>
                   );
                 })()
               ) : (
-                <p className="text-sm">No findings returned.</p>
+                <p className="text-sm">{t("No findings returned.")}</p>
               )}
               {warnings.length > 0 && (
                 <div className="space-y-1 text-xs text-amber-600">

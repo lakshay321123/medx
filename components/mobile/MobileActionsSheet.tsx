@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/hooks/useI18n";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ReactNode, TouchEvent as ReactTouchEvent } from "react";
 import { ArrowLeft, Check, Globe2, Moon, Search, Settings, Sun } from "lucide-react";
@@ -11,6 +12,7 @@ import { useModeController } from "@/hooks/useModeController";
 import { useUIStore } from "@/components/hooks/useUIStore";
 
 export default function MobileActionsSheet() {
+  const t = useT();
   const { sheetOpen, sheetView, closeSheet, setSheetView } = useMobileUiStore();
   const { theme, setTheme } = useTheme();
   const { country, setCountry } = useCountry();
@@ -95,7 +97,7 @@ export default function MobileActionsSheet() {
   const buildHeader = (title: string, onBack?: () => void): JSX.Element => (
     <div className="mobile-sheet-header">
       {onBack ? (
-        <button type="button" className="mobile-icon-btn" onClick={onBack} aria-label="Back">
+        <button type="button" className="mobile-icon-btn" onClick={onBack} aria-label={t("Back")}>
           <ArrowLeft className="h-5 w-5" />
         </button>
       ) : (
@@ -104,7 +106,7 @@ export default function MobileActionsSheet() {
       <div className="mobile-sheet-title" id={titleId}>
         {title}
       </div>
-      <button type="button" className="mobile-icon-btn" onClick={closeSheet} aria-label="Close sheet">
+      <button type="button" className="mobile-icon-btn" onClick={closeSheet} aria-label={t("Close sheet")}>
         <XIcon />
       </button>
     </div>

@@ -3575,7 +3575,7 @@ ${systemCommon}` + baseSys;
                         type="button"
                         onClick={() => navigator.clipboard.writeText(summary!)}
                         className="rounded-full border border-slate-200 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-                        title="Copy summary"
+                        title={t("Copy summary")}
                       >
                         <span className="inline-flex items-center gap-1">
                           <Clipboard size={14} /> Copy
@@ -3585,7 +3585,7 @@ ${systemCommon}` + baseSys;
                         type="button"
                         onClick={() => setShowDetails(s => !s)}
                         className="rounded-full border border-slate-200 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-                        title="View details"
+                        title={t("View details")}
                       >
                         <span className="inline-flex items-center gap-1">
                           {showDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -3794,7 +3794,7 @@ ${systemCommon}` + baseSys;
                       runAiDocWith('current');
                     }
                   }}
-                  aria-label="AI Doc Next Steps"
+                  aria-label={t("AI Doc Next Steps")}
                   disabled={loadingAidoc}
                 >
                   {loadingAidoc ? 'Analyzing…' : 'Next steps (AI Doc)'}
@@ -3805,14 +3805,14 @@ ${systemCommon}` + baseSys;
                 <div className="w-full">
                   {showDefaultSuggestions && showSuggestions && (
                     <SuggestBar
-                      title="Popular questions"
+                      title={t("Popular questions")}
                       suggestions={defaultSuggestions}
                       onPick={handleSuggestionPick}
                     />
                   )}
                   {showLiveSuggestions && (
                     <SuggestBar
-                      title="Suggestions"
+                      title={t("Suggestions")}
                       suggestions={liveSuggestions}
                       onPick={handleSuggestionPick}
                     />
@@ -3855,7 +3855,7 @@ ${systemCommon}` + baseSys;
               >
                 <label
                   className="inline-flex cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
-                  title="Upload PDF or image"
+                  title={t("Upload PDF or image")}
                 >
                   <Paperclip size={16} aria-hidden="true" />
                   <span className="hidden sm:inline">Upload</span>
@@ -3905,7 +3905,7 @@ ${systemCommon}` + baseSys;
                       <StopButton
                         onClick={onStop}
                         className="pointer-events-auto"
-                        title="Stop (Esc)"
+                        title={t("Stop (Esc)")}
                       />
                     </div>
                   )}
@@ -3916,8 +3916,8 @@ ${systemCommon}` + baseSys;
                     className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50"
                     type="submit"
                     disabled={pendingFiles.length === 0 && !userText.trim()}
-                    aria-label="Send"
-                    title="Send"
+                    aria-label={t("Send")}
+                    title={t("Send")}
                   >
                     <Send size={16} />
                   </button>

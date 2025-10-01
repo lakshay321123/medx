@@ -1,4 +1,5 @@
 'use client';
+import { useT } from "@/components/hooks/useI18n";
 import { useEffect, useState } from 'react';
 
 type Props = {
@@ -14,6 +15,7 @@ export default function TherapyToggle({
   variant = 'inline',
   className = '',
 }: Props) {
+  const t = useT();
   const [on, setOn] = useState<boolean>(initial);
 
   useEffect(() => {
@@ -39,10 +41,10 @@ export default function TherapyToggle({
       <button
         onClick={toggle}
         aria-pressed={on}
-        title="Therapy Mode"
+        title={t("Therapy Mode")}
         className={`fixed top-4 right-4 z-40 shadow ${baseChip} ${on ? onChip : offChip} ${className}`}
       >
-        {on ? 'Therapy Mode: ON' : 'Therapy Mode'}
+        {on ? t('Therapy Mode: ON') : t('Therapy Mode')}
       </button>
     );
   }
@@ -51,10 +53,10 @@ export default function TherapyToggle({
     <button
       onClick={toggle}
       aria-pressed={on}
-      title="Therapy Mode"
+      title={t("Therapy Mode")}
       className={`${baseChip} ${on ? onChip : offChip} ${className}`}
     >
-      {on ? 'Therapy Mode: ON' : 'Therapy Mode'}
+      {on ? t('Therapy Mode: ON') : t('Therapy Mode')}
     </button>
   );
 }

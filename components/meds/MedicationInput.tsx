@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/hooks/useI18n";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { pushToast } from "@/lib/ui/toast";
@@ -21,6 +22,7 @@ export type MedicationInputProps = {
 };
 
 export default function MedicationInput({ onSave, placeholder = "Add a medication" }: MedicationInputProps) {
+  const t = useT();
   const { country } = useCountry();
   const [query, setQuery] = useState("");
   const [lockedName, setLockedName] = useState<string | null>(null);
@@ -244,9 +246,7 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
             className="inline-flex items-center justify-center self-start rounded-md border bg-primary px-3 py-2 text-sm text-primary-foreground shadow disabled:opacity-60"
             onClick={handleSave}
             disabled={loading || !showSave}
-          >
-            Save
-          </button>
+          >{t("Save")}</button>
         ) : null}
       </div>
       {needsDose && !trimmedDose ? (

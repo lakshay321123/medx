@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/hooks/useI18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Menu, MoreHorizontal, PlusCircle } from "lucide-react";
 import { useMobileUiStore } from "@/lib/state/mobileUiStore";
@@ -9,6 +10,7 @@ import { useModeController } from "@/hooks/useModeController";
 import WwwGlobeIcon from "@/components/icons/WwwGlobe";
 
 export default function MobileHeader() {
+  const t = useT();
   const openSidebar = useMobileUiStore(state => state.openSidebar);
   const openSheet = useMobileUiStore(state => state.openSheet);
   const router = useRouter();
@@ -36,11 +38,11 @@ export default function MobileHeader() {
   }, [router, searchParams]);
 
   const modeLabel = useMemo(() => {
-    if (state.therapy) return "Therapy";
-    if (state.base === "aidoc") return "AI Doc";
-    if (state.base === "doctor") return "Clinical";
-    return "Wellness";
-  }, [state.base, state.therapy]);
+    if (state.therapy) return t("Therapy");
+    if (state.base === "aidoc") return t("AI Doc");
+    if (state.base === "doctor") return t("Clinical");
+    return t("Wellness");
+  }, [state.base, state.therapy, t]);
 
   useEffect(() => {
     if (!modeOpen) return;
@@ -79,25 +81,25 @@ export default function MobileHeader() {
       [
         {
           key: "wellness" as HeaderModeChoice,
-          label: "Wellness",
+          label: t("Wellness"),
           active: state.base === "patient" && !state.therapy,
           disabled: false,
         },
         {
           key: "therapy" as HeaderModeChoice,
-          label: "Therapy",
+          label: t("Therapy"),
           active: state.therapy,
           disabled: therapyBusy && !state.therapy,
         },
         {
           key: "doctor" as HeaderModeChoice,
-          label: "Clinical",
+          label: t("Clinical"),
           active: state.base === "doctor" && !state.therapy,
           disabled: false,
         },
         {
           key: "aidoc" as HeaderModeChoice,
-          label: "AI Doc",
+          label: t("AI Doc"),
           active: state.base === "aidoc",
           disabled: false,
         },
@@ -107,7 +109,7 @@ export default function MobileHeader() {
         active: boolean;
         disabled: boolean;
       }>,
-    [state.base, state.therapy, therapyBusy],
+    [state.base, state.therapy, therapyBusy, t],
   );
 
   return (
@@ -115,7 +117,7 @@ export default function MobileHeader() {
       <div className="mobile-header-left">
         <button
           type="button"
-          aria-label="Open menu"
+          aria-label={t("Open menu")}
           className="mobile-icon-btn"
           onClick={openSidebar}
         >
@@ -135,7 +137,7 @@ export default function MobileHeader() {
           <button
             type="button"
             className="mobile-icon-btn mobile-www-btn"
-            aria-label={state.research ? "Disable research mode" : "Enable research mode"}
+            aria-label={state.research ? t("Disable research mode") : t("Enable research mode")}
             aria-pressed={state.research}
             data-state={state.research ? "on" : "off"}
             data-enabled={researchEnabled}
@@ -185,7 +187,7 @@ export default function MobileHeader() {
       <div className="mobile-header-actions">
         <button
           type="button"
-          aria-label="New chat"
+          aria-label={t("New chat")}
           className="mobile-icon-btn"
           onClick={handleNewChat}
         >
@@ -193,7 +195,7 @@ export default function MobileHeader() {
         </button>
         <button
           type="button"
-          aria-label="Open options"
+          aria-label={t("Open options")}
           className="mobile-icon-btn"
           onClick={() => openSheet("main")}
         >

@@ -1,7 +1,9 @@
 "use client";
+import { useT } from "@/components/hooks/useI18n";
 import { useMemoryStore } from "@/lib/memory/useMemoryStore";
 
 export default function MemorySnackbar() {
+  const t = useT();
   const { suggestions, clearSuggestion } = useMemoryStore();
 
   if (!suggestions.length) return null;
@@ -41,8 +43,8 @@ export default function MemorySnackbar() {
     <div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-xl border bg-white dark:bg-slate-800 shadow-lg p-3 pointer-events-auto">
       <div className="text-sm mb-2">{label}</div>
       <div className="flex gap-2 justify-end">
-        <button type="button" onClick={onDismiss} className="px-3 py-1 rounded border text-sm">No</button>
-        <button type="button" onClick={onSave} className="px-3 py-1 rounded bg-blue-600 text-white text-sm">Save</button>
+        <button type="button" onClick={onDismiss} className="px-3 py-1 rounded border text-sm">{t("No")}</button>
+        <button type="button" onClick={onSave} className="px-3 py-1 rounded bg-blue-600 text-white text-sm">{t("Save")}</button>
       </div>
     </div>
   );

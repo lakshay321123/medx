@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/hooks/useI18n";
 import { useEffect } from "react";
 import { X, Link as LinkIcon, Download, Share2, Share as ShareIcon, Copy } from "lucide-react";
 import { BRAND_NAME } from "@/lib/brand";
@@ -32,6 +33,7 @@ export default function SharePanel({
   canCopyLink,
   canSystemShare,
 }: SharePanelProps) {
+  const t = useT();
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
@@ -79,7 +81,7 @@ export default function SharePanel({
             type="button"
             onClick={onClose}
             className="ml-auto rounded-full p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-            aria-label="Close"
+            aria-label={t("Close")}
           >
             <X size={16} />
           </button>

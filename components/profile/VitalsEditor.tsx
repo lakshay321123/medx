@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/hooks/useI18n";
 import { useEffect, useState } from "react";
 
 import { pushToast } from "@/lib/ui/toast";
@@ -27,6 +28,7 @@ export default function VitalsEditor({
   onCancel,
   onSaved,
 }: VitalsEditorProps) {
+  const t = useT();
   const [systolic, setSystolic] = useState(toInputValue(initialSystolic));
   const [diastolic, setDiastolic] = useState(toInputValue(initialDiastolic));
   const [heartRate, setHeartRate] = useState(toInputValue(initialHeartRate));
@@ -230,9 +232,7 @@ export default function VitalsEditor({
           className="inline-flex items-center rounded-md border px-3 py-1.5 text-sm"
           onClick={onCancel}
           disabled={isSaving}
-        >
-          Cancel
-        </button>
+        >{t("Cancel")}</button>
       </div>
     </div>
   );

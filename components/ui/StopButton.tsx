@@ -1,3 +1,4 @@
+import { useT } from "@/components/hooks/useI18n";
 import * as React from "react";
 import { motion } from "framer-motion";
 import { Square } from "lucide-react";
@@ -8,13 +9,15 @@ type Props = {
   title?: string;
 };
 
-export function StopButton({ onClick, className, title = "Stop generating (Esc)" }: Props) {
+export function StopButton({ onClick, className, title }: Props) {
+  const t = useT();
+  const resolvedTitle = title ?? t("Stop generating (Esc)");
   return (
     <motion.button
       type="button"
       onClick={onClick}
-      aria-label="Stop generating"
-      title={title}
+      aria-label={t("Stop generating")}
+      title={resolvedTitle}
       initial={{ scale: 0.9, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       whileTap={{ scale: 0.92 }}
@@ -29,7 +32,7 @@ export function StopButton({ onClick, className, title = "Stop generating (Esc)"
       ].join(" ")}
     >
       <Square className="h-4 w-4 text-zinc-700 dark:text-zinc-200" strokeWidth={2.25} />
-      <span className="sr-only">Stop</span>
+      <span className="sr-only">{t("Stop")}</span>
     </motion.button>
   );
 }

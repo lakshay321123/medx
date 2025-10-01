@@ -1,10 +1,12 @@
 "use client";
+import { useT } from "@/components/hooks/useI18n";
 import { useMemo, useState } from "react";
 import { useCountry } from "@/lib/country";
 import { COUNTRIES } from "@/data/countries";
 import { Globe2, Check, Search } from "lucide-react";
 
 export default function CountryGlobe() {
+  const t = useT();
   const { country, setCountry } = useCountry();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -22,7 +24,7 @@ export default function CountryGlobe() {
   return (
     <div className="relative">
       <button
-        aria-label="Choose country"
+        aria-label={t("Choose country")}
         title={`Country: ${country.name} (${country.code3}) — click to change`}
         onClick={() => setOpen(v => !v)}
         className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/70 pl-3 pr-6 py-1.5 text-sm font-medium text-slate-900 shadow-sm transition hover:bg-white dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-100 dark:hover:bg-slate-900"
@@ -34,7 +36,7 @@ export default function CountryGlobe() {
       {open && (
         <div
           role="dialog"
-          aria-label="Select country"
+          aria-label={t("Select country")}
           className="absolute right-0 top-[110%] z-50 mt-2 w-72 rounded-xl border border-black/10 bg-white/95 p-3 shadow-xl backdrop-blur dark:border-white/10 dark:bg-slate-950/90"
         >
           <div className="mb-2 flex items-center gap-2 rounded-lg border border-black/10 bg-white/80 px-3 py-1.5 dark:border-white/10 dark:bg-slate-900/60">
@@ -43,7 +45,7 @@ export default function CountryGlobe() {
               autoFocus
               value={q}
               onChange={e => setQ(e.target.value)}
-              placeholder="Search country or code…"
+              placeholder={t("Search country or code…")}
               className="w-full bg-transparent text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none dark:text-slate-100 dark:placeholder:text-slate-500"
             />
           </div>

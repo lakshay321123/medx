@@ -1,4 +1,5 @@
 "use client";
+import { useT } from "@/components/hooks/useI18n";
 import { useEffect, useState } from "react";
 import { getTrials } from "@/lib/hooks/useTrials";
 import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials";
@@ -7,6 +8,7 @@ import { hintEligibility } from "@/lib/eligibility";
 import type { TrialRow } from "@/types/trials";
 
 export default function TrialsPane() {
+  const t = useT();
   const [form, setForm] = useState({
     condition: "",
     status: "Recruiting,Enrolling by invitation",
@@ -86,9 +88,9 @@ export default function TrialsPane() {
       </div>
 
       <div className="flex gap-2">
-        <button className="px-3 py-2 rounded bg-black text-white" onClick={onSearch} disabled={loading}>Search trials</button>
-        <button className="px-3 py-2 rounded border" onClick={()=>summarize("patient")} disabled={!rows.length}>Summarize (Wellness)</button>
-        <button className="px-3 py-2 rounded border" onClick={()=>summarize("doctor")} disabled={!rows.length}>Summarize (Clinical)</button>
+        <button className="px-3 py-2 rounded bg-black text-white" onClick={onSearch} disabled={loading}>{t("Search trials")}</button>
+        <button className="px-3 py-2 rounded border" onClick={()=>summarize("patient")} disabled={!rows.length}>{t("Summarize (Wellness)")}</button>
+        <button className="px-3 py-2 rounded border" onClick={()=>summarize("doctor")} disabled={!rows.length}>{t("Summarize (Clinical)")}</button>
       </div>
 
       <div className="text-sm text-gray-500">Informational only; not medical advice. Confirm eligibility with the sponsor.</div>

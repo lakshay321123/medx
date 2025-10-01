@@ -1,11 +1,13 @@
 "use client";
 
+import { useT } from "@/components/hooks/useI18n";
 import { X } from "lucide-react";
 import { useEffect, useRef, type TouchEvent as ReactTouchEvent } from "react";
 import Sidebar from "@/components/Sidebar";
 import { useMobileUiStore } from "@/lib/state/mobileUiStore";
 
 export default function MobileSidebarOverlay() {
+  const t = useT();
   const open = useMobileUiStore(state => state.sidebarOpen);
   const close = useMobileUiStore(state => state.closeSidebar);
   const swipeOrigin = useRef<{ x: number; y: number; time: number } | null>(null);
@@ -145,7 +147,7 @@ export default function MobileSidebarOverlay() {
       <button
         type="button"
         className="mobile-sidebar-backdrop"
-        aria-label="Close menu"
+        aria-label={t("Close menu")}
         onClick={close}
       />
       <div
@@ -153,13 +155,13 @@ export default function MobileSidebarOverlay() {
         className="mobile-sidebar-panel"
         role="dialog"
         aria-modal="true"
-        aria-label="Navigation menu"
+        aria-label={t("Navigation menu")}
       >
         <div className="mobile-sidebar-header">
           <button
             type="button"
             className="mobile-icon-btn"
-            aria-label="Close menu"
+            aria-label={t("Close menu")}
             onClick={close}
           >
             <X className="h-5 w-5" />

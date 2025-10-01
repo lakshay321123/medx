@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/hooks/useI18n";
 export default function ClarifyPrompt({
   options,
   onSelect,
@@ -9,6 +10,7 @@ export default function ClarifyPrompt({
   onSelect: (threadId: string) => void;
   onStartNew: () => void;
 }) {
+  const t = useT();
   return (
     <div className="p-3 border rounded bg-yellow-50 text-sm space-y-2">
       <p className="font-medium">I’m not fully sure which topic you meant—pick one:</p>
@@ -29,10 +31,8 @@ export default function ClarifyPrompt({
         <button
           className="px-2 py-1 rounded border"
           onClick={onStartNew}
-          title="Start a fresh topic"
-        >
-          Start new topic
-        </button>
+          title={t("Start a fresh topic")}
+        >{t("Start new topic")}</button>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 "use client";
+import { useT } from "@/components/hooks/useI18n";
 import { useState, useRef, useEffect, useLayoutEffect, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { renameThread, deleteThread } from "@/lib/chatThreads";
@@ -9,6 +10,7 @@ export default function ThreadKebab({ id, title, onRenamed, onDeleted }: {
   onRenamed?: (newTitle: string)=>void;
   onDeleted?: ()=>void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [askRename, setAskRename] = useState(false);
   const [name, setName] = useState(title);
@@ -80,8 +82,8 @@ export default function ThreadKebab({ id, title, onRenamed, onDeleted }: {
         type="button"
         className="px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
         onClick={() => setOpen(s => !s)}
-        aria-label="Thread options"
-        title="Options"
+        aria-label={t("Thread options")}
+        title={t("Options")}
       >
         ⋯
       </button>
@@ -97,13 +99,13 @@ export default function ThreadKebab({ id, title, onRenamed, onDeleted }: {
               className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
               onClick={() => { setAskRename(true); setOpen(false); }}
             >
-              Rename
+              {t("Rename")}
             </button>
             <button
               className="w-full text-left px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
               onClick={() => {
                 setOpen(false);
-                if (confirm("Delete this chat? This cannot be undone.")) {
+                if (confirm(t("Delete this chat? This cannot be undone."))) {
                   deleteThread(id);
                   onDeleted?.();
                   // if currently on this thread route, send to home
@@ -117,7 +119,7 @@ export default function ThreadKebab({ id, title, onRenamed, onDeleted }: {
                 }
               }}
             >
-              Delete
+              {t("Delete")}
             </button>
           </div>,
           document.body,
@@ -128,7 +130,7 @@ export default function ThreadKebab({ id, title, onRenamed, onDeleted }: {
         <div className="fixed inset-0 z-30 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={()=>setAskRename(false)} />
           <div className="relative w-full max-w-sm rounded-lg border bg-white dark:bg-slate-900 dark:border-slate-700 p-4">
-            <div className="text-sm font-medium mb-2">Rename chat</div>
+            <div className="text-sm font-medium mb-2">{t("Rename chat")}</div>
             <input
               autoFocus
               value={name}
@@ -137,17 +139,17 @@ export default function ThreadKebab({ id, title, onRenamed, onDeleted }: {
             />
             <div className="mt-3 flex justify-end gap-2">
               <button className="px-3 py-1.5 text-sm rounded border"
-                onClick={()=>setAskRename(false)}>Cancel</button>
+                onClick={()=>setAskRename(false)}>{t("Cancel")}</button>
               <button
                 className="px-3 py-1.5 text-sm rounded border bg-blue-600 text-white dark:border-blue-600 disabled:opacity-50"
                 onClick={()=>{
-                  const nn = name.trim() || "Untitled";
+                  const nn = name.trim() || t("Untitled");
                   renameThread(id, nn);
                   onRenamed?.(nn);
                   setAskRename(false);
                 }}
               >
-                Save
+                {t("Save")}
               </button>
             </div>
           </div>

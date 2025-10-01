@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/hooks/useI18n";
 import React from "react";
 
 export function ConstraintChips({ include = [], exclude = [], onRemove }: {
@@ -7,6 +8,7 @@ export function ConstraintChips({ include = [], exclude = [], onRemove }: {
   exclude?: string[];
   onRemove?: (type: "include" | "exclude", value: string) => void;
 }) {
+  const t = useT();
   if (!include.length && !exclude.length) return null;
   return (
     <div className="flex flex-wrap gap-2 my-2">
@@ -15,7 +17,7 @@ export function ConstraintChips({ include = [], exclude = [], onRemove }: {
           key={`inc-${v}`}
           onClick={() => onRemove?.("include", v)}
           className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200"
-          title="Remove"
+          title={t("Remove")}
         >
           + {v}
         </button>
@@ -25,7 +27,7 @@ export function ConstraintChips({ include = [], exclude = [], onRemove }: {
           key={`exc-${v}`}
           onClick={() => onRemove?.("exclude", v)}
           className="text-xs px-2 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-200"
-          title="Remove"
+          title={t("Remove")}
         >
           − {v}
         </button>

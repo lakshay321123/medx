@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/hooks/useI18n";
 import React from "react";
 import { sourceLabelFromUrl } from "@/lib/url";
 
@@ -35,12 +36,13 @@ export function normalizeExternalHref(input?: string): string | null {
 }
 
 export const SafeAnchor: React.FC<React.AnchorHTMLAttributes<HTMLAnchorElement>> = ({ href, children, ...rest }) => {
+  const t = useT();
   const safe = normalizeExternalHref(href);
   if (!safe) {
     return (
       <span
         className="text-slate-500 dark:text-slate-400 cursor-not-allowed"
-        title="Link unavailable"
+        title={t("Link unavailable")}
       >
         {children}
       </span>
@@ -61,6 +63,7 @@ export const SafeAnchor: React.FC<React.AnchorHTMLAttributes<HTMLAnchorElement>>
 
 export function LinkBadge(props: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
   const { href, children, className = "", ...rest } = props;
+  const t = useT();
   const safe = normalizeExternalHref(typeof href === "string" ? href : undefined);
   const [verdict, setVerdict] = React.useState<"alive" | "dead" | "uncertain" | null>(null);
 
@@ -141,7 +144,7 @@ export function LinkBadge(props: React.AnchorHTMLAttributes<HTMLAnchorElement>) 
       "border-slate-200 dark:border-gray-700 text-slate-400" +
       (className ? " " + className : "");
     return (
-      <span className={disabledClass} title="Link unavailable">
+      <span className={disabledClass} title={t("Link unavailable")}>
         {label}
       </span>
     );

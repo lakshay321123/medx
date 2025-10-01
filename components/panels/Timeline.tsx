@@ -745,7 +745,7 @@ export default function Timeline(){
                 type="button"
                 onClick={() => closeOverlay()}
                 className="sm:hidden -ml-1 rounded-md p-2 hover:bg-slate-100 dark:hover:bg-gray-800"
-                aria-label="Close details"
+                aria-label={t("Close details")}
               >
                 <ArrowLeft size={18} />
               </button>

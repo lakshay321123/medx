@@ -1,4 +1,5 @@
 'use client';
+import { useT } from "@/components/hooks/useI18n";
 import React from "react";
 import { marked } from 'marked';
 import DOMPurify from 'isomorphic-dompurify';
@@ -6,7 +7,17 @@ import { sourceLabelFromUrl } from "@/lib/url";
 import { normalizeExternalHref } from './SafeLink';
 import { linkify } from './AutoLink';
 
+const escapeAttr = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
 export default function Markdown({ text }: { text: string }) {
+  const t = useT();
+  const linkUnavailable = t("Link unavailable");
+  const linkUnavailableAttr = escapeAttr(linkUnavailable);
   marked.setOptions({ gfm: true, breaks: true });
   const raw = linkify(text);
   const sanitized = DOMPurify.sanitize(marked.parse(raw) as string, {
@@ -15,7 +26,7 @@ export default function Markdown({ text }: { text: string }) {
   const withSafeLinks = sanitized.replace(/<a\s+[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gi, (_m, href, inner) => {
     const safe = normalizeExternalHref(href);
     if (!safe) {
-      return `<span class="inline-flex items-center rounded-full border border-slate-200 dark:border-gray-700 px-2 py-1 text-xs text-slate-400" title="Link unavailable">${inner}</span>`;
+      return `<span class="inline-flex items-center rounded-full border border-slate-200 dark:border-gray-700 px-2 py-1 text-xs text-slate-400" title="${linkUnavailableAttr}">${inner}</span>`;
     }
     // If inner text is empty or a raw URL, swap to source label
     const cleanInner = String(inner || "").trim();
@@ -40,7 +51,7 @@ export default function Markdown({ text }: { text: string }) {
       if (disposed) return;
       const replacement = Object.assign(document.createElement("span"), {
         className: anchor.className + " opacity-70 cursor-not-allowed",
-        title: "Link unavailable",
+        title: linkUnavailable,
         innerHTML: anchor.innerHTML,
       });
       anchor.replaceWith(replacement);
