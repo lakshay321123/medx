@@ -17,8 +17,10 @@ import ChatErrorBubble from "@/components/chat/ChatErrorBubble";
 import { newIdempotencyKey } from "@/lib/net/idempotency";
 import { retryFetch } from "@/lib/net/retry";
 import { normalizeNetworkError } from "@/lib/net/errors";
+import { pollJob } from "@/lib/net/pollJob";
 
 const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== "0";
+const JOB_STORAGE_KEY = "medx:lastJob";
 
 type ApiRoute = "/api/chat" | "/api/therapy" | "/api/ai-doc";
 
@@ -161,28 +163,183 @@ export function ChatWindow() {
     onFinalize: handlePendingFinalize,
   });
 
-  const runAssistantRequest = useCallback(async (snapshot: AssistantRequestSnapshot) => {
-    const response = await retryFetch(snapshot.route, {
-      method: "POST",
-      headers: snapshot.headers,
-      body: JSON.stringify(snapshot.req),
-    }, { retries: 2 });
-
-    if (!response.ok) {
-      throw new Error("request_failed");
+  const resumePendingJob = useCallback(async () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const raw = window.sessionStorage.getItem(JOB_STORAGE_KEY);
+    if (!raw) {
+      return;
     }
 
-    const data = await response.json();
-    const replyText =
-      typeof data.text === "string"
-        ? data.text
-        : typeof data.reply === "string"
-        ? data.reply
-        : "";
-    const results = Array.isArray(data.results) ? data.results : [];
+    let payload: {
+      route: ApiRoute;
+      jobId: string;
+      threadId: string | null;
+      messageId: string;
+      snapshot: AssistantRequestSnapshot;
+    } | null = null;
 
-    return { replyText, results } as const;
-  }, []);
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      window.sessionStorage.removeItem(JOB_STORAGE_KEY);
+      return;
+    }
+
+    if (!payload || typeof payload.jobId !== "string" || typeof payload.route !== "string") {
+      window.sessionStorage.removeItem(JOB_STORAGE_KEY);
+      return;
+    }
+
+    if (payload.threadId && currentId && payload.threadId !== currentId) {
+      return;
+    }
+
+    const { messageId, snapshot, route, jobId } = payload;
+
+    if (!messageId) {
+      window.sessionStorage.removeItem(JOB_STORAGE_KEY);
+      return;
+    }
+
+    if (!pendingMessage || pendingMessage.id !== messageId) {
+      setPendingMessage({ id: messageId, content: "", snapshot });
+      if (!pendingAssistantState || pendingAssistantState.id !== messageId) {
+        beginPendingAssistant(messageId, snapshot.meta);
+      }
+    }
+
+    try {
+      const text = await pollJob(route, jobId);
+      setResults([]);
+      markPendingAssistantStreaming(messageId);
+      if (text) {
+        enqueuePendingAssistant(messageId, text);
+      }
+      finishPendingAssistant(messageId, text);
+    } catch (error) {
+      console.error(error);
+      normalizeNetworkError(error);
+      cancelPendingAssistant(messageId);
+      setPendingMessage(null);
+      setResults([]);
+      addMessage({
+        id: messageId,
+        role: "assistant",
+        content: "",
+        error: true,
+        route: snapshot.route,
+        req: snapshot.req,
+        headers: snapshot.headers,
+        retryMeta: snapshot.meta,
+      });
+    } finally {
+      window.sessionStorage.removeItem(JOB_STORAGE_KEY);
+    }
+  }, [
+    addMessage,
+    beginPendingAssistant,
+    cancelPendingAssistant,
+    currentId,
+    enqueuePendingAssistant,
+    finishPendingAssistant,
+    markPendingAssistantStreaming,
+    pendingAssistantState,
+    pendingMessage,
+    setPendingMessage,
+    setResults,
+  ]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void resumePendingJob();
+      }
+    };
+
+    void resumePendingJob();
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [resumePendingJob]);
+
+  const runAssistantRequest = useCallback(
+    async (messageId: string, snapshot: AssistantRequestSnapshot, threadId: string | null) => {
+      let storedJob = false;
+      try {
+        const response = await retryFetch(
+          snapshot.route,
+          {
+            method: "POST",
+            headers: snapshot.headers,
+            body: JSON.stringify(snapshot.req),
+          },
+          { retries: 2 },
+        );
+
+        let data: any = {};
+        try {
+          data = await response.json();
+        } catch {
+          data = {};
+        }
+
+        if (!response.ok && !data?.pending) {
+          throw new Error("request_failed");
+        }
+
+        const jobId = typeof data?.jobId === "string" ? data.jobId : null;
+
+        if (typeof window !== "undefined" && jobId) {
+          try {
+            window.sessionStorage.setItem(
+              JOB_STORAGE_KEY,
+              JSON.stringify({
+                route: snapshot.route,
+                jobId,
+                threadId,
+                messageId,
+                snapshot,
+              }),
+            );
+            storedJob = true;
+          } catch {
+            storedJob = false;
+          }
+        }
+
+        let replyText = "";
+        let results: any[] = Array.isArray(data?.results) ? data.results : [];
+
+        if (data?.pending && jobId) {
+          const resolvedText = await pollJob(snapshot.route, jobId);
+          replyText = typeof resolvedText === "string" ? resolvedText : "";
+          results = [];
+        } else {
+          replyText =
+            typeof data?.text === "string"
+              ? data.text
+              : typeof data?.reply === "string"
+              ? data.reply
+              : "";
+        }
+
+        return { replyText, results } as const;
+      } finally {
+        if (storedJob && typeof window !== "undefined") {
+          window.sessionStorage.removeItem(JOB_STORAGE_KEY);
+        }
+      }
+    },
+    [],
+  );
 
   const handleSend = async (content: string, locationToken?: string, langOverride?: string) => {
     if (!prefs.canSend()) {
@@ -262,7 +419,11 @@ export function ChatWindow() {
 
     let counted = false;
     try {
-      const { replyText, results: nextResults } = await runAssistantRequest(snapshot);
+      const { replyText, results: nextResults } = await runAssistantRequest(
+        pendingId,
+        snapshot,
+        currentId,
+      );
       setResults(nextResults);
       markPendingAssistantStreaming(pendingId);
       if (replyText) {
@@ -325,7 +486,11 @@ export function ChatWindow() {
       beginPendingAssistant(message.id, snapshot.meta);
 
       try {
-        const { replyText, results: nextResults } = await runAssistantRequest(snapshot);
+        const { replyText, results: nextResults } = await runAssistantRequest(
+          message.id,
+          snapshot,
+          currentId,
+        );
         setResults(nextResults);
         markPendingAssistantStreaming(message.id);
         if (replyText) {
@@ -355,6 +520,7 @@ export function ChatWindow() {
       addMessage,
       beginPendingAssistant,
       cancelPendingAssistant,
+      currentId,
       enqueuePendingAssistant,
       markPendingAssistantStreaming,
       modeChoice,
