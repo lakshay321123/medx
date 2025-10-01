@@ -110,37 +110,56 @@ export default function Sidebar() {
             ? "threads.systemTitles.new_chat"
             : null;
           const displayTitle = systemKey ? t(systemKey) : rawTitle;
-          return (
-            <div
-              key={thread.id}
-              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/60 p-2 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/60"
-            >
-              <button
-                onClick={() => {
-                  closeSidebar();
-                  router.push(`/?panel=chat&threadId=${thread.id}`);
-                }}
-                className="truncate text-left text-sm font-medium"
+          return (() => {
+            const active = thread.id === threadId;
+
+            return (
+              <div
+                key={thread.id}
+                className={`group flex items-center gap-2 rounded-xl px-3 py-2 transition focus-within:ring-2 focus-within:ring-offset-0 ${
+                  active
+                    ? "bg-blue-600/10 font-semibold text-blue-600 dark:bg-sky-500/20 dark:text-sky-300"
+                    : "text-slate-600 hover:bg-slate-100/70 dark:text-slate-300 dark:hover:bg-white/5"
+                }`}
+                aria-current={active ? "page" : undefined}
                 title={displayTitle || rawTitle}
               >
-                {displayTitle || t("threads.systemTitles.new_chat")}
-              </button>
-            <div className="ml-auto">
-              <ThreadKebab
-                id={thread.id}
-                title={thread.title}
-                onRenamed={(nt) => {
-                  setThreads((prev) =>
-                    prev.map((x) => (x.id === thread.id ? { ...x, title: nt, updatedAt: Date.now() } : x))
-                  );
-                }}
-                onDeleted={() => {
-                  setThreads((prev) => prev.filter((x) => x.id !== thread.id));
-                }}
-              />
-            </div>
-            </div>
-          );
+                {/* Left icon (keeps family look with other sidebar icons) */}
+                <span className="h-5 w-5 shrink-0" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" className="h-5 w-5">
+                    <path d="M4 5h16v10H8l-3 3V5z" fill="currentColor" />
+                  </svg>
+                </span>
+
+                {/* Title as a full-row hit area via button (preserve existing navigation logic) */}
+                <button
+                  onClick={() => {
+                    closeSidebar();
+                    router.push(`/?panel=chat&threadId=${thread.id}`);
+                  }}
+                  className="min-w-0 flex-1 truncate text-left text-sm"
+                >
+                  {displayTitle || t("threads.systemTitles.new_chat")}
+                </button>
+
+                {/* Right-side kebab stays; keep alignment stable */}
+                <div className="ml-auto opacity-80 group-hover:opacity-100">
+                  <ThreadKebab
+                    id={thread.id}
+                    title={thread.title}
+                    onRenamed={(nt) => {
+                      setThreads((prev) =>
+                        prev.map((x) => (x.id === thread.id ? { ...x, title: nt, updatedAt: Date.now() } : x))
+                      );
+                    }}
+                    onDeleted={() => {
+                      setThreads((prev) => prev.filter((x) => x.id !== thread.id));
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })();
         })}
       </div>
 
