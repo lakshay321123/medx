@@ -1,9 +1,10 @@
 import { create } from "zustand";
 import { nanoid } from "nanoid";
 import type { AppMode } from "@/lib/welcomeMessages";
+import type { DraftMode } from "@/lib/chat/types";
 
 export type PendingDraft = {
-  mode: "clinical" | "wellness" | "ai-doc";
+  mode: DraftMode;
   research?: boolean;
   text: string;
   attachments: File[];
@@ -40,35 +41,37 @@ type Thread = {
 type ChatState = {
   currentId: string | null;
   threads: Record<string, Thread>;
-  draft: PendingDraft | null;
+  draft: PendingDraft;
   startNewThread: () => string;
   upsertThread: (t: Partial<Thread> & { id: string }) => void;
   addMessage: (m: Omit<ChatMessage, "id" | "ts"> & { id?: string }) => void;
   removeMessage: (id: string) => void;
   resetToEmpty: () => void;
-  setDraft: (draft: PendingDraft | null) => void;
+  setDraft: (draft: PendingDraft) => void;
   setDraftText: (text: string) => void;
   addDraftAttachments: (files: File[]) => void;
   clearDraft: () => void;
 };
 
-const createDefaultDraft = (): PendingDraft => ({
+export function createDefaultDraft(): PendingDraft {
   mode: "wellness",
   research: false,
   text: "",
   attachments: [],
-});
+}
+
+const initialDraft = createDefaultDraft();
 
 export const useChatStore = create<ChatState>((set, get) => ({
   currentId: null,
   threads: {},
-  draft: createDefaultDraft(),
+  draft: initialDraft,
 
   startNewThread: () => {
     const id = `temp_${nanoid(8)}`;
     const now = Date.now();
     const t: Thread = { id, title: "New chat", createdAt: now, updatedAt: now, messages: [], isTemp: true };
-    set(s => ({ currentId: id, threads: { ...s.threads, [id]: t }, draft: null }));
+    set(s => ({ currentId: id, threads: { ...s.threads, [id]: t }, draft: createDefaultDraft() }));
     return id;
   },
 
@@ -108,21 +111,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   resetToEmpty: () => set({ currentId: null, threads: {}, draft: createDefaultDraft() }),
 
-  setDraft: (draft) => set({ draft: draft ?? createDefaultDraft() }),
+  setDraft: (draft) => set({ draft }),
 
   setDraftText: (text) => {
-    set(s => {
-      const draft = s.draft ?? createDefaultDraft();
-      return { draft: { ...draft, text } };
-    });
+    set(s => ({ draft: { ...s.draft, text } }));
   },
 
   addDraftAttachments: (files) => {
     if (files.length === 0) return;
-    set(s => {
-      const draft = s.draft ?? createDefaultDraft();
-      return { draft: { ...draft, attachments: [...draft.attachments, ...files] } };
-    });
+    set(s => ({ draft: { ...s.draft, attachments: [...s.draft.attachments, ...files] } }));
   },
 
   clearDraft: () => set({ draft: createDefaultDraft() }),

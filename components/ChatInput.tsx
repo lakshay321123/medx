@@ -16,6 +16,7 @@ export function ChatInput({
   canSend: () => boolean;
 }) {
   const [text, setText] = useState("");
+  const [isSending, setIsSending] = useState(false);
   const currentId = useChatStore(s => s.currentId);
   const addMessage = useChatStore(s => s.addMessage);
   const draft = useChatStore(s => s.draft);
@@ -46,9 +47,9 @@ export function ChatInput({
       setText("");
       return;
     }
-    const pendingText = draft?.text ?? "";
+    const pendingText = draft.text ?? "";
     setText(pendingText);
-  }, [currentId, draft?.text]);
+  }, [currentId, draft.text]);
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -59,26 +60,32 @@ export function ChatInput({
   }, [text]);
 
   const handleSend = async () => {
+    if (isSending) return;
     const content = text.trim();
     if (!content) return;
     if (!canSend()) {
       redirectToAccount();
       return;
     }
-    ensureThread();
-    // add user message locally (this also sets the title from first words)
-    addMessage({ role: "user", content });
-    if (!currentId) {
-      clearDraft();
-    }
-    setText("");
+    setIsSending(true);
+    try {
+      ensureThread();
+      // add user message locally (this also sets the title from first words)
+      addMessage({ role: "user", content });
+      if (!currentId) {
+        clearDraft();
+      }
+      setText("");
 
-    let locationToken: string | undefined;
-    if (/near me/i.test(content)) {
-      locationToken = await openPass.getLocationToken() || undefined;
-    }
+      let locationToken: string | undefined;
+      if (/near me/i.test(content)) {
+        locationToken = (await openPass.getLocationToken()) || undefined;
+      }
 
-    await onSend(content, locationToken, lang); // your existing streaming/send logic
+      await onSend(content, locationToken, lang); // your existing streaming/send logic
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -93,8 +100,9 @@ export function ChatInput({
     >
       <button
         type="button"
-        aria-label={uploadText}
-        className="flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--medx-text)] transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-[color:var(--medx-text)] dark:hover:bg-white/10"
+        disabled={!!currentId}
+        aria-label={currentId ? "Attach files is available before you start a new chat" : uploadText}
+        className="flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--medx-text)] transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:text-[color:var(--medx-text)] dark:hover:bg-white/10"
         onClick={() => {
           fileInputRef.current?.click();
         }}
@@ -129,6 +137,7 @@ export function ChatInput({
         }}
         placeholder={composerPlaceholder}
         aria-label={composerPlaceholder}
+        disabled={isSending}
         rows={1}
         onKeyDown={event => {
           if (event.key === "Enter" && !event.shiftKey) {
@@ -142,7 +151,7 @@ export function ChatInput({
         type="submit"
         aria-label={sendText}
         title={sendText}
-        disabled={!text.trim()}
+        disabled={!text.trim() || isSending}
         className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-sky-500 dark:hover:bg-sky-400"
       >
         <SendHorizontal className="h-5 w-5" />

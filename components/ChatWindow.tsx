@@ -385,7 +385,16 @@ export function ChatWindow() {
 
     const lang = langOverride ?? prefs.lang;
 
-    await persistIfTemp();
+    const snapshotState = useChatStore.getState();
+    const draftTitleFromStore = snapshotState.currentId
+      ? snapshotState.threads[snapshotState.currentId]?.title
+      : undefined;
+    const computedTitle =
+      draftTitleFromStore && draftTitleFromStore.trim().length > 0
+        ? draftTitleFromStore
+        : content.split(/\s+/).slice(0, 6).join(" ") || "New chat";
+
+    await persistIfTemp({ title: computedTitle });
     const persistedThreadId = useChatStore.getState().currentId;
     const effectiveThreadId = persistedThreadId ?? currentId;
     const research = getResearchFlagFromUrl();
