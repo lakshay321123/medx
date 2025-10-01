@@ -126,20 +126,13 @@ export default function Sidebar() {
                 aria-current={active ? "page" : undefined}
                 title={displayTitle || rawTitle}
               >
-                {/* Left accent for active state */}
+                {/* Slim left accent for active (ChatGPT-esque) */}
                 <span
                   className={active ? "h-5 w-0.5 rounded bg-blue-600 dark:bg-sky-400" : "h-5 w-0.5"}
-                  aria-hidden="true"
+                  aria-hidden
                 />
 
-                {/* Left icon (keeps family look with other sidebar icons) */}
-                <span className="h-5 w-5 shrink-0" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" className="h-5 w-5">
-                    <path d="M4 5h16v10H8l-3 3V5z" fill="currentColor" />
-                  </svg>
-                </span>
-
-                {/* Title as a full-row hit area via button (preserve existing navigation logic) */}
+                {/* Row hit area keeps your existing navigation logic */}
                 <button
                   onClick={() => {
                     closeSidebar();
@@ -150,7 +143,7 @@ export default function Sidebar() {
                   {displayTitle || t("threads.systemTitles.new_chat")}
                 </button>
 
-                {/* Right-side kebab stays; keep alignment stable */}
+                {/* Kebab unchanged */}
                 <div className="ml-auto opacity-80 group-hover:opacity-100">
                   <ThreadKebab
                     id={thread.id}
