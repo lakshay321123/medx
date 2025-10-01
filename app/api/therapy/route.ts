@@ -6,7 +6,7 @@ import { summarizeTherapyJSON, type ChatMessage as TM } from "@/lib/therapy/summ
 import { supabaseServer } from "@/lib/supabaseServer";
 import { getServerUserId } from "@/lib/auth/serverUser";
 import { extractTriggersFrom } from "@/lib/therapy/triggers";
-import { languageDirectiveFor, personaFromPrefs, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
+import { languageDirectiveFor, personaFromPrefs, sanitizePersonalization, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 
 export const runtime = "nodejs";
 
@@ -211,7 +211,9 @@ export async function POST(req: NextRequest) {
     const headerLang = req.headers.get("x-user-lang") || req.headers.get("x-lang") || undefined;
     const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
     const lang = langTag.toLowerCase();
-    const sysPrelude = [languageDirectiveFor(lang), personaFromPrefs(body?.personalization)]
+    const sanitizedPersonalization = sanitizePersonalization(body?.personalization);
+    const persona = personaFromPrefs(sanitizedPersonalization);
+    const sysPrelude = [languageDirectiveFor(lang), persona]
       .filter(Boolean)
       .join("\n\n");
     const allowHistory = body?.allowHistory !== false;
@@ -230,12 +232,18 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const clean = sanitizeMessages(Array.isArray(body?.messages) ? body.messages : []);
-    if (clean.length === 0) {
+    const sanitizedMessages = sanitizeMessages(Array.isArray(body?.messages) ? body.messages : []);
+    if (sanitizedMessages.length === 0) {
       return NextResponse.json({ error: "No valid messages" }, { status: 400 });
     }
 
-    const lastUser = [...clean].reverse().find((m) => m.role === "user") || clean[clean.length - 1];
+    const conversation = allowHistory
+      ? sanitizedMessages
+      : sanitizedMessages.length > 0
+        ? [sanitizedMessages[sanitizedMessages.length - 1]]
+        : [];
+
+    const lastUser = [...conversation].reverse().find((m) => m.role === "user") || conversation[conversation.length - 1];
     const details = extractDetails(lastUser.content || "");
     const risk = details.riskFlags.selfHarm || details.riskFlags.heavyUse;
 
@@ -285,7 +293,7 @@ Next question suggestion: ${nextQuestion(nextStage, knownName, profile?.personal
       ...(personalizationPrelude ? [personalizationPrelude] : []),
       style,
       director,
-      ...clean,
+      ...conversation,
     ];
 
     tokenLimit = 2048;
@@ -309,7 +317,7 @@ Next question suggestion: ${nextQuestion(nextStage, knownName, profile?.personal
       try {
         const openai = new OpenAI({ apiKey: OAI_KEY, baseURL: OAI_URL });
         const recent: TM[] = [
-          ...clean.map((m: any) => ({ role: m.role as TM["role"], content: String(m.content || "") })),
+          ...conversation.map((m: any) => ({ role: m.role as TM["role"], content: String(m.content || "") })),
           { role: "assistant", content: completion }
         ];
 
