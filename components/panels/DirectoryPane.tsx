@@ -116,7 +116,7 @@ export default function DirectoryPane() {
   };
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-[388px] flex-col md:mx-0 md:max-w-none lg:relative lg:w-full lg:max-w-[100vw] lg:overflow-x-hidden lg:overscroll-x-none">
+    <div className="mx-auto flex min-h-0 w-full max-w-[388px] flex-col overflow-y-visible md:mx-0 md:max-w-none lg:relative lg:w-full lg:max-w-[100vw] lg:overflow-x-hidden lg:overscroll-x-none">
       <div className="sticky top-0 z-10 space-y-1 border-b border-black/5 bg-white/85 px-2 pb-1 pt-1 backdrop-blur dark:border-white/10 dark:bg-slate-950/60 md:space-y-3 md:px-3 md:pb-3 md:pt-2">
         <div className="flex min-w-0 flex-wrap items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 sm:flex-nowrap md:gap-2 md:text-[11px]">
           <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-green-500"></span>
@@ -129,7 +129,7 @@ export default function DirectoryPane() {
           </button>
         </div>
 
-        <div className="flex flex-col gap-1 md:flex-row md:items-center md:gap-2 lg:overflow-x-hidden lg:[contain-intrinsic-inline-size:auto]">
+        <div className="flex flex-col gap-1 overflow-y-visible md:flex-row md:items-center md:gap-2 lg:overflow-x-hidden lg:[contain-intrinsic-inline-size:auto]">
           <div className="flex-1 min-w-0 lg:min-w-0">
             <input
               className="h-[34px] w-full rounded-[10px] border border-slate-200 bg-white/90 px-3 text-[12px] text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none focus:ring-0 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 md:h-10 md:rounded-[10px] md:px-3 md:text-[13px]"
