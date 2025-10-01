@@ -3,6 +3,13 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState,
 
 type Plan = "free" | "pro";
 type Lang = "en" | "hi" | "ar" | "it" | "zh" | "es" | "fr";
+type Personality =
+  | "nerd"
+  | "chatty"
+  | "witty"
+  | "straight"
+  | "encouraging"
+  | "genz";
 
 export type Prefs = {
   theme: "system" | "light" | "dark";
@@ -16,6 +23,17 @@ export type Prefs = {
 
   memoryEnabled: boolean;
   memoryAutosave: boolean;
+
+  personalizationEnabled: boolean;
+  personality: Personality;
+  customInstructions: string;
+
+  nickname: string;
+  occupation: string;
+  about: string;
+
+  referenceChatHistory: boolean;
+  referenceRecordHistory: boolean;
 
   medReminders: boolean;
   labUpdates: boolean;
@@ -53,6 +71,17 @@ const DEFAULT: Prefs = {
 
   memoryEnabled: true,
   memoryAutosave: true,
+
+  personalizationEnabled: true,
+  personality: "nerd",
+  customInstructions: "",
+
+  nickname: "",
+  occupation: "",
+  about: "",
+
+  referenceChatHistory: true,
+  referenceRecordHistory: false,
 
   medReminders: false,
   labUpdates: false,

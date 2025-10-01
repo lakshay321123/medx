@@ -158,6 +158,20 @@ export function ChatWindow() {
     let counted = false;
     try {
       let replyText = "";
+      const { useMemoryStore } = await import("@/lib/memory/useMemoryStore");
+      const includeFlags = {
+        memories: useMemoryStore.getState().enabled,
+        chatHistory: prefs.referenceChatHistory,
+        recordHistory: prefs.referenceRecordHistory,
+      };
+      const personalization = {
+        enabled: prefs.personalizationEnabled,
+        personality: prefs.personality,
+        customInstructions: prefs.customInstructions,
+        nickname: prefs.nickname,
+        occupation: prefs.occupation,
+        about: prefs.about,
+      };
       if (locationToken) {
         const res = await fetch("/api/chat", {
           method: "POST",
@@ -170,6 +184,8 @@ export function ChatWindow() {
             activeThreadId: currentId,
             threadId: currentId,
             mode: modeChoice,
+            personalization,
+            include: includeFlags,
           }),
         });
         if (!res.ok) {
@@ -194,6 +210,8 @@ export function ChatWindow() {
             threadId: currentId,
             mode: modeChoice,
             researchOn: research,
+            personalization,
+            include: includeFlags,
           }),
         });
         if (!res.ok) {
