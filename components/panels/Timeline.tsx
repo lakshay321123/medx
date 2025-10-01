@@ -78,26 +78,26 @@ const isMedicalVisible = (ob: any) => {
   return false;
 };
 
-function getDisplayTitle(ob: any) {
+function getDisplayTitle(ob: any, translate: (value: string) => string) {
   const kind = normalizeKind(ob?.kind);
   const meta = ob?.meta ?? {};
 
   if (kind === "lab") {
-    return "Blood report";
+    return translate("Blood report");
   }
 
   if (kind === "imaging") {
-    return inferImagingTitle(meta) || "Imaging report";
+    return inferImagingTitle(meta) || translate("Imaging report");
   }
 
   if (kind === "medication") {
-    return meta?.normalizedName || ob?.value_text || "Medication";
+    return meta?.normalizedName || ob?.value_text || translate("Medication");
   }
 
-  if (kind === "symptom") return "Symptom";
-  if (kind === "note") return meta?.title || "Note";
+  if (kind === "symptom") return translate("Symptom");
+  if (kind === "note") return meta?.title || translate("Note");
 
-  return ob?.name || "Observation";
+  return ob?.name || translate("Observation");
 }
 
 const getShortSummary = (ob: any) => {
@@ -543,7 +543,7 @@ export default function Timeline(){
       <div className="p-6 text-sm text-muted-foreground">{t("No events yet.")}</div>
     );
 
-  const displayTitle = active ? getDisplayTitle(active) : "Observation";
+  const displayTitle = active ? getDisplayTitle(active, t) : t("Observation");
   const originalShortSummary = active ? getShortSummary(active) : "";
   const metaForActive = active?.meta ?? {};
   const summaryLong = firstNonEmptyString(detailData?.summaryLong, metaForActive.summary_long, metaForActive.summaryLong);
@@ -680,7 +680,7 @@ export default function Timeline(){
             ) : (
               filtered.map((it:any)=>{
                 const observedAt = formatDateTime(it?.observed_at);
-                const title = it?.name_display ?? it?.name ?? t("Observation");
+                const title = it?.name_display ?? it?.name ?? getDisplayTitle(it, t);
                 const short = it?.summary_display ?? getShortSummary(it);
                 const chipLabel = getChipLabel(it, t);
                 return (
@@ -792,7 +792,7 @@ export default function Timeline(){
             <div className="px-5 py-4">
               {hasFile ? (
                 !signedUrl ? (
-                  <div className="text-xs text-muted-foreground">Fetching file…</div>
+                  <div className="text-xs text-muted-foreground">{t("Fetching file…")}</div>
                 ) : /\.pdf(\?|$)/i.test(signedUrl) ? (
                   <iframe src={signedUrl} className="w-full h-[80vh] bg-white" />
                 ) : /\.(png|jpe?g|gif|webp)(\?|$)/i.test(signedUrl) ? (
@@ -841,7 +841,7 @@ export default function Timeline(){
                       {summaryAvailable && (
                         <TabsContent value="summary">
                           <article className="prose prose-zinc dark:prose-invert max-w-none whitespace-pre-wrap select-text">
-                            {displaySummaryLong || displaySummaryShort || ""}
+                          {displaySummaryLong || displaySummaryShort || ""}
                           </article>
                         </TabsContent>
                       )}
@@ -895,7 +895,7 @@ export default function Timeline(){
                           )}
                           {active?.unit && !dose && (
                             <div className="rounded-md border px-2 py-1">
-                              <div className="text-[11px] uppercase opacity-70">Unit</div>
+                              <div className="text-[11px] uppercase opacity-70">{t("Unit")}</div>
                               <div>{active.unit}</div>
                             </div>
                           )}
