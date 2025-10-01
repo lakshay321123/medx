@@ -11,7 +11,6 @@ const LANG_LABELS = {
   hi: "Hindi",
   ar: "Arabic",
   es: "Spanish",
-  fr: "French",
   it: "Italian",
 } as const;
 
