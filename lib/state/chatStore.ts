@@ -1,6 +1,14 @@
 import { create } from "zustand";
 import { nanoid } from "nanoid";
 import type { AppMode } from "@/lib/welcomeMessages";
+import type { DraftMode } from "@/lib/chat/types";
+
+export type PendingDraft = {
+  mode: DraftMode;
+  research?: boolean;
+  text: string;
+  attachments: File[];
+};
 
 export type ChatMessageMeta = {
   error?: boolean;
@@ -33,22 +41,39 @@ type Thread = {
 type ChatState = {
   currentId: string | null;
   threads: Record<string, Thread>;
+  draft: PendingDraft;
   startNewThread: () => string;
   upsertThread: (t: Partial<Thread> & { id: string }) => void;
   addMessage: (m: Omit<ChatMessage, "id" | "ts"> & { id?: string }) => void;
   removeMessage: (id: string) => void;
   resetToEmpty: () => void;
+  setDraft: (draft: PendingDraft) => void;
+  setDraftText: (text: string) => void;
+  addDraftAttachments: (files: File[]) => void;
+  clearDraft: () => void;
 };
+
+export function createDefaultDraft(): PendingDraft {
+  return {
+    mode: "wellness",
+    research: false,
+    text: "",
+    attachments: [],
+  };
+}
+
+const initialDraft = createDefaultDraft();
 
 export const useChatStore = create<ChatState>((set, get) => ({
   currentId: null,
   threads: {},
+  draft: initialDraft,
 
   startNewThread: () => {
     const id = `temp_${nanoid(8)}`;
     const now = Date.now();
     const t: Thread = { id, title: "New chat", createdAt: now, updatedAt: now, messages: [], isTemp: true };
-    set(s => ({ currentId: id, threads: { ...s.threads, [id]: t } }));
+    set(s => ({ currentId: id, threads: { ...s.threads, [id]: t }, draft: createDefaultDraft() }));
     return id;
   },
 
@@ -77,7 +102,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   removeMessage: (id) => {
     set(s => {
       const { currentId } = s;
-      if (!currentId) return s;
+      if (currentId == null) return s;
       const thread = s.threads[currentId];
       if (!thread) return s;
       const messages = thread.messages.filter(message => message.id !== id);
@@ -86,6 +111,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
 
-  resetToEmpty: () => set({ currentId: null, threads: {} }),
+  resetToEmpty: () => set({ currentId: null, threads: {}, draft: createDefaultDraft() }),
+
+  setDraft: (draft) => set({ draft }),
+
+  setDraftText: (text) => {
+    set(s => ({ draft: { ...s.draft, text } }));
+  },
+
+  addDraftAttachments: (files) => {
+    if (files.length === 0) return;
+    set(s => ({ draft: { ...s.draft, attachments: [...s.draft.attachments, ...files] } }));
+  },
+
+  clearDraft: () => set({ draft: createDefaultDraft() }),
 }));
 

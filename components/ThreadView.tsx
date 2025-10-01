@@ -9,7 +9,7 @@ export default function ThreadView({ id }: { id: string }) {
 
   useEffect(() => {
     upsertThread({ id });
-    setCurrent({ currentId: id });
+    setCurrent({ currentId: id, draft: null });
   }, [id, upsertThread, setCurrent]);
 
   return <ChatWindow />;
