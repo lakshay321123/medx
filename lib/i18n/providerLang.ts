@@ -7,6 +7,7 @@ export function providerLang(appLang?: string): string {
     case "es":
     case "it":
     case "ar":
+    case "fr":
       return base;
 
     case "zh": {

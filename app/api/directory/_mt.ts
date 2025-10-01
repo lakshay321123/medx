@@ -6,7 +6,7 @@ import "server-only";
 
 type MTProvider = "google" | "openai";
 const PROVIDER = (process.env.MT_PROVIDER as MTProvider) || "google";
-const TARGETS = new Set(["en", "hi", "ar", "es", "it", "zh"]);
+const TARGETS = new Set(["en", "hi", "ar", "es", "it", "zh", "fr"]);
 
 function decodeHtmlEntities(s: string): string {
   return String(s || "")
