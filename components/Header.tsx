@@ -1,4 +1,5 @@
 'use client';
+import type { CSSProperties } from 'react';
 import CountryGlobe from '@/components/CountryGlobe';
 import Brand from '@/components/nav/Brand';
 import ModeBar from '@/components/modes/ModeBar';
@@ -12,7 +13,10 @@ export default function Header() {
           <Brand />
         </div>
 
-        <div className="hidden md:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+        <div
+          className="hidden md:block absolute left-1/2 top-1/2 -translate-y-1/2"
+          style={{ '--tw-translate-x': 'calc(-50% + 8px)' } as CSSProperties}
+        >
           <ModeBar />
         </div>
 
