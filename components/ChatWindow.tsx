@@ -18,6 +18,8 @@ import { newIdempotencyKey } from "@/lib/net/idempotency";
 import { retryFetch } from "@/lib/net/retry";
 import { normalizeNetworkError } from "@/lib/net/errors";
 import { pollJob } from "@/lib/net/pollJob";
+import { persist } from "@/lib/utils/persist";
+import { AssistantBubble } from "@/components/chat/AssistantBubble";
 
 const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== "0";
 const JOB_STORAGE_KEY = "lastJob";
@@ -86,11 +88,20 @@ function inferResearchFlag(req: Record<string, unknown>): boolean {
   return false;
 }
 
-function MessageRow({ m }: { m: ChatMessage }) {
+function MessageRow({ m, onRetry }: { m: ChatMessage; onRetry: (message: ChatMessage) => void }) {
+  if (m.role === "assistant") {
+    return (
+      <div className="p-2 space-y-1">
+        <div className="text-xs uppercase tracking-wide text-slate-500">{m.role}</div>
+        <AssistantBubble message={m} onRetry={() => onRetry(m)} />
+      </div>
+    );
+  }
+
   return (
     <div className="p-2 space-y-1">
       <div className="text-xs uppercase tracking-wide text-slate-500">{m.role}</div>
-      <ChatMarkdown content={m.content} />
+      <ChatMarkdown content={m.content ?? ""} />
     </div>
   );
 }
@@ -99,11 +110,17 @@ export function ChatWindow() {
   const messages = useChatStore(s => s.currentId ? s.threads[s.currentId]?.messages ?? [] : []);
   const addMessage = useChatStore(s => s.addMessage);
   const removeMessage = useChatStore(s => s.removeMessage);
+  const appendChunk = useChatStore(s => s.appendChunk);
+  const finalizeMessage = useChatStore(s => s.finalize);
+  const markErrorKeepText = useChatStore(s => s.markErrorKeepText);
+  const hydratePartials = useChatStore(s => s.hydratePartials);
   const currentId = useChatStore(s => s.currentId);
   const [results, setResults] = useState<any[]>([]);
   const prefs = usePrefs();
   const chatRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
+  const streamContentRef = useRef<Map<string, string>>(new Map());
+  const hydratedChatsRef = useRef<Set<string>>(new Set());
   const [pendingMessage, setPendingMessage] = useState<{
     id: string;
     content: string;
@@ -188,17 +205,66 @@ export function ChatWindow() {
     }
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!currentId) return;
+    if (hydratedChatsRef.current.has(currentId)) return;
+    hydratedChatsRef.current.add(currentId);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const cached = await persist.loadByChatPrefix(currentId);
+        if (cancelled || !cached) return;
+        const filtered = (cached as ChatMessage[]).filter(
+          (m) =>
+            m &&
+            m.role === "assistant" &&
+            (m.status === "assistant-partial" || m.status === "assistant-final")
+        );
+        if (filtered.length > 0) {
+          hydratePartials(currentId, filtered);
+        }
+      } catch {
+        // ignore hydration failures
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentId, hydratePartials]);
+
   const handlePendingContentUpdate = useCallback((messageId: string, text: string) => {
     setPendingMessage(prev => (prev && prev.id === messageId ? { ...prev, content: text } : prev));
-  }, []);
+    if (!currentId) return;
+    const previous = streamContentRef.current.get(messageId) ?? "";
+    let chunk = text.slice(previous.length);
+    if (chunk.length === 0 && text !== previous) {
+      chunk = text;
+    }
+    streamContentRef.current.set(messageId, text);
+    if (chunk) {
+      appendChunk(currentId, messageId, chunk);
+    }
+  }, [appendChunk, currentId]);
 
   const handlePendingFinalize = useCallback(
     (messageId: string, finalContent: string) => {
       setPendingMessage(prev => (prev && prev.id === messageId ? { ...prev, content: finalContent } : prev));
-      addMessage({ id: messageId, role: "assistant", content: finalContent });
+      streamContentRef.current.set(messageId, finalContent);
+      addMessage({
+        id: messageId,
+        role: "assistant",
+        content: finalContent,
+        status: "assistant-final",
+        streamCursor: finalContent.length,
+      });
+      if (currentId) {
+        finalizeMessage(currentId, messageId);
+      }
+      streamContentRef.current.delete(messageId);
       setPendingMessage(null);
     },
-    [addMessage],
+    [addMessage, currentId, finalizeMessage],
   );
 
   const {
@@ -384,6 +450,7 @@ export function ChatWindow() {
     }
 
     const lang = langOverride ?? prefs.lang;
+    const activeChatId = currentId;
 
     await persistIfTemp();
     const research = getResearchFlagFromUrl();
@@ -420,8 +487,8 @@ export function ChatWindow() {
           locationToken,
           research,
           lang,
-          activeThreadId: currentId,
-          threadId: currentId,
+          activeThreadId: activeChatId,
+          threadId: activeChatId,
           mode: modeChoice,
           personalization,
           include: includeFlags,
@@ -429,8 +496,8 @@ export function ChatWindow() {
       : {
           text: content,
           lang,
-          activeThreadId: currentId,
-          threadId: currentId,
+          activeThreadId: activeChatId,
+          threadId: activeChatId,
           mode: modeChoice,
           researchOn: research,
           personalization,
@@ -451,6 +518,20 @@ export function ChatWindow() {
     };
 
     setPendingMessage({ id: pendingId, content: "", snapshot });
+    streamContentRef.current.set(pendingId, "");
+    if (activeChatId) {
+      addMessage({
+        id: pendingId,
+        role: "assistant",
+        content: "",
+        status: "assistant-partial",
+        streamCursor: 0,
+        route: snapshot.route,
+        req: snapshot.req,
+        headers: snapshot.headers,
+        retryMeta: snapshot.meta,
+      });
+    }
     beginPendingAssistant(pendingId, snapshot.meta);
 
     let counted = false;
@@ -458,7 +539,7 @@ export function ChatWindow() {
       const { replyText, results: nextResults } = await runAssistantRequest(
         pendingId,
         snapshot,
-        currentId,
+        activeChatId,
       );
       setResults(nextResults);
       markPendingAssistantStreaming(pendingId);
@@ -471,18 +552,37 @@ export function ChatWindow() {
       console.error(error);
       normalizeNetworkError(error);
       cancelPendingAssistant(pendingId);
+      const partialContent = streamContentRef.current.get(pendingId) ?? pendingMessage?.content ?? "";
       setPendingMessage(null);
       setResults([]);
-      addMessage({
-        id: pendingId,
-        role: "assistant",
-        content: "",
-        error: true,
-        route: snapshot.route,
-        req: snapshot.req,
-        headers: snapshot.headers,
-        retryMeta: snapshot.meta,
-      });
+      if (partialContent) {
+        addMessage({
+          id: pendingId,
+          role: "assistant",
+          content: partialContent,
+          status: "assistant-partial",
+          streamCursor: partialContent.length,
+          route: snapshot.route,
+          req: snapshot.req,
+          headers: snapshot.headers,
+          retryMeta: snapshot.meta,
+        });
+        if (activeChatId) {
+          markErrorKeepText(activeChatId, pendingId);
+        }
+      } else {
+        addMessage({
+          id: pendingId,
+          role: "assistant",
+          content: "",
+          error: true,
+          route: snapshot.route,
+          req: snapshot.req,
+          headers: snapshot.headers,
+          retryMeta: snapshot.meta,
+        });
+      }
+      streamContentRef.current.delete(pendingId);
     } finally {
       if (counted) {
         prefs.incUsage();
@@ -496,6 +596,7 @@ export function ChatWindow() {
         return;
       }
 
+      const activeChatId = currentId;
       const reqData = message.req as Record<string, unknown>;
       const route = message.route as ApiRoute;
       let originalText = "";
@@ -520,13 +621,27 @@ export function ChatWindow() {
 
       removeMessage(message.id);
       setPendingMessage({ id: message.id, content: "", snapshot });
+      streamContentRef.current.set(message.id, "");
+      if (activeChatId) {
+        addMessage({
+          id: message.id,
+          role: "assistant",
+          content: "",
+          status: "assistant-partial",
+          streamCursor: 0,
+          route: snapshot.route,
+          req: snapshot.req,
+          headers: snapshot.headers,
+          retryMeta: snapshot.meta,
+        });
+      }
       beginPendingAssistant(message.id, snapshot.meta);
 
       try {
         const { replyText, results: nextResults } = await runAssistantRequest(
           message.id,
           snapshot,
-          currentId,
+          activeChatId,
         );
         setResults(nextResults);
         markPendingAssistantStreaming(message.id);
@@ -539,18 +654,37 @@ export function ChatWindow() {
         console.error(error);
         normalizeNetworkError(error);
         cancelPendingAssistant(message.id);
+        const partialContent = streamContentRef.current.get(message.id) ?? pendingMessage?.content ?? message.content ?? "";
         setPendingMessage(null);
         setResults([]);
-        addMessage({
-          id: message.id,
-          role: "assistant",
-          content: "",
-          error: true,
-          route: snapshot.route,
-          req: snapshot.req,
-          headers: snapshot.headers,
-          retryMeta: snapshot.meta,
-        });
+        if (partialContent) {
+          addMessage({
+            id: message.id,
+            role: "assistant",
+            content: partialContent,
+            status: "assistant-partial",
+            streamCursor: partialContent.length,
+            route: snapshot.route,
+            req: snapshot.req,
+            headers: snapshot.headers,
+            retryMeta: snapshot.meta,
+          });
+          if (activeChatId) {
+            markErrorKeepText(activeChatId, message.id);
+          }
+        } else {
+          addMessage({
+            id: message.id,
+            role: "assistant",
+            content: "",
+            error: true,
+            route: snapshot.route,
+            req: snapshot.req,
+            headers: snapshot.headers,
+            retryMeta: snapshot.meta,
+          });
+        }
+        streamContentRef.current.delete(message.id);
       }
     },
     [
@@ -566,6 +700,7 @@ export function ChatWindow() {
       runAssistantRequest,
       setPendingMessage,
       setResults,
+      markErrorKeepText,
     ],
   );
 
@@ -586,6 +721,9 @@ export function ChatWindow() {
             </div>
           ) : null}
           {messages.map(m => {
+            if (pendingMessage && pendingMessage.id === m.id && m.status === "assistant-partial") {
+              return null;
+            }
             if (m.role === "assistant" && m.error) {
               return (
                 <div key={m.id} className="my-2 flex justify-start">
@@ -595,7 +733,7 @@ export function ChatWindow() {
             }
             return (
               <div key={m.id} className="space-y-2">
-                <MessageRow m={m} />
+                <MessageRow m={m} onRetry={retryTurn} />
               </div>
             );
           })}
