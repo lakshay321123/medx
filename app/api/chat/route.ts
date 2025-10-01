@@ -363,7 +363,9 @@ export async function POST(req: Request) {
   // 6) Groq call
   const messages: ChatCompletionMessageParam[] = [
     { role: "system", content: fullSystem },
-    ...(sourceBlock ? [{ role: "system", content: sourceBlock }] : []),
+    ...(sourceBlock
+      ? ([{ role: "system", content: sourceBlock }] as ChatCompletionMessageParam[])
+      : []),
     ...recent.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
     { role: "user", content: text },
   ];
