@@ -6,6 +6,7 @@ import { summarizeTherapyJSON, type ChatMessage as TM } from "@/lib/therapy/summ
 import { supabaseServer } from "@/lib/supabaseServer";
 import { getServerUserId } from "@/lib/auth/serverUser";
 import { extractTriggersFrom } from "@/lib/therapy/triggers";
+import { ensureJob, markJobDone, markJobError, markJobRunning } from "@/lib/server/jobStore";
 
 export const runtime = "nodejs";
 
@@ -198,22 +199,77 @@ function buildWrapupFromNote(note: any) {
 
 // ---------- handler ----------
 export async function POST(req: NextRequest) {
+  let body: any = {};
+  try {
+    body = await req.json();
+  } catch {
+    body = {};
+  }
+
+  const baseRespond = (data: any, init?: ResponseInit) => NextResponse.json(data, init);
+  const routePath = "/api/therapy";
+  const headerIdemKey = req.headers.get("x-idempotency-key");
+  const bodyIdemKey = typeof body?.idemKey === "string" ? body.idemKey : undefined;
+  const idemKey = headerIdemKey || bodyIdemKey;
+  const jobCheck = ensureJob(routePath, idemKey);
+  if (jobCheck.status === "done") {
+    const payload = jobCheck.payload ?? {};
+    if (typeof payload.jobId !== "string") {
+      payload.jobId = jobCheck.jobId;
+    }
+    return baseRespond(payload, { status: jobCheck.statusCode ?? 200 });
+  }
+  if (jobCheck.status === "error") {
+    const payload = jobCheck.payload ?? { error: jobCheck.errorText ?? "Network error" };
+    if (typeof payload.jobId !== "string") {
+      payload.jobId = jobCheck.jobId;
+    }
+    return baseRespond(payload, { status: jobCheck.statusCode ?? 500 });
+  }
+  if (jobCheck.status === "pending") {
+    return baseRespond({ pending: true, jobId: jobCheck.jobId }, { status: 202 });
+  }
+  const jobId = jobCheck.jobId ?? null;
+  if (jobId) {
+    markJobRunning(jobId);
+  }
+
+  const respond = (data: any, init?: ResponseInit) => {
+    if (!jobId) {
+      return baseRespond(data, init);
+    }
+    const statusCode = init?.status ?? 200;
+    const payload = {
+      ...(typeof data === "object" && data !== null ? data : {}),
+      jobId,
+    };
+    if (statusCode >= 400) {
+      markJobError(jobId, payload, statusCode, { errorText: typeof (payload as any)?.error === "string" ? (payload as any).error : undefined });
+    } else {
+      const responseText =
+        typeof (payload as any)?.text === "string"
+          ? (payload as any).text
+          : typeof (payload as any)?.reply === "string"
+          ? (payload as any).reply
+          : undefined;
+      markJobDone(jobId, payload, statusCode, { responseText });
+    }
+    return baseRespond(payload, init);
+  };
+
   try {
     if (!ENABLED) {
-      return NextResponse.json({ error: "Therapy mode disabled" }, { status: 403 });
+      return respond({ error: "Therapy mode disabled" }, { status: 403 });
     }
-
-    let body: any = {};
-    try { body = await req.json(); } catch { body = {}; }
 
     // Belt & suspenders: this route is therapy-only
     if (body?.mode && body.mode !== "therapy") {
-      return NextResponse.json({ error: "Wrong mode for /api/therapy" }, { status: 400 });
+      return respond({ error: "Wrong mode for /api/therapy" }, { status: 400 });
     }
 
     // Optional starter payload
     if (body?.wantStarter) {
-      return NextResponse.json({
+      return respond({
         starter: "Hi, I’m here with you. Want to tell me what’s on your mind today? 💙",
         disclaimer: process.env.THERAPY_DISCLAIMER || "",
         crisisBanner: process.env.CRISIS_BANNER_TEXT || "",
@@ -222,7 +278,7 @@ export async function POST(req: NextRequest) {
 
     const clean = sanitizeMessages(Array.isArray(body?.messages) ? body.messages : []);
     if (clean.length === 0) {
-      return NextResponse.json({ error: "No valid messages" }, { status: 400 });
+      return respond({ error: "No valid messages" }, { status: 400 });
     }
 
     const lastUser = [...clean].reverse().find((m) => m.role === "user") || clean[clean.length - 1];
@@ -282,7 +338,7 @@ Next question suggestion: ${nextQuestion(nextStage, knownName, profile?.personal
       result = await callOpenAI([style, director, { role: "user", content: lastUser.content }]);
     }
     if (!result.text) {
-      return NextResponse.json({ error: result.error || "Empty response from OpenAI", detail: result.detail || "" }, { status: 500 });
+      return respond({ error: result.error || "Empty response from OpenAI", detail: result.detail || "" }, { status: 500 });
     }
 
     const completion = result.text.trim().split(/\n+/).slice(0, 3).join("\n");
@@ -354,8 +410,9 @@ Next question suggestion: ${nextQuestion(nextStage, knownName, profile?.personal
     if (summary) resp.summary = summary;
     if (wrapup) resp.wrapup = wrapup;
 
-    return NextResponse.json(resp);
+    return respond(resp);
   } catch (e: any) {
-    return NextResponse.json({ error: "Server error", detail: String(e?.message || e) }, { status: 500 });
+    console.error(e);
+    return respond({ error: "Server error", detail: String(e?.message || e) }, { status: 500 });
   }
 }

@@ -13,6 +13,20 @@ function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function computeDelay(response: Response | null, attempt: number, baseDelay: number) {
+  if (response?.status === 429) {
+    const retryAfter = response.headers.get("retry-after");
+    if (retryAfter) {
+      const seconds = Number(retryAfter);
+      if (!Number.isNaN(seconds) && seconds > 0) {
+        return seconds * 1000;
+      }
+    }
+  }
+  const jitter = 0.75 + Math.random() * 0.5;
+  return Math.round(baseDelay * 2 ** attempt * jitter);
+}
+
 export async function retryFetch(
   input: Parameters<typeof fetch>[0],
   init?: Parameters<typeof fetch>[1],
@@ -24,8 +38,9 @@ export async function retryFetch(
   let attempt = 0;
   // eslint-disable-next-line no-constant-condition
   while (true) {
+    let response: Response | null = null;
     try {
-      const response = await fetch(input, init);
+      response = await fetch(input, init);
       if (response.ok) {
         return response;
       }
@@ -38,12 +53,18 @@ export async function retryFetch(
       if (attempt >= retries) {
         throw error;
       }
-      await delay(retryDelay * Math.max(1, attempt + 1));
+      const wait = computeDelay(
+        (error as Error & { response?: Response }).response ?? response,
+        attempt,
+        retryDelay,
+      );
+      await delay(wait);
       attempt += 1;
       continue;
     }
 
-    await delay(retryDelay * Math.max(1, attempt + 1));
+    const wait = computeDelay(response, attempt, retryDelay);
+    await delay(wait);
     attempt += 1;
   }
 }

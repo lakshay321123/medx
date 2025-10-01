@@ -10,6 +10,8 @@ export type AssistantRetrySnapshot = {
   research: boolean;
   mode: AppMode;
   compact?: boolean;
+  jobId?: string;
+  filesMeta?: { name: string; size: number; type?: string; hash: string }[];
 };
 
 export type Msg = {
