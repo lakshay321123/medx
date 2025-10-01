@@ -101,7 +101,7 @@ export default function Sidebar() {
         <Search size={16} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400" />
       </div>
 
-      <div className="flex-1 space-y-1 overflow-y-auto pr-1 pb-16">
+      <div className="mt-2 flex-1 space-y-1 overflow-y-auto pr-1 pb-16">
         {filtered.map((thread) => {
           const rawTitle = (thread.title ?? "").trim();
           const systemKey = thread.therapy && LEGACY_THERAPY_TITLES.has(rawTitle)
@@ -116,14 +116,22 @@ export default function Sidebar() {
             return (
               <div
                 key={thread.id}
-                className={`group flex items-center gap-2 rounded-xl px-3 py-2 transition focus-within:ring-2 focus-within:ring-offset-0 ${
+                className={[
+                  "group flex items-center gap-2 rounded-md px-3 py-2 transition-colors",
+                  "focus-within:ring-2 focus-within:ring-offset-0",
                   active
                     ? "bg-blue-600/10 font-semibold text-blue-600 dark:bg-sky-500/20 dark:text-sky-300"
-                    : "text-slate-600 hover:bg-slate-100/70 dark:text-slate-300 dark:hover:bg-white/5"
-                }`}
+                    : "text-slate-600 hover:bg-slate-100/70 dark:text-slate-300 dark:hover:bg-white/5",
+                ].join(" ")}
                 aria-current={active ? "page" : undefined}
                 title={displayTitle || rawTitle}
               >
+                {/* Left accent for active state */}
+                <span
+                  className={active ? "h-5 w-0.5 rounded bg-blue-600 dark:bg-sky-400" : "h-5 w-0.5"}
+                  aria-hidden="true"
+                />
+
                 {/* Left icon (keeps family look with other sidebar icons) */}
                 <span className="h-5 w-5 shrink-0" aria-hidden="true">
                   <svg viewBox="0 0 24 24" className="h-5 w-5">
