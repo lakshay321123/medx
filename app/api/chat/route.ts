@@ -6,10 +6,11 @@ import { decideContext } from "@/lib/memory/contextRouter";
 import { seedTopicEmbedding } from "@/lib/memory/outOfContext";
 import { updateSummary, persistUpdatedSummary } from "@/lib/memory/summary";
 import { buildPromptContext } from "@/lib/memory/contextBuilder";
-import { languageNameFor, personaFromPrefs, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
+import { buildSystemPrompt, languageNameFor, personaFromPrefs, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 import { buildContextBundle } from "@/lib/prompt/contextBuilder";
 
 import { loadState, saveState } from "@/lib/context/stateStore";
+import { EMPTY_STATE } from "@/lib/context/state";
 import { extractContext, mergeInto } from "@/lib/context/extractLLM";
 import { applyContradictions } from "@/lib/context/updates";
 import { loadTopicStack, pushTopic, saveTopicStack, switchTo } from "@/lib/context/topicStack";
@@ -82,9 +83,10 @@ function contextStringFrom(messages: ChatCompletionMessageParam[]): string {
 export async function POST(req: Request) {
   const body: any = await req.json().catch(() => ({}));
   const { personalization, include } = body;
-  const includeMemories = !!include?.memories;
-  const includeChatHistory = include?.chatHistory !== false;
-  const includeRecordHistory = !!include?.recordHistory;
+  const allowHistory = body?.allowHistory !== false;
+  const includeMemories = allowHistory && !!include?.memories;
+  const includeChatHistory = allowHistory && include?.chatHistory !== false;
+  const includeRecordHistory = allowHistory && !!include?.recordHistory;
   const { query, locationToken } = body;
   if (query && /near me/i.test(query) && locationToken) {
     const results = await searchNearby(locationToken, query);
@@ -244,6 +246,92 @@ export async function POST(req: Request) {
   if (shouldReset(text)) {
     // start new thread logic here
     return respond({ ok: true, threadId: null, text: "Starting fresh. What would you like to do next?" });
+  }
+
+  if (!allowHistory) {
+    const statelessThreadId = activeThreadId || conversationId!;
+    let state = { ...EMPTY_STATE };
+    const { state: withContradictions } = applyContradictions(state, text);
+    state = withContradictions;
+
+    const ext = await extractContext(text);
+    state = mergeInto(state, ext);
+
+    const delta = parseConstraintsFromText(text);
+    state.constraints = mergeLedger(state.constraints, delta);
+
+    const entityDelta = parseEntitiesFromText(text);
+    state.entities = mergeEntityLedger(state.entities, entityDelta);
+
+    const systemExtra: string[] = [];
+    const routeDecision = decideRoute(text, state.topic);
+    if (routeDecision === "clarify-quick") {
+      systemExtra.push("If the user intent may have changed, ask one concise clarification question, then proceed.");
+    }
+    if (routeDecision === "switch-topic") {
+      state.topic = text.slice(0, 60);
+    }
+
+    let researchSources: WebHit[] = [];
+    let sourceBlock = '';
+    if (researchOn) {
+      researchSources = await runAggregator(req, text);
+      if (researchSources.length) {
+        const top = researchSources.slice(0, 5);
+        sourceBlock =
+          'Use these up-to-date sources. Prefer them over prior knowledge and include links:\n' +
+          top.map((s, i) => `[${i + 1}] ${s.title}\n${s.url}\n${s.snippet}`).join('\n\n');
+      } else {
+        sourceBlock = 'Research mode was ON but no web results were available.';
+      }
+    }
+
+    const baseSystem = buildSystemPrompt({ lang });
+    const systemBlocks: string[] = [];
+    if (persona) systemBlocks.push(persona);
+    systemBlocks.push(baseSystem);
+    if (systemExtra.length) systemBlocks.push(...systemExtra);
+    const fullSystem = systemBlocks.filter(Boolean).join("\n\n");
+
+    const messages: ChatCompletionMessageParam[] = [
+      { role: "system", content: fullSystem },
+      ...(sourceBlock
+        ? ([{ role: "system", content: sourceBlock }] as ChatCompletionMessageParam[])
+        : []),
+      { role: "user", content: text },
+    ];
+
+    const clarifier = disambiguate(text, contextStringFrom(messages));
+    if (clarifier) {
+      return respond({ ok: true, threadId: statelessThreadId, text: clarifier });
+    }
+
+    const feedback_summary = { up: 0, down: 0 };
+    let assistant = await callGroq(messages, {
+      temperature: 0.25,
+      max_tokens: 1200,
+      metadata: {
+        conversationId: statelessThreadId,
+        lastMessageId: null,
+        feedback_summary,
+        app: "medx",
+        mode: mode ?? "chat",
+        language: lang,
+        languageName,
+      },
+    });
+
+    assistant = polishText(assistant);
+    const check = selfCheck(assistant, state.constraints, state.entities);
+    assistant = check.fixed;
+    assistant = addEvidenceAnchorIfMedical(assistant);
+    const recap = buildConstraintRecap(state.constraints);
+    if (recap) assistant += recap;
+
+    assistant = sanitizeLLM(assistant);
+    assistant = finalReplyGuard(text, assistant);
+
+    return respond({ ok: true, threadId: statelessThreadId, text: assistant, sources: researchSources });
   }
 
   // 1) Context routing (continue/clarify/newThread)

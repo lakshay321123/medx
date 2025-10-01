@@ -60,6 +60,7 @@ export async function POST(req: NextRequest) {
   let body: any = {};
   try { body = await req.json(); } catch {}
   const { context, clientRequestId, mode } = body;
+  const allowHistory = body?.allowHistory !== false;
   const requestedLang = typeof body?.lang === 'string' ? body.lang : undefined;
   const headerLang = req.headers.get('x-user-lang') || req.headers.get('x-lang') || undefined;
   const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
@@ -73,7 +74,7 @@ export async function POST(req: NextRequest) {
 
   // 1) Gather existing conversation
   const history: Array<{role:'system'|'user'|'assistant'; content:string}> =
-    Array.isArray(body?.messages) ? body.messages : [];
+    allowHistory && Array.isArray(body?.messages) ? body.messages : [];
 
   // 2) Determine latest user turn for research sourcing + chat flow
   const recent = takeRecentTurns(history, 8);                 // keep continuity
