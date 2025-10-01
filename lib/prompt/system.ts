@@ -1,5 +1,6 @@
 import { BRAND_NAME } from "@/lib/brand";
-import type { PersonalizationPayload } from "@/components/providers/PreferencesProvider";
+
+export type PersonalizationPayload = import("@/components/providers/PreferencesProvider").PersonalizationPayload;
 
 export const SYSTEM_DEFAULT_LANG = "en";
 const DEFAULT_LOCALE = "en-IN";
@@ -22,24 +23,42 @@ const LOCALE_MAP: Record<string, string> = {
   it: "it-IT",
 };
 
-export const personaFromPrefs = (
-  p?: Partial<PersonalizationPayload>,
-) => {
-  if (!p || !p.enabled) return "";
-  const tone = p.personality ? `Tone: ${p.personality}.` : "";
-  const custom = p.customInstructions?.trim()
-    ? `Custom instructions: ${p.customInstructions.trim()}`
-    : "";
+const cap = (s: string, n: number) =>
+  (s || "").replace(/\p{C}+/gu, "").trim().slice(0, n);
+
+/** Trust-but-verify: trims, caps, and whitelists personality */
+export function sanitizePersonalization(
+  p?: any,
+): Partial<PersonalizationPayload> & { enabled: boolean } {
+  if (!p || !p.enabled) return { enabled: false };
+  const allowed = ["nerd", "chatty", "witty", "straight", "encouraging", "genz"];
+  const personality = allowed.includes(p.personality) ? p.personality : null;
+  return {
+    enabled: true,
+    personality,
+    customInstructions: cap(p.customInstructions, 500),
+    nickname: cap(p.nickname, 40),
+    occupation: cap(p.occupation, 60),
+    about: cap(p.about, 200),
+  };
+}
+
+/** Builds the compact persona prelude. Language directive should be added separately. */
+export function personaFromPrefs(p?: any): string {
+  const s = sanitizePersonalization(p);
+  if (!s.enabled) return "";
+  const tone = s.personality ? `Tone: ${s.personality}.` : "";
+  const custom = s.customInstructions ? `Custom instructions: ${s.customInstructions}` : "";
   const who = [
-    p.nickname && `Call the user “${p.nickname}”`,
-    p.occupation && `User occupation: ${p.occupation}`,
-    p.about && `About user: ${p.about}`,
+    s.nickname && `Call the user “${s.nickname}”`,
+    s.occupation && `User occupation: ${s.occupation}`,
+    s.about && `About user: ${s.about}`,
   ]
     .filter(Boolean)
     .join(". ");
   const whoLine = who ? `Context: ${who}.` : "";
   return [tone, custom, whoLine].filter(Boolean).join("\n");
-};
+}
 
 function normalizeLang(input?: string): string {
   if (!input) return SYSTEM_DEFAULT_LANG;
@@ -58,7 +77,7 @@ export function resolveLocaleForLang(lang?: string): string {
   return LOCALE_MAP[code] ?? DEFAULT_LOCALE;
 }
 
-export const languageDirectiveFor = (lang?: string): string => {
+export const languageDirectiveFor = (lang: string = SYSTEM_DEFAULT_LANG): string => {
   const code = normalizeLang(lang);
   return `Always answer in ${code}. If the user writes in another language, still answer in ${code}.`;
 };
