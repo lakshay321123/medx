@@ -702,7 +702,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     ],
   );
   const lang = prefs.lang;
-  const allowHistory = prefs.allowHistory !== false;
+  const allowHistory = prefs.allowHistory !== false && prefs.referenceChatHistory !== false;
   const t = useT();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -3383,7 +3383,10 @@ ${systemCommon}` + baseSys;
             <div key={derivedKey} className="space-y-2">
               <div className="space-y-4">
                 <div className="relative group">
-                  <div ref={registerMessageRef(m.id)}>
+                  <div
+                    ref={registerMessageRef(m.id)}
+                    data-testid={m.role === "assistant" ? "assistant-turn" : undefined}
+                  >
                     <AnalysisCard
                       m={m as Extract<ChatMessage, { kind: 'analysis' }>}
                       researchOn={researchMode}
@@ -3415,7 +3418,10 @@ ${systemCommon}` + baseSys;
           <div key={derivedKey} className="space-y-2">
             <div className="space-y-4">
               <div className="relative group">
-                <div ref={registerMessageRef(m.id)}>
+                <div
+                  ref={registerMessageRef(m.id)}
+                  data-testid={m.role === "assistant" ? "assistant-turn" : undefined}
+                >
                   <AssistantMessage
                     m={m}
                     researchOn={researchMode}

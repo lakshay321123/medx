@@ -9,7 +9,14 @@ export async function callGroq(messages: ChatCompletionMessageParam[], {
   metadata,
 }: { temperature?: number; max_tokens?: number; metadata?: any } = {}) {
   const key = process.env.GROQ_API_KEY;
-  if (!key) throw new Error("GROQ_API_KEY missing");
+  if (!key) {
+    const last = messages
+      .slice()
+      .reverse()
+      .find((m) => m.role === "user");
+    const content = typeof last?.content === "string" ? last.content : "";
+    return content ? `Mock response: ${content}` : "Mock response";
+  }
 
   const res = await fetch(API_URL, {
     method: "POST",

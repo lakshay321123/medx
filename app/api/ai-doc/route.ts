@@ -14,7 +14,12 @@ import { buildAiDocPrompt } from "@/lib/ai/prompts/aidoc";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { extractAll, canonicalizeInputs } from "@/lib/medical/engine/extract";
 import { computeAll } from "@/lib/medical/engine/computeAll";
-import { languageDirectiveFor, personaFromPrefs, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
+import {
+  languageDirectiveFor,
+  personaFromPrefs,
+  sanitizePersonalization,
+  SYSTEM_DEFAULT_LANG,
+} from "@/lib/prompt/system";
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
 
@@ -42,9 +47,15 @@ export async function POST(req: NextRequest) {
   const { threadId, message, profileIntent, newProfile, personalization, lang: langTag } = body;
   const allowHistory = body?.allowHistory !== false;
   const headerLang = req.headers.get("x-user-lang") || req.headers.get("x-lang") || undefined;
-  const langTagStr = (typeof langTag === "string" ? langTag.trim() : "") || (headerLang?.trim() ?? "") || SYSTEM_DEFAULT_LANG;
-  const lang = langTagStr.toLowerCase();
-  const sysPrelude = [languageDirectiveFor(lang), personaFromPrefs(personalization)]
+  const requestedLang =
+    typeof langTag === "string" && langTag.trim()
+      ? langTag
+      : typeof headerLang === "string" && headerLang.trim()
+      ? headerLang
+      : SYSTEM_DEFAULT_LANG;
+  const lang = requestedLang.trim().toLowerCase();
+  const sanitized = sanitizePersonalization(personalization);
+  const sysPrelude = [languageDirectiveFor(lang), personaFromPrefs(sanitized)]
     .filter(Boolean)
     .join("\n\n");
   if (!message) return NextResponse.json({ error: "no message" }, { status: 400 });
