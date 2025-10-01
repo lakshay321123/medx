@@ -7,7 +7,7 @@ import { useT } from "@/components/hooks/useI18n";
 import type { IconProps } from "@/components/icons";
 import { IconDirectory, IconMedicalProfile, IconTimeline } from "@/components/icons";
 
-type Tab = {
+export type SidebarTab = {
   key: string;
   labelKey: string;
   panel: string;
@@ -15,13 +15,13 @@ type Tab = {
   Icon: ComponentType<IconProps>;
 };
 
-const TAB_DEFS: Tab[] = [
+export const SIDEBAR_TABS: SidebarTab[] = [
   { key: "directory", labelKey: "ui.nav.directory", panel: "directory", Icon: IconDirectory },
   { key: "profile", labelKey: "ui.nav.medical_profile", panel: "profile", Icon: IconMedicalProfile },
   { key: "timeline", labelKey: "ui.nav.timeline", panel: "timeline", Icon: IconTimeline },
 ];
 
-function NavLink({
+export function SidebarNavLink({
   panel,
   label,
   Icon,
@@ -65,9 +65,9 @@ export default function Tabs() {
   const t = useT();
   return (
     <ul className="mt-2 space-y-1">
-      {TAB_DEFS.map((tab) => (
+      {SIDEBAR_TABS.map((tab) => (
         <li key={tab.key}>
-          <NavLink panel={tab.panel} context={tab.context} Icon={tab.Icon} label={t(tab.labelKey)} />
+          <SidebarNavLink panel={tab.panel} context={tab.context} Icon={tab.Icon} label={t(tab.labelKey)} />
         </li>
       ))}
     </ul>
