@@ -15,7 +15,9 @@ const ChatComposer = forwardRef<HTMLFormElement, ChatComposerProps>(function Cha
   ref,
 ) {
   const t = useT();
-  const composerPlaceholder = t("ui.composer.placeholder");
+  const rawPlaceholder = t("ui.composer.placeholder");
+  const composerPlaceholder =
+    rawPlaceholder === "Send a message" ? "Ask a question" : rawPlaceholder;
 
   return (
     <form ref={ref} {...formProps}>
