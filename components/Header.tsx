@@ -21,7 +21,7 @@ export default function Header() {
           <CountryGlobe />
         </div>
 
-        <div className="pointer-events-none absolute left-1/2 top-1/2 hidden w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 justify-center md:left-[calc(50%+2.75rem)] md:flex">
+        <div className="pointer-events-none absolute left-1/2 top-1/2 hidden w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 justify-center md:left-[calc(50%+3.5rem)] md:flex">
           <div className="pointer-events-auto">
             <ModeBar />
           </div>
