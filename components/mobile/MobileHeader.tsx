@@ -7,12 +7,16 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createNewThreadId } from "@/lib/chatThreads";
 import { useModeController } from "@/hooks/useModeController";
 import WwwGlobeIcon from "@/components/icons/WwwGlobe";
+import { ListenButton } from "@/components/voice/ListenButton";
+import { usePrefs } from "@/components/providers/PreferencesProvider";
+import { getLatestAssistantText } from "@/components/chat/ChatHeaderActions";
 
 export default function MobileHeader() {
   const openSidebar = useMobileUiStore(state => state.openSidebar);
   const openSheet = useMobileUiStore(state => state.openSheet);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { lang } = usePrefs();
   const {
     state,
     therapyBusy,
@@ -110,6 +114,8 @@ export default function MobileHeader() {
     [state.base, state.therapy, therapyBusy],
   );
 
+  const latestAssistantText = useCallback(() => getLatestAssistantText(), []);
+
   return (
     <header className="mobile-header md:hidden">
       <div className="mobile-header-left">
@@ -183,6 +189,11 @@ export default function MobileHeader() {
         </div>
       </div>
       <div className="mobile-header-actions">
+        <ListenButton
+          getText={latestAssistantText}
+          lang={lang}
+          className="mobile-icon-btn px-3 py-1 text-xs"
+        />
         <button
           type="button"
           aria-label="New chat"

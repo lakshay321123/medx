@@ -3,6 +3,7 @@ import CountryGlobe from '@/components/CountryGlobe';
 import Brand from '@/components/nav/Brand';
 import ModeBar from '@/components/modes/ModeBar';
 import ThemeToggle from '@/components/ThemeToggle';
+import { ChatHeaderActions } from '@/components/chat/ChatHeaderActions';
 
 export default function Header() {
   return (
@@ -17,6 +18,7 @@ export default function Header() {
         </div>
 
         <div className="flex items-center gap-3">
+          <ChatHeaderActions />
           <ThemeToggle />
           <CountryGlobe />
         </div>

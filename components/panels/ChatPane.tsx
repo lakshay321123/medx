@@ -504,7 +504,9 @@ function AnalysisCard({
           </span>
         )}
       </header>
-      <ChatMarkdown content={m.content} />
+      <div data-part="content">
+        <ChatMarkdown content={m.content} />
+      </div>
       {m.error ? (
         <div className="inline-flex items-center gap-2 text-xs rounded-lg px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-900/20 dark:text-rose-200 dark:border-rose-800">
           ⚠️ {m.error}
@@ -588,7 +590,9 @@ function ChatCard({
           Replaced by a newer answer
         </div>
       )}
-      <ChatMarkdown content={m.content} />
+      <div data-part="content">
+        <ChatMarkdown content={m.content} />
+      </div>
       {m.role === "assistant" && (m.citations?.length || 0) > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {(m.citations || []).slice(0, simple ? 3 : 6).map((c, i) => (
@@ -3356,14 +3360,26 @@ ${systemCommon}` + baseSys;
         if (m.role === 'user') {
           if (m.kind === 'image') {
             return (
-              <div key={derivedKey} className="space-y-2">
+              <div
+                key={derivedKey}
+                className="space-y-2"
+                data-role="message"
+                data-author="user"
+                data-message-id={m.id ?? derivedKey}
+              >
                 <ImageCard m={m as Extract<ChatMessage, { kind: 'image' }> } />
               </div>
             );
           }
 
           return (
-            <div key={derivedKey} className="space-y-2">
+            <div
+              key={derivedKey}
+              className="space-y-2"
+              data-role="message"
+              data-author="user"
+              data-message-id={m.id ?? derivedKey}
+            >
               <div className="ml-auto max-w-3xl whitespace-normal rounded-2xl bg-slate-200 px-4 py-3 text-start text-slate-900 shadow-sm dark:bg-gray-700 dark:text-gray-100">
                 <ChatMarkdown content={m.content ?? ''} />
               </div>
@@ -3375,14 +3391,26 @@ ${systemCommon}` + baseSys;
           if (m.pending) {
             const pillText = typeof m.content === 'string' ? m.content : 'Analyzing…';
             return (
-              <div key={derivedKey} className="space-y-2">
+              <div
+                key={derivedKey}
+                className="space-y-2"
+                data-role="message"
+                data-author="assistant"
+                data-message-id={m.id ?? derivedKey}
+              >
                 <SlimStatusPill text={pillText} />
               </div>
             );
           }
 
           return (
-            <div key={derivedKey} className="space-y-2">
+            <div
+              key={derivedKey}
+              className="space-y-2"
+              data-role="message"
+              data-author="assistant"
+              data-message-id={m.id ?? derivedKey}
+            >
               <div className="space-y-4">
                 <div className="relative group">
                   <div ref={registerMessageRef(m.id)}>
@@ -3414,7 +3442,13 @@ ${systemCommon}` + baseSys;
         const disableRefresh = busy || assistantBusy || m.pending;
 
         return (
-          <div key={derivedKey} className="space-y-2">
+          <div
+            key={derivedKey}
+            className="space-y-2"
+            data-role="message"
+            data-author="assistant"
+            data-message-id={m.id ?? derivedKey}
+          >
             <div className="space-y-4">
               <div className="relative group">
                 <div ref={registerMessageRef(m.id)}>

@@ -22,7 +22,12 @@ function MessageRow({ m }: { m: { id: string; role: string; content: string } })
   const text = typeof m.content === "string" ? m.content : "";
 
   return (
-    <div className="p-2 space-y-1">
+    <div
+      className="p-2 space-y-1"
+      data-role="message"
+      data-author={m.role}
+      data-message-id={m.id}
+    >
       <div className="flex items-center justify-between overflow-visible">
         <div className="text-xs uppercase tracking-wide text-slate-500">{m.role}</div>
         {/* Keep always visible on mobile (no hover-only) */}
@@ -30,7 +35,9 @@ function MessageRow({ m }: { m: { id: string; role: string; content: string } })
           <ListenButton getText={() => text} lang={lang} className="relative z-[2]" />
         ) : null}
       </div>
-      <ChatMarkdown content={text} />
+      <div data-part="content">
+        <ChatMarkdown content={text} />
+      </div>
     </div>
   );
 }
