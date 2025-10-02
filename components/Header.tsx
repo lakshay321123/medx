@@ -12,7 +12,7 @@ export default function Header() {
           <Brand />
         </div>
 
-        <div className="flex flex-1 justify-center md:pl-16 lg:pl-24">
+        <div className="flex flex-1 justify-center md:pl-20 lg:pl-32">
           <ModeBar />
         </div>
 
