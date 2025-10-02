@@ -7,6 +7,12 @@ import { useTheme } from "next-themes";
 import PanelLoader from "@/components/mobile/PanelLoader";
 import ProfileSection from "@/components/profile/ProfileSection";
 import VitalsEditor from "@/components/profile/VitalsEditor";
+import FamilyHistoryPanel from "@/components/profile/FamilyHistoryPanel";
+import ImmunizationsPanel from "@/components/profile/ImmunizationsPanel";
+import LifestylePanel from "@/components/profile/LifestylePanel";
+import SurgeriesPanel from "@/components/profile/SurgeriesPanel";
+import AccessibilityPanel from "@/components/profile/AccessibilityPanel";
+import AdvanceDirectivesPanel from "@/components/profile/AdvanceDirectivesPanel";
 import MedicationInput from "@/components/meds/MedicationInput";
 import MedicationTag from "@/components/meds/MedicationTag";
 import { useT } from "@/components/hooks/useI18n";
@@ -15,6 +21,32 @@ import { pushToast } from "@/lib/ui/toast";
 import { fromSearchParams } from "@/lib/modes/url";
 import { extractManualObservation } from "@/lib/profile/extractManualObservation";
 import { useSWRConfig } from "swr";
+import type {
+  AdvanceDirectives,
+  FamilyHistoryItem,
+  ImmunizationItem,
+  Lifestyle,
+  MedicalProfile,
+  SurgeryItem,
+  Accessibility,
+} from "@/types/profile";
+
+const PROFILE_ADDONS_ENABLED = isFlagEnabled(
+  process.env.NEXT_PUBLIC_FEATURE_PROFILE_ADDONS ?? process.env.FEATURE_PROFILE_ADDONS,
+);
+
+function isFlagEnabled(value?: string) {
+  const normalized = (value ?? "").toString().trim().toLowerCase();
+  return ["1", "true", "yes", "on"].includes(normalized);
+}
+
+type AddonSection =
+  | "familyHistory"
+  | "immunizations"
+  | "lifestyle"
+  | "surgeries"
+  | "accessibility"
+  | "advanceDirectives";
 
 const SEXES = ["male", "female", "other"] as const;
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -178,6 +210,7 @@ export default function MedicalProfile() {
 
   const [bootstrapped, setBootstrapped] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [savingAddon, setSavingAddon] = useState<AddonSection | null>(null);
   const [editingVitals, setEditingVitals] = useState(false);
   const [recomputeBusy, setRecomputeBusy] = useState(false);
   const [notesEditing, setNotesEditing] = useState(false);
@@ -190,6 +223,14 @@ export default function MedicalProfile() {
 
   const noDataText = t(NO_DATA_TEXT);
   const noMedicationsText = t("No medications recorded yet.");
+  const medicalProfile = (data?.profile ?? null) as MedicalProfile | null;
+  const addonsEnabled = PROFILE_ADDONS_ENABLED;
+  const familyHistory = medicalProfile?.familyHistory;
+  const immunizations = medicalProfile?.immunizations;
+  const lifestyle = medicalProfile?.lifestyle;
+  const surgeries = medicalProfile?.surgeries;
+  const accessibility = medicalProfile?.accessibility;
+  const advanceDirectives = medicalProfile?.advanceDirectives;
   const summaryDisplay = useMemo(() => {
     if (parsedSummary) {
       const formatValue = (value?: string | null) => {
@@ -476,6 +517,80 @@ export default function MedicalProfile() {
   const displayedNotes = manualNotes ?? (summaryNotes !== NO_DATA_TEXT ? summaryNotes : null);
   const displayedNextSteps =
     manualNextSteps ?? (summaryNextSteps !== NO_DATA_TEXT ? summaryNextSteps : null);
+
+  const updateAddon = useCallback(
+    async (section: AddonSection, payload: Record<string, unknown>) => {
+      if (!addonsEnabled) return;
+      setSavingAddon(section);
+      try {
+        const res = await fetch("/api/profile", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const message = await res.text();
+          throw new Error(message || "Failed to save add-on");
+        }
+        await mutateProfile();
+        await mutateGlobal("/api/profile");
+        pushToast({ title: t("profile.common.saved") });
+      } catch (err: any) {
+        const message = err?.message || t("Please try again.");
+        pushToast({
+          title: t("profile.common.saveFailed"),
+          description: message,
+          variant: "destructive",
+        });
+        throw err;
+      } finally {
+        setSavingAddon(null);
+      }
+    },
+    [addonsEnabled, mutateGlobal, mutateProfile, t],
+  );
+
+  const handleFamilyHistorySave = useCallback(
+    async (items: FamilyHistoryItem[]) => {
+      await updateAddon("familyHistory", { familyHistory: items });
+    },
+    [updateAddon],
+  );
+
+  const handleImmunizationsSave = useCallback(
+    async (items: ImmunizationItem[]) => {
+      await updateAddon("immunizations", { immunizations: items });
+    },
+    [updateAddon],
+  );
+
+  const handleLifestyleSave = useCallback(
+    async (value: Lifestyle | null) => {
+      await updateAddon("lifestyle", { lifestyle: value });
+    },
+    [updateAddon],
+  );
+
+  const handleSurgeriesSave = useCallback(
+    async (items: SurgeryItem[]) => {
+      await updateAddon("surgeries", { surgeries: items });
+    },
+    [updateAddon],
+  );
+
+  const handleAccessibilitySave = useCallback(
+    async (value: Accessibility | null) => {
+      await updateAddon("accessibility", { accessibility: value });
+    },
+    [updateAddon],
+  );
+
+  const handleAdvanceDirectivesSave = useCallback(
+    async (value: AdvanceDirectives | null) => {
+      await updateAddon("advanceDirectives", { advanceDirectives: value });
+    },
+    [updateAddon],
+  );
 
   const handleProfileSave = async () => {
     setSavingProfile(true);
@@ -1276,26 +1391,78 @@ export default function MedicalProfile() {
       ) : null}
 
       {showClinicalSections ? (
-        <ProfileSection
-          title={t("Active medication")}
-          isEmpty={medsEmpty}
-          emptyMessage={noMedicationsText}
-        >
-          {medications.length ? (
-            <div className="flex flex-wrap gap-2">
-              {medications.map(med => (
-                <MedicationTag
-                  key={med.key}
-                  label={formatMedicationLabel(med)}
-                  onRemove={() => handleRemoveMedication(med)}
-                />
-              ))}
-            </div>
-          ) : null}
-          <div className="mt-3">
-            <MedicationInput onSave={handleAddMedication} />
+      <ProfileSection
+        title={t("Active medication")}
+        isEmpty={medsEmpty}
+        emptyMessage={noMedicationsText}
+      >
+        {medications.length ? (
+          <div className="flex flex-wrap gap-2">
+            {medications.map(med => (
+              <MedicationTag
+                key={med.key}
+                label={formatMedicationLabel(med)}
+                onRemove={() => handleRemoveMedication(med)}
+              />
+            ))}
           </div>
-        </ProfileSection>
+        ) : null}
+        <div className="mt-3">
+          <MedicationInput onSave={handleAddMedication} />
+        </div>
+      </ProfileSection>
+      ) : null}
+
+      {addonsEnabled ? (
+        <>
+          <ProfileSection title={t("profile.familyHistory.title")}>
+            <FamilyHistoryPanel
+              items={familyHistory}
+              onSave={handleFamilyHistorySave}
+              saving={savingAddon === "familyHistory"}
+            />
+          </ProfileSection>
+
+          <ProfileSection title={t("profile.immunizations.title")}>
+            <ImmunizationsPanel
+              items={immunizations}
+              onSave={handleImmunizationsSave}
+              saving={savingAddon === "immunizations"}
+            />
+          </ProfileSection>
+
+          <ProfileSection title={t("profile.lifestyle.title")}>
+            <LifestylePanel
+              lifestyle={lifestyle ?? undefined}
+              onSave={handleLifestyleSave}
+              saving={savingAddon === "lifestyle"}
+            />
+          </ProfileSection>
+
+          <ProfileSection title={t("profile.surgeries.title")}>
+            <SurgeriesPanel
+              surgeries={surgeries}
+              onSave={handleSurgeriesSave}
+              saving={savingAddon === "surgeries"}
+            />
+          </ProfileSection>
+
+          <ProfileSection title={t("profile.accessibility.title")}>
+            <AccessibilityPanel
+              accessibility={accessibility ?? undefined}
+              onSave={handleAccessibilitySave}
+              saving={savingAddon === "accessibility"}
+            />
+          </ProfileSection>
+
+          <ProfileSection title={t("profile.advanceDirectives.title")}>
+            <AdvanceDirectivesPanel
+              directives={advanceDirectives ?? undefined}
+              onSave={handleAdvanceDirectivesSave}
+              saving={savingAddon === "advanceDirectives"}
+            />
+          </ProfileSection>
+        </>
       ) : null}
     </div>
   );

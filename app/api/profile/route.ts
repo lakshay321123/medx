@@ -5,6 +5,15 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUserId } from "@/lib/getUserId";
+import {
+  zAccessibility,
+  zAdvanceDirectives,
+  zFamilyHistoryItem,
+  zImmunizationItem,
+  zLifestyle,
+  zSurgeryItem,
+} from "@/lib/validation/profileAddons";
+import { z } from "zod";
 
 function noStoreHeaders() {
   return { "Cache-Control": "no-store, max-age=0" };
@@ -32,6 +41,13 @@ type Item = {
 };
 
 type Groups = Record<GroupKey, Item[]>;
+
+const ADDONS_ENABLED = flagEnabled(process.env.FEATURE_PROFILE_ADDONS);
+
+function flagEnabled(raw: string | undefined) {
+  const normalized = (raw ?? "").toString().trim().toLowerCase();
+  return ["1", "true", "yes", "on"].includes(normalized);
+}
 
 // --- labels (extendable) ---
 const LABELS: Record<string, string> = {
@@ -191,7 +207,7 @@ export async function GET(_req: NextRequest) {
   const { data: profile, error: perr } = await sb
     .from("profiles")
     .select(
-      "id, full_name, dob, sex, blood_group, conditions_predisposition, chronic_conditions"
+      "id, full_name, dob, sex, blood_group, conditions_predisposition, chronic_conditions, profile_extra"
     )
     .eq("id", userId)
     .maybeSingle();
@@ -215,6 +231,33 @@ export async function GET(_req: NextRequest) {
   if (profile) {
     (profile as any).conditions_predisposition = asArray((profile as any).conditions_predisposition);
     (profile as any).chronic_conditions = asArray((profile as any).chronic_conditions);
+    if (ADDONS_ENABLED) {
+      const extras = ((profile as any).profile_extra ?? {}) as Record<string, any>;
+      const addons = (extras?.addons ?? {}) as Record<string, unknown>;
+      (profile as any).familyHistory = Array.isArray(addons.familyHistory)
+        ? (addons.familyHistory as any[])
+        : undefined;
+      (profile as any).immunizations = Array.isArray(addons.immunizations)
+        ? (addons.immunizations as any[])
+        : undefined;
+      (profile as any).lifestyle = typeof addons.lifestyle === "object" && addons.lifestyle
+        ? (addons.lifestyle as Record<string, unknown>)
+        : undefined;
+      (profile as any).surgeries = Array.isArray(addons.surgeries)
+        ? (addons.surgeries as any[])
+        : undefined;
+      (profile as any).accessibility = typeof addons.accessibility === "object" && addons.accessibility
+        ? (addons.accessibility as Record<string, unknown>)
+        : undefined;
+      (profile as any).advanceDirectives = typeof addons.advanceDirectives === "object" && addons.advanceDirectives
+        ? (addons.advanceDirectives as Record<string, unknown>)
+        : undefined;
+      delete (profile as any).profile_extra;
+    }
+  }
+
+  if (profile && !ADDONS_ENABLED) {
+    delete (profile as any).profile_extra;
   }
 
   const { data: rows, error: oerr } = await sb
@@ -306,10 +349,137 @@ export async function PUT(req: NextRequest) {
   const patch: Record<string, any> = {};
   for (const k of allowed) if (k in body) patch[k] = body[k];
 
+  const sb = supabaseAdmin();
+
+  let addonsPayload: Record<string, any> | null = null;
+
+  if (ADDONS_ENABLED) {
+    const addonsUpdates: Record<string, any> = {};
+    let hasAddonUpdate = false;
+
+    const arrayParser = <T>(schema: z.ZodType<T>) =>
+      z
+        .array(schema)
+        .max(100)
+        .optional();
+
+    if (Object.prototype.hasOwnProperty.call(body, "familyHistory")) {
+      const value = body.familyHistory;
+      if (value == null) {
+        addonsUpdates.familyHistory = [];
+      } else {
+        const parsed = arrayParser(zFamilyHistoryItem).safeParse(value);
+        if (!parsed.success) {
+          return NextResponse.json({ error: "Invalid familyHistory" }, { status: 400 });
+        }
+        addonsUpdates.familyHistory = parsed.data;
+      }
+      hasAddonUpdate = true;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, "immunizations")) {
+      const value = body.immunizations;
+      if (value == null) {
+        addonsUpdates.immunizations = [];
+      } else {
+        const parsed = arrayParser(zImmunizationItem).safeParse(value);
+        if (!parsed.success) {
+          return NextResponse.json({ error: "Invalid immunizations" }, { status: 400 });
+        }
+        addonsUpdates.immunizations = parsed.data;
+      }
+      hasAddonUpdate = true;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, "lifestyle")) {
+      const value = body.lifestyle;
+      if (value == null) {
+        addonsUpdates.lifestyle = null;
+      } else {
+        const parsed = zLifestyle.partial().safeParse(value);
+        if (!parsed.success) {
+          return NextResponse.json({ error: "Invalid lifestyle" }, { status: 400 });
+        }
+        addonsUpdates.lifestyle = parsed.data;
+      }
+      hasAddonUpdate = true;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, "surgeries")) {
+      const value = body.surgeries;
+      if (value == null) {
+        addonsUpdates.surgeries = [];
+      } else {
+        const parsed = arrayParser(zSurgeryItem).safeParse(value);
+        if (!parsed.success) {
+          return NextResponse.json({ error: "Invalid surgeries" }, { status: 400 });
+        }
+        addonsUpdates.surgeries = parsed.data;
+      }
+      hasAddonUpdate = true;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, "accessibility")) {
+      const value = body.accessibility;
+      if (value == null) {
+        addonsUpdates.accessibility = null;
+      } else {
+        const parsed = zAccessibility.safeParse(value);
+        if (!parsed.success) {
+          return NextResponse.json({ error: "Invalid accessibility" }, { status: 400 });
+        }
+        addonsUpdates.accessibility = parsed.data;
+      }
+      hasAddonUpdate = true;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, "advanceDirectives")) {
+      const value = body.advanceDirectives;
+      if (value == null) {
+        addonsUpdates.advanceDirectives = null;
+      } else {
+        const parsed = zAdvanceDirectives.safeParse(value);
+        if (!parsed.success) {
+          return NextResponse.json({ error: "Invalid advance directives" }, { status: 400 });
+        }
+        addonsUpdates.advanceDirectives = parsed.data;
+      }
+      hasAddonUpdate = true;
+    }
+
+    if (hasAddonUpdate) {
+      const { data: existing, error: fetchErr } = await sb
+        .from("profiles")
+        .select("profile_extra")
+        .eq("id", userId)
+        .maybeSingle();
+      if (fetchErr) {
+        return NextResponse.json({ error: fetchErr.message }, { status: 500 });
+      }
+
+      const currentExtras = ((existing?.profile_extra as any) ?? {}) as Record<string, any>;
+      const currentAddons = (currentExtras.addons ?? {}) as Record<string, any>;
+      const mergedAddons: Record<string, any> = { ...currentAddons };
+      for (const [key, value] of Object.entries(addonsUpdates)) {
+        if (value === null) {
+          delete mergedAddons[key];
+          continue;
+        }
+        mergedAddons[key] = value;
+      }
+
+      addonsPayload = { addons: mergedAddons };
+    }
+  }
+
   // Create-or-update by primary key id
-  const { data, error } = await supabaseAdmin()
+  const upsertPayload = addonsPayload
+    ? { id: userId, ...patch, profile_extra: addonsPayload }
+    : { id: userId, ...patch };
+
+  const { data, error } = await sb
     .from("profiles")
-    .upsert({ id: userId, ...patch }, { onConflict: "id" })
+    .upsert(upsertPayload, { onConflict: "id" })
     .select()
     .single();
 

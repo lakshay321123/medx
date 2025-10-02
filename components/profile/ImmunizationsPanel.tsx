@@ -1,0 +1,113 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { Calendar, Plus } from "lucide-react";
+
+import ImmunizationsEditor from "@/components/profile/editors/ImmunizationsEditor";
+import { useT } from "@/components/hooks/useI18n";
+import type { ImmunizationItem } from "@/types/profile";
+
+type ImmunizationsPanelProps = {
+  items?: ImmunizationItem[];
+  onSave: (items: ImmunizationItem[]) => Promise<void> | void;
+  saving?: boolean;
+};
+
+export default function ImmunizationsPanel({ items, onSave, saving = false }: ImmunizationsPanelProps) {
+  const { t } = useT();
+  const [open, setOpen] = useState(false);
+  const safeItems = useMemo(() => (Array.isArray(items) ? items : []), [items]);
+  const hasItems = safeItems.length > 0;
+
+  return (
+    <div className="space-y-3 text-sm">
+      {hasItems ? (
+        <ul className="divide-y rounded-lg border">
+          {safeItems.map((item, index) => {
+            const dateLabel = formatDate(item.date);
+            return (
+              <li key={`${item.vaccine}-${index}`} className="space-y-1 px-3 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium" title={item.vaccine}>
+                    {item.vaccine}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title={dateLabel}>
+                    <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
+                    {dateLabel}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  {item.lot ? (
+                    <span title={item.lot} className="truncate">
+                      {t("profile.immunizations.lot")}: {item.lot}
+                    </span>
+                  ) : null}
+                  {item.source ? (
+                    <a
+                      href={item.source}
+                      className="truncate underline"
+                      target="_blank"
+                      rel="noreferrer"
+                      title={item.source}
+                    >
+                      {t("profile.immunizations.source")}
+                    </a>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <div className="flex items-center justify-between rounded-lg border px-3 py-3">
+          <span className="text-muted-foreground">{t("profile.common.noItems")}</span>
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs"
+            onClick={() => setOpen(true)}
+            aria-label={t("profile.immunizations.add")}
+            disabled={saving}
+          >
+            <Plus className="h-3 w-3" aria-hidden="true" />
+            {t("Add")}
+          </button>
+        </div>
+      )}
+      {hasItems ? (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            className="rounded-md border px-3 py-1.5 text-sm"
+            onClick={() => setOpen(true)}
+            disabled={saving}
+          >
+            {t("Edit")}
+          </button>
+        </div>
+      ) : null}
+      <ImmunizationsEditor
+        open={open}
+        items={safeItems}
+        onClose={() => setOpen(false)}
+        onSave={async data => {
+          try {
+            await onSave(data);
+            setOpen(false);
+          } catch (error) {
+            console.error(error);
+          }
+        }}
+        saving={saving}
+      />
+    </div>
+  );
+}
+
+function formatDate(value: string | undefined) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value.slice(0, 10);
+  }
+  return date.toLocaleDateString();
+}

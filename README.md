@@ -21,6 +21,7 @@ This project includes:
    - imaging: `QUALITY_MIN` (default 0.55), `DECISION_THRESHOLD_YES` (default 0.85), `DECISION_THRESHOLD_LIKELY` (default 0.6)
    - for OpenAI summaries: `OPENAI_API_KEY`, `OPENAI_TEXT_MODEL`, `OPENAI_VISION_MODEL`
    - optional meds micro-summary: `MEDS_SHORT_SUMMARY` (`true|false`), `MEDS_SHORT_SUMMARY_MAX_CHARS`
+   - profile add-ons: `FEATURE_PROFILE_ADDONS` (`true|false`, default `false`) to enable extended medical profile panels
    - nearby care: `FEATURE_NEARBY`, `OVERPASS_API_URL`, `OVERPASS_USER_AGENT`, `NEARBY_DEFAULT_RADIUS_KM`, `NEARBY_MAX_RESULTS`, `NEARBY_CACHE_TTL_SEC`, `NEXT_PUBLIC_NEARBY_DEFAULT_RADIUS_KM`
 2. `npm install`
 3. `npm run dev`
