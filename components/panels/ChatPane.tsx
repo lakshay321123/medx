@@ -948,55 +948,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const pushAssistantText = (text: string, opts?: Partial<ChatMessage>) =>
     addAssistant(text, opts);
 
-  const buildReportTimelineCard = useCallback(async () => {
-    if (!isAiDocMode) return REPORTS_LOCKED_MESSAGE;
-    try {
-      const response = await fetch('/api/labs/summary?mode=ai-doc');
-      const body: any = await response.json();
-      if (!body?.ok) return "Couldn’t load structured labs.";
-
-      setLabSummary(body);
-
-      const trend: any[] = Array.isArray(body.trend) ? body.trend : [];
-      const dayMap = new Map<string, { date: Date; items: string[] }>();
-      for (const t of trend) {
-        const series = Array.isArray(t?.series) ? t.series : [];
-        for (const p of series) {
-          if (!p?.sample_date) continue;
-          const d = new Date(p.sample_date);
-          if (Number.isNaN(d.getTime())) continue;
-          const key = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10);
-          const name = t?.test_name ?? t?.test_code ?? 'Test';
-          const unit = t?.unit ? ` ${t.unit}` : '';
-          const existing = dayMap.get(key);
-          if (existing) {
-            existing.items.push(`${name}: ${p.value}${unit}`);
-          } else {
-            dayMap.set(key, { date: d, items: [`${name}: ${p.value}${unit}`] });
-          }
-        }
-      }
-
-      const days = Array.from(dayMap.values()).sort((a, b) => b.date.getTime() - a.date.getTime());
-      const totalReports =
-        typeof body.meta?.total_reports === 'number' ? body.meta.total_reports : days.length;
-
-      let md = `**Report Timeline**\n\nHere are your reports, sorted by date:\n\n`;
-      if (days.length === 0) {
-        md += `${NO_LABS_MESSAGE}`;
-      } else {
-        for (const group of days) {
-          md += `- **${group.date.toLocaleDateString()}**: ${group.items.join(' • ')}\n`;
-        }
-      }
-      md += `\n**Total documents:** ${totalReports}`;
-      return md;
-    } catch (err) {
-      console.error('labs timeline error', err);
-      return "Couldn’t load structured labs.";
-    }
-  }, [isAiDocMode, setLabSummary]);
-
   const showOcrText = useCallback(async () => {
     pushAssistantText('Raw report text is currently only available from the document view.');
   }, [pushAssistantText]);
@@ -3148,14 +3099,15 @@ ${systemCommon}` + baseSys;
         }
 
         if (LABS_TREND_INTENT.test(trimmed)) {
-          setMessages(prev => [
-            ...prev,
-            { id: uid(), role: 'user', kind: 'chat', content: trimmed, pending: false } as any,
-          ]);
-          setUserText('');
-          const md = await buildReportTimelineCard();
-          pushAssistantText(md);
-          return;
+          if (!isAiDocMode) {
+            setMessages(prev => [
+              ...prev,
+              { id: uid(), role: 'user', kind: 'chat', content: trimmed, pending: false } as any,
+            ]);
+            setUserText('');
+            pushAssistantText(REPORTS_LOCKED_MESSAGE);
+            return;
+          }
         }
       }
 

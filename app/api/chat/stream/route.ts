@@ -4,6 +4,12 @@ import { languageDirectiveFor, personaFromPrefs, SYSTEM_DEFAULT_LANG } from '@/l
 import { extractAll, canonicalizeInputs } from '@/lib/medical/engine/extract';
 import { BRAND_NAME } from "@/lib/brand";
 import { computeAll } from '@/lib/medical/engine/computeAll';
+import {
+  detectLabSnapshotIntent,
+  formatLabIntentResponse,
+  isLabSnapshotEnabled,
+  type LabSnapshotIntent,
+} from "@/lib/aidoc/labsSnapshot";
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
@@ -119,6 +125,41 @@ export async function POST(req: NextRequest) {
       : history.length
       ? history
       : [latestUser];
+
+  const latestContent = typeof latestUser?.content === 'string' ? latestUser.content : '';
+  const isAidocContext = typeof body?.context === 'string' && body.context.includes('ai-doc');
+  const labIntent: LabSnapshotIntent | null =
+    isLabSnapshotEnabled() && latestContent
+      ? detectLabSnapshotIntent(latestContent)
+      : null;
+
+  if (labIntent && isAidocContext) {
+    const cookie = req.headers.get('cookie') || '';
+    try {
+      const summaryRes = await fetch(`${origin}/api/labs/summary?mode=ai-doc`, {
+        headers: { cookie },
+        cache: 'no-store',
+      });
+      if (summaryRes.status === 401) {
+        return streamTextResponse('Please sign in to view your lab reports.');
+      }
+      if (!summaryRes.ok) {
+        throw new Error(`labs summary failed (${summaryRes.status})`);
+      }
+      const payload = await summaryRes.json().catch(() => null);
+      if (!payload?.ok || !Array.isArray(payload.trend)) {
+        throw new Error('invalid lab summary');
+      }
+      const messageText = formatLabIntentResponse(payload.trend, labIntent);
+      return streamTextResponse(messageText);
+    } catch (err) {
+      const fallback =
+        labIntent.kind === 'snapshot'
+          ? "**Patient Snapshot**\n\nI couldn’t load your lab reports right now. Please try again in a bit.\n\n**What to do next**\n- Discuss abnormal or outdated results with your clinician before making changes.\n- Upload new lab reports when you receive them so this view stays current.\n- Keep up balanced meals, movement, and sleep unless your clinician advises otherwise."
+          : `**${labIntent.metric.label} — Comparison**\n\nI couldn’t load your lab reports right now. Please try again in a bit.\n\n**What to do next**\n- Discuss abnormal or outdated results with your clinician before making changes.\n- Upload new lab reports when you receive them so this view stays current.\n- Keep up balanced meals, movement, and sleep unless your clinician advises otherwise.`;
+      return streamTextResponse(fallback);
+    }
+  }
 
   // 4) Tighter generation when research brief is active
   const modelOptions = (research && !long)
@@ -275,5 +316,17 @@ export async function POST(req: NextRequest) {
   // Pass-through SSE; frontend parses "data: {delta.content}"
   return new Response(upstream.body, {
     headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }
+  });
+}
+
+function streamTextResponse(text: string) {
+  const payload =
+    `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n` +
+    "data: [DONE]\n\n";
+  return new Response(payload, {
+    headers: {
+      'content-type': 'text/event-stream; charset=utf-8',
+      'cache-control': 'no-cache',
+    },
   });
 }

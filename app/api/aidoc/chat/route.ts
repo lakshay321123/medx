@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 // [AIDOC_TRIAGE_IMPORT] add triage imports
 import { handleDocAITriage, detectExperientialIntent } from "@/lib/aidoc/triage";
+import {
+  detectLabSnapshotIntent,
+  formatLabIntentResponse,
+  isLabSnapshotEnabled,
+  type LabSnapshotIntent,
+} from "@/lib/aidoc/labsSnapshot";
 import { POST as streamPOST } from "../../chat/stream/route";
 import { getUserId } from "@/lib/getUserId";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { fetchLabSummary } from "@/lib/labs/summary";
+import { fetchLabSummary, type LabSummaryResult } from "@/lib/labs/summary";
 
 export const runtime = 'nodejs';
 
@@ -30,9 +36,11 @@ export async function POST(req: NextRequest) {
     title: string | null;
     payload: unknown;
   }> = [];
-  let labsPacket: any = null;
+  let labsPacket: LabSummaryResult | null = null;
+  let labsError: Error | null = null;
+  let userId: string | null = null;
   try {
-    const userId = await getUserId(req);
+    userId = await getUserId(req);
     if (userId) {
       const sb = supabaseAdmin();
       const { data: prof } = await sb
@@ -51,7 +59,9 @@ export async function POST(req: NextRequest) {
       try {
         const summary = await fetchLabSummary(sb, { userId, limit: 1000 });
         labsPacket = summary;
-      } catch {}
+      } catch (err) {
+        labsError = err instanceof Error ? err : new Error(String(err ?? "lab summary error"));
+      }
       const obs = obsResponse.data;
       const dob = prof?.dob ? new Date(prof.dob) : null;
       const age = dob && !Number.isNaN(dob.getTime())
@@ -87,6 +97,27 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("Failed to load profile for triage:", err);
     observations = [];
+  }
+
+  const labIntent: LabSnapshotIntent | null =
+    isLabSnapshotEnabled() && message ? detectLabSnapshotIntent(message) : null;
+
+  if (labIntent) {
+    if (!userId) {
+      return streamTextResponse("Please sign in to view your lab reports.");
+    }
+
+    if (labsError && !labsPacket) {
+      const fallbackMessage =
+        labIntent.kind === "snapshot"
+          ? "**Patient Snapshot**\n\nI couldn’t load your lab reports right now. Please try again in a bit.\n\n**What to do next**\n- Discuss abnormal or outdated results with your clinician before making changes.\n- Upload new lab reports when you receive them so this view stays current.\n- Keep up balanced meals, movement, and sleep unless your clinician advises otherwise."
+          : `**${labIntent.metric.label} — Comparison**\n\nI couldn’t load your lab reports right now. Please try again in a bit.\n\n**What to do next**\n- Discuss abnormal or outdated results with your clinician before making changes.\n- Upload new lab reports when you receive them so this view stays current.\n- Keep up balanced meals, movement, and sleep unless your clinician advises otherwise.`;
+      return streamTextResponse(fallbackMessage);
+    }
+
+    const trend = labsPacket?.trend ?? [];
+    const messageText = formatLabIntentResponse(trend, labIntent);
+    return streamTextResponse(messageText);
   }
 
   if (labsPacket !== null) {
@@ -184,4 +215,16 @@ export async function POST(req: NextRequest) {
 
   // existing streaming setup continues here
   return streamPOST(forwardReq);
+}
+
+function streamTextResponse(text: string) {
+  const payload =
+    `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n` +
+    "data: [DONE]\n\n";
+  return new NextResponse(payload, {
+    headers: {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache",
+    },
+  });
 }

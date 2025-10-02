@@ -31,7 +31,7 @@ export async function GET(req: Request) {
     const sb = supabaseAdmin();
     const { data, error } = await sb
       .from("observations")
-      .select("kind,value_num,unit,observed_at,thread_id,report_id")
+      .select("kind,value_num,unit,observed_at,thread_id,report_id,meta")
       .eq("user_id", userId)
       .not("value_num", "is", null)
       .order("observed_at", { ascending: false })

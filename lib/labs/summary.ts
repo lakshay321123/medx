@@ -17,6 +17,7 @@ export type ObservationRow = {
   observed_at: string | null;
   thread_id: string | null;
   report_id: string | null;
+  meta?: Record<string, unknown> | null;
 };
 
 type NormalizedPoint = {
@@ -26,12 +27,20 @@ type NormalizedPoint = {
   value: number;
   unit: string;
   sample_date: string;
+  ref_low: number | null;
+  ref_high: number | null;
+  status: string | null;
+  flag: string | null;
 };
 
 export type LabSeriesPoint = {
   value: number;
   unit: string;
   sample_date: string;
+  ref_low: number | null;
+  ref_high: number | null;
+  status: string | null;
+  flag: string | null;
 };
 
 export type LabTrend = {
@@ -86,6 +95,77 @@ for (const def of TEST_DEFINITIONS) {
   for (const kind of def.kinds) {
     KIND_TO_TEST.set(kind, def);
   }
+}
+
+function parseNumber(value: unknown): number | null {
+  if (value == null) return null;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = parseFloat(value.replace(/[^0-9.-]+/g, ""));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function extractRangeMeta(meta: Record<string, unknown> | null | undefined): {
+  refLow: number | null;
+  refHigh: number | null;
+  status: string | null;
+  flag: string | null;
+} {
+  if (!meta || typeof meta !== "object") {
+    return { refLow: null, refHigh: null, status: null, flag: null };
+  }
+
+  const pickNumber = (...keys: string[]) => {
+    for (const key of keys) {
+      const raw = (meta as any)[key];
+      const parsed = parseNumber(raw);
+      if (parsed != null) return parsed;
+    }
+    return null;
+  };
+
+  const range = (meta as any).range;
+  const rangeLow = typeof range === "object" && range ? parseNumber((range as any).low ?? (range as any).lower) : null;
+  const rangeHigh = typeof range === "object" && range ? parseNumber((range as any).high ?? (range as any).upper) : null;
+
+  const refLow =
+    pickNumber("normalLow", "refLow", "referenceLow", "low", "lower") ??
+    rangeLow;
+  const refHigh =
+    pickNumber("normalHigh", "refHigh", "referenceHigh", "high", "upper") ??
+    rangeHigh;
+
+  const statusCandidate = (() => {
+    const raw =
+      (meta as any).status ??
+      (meta as any).flag ??
+      (meta as any).abnormal ??
+      (meta as any).abnormalFlag ??
+      (meta as any).abnormal_flag ??
+      (meta as any).resultFlag ??
+      (meta as any).result_flag ??
+      (meta as any).classification ??
+      null;
+    return typeof raw === "string" ? raw : null;
+  })();
+
+  const flagCandidate = (() => {
+    const raw =
+      (meta as any).flag ??
+      (meta as any).resultFlag ??
+      (meta as any).result_flag ??
+      null;
+    return typeof raw === "string" ? raw : null;
+  })();
+
+  return {
+    refLow,
+    refHigh,
+    status: statusCandidate,
+    flag: flagCandidate,
+  };
 }
 
 function canonicalizeUnit(unit: string | null): string | null {
@@ -147,6 +227,7 @@ function normalizeObservation(row: ObservationRow): NormalizedPoint | null {
   if (!sampleDate) return null;
   const normalized = normalizeValue(def.test_code, row.value_num, row.unit);
   if (!normalized) return null;
+  const meta = extractRangeMeta(row.meta);
   return {
     test_code: def.test_code,
     test_name: def.test_name,
@@ -154,6 +235,10 @@ function normalizeObservation(row: ObservationRow): NormalizedPoint | null {
     value: normalized.value,
     unit: normalized.unit,
     sample_date: sampleDate.toISOString(),
+    ref_low: meta.refLow,
+    ref_high: meta.refHigh,
+    status: meta.status,
+    flag: meta.flag,
   };
 }
 
@@ -176,6 +261,14 @@ function withinRange(date: string, fromTime: number | null, toTime: number | nul
 
 export function listSupportedTests(): string[] {
   return Array.from(CODE_TO_TEST.keys());
+}
+
+export function getTestDefinitions(): ReadonlyArray<TestDefinition> {
+  return TEST_DEFINITIONS.slice();
+}
+
+export function getTestDefinition(code: string): TestDefinition | undefined {
+  return CODE_TO_TEST.get(code);
 }
 
 export function resolveTestCodes(input?: string[] | null): string[] | undefined {
@@ -234,6 +327,10 @@ function buildTrendFromRows(
         value: p.value,
         unit: p.unit,
         sample_date: p.sample_date,
+        ref_low: p.ref_low,
+        ref_high: p.ref_high,
+        status: p.status,
+        flag: p.flag,
       }));
 
     if (series.length === 0) continue;
@@ -308,7 +405,7 @@ export async function fetchLabSummary(
 
   let query = client
     .from("observations")
-    .select("kind,value_num,unit,observed_at,thread_id,report_id")
+    .select("kind,value_num,unit,observed_at,thread_id,report_id,meta")
     .eq("user_id", options.userId)
     .not("value_num", "is", null)
     .order("observed_at", { ascending: false });
