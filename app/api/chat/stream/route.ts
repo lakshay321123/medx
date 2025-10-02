@@ -8,6 +8,14 @@ import { computeAll } from '@/lib/medical/engine/computeAll';
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
 import { RESEARCH_BRIEF_STYLE } from '@/lib/styles';
+import { getServerUserId } from '@/lib/auth/serverUser';
+import {
+  detectAidocIntent,
+  latestAidocUserText,
+  loadAidocSnapshot,
+  markdownMetric,
+  markdownSnapshot,
+} from '@/lib/aidoc/markdown';
 
 // --- tiny helper: keep only the last N non-system turns (cheap token control)
 function takeRecentTurns(
@@ -60,6 +68,43 @@ export async function POST(req: NextRequest) {
   let body: any = {};
   try { body = await req.json(); } catch {}
   const { context, clientRequestId, mode } = body;
+  const threadTypeRaw = typeof body?.threadType === 'string' ? body.threadType.toLowerCase() : undefined;
+  const contextHint = typeof context === 'string' ? context.toLowerCase() : '';
+  const isAidocThread = threadTypeRaw === 'aidoc' || contextHint.includes('ai-doc');
+  if (isAidocThread) {
+    const latestUser = latestAidocUserText(body);
+    const intent = detectAidocIntent(latestUser);
+    if (intent.kind !== 'none') {
+      const userId = await getServerUserId(req);
+      if (!userId) {
+        return new Response(
+          JSON.stringify({ role: 'assistant', content: 'Please sign in to view your reports.' }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      try {
+        const { snapshot, seriesByMetric } = await loadAidocSnapshot(userId, 365);
+        if (intent.kind === 'compare_metric') {
+          const series = seriesByMetric[intent.metric] ?? [];
+          const md = markdownMetric(intent.metric, series);
+          return new Response(
+            JSON.stringify({ role: 'assistant', content: md }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          );
+        }
+        const md = markdownSnapshot(snapshot);
+        return new Response(
+          JSON.stringify({ role: 'assistant', content: md }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      } catch (error) {
+        return new Response(
+          JSON.stringify({ role: 'assistant', content: '## Patient Snapshot\nCould not read labs right now. Try again shortly.' }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+    }
+  }
   const allowHistory = body?.allowHistory !== false;
   const requestedLang = typeof body?.lang === 'string' ? body.lang : undefined;
   const headerLang = req.headers.get('x-user-lang') || req.headers.get('x-lang') || undefined;

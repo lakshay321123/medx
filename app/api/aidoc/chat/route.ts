@@ -5,135 +5,21 @@ import { POST as streamPOST } from "../../chat/stream/route";
 import { getUserId } from "@/lib/getUserId";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchLabSummary } from "@/lib/labs/summary";
+import {
+  detectAidocIntent,
+  latestAidocUserText,
+  loadAidocSnapshot,
+  markdownMetric,
+  markdownSnapshot,
+} from "@/lib/aidoc/markdown";
 
 export const runtime = 'nodejs';
 
-// ---- Intent detection (deterministic; no LLM) ----
-const PULL_RE     = /\b(pull|show|list|fetch)\s+(all\s+)?(my\s+)?report(s)?\b/i;
-const COMPARE_RE  = /\b(compare|contrast)\s+(all\s+)?(my\s+)?report(s)?\b/i;
-const OVERALL_RE  = /\b(how('?s|\s+is)\s+my\s+health(\s+overall)?|overall\s+health|health\s+overall)\b/i;
-const METRIC_WORDS: Record<string,string[]> = {
-  "LDL": ["ldl","ldl-c","low density lipoprotein"],
-  "HbA1c": ["hba1c","a1c","glycated hemoglobin","glycosylated hemoglobin"],
-  "ALT (SGPT)": ["alt","sgpt"],
-  "AST (SGOT)": ["ast","sgot"],
-  "HDL": ["hdl","hdl-c"],
-  "Triglycerides": ["tg","triglycerides","triglyceride"],
-  "Total Cholesterol": ["tc","total cholesterol","cholesterol total"],
-  "Fasting Glucose": ["fbg","fasting glucose","fasting blood sugar"]
-};
-function detectMetric(text: string): string | null {
-  const s = (text||"").toLowerCase();
-  for (const [canon, aliases] of Object.entries(METRIC_WORDS)) {
-    for (const a of aliases) if (s.includes(a)) return canon;
-  }
-  return null;
-}
-function detectAidocIntent(text: string):
-  | { kind: "pull_reports" }
-  | { kind: "compare_reports" }
-  | { kind: "overall_health" }
-  | { kind: "compare_metric"; metric: string }
-  | { kind: "none" } {
-  const s = (text||"").trim();
-  if (!s) return { kind: "none" };
-  if (PULL_RE.test(s)) return { kind: "pull_reports" };
-  if (COMPARE_RE.test(s)) return { kind: "compare_reports" };
-  if (OVERALL_RE.test(s)) return { kind: "overall_health" };
-  if (/\bcompare\b/i.test(s)) {
-    const m = detectMetric(s);
-    if (m) return { kind: "compare_metric", metric: m };
-  }
-  return { kind: "none" };
-}
-
-// ---- Helpers for snapshot markdown (no UI dependency) ----
-function canonName(name: string): string {
-  const n = (name||"").toLowerCase();
-  if (n === "ldl-c") return "LDL";
-  if (n === "hdl-c") return "HDL";
-  if (/^alt(\s|\()/.test(name)) return "ALT (SGPT)";
-  if (/^ast(\s|\()/.test(name)) return "AST (SGOT)";
-  if (/^tc$|total cholesterol/i.test(name)) return "Total Cholesterol";
-  if (/^tg$|triglyceride/i.test(name)) return "Triglycerides";
-  if (/^fbg$|fasting glucose|fasting blood sugar/i.test(name)) return "Fasting Glucose";
-  return name;
-}
-type Hi = { name: string; value: number|string|null; unit: string|null; status: "high"|"low"|"normal"|"ok"|"unknown" };
-function statusFor(v: number|null|undefined, lo?: number|null, hi?: number|null, polarity?: "lower"|"higher"|"neutral"): Hi["status"] {
-  if (v==null) return "unknown";
-  if (lo!=null && v < lo) return "low";
-  if (hi!=null && v > hi) return "high";
-  if (polarity === "higher") return "ok";
-  return "normal";
-}
-function shortLine(highs: Hi[]): string {
-  const get = (n:string)=> highs.find(h=>canonName(h.name)===n);
-  const ldl = get("LDL"); const tc=get("Total Cholesterol");
-  const alt = get("ALT (SGPT)"); const ast=get("AST (SGOT)");
-  const fbg = get("Fasting Glucose");
-  const bits:string[]=[];
-  if (ldl?.status==="high" || tc?.status==="high") bits.push("Cholesterol high");
-  if (alt?.status==="high" || ast?.status==="high") bits.push("liver enzymes high");
-  if (fbg && (fbg.status==="normal"||fbg.status==="ok")) bits.push("glucose normal");
-  if (!bits.length) bits.push("No strong signals");
-  const line = bits.join("; ");
-  return line.charAt(0).toUpperCase()+line.slice(1)+".";
-}
-function asMarkdownSnapshot(byDate: Record<string,Hi[]>) {
-  const dates = Object.keys(byDate).sort().reverse();
-  const lines:string[]=[];
-  lines.push("## Patient Snapshot");
-  if (dates.length) {
-    const headline = shortLine(byDate[dates[0]]);
-    lines.push(headline, "");
-  }
-  for (const d of dates) {
-    const highs = byDate[d];
-    const mini = shortLine(highs);
-    lines.push(`**${d}** — ${mini}`);
-    const chips = highs.slice(0,6).map(h => {
-      const val = h.value==null ? "—" : String(h.value);
-      const u = h.unit ? ` ${h.unit}` : "";
-      return `\`${h.name}: ${val}${u} (${h.status})\``;
-    }).join(" • ");
-    if (chips) lines.push(chips);
-    if (highs.length>6) lines.push(`_${highs.length-6} more_`);
-    lines.push("");
-  }
-  lines.push("**What to do next**");
-  lines.push("- Repeat any stale/missing key panels as advised by your clinician.");
-  lines.push("- Discuss abnormal results and targets (e.g., LDL) with your clinician.");
-  lines.push("- Keep steady activity and a fiber-forward diet for cardiometabolic support.");
-  return lines.join("\n");
-}
-function asMarkdownMetric(metric: string, series: Array<{date:string; value:number|null; unit:string|null; status:string}>){
-  const lines = [`## Compare ${metric}`];
-  if (!series.length) {
-    lines.push("_No values found yet. Add a report that includes this test._");
-    return lines.join("\n");
-  }
-  for (const p of series) {
-    const v = p.value==null ? "—" : String(p.value);
-    const u = p.unit ? ` ${p.unit}` : "";
-    lines.push(`- ${p.date} — **${v}${u}** (_${p.status}_)`);
-  }
-  if (series.length<2) lines.push("\n_Need ≥2 results to assess trend._");
-  return lines.join("\n");
-}
-
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({} as any));
-  const message = (body?.message ?? body?.text ?? "").toString();
-
-  // ====== AIDOC DIAGNOSTIC SENTINEL (remove after test) ======
-  if (/\bAIDOC_TEST\b/i.test(message)) {
-    return NextResponse.json({
-      role: "assistant",
-      content: "✅ AIDOC route hit (diagnostic)."
-    });
-  }
-  // ===========================================================
+  const directMessage = (body?.message ?? body?.text ?? "").toString();
+  const latestUser = latestAidocUserText(body);
+  const message = latestUser || directMessage;
   const answers = (body?.answers && typeof body.answers === "object") ? body.answers : null;
   const incomingProfile = (body?.profile && typeof body.profile === "object") ? body.profile : null;
   const messages: Array<{ role: string; content: string }> = Array.isArray(body?.messages)
@@ -149,80 +35,21 @@ export async function POST(req: NextRequest) {
   if (intent.kind !== "none") {
     if (!userId) return NextResponse.json({ role:"assistant", content: "Please sign in to view your reports." });
     try {
-      const sb = supabaseAdmin();
-      const summary = await fetchLabSummary(sb, { userId, limit: 365 });
-
-      const trend = Array.isArray(summary?.trend) ? summary.trend : [];
-
-      const snapshotMaps: Record<string, Map<string, Hi>> = {};
-      const canonicalFromTrend = (code: string | null | undefined, name: string | null | undefined) => {
-        const key = (code ?? "").toUpperCase();
-        const CANON_MAP: Record<string, string> = {
-          "LDL-C": "LDL",
-          "HDL-C": "HDL",
-          "TG": "Triglycerides",
-          "TC": "Total Cholesterol",
-          "HBA1C": "HbA1c",
-          "FBG": "Fasting Glucose",
-          "ALT (SGPT)": "ALT (SGPT)",
-          "AST (SGOT)": "AST (SGOT)",
-        };
-        if (CANON_MAP[key]) return CANON_MAP[key];
-        return canonName(name || code || "");
-      };
-
-      for (const item of trend) {
-        const canon = canonicalFromTrend(item?.test_code, item?.test_name);
-        const series = Array.isArray(item?.series) ? item.series : [];
-        for (const point of series.slice().reverse()) {
-          const date = (point?.sample_date ?? "").slice(0, 10);
-          if (!date) continue;
-          const highlight: Hi = {
-            name: canon,
-            value: typeof point?.value === "number" ? point.value : point?.value ?? null,
-            unit: point?.unit ?? null,
-            status: "unknown",
-          };
-          const bucket = snapshotMaps[date] ?? new Map<string, Hi>();
-          bucket.set(canon, highlight);
-          snapshotMaps[date] = bucket;
-        }
-      }
-
-      const snapshotByDate: Record<string, Hi[]> = {};
-      for (const [date, map] of Object.entries(snapshotMaps)) {
-        snapshotByDate[date] = Array.from(map.values());
-      }
+      const { snapshot, seriesByMetric } = await loadAidocSnapshot(userId, 365);
 
       if (intent.kind === "compare_metric") {
-        const metric = intent.metric;
-        const match = trend.find(item => canonicalFromTrend(item?.test_code, item?.test_name) === metric);
-        const series: Array<{date:string; value:number|null; unit:string|null; status:string}> = [];
-        if (match?.series) {
-          for (const point of match.series.slice().sort((a, b) => {
-            const aDate = (a?.sample_date ?? "");
-            const bDate = (b?.sample_date ?? "");
-            return aDate.localeCompare(bDate);
-          })) {
-            const date = (point?.sample_date ?? "").slice(0, 10);
-            if (!date) continue;
-            series.push({
-              date,
-              value: typeof point?.value === "number" ? point.value : point?.value ?? null,
-              unit: point?.unit ?? null,
-              status: "unknown",
-            });
-          }
-        }
-        const md = asMarkdownMetric(metric, series);
+        const series = seriesByMetric[intent.metric] ?? [];
+        const md = markdownMetric(intent.metric, series);
         return NextResponse.json({ role: "assistant", content: md });
       }
 
-      // pull/compare/overall → full snapshot markdown
-      const md = asMarkdownSnapshot(snapshotByDate);
+      const md = markdownSnapshot(snapshot);
       return NextResponse.json({ role: "assistant", content: md });
-    } catch (e) {
-      // fall through to legacy stream on any error
+    } catch (error) {
+      return NextResponse.json({
+        role: "assistant",
+        content: "## Patient Snapshot\nCould not read labs right now. Try again shortly.",
+      });
     }
   }
 

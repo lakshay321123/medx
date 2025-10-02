@@ -2352,6 +2352,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             lang,
             personalization,
             allowHistory,
+            threadType: 'aidoc',
           }),
           cache: 'no-store',
           signal: ctrl.signal
@@ -2713,6 +2714,7 @@ ${systemCommon}` + baseSys;
           lang,
           personalization,
           allowHistory,
+          threadType: isAiDocMode ? 'aidoc' : undefined,
         }),
         cache: 'no-store',
         signal: ctrl.signal
