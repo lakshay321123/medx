@@ -31,6 +31,8 @@ import { getTrials } from "@/lib/hooks/useTrials";
 import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials";
 import MessageActions from "@/components/chat/MessageActions";
 import SharePanel from "@/components/panels/SharePanel";
+import { SnapshotCard, MetricCompareCard } from "@/components/aidoc/SnapshotCard";
+import type { SnapshotPayload, MetricComparePayload } from "@/components/aidoc/SnapshotCard";
 import type { ChatMessage as BaseChatMessage } from "@/types/chat";
 import type { AnalysisCategory } from '@/lib/context';
 import { ensureThread, loadMessages, saveMessages, generateTitle, updateThreadTitle, upsertThreadIndex, createNewThreadId } from '@/lib/chatThreads';
@@ -580,6 +582,33 @@ function ChatCard({
       />
     );
   }
+
+  const metadata = (m as any).metadata as { kind?: string } | undefined | null;
+  const payload = (m as any).payload as unknown;
+  const kind = typeof metadata === 'object' && metadata ? metadata.kind : undefined;
+
+  if (kind === 'patient_snapshot' && payload && (payload as any)?.type === 'patient_snapshot') {
+    return (
+      <div className="max-w-3xl space-y-3">
+        <SnapshotCard payload={payload as SnapshotPayload} />
+        {!therapyMode && suggestions.length > 0 && (
+          <SuggestionChips suggestions={suggestions} onAction={onAction} />
+        )}
+      </div>
+    );
+  }
+
+  if (kind === 'metric_compare' && payload && (payload as any)?.type === 'metric_compare') {
+    return (
+      <div className="max-w-3xl space-y-3">
+        <MetricCompareCard payload={payload as MetricComparePayload} />
+        {!therapyMode && suggestions.length > 0 && (
+          <SuggestionChips suggestions={suggestions} onAction={onAction} />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-start whitespace-normal max-w-3xl"
@@ -778,7 +807,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       setMessages(prev =>
         prev.map(m => {
           if (m.id !== messageId) return m;
-          const next = { ...m, content: finalContent, pending: false } as ChatMessage;
+          const next = { ...m, content: finalContent, pending: false } as ChatMessage & {
+            metadata?: unknown;
+            payload?: unknown;
+          };
           if (extras?.followUps !== undefined) {
             (next as any).followUps = extras.followUps;
           }
@@ -787,6 +819,12 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           }
           if (extras?.error !== undefined) {
             next.error = extras.error ?? undefined;
+          }
+          if (extras?.metadata !== undefined) {
+            next.metadata = (extras.metadata as Record<string, unknown> | null) ?? null;
+          }
+          if (extras?.payload !== undefined) {
+            next.payload = extras.payload;
           }
           return next;
         }),
@@ -2692,6 +2730,62 @@ ${systemCommon}` + baseSys;
           console.log('[latency] Tfb(ms)=', tfb);
         }
       }
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        let bodyJson: any = null;
+        try {
+          bodyJson = await res.json();
+        } catch {}
+
+        if (!res.ok) {
+          const detail =
+            typeof bodyJson?.error === 'string'
+              ? bodyJson.error
+              : `Request failed (${res.status})`;
+          const content = `⚠️ ${detail}`;
+          finishPendingAssistant(pendingId, content, { error: detail });
+          recordShortMem(threadId, 'assistant', content);
+          recordStructured(threadId, content);
+          recordShortMem(stableThreadId, 'assistant', content);
+          opts.onError?.();
+          return;
+        }
+
+        if (bodyJson?.kind === 'aidoc_structured') {
+          const metadata = bodyJson?.metadata ?? null;
+          const payload = bodyJson?.payload ?? null;
+          const summaryLine =
+            typeof payload?.summary_tagline === 'string' && payload.summary_tagline.trim().length > 0
+              ? payload.summary_tagline
+              : 'Here’s the latest snapshot of your reports.';
+
+          markPendingAssistantStreaming(pendingId);
+          finishPendingAssistant(pendingId, summaryLine, {
+            metadata,
+            payload,
+          });
+          opts.onSuccess?.(pendingId);
+          recordShortMem(threadId, 'assistant', summaryLine);
+          recordStructured(threadId, summaryLine);
+          recordShortMem(stableThreadId, 'assistant', summaryLine);
+          return;
+        }
+
+        const fallback =
+          typeof bodyJson?.message === 'string'
+            ? bodyJson.message
+            : typeof bodyJson?.content === 'string'
+              ? bodyJson.content
+              : JSON.stringify(bodyJson ?? {});
+        markPendingAssistantStreaming(pendingId);
+        finishPendingAssistant(pendingId, fallback);
+        opts.onSuccess?.(pendingId);
+        recordShortMem(threadId, 'assistant', fallback);
+        recordStructured(threadId, fallback);
+        recordShortMem(stableThreadId, 'assistant', fallback);
+        return;
+      }
+
       if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
 
       const reader = res.body.getReader();

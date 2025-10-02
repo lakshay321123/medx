@@ -11,4 +11,6 @@ export type ChatMessage = {
   replacedByNewer?: boolean;
   replacedByMessageId?: string;
   refreshOf?: string;
+  metadata?: Record<string, unknown> | null;
+  payload?: unknown;
 };

@@ -5,6 +5,8 @@ import { POST as streamPOST } from "../../chat/stream/route";
 import { getUserId } from "@/lib/getUserId";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchLabSummary } from "@/lib/labs/summary";
+import { detectAidocIntent } from "@/lib/aidoc/intents";
+import { buildPatientSnapshot, buildMetricCompare } from "@/lib/aidoc/snapshot";
 
 export const runtime = 'nodejs';
 
@@ -19,6 +21,38 @@ export async function POST(req: NextRequest) {
   const context = typeof body?.context === "string" ? body.context : undefined;
   const needsContextPacket = !!context && ["profile", "timeline", "ai-doc-med-profile"].includes(context);
 
+  const userId = await getUserId(req);
+  const intent = detectAidocIntent(message);
+  if (intent.kind !== "none") {
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    try {
+      const sb = supabaseAdmin();
+      if (intent.kind === "compare_metric") {
+        const payload = await buildMetricCompare(sb, userId, intent.metric);
+        return NextResponse.json({
+          role: "assistant",
+          kind: "aidoc_structured",
+          metadata: { kind: "metric_compare" },
+          payload,
+        });
+      }
+
+      const payload = await buildPatientSnapshot(sb, userId);
+      return NextResponse.json({
+        role: "assistant",
+        kind: "aidoc_structured",
+        metadata: { kind: "patient_snapshot" },
+        payload,
+      });
+    } catch (err) {
+      console.error("AIDoc intent fallback", err);
+      // fall through to legacy streaming response on error
+    }
+  }
+
   // ensure you have resolved the `profile` object here
   // profile = { name, age, sex, pregnant }
   let profile: any = null;
@@ -32,7 +66,6 @@ export async function POST(req: NextRequest) {
   }> = [];
   let labsPacket: any = null;
   try {
-    const userId = await getUserId(req);
     if (userId) {
       const sb = supabaseAdmin();
       const { data: prof } = await sb

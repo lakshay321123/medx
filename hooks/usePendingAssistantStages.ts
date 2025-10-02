@@ -16,6 +16,8 @@ export type PendingAssistantExtras = {
   followUps?: unknown;
   citations?: unknown;
   error?: string | null;
+  metadata?: unknown;
+  payload?: unknown;
 };
 
 type TypewriterState = {
