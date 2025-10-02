@@ -6,7 +6,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserId } from "@/lib/getUserId";
 import { prisma } from "@/lib/prisma";
 import { AiDocIntent, detectAidocIntent } from "@/lib/aidoc/schema";
-import { AiDocPrompts, AiDocIntentCategory } from "@/lib/aidoc/intents";
+import { AiDocIntentCategory } from "@/lib/aidoc/intents";
+import { detectIntentAndEntities } from "@/lib/aidoc/detectIntent";
 import { buildStructuredAidocResponse, SAMPLE_AIDOC_DATA } from "@/lib/aidoc/structured";
 
 interface PatientBundle {
@@ -19,18 +20,6 @@ interface PatientBundle {
 
 function ensureArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
-}
-
-function detectIntent(query: string): AiDocIntentCategory {
-  const q = query.toLowerCase();
-  for (const [cat, prompts] of Object.entries(AiDocPrompts)) {
-    for (const p of prompts) {
-      if (q.includes(p.toLowerCase())) {
-        return cat as AiDocIntentCategory;
-      }
-    }
-  }
-  return "pull_reports";
 }
 
 function mapIntentCategoryToIntent(intent: AiDocIntentCategory): AiDocIntent | null {
@@ -114,7 +103,8 @@ export async function POST(req: NextRequest) {
   const message = typeof body?.message === "string" ? body.message.trim() : "";
   if (!message) return NextResponse.json({ error: "no message" }, { status: 400 });
 
-  const intentCategory = detectIntent(message);
+  const detection = detectIntentAndEntities(message);
+  const intentCategory = detection.intent;
 
   switch (intentCategory) {
     case "pull_reports":
