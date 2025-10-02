@@ -125,6 +125,15 @@ function asMarkdownMetric(metric: string, series: Array<{date:string; value:numb
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({} as any));
   const message = (body?.message ?? body?.text ?? "").toString();
+
+  // ====== AIDOC DIAGNOSTIC SENTINEL (remove after test) ======
+  if (/\bAIDOC_TEST\b/i.test(message)) {
+    return NextResponse.json({
+      role: "assistant",
+      content: "✅ AIDOC route hit (diagnostic)."
+    });
+  }
+  // ===========================================================
   const answers = (body?.answers && typeof body.answers === "object") ? body.answers : null;
   const incomingProfile = (body?.profile && typeof body.profile === "object") ? body.profile : null;
   const messages: Array<{ role: string; content: string }> = Array.isArray(body?.messages)
