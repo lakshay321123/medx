@@ -296,21 +296,23 @@ export async function POST(req: NextRequest) {
   if (intentCategory === "interpret_report") {
     const imagingReports = preparedRaw.reports
       .filter(report => (!report.labs || report.labs.length === 0) && report.summary)
-      .map(report => {
-        const imagingReport: ReportBlock = {
-          date: report.date,
-          summary: report.summary,
-          labs: [],
-        };
-        return imagingReport;
-      });
+      .map(report => ({
+        date: report.date,
+        summary: report.summary,
+        labs: [],
+      } satisfies ReportBlock));
+
     if (imagingReports.length) {
-      reports = [...reports, ...imagingReports];
+      const labReports = reports.filter(report => report.labs.length > 0);
+      labReports.sort((a, b) => b.date.localeCompare(a.date));
+      imagingReports.sort((a, b) => b.date.localeCompare(a.date));
+      reports = [...imagingReports, ...labReports];
+    } else {
       reports.sort((a, b) => b.date.localeCompare(a.date));
     }
+  } else {
+    reports.sort((a, b) => b.date.localeCompare(a.date));
   }
-
-  reports.sort((a, b) => b.date.localeCompare(a.date));
 
   const focusMetric = intentCategory === "compare_metric" ? entities.metric ?? null : null;
   const comparisons = buildComparisons(reports, focusMetric);

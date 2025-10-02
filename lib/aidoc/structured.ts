@@ -13,7 +13,7 @@ export type StructuredLab = {
   name: string;
   value: number | string | null;
   unit?: string | null;
-  marker: string;
+  marker?: string | null;
   ideal?: string | null;
 };
 

@@ -369,7 +369,10 @@ function appendInterpretationReports(reports: PlannedReport[], notes: PlannerNot
       summary: note.body!.slice(0, 160),
       labs: [],
     }));
-  return sortReportsByDate([...imagingNotes, ...reports]);
+
+  const sortedNotes = sortReportsByDate(imagingNotes);
+  const sortedReports = sortReportsByDate(reports);
+  return [...sortedNotes, ...sortedReports];
 }
 
 export function prepareAidocPayload(input: {
