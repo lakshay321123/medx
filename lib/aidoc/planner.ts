@@ -24,19 +24,12 @@ export type PlannerCondition = { label?: string | null; status?: string | null; 
 export type PlannerNote = { body?: string | null; createdAt?: MaybeDate; updatedAt?: MaybeDate; profileId?: string | null };
 export type PlannerProfile = { id?: string | null; userId?: string | null; name?: string | null; age?: number | null; sex?: string | null };
 
-export type PlannedLab = {
-  name: string;
-  value: number | string | null;
-  unit?: string | null;
-  marker: string;
-  ideal?: string | null;
-};
+export type LabRow = { name: string; value: number | string | null; unit?: string; marker?: string; ideal?: string };
+export type ReportBlock = { date: string; labs: LabRow[]; summary: string };
 
-export type PlannedReport = {
-  date: string;
-  summary: string;
-  labs: PlannedLab[];
-};
+export type PlannedLab = LabRow;
+
+export type PlannedReport = ReportBlock;
 
 export type PlannerPatient = {
   name: string;
@@ -54,26 +47,7 @@ export type PreparedAidocPayload = {
   defaultSummary: string;
 };
 
-const RANGE_TABLE: Record<string, {
-  ideal: string;
-  low?: number;
-  high?: number;
-  borderline?: { min: number; max: number };
-}> = {
-  LDL: { ideal: "<160 mg/dL", high: 160, borderline: { min: 130, max: 159 } },
-  HDL: { ideal: ">40 mg/dL", low: 40 },
-  "TOTAL CHOLESTEROL": { ideal: "<200 mg/dL", high: 200 },
-  TRIGLYCERIDES: { ideal: "<150 mg/dL", high: 150, borderline: { min: 150, max: 199 } },
-  HBA1C: { ideal: "<5.6%", high: 5.6, borderline: { min: 5.7, max: 6.4 } },
-  "FASTING GLUCOSE": { ideal: "70-99 mg/dL", low: 70, high: 99 },
-  ALT: { ideal: "<50 U/L", high: 50 },
-  AST: { ideal: "<40 U/L", high: 40 },
-  "VITAMIN D": { ideal: "30-100 ng/mL", low: 30, borderline: { min: 20, max: 29 } },
-  "VITAMIN B12": { ideal: "200-900 pg/mL", low: 200 },
-  CRP: { ideal: "<3 mg/L", high: 3 },
-};
-
-const TREND_KEYS = ["LDL", "HBA1C", "ALT", "VITAMIN D"];
+const TREND_KEYS = ["LDL", "HbA1c", "ALT", "Vitamin D"];
 
 function toNumber(value: number | string | null | undefined): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -108,36 +82,122 @@ function filterByProfileId<T extends { profileId?: string | null }>(rows: T[], p
   return rows.filter(row => !row?.profileId || row.profileId === profileId);
 }
 
-export function idealFor(name: string): string | null {
-  const range = RANGE_TABLE[normalizeMetricName(name)];
-  return range?.ideal ?? null;
+export function idealFor(name: string): string | undefined {
+  switch (name) {
+    case "LDL":
+      return "<160 mg/dL";
+    case "HDL":
+      return ">40 mg/dL";
+    case "Total Cholesterol":
+      return "<200 mg/dL";
+    case "Triglycerides":
+      return "<150 mg/dL";
+    case "HbA1c":
+      return "<5.6 %";
+    case "ALT":
+      return "<50 U/L";
+    case "AST":
+      return "<50 U/L";
+    case "ALP":
+      return "<120 U/L";
+    case "Fasting Glucose":
+      return "70–99 mg/dL";
+    case "Vitamin D":
+      return "30–100 ng/mL";
+    default:
+      return undefined;
+  }
 }
 
-export function markerFor(name: string, value: number | string | null): string {
-  const normalized = normalizeMetricName(name);
-  const numeric = toNumber(value);
-  const range = RANGE_TABLE[normalized];
-  if (!range || numeric == null) {
-    return numeric == null ? "Unknown" : "Normal";
+export function markerFor(name: string, value: number | null | undefined): "High" | "Low" | "Borderline" | "Normal" | undefined {
+  if (value == null || Number.isNaN(value)) return undefined;
+  switch (name) {
+    case "LDL":
+      return value >= 160 ? "High" : value >= 130 ? "Borderline" : "Normal";
+    case "HDL":
+      return value < 40 ? "Low" : "Normal";
+    case "Total Cholesterol":
+      return value >= 200 ? "High" : "Normal";
+    case "Triglycerides":
+      return value >= 150 ? "High" : "Normal";
+    case "HbA1c":
+      return value >= 6.5 ? "High" : value >= 5.6 ? "Borderline" : "Normal";
+    case "ALT":
+      return value >= 50 ? "High" : "Normal";
+    case "AST":
+      return value >= 50 ? "High" : "Normal";
+    case "ALP":
+      return value >= 120 ? "High" : "Normal";
+    case "Fasting Glucose":
+      return value >= 100 ? "High" : value < 70 ? "Low" : "Normal";
+    case "Vitamin D":
+      return value < 30 ? "Low" : value > 100 ? "High" : "Normal";
+    default:
+      return undefined;
   }
-  if (range.borderline && numeric >= range.borderline.min && numeric <= range.borderline.max) {
-    return "Borderline";
-  }
-  if (typeof range.high === "number" && numeric > range.high) {
-    return "High";
-  }
-  if (typeof range.low === "number" && numeric < range.low) {
-    return "Low";
-  }
-  return "Normal";
 }
 
-export function buildSingleLineSummary(labs: PlannedLab[]): string {
-  const highlights = labs.filter(lab => lab.marker.toLowerCase() !== "normal");
-  if (highlights.length === 0) return "All labs within expected range.";
-  return highlights
-    .map(lab => `${lab.name} ${lab.marker.toLowerCase()}`)
-    .join("; ");
+export function buildSingleLineSummary(labs: LabRow[]): string {
+  const highlights = labs
+    .map(lab => ({ name: lab.name, marker: lab.marker }))
+    .filter(lab => lab.marker && lab.marker !== "Normal")
+    .slice(0, 3)
+    .map(lab => `${lab.name} ${String(lab.marker).toLowerCase()}`);
+  return highlights.length ? highlights.join("; ") : "All key values within normal ranges.";
+}
+
+export function previousDistinctValue(
+  reports: ReportBlock[],
+  metric: string,
+  fromIndex: number,
+): { date: string; value: number | string | null } | null {
+  const currentDate = reports[fromIndex]?.date;
+  if (!currentDate) return null;
+  for (let i = fromIndex + 1; i < reports.length; i += 1) {
+    const report = reports[i];
+    if (!report || report.date === currentDate) continue;
+    const hit = report.labs.find(lab => lab.name === metric && lab.value != null);
+    if (hit) {
+      return { date: report.date, value: hit.value ?? null };
+    }
+  }
+  return null;
+}
+
+export function compareTrend(reports: ReportBlock[], metric: string) {
+  if (!Array.isArray(reports) || reports.length === 0) return null;
+  let latestIndex = -1;
+  for (let i = 0; i < reports.length; i += 1) {
+    if (reports[i].labs.some(lab => lab.name === metric && lab.value != null)) {
+      latestIndex = i;
+      break;
+    }
+  }
+  if (latestIndex < 0) return null;
+  const latestLab = reports[latestIndex].labs.find(lab => lab.name === metric && lab.value != null);
+  if (!latestLab) return null;
+
+  const latestNumeric = toNumber(latestLab.value);
+  if (latestNumeric == null) return null;
+
+  const prev = previousDistinctValue(reports, metric, latestIndex);
+  if (!prev) return null;
+  const prevNumeric = toNumber(prev.value);
+  if (prevNumeric == null) return null;
+
+  const numericSeries: number[] = [];
+  for (const report of reports) {
+    const hit = report.labs.find(lab => lab.name === metric && lab.value != null);
+    if (!hit) continue;
+    const val = toNumber(hit.value);
+    if (val == null) continue;
+    numericSeries.push(val);
+  }
+  if (numericSeries.length < 2) return null;
+  const rangeMin = Math.min(...numericSeries);
+  const rangeMax = Math.max(...numericSeries);
+  const direction = latestNumeric > prevNumeric ? "↑" : latestNumeric < prevNumeric ? "↓" : "→";
+  return `${metric}: ${latestLab.value} (${reports[latestIndex].date}) ${direction} from ${prev.value} (${prev.date}); range ${rangeMin}-${rangeMax}`;
 }
 
 function sortReportsByDate(reports: PlannedReport[]): PlannedReport[] {
@@ -190,7 +250,8 @@ function makePlannedLab(lab: PlannerLabInput): PlannedLab | null {
   const name = lab?.name?.trim();
   if (!name) return null;
   const ideal = idealFor(name);
-  const marker = markerFor(name, lab?.value ?? null);
+  const numericValue = toNumber(lab?.value ?? null);
+  const marker = markerFor(name, numericValue ?? null);
   return {
     name,
     value: lab?.value ?? null,
@@ -221,66 +282,40 @@ function buildReportsFromLabs(labs: PlannerLabInput[]): PlannedReport[] {
   return sortReportsByDate(reports);
 }
 
-function toTrendString(metric: string, unit: string | null | undefined, series: { date: string; value: number }[]): string {
-  if (series.length === 0) return "";
-  const sorted = [...series].sort((a, b) => (a.date > b.date ? 1 : a.date < b.date ? -1 : 0));
-  const first = sorted[0];
-  const last = sorted[sorted.length - 1];
-  const values = sorted.map(entry => entry.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const delta = last.value - first.value;
-  const normalizedMetric = normalizeMetricName(metric);
-  const threshold = normalizedMetric === "HBA1C" ? 0.1 : normalizedMetric === "VITAMIN D" ? 1 : 1;
-  const direction = delta > threshold ? "↑" : delta < -threshold ? "↓" : "↔";
-  const unitSuffix = unit ? ` ${unit}` : "";
-  return `${last.value}${unitSuffix} (${last.date}) ${direction} from ${first.value}${unitSuffix} (${first.date}); range ${min}-${max}${unitSuffix}`;
-}
 
-function collectSeries(reports: PlannedReport[]): Map<string, { metric: string; unit?: string | null; points: { date: string; value: number }[] }>
-{
-  const map = new Map<string, { metric: string; unit?: string | null; points: { date: string; value: number }[] }>();
-  for (const report of reports) {
-    for (const lab of report.labs) {
-      const numeric = toNumber(lab.value);
-      if (numeric == null) continue;
-      const key = normalizeMetricName(lab.name);
-      if (!map.has(key)) {
-        map.set(key, { metric: lab.name, unit: lab.unit ?? null, points: [] });
-      }
-      map.get(key)!.points.push({ date: report.date, value: numeric });
-      if (!map.get(key)!.unit && lab.unit) {
-        map.get(key)!.unit = lab.unit;
-      }
-    }
-  }
-  return map;
-}
 
 export function buildComparisons(reports: PlannedReport[], focusMetric?: string | null): Record<string, string> {
-  const map = collectSeries(reports);
   const result: Record<string, string> = {};
-  const keysToUse = focusMetric ? [normalizeMetricName(focusMetric)] : TREND_KEYS;
-  for (const key of keysToUse) {
-    const series = map.get(key);
-    if (!series) continue;
-    const validPoints = series.points.filter(point => Number.isFinite(point.value));
-    if (validPoints.length < 2) continue;
-    const trend = toTrendString(series.metric, series.unit, validPoints);
-    if (trend) result[series.metric] = trend;
-  }
-  if (!focusMetric) {
-    for (const [key, series] of map.entries()) {
-      if (result[series.metric]) continue;
-      if (series.points.length < 2) continue;
-      const trend = toTrendString(series.metric, series.unit, series.points);
-      if (trend) result[series.metric] = trend;
+  if (!Array.isArray(reports) || reports.length === 0) return result;
+
+  const seen = new Set<string>();
+  const metrics = focusMetric ? [focusMetric] : TREND_KEYS;
+
+  for (const metric of metrics) {
+    if (!metric) continue;
+    const trend = compareTrend(reports, metric);
+    if (trend) {
+      result[metric] = trend;
+      seen.add(metric);
     }
-  } else if (!result[focusMetric] && map.has(normalizeMetricName(focusMetric))) {
-    const series = map.get(normalizeMetricName(focusMetric))!;
-    const trend = toTrendString(series.metric, series.unit, series.points);
-    if (trend) result[series.metric] = trend;
   }
+
+  if (!focusMetric) {
+    for (const report of reports) {
+      for (const lab of report.labs) {
+        if (!lab.name || seen.has(lab.name)) continue;
+        const trend = compareTrend(reports, lab.name);
+        if (trend) {
+          result[lab.name] = trend;
+          seen.add(lab.name);
+        }
+      }
+    }
+  } else if (focusMetric && !result[focusMetric]) {
+    const trend = compareTrend(reports, focusMetric);
+    if (trend) result[focusMetric] = trend;
+  }
+
   return result;
 }
 

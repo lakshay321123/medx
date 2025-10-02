@@ -27,7 +27,7 @@ import type { Suggestion } from "@/lib/chat/suggestions";
 import { getDefaultSuggestions, getInlineSuggestions } from "@/lib/suggestions/engine";
 import { safeJson } from '@/lib/safeJson';
 import { splitFollowUps } from '@/lib/splitFollowUps';
-import { groupAndDedupeByDate, type LabLike } from "@/lib/aidoc/normalize";
+import { groupByIsoDate, dedupeSameDay, normName, normUnit, type LabLike } from "@/lib/aidoc/normalize";
 import { getTrials } from "@/lib/hooks/useTrials";
 import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials";
 import MessageActions from "@/components/chat/MessageActions";
@@ -1008,7 +1008,15 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         }
       }
 
-      const grouped = groupAndDedupeByDate(labs).sort((a, b) => b.date.localeCompare(a.date));
+      const grouped = groupByIsoDate(labs).map(([date, entries]) => ({
+        date,
+        labs: dedupeSameDay(entries).map(item => ({
+          name: normName(item.name),
+          value: item.value,
+          unit: normUnit(item.unit ?? null),
+        })),
+      }));
+      grouped.sort((a, b) => b.date.localeCompare(a.date));
       const totalReports =
         typeof body.meta?.total_reports === 'number' ? body.meta.total_reports : grouped.length;
 

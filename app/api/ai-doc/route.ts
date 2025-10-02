@@ -9,110 +9,19 @@ import { detectIntentAndEntities, type DetectedIntent } from "@/lib/aidoc/detect
 import { SAMPLE_AIDOC_DATA } from "@/lib/aidoc/structured";
 import {
   prepareAidocPayload,
-  buildNarrativeFallback,
-  buildNarrativePrompt,
+  buildComparisons,
   type PlannerLabInput,
   type PlannerMedication,
   type PlannerCondition,
   type PlannerNote,
   type PlannerProfile,
+  idealFor,
+  markerFor,
+  buildSingleLineSummary,
 } from "@/lib/aidoc/planner";
 import { callOpenAIJson } from "@/lib/aidoc/vendor";
-import { normName, normUnit, type LabLike } from "@/lib/aidoc/normalize";
-
-// --- Ideal ranges (minimal starter; expand later) ---
-function idealFor(name: string): string | undefined {
-  switch (name) {
-    case "LDL":
-      return "<160 mg/dL";
-    case "HDL":
-      return ">40 mg/dL";
-    case "Total Cholesterol":
-      return "<200 mg/dL";
-    case "Triglycerides":
-      return "<150 mg/dL";
-    case "HbA1c":
-      return "<5.6 %";
-    case "ALT":
-      return "<50 U/L";
-    case "AST":
-      return "<50 U/L";
-    case "ALP":
-      return "<120 U/L";
-    case "Fasting Glucose":
-      return "70–99 mg/dL";
-    case "Vitamin D":
-      return "30–100 ng/mL";
-    default:
-      return undefined;
-  }
-}
-
-function markerFor(
-  name: string,
-  value: number | null | undefined,
-): "High" | "Low" | "Borderline" | "Normal" | undefined {
-  if (value == null) return undefined;
-  switch (name) {
-    case "LDL":
-      return value >= 160 ? "High" : value >= 130 ? "Borderline" : "Normal";
-    case "HDL":
-      return value < 40 ? "Low" : "Normal";
-    case "Total Cholesterol":
-      return value >= 200 ? "High" : "Normal";
-    case "Triglycerides":
-      return value >= 150 ? "High" : "Normal";
-    case "HbA1c":
-      return value >= 6.5 ? "High" : value >= 5.6 ? "Borderline" : "Normal";
-    case "ALT":
-      return value >= 50 ? "High" : "Normal";
-    case "AST":
-      return value >= 50 ? "High" : "Normal";
-    case "ALP":
-      return value >= 120 ? "High" : "Normal";
-    case "Fasting Glucose":
-      return value >= 100 ? "High" : value < 70 ? "Low" : "Normal";
-    case "Vitamin D":
-      return value < 30 ? "Low" : value > 100 ? "High" : "Normal";
-    default:
-      return undefined;
-  }
-}
-
-// --- De-duplication per date ---
-// If the SAME (normalized) test repeats, keep the latest occurrence for that date.
-// Key: `${name}|${unit}`; if values differ same day, keep the last seen (DB orderBy desc handles "latest first").
-function dedupeLabs(items: LabLike[]): LabLike[] {
-  const map = new Map<string, LabLike>();
-  for (const item of items) {
-    const name = normName(item.name);
-    if (!name) continue;
-    const unit = normUnit(item.unit ?? undefined);
-    const key = `${name}|${unit || ""}`;
-    map.set(key, { ...item, name, unit });
-  }
-  return [...map.values()];
-}
-
-function toNumeric(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const parsed = Number(value.replace(/[^0-9.+-]/g, ""));
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
-function buildSingleLineSummary(labs: { name: string; marker?: string | null | undefined }[]): string {
-  const highlights = labs
-    .map(lab => ({ name: lab.name, marker: lab.marker }))
-    .filter(lab => lab.marker && lab.marker !== "Normal");
-  if (!highlights.length) return "All key values within normal ranges.";
-  return highlights
-    .slice(0, 3)
-    .map(lab => `${lab.name} ${String(lab.marker).toLowerCase()}`)
-    .join("; ");
-}
+import { groupByIsoDate, dedupeSameDay, normUnit, type LabLike } from "@/lib/aidoc/normalize";
+import { AIDOC_JSON_INSTRUCTION } from "@/lib/aidoc/schema";
 
 interface PatientBundle {
   profile: PlannerProfile | null;
@@ -191,6 +100,82 @@ function sanitizeNextSteps(value: unknown): string[] {
     .slice(0, 3);
 }
 
+function computeAgeFromDob(dob?: string | Date | null): number | undefined {
+  if (!dob) return undefined;
+  const birth = dob instanceof Date ? dob : new Date(dob);
+  if (Number.isNaN(birth.getTime())) return undefined;
+  const diff = Date.now() - birth.getTime();
+  const ageDate = new Date(diff);
+  const age = Math.abs(ageDate.getUTCFullYear() - 1970);
+  return Number.isFinite(age) ? age : undefined;
+}
+
+function defaultSummaryFromComparisons(comparisons: Record<string, string>): string {
+  const lines = Object.values(comparisons);
+  return lines.length ? `Key trends: ${lines.join("; ")}.` : "No clear trend detected across your reports.";
+}
+
+function defaultNextSteps(comparisons: Record<string, string>): string[] {
+  const steps = [
+    "Review highlighted trends with your clinician.",
+    "Maintain regular follow-up and repeat labs as advised.",
+  ];
+  if (comparisons["LDL"]) {
+    steps.unshift("Repeat lipid profile in ~3 months; consider diet and lifestyle changes.");
+  }
+  if (comparisons["HbA1c"]) {
+    steps.unshift("Monitor HbA1c in ~3–6 months and focus on glucose-friendly nutrition.");
+  }
+  return steps;
+}
+
+type ModelReport = {
+  date: string;
+  summary: string;
+  labs: { name: string; value: number | string | null; unit?: string | null; marker?: string }[];
+};
+
+function formatReportsForModel(reports: ModelReport[]): string {
+  if (!reports.length) return "- No structured lab reports available.";
+  return reports
+    .slice(0, 5)
+    .map(report => {
+      const labDetails = report.labs
+        .slice(0, 6)
+        .map(lab => {
+          const value = lab.value ?? "—";
+          const unit = lab.unit ? ` ${lab.unit}` : "";
+          const marker = lab.marker ? ` (${lab.marker})` : "";
+          return `${lab.name}: ${value}${unit}${marker}`;
+        })
+        .join("; ");
+      return `- ${report.date}: ${report.summary}${labDetails ? ` | Labs: ${labDetails}` : ""}`;
+    })
+    .join("\n");
+}
+
+function buildModelSystem(patient: any, reports: ModelReport[], comparisons: Record<string, string>): string {
+  const patientLine = patient
+    ? `Patient: ${patient.name ?? "Unknown"}; Age: ${patient.age ?? "—"}; Predispositions: ${
+        patient.predispositions?.length ? patient.predispositions.join(", ") : "none"
+      }; Medications: ${patient.medications?.length ? patient.medications.join(", ") : "none"}; Symptoms: ${
+        patient.symptoms?.length ? patient.symptoms.join(", ") : "none"
+      }.`
+    : "Patient: unknown.";
+  const comparisonLine = Object.values(comparisons).length
+    ? Object.values(comparisons).join("; ")
+    : "No longitudinal comparisons available.";
+  return [
+    "You are AiDoc, a clinical assistant summarizing structured lab histories.",
+    "Write an integrated interpretation in 3–5 sentences that synthesizes risk areas and improvements.",
+    "Do not restate the per-date summaries verbatim; highlight trends, context, and next steps.",
+    patientLine,
+    `Comparisons: ${comparisonLine}.`,
+    "Reports:",
+    formatReportsForModel(reports),
+  ].join("\n");
+}
+
 export async function POST(req: NextRequest) {
   const userId = await getUserId(req);
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -222,59 +207,130 @@ export async function POST(req: NextRequest) {
     compareWindow: entities.compareWindow ?? null,
   });
 
-  const cleanedReports = preparedRaw.reports.map(report => {
-    const cleaned = dedupeLabs(
-      report.labs.map(lab => ({
-        name: lab.name,
-        value: lab.value ?? null,
-        unit: lab.unit ?? null,
+  const labs = ensureArray(bundle.labs) as LabLike[];
+  const grouped = groupByIsoDate(labs);
+  let reports = grouped.map(([date, items]) => {
+    const cleaned = dedupeSameDay(
+      items.map(item => ({
+        name: item?.name ?? undefined,
+        value: (item as any)?.value ?? null,
+        unit: (item as any)?.unit ?? null,
       })),
     );
 
     const labsOut = cleaned
+      .filter(item => item.name)
       .map(item => {
+        const rawValue = item.value;
+        let numeric: number | null = null;
+        if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
+          numeric = rawValue;
+        } else if (typeof rawValue === "string") {
+          const parsed = Number(rawValue);
+          if (!Number.isNaN(parsed)) numeric = parsed;
+        }
+        const displayValue =
+          numeric ?? (typeof rawValue === "string" ? rawValue : rawValue ?? null);
         const displayName = item.name ? String(item.name) : "";
-        const numericValue = toNumeric(item.value ?? null);
-        const marker = markerFor(displayName, numericValue ?? null);
         return {
           name: displayName,
-          value:
-            typeof item.value === "number" || typeof item.value === "string"
-              ? item.value
-              : numericValue,
+          value: displayValue,
           unit: normUnit(item.unit ?? undefined),
-          marker: marker ?? "Normal",
+          marker: markerFor(displayName, numeric) ?? undefined,
           ideal: idealFor(displayName),
         };
-      })
-      .filter(lab => lab.name);
+      });
 
     const summary = buildSingleLineSummary(labsOut);
 
-    return {
-      ...report,
-      labs: labsOut,
-      summary,
-    };
+    return { date, labs: labsOut, summary };
   });
 
-  const prepared = {
-    ...preparedRaw,
-    reports: cleanedReports,
-    defaultSummary: cleanedReports[0]?.summary ?? preparedRaw.defaultSummary,
-  };
+  if (intentCategory === "compare_reports" && entities.compareWindow) {
+    const { a, b } = entities.compareWindow;
+    reports = reports.filter(report => report.date === a || report.date === b);
+  }
 
-  let summaryPack = buildNarrativeFallback(prepared);
+  if (!reports.length && preparedRaw.reports.length) {
+    reports = preparedRaw.reports.map(report => ({
+      date: report.date,
+      summary: report.summary,
+      labs: report.labs.map(lab => ({
+        name: lab.name,
+        value: lab.value,
+        unit: lab.unit ?? null,
+        marker: lab.marker ?? undefined,
+        ideal: lab.ideal ?? undefined,
+      })),
+    }));
+  }
+
+  if (intentCategory === "interpret_report") {
+    const imagingReports = preparedRaw.reports
+      .filter(report => (!report.labs || report.labs.length === 0) && report.summary)
+      .map(report => ({
+        date: report.date,
+        summary: report.summary,
+        labs: [] as { name: string; value: number | string | null; unit?: string | null; marker?: string; ideal?: string }[],
+      }));
+    if (imagingReports.length) {
+      reports = [...reports, ...imagingReports];
+      reports.sort((a, b) => b.date.localeCompare(a.date));
+    }
+  }
+
+  reports.sort((a, b) => b.date.localeCompare(a.date));
+
+  const focusMetric = intentCategory === "compare_metric" ? entities.metric ?? null : null;
+  const comparisons = buildComparisons(reports, focusMetric);
+
+  const profile: any = bundle.profile ?? {};
+  const predispositions = Array.isArray(profile?.conditions_predisposition)
+    ? profile.conditions_predisposition.filter(Boolean)
+    : preparedRaw.patient?.predispositions ?? [];
+  const medicationsList = ensureArray(bundle.medications)
+    .map((med: any) => med?.name)
+    .filter((name: any): name is string => typeof name === "string" && name.length > 0);
+  const patient = preparedRaw.patient
+    ? {
+        ...preparedRaw.patient,
+        name: profile?.fullName ?? profile?.name ?? preparedRaw.patient.name,
+        age: profile?.dob ? computeAgeFromDob(profile.dob) ?? preparedRaw.patient.age : preparedRaw.patient.age,
+        predispositions,
+        medications: medicationsList.length ? medicationsList : preparedRaw.patient.medications ?? [],
+        symptoms: preparedRaw.patient.symptoms ?? [],
+      }
+    : null;
+
+  const modelReports: ModelReport[] = reports.map(report => ({
+    date: report.date,
+    summary: report.summary,
+    labs: report.labs.map(lab => ({
+      name: lab.name,
+      value: lab.value,
+      unit: lab.unit ?? null,
+      marker: lab.marker,
+    })),
+  }));
+
+  const system = buildModelSystem(patient, modelReports, comparisons);
+  let summary = reports[0]?.summary ?? defaultSummaryFromComparisons(comparisons);
+  let nextSteps = defaultNextSteps(comparisons);
 
   try {
-    const { system, instruction, user } = buildNarrativePrompt({ payload: prepared, userText, intent: intentCategory });
-    const ai = await callOpenAIJson({ system, instruction, user, metadata: { intent: intentCategory, source: "aidoc_reports" } });
-    const aiSummary = typeof ai?.summary === "string" ? ai.summary.trim() : typeof ai?.reply === "string" ? ai.reply.trim() : "";
-    const aiNext = sanitizeNextSteps(ai?.nextSteps);
-    if (aiSummary) {
-      summaryPack = { summary: aiSummary, nextSteps: aiNext.length ? aiNext : summaryPack.nextSteps };
-    } else if (aiNext.length) {
-      summaryPack = { summary: summaryPack.summary, nextSteps: aiNext };
+    const ai = await callOpenAIJson({
+      system,
+      user: "Write a short, 3–5 sentence clinical interpretation that synthesizes the trends and risk areas from the provided patient card and reports. Do NOT restate the single-line date summaries verbatim.",
+      instruction: AIDOC_JSON_INSTRUCTION,
+      metadata: { feature: "pull_reports" },
+    });
+    const aiReply = typeof ai?.reply === "string" ? ai.reply.trim() : "";
+    if (aiReply && aiReply.length > 80) {
+      summary = aiReply;
+    }
+    const aiNotes = sanitizeNextSteps((ai as any)?.save?.notes ?? (ai as any)?.nextSteps);
+    if (aiNotes.length) {
+      nextSteps = aiNotes;
     }
   } catch (error) {
     console.error("aidoc_summary_error", error);
@@ -284,12 +340,12 @@ export async function POST(req: NextRequest) {
     kind: "reports" as const,
     intent: intentCategory,
     confidence,
-    patient: prepared.patient,
-    reports: prepared.reports,
-    comparisons: prepared.comparisons,
-    summary: summaryPack.summary,
-    nextSteps: summaryPack.nextSteps,
-    reply: summaryPack.summary,
+    patient,
+    reports,
+    comparisons,
+    summary,
+    nextSteps,
+    reply: summary,
     entities,
   };
 

@@ -6,7 +6,7 @@ export type AidocLab = {
   name: string;
   value: number | string | null;
   unit?: string | null;
-  marker: string;
+  marker?: string | null;
   ideal?: string | null;
 };
 
@@ -74,7 +74,7 @@ export function AidocReportViewer({
             {patient.age != null && <div><span className="font-medium">Age:</span> {patient.age}</div>}
             {patient.predispositions.length > 0 && (
               <div>
-                <span className="font-medium">Conditions:</span> {patient.predispositions.join(', ')}
+                <span className="font-medium">Predispositions:</span> {patient.predispositions.join(', ')}
               </div>
             )}
             {patient.medications.length > 0 && (
@@ -105,10 +105,10 @@ export function AidocReportViewer({
               >
                 <summary className="cursor-pointer text-sm font-medium text-slate-700 marker:text-slate-400 dark:text-slate-200">
                   <span className="mr-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    {formatDateLabel(report.date)}
+                    Report Dated — {formatDateLabel(report.date)}
                   </span>
-                  {report.summary}
                 </summary>
+                <div className="mt-1 text-sm text-slate-600 dark:text-slate-300">Summary: {report.summary}</div>
                 {report.labs.length > 0 && (
                   <ul className="mt-2 space-y-1 text-sm">
                     {report.labs.map(lab => (
@@ -123,8 +123,8 @@ export function AidocReportViewer({
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-1">
-                          <span className={clsx('rounded-full px-2 py-0.5 text-xs font-semibold', markerClasses(lab.marker))}>
-                            {lab.marker}
+                          <span className={clsx('rounded-full px-2 py-0.5 text-xs font-semibold', markerClasses(lab.marker ?? 'normal'))}>
+                            {lab.marker ?? 'Normal'}
                           </span>
                           {lab.ideal && (
                             <span className="text-[11px] text-slate-500 dark:text-slate-400">Ideal: {lab.ideal}</span>

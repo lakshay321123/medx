@@ -27,41 +27,37 @@ export function normUnit(raw?: string | null) {
   return UNIT_ALIAS[k] || raw.trim();
 }
 
-export type LabLike = {
-  name?: string;
-  value?: number | string | null;
-  unit?: string | null;
-  takenAt?: string | Date | null;
-};
+export type LabLike = { name?: string; value?: number | string | null; unit?: string | null; takenAt?: string | Date };
 
-function toISODate(input?: string | Date | null): string {
-  if (!input) return new Date().toISOString().slice(0, 10);
-  const date = input instanceof Date ? input : new Date(input);
+function toIsoDate(value?: string | Date): string {
+  if (!value) return new Date().toISOString().slice(0, 10);
+  const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) {
     return new Date().toISOString().slice(0, 10);
   }
   return date.toISOString().slice(0, 10);
 }
 
-export function groupAndDedupeByDate(items: LabLike[]) {
+export function groupByIsoDate(items: LabLike[]) {
   const byDate = new Map<string, LabLike[]>();
-  for (const it of items) {
-    const iso = toISODate(it.takenAt ?? null);
-    const arr = byDate.get(iso) || [];
-    arr.push(it);
-    byDate.set(iso, arr);
+  for (const item of items) {
+    const key = toIsoDate(item.takenAt);
+    const arr = byDate.get(key) || [];
+    arr.push(item);
+    byDate.set(key, arr);
   }
+  return [...byDate.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+}
 
-  return [...byDate.entries()].map(([date, arr]) => {
-    const map = new Map<string, LabLike>();
-    for (const l of arr) {
-      const name = normName(l.name);
-      if (!name) continue;
-      const unit = normUnit(l.unit ?? undefined);
-      const key = `${name}|${unit || ""}`;
-      map.set(key, { ...l, name, unit });
-    }
-    return { date, labs: [...map.values()] };
-  });
+export function dedupeSameDay(items: LabLike[]) {
+  const map = new Map<string, LabLike>();
+  for (const item of items) {
+    const name = normName(item.name);
+    if (!name) continue;
+    const unit = normUnit(item.unit ?? undefined);
+    const key = `${name}|${unit || ""}`;
+    map.set(key, { ...item, name, unit });
+  }
+  return [...map.values()];
 }
 
