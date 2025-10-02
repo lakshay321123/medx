@@ -9,7 +9,7 @@ import { LinkBadge } from '@/components/SafeLink';
 import TrialsResults from "@/components/TrialsResults";
 import type { TrialRow } from "@/types/trials";
 import { useResearchFilters } from '@/store/researchFilters';
-import { Send, Paperclip, Clipboard, Stethoscope, Users, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, Plus, Clipboard, Stethoscope, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { useCountry } from '@/lib/country';
 import WelcomeCard from '@/components/ui/WelcomeCard';
 import { getWelcomeOptions, pickWelcome, type AppMode, type WelcomeMessage } from '@/lib/welcomeMessages';
@@ -3861,11 +3861,10 @@ ${systemCommon}` + baseSys;
                 className="flex w-full items-end gap-3 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80"
               >
                 <label
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
+                  className="inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-slate-700 transition hover:bg-slate-200/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
                   title="Upload PDF or image"
                 >
-                  <Paperclip size={16} aria-hidden="true" />
-                  <span className="hidden sm:inline">Upload</span>
+                  <Plus className="h-5 w-5" aria-hidden="true" />
                   <input
                     type="file"
                     accept="application/pdf,image/*"
