@@ -2754,13 +2754,22 @@ ${systemCommon}` + baseSys;
         if (bodyJson?.kind === 'aidoc_structured') {
           const metadata = bodyJson?.metadata ?? null;
           const payload = bodyJson?.payload ?? null;
-          const summaryLine =
-            typeof payload?.summary_tagline === 'string' && payload.summary_tagline.trim().length > 0
-              ? payload.summary_tagline
-              : 'Here’s the latest snapshot of your reports.';
+          const summaryLine = (() => {
+            if (payload?.type === 'metric_compare') {
+              return typeof payload.interpretation === 'string' && payload.interpretation.trim().length > 0
+                ? payload.interpretation
+                : `Comparing ${payload?.metric ?? 'your labs'}.`;
+            }
+
+            if (typeof payload?.summary_tagline === 'string' && payload.summary_tagline.trim().length > 0) {
+              return payload.summary_tagline;
+            }
+
+            return 'Here’s the latest snapshot of your reports.';
+          })();
 
           markPendingAssistantStreaming(pendingId);
-          finishPendingAssistant(pendingId, summaryLine, {
+          finishPendingAssistant(pendingId, '', {
             metadata,
             payload,
           });

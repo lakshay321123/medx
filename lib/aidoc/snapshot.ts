@@ -122,35 +122,36 @@ function canonicalMetricName(name: string): string {
   return trimmed;
 }
 
-function normalizeUnit(unit: string | null | undefined): string | null {
-  if (!unit) return null;
-  return unit.trim().toLowerCase();
+function polarityFor(name: string): "lower" | "higher" | "neutral" {
+  if (/hdl/i.test(name)) return "higher";
+  if (/ldl|tc|triglyceride|tg|alt|ast|alp|crp|esr/i.test(name)) return "lower";
+  return "neutral";
 }
 
-function computeStatus(metric: string, value: number | null | undefined, unit: string | null | undefined): Status {
+function statusFor(
+  value: number | null,
+  lo: number | null,
+  hi: number | null,
+  polarity: "lower" | "higher" | "neutral",
+): Status {
   if (value == null || Number.isNaN(value)) {
     return "unknown";
   }
 
-  const config = METRIC_CONFIG[metric];
-  if (!config) {
+  const hasBounds = lo != null || hi != null;
+  if (!hasBounds) {
     return "unknown";
   }
 
-  const normUnit = normalizeUnit(unit);
-  if (config.expectedUnit && normUnit && normUnit !== config.expectedUnit) {
-    return "unknown";
-  }
-
-  if (config.high != null && value > config.high) {
-    return "high";
-  }
-
-  if (config.low != null && value < config.low) {
+  if (lo != null && value < lo) {
     return "low";
   }
 
-  if (config.polarity === "higher") {
+  if (hi != null && value > hi) {
+    return "high";
+  }
+
+  if (polarity === "higher") {
     return "ok";
   }
 
@@ -231,20 +232,19 @@ function trendFromSeries(series: MetricSeriesPoint[]): Trend {
 }
 
 function buildPredictionLine(domains: DomainRow[], safety: string[]): string {
-  const critical: string[] = [];
-  for (const item of domains) {
-    if (item.status === "high") {
-      if (item.domain === "cholesterol") {
-        critical.push("dyslipidemia risk");
-      } else if (item.domain === "liver_enzymes") {
-        critical.push("possible hepatic stress");
-      } else if (item.domain === "glucose_control") {
-        critical.push("glycemic risk");
-      }
+  const hot: string[] = [];
+  for (const d of domains) {
+    if (d.status !== "high") continue;
+    if (d.domain === "cholesterol") {
+      hot.push("dyslipidemia likely");
+    } else if (d.domain === "liver_enzymes") {
+      hot.push("liver enzymes elevated—repeat & review causes");
+    } else if (d.domain === "glucose_control") {
+      hot.push("possible glucose dysregulation");
     }
   }
 
-  const base = critical.length ? critical.join("; ") : "No strong signals yet";
+  const base = hot.length ? hot.join("; ") : "No strong signals yet";
   return safety.length ? `${base}. Safety alerts present.` : `${base}.`;
 }
 
@@ -262,55 +262,151 @@ async function collectSnapshotContext(
     return null;
   }
 
-  const perDate = new Map<string, Map<string, Highlight>>();
-  const metricSeries: Record<string, MetricSeriesPoint[]> = {};
+  type RawHighlight = {
+    canon: string;
+    name: string;
+    value: number | string | null;
+    unit: string | null;
+    status: Status;
+    ts: number;
+    sourceKey: string;
+    date: string;
+  };
+
+  const rawByDate = new Map<string, RawHighlight[]>();
+  const metricBuckets: Record<string, Map<string, { date: string; value: number | null; unit: string | null; status: Status; ts: number }>> = {};
 
   for (const entry of summary.trend) {
     const canon = canonicalMetric(entry.test_code, entry.test_name);
     const config = METRIC_CONFIG[canon];
+    const label = config ? config.label : canon;
+    const series = Array.isArray(entry.series) ? entry.series : [];
 
-    for (const sample of entry.series || []) {
-      const date = typeof sample.sample_date === "string" ? sample.sample_date.slice(0, 10) : null;
-      if (!date) {
-        continue;
-      }
+    for (const sample of series) {
+      const iso = typeof sample.sample_date === "string" ? sample.sample_date : null;
+      if (!iso) continue;
+      const date = iso.slice(0, 10);
+      if (!date) continue;
 
+      const tsRaw = new Date(iso).getTime();
+      const ts = Number.isFinite(tsRaw) ? tsRaw : Date.parse(`${date}T00:00:00Z`);
+      const docId =
+        (sample as any).document_id ??
+        (sample as any).doc_id ??
+        (sample as any).report_id ??
+        (entry as any).document_id ??
+        (entry as any).report_id ??
+        (entry as any).thread_id ??
+        "x";
+      const testKey = entry.test_code ?? entry.test_name ?? label;
+      const sourceKey = `${docId}:${testKey}`;
+
+      const rawValue =
+        typeof sample.value === "number"
+          ? sample.value
+          : typeof (sample as any).value_num === "number"
+          ? (sample as any).value_num
+          : (sample as any).value ?? null;
       const unit = sample.unit ?? entry.unit ?? null;
-      const value = typeof sample.value === "number" ? sample.value : null;
-      const status = computeStatus(canon, value, unit);
+      const refLow =
+        (sample as any).ref_low ??
+        (sample as any).refLow ??
+        (sample as any).reference_low ??
+        (sample as any).referenceLow ??
+        (entry as any).ref_low ??
+        (entry as any).refLow ??
+        null;
+      const refHigh =
+        (sample as any).ref_high ??
+        (sample as any).refHigh ??
+        (sample as any).reference_high ??
+        (sample as any).referenceHigh ??
+        (entry as any).ref_high ??
+        (entry as any).refHigh ??
+        null;
 
-      if (!metricSeries[canon]) {
-        metricSeries[canon] = [];
-      }
-      metricSeries[canon].push({ date, value, unit: unit ? unit : null, status });
+      const status = statusFor(
+        typeof rawValue === "number" ? rawValue : null,
+        typeof refLow === "number" ? refLow : null,
+        typeof refHigh === "number" ? refHigh : null,
+        polarityFor(canon),
+      );
 
-      if (!perDate.has(date)) {
-        perDate.set(date, new Map());
-      }
+      const highlight: RawHighlight = {
+        canon,
+        name: label,
+        value: rawValue ?? null,
+        unit: unit ? unit : null,
+        status,
+        ts: Number.isFinite(ts) ? (ts as number) : 0,
+        sourceKey,
+        date,
+      };
 
-      const highlights = perDate.get(date)!;
-      const label = config ? config.label : canon;
-      if (!highlights.has(label)) {
-        highlights.set(label, { name: label, value, unit: unit ? unit : null, status });
+      const bucket = rawByDate.get(date) ?? [];
+      bucket.push(highlight);
+      rawByDate.set(date, bucket);
+
+      const metricBucket = (metricBuckets[canon] ??= new Map());
+      const metricKey = `${sourceKey}:${date}`;
+      const prevMetric = metricBucket.get(metricKey);
+      if (!prevMetric || highlight.ts >= prevMetric.ts) {
+        metricBucket.set(metricKey, {
+          date,
+          value: typeof rawValue === "number" ? rawValue : null,
+          unit: unit ? unit : null,
+          status,
+          ts: highlight.ts,
+        });
       }
     }
   }
 
-  const reports: ReportCard[] = Array.from(perDate.entries())
-    .sort((a, b) => b[0].localeCompare(a[0]))
-    .map(([date, highlightMap]) => {
-      const highlights = Array.from(highlightMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-      const card: ReportCard = {
-        date,
-        highlights,
-        mini_summary: "",
-      };
-      card.mini_summary = summarizeHighlights(card);
-      return card;
-    });
+  const reports: ReportCard[] = [];
+  const dates = Array.from(rawByDate.keys()).sort((a, b) => (a > b ? -1 : a < b ? 1 : 0));
+  for (const date of dates) {
+    const rows = rawByDate.get(date)!;
+    const bySource = new Map<string, RawHighlight>();
+    const byCanon = new Map<string, { highlight: Highlight; ts: number }>();
 
-  for (const series of Object.values(metricSeries)) {
-    series.sort((a, b) => a.date.localeCompare(b.date));
+    for (const row of rows) {
+      const prev = bySource.get(row.sourceKey);
+      if (!prev || row.ts >= prev.ts) {
+        bySource.set(row.sourceKey, row);
+      }
+    }
+
+    for (const row of bySource.values()) {
+      const existing = byCanon.get(row.canon);
+      if (!existing || row.ts >= existing.ts) {
+        byCanon.set(row.canon, {
+          highlight: { name: row.name, value: row.value, unit: row.unit, status: row.status },
+          ts: row.ts,
+        });
+      }
+    }
+
+    const highlights = Array.from(byCanon.values())
+      .map(({ highlight }) => highlight)
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const card: ReportCard = {
+      date,
+      highlights,
+      mini_summary: "",
+    };
+    card.mini_summary = summarizeHighlights(card);
+    reports.push(card);
+  }
+
+  const metricSeries: Record<string, MetricSeriesPoint[]> = {};
+  for (const [canon, bucket] of Object.entries(metricBuckets)) {
+    const points = Array.from(bucket.values())
+      .sort((a, b) => a.ts - b.ts)
+      .map(({ ts, ...rest }) => rest);
+    if (points.length) {
+      metricSeries[canon] = points;
+    }
   }
 
   const totalReports = typeof summary.meta?.total_reports === "number" ? summary.meta.total_reports : reports.length;

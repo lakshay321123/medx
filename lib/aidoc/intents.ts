@@ -16,41 +16,37 @@ const METRIC_ALIASES: Record<string, string[]> = {
   "Fasting Glucose": ["fasting glucose", "fasting blood sugar", "fbg", "fasting sugar"],
 };
 
-const OVERALL_HEALTH_PATTERNS = [
-  /\boverall health\b/,
-  /\bhealth overall\b/,
-  /\bhow(?:'s| is) my health\b/,
-  /\bhow(?:'s| is) my health doing\b/,
-  /\bhow am i doing overall\b/,
-];
+const PULL_RE = /\b(pull|show|list|fetch)\s+(all\s+)?(my\s+)?report(s)?\b/i;
+const COMPARE_RE = /\b(compare|contrast)\s+(all\s+)?(my\s+)?report(s)?\b/i;
+const OVERALL_RE = /\b(how('?s|\s+is)\s+my\s+health(\s+overall)?|overall\s+health|health\s+overall)\b/i;
 
-function normalize(text: string | null | undefined): string {
-  return (text || "").trim().toLowerCase();
+function escapeRegex(text: string): string {
+  return text.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
 }
 
 export function detectAidocIntent(text: string): AidocIntent {
-  const normalized = normalize(text);
-  if (!normalized) {
+  const s = (text || "").trim();
+  if (!s) {
     return { kind: "none" };
   }
 
-  if (/\bpull (?:my )?report(?:s)?\b/.test(normalized)) {
+  if (PULL_RE.test(s)) {
     return { kind: "pull_reports" };
   }
 
-  if (/\bcompare (?:my )?report(?:s)?\b/.test(normalized)) {
+  if (COMPARE_RE.test(s)) {
     return { kind: "compare_reports" };
   }
 
-  if (OVERALL_HEALTH_PATTERNS.some((re) => re.test(normalized))) {
+  if (OVERALL_RE.test(s)) {
     return { kind: "overall_health" };
   }
 
-  if (/\bcompare (?:my )?/i.test(normalized)) {
+  if (/\bcompare (?:my )?/i.test(s)) {
     for (const [metric, aliases] of Object.entries(METRIC_ALIASES)) {
       for (const alias of aliases) {
-        const re = new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\b`, "i");
-        if (re.test(normalized)) {
+        const re = new RegExp(`\\b${escapeRegex(alias)}\\b`, "i");
+        if (re.test(s)) {
           return { kind: "compare_metric", metric };
         }
       }
