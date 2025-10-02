@@ -58,7 +58,7 @@ import { trackAnalyticsEvent } from "@/lib/analytics";
 import { pushToast } from "@/lib/ui/toast";
 import { useFeedback } from "@/hooks/useFeedback";
 import { usePendingAssistantStages } from "@/hooks/usePendingAssistantStages";
-import type { PendingAssistantState } from "@/hooks/usePendingAssistantStages";
+import type { PendingAssistantExtras, PendingAssistantState } from "@/hooks/usePendingAssistantStages";
 import { mark, since } from "@/utils/latency";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
@@ -803,7 +803,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   );
 
   const handlePendingFinalize = useCallback(
-    (messageId: string, finalContent: string, extras?: { followUps?: unknown; citations?: unknown; error?: string | null }) => {
+    (messageId: string, finalContent: string, extras?: PendingAssistantExtras) => {
       setMessages(prev =>
         prev.map(m => {
           if (m.id !== messageId) return m;
