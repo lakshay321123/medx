@@ -241,7 +241,13 @@ export async function POST(req: Request) {
       obsIds: doctorMode ? [] : obsIds,
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message || "analyze failed" }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: e?.message || "analyze failed",
+        obsIds: [],
+      },
+      { status: 500 },
+    );
   }
 }
 

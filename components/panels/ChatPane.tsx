@@ -30,6 +30,7 @@ import { splitFollowUps } from '@/lib/splitFollowUps';
 import { getTrials } from "@/lib/hooks/useTrials";
 import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials";
 import MessageActions from "@/components/chat/MessageActions";
+import { useAidocStore } from "@/stores/useAidocStore";
 import SharePanel from "@/components/panels/SharePanel";
 import type { ChatMessage as BaseChatMessage } from "@/types/chat";
 import type { AnalysisCategory } from '@/lib/context';
@@ -1011,6 +1012,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, [userText, inputRef]);
 
   const [aidoc, setAidoc] = useState<any | null>(null);
+  const setStructuredAidoc = useAidocStore(s => s.setStructured);
   const [loadingAidoc, setLoadingAidoc] = useState(false);
   const [showPatientChooser, setShowPatientChooser] = useState(false);
   const [showNewIntake, setShowNewIntake] = useState(false);
@@ -3538,6 +3540,11 @@ ${systemCommon}` + baseSys;
       });
       const data = await r.json();
       setAidoc(data);
+      if (data?.kind === 'reports') {
+        setStructuredAidoc(data);
+      } else {
+        setStructuredAidoc(null);
+      }
     } finally {
       setLoadingAidoc(false);
       setShowPatientChooser(false);
