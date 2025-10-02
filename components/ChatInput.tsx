@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
 import { useOpenPass } from "@/hooks/useOpenPass";
-import { Paperclip, SendHorizontal } from "lucide-react";
+import { Plus, SendHorizontal } from "lucide-react";
 import { useT } from "@/components/hooks/useI18n";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
 import { useUIStore } from "@/components/hooks/useUIStore";
@@ -22,7 +22,6 @@ export function ChatInput({
   const draft = useChatStore(s => s.draft);
   const setDraftText = useChatStore(s => s.setDraftText);
   const clearDraft = useChatStore(s => s.clearDraft);
-  const addDraftAttachments = useChatStore(s => s.addDraftAttachments);
   const openPass = useOpenPass();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -55,7 +54,7 @@ export function ChatInput({
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
-    const next = Math.min(el.scrollHeight, 120);
+    const next = Math.min(el.scrollHeight, 160);
     el.style.height = `${next}px`;
   }, [text]);
 
@@ -93,9 +92,22 @@ export function ChatInput({
     await handleSend();
   };
 
+  const onDropFiles = (files: FileList | null) => {
+    if (!files?.length) return;
+    // TODO: feed your existing upload pipeline here.
+  };
+
   return (
     <form
       onSubmit={handleSubmit}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        onDropFiles(e.dataTransfer.files);
+      }}
       className="chat-input-container flex w-full items-end gap-2 rounded-2xl border border-[color:var(--medx-outline)] bg-[color:var(--medx-surface)] px-3 py-2 shadow-sm transition dark:border-white/10 dark:bg-[color:var(--medx-panel)] md:border-0 md:bg-transparent md:px-0 md:py-0 md:shadow-none"
     >
       <button
@@ -107,7 +119,7 @@ export function ChatInput({
           fileInputRef.current?.click();
         }}
       >
-        <Paperclip className="h-5 w-5" />
+        <Plus className="h-5 w-5" />
       </button>
       <input
         ref={fileInputRef}
@@ -118,14 +130,12 @@ export function ChatInput({
         onChange={event => {
           const files = Array.from(event.target.files ?? []);
           if (files.length === 0) return;
-          if (!currentId) {
-            addDraftAttachments(files);
-          }
-          // Placeholder for future upload handling: reset immediately so repeat selections work.
+          // TODO: pass `files` into your upload pipeline (do not create thread yet)
           event.target.value = "";
         }}
       />
       <textarea
+        key={lang}
         ref={textareaRef}
         value={text}
         onChange={e => {
@@ -145,7 +155,7 @@ export function ChatInput({
             void handleSend();
           }
         }}
-        className="min-h-[40px] max-h-[120px] flex-1 resize-none bg-transparent text-base leading-snug text-[color:var(--medx-text)] placeholder:text-slate-400 focus:outline-none dark:text-[color:var(--medx-text)] dark:placeholder:text-slate-500"
+        className="min-h-[40px] max-h-[160px] flex-1 resize-none bg-transparent text-base leading-snug text-[color:var(--medx-text)] placeholder:text-slate-400 focus:outline-none dark:text-[color:var(--medx-text)] dark:placeholder:text-slate-500"
       />
       <button
         type="submit"
