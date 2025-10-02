@@ -246,18 +246,20 @@ export async function POST(req: NextRequest) {
       if (!displayName) continue;
       const unit = normUnit(item.unit ?? undefined);
 
-      labsOut.push({
+      const labRow: LabRow = {
         name: displayName,
         value: displayValue,
         unit,
         marker: markerFor(displayName, numeric ?? null),
         ideal: idealFor(displayName),
-      } satisfies LabRow);
+      };
+      labsOut.push(labRow);
     }
 
     const summary = buildSingleLineSummary(labsOut);
 
-    return { date, labs: labsOut, summary } satisfies ReportBlock;
+    const reportBlock: ReportBlock = { date, labs: labsOut, summary };
+    return reportBlock;
   });
 
   if (intentCategory === "compare_reports" && entities.compareWindow) {
@@ -266,27 +268,42 @@ export async function POST(req: NextRequest) {
   }
 
   if (!reports.length && preparedRaw.reports.length) {
-    reports = preparedRaw.reports.map(report => ({
-      date: report.date,
-      summary: report.summary,
-      labs: report.labs.map(lab => ({
-        name: lab.name,
-        value: lab.value,
-        unit: lab.unit ?? undefined,
-        marker: toMarkerValue(lab.marker),
-        ideal: lab.ideal ?? undefined,
-      } satisfies LabRow)),
-    } satisfies ReportBlock);
+    reports = preparedRaw.reports.map(report => {
+      const sourceLabs = Array.isArray(report.labs) ? report.labs : [];
+      const labs = sourceLabs
+        .map(lab => {
+          const name = typeof lab?.name === "string" ? lab.name.trim() : "";
+          if (!name) return null;
+            const labRow: LabRow = {
+              name,
+              value: lab?.value ?? null,
+              unit: normUnit(lab?.unit ?? undefined),
+              marker: toMarkerValue(lab?.marker),
+              ideal: lab?.ideal ?? undefined,
+            };
+          return labRow;
+        })
+        .filter((lab): lab is LabRow => lab !== null);
+      const reportBlock: ReportBlock = {
+        date: report.date,
+        summary: report.summary,
+        labs,
+      };
+      return reportBlock;
+    });
   }
 
   if (intentCategory === "interpret_report") {
     const imagingReports = preparedRaw.reports
       .filter(report => (!report.labs || report.labs.length === 0) && report.summary)
-      .map(report => ({
-        date: report.date,
-        summary: report.summary,
-        labs: [] as LabRow[],
-      } satisfies ReportBlock));
+      .map(report => {
+        const imagingReport: ReportBlock = {
+          date: report.date,
+          summary: report.summary,
+          labs: [],
+        };
+        return imagingReport;
+      });
     if (imagingReports.length) {
       reports = [...reports, ...imagingReports];
       reports.sort((a, b) => b.date.localeCompare(a.date));
