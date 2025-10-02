@@ -65,7 +65,19 @@ export async function POST(req: NextRequest) {
   const origin = reqUrl.origin;
   let body: any = {};
   try { body = await req.json(); } catch {}
-  const interceptResponse = await maybeHandleStreamLabIntent({ req, origin, body });
+
+  const resolvedThreadType = await resolveAidocThreadType({
+    explicitType: body?.threadType,
+    context: body?.context,
+    threadId: body?.threadId,
+  });
+
+  const interceptResponse = await maybeHandleStreamLabIntent({
+    req,
+    origin,
+    body,
+    resolvedThreadType,
+  });
   if (interceptResponse) return interceptResponse;
 
   const qp = reqUrl.searchParams.get('research');
@@ -133,9 +145,9 @@ export async function POST(req: NextRequest) {
 
   const latestContent = typeof latestUser?.content === 'string' ? latestUser.content : '';
   const contextRaw = typeof body?.context === 'string' ? body.context : '';
-  const contextLower = contextRaw.toLowerCase().trim();
-  const isAidocContext = contextLower.includes('ai-doc');
-  const allowHardIntercept = isLabSnapshotHardMode() && !contextLower;
+  const normalizedContextType = normalizeAidocThreadType(contextRaw);
+  const isAidocContext = normalizedContextType === 'aidoc' || resolvedThreadType === 'aidoc';
+  const allowHardIntercept = isLabSnapshotHardMode() && !resolvedThreadType;
   const labIntent: LabSnapshotIntent | null =
     isLabSnapshotEnabled() && latestContent
       ? detectLabSnapshotIntent(latestContent)
@@ -206,8 +218,14 @@ export async function POST(req: NextRequest) {
       const err = await upstream.text();
       return new Response(`LLM error: ${err}`, { status: 500 });
     }
-    return new Response(upstream.body, {
-      headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }
+    return finalizeAidocStreamResponse({
+      upstream,
+      req,
+      origin,
+      intent: labIntent,
+      resolvedThreadType,
+      contextHint: body?.context,
+      latestUserContent: latestContent,
     });
   }
 
@@ -321,9 +339,148 @@ export async function POST(req: NextRequest) {
   }
 
   // Pass-through SSE; frontend parses "data: {delta.content}"
-  return new Response(upstream.body, {
-    headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }
+  return finalizeAidocStreamResponse({
+    upstream,
+    req,
+    origin,
+    intent: labIntent,
+    resolvedThreadType,
+    contextHint: body?.context,
+    latestUserContent: latestContent,
   });
+}
+
+type FinalizeParams = {
+  upstream: Response;
+  req: NextRequest;
+  origin: string;
+  intent: LabSnapshotIntent | null;
+  resolvedThreadType: string | null;
+  contextHint: unknown;
+  latestUserContent: string;
+};
+
+const LEGACY_MARKERS = [
+  /on the provided packet and snapshot/i,
+  /patient reports/i,
+  /patient overview/i,
+  /follow-up question:/i,
+  /what is your primary concern/i,
+  /what would you like to focus on next\?/i,
+  /profile json/i,
+];
+
+async function finalizeAidocStreamResponse({
+  upstream,
+  req,
+  origin,
+  intent,
+  resolvedThreadType,
+  contextHint,
+  latestUserContent,
+}: FinalizeParams): Promise<Response> {
+  const normalizedContext = normalizeAidocThreadType(contextHint);
+  const treatAsAidoc =
+    resolvedThreadType === 'aidoc' ||
+    normalizedContext === 'aidoc' ||
+    (isLabSnapshotHardMode() && !resolvedThreadType);
+
+  if (!treatAsAidoc) {
+    return new Response(upstream.body, {
+      status: upstream.status,
+      headers: {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+      },
+    });
+  }
+
+  if (intent) {
+    try {
+      await upstream.body?.cancel?.();
+    } catch {}
+    return buildAidocStreamLabResponse({ req, origin, intent });
+  }
+
+  const rawPayload = await upstream.text();
+  const outgoingText = extractAssistantTextFromSse(rawPayload);
+
+  const hasLegacyMarker = containsLegacyMarker(rawPayload) || containsLegacyMarker(outgoingText);
+  if (hasLegacyMarker) {
+    const fallbackIntent: LabSnapshotIntent =
+      detectLabSnapshotIntent(latestUserContent) ?? { kind: 'snapshot' };
+    return buildAidocStreamLabResponse({ req, origin, intent: fallbackIntent });
+  }
+
+  return new Response(rawPayload, {
+    status: upstream.status,
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache',
+    },
+  });
+}
+
+function containsLegacyMarker(text: string): boolean {
+  if (!text) return false;
+  return LEGACY_MARKERS.some((pattern) => pattern.test(text));
+}
+
+function extractAssistantTextFromSse(payload: string): string {
+  if (!payload) return '';
+  const lines = payload.split(/\n/);
+  let aggregate = '';
+  for (const line of lines) {
+    if (!line.startsWith('data:')) continue;
+    const value = line.slice(5).trim();
+    if (!value || value === '[DONE]') continue;
+    try {
+      const parsed = JSON.parse(value);
+      const choices = Array.isArray(parsed?.choices) ? parsed.choices : [];
+      for (const choice of choices) {
+        const delta = choice?.delta;
+        if (delta && typeof delta.content === 'string') {
+          aggregate += delta.content;
+        }
+      }
+    } catch {}
+  }
+  return aggregate;
+}
+
+async function buildAidocStreamLabResponse({
+  req,
+  origin,
+  intent,
+}: {
+  req: NextRequest;
+  origin: string;
+  intent: LabSnapshotIntent;
+}): Promise<Response> {
+  const cookie = req.headers.get('cookie') || '';
+  try {
+    const summaryRes = await fetch(`${origin}/api/labs/summary?mode=ai-doc`, {
+      headers: { cookie },
+      cache: 'no-store',
+    });
+    if (summaryRes.status === 401) {
+      return streamTextResponse('Please sign in to view your lab reports.');
+    }
+    if (!summaryRes.ok) {
+      throw new Error(`labs summary failed (${summaryRes.status})`);
+    }
+    const payload = await summaryRes.json().catch(() => null);
+    if (!payload?.ok || !Array.isArray(payload.trend)) {
+      throw new Error('invalid lab summary');
+    }
+    const messageText = formatLabIntentResponse(payload.trend, intent);
+    return streamTextResponse(messageText);
+  } catch (err) {
+    console.error('[aidoc-labs] final gate failure', err);
+    const fallback = formatLabIntentResponse([], intent, {
+      emptyMessage: "I couldn’t load your lab reports right now. Please try again in a bit.",
+    });
+    return streamTextResponse(fallback);
+  }
 }
 
 function streamTextResponse(text: string) {
@@ -342,9 +499,10 @@ type StreamInterceptParams = {
   req: NextRequest;
   origin: string;
   body: any;
+  resolvedThreadType?: string | null;
 };
 
-async function maybeHandleStreamLabIntent({ req, origin, body }: StreamInterceptParams): Promise<Response | null> {
+async function maybeHandleStreamLabIntent({ req, origin, body, resolvedThreadType }: StreamInterceptParams): Promise<Response | null> {
   if (!isLabSnapshotEnabled()) return null;
 
   const latestContent = extractLatestUserContent(body);
@@ -353,11 +511,13 @@ async function maybeHandleStreamLabIntent({ req, origin, body }: StreamIntercept
   const intent = detectLabSnapshotIntent(latestContent);
   if (!intent) return null;
 
-  const resolvedType = await resolveAidocThreadType({
-    explicitType: body?.threadType,
-    context: body?.context,
-    threadId: body?.threadId,
-  });
+  const resolvedType =
+    resolvedThreadType ??
+    (await resolveAidocThreadType({
+      explicitType: body?.threadType,
+      context: body?.context,
+      threadId: body?.threadId,
+    }));
   const allowHard = isLabSnapshotHardMode() && !resolvedType;
   if (resolvedType !== "aidoc" && !allowHard) {
     return null;

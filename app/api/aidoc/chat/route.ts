@@ -8,7 +8,7 @@ import {
   isLabSnapshotHardMode,
   type LabSnapshotIntent,
 } from "@/lib/aidoc/labsSnapshot";
-import { normalizeAidocThreadType } from "@/lib/aidoc/threadType";
+import { normalizeAidocThreadType, resolveAidocThreadType } from "@/lib/aidoc/threadType";
 import { POST as streamPOST } from "../../chat/stream/route";
 import { getUserId } from "@/lib/getUserId";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -242,9 +242,14 @@ async function maybeHandleAidocLabIntent(params: {
   const intent = detectLabSnapshotIntent(text);
   if (!intent) return null;
 
-  const normalizedThreadType = normalizeAidocThreadType(params.threadTypeHint) ?? "aidoc";
-  const allowHard = isLabSnapshotHardMode() && !normalizedThreadType;
-  if (normalizedThreadType !== "aidoc" && !allowHard) {
+  const resolvedThreadType = await resolveAidocThreadType({
+    explicitType: params.threadTypeHint,
+    threadId: params.threadId ?? undefined,
+  });
+  const normalizedThreadType = normalizeAidocThreadType(params.threadTypeHint);
+  const effectiveType = resolvedThreadType ?? normalizedThreadType;
+  const allowHard = isLabSnapshotHardMode() && !effectiveType;
+  if ((effectiveType ?? "aidoc") !== "aidoc" && !allowHard) {
     return null;
   }
 
@@ -252,7 +257,7 @@ async function maybeHandleAidocLabIntent(params: {
   console.log("[aidoc-labs] intercept", {
     flag: process.env.AIDOC_FORCE_INTERCEPT ?? "0",
     hardFlag: process.env.AIDOC_FORCE_INTERCEPT_HARD ?? "0",
-    threadType: normalizedThreadType ?? "unknown",
+    threadType: resolvedThreadType ?? normalizedThreadType ?? "unknown",
     intent: intentLabel,
     threadId: params.threadId ?? undefined,
   });
