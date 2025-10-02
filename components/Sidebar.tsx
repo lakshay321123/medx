@@ -1,4 +1,5 @@
 "use client";
+import clsx from "clsx";
 import { Search, Settings } from "lucide-react";
 import { SIDEBAR_TABS, SidebarNavLink } from "./sidebar/Tabs";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -63,27 +64,22 @@ export default function Sidebar() {
   };
   const filtered = threads.filter((t) => t.title.toLowerCase().includes(q.toLowerCase()));
   return (
-    <div className="sidebar-click-guard flex h-full w-full flex-col gap-5 px-4 pt-6 pb-0 text-medx">
+    <aside className="sidebar-click-guard flex h-full w-full flex-col gap-5 px-4 pt-6 pb-0 text-medx bg-[var(--panel)] border-r border-[var(--border)]">
       <ul className="space-y-1">
         <li>
           <button
             type="button"
             aria-label={t("threads.systemTitles.new_chat")}
             onClick={handleNewChat}
-            className={[
-              "flex w-full items-center gap-2 rounded-md h-9 px-3",
-              "text-slate-600 hover:bg-slate-100/70 dark:text-slate-300 dark:hover:bg-white/5",
-              "text-sm leading-5 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 dark:focus-visible:outline-slate-500",
-            ].join(" ")}
+            className={clsx(
+              "flex h-9 w-full items-center gap-2 rounded-md px-3 text-sm leading-5 transition-colors",
+              "text-[var(--text)] hover:bg-[var(--hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)]",
+            )}
           >
-            <span className="flex h-4 w-4 items-center justify-center" aria-hidden>
-              <IconNewChat
-                title={t("threads.systemTitles.new_chat")}
-                size={16}
-                className="text-slate-500 dark:text-slate-300"
-              />
+            <span className="flex h-4 w-4 items-center justify-center text-[var(--text-muted)]" aria-hidden>
+              <IconNewChat title={t("threads.systemTitles.new_chat")} size={16} className="text-current" />
             </span>
-            <span className="truncate">{t("threads.systemTitles.new_chat")}</span>
+            <span className="truncate text-[var(--text)]">{t("threads.systemTitles.new_chat")}</span>
           </button>
         </li>
         {SIDEBAR_TABS.map((tab) => (
@@ -100,16 +96,16 @@ export default function Sidebar() {
 
       <div className="relative">
         <input
-          className="h-10 w-full rounded-full border border-slate-200 bg-white/80 px-3 pr-8 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none focus:ring-0 dark:border-white/10 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-400"
+          className="h-10 w-full rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 pr-8 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] shadow-sm transition focus:border-[var(--brand)] focus:outline-none focus:ring-0"
           placeholder={t("Search")}
           onChange={(e) => handleSearch(e.target.value)}
         />
-        <Search size={16} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400" />
+        <Search size={16} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
       </div>
 
       {/* Section heading above chat threads */}
       <div className="px-3 pb-0 pt-1">
-        <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">
+        <h3 className="text-sm font-medium text-[var(--text-muted)]">
           {t?.("Chats") ?? "Chats"}
         </h3>
       </div>
@@ -129,17 +125,16 @@ export default function Sidebar() {
             return (
               <div
                 key={thread.id}
-                className={[
-                  "group flex items-center gap-2 rounded-md h-9 px-3",
-                  "transition-colors focus-within:ring-2 focus-within:ring-offset-0",
+                className={clsx(
+                  "group flex h-9 items-center gap-2 rounded-md px-3 transition-colors focus-within:ring-2 focus-within:ring-offset-0",
                   active
-                    ? "bg-blue-600/10 font-semibold text-blue-600 dark:bg-sky-500/20 dark:text-sky-300"
-                    : "text-slate-600 hover:bg-slate-100/70 dark:text-slate-300 dark:hover:bg-white/5",
-                ].join(" ")}
+                    ? "bg-[var(--selected)] border border-[var(--brand)] text-[var(--text)]"
+                    : "text-[var(--text)] hover:bg-[var(--hover)]",
+                )}
                 aria-current={active ? "page" : undefined}
                 title={displayTitle || rawTitle}
               >
-                <span className="shrink-0 h-4 w-4" aria-hidden>
+                <span className="h-4 w-4 shrink-0 text-[var(--text-muted)]" aria-hidden>
                   <svg viewBox="0 0 24 24" className="h-4 w-4">
                     <path d="M4 5h16v10H8l-3 3V5z" fill="currentColor" />
                   </svg>
@@ -150,12 +145,12 @@ export default function Sidebar() {
                     closeSidebar();
                     router.push(`/?panel=chat&threadId=${thread.id}`);
                   }}
-                  className="min-w-0 flex-1 truncate text-left text-sm leading-5 py-0 my-0"
+                  className="my-0 min-w-0 flex-1 truncate py-0 text-left text-sm leading-5 text-[var(--text)]"
                 >
                   {displayTitle || t("threads.systemTitles.new_chat")}
                 </button>
 
-                <div className="ml-auto opacity-80 group-hover:opacity-100 leading-none">
+                <div className="ml-auto leading-none text-[var(--text-muted)] opacity-80 group-hover:opacity-100">
                   <ThreadKebab
                     id={thread.id}
                     title={thread.title}
@@ -184,15 +179,15 @@ export default function Sidebar() {
           closeSidebar?.();
           openPrefs();
         }}
-        className="fixed bottom-3 left-3 z-20 flex items-center gap-1.5 rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm shadow-sm hover:bg-white/90 dark:border-white/10 dark:bg-slate-900/70 dark:hover:bg-slate-900"
+        className="fixed bottom-3 left-3 z-20 flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] shadow-sm hover:bg-[var(--hover)]"
         aria-label={`${t("Preferences")} · ${locale.label}`}
       >
         <Settings size={14} />
         <span>{t("Preferences")}</span>
-        <span className="ml-1 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
+        <span className="ml-1 whitespace-nowrap text-xs text-[var(--text-muted)]">
           {locale.label}
         </span>
       </button>
-    </div>
+    </aside>
   );
 }

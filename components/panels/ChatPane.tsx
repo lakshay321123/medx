@@ -9,6 +9,7 @@ import { LinkBadge } from '@/components/SafeLink';
 import TrialsResults from "@/components/TrialsResults";
 import type { TrialRow } from "@/types/trials";
 import { useResearchFilters } from '@/store/researchFilters';
+import { useChatStore } from "@/lib/state/chatStore";
 import { Send, Plus, Clipboard, Stethoscope, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { useCountry } from '@/lib/country';
 import WelcomeCard from '@/components/ui/WelcomeCard';
@@ -1006,7 +1007,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     const el = (inputRef?.current as unknown as HTMLTextAreaElement | null);
     if (!el) return;
     el.style.height = 'auto';
-    const max = 200; // px; ~ChatGPT feel
+    const max = 160; // px cap (~4 lines)
     el.style.height = Math.min(el.scrollHeight, max) + 'px';
   }, [userText, inputRef]);
 
@@ -2256,6 +2257,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     }
     const ctrl = new AbortController();
     abortRef.current = ctrl;
+    const { setStreaming, setStopHandler } = useChatStore.getState();
+    setStopHandler(onStop);
+    setStreaming(true);
     let acc = '';
     try {
       const fullContext = allowHistory && stableThreadId ? buildFullContext(stableThreadId) : "";
@@ -2778,6 +2782,9 @@ ${systemCommon}` + baseSys;
       recordShortMem(stableThreadId, 'assistant', content);
       opts.onError?.();
     } finally {
+      const { setStreaming, setStopHandler } = useChatStore.getState();
+      setStopHandler(null);
+      setStreaming(false);
       setBusy(false);
       setThinkingStartedAt(null);
       abortRef.current = null;
@@ -2809,7 +2816,14 @@ ${systemCommon}` + baseSys;
   function onStop() {
     onStopQueue();
     const c = abortRef.current;
-    if (c) c.abort();
+    if (c) {
+      try {
+        c.abort();
+      } catch {}
+    }
+    const { setStreaming, setStopHandler } = useChatStore.getState();
+    setStopHandler(null);
+    setStreaming(false);
   }
 
   async function analyzeFile(
@@ -3899,10 +3913,10 @@ ${systemCommon}` + baseSys;
                   e.preventDefault();
                   onSubmit();
                 }}
-                className="flex w-full items-end gap-3 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80"
+                className="flex w-full items-end gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 shadow-sm"
               >
                 <label
-                  className="inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-slate-700 transition hover:bg-slate-200/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
+                  className="inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] transition hover:bg-[var(--hover)]"
                   title="Upload PDF or image"
                 >
                   <Plus className="h-5 w-5" aria-hidden="true" />
@@ -3922,7 +3936,7 @@ ${systemCommon}` + baseSys;
                   <textarea
                     ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
                     rows={1}
-                    className="w-full resize-none bg-transparent px-2 pr-12 text-sm leading-6 text-slate-900 outline-none placeholder:text-slate-500 dark:text-slate-100 dark:placeholder:text-slate-400"
+                    className="w-full resize-none overflow-y-auto rounded-md bg-transparent px-3 pr-12 py-2 text-[15px] leading-[1.2] text-[var(--text)] outline-none placeholder:text-[var(--text-muted)] md:text-[14px]"
                     placeholder={
                       pendingFiles.length > 0
                         ? 'Add a note or question for this document (optional)'
@@ -3952,7 +3966,7 @@ ${systemCommon}` + baseSys;
                       <StopButton
                         onClick={onStop}
                         className="pointer-events-auto"
-                        title="Stop (Esc)"
+                        title={`${t('actions.stop')} (Esc)`}
                       />
                     </div>
                   )}
@@ -3960,7 +3974,7 @@ ${systemCommon}` + baseSys;
 
                 {!busy && (
                   <button
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50"
+                    className="flex h-10 w-10 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--brand)] text-white transition hover:bg-[var(--brand-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)] disabled:opacity-50"
                     type="submit"
                     disabled={pendingFiles.length === 0 && !userText.trim()}
                     aria-label="Send"

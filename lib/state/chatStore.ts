@@ -51,6 +51,11 @@ type ChatState = {
   setDraftText: (text: string) => void;
   addDraftAttachments: (files: File[]) => void;
   clearDraft: () => void;
+  isStreaming: boolean;
+  setStreaming: (streaming: boolean) => void;
+  setStopHandler: (handler: (() => void) | null) => void;
+  stopStream: () => void;
+  stopHandler: (() => void) | null;
 };
 
 export function createDefaultDraft(): PendingDraft {
@@ -68,6 +73,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   currentId: null,
   threads: {},
   draft: initialDraft,
+  isStreaming: false,
+  stopHandler: null,
 
   startNewThread: () => {
     const id = `temp_${nanoid(8)}`;
@@ -125,5 +132,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   clearDraft: () => set({ draft: createDefaultDraft() }),
+
+  setStreaming: (streaming) => set({ isStreaming: streaming }),
+
+  setStopHandler: (handler) => set({ stopHandler: handler }),
+
+  stopStream: () => {
+    const handler = get().stopHandler;
+    if (handler) {
+      try {
+        handler();
+      } catch {}
+    }
+    set({ isStreaming: false, stopHandler: null });
+  },
 }));
 

@@ -30,6 +30,7 @@ const DEFAULT_DIGITS_POLICY: DigitsPolicy = "latn";
 
 const BASE_DICTIONARY: Record<string, Record<string, string>> = {
   en: {
+    "actions.stop": "Stop",
     "ui.composer.placeholder": "Send a message",
     "ui.composer.send": "Send",
     "ui.composer.upload": "Upload",
@@ -329,6 +330,7 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "Custom…": "Custom…",
   },
   hi: {
+    "actions.stop": "रोकें",
     "ui.composer.placeholder": "संदेश भेजें",
     "ui.composer.send": "भेजें",
     "ui.composer.upload": "अपलोड",
@@ -628,6 +630,7 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "Custom…": "कस्टम…",
   },
   ar: {
+    "actions.stop": "إيقاف",
     "ui.composer.placeholder": "أرسل رسالة",
     "ui.composer.send": "إرسال",
     "ui.composer.upload": "رفع",
@@ -926,6 +929,7 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "Custom…": "مخصص…",
   },
   it: {
+    "actions.stop": "Ferma",
     "ui.composer.placeholder": "Invia un messaggio",
     "ui.composer.send": "Invia",
     "ui.composer.upload": "Carica",
@@ -1224,6 +1228,7 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "Custom…": "Personalizzato…",
   },
   zh: {
+    "actions.stop": "停止",
     "ui.composer.placeholder": "发送消息",
     "ui.composer.send": "发送",
     "ui.composer.upload": "上传",
@@ -1516,6 +1521,7 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "Custom…": "自定义…",
   },
   es: {
+    "actions.stop": "Detener",
     "ui.composer.placeholder": "Enviar un mensaje",
     "ui.composer.send": "Enviar",
     "ui.composer.upload": "Subir",
@@ -1815,6 +1821,7 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "Custom…": "Personalizado…",
   },
   fr: {
+    "actions.stop": "Arrêter",
     "Network error": "Erreur réseau",
     Retry: "Réessayer",
     "Retrying…": "Nouvelle tentative…",

@@ -1,4 +1,5 @@
 "use client";
+import clsx from "clsx";
 import type { ComponentType } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -47,16 +48,17 @@ export function SidebarNavLink({
         closeSidebar();
         event.stopPropagation();
       }}
-      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm transition ${
+      className={clsx(
+        "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm transition",
         active
-          ? "bg-blue-600/10 font-semibold text-blue-600 dark:bg-sky-500/20 dark:text-sky-300"
-          : "text-slate-600 hover:bg-slate-100/70 dark:text-slate-300 dark:hover:bg-white/5"
-      }`}
+          ? "bg-[var(--selected)] border border-[var(--brand)] text-[var(--text)]"
+          : "text-[var(--text)] hover:bg-[var(--hover)]",
+      )}
       data-testid={`nav-${panel}`}
       aria-current={active ? "page" : undefined}
     >
       <Icon title={label} active={active} className="shrink-0" />
-      <span className="truncate">{label}</span>
+      <span className="truncate text-[var(--text)]">{label}</span>
     </Link>
   );
 }

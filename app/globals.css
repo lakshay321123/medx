@@ -22,7 +22,57 @@ body.font-loading *::after {
   body {
     font-family: var(--font-proxima-nova, "Proxima Nova", "Proxima Nova Rg", "ProximaNova", "proxima-nova");
   }
+
+  :root {
+    /* Brand ramp — LIGHT */
+    --brand:            #1E6FFF;   /* primary */
+    --brand-strong:     #1556C7;   /* hover/pressed */
+    --brand-weak:       #E6F0FF;   /* selected fill */
+    --brand-weakest:    #F3F8FF;   /* hover fill */
+
+    /* Neutrals — LIGHT */
+    --bg:               #FFFFFF;
+    --panel:            #FFFFFF;
+    --surface:          #FAFBFF;   /* cards/composer */
+    --surface-2:        #F3F6FB;
+    --border:           #E6EAF2;
+    --text:             #0F172A;
+    --text-muted:       #475569;
+
+    /* Affordances */
+    --link:             var(--brand);
+    --focus:            var(--brand);
+    --hover:            var(--brand-weakest); /* unified hover */
+    --selected:         var(--brand-weak);    /* unified selected */
+  }
+
+  .dark {
+    /* Keep your dark vibe; just map tokens */
+    --bg:               #0B1220;
+    --panel:            #0F1628;
+    --surface:          #0F1628;
+    --surface-2:        #0B1324;
+    --border:           #1E293B;
+    --text:             #E6EDF7;
+    --text-muted:       #94A3B8;
+
+    --brand:            #5CA3FF;
+    --brand-strong:     #3C8DFB;
+    --brand-weak:       rgba(92,163,255,0.18);
+    --brand-weakest:    rgba(92,163,255,0.10);
+
+    --link:             var(--brand);
+    --focus:            var(--brand);
+    --hover:            var(--brand-weakest);
+    --selected:         var(--brand-weak);
+  }
 }
+
+/* iOS Safari safeguards */
+html { -webkit-text-size-adjust: 100%; }
+textarea { overflow-y: auto; }
+a { color: var(--link); }
+*:focus-visible { outline-color: var(--focus); }
 
 .btn-secondary{
   @apply inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm transition

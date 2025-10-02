@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
 import { useOpenPass } from "@/hooks/useOpenPass";
-import { Plus, SendHorizontal } from "lucide-react";
+import { Plus, SendHorizontal, Square } from "lucide-react";
 import { useT } from "@/components/hooks/useI18n";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
 import { useUIStore } from "@/components/hooks/useUIStore";
@@ -22,12 +22,15 @@ export function ChatInput({
   const draft = useChatStore(s => s.draft);
   const setDraftText = useChatStore(s => s.setDraftText);
   const clearDraft = useChatStore(s => s.clearDraft);
+  const isStreaming = useChatStore(s => s.isStreaming);
+  const stopStream = useChatStore(s => s.stopStream);
   const openPass = useOpenPass();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const t = useT();
   const uploadText = t("ui.composer.upload");
   const sendText = t("ui.composer.send");
+  const stopText = t("actions.stop");
   const composerPlaceholder = t("ui.composer.placeholder");
   const { lang } = usePrefs();
   const openPrefs = useUIStore((state) => state.openPrefs);
@@ -94,7 +97,7 @@ export function ChatInput({
 
   const onDropFiles = (files: FileList | null) => {
     if (!files?.length) return;
-    // TODO: feed your existing upload pipeline here.
+    // TODO: feed to your upload pipeline; do NOT create thread here
   };
 
   return (
@@ -108,18 +111,18 @@ export function ChatInput({
         e.preventDefault();
         onDropFiles(e.dataTransfer.files);
       }}
-      className="chat-input-container flex w-full items-end gap-2 rounded-2xl border border-[color:var(--medx-outline)] bg-[color:var(--medx-surface)] px-3 py-2 shadow-sm transition dark:border-white/10 dark:bg-[color:var(--medx-panel)] md:border-0 md:bg-transparent md:px-0 md:py-0 md:shadow-none"
+      className="chat-input-container flex w-full items-end gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 shadow-sm transition md:border-0 md:bg-transparent md:px-0 md:py-0 md:shadow-none"
     >
       <button
         type="button"
-        disabled={!!currentId}
-        aria-label={currentId ? "Attach files is available before you start a new chat" : uploadText}
-        className="flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--medx-text)] transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:text-[color:var(--medx-text)] dark:hover:bg-white/10"
+        aria-label={uploadText}
+        title={uploadText}
+        className="flex h-11 w-11 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)]"
         onClick={() => {
           fileInputRef.current?.click();
         }}
       >
-        <Plus className="h-5 w-5" />
+        <Plus className="h-5 w-5 text-[var(--text-muted)]" />
       </button>
       <input
         ref={fileInputRef}
@@ -130,7 +133,7 @@ export function ChatInput({
         onChange={event => {
           const files = Array.from(event.target.files ?? []);
           if (files.length === 0) return;
-          // TODO: pass `files` into your upload pipeline (do not create thread yet)
+          // TODO: queue files in your upload pipeline; do NOT create thread yet
           event.target.value = "";
         }}
       />
@@ -155,16 +158,27 @@ export function ChatInput({
             void handleSend();
           }
         }}
-        className="min-h-[40px] max-h-[160px] flex-1 resize-none bg-transparent text-base leading-snug text-[color:var(--medx-text)] placeholder:text-slate-400 focus:outline-none dark:text-[color:var(--medx-text)] dark:placeholder:text-slate-500"
+        className="min-h-[40px] max-h-[160px] flex-1 resize-none overflow-y-auto rounded-md bg-transparent px-3 py-2 text-[15px] leading-[1.2] text-[var(--text)] outline-none placeholder:text-[var(--text-muted)] md:text-[14px]"
       />
+      {isStreaming && (
+        <button
+          type="button"
+          aria-label={stopText}
+          title={stopText}
+          onClick={stopStream}
+          className="flex h-11 w-11 items-center justify-center rounded-md border border-[var(--brand)] text-[var(--brand)] hover:bg-[var(--hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)]"
+        >
+          <Square className="h-4 w-4" />
+        </button>
+      )}
       <button
         type="submit"
         aria-label={sendText}
         title={sendText}
         disabled={!text.trim() || isSending}
-        className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-sky-500 dark:hover:bg-sky-400"
+        className="flex h-11 w-11 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--brand)] hover:bg-[var(--brand-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)] disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <SendHorizontal className="h-5 w-5" />
+        <SendHorizontal className="h-5 w-5 text-white" />
       </button>
     </form>
   );

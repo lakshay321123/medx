@@ -1,4 +1,5 @@
 "use client";
+import clsx from "clsx";
 import { useModeController } from "@/hooks/useModeController";
 import { useT } from "@/components/hooks/useI18n";
 
@@ -15,20 +16,19 @@ export default function ModeBar() {
   const t = useT();
 
   const btn = (active: boolean, disabled?: boolean) =>
-    [
+    clsx(
       "h-9 rounded-full border px-4 text-sm font-medium transition",
-      active
-        ? "bg-blue-600 border-blue-600 text-white shadow-sm"
-        : "bg-white/70 text-slate-900 border-slate-200 hover:bg-slate-100 dark:bg-slate-800/70 dark:text-white dark:border-slate-700 dark:hover:bg-slate-800",
-      disabled ? "opacity-60 cursor-not-allowed" : "",
-    ].filter(Boolean).join(" ");
+      "border-[var(--border)] bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--hover)]",
+      active && "bg-[var(--selected)] border-[var(--brand)]",
+      disabled && "cursor-not-allowed opacity-60",
+    );
 
   const aidocOn = state.base === "aidoc";
   const wellnessActive = state.base === "patient" && !state.therapy;
   const doctorActive = state.base === "doctor";
 
   return (
-    <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-black/10 bg-white/60 px-2 py-1 backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
+    <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[var(--text)] backdrop-blur">
       <button
         className={btn(wellnessActive)}
         onClick={() => togglePatient()}
