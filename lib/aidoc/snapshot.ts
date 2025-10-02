@@ -418,6 +418,12 @@ export async function buildPatientSnapshot(
   const labs = labsForRules(metricSeries);
   const contextForRules = { labs, meds: [], mem: { prefs: [] } } as any;
 
+  type RuleEvalResult = Partial<{
+    steps: string[];
+    nudges: string[];
+    softAlerts: string[];
+  }>;
+
   const packs = [lipidsRules, diabetesRules, thyroidRules, htnRules];
   const steps: string[] = [];
   const nudges: string[] = [];
@@ -425,7 +431,7 @@ export async function buildPatientSnapshot(
 
   for (const rule of packs) {
     try {
-      const result = rule(contextForRules) || {};
+      const result = (rule(contextForRules) || {}) as RuleEvalResult;
       if (Array.isArray(result.steps)) steps.push(...result.steps);
       if (Array.isArray(result.nudges)) nudges.push(...result.nudges);
       if (Array.isArray(result.softAlerts)) alerts.push(...result.softAlerts);
