@@ -5,6 +5,7 @@ import { POST as streamPOST } from "../../chat/stream/route";
 import { getUserId } from "@/lib/getUserId";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchLabSummary } from "@/lib/labs/summary";
+import { fetchObservationRows, buildReportTimeline, isPullReportsIntent } from "@/lib/labs/timeline";
 
 export const runtime = 'nodejs';
 
@@ -31,8 +32,9 @@ export async function POST(req: NextRequest) {
     payload: unknown;
   }> = [];
   let labsPacket: any = null;
+  let userId: string | null = null;
   try {
-    const userId = await getUserId(req);
+    userId = await getUserId(req);
     if (userId) {
       const sb = supabaseAdmin();
       const { data: prof } = await sb
@@ -141,6 +143,33 @@ export async function POST(req: NextRequest) {
         soap: triage.soap,
       });
     } catch {
+      // fall through to legacy stream
+    }
+  }
+
+  // === AI Doc: Pull my reports / Report timeline (deterministic server render) ===
+  if (userId && isPullReportsIntent(message)) {
+    try {
+      const sb = supabaseAdmin();
+      const rows = await fetchObservationRows(sb, userId, 2000);
+      const timeline = buildReportTimeline(rows);
+      let header = "";
+      try {
+        const summary = await fetchLabSummary(sb, { userId, limit: 2000 });
+        const totalReports = typeof summary?.meta?.total_reports === "number" ? summary.meta.total_reports : 0;
+        const last = rows.find(r => r.observed_at)?.observed_at || null;
+        const lastStr = last
+          ? new Date(last).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+          : "—";
+        header = `# Summary\n**Total documents:** ${totalReports}\n**Last upload:** ${lastStr}\n\n`;
+      } catch {}
+      return NextResponse.json({
+        messages: [
+          { role: "assistant", content: `${header}${timeline}` },
+        ],
+      });
+    } catch (err) {
+      console.error("Failed to build report timeline:", err);
       // fall through to legacy stream
     }
   }
