@@ -9,6 +9,7 @@ import { pushToast } from "@/lib/ui/toast";
 import { useRouter } from "next/navigation";
 import { useT } from "@/components/hooks/useI18n";
 import { langBase } from "@/lib/i18n/langBase";
+import { sanitizeFreeText, formatLabHeadline } from "@/lib/health/sanitize";
 
 function normalizeKind(k?: string) {
   const raw = String(k ?? "").toLowerCase().trim();
@@ -83,7 +84,7 @@ function getDisplayTitle(ob: any) {
   const meta = ob?.meta ?? {};
 
   if (kind === "lab") {
-    return "Blood report";
+    return formatLabHeadline(meta, ob);
   }
 
   if (kind === "imaging") {
@@ -103,33 +104,40 @@ function getDisplayTitle(ob: any) {
 const getShortSummary = (ob: any) => {
   const meta = ob?.meta || {};
   const kind = normalizeKind(ob?.kind);
-  if (meta?.summary) return meta.summary as string;
+  if (meta?.summary) return sanitizeFreeText(meta.summary as string);
 
   if (kind === "medication") {
-    const dose =
+    const name = sanitizeFreeText(meta?.normalizedName || ob?.value_text || "");
+    const doseRaw =
       meta?.doseLabel ??
       (ob?.value_num != null ? `${ob.value_num}${ob?.unit ? ` ${ob.unit}` : ""}` : null);
-    return [meta?.normalizedName || ob?.value_text, dose].filter(Boolean).join(" — ");
+    const dose = sanitizeFreeText(doseRaw ?? "");
+    return [name, dose].filter(Boolean).join(" — ");
   }
 
   if (kind === "note" || kind === "symptom") {
-    const text = (meta?.text ?? ob?.value_text ?? "") as string;
-    const trimmed = text.trim();
-    if (!trimmed) return "";
-    return trimmed.length > 140 ? `${trimmed.slice(0, 140)}…` : trimmed;
+    const text = sanitizeFreeText((meta?.text ?? ob?.value_text ?? "") as string);
+    if (!text) return "";
+    return text.length > 140 ? `${text.slice(0, 140)}…` : text;
   }
 
   if (kind === "lab") {
-    if (meta?.abnormalHint) return meta.abnormalHint as string;
-    if (meta?.topFinding) return meta.topFinding as string;
-    return meta?.fileTitle || meta?.testName || ob?.value_text || "";
+    const hint =
+      meta?.abnormalHint ||
+      meta?.topFinding ||
+      meta?.fileTitle ||
+      meta?.testName ||
+      ob?.value_text ||
+      "";
+    return sanitizeFreeText(hint as string);
   }
 
   if (kind === "imaging") {
-    return meta?.finding || meta?.impression || meta?.fileTitle || "";
+    const imagingText = meta?.finding || meta?.impression || meta?.fileTitle || "";
+    return sanitizeFreeText(imagingText as string);
   }
 
-  return (meta?.text as string) || "";
+  return sanitizeFreeText((meta?.text as string) || "");
 };
 
 const IMPORTANT_FLAG_SET = new Set([
@@ -445,10 +453,15 @@ export default function Timeline(){
     if (!active.id) return;
 
     const meta = active?.meta ?? {};
-    const baseSummaryLong = firstNonEmptyString(meta.summary_long, meta.summaryLong);
-    const baseSummaryShort = firstNonEmptyString(meta.summary, meta.summaryShort);
-    const baseText = firstNonEmptyString(meta.text);
-    const baseValueText = firstNonEmptyString(active?.value_text, meta.value_text);
+    const baseSummaryLongRaw = firstNonEmptyString(meta.summary_long, meta.summaryLong);
+    const baseSummaryShortRaw = firstNonEmptyString(meta.summary, meta.summaryShort);
+    const baseTextRaw = firstNonEmptyString(meta.text);
+    const baseValueTextRaw = firstNonEmptyString(active?.value_text, meta.value_text);
+
+    const baseSummaryLong = baseSummaryLongRaw ? sanitizeFreeText(baseSummaryLongRaw) : null;
+    const baseSummaryShort = baseSummaryShortRaw ? sanitizeFreeText(baseSummaryShortRaw) : null;
+    const baseText = baseTextRaw ? sanitizeFreeText(baseTextRaw) : null;
+    const baseValueText = baseValueTextRaw ? sanitizeFreeText(baseValueTextRaw) : null;
 
     const fallbackSummary =
       baseSummaryLong ??
@@ -491,30 +504,33 @@ export default function Timeline(){
         if (cancelled || !payload?.ok || !payload?.data) return;
         const remote = payload.data as any;
         const next: TimelineDetailData = {
-          summaryLong: firstNonEmptyString(remote.summaryLong, baseSummaryLong) ?? null,
-          summaryShort: firstNonEmptyString(remote.summaryShort, baseSummaryShort) ?? null,
-          text: firstNonEmptyString(remote.text, baseText) ?? null,
-          valueText: firstNonEmptyString(remote.valueText, baseValueText) ?? null,
+          summaryLong:
+            sanitizeFreeText(firstNonEmptyString(remote.summaryLong, baseSummaryLong) ?? null) || null,
+          summaryShort:
+            sanitizeFreeText(firstNonEmptyString(remote.summaryShort, baseSummaryShort) ?? null) || null,
+          text: sanitizeFreeText(firstNonEmptyString(remote.text, baseText) ?? null) || null,
+          valueText:
+            sanitizeFreeText(firstNonEmptyString(remote.valueText, baseValueText) ?? null) || null,
           summary:
             typeof remote.summary === "string" && remote.summary.length > 0
-              ? remote.summary
-              : fallbackSummary,
+              ? sanitizeFreeText(remote.summary)
+              : sanitizeFreeText(fallbackSummary),
           fullText:
             typeof remote.fullText === "string" && remote.fullText.length > 0
-              ? remote.fullText
-              : fallbackFull,
+              ? sanitizeFreeText(remote.fullText)
+              : sanitizeFreeText(fallbackFull),
           summary_display:
             typeof remote.summary_display === "string" && remote.summary_display.trim()
-              ? remote.summary_display
+              ? sanitizeFreeText(remote.summary_display)
               : typeof remote.summary === "string" && remote.summary.trim()
-              ? remote.summary
-              : fallbackSummary,
+              ? sanitizeFreeText(remote.summary)
+              : sanitizeFreeText(fallbackSummary),
           fullText_display:
             typeof remote.fullText_display === "string" && remote.fullText_display.trim()
-              ? remote.fullText_display
+              ? sanitizeFreeText(remote.fullText_display)
               : typeof remote.fullText === "string" && remote.fullText.trim()
-              ? remote.fullText
-              : fallbackFull,
+              ? sanitizeFreeText(remote.fullText)
+              : sanitizeFreeText(fallbackFull),
         };
         detailCacheRef.current.set(cacheKey, next);
         setDetailData(next);
@@ -546,9 +562,21 @@ export default function Timeline(){
   const displayTitle = active ? getDisplayTitle(active) : "Observation";
   const originalShortSummary = active ? getShortSummary(active) : "";
   const metaForActive = active?.meta ?? {};
-  const summaryLong = firstNonEmptyString(detailData?.summaryLong, metaForActive.summary_long, metaForActive.summaryLong);
-  const summaryShort = firstNonEmptyString(detailData?.summaryShort, metaForActive.summary, metaForActive.summaryShort);
-  const text = firstNonEmptyString(detailData?.text, metaForActive.text);
+  const summaryLongCandidate = firstNonEmptyString(
+    detailData?.summaryLong,
+    metaForActive.summary_long,
+    metaForActive.summaryLong,
+  );
+  const summaryShortCandidate = firstNonEmptyString(
+    detailData?.summaryShort,
+    metaForActive.summary,
+    metaForActive.summaryShort,
+  );
+  const textCandidate = firstNonEmptyString(detailData?.text, metaForActive.text);
+
+  const summaryLong = summaryLongCandidate ? sanitizeFreeText(summaryLongCandidate) : null;
+  const summaryShort = summaryShortCandidate ? sanitizeFreeText(summaryShortCandidate) : null;
+  const text = textCandidate ? sanitizeFreeText(textCandidate) : null;
   const hasFile = Boolean(active?.file?.path || active?.file?.upload_id);
   const hasAiSummary = Boolean(
     (summaryLong && summaryLong.trim()) ||
@@ -564,10 +592,17 @@ export default function Timeline(){
   const source = active?.meta?.source;
   const hasFallbackFacts = Boolean(dose || observed || source || (active?.unit && !dose));
   const chipLabel = active ? getChipLabel(active, t) : null;
-  const summaryOriginalContent = detailData?.summary ?? summaryLong ?? summaryShort ?? "";
-  const summaryTranslatedContent = detailData?.summary_display ?? summaryOriginalContent;
-  const fullTextOriginal = detailData?.fullText ?? text ?? firstNonEmptyString(active?.value_text, metaForActive.value_text) ?? "";
-  const fullTextTranslated = detailData?.fullText_display ?? fullTextOriginal;
+  const summaryOriginalContent = sanitizeFreeText(
+    detailData?.summary ?? summaryLong ?? summaryShort ?? "",
+  );
+  const summaryTranslatedContent = sanitizeFreeText(
+    detailData?.summary_display ?? summaryOriginalContent,
+  );
+  const fallbackValueText = firstNonEmptyString(active?.value_text, metaForActive.value_text) ?? "";
+  const fullTextOriginal = sanitizeFreeText(detailData?.fullText ?? text ?? fallbackValueText ?? "");
+  const fullTextTranslated = sanitizeFreeText(
+    detailData?.fullText_display ?? fullTextOriginal,
+  );
   const trimmedSummaryOriginal = summaryOriginalContent.trim();
   const trimmedSummaryTranslated = summaryTranslatedContent.trim();
   const trimmedFullOriginal = fullTextOriginal.trim();
@@ -582,8 +617,8 @@ export default function Timeline(){
   const displayText = showOriginal ? fullTextOriginal : fullTextTranslated;
   const displayShortSummary = showOriginal
     ? originalShortSummary
-    : active?.summary_display ?? originalShortSummary;
-  const displayValueText = active?.value_text ?? "";
+    : sanitizeFreeText(active?.summary_display ?? originalShortSummary);
+  const displayValueText = sanitizeFreeText(active?.value_text ?? "");
   const summaryAvailable = Boolean((showOriginal ? trimmedSummaryOriginal : trimmedSummaryTranslated) || trimmedSummaryOriginal);
   const textAvailable = Boolean((showOriginal ? trimmedFullOriginal : trimmedFullTranslated) || trimmedFullOriginal);
   const translationToggleLabel = showOriginal
