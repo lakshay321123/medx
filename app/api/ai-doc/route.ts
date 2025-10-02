@@ -19,6 +19,132 @@ import {
 } from "@/lib/aidoc/planner";
 import { callOpenAIJson } from "@/lib/aidoc/vendor";
 
+// --- Normalization maps ---
+const NAME_ALIAS: Record<string, string> = {
+  "alt (sgpt)": "ALT",
+  "ast (sgot)": "AST",
+  "hdl cholesterol": "HDL",
+  "ldl cholesterol": "LDL",
+  "total cholesterol": "Total Cholesterol",
+  "fasting glucose": "Fasting Glucose",
+  "vitamin d (25-oh)": "Vitamin D",
+};
+
+const UNIT_ALIAS: Record<string, string> = {
+  "mg/dl": "mg/dL",
+  "u/l": "U/L",
+  "ng/ml": "ng/mL",
+  "%": "%",
+};
+
+function normName(raw?: string) {
+  if (!raw) return "";
+  const k = raw.trim().toLowerCase();
+  return NAME_ALIAS[k] || raw.replace(/\s+/g, " ").trim();
+}
+
+function normUnit(raw?: string | null) {
+  if (!raw) return undefined;
+  const k = raw.trim().toLowerCase();
+  return UNIT_ALIAS[k] || raw.trim();
+}
+
+// --- Ideal ranges (minimal starter; expand later) ---
+function idealFor(name: string): string | undefined {
+  switch (name) {
+    case "LDL":
+      return "<160 mg/dL";
+    case "HDL":
+      return ">40 mg/dL";
+    case "Total Cholesterol":
+      return "<200 mg/dL";
+    case "Triglycerides":
+      return "<150 mg/dL";
+    case "HbA1c":
+      return "<5.6 %";
+    case "ALT":
+      return "<50 U/L";
+    case "AST":
+      return "<50 U/L";
+    case "ALP":
+      return "<120 U/L";
+    case "Fasting Glucose":
+      return "70–99 mg/dL";
+    case "Vitamin D":
+      return "30–100 ng/mL";
+    default:
+      return undefined;
+  }
+}
+
+function markerFor(
+  name: string,
+  value: number | null | undefined,
+): "High" | "Low" | "Borderline" | "Normal" | undefined {
+  if (value == null) return undefined;
+  switch (name) {
+    case "LDL":
+      return value >= 160 ? "High" : value >= 130 ? "Borderline" : "Normal";
+    case "HDL":
+      return value < 40 ? "Low" : "Normal";
+    case "Total Cholesterol":
+      return value >= 200 ? "High" : "Normal";
+    case "Triglycerides":
+      return value >= 150 ? "High" : "Normal";
+    case "HbA1c":
+      return value >= 6.5 ? "High" : value >= 5.6 ? "Borderline" : "Normal";
+    case "ALT":
+      return value >= 50 ? "High" : "Normal";
+    case "AST":
+      return value >= 50 ? "High" : "Normal";
+    case "ALP":
+      return value >= 120 ? "High" : "Normal";
+    case "Fasting Glucose":
+      return value >= 100 ? "High" : value < 70 ? "Low" : "Normal";
+    case "Vitamin D":
+      return value < 30 ? "Low" : value > 100 ? "High" : "Normal";
+    default:
+      return undefined;
+  }
+}
+
+// --- De-duplication per date ---
+// If the SAME (normalized) test repeats, keep the latest occurrence for that date.
+// Key: `${name}|${unit}`; if values differ same day, keep the last seen (DB orderBy desc handles "latest first").
+type LabLike = { name?: string; value?: number | string | null; unit?: string | null | undefined };
+
+function dedupeLabs(items: LabLike[]): LabLike[] {
+  const map = new Map<string, LabLike>();
+  for (const item of items) {
+    const name = normName(item.name);
+    if (!name) continue;
+    const unit = normUnit(item.unit ?? undefined);
+    const key = `${name}|${unit || ""}`;
+    map.set(key, { ...item, name, unit });
+  }
+  return [...map.values()];
+}
+
+function toNumeric(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/[^0-9.+-]/g, ""));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function buildSingleLineSummary(labs: { name: string; marker?: string | null | undefined }[]): string {
+  const highlights = labs
+    .map(lab => ({ name: lab.name, marker: lab.marker }))
+    .filter(lab => lab.marker && lab.marker !== "Normal");
+  if (!highlights.length) return "All key values within normal ranges.";
+  return highlights
+    .slice(0, 3)
+    .map(lab => `${lab.name} ${String(lab.marker).toLowerCase()}`)
+    .join("; ");
+}
+
 interface PatientBundle {
   profile: PlannerProfile | null;
   labs: PlannerLabInput[];
@@ -115,7 +241,7 @@ export async function POST(req: NextRequest) {
 
   const bundle = await loadPatientBundle(userId);
 
-  const prepared = prepareAidocPayload({
+  const preparedRaw = prepareAidocPayload({
     profile: bundle.profile,
     labs: bundle.labs,
     notes: bundle.notes,
@@ -125,6 +251,48 @@ export async function POST(req: NextRequest) {
     focusMetric: entities.metric ?? null,
     compareWindow: entities.compareWindow ?? null,
   });
+
+  const cleanedReports = preparedRaw.reports.map(report => {
+    const cleaned = dedupeLabs(
+      report.labs.map(lab => ({
+        name: lab.name,
+        value: lab.value ?? null,
+        unit: lab.unit ?? null,
+      })),
+    );
+
+    const labsOut = cleaned
+      .map(item => {
+        const displayName = item.name ? String(item.name) : "";
+        const numericValue = toNumeric(item.value ?? null);
+        const marker = markerFor(displayName, numericValue ?? null);
+        return {
+          name: displayName,
+          value:
+            typeof item.value === "number" || typeof item.value === "string"
+              ? item.value
+              : numericValue,
+          unit: normUnit(item.unit ?? undefined),
+          marker: marker ?? "Normal",
+          ideal: idealFor(displayName),
+        };
+      })
+      .filter(lab => lab.name);
+
+    const summary = buildSingleLineSummary(labsOut);
+
+    return {
+      ...report,
+      labs: labsOut,
+      summary,
+    };
+  });
+
+  const prepared = {
+    ...preparedRaw,
+    reports: cleanedReports,
+    defaultSummary: cleanedReports[0]?.summary ?? preparedRaw.defaultSummary,
+  };
 
   let summaryPack = buildNarrativeFallback(prepared);
 
