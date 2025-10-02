@@ -31,6 +31,19 @@ function Pill({ children }: { children: React.ReactNode }) {
   );
 }
 
+function formatValue(value: number | string | null | undefined): string {
+  if (value === null || value === undefined) {
+    return "—";
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : "—";
+  }
+
+  return String(value);
+}
+
 export function SnapshotCard({ payload }: { payload: SnapshotPayload }) {
   const reports = Array.isArray(payload.reports) ? payload.reports : [];
   const domains = Array.isArray(payload.domains) ? payload.domains : [];
@@ -61,10 +74,7 @@ export function SnapshotCard({ payload }: { payload: SnapshotPayload }) {
                 <div className="mt-2 flex flex-wrap gap-2">
                   {report.highlights.slice(0, 6).map((highlight, hIdx) => {
                     const unit = highlight.unit ? ` ${highlight.unit}` : "";
-                    const value =
-                      highlight.value === null || highlight.value === undefined || highlight.value === ""
-                        ? "—"
-                        : highlight.value;
+                    const value = formatValue(highlight.value);
                     return (
                       <Pill key={`${report.date}-${hIdx}`}>
                         {highlight.name}: {value}
@@ -145,10 +155,7 @@ export function MetricCompareCard({ payload }: { payload: MetricComparePayload }
         <div className="space-y-2 text-sm text-foreground">
           {series.map((point, idx) => {
             const unit = point.unit ? ` ${point.unit}` : "";
-            const value =
-              point.value === null || point.value === undefined || point.value === ""
-                ? "—"
-                : point.value;
+            const value = formatValue(point.value);
             return (
               <div key={`${point.date}-${idx}`} className="flex items-center justify-between gap-3">
                 <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{point.date}</div>
