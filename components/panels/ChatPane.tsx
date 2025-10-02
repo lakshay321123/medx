@@ -1062,6 +1062,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const [aidoc, setAidoc] = useState<any | null>(null);
   const setStructuredAidoc = useAidocStore(s => s.setStructured);
+  const setActiveProfileId = useAidocStore(s => s.setActiveProfileId);
+  const trackedProfileId = useAidocStore(s => s.activeProfileId);
   const [loadingAidoc, setLoadingAidoc] = useState(false);
   const [showPatientChooser, setShowPatientChooser] = useState(false);
   const [showNewIntake, setShowNewIntake] = useState(false);
@@ -1405,8 +1407,14 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     const m = arr.find(m => m?.role === 'user' && typeof m?.content === 'string');
     return (m?.content || '').trim();
   }, [messages]);
+  useEffect(() => {
+    const nextId = activeProfile?.id ? String(activeProfile.id) : null;
+    setActiveProfileId(nextId);
+  }, [activeProfile, setActiveProfileId]);
+
+  const activeProfileId = trackedProfileId ?? (activeProfile?.id || null);
   const activeProfileName = activeProfile?.full_name || activeProfile?.name || 'current patient';
-  const activeProfileId = activeProfile?.id || null;
+
 
   const labSummaryCard = useMemo(() => {
     if (!labSummary?.ok) return null;
@@ -2360,6 +2368,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               lang,
               personalization,
               allowHistory,
+              profileId: activeProfileId ?? undefined,
             }
           : {
               mode: mode === 'doctor' ? 'doctor' : 'patient',
@@ -2370,6 +2379,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               lang,
               personalization,
               allowHistory,
+              profileId: activeProfileId ?? undefined,
             };
         mark('send');
         const res = await fetch(endpoint, {
@@ -3622,6 +3632,7 @@ ${systemCommon}` + baseSys;
           lang,
           personalization,
           allowHistory,
+          profileId: activeProfileId ?? undefined,
         })
       });
       const data = await r.json();

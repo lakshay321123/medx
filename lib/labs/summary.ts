@@ -51,6 +51,7 @@ export type LabSummaryResult = {
 
 export type LabSummaryOptions = {
   userId: string;
+  profileId?: string | null;
   tests?: string[];
   from?: string;
   to?: string;
@@ -312,6 +313,10 @@ export async function fetchLabSummary(
     .eq("user_id", options.userId)
     .not("value_num", "is", null)
     .order("observed_at", { ascending: false });
+
+  if (options.profileId) {
+    query = query.eq("profile_id", options.profileId);
+  }
 
   if (limit > 0) {
     query = query.limit(limit);

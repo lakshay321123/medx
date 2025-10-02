@@ -17,8 +17,10 @@ type AidocStore = {
   messages: AidocMsg[];
   hasAnimated: Record<string, true>;
   structured: StructuredSlice;
+  activeProfileId: string | null;
   resetForThread: (id: string) => void;
   setStructured: (payload: StructuredAidocResponse | null) => void;
+  setActiveProfileId: (profileId: string | null | undefined) => void;
 };
 
 const makeDefaultStructured = (): StructuredSlice => ({
@@ -35,6 +37,7 @@ export const useAidocStore = create<AidocStore>(set => ({
   messages: [],
   hasAnimated: {},
   structured: makeDefaultStructured(),
+  activeProfileId: null,
   resetForThread: () =>
     set({
       messages: [],
@@ -56,5 +59,19 @@ export const useAidocStore = create<AidocStore>(set => ({
         : makeDefaultStructured(),
       messages: state.messages,
       hasAnimated: state.hasAnimated,
+      activeProfileId: state.activeProfileId,
     })),
+  setActiveProfileId: profileId =>
+    set(state => {
+      const nextId = profileId ?? null;
+      if (state.activeProfileId === nextId) {
+        return {};
+      }
+      return {
+        activeProfileId: nextId,
+        structured: makeDefaultStructured(),
+        messages: [],
+        hasAnimated: {},
+      };
+    }),
 }));

@@ -5,12 +5,58 @@ import { POST as streamPOST } from "../../chat/stream/route";
 import { getUserId } from "@/lib/getUserId";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchLabSummary } from "@/lib/labs/summary";
+import { prisma } from "@/lib/prisma";
+
+type LegacyAidocRequest = {
+  message?: string;
+  text?: string;
+  profileId?: string;
+  answers?: unknown;
+  profile?: unknown;
+  messages?: Array<{ role: string; content: string }>;
+  context?: string;
+  [key: string]: unknown;
+};
+
+function computeAgeFromDob(dob?: string | Date | null): number | undefined {
+  if (!dob) return undefined;
+  const date = dob instanceof Date ? dob : new Date(dob);
+  if (Number.isNaN(date.getTime())) return undefined;
+  const diff = Date.now() - date.getTime();
+  const ageDate = new Date(diff);
+  const age = Math.abs(ageDate.getUTCFullYear() - 1970);
+  return Number.isFinite(age) ? age : undefined;
+}
+
+async function resolveScopedProfile(
+  userId: string | null,
+  requestedId?: string | null,
+): Promise<{ profile: any | null; clientAvailable: boolean }> {
+  const profileClient: any = (prisma as any)?.patientProfile;
+  if (!userId || !profileClient?.findFirst) {
+    return { profile: null, clientAvailable: !!profileClient?.findFirst };
+  }
+  try {
+    let profile: any = null;
+    if (requestedId) {
+      profile = await profileClient.findFirst({ where: { id: requestedId, userId } });
+    } else {
+      profile =
+        (await profileClient.findFirst({ where: { userId, isPrimary: true } })) ??
+        (await profileClient.findFirst({ where: { userId } }));
+    }
+    return { profile: profile ?? null, clientAvailable: true };
+  } catch {
+    return { profile: null, clientAvailable: true };
+  }
+}
 
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({} as any));
-  const message = (body?.message ?? body?.text ?? "").toString();
+  const body = (await req.json().catch(() => ({}))) as LegacyAidocRequest;
+  const rawMessage = (body?.message ?? body?.text ?? "").toString();
+  const message = rawMessage;
   const answers = (body?.answers && typeof body.answers === "object") ? body.answers : null;
   const incomingProfile = (body?.profile && typeof body.profile === "object") ? body.profile : null;
   const messages: Array<{ role: string; content: string }> = Array.isArray(body?.messages)
@@ -18,6 +64,18 @@ export async function POST(req: NextRequest) {
     : [];
   const context = typeof body?.context === "string" ? body.context : undefined;
   const needsContextPacket = !!context && ["profile", "timeline", "ai-doc-med-profile"].includes(context);
+
+  const userId = await getUserId(req);
+  const rawPid = typeof body?.profileId === "string" ? body.profileId.trim() : undefined;
+  const clientPid = rawPid && rawPid.length ? rawPid : undefined;
+  const { profile: scopedProfile, clientAvailable } = await resolveScopedProfile(userId, clientPid ?? null);
+  if (userId && clientAvailable && !scopedProfile) {
+    return NextResponse.json({ error: "profile_not_found_or_not_owned" }, { status: 404 });
+  }
+  const scopedProfileId = scopedProfile?.id ?? null;
+  if (userId && scopedProfileId) {
+    console.info("AIDOC_PROFILE", { userId, profileId: scopedProfileId });
+  }
 
   // ensure you have resolved the `profile` object here
   // profile = { name, age, sex, pregnant }
@@ -32,7 +90,6 @@ export async function POST(req: NextRequest) {
   }> = [];
   let labsPacket: any = null;
   try {
-    const userId = await getUserId(req);
     if (userId) {
       const sb = supabaseAdmin();
       const { data: prof } = await sb
@@ -40,27 +97,35 @@ export async function POST(req: NextRequest) {
         .select("full_name,dob,sex,blood_group,conditions_predisposition,chronic_conditions")
         .eq("id", userId)
         .maybeSingle();
-      const obsResponse = needsContextPacket
-        ? await sb
-            .from("observations")
-            .select("id, observed_at, kind, title, payload")
-            .eq("user_id", userId)
-            .order("observed_at", { ascending: false })
-            .limit(50)
-        : { data: null };
+      let obsQuery = sb
+        .from("observations")
+        .select("id, observed_at, kind, title, payload")
+        .eq("user_id", userId)
+        .order("observed_at", { ascending: false })
+        .limit(50);
+      if (scopedProfileId) {
+        obsQuery = obsQuery.eq("profile_id", scopedProfileId);
+      }
+      const obsResponse = needsContextPacket ? await obsQuery : { data: null };
       try {
-        const summary = await fetchLabSummary(sb, { userId, limit: 1000 });
+        const summary = await fetchLabSummary(sb, {
+          userId,
+          limit: 1000,
+          profileId: scopedProfileId ?? undefined,
+        });
         labsPacket = summary;
       } catch {}
       const obs = obsResponse.data;
-      const dob = prof?.dob ? new Date(prof.dob) : null;
-      const age = dob && !Number.isNaN(dob.getTime())
-        ? Math.max(0, Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 3600 * 1000)))
-        : undefined;
+      const dob = scopedProfile?.dob ?? prof?.dob ?? null;
+      const supabaseAge = prof?.dob ? computeAgeFromDob(prof.dob) : undefined;
+      const derivedAge =
+        typeof scopedProfile?.age === "number"
+          ? scopedProfile.age
+          : computeAgeFromDob(dob) ?? supabaseAge;
       profile = {
-        name: prof?.full_name || undefined,
-        age,
-        sex: prof?.sex || undefined,
+        name: scopedProfile?.fullName ?? scopedProfile?.name ?? prof?.full_name || undefined,
+        age: derivedAge,
+        sex: scopedProfile?.sex ?? prof?.sex || undefined,
       };
       observations = Array.isArray(obs) ? obs : [];
       if (needsContextPacket) {
@@ -73,9 +138,9 @@ export async function POST(req: NextRequest) {
         }));
         contextPacket = {
           profile: {
-            name: prof?.full_name,
-            age,
-            sex: prof?.sex,
+            name: profile?.name ?? prof?.full_name,
+            age: profile?.age ?? derivedAge,
+            sex: profile?.sex ?? prof?.sex,
             blood_group: prof?.blood_group,
             chronic_conditions: prof?.chronic_conditions,
             risk_predisposition: prof?.conditions_predisposition,

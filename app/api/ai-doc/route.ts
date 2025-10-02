@@ -34,6 +34,13 @@ function toMarkerValue(value: unknown): MarkerValue | undefined {
   return MARKER_VALUES.has(trimmed as MarkerValue) ? (trimmed as MarkerValue) : undefined;
 }
 
+type AiDocRequest = {
+  message?: string;
+  text?: string;
+  profileId?: string;
+  threadId?: string;
+};
+
 interface PatientBundle {
   profile: PlannerProfile | null;
   labs: PlannerLabInput[];
@@ -60,12 +67,33 @@ async function safeFindMany(client: any, args: any) {
   }
 }
 
-async function loadFromPrisma(userId: string): Promise<PatientBundle | null> {
+async function loadFromPrisma(
+  userId: string,
+  requestedProfileId?: string | null,
+): Promise<{ bundle: PatientBundle | null; clientAvailable: boolean }> {
   try {
     const profileClient: any = (prisma as any)?.patientProfile;
-    if (!profileClient?.findFirst) return null;
-    const profile = (await profileClient.findFirst({ where: { userId } })) ?? null;
-    if (!profile) return null;
+    if (!profileClient?.findFirst) {
+      return { bundle: null, clientAvailable: false };
+    }
+
+    let profile: any = null;
+    try {
+      if (requestedProfileId) {
+        profile = await profileClient.findFirst({ where: { id: requestedProfileId, userId } });
+      } else {
+        profile =
+          (await profileClient.findFirst({ where: { userId, isPrimary: true } })) ??
+          (await profileClient.findFirst({ where: { userId } }));
+      }
+    } catch {
+      profile = null;
+    }
+
+    if (!profile) {
+      return { bundle: null, clientAvailable: true };
+    }
+
     const profileId = profile.id ?? null;
     const labsClient: any = (prisma as any)?.labResult;
     const noteClient: any = (prisma as any)?.note;
@@ -80,27 +108,41 @@ async function loadFromPrisma(userId: string): Promise<PatientBundle | null> {
     ]);
 
     return {
-      profile: profile as PlannerProfile,
-      labs: ensureArray(labs) as PlannerLabInput[],
-      notes: ensureArray(notes) as PlannerNote[],
-      medications: ensureArray(medications) as PlannerMedication[],
-      conditions: ensureArray(conditions) as PlannerCondition[],
+      bundle: {
+        profile: profile as PlannerProfile,
+        labs: ensureArray(labs) as PlannerLabInput[],
+        notes: ensureArray(notes) as PlannerNote[],
+        medications: ensureArray(medications) as PlannerMedication[],
+        conditions: ensureArray(conditions) as PlannerCondition[],
+      },
+      clientAvailable: true,
     };
   } catch {
-    return null;
+    return { bundle: null, clientAvailable: true };
   }
 }
 
-async function loadPatientBundle(userId: string): Promise<PatientBundle> {
-  const fromPrisma = await loadFromPrisma(userId);
-  if (fromPrisma) return fromPrisma;
-  return {
-    profile: SAMPLE_AIDOC_DATA.profile,
-    labs: SAMPLE_AIDOC_DATA.labs,
-    notes: SAMPLE_AIDOC_DATA.notes,
-    medications: SAMPLE_AIDOC_DATA.medications,
-    conditions: SAMPLE_AIDOC_DATA.conditions,
-  };
+async function loadPatientBundle(
+  userId: string,
+  requestedProfileId?: string | null,
+): Promise<{ bundle: PatientBundle | null; clientAvailable: boolean }> {
+  const fromPrisma = await loadFromPrisma(userId, requestedProfileId);
+  if (fromPrisma.bundle) {
+    return fromPrisma;
+  }
+  if (!fromPrisma.clientAvailable) {
+    return {
+      bundle: {
+        profile: SAMPLE_AIDOC_DATA.profile,
+        labs: SAMPLE_AIDOC_DATA.labs,
+        notes: SAMPLE_AIDOC_DATA.notes,
+        medications: SAMPLE_AIDOC_DATA.medications,
+        conditions: SAMPLE_AIDOC_DATA.conditions,
+      },
+      clientAvailable: false,
+    };
+  }
+  return { bundle: null, clientAvailable: true };
 }
 
 function sanitizeNextSteps(value: unknown): string[] {
@@ -191,21 +233,31 @@ export async function POST(req: NextRequest) {
   const userId = await getUserId(req);
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  let body: any;
+  let body: AiDocRequest;
   try {
-    body = await req.json();
+    body = (await req.json()) as AiDocRequest;
   } catch {
     body = {};
   }
 
-  const message = typeof body?.message === "string" ? body.message.trim() : "";
+  const messageInput = typeof body?.message === "string" ? body.message.trim() : "";
+  const textInput = typeof body?.text === "string" ? body.text.trim() : "";
+  const message = messageInput || textInput;
   if (!message) return NextResponse.json({ error: "no message" }, { status: 400 });
+
+  const rawPid = typeof body?.profileId === "string" ? body.profileId.trim() : undefined;
+  const clientPid = rawPid && rawPid.length ? rawPid : undefined;
+
+  const { bundle } = await loadPatientBundle(userId, clientPid ?? null);
+  if (!bundle) {
+    return NextResponse.json({ error: "profile_not_found_or_not_owned" }, { status: 404 });
+  }
+
+  console.info("AIDOC_PROFILE", { userId, profileId: bundle.profile?.id ?? null });
 
   const userText = String(message || "");
   const { intent, confidence, entities } = detectIntentAndEntities(userText);
   const intentCategory: DetectedIntent = confidence < 0.35 ? "pull_reports" : intent;
-
-  const bundle = await loadPatientBundle(userId);
 
   const preparedRaw = prepareAidocPayload({
     profile: bundle.profile,
