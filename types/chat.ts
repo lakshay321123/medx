@@ -11,4 +11,5 @@ export type ChatMessage = {
   replacedByNewer?: boolean;
   replacedByMessageId?: string;
   refreshOf?: string;
+  payload?: unknown;
 };

@@ -33,6 +33,7 @@ import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials
 import MessageActions from "@/components/chat/MessageActions";
 import { useAidocStore } from "@/stores/useAidocStore";
 import AidocReportViewer from "@/components/aidoc/ReportViewer";
+import ReportViewer from "@/components/AiDoc/ReportViewer";
 import SharePanel from "@/components/panels/SharePanel";
 import type { ChatMessage as BaseChatMessage } from "@/types/chat";
 import type { AnalysisCategory } from '@/lib/context';
@@ -88,7 +89,6 @@ const NO_LABS_MESSAGE = "I couldn't find structured lab values yet.";
 const REPORTS_LOCKED_MESSAGE = "Reports are available only in AI Doc mode.";
 // Updated LABS_TREND_INTENT: only triggers on explicit lab/report phrases
 const LABS_TREND_INTENT = /\b(pull my reports|show my reports|fetch my reports|what do my reports say|compare my reports|lab history|lab trend|report history|report trend|date\s*wise|datewise)\b/i;
-const PULL_REPORTS_RE = /\bpull (?:all )?my reports?\b/i;
 const RAW_TEXT_INTENT = /(raw text|full text|show .*report text)/i;
 
 const formatTrendDate = (iso?: string) => {
@@ -564,6 +564,15 @@ function ChatCard({
   pendingStageState?: PendingAssistantState | null;
 }) {
   const suggestions = normalizeSuggestions(m.followUps);
+  const payload = (m as any)?.payload ?? null;
+  const structuredPayload =
+    payload &&
+    typeof payload === "object" &&
+    payload !== null &&
+    Array.isArray((payload as any).reports) &&
+    (payload as any).reports.length > 0
+      ? (payload as any)
+      : null;
   if (m.pending) {
     if (pendingStageState && CHAT_UX_V2_ENABLED) {
       return (
@@ -594,6 +603,11 @@ function ChatCard({
         </div>
       )}
       <ChatMarkdown content={m.content} />
+      {structuredPayload ? (
+        <div className="mt-4">
+          <ReportViewer data={structuredPayload} />
+        </div>
+      ) : null}
       {m.role === "assistant" && (m.citations?.length || 0) > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {(m.citations || []).slice(0, simple ? 3 : 6).map((c, i) => (
@@ -778,7 +792,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   );
 
   const handlePendingFinalize = useCallback(
-    (messageId: string, finalContent: string, extras?: { followUps?: unknown; citations?: unknown; error?: string | null }) => {
+    (
+      messageId: string,
+      finalContent: string,
+      extras?: { followUps?: unknown; citations?: unknown; error?: string | null; payload?: unknown },
+    ) => {
       setMessages(prev =>
         prev.map(m => {
           if (m.id !== messageId) return m;
@@ -791,6 +809,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           }
           if (extras?.error !== undefined) {
             next.error = extras.error ?? undefined;
+          }
+          if (extras?.payload !== undefined) {
+            (next as any).payload = extras.payload;
+          } else if ((next as any).payload !== undefined) {
+            delete (next as any).payload;
           }
           return next;
         }),
@@ -2302,68 +2325,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           } catch {}
         }
 
-    const wantsStructuredReports = isAiDocMode && PULL_REPORTS_RE.test(messageText);
-    if (wantsStructuredReports) {
-      mark('send');
-      try {
-        markPendingAssistantStreaming(pendingId);
-        const res = await fetch('/api/ai-doc', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-user-lang': lang },
-          body: JSON.stringify({
-            threadId,
-            message: messageText,
-            lang,
-            personalization,
-            allowHistory,
-          }),
-          cache: 'no-store',
-          signal: ctrl.signal,
-        });
-        if (res.status === 409) {
-          cancelPendingAssistant(pendingId);
-          setMessages(prev => prev.filter(m => m.id !== pendingId));
-          setBusy(false);
-          setThinkingStartedAt(null);
-          return;
-        }
-        if (!res.ok) {
-          const text = await res.text().catch(() => '');
-          throw new Error(text || `Request failed (${res.status})`);
-        }
-        const data = await res.json().catch(() => null);
-        if (!data || typeof data !== 'object') {
-          throw new Error('Empty response from AI Doc.');
-        }
-        const parsed: any = data;
-        setAidoc(parsed);
-        if (parsed?.kind === 'reports') {
-          setStructuredAidoc(parsed);
-        } else {
-          setStructuredAidoc(null);
-        }
-        const summaryText =
-          typeof parsed?.summary === 'string' && parsed.summary.trim().length > 0
-            ? parsed.summary.trim()
-            : 'Pulled your reports. See the structured view below.';
-        enqueuePendingAssistant(pendingId, summaryText);
-        finishPendingAssistant(pendingId, summaryText);
-        recordShortMem(threadId, 'assistant', summaryText);
-        recordStructured(threadId, summaryText);
-        recordShortMem(stableThreadId, 'assistant', summaryText);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err ?? 'Unknown error');
-        const content = `⚠️ Could not pull reports: ${message}`;
-        enqueuePendingAssistant(pendingId, content);
-        finishPendingAssistant(pendingId, content, { error: message });
-        opts.onError?.();
-      } finally {
-        setBusy(false);
-        setThinkingStartedAt(null);
-      }
-      return;
-    }
-
     const history = opts.historyOverride ?? messages;
     const baseHistory = allowHistory ? history : [];
     const thread = [
@@ -2373,21 +2334,31 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       { role: 'user', content: `${messageText}${contextBlock}` },
     ];
 
-        const endpoint = '/api/aidoc/chat';
+        const isReportIntent = isAiDocMode && /pull (all )?my report(s)?\b/i.test(messageText);
+        const endpoint = isReportIntent ? '/api/ai-doc' : '/api/aidoc/chat';
+        const payload = isReportIntent
+          ? {
+              threadId,
+              message: messageText,
+              lang,
+              personalization,
+              allowHistory,
+            }
+          : {
+              mode: mode === 'doctor' ? 'doctor' : 'patient',
+              messages: thread,
+              threadId,
+              context,
+              clientRequestId,
+              lang,
+              personalization,
+              allowHistory,
+            };
         mark('send');
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-user-lang': lang },
-          body: JSON.stringify({
-            mode: mode === 'doctor' ? 'doctor' : 'patient',
-            messages: thread,
-            threadId,
-            context,
-            clientRequestId,
-            lang,
-            personalization,
-            allowHistory,
-          }),
+          body: JSON.stringify(payload),
           cache: 'no-store',
           signal: ctrl.signal
         });
@@ -2403,6 +2374,33 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           if (!Number.isNaN(tfb)) {
             console.log('[latency] Tfb(ms)=', tfb);
           }
+        }
+        if (isReportIntent) {
+          if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            throw new Error(text || `Request failed (${res.status})`);
+          }
+          const data = await res.json().catch(() => null);
+          if (!data || typeof data !== 'object') {
+            throw new Error('Empty response from AI Doc.');
+          }
+          const parsed: any = data;
+          setAidoc(parsed);
+          if (parsed?.kind === 'reports') {
+            setStructuredAidoc(parsed);
+          } else {
+            setStructuredAidoc(null);
+          }
+          const summaryText =
+            typeof parsed?.summary === 'string' && parsed.summary.trim().length > 0
+              ? parsed.summary.trim()
+              : 'Pulled your reports. See the structured view below.';
+          markPendingAssistantStreaming(pendingId);
+          finishPendingAssistant(pendingId, summaryText, { payload: parsed });
+          recordShortMem(threadId, 'assistant', summaryText);
+          recordStructured(threadId, summaryText);
+          recordShortMem(stableThreadId, 'assistant', summaryText);
+          return;
         }
         if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
         const reader = res.body.getReader();
