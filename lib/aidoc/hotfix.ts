@@ -1,6 +1,5 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { getUserId } from "@/lib/getUserId";
 
 function HF_enabled() {
   return process.env.AIDOC_FORCE_INTERCEPT === "1";
@@ -151,7 +150,9 @@ const normalizeStatus = (
   return statusFor(value, lo, hi, polarity);
 };
 
-async function loadLabPoints(req: NextRequest): Promise<RawPoint[]> {
+type LoadResult = { points: RawPoint[]; unauthorized: boolean };
+
+async function loadLabPoints(req: NextRequest): Promise<LoadResult> {
   try {
     const origin = new URL(req.url, "http://localhost").origin;
     const headers: Record<string, string> = { Accept: "application/json" };
@@ -162,6 +163,9 @@ async function loadLabPoints(req: NextRequest): Promise<RawPoint[]> {
       headers,
       cache: "no-store",
     });
+    if (res.status === 401) {
+      return { points: [], unauthorized: true };
+    }
     const body = await res.json().catch(() => ({}));
     const out: RawPoint[] = [];
     if (Array.isArray(body?.points)) {
@@ -180,7 +184,7 @@ async function loadLabPoints(req: NextRequest): Promise<RawPoint[]> {
           direction: typeof row?.direction === "string" ? row.direction : null,
         });
       }
-      return out;
+      return { points: out, unauthorized: false };
     }
 
     if (Array.isArray(body?.trend)) {
@@ -204,10 +208,10 @@ async function loadLabPoints(req: NextRequest): Promise<RawPoint[]> {
       }
     }
 
-    return out;
+    return { points: out, unauthorized: false };
   } catch (err) {
     console.error("[AIDOC_HOTFIX_FETCH]", err);
-    return [];
+    return { points: [], unauthorized: false };
   }
 }
 
@@ -302,13 +306,11 @@ export async function aidocHotfix(req: NextRequest, body: any) {
 
   if (!(isPull || isCompareAll || isOverall || metricCanon)) return null;
 
-  const userId = await getUserId(req);
-  if (!userId) {
-    return NextResponse.json({ role: "assistant", content: "Please sign in to view your reports." });
-  }
-
   try {
-    const points = await loadLabPoints(req);
+    const { points, unauthorized } = await loadLabPoints(req);
+    if (unauthorized) {
+      return NextResponse.json({ role: "assistant", content: "Please sign in to view your reports." });
+    }
     const snapshot = buildSnapshot(points);
 
     if (metricCanon) {
