@@ -33,7 +33,6 @@ import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials
 import MessageActions from "@/components/chat/MessageActions";
 import { useAidocStore } from "@/stores/useAidocStore";
 import AidocReportViewer from "@/components/aidoc/ReportViewer";
-import ReportViewer from "@/components/AiDoc/ReportViewer";
 import SharePanel from "@/components/panels/SharePanel";
 import type { ChatMessage as BaseChatMessage } from "@/types/chat";
 import type { AnalysisCategory } from '@/lib/context';
@@ -605,7 +604,17 @@ function ChatCard({
       <ChatMarkdown content={m.content} />
       {structuredPayload ? (
         <div className="mt-4">
-          <ReportViewer data={structuredPayload} />
+          <AidocReportViewer
+            patient={structuredPayload.patient ?? null}
+            reports={Array.isArray(structuredPayload.reports) ? structuredPayload.reports : []}
+            comparisons={
+              structuredPayload.comparisons && typeof structuredPayload.comparisons === "object"
+                ? structuredPayload.comparisons
+                : {}
+            }
+            summary={typeof structuredPayload.summary === "string" ? structuredPayload.summary : undefined}
+            nextSteps={Array.isArray(structuredPayload.nextSteps) ? structuredPayload.nextSteps : undefined}
+          />
         </div>
       ) : null}
       {m.role === "assistant" && (m.citations?.length || 0) > 0 && (
