@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Menu, MoreHorizontal, PlusCircle } from "lucide-react";
+import { Check, ChevronDown, Menu, MoreHorizontal } from "lucide-react";
 import { useMobileUiStore } from "@/lib/state/mobileUiStore";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createNewThreadId } from "@/lib/chatThreads";
 import { useModeController } from "@/hooks/useModeController";
 import WwwGlobeIcon from "@/components/icons/WwwGlobe";
+import { IconNewChat } from "@/components/icons";
 
 export default function MobileHeader() {
   const openSidebar = useMobileUiStore(state => state.openSidebar);
@@ -189,7 +190,7 @@ export default function MobileHeader() {
           className="mobile-icon-btn"
           onClick={handleNewChat}
         >
-          <PlusCircle className="h-5 w-5" />
+          <IconNewChat className="h-5 w-5" size={20} />
         </button>
         <button
           type="button"
