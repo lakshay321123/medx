@@ -1,6 +1,9 @@
 import type { RulesOut } from "./rules";
 import { redflagChecks } from "./rules/redflags"; // local red-flag checks
 
+export { computeTrendStats, describeTrend } from "./trends";
+export type { TrendPoint, TrendStats } from "./trends";
+
 export function buildPersonalPlan(
   r: RulesOut,
   mem: any,

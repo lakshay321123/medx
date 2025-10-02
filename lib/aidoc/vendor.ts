@@ -9,6 +9,62 @@ export const AiDocJsonSchema = {
       reply: { type: "string" },
       reply_patient: { type: "string" },
       reply_doctor: { type: "string" },
+      kind: { type: "string", enum: ["chat", "reports"] },
+      intent: {
+        type: "string",
+        enum: [
+          "pull_reports",
+          "compare_metric",
+          "compare_reports",
+          "health_summary",
+          "interpret_report",
+        ],
+      },
+      patient: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          name: { type: "string" },
+          age: { anyOf: [{ type: "number" }, { type: "null" }] },
+          sex: { type: "string" },
+          predispositions: { type: "array", items: { type: "string" } },
+          medications: { type: "array", items: { type: "string" } },
+          symptoms: { type: "array", items: { type: "string" } },
+        },
+      },
+      reports: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            date: { type: "string" },
+            summary: { type: "string" },
+            labs: {
+              type: "array",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  name: { type: "string" },
+                  value: { anyOf: [{ type: "number" }, { type: "string" }] },
+                  unit: { type: "string" },
+                  marker: { type: "string" },
+                  ideal: { type: "string" },
+                },
+                required: ["name"],
+              },
+            },
+          },
+          required: ["date", "summary", "labs"],
+        },
+      },
+      comparisons: {
+        type: "object",
+        additionalProperties: { type: "string" },
+      },
+      summary: { type: "string" },
+      nextSteps: { type: "array", items: { type: "string" } },
       observations: {
         type: "object",
         additionalProperties: false,
@@ -142,6 +198,13 @@ export async function callOpenAIJson({ system, user, instruction, metadata }: Ca
   console.error("callOpenAIJson error", lastErr);
   return {
     reply: "Thanks — I’ll personalize advice using your history. What symptoms are you having today?",
+    kind: "chat",
+    intent: "health_summary",
+    patient: null,
+    reports: [],
+    comparisons: {},
+    summary: "",
+    nextSteps: [],
     save: { medications: [], conditions: [], labs: [], notes: [], prefs: [] },
     observations: {
       short: "Let’s gather a bit more info and plan next steps. No stale labs will be quoted.",
