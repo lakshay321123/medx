@@ -140,48 +140,71 @@ export async function POST(req: NextRequest) {
   if (intent.kind !== "none") {
     if (!userId) return NextResponse.json({ role:"assistant", content: "Please sign in to view your reports." });
     try {
-      const { points = [] } = await fetchLabSummary(supabaseAdmin(), { userId, limit: 365 });
-      // group → dedupe per (document,test) then per-day, last write wins
-      const byDate: Record<string, any[]> = {};
-      for (const p of points) {
-        const date = (p.taken_at || p.observed_at || p.takenAt || "").slice(0,10);
-        if (!date) continue;
-        (byDate[date] = byDate[date] || []).push(p);
-      }
-      const snapshotByDate: Record<string, Hi[]> = {};
-      for (const [date, rows] of Object.entries(byDate)) {
-        const seen = new Set<string>();
-        // first cut: dedupe same test within same document/bundle
-        const filtered = rows.filter((r:any)=>{
-          const k = `${r.document_id||r.doc_id||"x"}:${r.test_code||r.test_name||r.name||"?"}`;
-          if (seen.has(k)) return false; seen.add(k); return true;
-        });
-        // second cut: keep latest per canonical test within the day
-        const per: Record<string, {h:Hi; ts:number}> = {};
-        for (const r of filtered) {
-          const nm = canonName(r.test_name || r.name || r.kind || "");
-          const val = typeof r.value_num==="number" ? r.value_num : (r.value ?? null);
-          const unit = r.unit ?? null;
-          const lo = r.ref_low ?? r.refLow ?? null;
-          const hi = r.ref_high ?? r.refHigh ?? null;
-          const pol: "lower"|"higher"|"neutral" =
-            /ldl|tc|triglyceride|tg|alt|ast|alp|crp|esr/i.test(nm) ? "lower" :
-            /hdl/i.test(nm) ? "higher" : "neutral";
-          const st = (lo!=null || hi!=null) ? statusFor(typeof val==="number"? val : null, lo, hi, pol) : "unknown";
-          const ts = new Date(r.observed_at || r.taken_at || r.takenAt || date).getTime();
-          if (!per[nm] || ts >= per[nm].ts) per[nm] = { h: { name:nm, value: val as any, unit, status: st }, ts };
+      const sb = supabaseAdmin();
+      const summary = await fetchLabSummary(sb, { userId, limit: 365 });
+
+      const trend = Array.isArray(summary?.trend) ? summary.trend : [];
+
+      const snapshotMaps: Record<string, Map<string, Hi>> = {};
+      const canonicalFromTrend = (code: string | null | undefined, name: string | null | undefined) => {
+        const key = (code ?? "").toUpperCase();
+        const CANON_MAP: Record<string, string> = {
+          "LDL-C": "LDL",
+          "HDL-C": "HDL",
+          "TG": "Triglycerides",
+          "TC": "Total Cholesterol",
+          "HBA1C": "HbA1c",
+          "FBG": "Fasting Glucose",
+          "ALT (SGPT)": "ALT (SGPT)",
+          "AST (SGOT)": "AST (SGOT)",
+        };
+        if (CANON_MAP[key]) return CANON_MAP[key];
+        return canonName(name || code || "");
+      };
+
+      for (const item of trend) {
+        const canon = canonicalFromTrend(item?.test_code, item?.test_name);
+        const series = Array.isArray(item?.series) ? item.series : [];
+        for (const point of series.slice().reverse()) {
+          const date = (point?.sample_date ?? "").slice(0, 10);
+          if (!date) continue;
+          const highlight: Hi = {
+            name: canon,
+            value: typeof point?.value === "number" ? point.value : point?.value ?? null,
+            unit: point?.unit ?? null,
+            status: "unknown",
+          };
+          const bucket = snapshotMaps[date] ?? new Map<string, Hi>();
+          bucket.set(canon, highlight);
+          snapshotMaps[date] = bucket;
         }
-        snapshotByDate[date] = Object.values(per).map(x=>x.h);
+      }
+
+      const snapshotByDate: Record<string, Hi[]> = {};
+      for (const [date, map] of Object.entries(snapshotMaps)) {
+        snapshotByDate[date] = Array.from(map.values());
       }
 
       if (intent.kind === "compare_metric") {
         const metric = intent.metric;
+        const match = trend.find(item => canonicalFromTrend(item?.test_code, item?.test_name) === metric);
         const series: Array<{date:string; value:number|null; unit:string|null; status:string}> = [];
-        Object.entries(snapshotByDate).forEach(([d, highs])=>{
-          const h = highs.find(x => canonName(x.name) === metric);
-          if (h) series.push({ date:d, value: (typeof h.value==="number"? h.value : null) as any, unit: h.unit, status: h.status });
-        });
-        series.sort((a,b)=> a.date.localeCompare(b.date));
+        if (match?.series) {
+          for (const point of match.series.slice().sort((a, b) => {
+            const aDate = (a?.sample_date ?? "");
+            const bDate = (b?.sample_date ?? "");
+            return aDate.localeCompare(bDate);
+          })) {
+            const date = (point?.sample_date ?? "").slice(0, 10);
+            if (!date) continue;
+            series.push({
+              date,
+              value: typeof point?.value === "number" ? point.value : point?.value ?? null,
+              unit: point?.unit ?? null,
+              status: "unknown",
+            });
+          }
+        }
         const md = asMarkdownMetric(metric, series);
         return NextResponse.json({ role: "assistant", content: md });
       }
