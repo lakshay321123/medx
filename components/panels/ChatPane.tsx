@@ -2325,7 +2325,12 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         setThinkingStartedAt(null);
         return;
       }
-        console.log('[latency] Tfb(ms)=', since('send'));
+        {
+          const tfb = since('send');
+          if (!Number.isNaN(tfb)) {
+            console.log('[latency] Tfb(ms)=', tfb);
+          }
+        }
         if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -2350,7 +2355,14 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
                 }
                 if (!loggedFirstToken) {
                   loggedFirstToken = true;
-                  console.log('[latency] Tft(ms)=', since('send'));
+                  try {
+                    const tft = since('send', { clearBase: true });
+                    if (!Number.isNaN(tft)) {
+                      console.log('[latency] Tft(ms)=', tft);
+                    }
+                  } catch {
+                    // ignore timing failures; keep streaming
+                  }
                 }
                 enqueuePendingAssistant(pendingId, delta);
                 if (!CHAT_UX_V2_ENABLED) {
@@ -2674,7 +2686,12 @@ ${systemCommon}` + baseSys;
         setThinkingStartedAt(null);
         return;
       }
-      console.log('[latency] Tfb(ms)=', since('send'));
+      {
+        const tfb = since('send');
+        if (!Number.isNaN(tfb)) {
+          console.log('[latency] Tfb(ms)=', tfb);
+        }
+      }
       if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
 
       const reader = res.body.getReader();
@@ -2702,7 +2719,14 @@ ${systemCommon}` + baseSys;
               }
               if (!loggedFirstToken) {
                 loggedFirstToken = true;
-                console.log('[latency] Tft(ms)=', since('send'));
+                try {
+                  const tft = since('send', { clearBase: true });
+                  if (!Number.isNaN(tft)) {
+                    console.log('[latency] Tft(ms)=', tft);
+                  }
+                } catch {
+                  // ignore timing failures; keep streaming
+                }
               }
               enqueuePendingAssistant(pendingId, delta);
               if (!CHAT_UX_V2_ENABLED) {
