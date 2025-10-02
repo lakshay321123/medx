@@ -34,6 +34,14 @@ const CATEGORY_PRIORITY: DetectedIntent[] = [
   "tips",
 ];
 
+// Cues that imply quantitative comparison or trend
+const COMPARE_CUES =
+  /\b(compare|trend|over\s*time|since\s+last|versus|vs|trajectory|pattern|history|delta|change|changes|increasing|decreasing|improving|worsening)\b/;
+
+// Cues that imply explanation or guidance rather than comparison
+const GUIDANCE_CUES =
+  /\b(what\s+does|meaning|explain|how\s+can\s+i\s+lower|how\s+to\s+lower|improve|diet|tips|reduce|control|manage)\b/;
+
 // ---------- utils ----------
 function normalize(s: string): string {
   return s
@@ -176,14 +184,22 @@ export function detectIntentAndEntities(query: string): DetectResult {
   const compareWindow = extractCompareWindow(dates);
 
   // Heuristics
-  if (metricEnt.metric && winner.cat !== "pull_reports") {
-    winner = { cat: "compare_metric", score: Math.max(winner.score, 0.6) };
+  const hasMetric = !!metricEnt.metric;
+  const hasCompareCue = COMPARE_CUES.test(qNorm);
+  const hasGuidanceCue = GUIDANCE_CUES.test(qNorm);
+
+  if (hasMetric && hasCompareCue && winner.cat !== "pull_reports") {
+    winner = { cat: "compare_metric", score: Math.max(winner.score, 0.7) };
   }
   if (/\bcompare\b|\bvs\b|\bversus\b/.test(qNorm) && compareWindow) {
-    winner = { cat: "compare_reports", score: Math.max(winner.score, 0.7) };
+    winner = { cat: "compare_reports", score: Math.max(winner.score, 0.75) };
   }
   if (/^how is my health\b|overall health summary|holistic|health overview/.test(qNorm)) {
     winner = { cat: "health_summary", score: Math.max(winner.score, 0.65) };
+  }
+  // If it's clearly guidance/explanation about a metric, lightly bias to health_summary.
+  if (hasMetric && hasGuidanceCue && winner.cat !== "compare_reports") {
+    winner = { cat: "health_summary", score: Math.max(winner.score, 0.55) };
   }
   if (/\bx[-\s]?ray\b|\bmri\b|\bct\b|\busg\b|\bultrasound\b|\becho(cardio)?\b|\bbiopsy\b|\bcolonoscopy\b/.test(qNorm)) {
     winner = { cat: "interpret_report", score: Math.max(winner.score, 0.7) };

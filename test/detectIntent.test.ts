@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { detectIntentAndEntities } from "../lib/aidoc/detectIntent";
+import { detectIntentAndEntities } from "@/lib/aidoc/detectIntent";
 
 describe("detectIntent", () => {
   it("pulls reports", () => {
@@ -27,5 +27,30 @@ describe("detectIntent", () => {
   it("interpret imaging", () => {
     const r = detectIntentAndEntities("explain my knee x-ray");
     expect(r.intent).toBe("interpret_report");
+  });
+});
+
+describe("intent upgrade rules", () => {
+  it("COMPARE: 'compare LDL over time' → compare_metric", () => {
+    const r = detectIntentAndEntities("compare LDL over time");
+    expect(r.intent).toBe("compare_metric");
+    expect(r.entities.metric).toBe("LDL");
+  });
+
+  it("GUIDANCE: 'what does high LDL mean?' → not compare_metric", () => {
+    const r = detectIntentAndEntities("what does high LDL mean?");
+    expect(r.intent).not.toBe("compare_metric");
+  });
+
+  it("GUIDANCE: 'how can I lower my HbA1c' → not compare_metric", () => {
+    const r = detectIntentAndEntities("how can I lower my HbA1c?");
+    expect(r.intent).not.toBe("compare_metric");
+    expect(r.entities.metric).toBe("HbA1c");
+  });
+
+  it("DATE DIFF: 'compare 2025-05-01 vs 2025-10-01' → compare_reports", () => {
+    const r = detectIntentAndEntities("compare 2025-05-01 vs 2025-10-01");
+    expect(r.intent).toBe("compare_reports");
+    expect(r.entities.compareWindow).toBeTruthy();
   });
 });
