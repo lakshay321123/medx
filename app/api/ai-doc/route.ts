@@ -103,10 +103,13 @@ export async function POST(req: NextRequest) {
   const message = typeof body?.message === "string" ? body.message.trim() : "";
   if (!message) return NextResponse.json({ error: "no message" }, { status: 400 });
 
-  const detection = detectIntentAndEntities(message);
-  const intentCategory = detection.intent;
+  const userText = String(message || "");
+  const { intent, confidence, entities } = detectIntentAndEntities(userText);
 
-  switch (intentCategory) {
+  // optional: log confidence for telemetry
+  // console.log("AIDOC_INTENT", intent, confidence, entities);
+
+  switch (intent) {
     case "pull_reports":
       // return reports[]
       break;
@@ -132,8 +135,8 @@ export async function POST(req: NextRequest) {
       break;
   }
 
-  const intent =
-    mapIntentCategoryToIntent(intentCategory) ?? detectAidocIntent(message) ?? AiDocIntent.HealthSummary;
+  const mappedIntent =
+    mapIntentCategoryToIntent(intent) ?? detectAidocIntent(userText) ?? AiDocIntent.HealthSummary;
   const bundle = await loadPatientBundle(userId);
 
   const structured = buildStructuredAidocResponse({
@@ -143,7 +146,7 @@ export async function POST(req: NextRequest) {
     medications: bundle.medications,
     conditions: bundle.conditions,
     message,
-    intent,
+    intent: mappedIntent,
   });
 
   return NextResponse.json({

@@ -1,21 +1,6 @@
 // lib/aidoc/detectIntent.ts
-// Zero-dependency, fast intent + entity detection for AiDoc.
-// Works with the huge taxonomy in lib/aidoc/intents.ts.
-// Exposes: detectIntent(query), detectIntentAndEntities(query)
-//
-// Entities we extract today (lightweight):
-//  - metric (LDL, HbA1c, ALT, etc., with aliases)
-//  - date mentions (YYYY-MM-DD, DD/MM/YYYY, "May 2025", etc.)
-//  - compare windows (two dates -> for compare_reports)
-//
-// Internals:
-//  - Normalization (lowercase, ascii-ish, whitespace collapse)
-//  - Token overlap scoring (Jaccard) against category phrases
-//  - Fast substring pass first; overlap scoring as fallback
-//  - Category prioritization so obvious buckets win
-//
-// You can swap this later for embeddings or a vector index
-// without changing your route handler’s call-site.
+// Fast, zero-dep intent + light entity detection for AiDoc.
+// Pairs with the giant taxonomy in lib/aidoc/intents.ts.
 
 import { AiDocPrompts, AiDocIntentCategory } from "@/lib/aidoc/intents";
 
@@ -30,11 +15,11 @@ export type DetectedEntities = {
 
 export type DetectResult = {
   intent: DetectedIntent;
-  confidence: number;
+  confidence: number; // 0..1 heuristic
   entities: DetectedEntities;
 };
 
-// ---- Category priority (highest wins on ties) ----
+// Category priority (higher wins on ties)
 const CATEGORY_PRIORITY: DetectedIntent[] = [
   "compare_reports",
   "compare_metric",
@@ -49,7 +34,7 @@ const CATEGORY_PRIORITY: DetectedIntent[] = [
   "tips",
 ];
 
-// ---- Normalization helpers ----
+// ---------- utils ----------
 function normalize(s: string): string {
   return s
     .toLowerCase()
@@ -72,7 +57,7 @@ function jaccard(a: string[], b: string[]): number {
   return uni ? inter / uni : 0;
 }
 
-// ---- Metric aliases ----
+// ---------- metric aliases ----------
 const METRIC_ALIASES: Record<string, string[]> = {
   LDL: ["ldl", "bad cholesterol", "low density lipoprotein"],
   HDL: ["hdl", "good cholesterol", "high density lipoprotein"],
@@ -103,59 +88,55 @@ const METRIC_ALIASES: Record<string, string[]> = {
 const ALIAS_TO_METRIC: Record<string, { canonical: string; alias: string }> = (() => {
   const map: Record<string, { canonical: string; alias: string }> = {};
   for (const [canonical, aliases] of Object.entries(METRIC_ALIASES)) {
-    for (const a of aliases) {
-      map[normalize(a)] = { canonical, alias: a };
-    }
+    for (const a of aliases) map[normalize(a)] = { canonical, alias: a };
   }
   return map;
 })();
 
-// ---- Date detection (simple but covers common forms) ----
+// ---------- date detection ----------
 const DATE_REGEX =
   /\b(?:\d{4}[\/-]\d{1,2}(?:[\/-]\d{1,2})?|\d{1,2}[\/-]\d{1,2}[\/-]\d{4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december)\s+\d{4})\b/gi;
 
 function extractDates(q: string): string[] {
-  const raw = q.match(DATE_REGEX) || [];
-  return raw.map(s => s.trim());
+  return (q.match(DATE_REGEX) || []).map(s => s.trim());
 }
 
 function extractCompareWindow(dates: string[]): { a: string; b: string } | null {
-  if (dates.length >= 2) return { a: dates[0], b: dates[1] };
-  return null;
+  return dates.length >= 2 ? { a: dates[0], b: dates[1] } : null;
 }
 
 function extractMetric(q: string): { metric?: string; metricAlias?: string } {
   const nq = normalize(q);
   for (const key of Object.keys(ALIAS_TO_METRIC)) {
-    if (nq.includes(key)) {
-      const { canonical, alias } = ALIAS_TO_METRIC[key];
-      return { metric: canonical, metricAlias: alias };
-    }
+    if (nq.includes(key)) return ALIAS_TO_METRIC[key];
   }
+  const qTokens = tokens(q);
   for (const [canonical, aliases] of Object.entries(METRIC_ALIASES)) {
     const names = [canonical, ...aliases].map(normalize);
-    const qTokens = tokens(q);
     if (qTokens.some(t => names.includes(t))) {
-      return { metric: canonical, metricAlias: canonical };
+      return { canonical, alias: canonical } as any;
     }
   }
   return {};
 }
 
-// ---- Build a quick index for fast substring checks ----
+// ---------- index ----------
 type IndexRow = { phrase: string; cat: DetectedIntent; toks: string[] };
 const INDEX: IndexRow[] = (() => {
   const rows: IndexRow[] = [];
   for (const [cat, phrases] of Object.entries(AiDocPrompts)) {
-    for (const p of phrases) {
-      const phrase = normalize(p);
-      rows.push({ phrase, cat: cat as DetectedIntent, toks: tokens(phrase) });
-    }
+    for (const p of phrases) rows.push({ phrase: normalize(p), cat: cat as DetectedIntent, toks: tokens(p) });
   }
   return rows;
 })();
 
-// ---- Core detection ----
+// ---------- detector ----------
+function tieBreak(a: DetectedIntent, b: DetectedIntent): boolean {
+  const pa = CATEGORY_PRIORITY.indexOf(a);
+  const pb = CATEGORY_PRIORITY.indexOf(b);
+  return pa >= 0 && pb >= 0 ? pa < pb : true;
+}
+
 export function detectIntent(query: string): DetectedIntent {
   return detectIntentAndEntities(query).intent;
 }
@@ -164,10 +145,10 @@ export function detectIntentAndEntities(query: string): DetectResult {
   const qNorm = normalize(query);
   const qToks = tokens(qNorm);
 
+  // 1) fast substring pass
   let best: { cat: DetectedIntent; score: number } | null = null;
   for (const row of INDEX) {
-    if (!row.phrase) continue;
-    if (qNorm.includes(row.phrase)) {
+    if (row.phrase && qNorm.includes(row.phrase)) {
       const score = Math.min(1, row.phrase.length / Math.max(8, qNorm.length));
       if (!best || score > best.score || (score === best.score && tieBreak(row.cat, best.cat))) {
         best = { cat: row.cat, score };
@@ -175,6 +156,7 @@ export function detectIntentAndEntities(query: string): DetectResult {
     }
   }
 
+  // 2) token overlap fallback
   let bestOverlap: { cat: DetectedIntent; score: number } | null = null;
   for (const row of INDEX) {
     const s = jaccard(qToks, row.toks);
@@ -183,14 +165,15 @@ export function detectIntentAndEntities(query: string): DetectResult {
     }
   }
 
-  let winner: { cat: DetectedIntent; score: number } =
-    best && best.score >= 0.2 ? best : (bestOverlap as any) || { cat: "pull_reports", score: 0.15 };
+  let winner = best && best.score >= 0.2 ? best : (bestOverlap as any) || { cat: "pull_reports", score: 0.15 };
 
+  // Entities
   const metricEnt = extractMetric(query);
   const dates = extractDates(query);
   const compareWindow = extractCompareWindow(dates);
 
-  if (metricEnt.metric && winner.cat !== "pull_reports") {
+  // Heuristics
+  if (metricEnt.canonical && winner.cat !== "pull_reports") {
     winner = { cat: "compare_metric", score: Math.max(winner.score, 0.6) };
   }
   if (/\bcompare\b|\bvs\b|\bversus\b/.test(qNorm) && compareWindow) {
@@ -207,16 +190,10 @@ export function detectIntentAndEntities(query: string): DetectResult {
     intent: winner.cat,
     confidence: Math.max(0, Math.min(1, winner.score)),
     entities: {
-      metric: metricEnt.metric || null,
-      metricAlias: metricEnt.metricAlias || null,
+      metric: (metricEnt as any)?.canonical || null,
+      metricAlias: (metricEnt as any)?.alias || null,
       dates,
       compareWindow: compareWindow || null,
     },
   };
-}
-
-function tieBreak(a: DetectedIntent, b: DetectedIntent): boolean {
-  const pa = CATEGORY_PRIORITY.indexOf(a);
-  const pb = CATEGORY_PRIORITY.indexOf(b);
-  return pa >= 0 && pb >= 0 ? pa < pb : true;
 }
