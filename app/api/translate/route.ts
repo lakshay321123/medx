@@ -68,7 +68,7 @@ async function translateOne(text: string, lang: string, order: Array<'google'|'o
 
 async function translateGoogle(text: string, lang: string): Promise<string> {
   const key = process.env.GOOGLE_TRANSLATE_API_KEY;
-  if (!key) throw new Error('GOOGLE_TRANSLATE_API_KEY missing');
+  if (!key) return `[${lang}] ${text}`;
 
   const url = `https://translation.googleapis.com/language/translate/v2?key=${key}`;
   const res = await fetch(url, {
@@ -85,30 +85,34 @@ async function translateGoogle(text: string, lang: string): Promise<string> {
 
 async function translateOpenAI(text: string, lang: string): Promise<string> {
   const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error('OPENAI_API_KEY missing');
+  if (!key) return `[${lang}] ${text}`;
 
   // Hard lock to GPT-5
   const model = 'gpt-5';
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${key}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: 'Translate the user text. Only output the translated text.' },
-        { role: 'user', content: `Translate to ${lang}: ${text}` }
-      ]
-    })
-  });
-  if (!res.ok) throw new Error(`OpenAI MT HTTP ${res.status}`);
-  const data = await res.json().catch(() => ({}));
-  const translated = data?.choices?.[0]?.message?.content?.trim();
-  if (!translated) throw new Error('OpenAI MT empty');
-  return translated;
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: 'Translate the user text. Only output the translated text.' },
+          { role: 'user', content: `Translate to ${lang}: ${text}` }
+        ]
+      })
+    });
+    if (!res.ok) throw new Error(`OpenAI MT HTTP ${res.status}`);
+    const data = await res.json().catch(() => ({}));
+    const translated = data?.choices?.[0]?.message?.content?.trim();
+    if (!translated) throw new Error('OpenAI MT empty');
+    return translated;
+  } catch {
+    return `[${lang}] ${text}`;
+  }
 }
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
