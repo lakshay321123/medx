@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { profileChatSystem } from '@/lib/profileChatSystem';
 import { languageDirectiveFor, personaFromPrefs, SYSTEM_DEFAULT_LANG } from '@/lib/prompt/system';
 import { extractAll, canonicalizeInputs } from '@/lib/medical/engine/extract';
@@ -8,6 +8,7 @@ import { computeAll } from '@/lib/medical/engine/computeAll';
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
 import { RESEARCH_BRIEF_STYLE } from '@/lib/styles';
+import { maybeHandleAidocSnapshot } from "@/lib/aidoc/snapshot";
 
 // --- tiny helper: keep only the last N non-system turns (cheap token control)
 function takeRecentTurns(
@@ -46,7 +47,7 @@ function filterComputedForDocMode(items: any[], latestUser: string) {
       return /(curb-?65|news2|qsofa|sirs)/i.test(lbl);
     });
 }
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 const recentReqs = new Map<string, number>();
  
@@ -124,6 +125,23 @@ export async function POST(req: NextRequest) {
   const modelOptions = (research && !long)
     ? { temperature: 0.2, top_p: 0.9, max_tokens: 250, response_format: { type: 'json_object' } }
     : { temperature: 0.7, max_tokens: 900 };
+
+  const fallbackLatest = typeof latestUser?.content === 'string' ? latestUser.content : '';
+  const message = String(body?.message ?? body?.text ?? body?.question ?? fallbackLatest ?? '');
+  const threadType = String(body?.threadType ?? body?.thread?.type ?? '');
+  const threadId = String(body?.threadId ?? body?.thread?.id ?? '');
+
+  if (/\bAIDOC_TEST\b/i.test(message)) {
+    return NextResponse.json({ role: 'assistant', content: '✅ AIDOC route hit (diagnostic).' });
+  }
+
+  const snapshot = await maybeHandleAidocSnapshot(req, {
+    message,
+    threadType,
+    threadId,
+    mode: typeof mode === 'string' ? mode : null,
+  });
+  if (snapshot) return snapshot;
 
   const messages = history.length ? history : [latestUser];
   const showClinicalPrelude = mode === 'doctor' || mode === 'research';

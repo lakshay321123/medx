@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 type TrendDirection = "improving" | "worsening" | "flat" | "unknown";
 type DirectionRule = "lower" | "higher" | "neutral";
@@ -17,6 +18,34 @@ export type ObservationRow = {
   observed_at: string | null;
   thread_id: string | null;
   report_id: string | null;
+  // optional fields that may exist on certain lab records
+  id?: string | null;
+  name?: string | null;
+  test_code?: string | null;
+  test_name?: string | null;
+  value?: number | string | null;
+  value_text?: string | null;
+  valueNum?: number | null;
+  valueText?: string | null;
+  unit_text?: string | null;
+  unitText?: string | null;
+  ref_low?: number | null;
+  ref_high?: number | null;
+  refLow?: number | null;
+  refHigh?: number | null;
+  normal_low?: number | null;
+  normal_high?: number | null;
+  normalLow?: number | null;
+  normalHigh?: number | null;
+  doc_id?: string | null;
+  document_id?: string | null;
+  documentId?: string | null;
+  taken_at?: string | null;
+  takenAt?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  payload?: unknown;
+  [key: string]: unknown;
 };
 
 type NormalizedPoint = {
@@ -46,6 +75,7 @@ export type LabTrend = {
 
 export type LabSummaryResult = {
   trend: LabTrend[];
+  points: ObservationRow[];
   meta: { source: "observations"; points: number; total_reports: number };
 };
 
@@ -296,19 +326,36 @@ export function summarizeLabObservations(
 }
 
 export async function fetchLabSummary(
+  options: LabSummaryOptions,
+): Promise<LabSummaryResult>;
+
+export async function fetchLabSummary(
   client: SupabaseClient,
   options: LabSummaryOptions,
+): Promise<LabSummaryResult>;
+
+export async function fetchLabSummary(
+  clientOrOptions: SupabaseClient | LabSummaryOptions,
+  maybeOptions?: LabSummaryOptions,
 ): Promise<LabSummaryResult> {
+  const hasClient =
+    typeof (clientOrOptions as SupabaseClient | undefined)?.from === "function";
+  if (hasClient && !maybeOptions) {
+    throw new Error("Lab summary options are required when providing a Supabase client.");
+  }
+  const options = hasClient ? (maybeOptions as LabSummaryOptions) : (clientOrOptions as LabSummaryOptions);
+  const client = hasClient ? (clientOrOptions as SupabaseClient) : supabaseAdmin();
+
   const resolvedTests = resolveTestCodes(options.tests ?? undefined);
   if (resolvedTests && resolvedTests.length === 0) {
-    return { trend: [], meta: { source: "observations", points: 0, total_reports: 0 } };
+    return { trend: [], points: [], meta: { source: "observations", points: 0, total_reports: 0 } };
   }
 
   const limit = options.limit ?? 5000;
 
   let query = client
     .from("observations")
-    .select("kind,value_num,unit,observed_at,thread_id,report_id")
+    .select("*")
     .eq("user_id", options.userId)
     .not("value_num", "is", null)
     .order("observed_at", { ascending: false });
@@ -323,8 +370,12 @@ export async function fetchLabSummary(
   }
 
   const rows = (data ?? []) as ObservationRow[];
-  const { trend, points } = buildTrendFromRows(rows, { ...options, tests: resolvedTests }, resolvedTests);
+  const { trend, points: pointCount } = buildTrendFromRows(rows, { ...options, tests: resolvedTests }, resolvedTests);
   const totalReports = countTotalReports(rows);
 
-  return { trend, meta: { source: "observations", points, total_reports: totalReports } };
+  return {
+    trend,
+    points: rows,
+    meta: { source: "observations", points: pointCount, total_reports: totalReports },
+  };
 }

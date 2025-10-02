@@ -5,12 +5,32 @@ import { POST as streamPOST } from "../../chat/stream/route";
 import { getUserId } from "@/lib/getUserId";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchLabSummary } from "@/lib/labs/summary";
+import { maybeHandleAidocSnapshot } from "@/lib/aidoc/snapshot";
 
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({} as any));
   const message = (body?.message ?? body?.text ?? "").toString();
+  const threadType = String(body?.threadType ?? body?.thread?.type ?? "aidoc");
+  const threadId = typeof body?.threadId === "string"
+    ? body.threadId
+    : typeof body?.thread?.id === "string"
+    ? body.thread.id
+    : null;
+
+  if (/\bAIDOC_TEST\b/i.test(message)) {
+    return NextResponse.json({ role: "assistant", content: "✅ AIDOC route hit (diagnostic)." });
+  }
+
+  const snapshot = await maybeHandleAidocSnapshot(req, {
+    message,
+    threadType,
+    threadId,
+    mode: "aidoc",
+  });
+  if (snapshot) return snapshot;
+
   const answers = (body?.answers && typeof body.answers === "object") ? body.answers : null;
   const incomingProfile = (body?.profile && typeof body.profile === "object") ? body.profile : null;
   const messages: Array<{ role: string; content: string }> = Array.isArray(body?.messages)
@@ -50,7 +70,8 @@ export async function POST(req: NextRequest) {
         : { data: null };
       try {
         const summary = await fetchLabSummary(sb, { userId, limit: 1000 });
-        labsPacket = summary;
+        const { points: _points, ...restSummary } = summary;
+        labsPacket = restSummary;
       } catch {}
       const obs = obsResponse.data;
       const dob = prof?.dob ? new Date(prof.dob) : null;
