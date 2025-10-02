@@ -5,8 +5,10 @@ import {
   detectLabSnapshotIntent,
   formatLabIntentResponse,
   isLabSnapshotEnabled,
+  isLabSnapshotHardMode,
   type LabSnapshotIntent,
 } from "@/lib/aidoc/labsSnapshot";
+import { normalizeAidocThreadType } from "@/lib/aidoc/threadType";
 import { POST as streamPOST } from "../../chat/stream/route";
 import { getUserId } from "@/lib/getUserId";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -17,6 +19,17 @@ export const runtime = 'nodejs';
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({} as any));
   const message = (body?.message ?? body?.text ?? "").toString();
+  const threadTypeHint = body?.threadType;
+  const threadId = typeof body?.threadId === "string" ? body.threadId : null;
+
+  const earlyIntercept = await maybeHandleAidocLabIntent({
+    req,
+    message,
+    threadTypeHint,
+    threadId,
+  });
+  if (earlyIntercept) return earlyIntercept;
+
   const answers = (body?.answers && typeof body.answers === "object") ? body.answers : null;
   const incomingProfile = (body?.profile && typeof body.profile === "object") ? body.profile : null;
   const messages: Array<{ role: string; content: string }> = Array.isArray(body?.messages)
@@ -214,6 +227,53 @@ export async function POST(req: NextRequest) {
 
   // existing streaming setup continues here
   return streamPOST(forwardReq);
+}
+
+async function maybeHandleAidocLabIntent(params: {
+  req: NextRequest;
+  message: string;
+  threadTypeHint: unknown;
+  threadId: string | null;
+}): Promise<NextResponse | null> {
+  if (!isLabSnapshotEnabled()) return null;
+  const text = typeof params.message === "string" ? params.message.trim() : "";
+  if (!text) return null;
+
+  const intent = detectLabSnapshotIntent(text);
+  if (!intent) return null;
+
+  const normalizedThreadType = normalizeAidocThreadType(params.threadTypeHint) ?? "aidoc";
+  const allowHard = isLabSnapshotHardMode() && !normalizedThreadType;
+  if (normalizedThreadType !== "aidoc" && !allowHard) {
+    return null;
+  }
+
+  const intentLabel = intent.kind === "snapshot" ? "snapshot" : `compare:${intent.metric.label}`;
+  console.log("[aidoc-labs] intercept", {
+    flag: process.env.AIDOC_FORCE_INTERCEPT ?? "0",
+    hardFlag: process.env.AIDOC_FORCE_INTERCEPT_HARD ?? "0",
+    threadType: normalizedThreadType ?? "unknown",
+    intent: intentLabel,
+    threadId: params.threadId ?? undefined,
+  });
+
+  const userId = await getUserId(params.req);
+  if (!userId) {
+    return streamTextResponse("Please sign in to view your lab reports.");
+  }
+
+  try {
+    const summary = await fetchLabSummary(supabaseAdmin(), { userId, limit: 1000 });
+    const trend = summary?.trend ?? [];
+    const message = formatLabIntentResponse(trend, intent);
+    return streamTextResponse(message);
+  } catch (err) {
+    const fallback = formatLabIntentResponse([], intent, {
+      emptyMessage: "I couldn’t load your lab reports right now. Please try again in a bit.",
+    });
+    console.error("[aidoc-labs] intercept labs failure", err);
+    return streamTextResponse(fallback);
+  }
 }
 
 function streamTextResponse(text: string) {

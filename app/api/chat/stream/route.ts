@@ -11,6 +11,7 @@ import {
   isLabSnapshotHardMode,
   type LabSnapshotIntent,
 } from "@/lib/aidoc/labsSnapshot";
+import { normalizeAidocThreadType, resolveAidocThreadType } from "@/lib/aidoc/threadType";
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
@@ -62,10 +63,13 @@ type WebHit = { title:string; snippet?:string; url:string; source?:string };
 export async function POST(req: NextRequest) {
   const reqUrl = new URL(req.url);
   const origin = reqUrl.origin;
-  const qp = reqUrl.searchParams.get('research');
-  const long = reqUrl.searchParams.get('long') === '1';
   let body: any = {};
   try { body = await req.json(); } catch {}
+  const interceptResponse = await maybeHandleStreamLabIntent({ req, origin, body });
+  if (interceptResponse) return interceptResponse;
+
+  const qp = reqUrl.searchParams.get('research');
+  const long = reqUrl.searchParams.get('long') === '1';
   const { context, clientRequestId, mode } = body;
   const allowHistory = body?.allowHistory !== false;
   const requestedLang = typeof body?.lang === 'string' ? body.lang : undefined;
@@ -332,4 +336,90 @@ function streamTextResponse(text: string) {
       'cache-control': 'no-cache',
     },
   });
+}
+
+type StreamInterceptParams = {
+  req: NextRequest;
+  origin: string;
+  body: any;
+};
+
+async function maybeHandleStreamLabIntent({ req, origin, body }: StreamInterceptParams): Promise<Response | null> {
+  if (!isLabSnapshotEnabled()) return null;
+
+  const latestContent = extractLatestUserContent(body);
+  if (!latestContent) return null;
+
+  const intent = detectLabSnapshotIntent(latestContent);
+  if (!intent) return null;
+
+  const resolvedType = await resolveAidocThreadType({
+    explicitType: body?.threadType,
+    context: body?.context,
+    threadId: body?.threadId,
+  });
+  const allowHard = isLabSnapshotHardMode() && !resolvedType;
+  if (resolvedType !== "aidoc" && !allowHard) {
+    return null;
+  }
+
+  const intentLabel = intent.kind === "snapshot" ? "snapshot" : `compare:${intent.metric.label}`;
+  const threadTypeLabel = resolvedType ?? normalizeAidocThreadType(body?.context) ?? "unknown";
+  const threadId = typeof body?.threadId === "string" ? body.threadId : undefined;
+
+  console.log("[aidoc-labs] intercept", {
+    flag: process.env.AIDOC_FORCE_INTERCEPT ?? "0",
+    hardFlag: process.env.AIDOC_FORCE_INTERCEPT_HARD ?? "0",
+    threadType: threadTypeLabel,
+    intent: intentLabel,
+    threadId,
+  });
+
+  const cookie = req.headers.get('cookie') || '';
+  try {
+    const summaryRes = await fetch(`${origin}/api/labs/summary?mode=ai-doc`, {
+      headers: { cookie },
+      cache: 'no-store',
+    });
+    if (summaryRes.status === 401) {
+      return streamTextResponse('Please sign in to view your lab reports.');
+    }
+    if (!summaryRes.ok) {
+      throw new Error(`labs summary failed (${summaryRes.status})`);
+    }
+    const payload = await summaryRes.json().catch(() => null);
+    if (!payload?.ok || !Array.isArray(payload.trend)) {
+      throw new Error('invalid lab summary');
+    }
+    const messageText = formatLabIntentResponse(payload.trend, intent);
+    return streamTextResponse(messageText);
+  } catch (err) {
+    console.error('[aidoc-labs] intercept labs failure', err);
+    const fallback = formatLabIntentResponse([], intent, {
+      emptyMessage: "I couldn’t load your lab reports right now. Please try again in a bit.",
+    });
+    return streamTextResponse(fallback);
+  }
+}
+
+function extractLatestUserContent(body: any): string {
+  if (Array.isArray(body?.messages)) {
+    for (let i = body.messages.length - 1; i >= 0; i -= 1) {
+      const entry = body.messages[i];
+      if (entry && entry.role === 'user' && typeof entry.content === 'string') {
+        const trimmed = entry.content.trim();
+        if (trimmed) return trimmed;
+      }
+    }
+  }
+
+  const candidates = [body?.question, body?.message, body?.text, body?.input];
+  for (const value of candidates) {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed) return trimmed;
+    }
+  }
+
+  return '';
 }
