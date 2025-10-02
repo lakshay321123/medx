@@ -110,9 +110,7 @@ export function ChatWindow() {
     snapshot: AssistantRequestSnapshot | null;
   } | null>(null);
   const [modeChoice, setModeChoice] = useState<AppMode>('wellness');
-  const showWelcomeCard = messages.length === 0 && results.length === 0 && !pendingMessage;
-  const hasScrollableContent =
-    messages.length > 0 || results.length > 0 || !!pendingMessage || showWelcomeCard;
+  const hasMessages = messages.length > 0;
   const openPrefs = useUIStore((state) => state.openPrefs);
 
   const gotoAccount = useCallback(() => {
@@ -584,75 +582,78 @@ export function ChatWindow() {
     <div className="flex h-full flex-col" dir={prefs.dir}>
       <div
         ref={chatRef}
-        className={`flex-1 pt-4 md:px-0 md:pt-0 ${
-          hasScrollableContent
-            ? "overflow-y-auto mobile-chat-scroll"
-            : "overflow-hidden mobile-chat-scroll-empty"
-        } md:pb-0 md:overflow-y-auto`}
+        className={`${
+          hasMessages
+            ? "flex-1 overflow-y-auto mobile-chat-scroll"
+            : "flex-1 grid place-items-center mobile-chat-scroll-empty"
+        } md:px-0 md:pt-0 md:pb-0`}
       >
-        <div className="px-4">
-          {showWelcomeCard ? (
-            <div className="py-10">
-              <WelcomeCard />
-            </div>
-          ) : null}
-          {messages.map(m => {
-            if (m.role === "assistant" && m.error) {
-              return (
-                <div key={m.id} className="my-2 flex justify-start">
-                  <ChatErrorBubble onRetry={() => retryTurn(m)} />
+        {hasMessages ? (
+          <div className="flex min-h-full flex-col justify-end">
+            <div className="px-4 pt-4 pb-4 md:px-0 md:pt-0">
+              {messages.map(m => {
+                if (m.role === "assistant" && m.error) {
+                  return (
+                    <div key={m.id} className="my-2 flex justify-start">
+                      <ChatErrorBubble onRetry={() => retryTurn(m)} />
+                    </div>
+                  );
+                }
+                return (
+                  <div key={m.id} className="space-y-2">
+                    <MessageRow m={m} />
+                  </div>
+                );
+              })}
+              {pendingMessage ? (
+                <div className="space-y-2">
+                  {pendingAssistantState && pendingAssistantState.id === pendingMessage.id ? (
+                    <AssistantPendingMessage
+                      stage={pendingAssistantState.stage}
+                      analyzingPhrase={pendingAssistantState.analyzingPhrase}
+                      thinkingLabel={pendingAssistantState.thinkingLabel}
+                      content={pendingMessage.content}
+                    />
+                  ) : (
+                    <AssistantPendingMessage
+                      stage={modeChoice === "therapy" ? "reflecting" : "thinking"}
+                      analyzingPhrase={null}
+                      thinkingLabel={modeChoice === "therapy" ? "Reflecting…" : undefined}
+                      content={pendingMessage.content}
+                    />
+                  )}
                 </div>
-              );
-            }
-            return (
-              <div key={m.id} className="space-y-2">
-                <MessageRow m={m} />
-              </div>
-            );
-          })}
-          {pendingMessage ? (
-            <div className="space-y-2">
-              {pendingAssistantState && pendingAssistantState.id === pendingMessage.id ? (
-                <AssistantPendingMessage
-                  stage={pendingAssistantState.stage}
-                  analyzingPhrase={pendingAssistantState.analyzingPhrase}
-                  thinkingLabel={pendingAssistantState.thinkingLabel}
-                  content={pendingMessage.content}
-                />
-              ) : (
-                <AssistantPendingMessage
-                  stage={modeChoice === "therapy" ? "reflecting" : "thinking"}
-                  analyzingPhrase={null}
-                  thinkingLabel={modeChoice === "therapy" ? "Reflecting…" : undefined}
-                  content={pendingMessage.content}
-                />
+              ) : null}
+              {results.length > 0 && (
+                <div className="p-2 space-y-2">
+                  {results.map((place) => (
+                    <div key={place.id} className="result-card border p-2 rounded">
+                      <p>{place.name}</p>
+                      <p className="text-sm opacity-80">{place.address}</p>
+                      <div className="flex flex-wrap items-center gap-3 text-sm">
+                        {place.phone && (
+                          <a href={`tel:${place.phone}`} className="underline">
+                            Call
+                          </a>
+                        )}
+                        {place.mapLink && (
+                          <LinkBadge href={place.mapLink}>
+                            Directions
+                          </LinkBadge>
+                        )}
+                        <span className="opacity-70">{place.distance_km} km</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-          ) : null}
-          {results.length > 0 && (
-            <div className="p-2 space-y-2">
-              {results.map((place) => (
-                <div key={place.id} className="result-card border p-2 rounded">
-                  <p>{place.name}</p>
-                  <p className="text-sm opacity-80">{place.address}</p>
-                  <div className="flex flex-wrap items-center gap-3 text-sm">
-                    {place.phone && (
-                      <a href={`tel:${place.phone}`} className="underline">
-                        Call
-                      </a>
-                    )}
-                    {place.mapLink && (
-                      <LinkBadge href={place.mapLink}>
-                        Directions
-                      </LinkBadge>
-                    )}
-                    <span className="opacity-70">{place.distance_km} km</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="px-4">
+            <WelcomeCard />
+          </div>
+        )}
       </div>
       <div ref={composerRef} className="mobile-composer md:static md:bg-transparent md:p-0 md:shadow-none">
         <ChatInput onSend={handleSend} canSend={prefs.canSend} />

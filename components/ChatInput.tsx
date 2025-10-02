@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
 import { useOpenPass } from "@/hooks/useOpenPass";
-import { Paperclip, SendHorizontal } from "lucide-react";
+import { Plus, SendHorizontal } from "lucide-react";
 import { useT } from "@/components/hooks/useI18n";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
 import { useUIStore } from "@/components/hooks/useUIStore";
@@ -55,7 +55,7 @@ export function ChatInput({
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
-    const next = Math.min(el.scrollHeight, 120);
+    const next = Math.min(el.scrollHeight, 160);
     el.style.height = `${next}px`;
   }, [text]);
 
@@ -88,6 +88,17 @@ export function ChatInput({
     }
   };
 
+  const onDropFiles = (files: FileList | null) => {
+    const incoming = Array.from(files ?? []);
+    if (incoming.length === 0) return;
+    if (!currentId) {
+      addDraftAttachments(incoming);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     await handleSend();
@@ -96,33 +107,34 @@ export function ChatInput({
   return (
     <form
       onSubmit={handleSubmit}
-      className="chat-input-container flex w-full items-end gap-2 rounded-2xl border border-[color:var(--medx-outline)] bg-[color:var(--medx-surface)] px-3 py-2 shadow-sm transition dark:border-white/10 dark:bg-[color:var(--medx-panel)] md:border-0 md:bg-transparent md:px-0 md:py-0 md:shadow-none"
+      onDragOver={event => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+      }}
+      onDrop={event => {
+        event.preventDefault();
+        onDropFiles(event.dataTransfer.files);
+      }}
+      className="chat-input-container flex w-full items-end gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 md:border-0 md:bg-transparent md:px-0 md:py-0"
     >
       <button
         type="button"
         disabled={!!currentId}
-        aria-label={currentId ? "Attach files is available before you start a new chat" : uploadText}
-        className="flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--medx-text)] transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:text-[color:var(--medx-text)] dark:hover:bg-white/10"
-        onClick={() => {
-          fileInputRef.current?.click();
-        }}
+        aria-label={uploadText}
+        title={uploadText}
+        onClick={() => fileInputRef.current?.click()}
+        className="flex h-11 w-11 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-60 md:h-10 md:w-10"
       >
-        <Paperclip className="h-5 w-5" />
+        <Plus size={18} />
       </button>
       <input
         ref={fileInputRef}
         type="file"
         accept="application/pdf,image/*"
         multiple
-        className="hidden"
+        hidden
         onChange={event => {
-          const files = Array.from(event.target.files ?? []);
-          if (files.length === 0) return;
-          if (!currentId) {
-            addDraftAttachments(files);
-          }
-          // Placeholder for future upload handling: reset immediately so repeat selections work.
-          event.target.value = "";
+          onDropFiles(event.target.files);
         }}
       />
       <textarea
@@ -145,7 +157,7 @@ export function ChatInput({
             void handleSend();
           }
         }}
-        className="min-h-[40px] max-h-[120px] flex-1 resize-none bg-transparent text-base leading-snug text-[color:var(--medx-text)] placeholder:text-slate-400 focus:outline-none dark:text-[color:var(--medx-text)] dark:placeholder:text-slate-500"
+        className="flex-1 resize-none overflow-y-auto min-h-[40px] max-h-[160px] leading-[1.2] px-3 py-2 rounded-md bg-transparent outline-none text-[15px] md:text-[14px] text-[color:var(--medx-text)] placeholder:text-slate-500 dark:text-[color:var(--medx-text)] dark:placeholder:text-slate-500"
       />
       <button
         type="submit"
