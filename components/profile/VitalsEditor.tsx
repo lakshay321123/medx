@@ -78,7 +78,7 @@ export default function VitalsEditor({
             value_text: String(systolicValue),
             unit: "mmHg",
             observed_at: observedAt,
-            meta: metaBase,
+            meta: { ...metaBase, normalizedName: "Systolic BP" },
           }
         : null,
       diastolicValue != null
@@ -88,7 +88,7 @@ export default function VitalsEditor({
             value_text: String(diastolicValue),
             unit: "mmHg",
             observed_at: observedAt,
-            meta: metaBase,
+            meta: { ...metaBase, normalizedName: "Diastolic BP" },
           }
         : null,
       heartRateValue != null
@@ -98,7 +98,7 @@ export default function VitalsEditor({
             value_text: String(heartRateValue),
             unit: "bpm",
             observed_at: observedAt,
-            meta: metaBase,
+            meta: { ...metaBase, normalizedName: "Heart Rate" },
           }
         : null,
       bmiValue != null
@@ -108,7 +108,7 @@ export default function VitalsEditor({
             value_text: String(bmiValue),
             unit: "kg/m2",
             observed_at: observedAt,
-            meta: metaBase,
+            meta: { ...metaBase, normalizedName: "BMI" },
           }
         : null,
     ].filter(Boolean);
@@ -121,8 +121,8 @@ export default function VitalsEditor({
     setIsSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/profile", {
-        method: "PUT",
+      const res = await fetch("/api/observations/bulk", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ observations }),
       });
@@ -130,6 +130,12 @@ export default function VitalsEditor({
       if (!res.ok) {
         const message = await res.text();
         throw new Error(message || "Failed to save vitals.");
+      }
+
+      const payload = await res.json().catch(() => ({}));
+      const saved = Array.isArray(payload?.observations) ? payload.observations : [];
+      if (saved.length === 0) {
+        throw new Error("Vitals saved but response was malformed.");
       }
 
       pushToast({ title: "Vitals updated" });
