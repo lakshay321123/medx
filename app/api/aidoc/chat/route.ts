@@ -5,11 +5,14 @@ import { POST as streamPOST } from "../../chat/stream/route";
 import { getUserId } from "@/lib/getUserId";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchLabSummary } from "@/lib/labs/summary";
+import { aidocHotfix } from '@/lib/aidoc/hotfix';
 
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({} as any));
+  const hotfix = await aidocHotfix(req, body);
+  if (hotfix) return hotfix;
   const message = (body?.message ?? body?.text ?? "").toString();
   const answers = (body?.answers && typeof body.answers === "object") ? body.answers : null;
   const incomingProfile = (body?.profile && typeof body.profile === "object") ? body.profile : null;
@@ -181,6 +184,18 @@ export async function POST(req: NextRequest) {
     headers,
     body: JSON.stringify(forwardBody),
   });
+
+  if (process.env.AIDOC_FORCE_INTERCEPT === '1') {
+    const s = (message || '').toLowerCase();
+    if (
+      /\bpull\b.+\breport/.test(s) ||
+      /\bcompare\b.+\breport/.test(s) ||
+      /\boverall\s+health\b/.test(s) ||
+      /\bcompare\b/.test(s)
+    ) {
+      return NextResponse.json({ role: 'assistant', content: '_(handled by AI-Doc snapshot)_' });
+    }
+  }
 
   // existing streaming setup continues here
   return streamPOST(forwardReq);

@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { aidocHotfix } from '@/lib/aidoc/hotfix';
 import { profileChatSystem } from '@/lib/profileChatSystem';
 import { languageDirectiveFor, personaFromPrefs, SYSTEM_DEFAULT_LANG } from '@/lib/prompt/system';
 import { extractAll, canonicalizeInputs } from '@/lib/medical/engine/extract';
@@ -53,12 +54,14 @@ const recentReqs = new Map<string, number>();
 type WebHit = { title:string; snippet?:string; url:string; source?:string };
 
 export async function POST(req: NextRequest) {
+  const body: any = await req.json().catch(() => ({}));
+  const hotfix = await aidocHotfix(req, body);
+  if (hotfix) return hotfix;
+
   const reqUrl = new URL(req.url);
   const origin = reqUrl.origin;
   const qp = reqUrl.searchParams.get('research');
   const long = reqUrl.searchParams.get('long') === '1';
-  let body: any = {};
-  try { body = await req.json(); } catch {}
   const { context, clientRequestId, mode } = body;
   const allowHistory = body?.allowHistory !== false;
   const requestedLang = typeof body?.lang === 'string' ? body.lang : undefined;
