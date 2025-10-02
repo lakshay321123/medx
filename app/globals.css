@@ -1055,3 +1055,10 @@ body {
   border-color: var(--border);
   color: var(--text);
 }
+
+/* iOS Safari: prevent unexpected font zoom and clipping in inputs/textarea */
+html { -webkit-text-size-adjust: 100%; }
+
+/* Ensure textareas never push layout when they grow */
+textarea { overflow-y: auto; }
+
