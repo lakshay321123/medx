@@ -14,6 +14,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const t0 = Date.now();
   const payload = await req.json();
   const { messages = [], mode } = payload ?? {};
   const requestedLang = typeof payload?.lang === 'string' ? payload.lang : undefined;
@@ -39,20 +40,55 @@ export async function POST(req: Request) {
   system = [system, langDirective].filter(Boolean).join('\n\n');
 
   const minMs = minDelayMs();
+  const modelStart = Date.now();
   const upstream = await ensureMinDelay<Response>(
     callOpenAIChat([{ role: "system", content: system }, ...messages], { stream: true }),
-    minMs
+    minMs,
   );
+  const modelMs = Date.now() - modelStart;
 
-  if (!upstream?.ok) {
-    const err = upstream ? await upstream.text() : "Upstream error";
+  if (!upstream?.ok || !upstream.body) {
+    const err = upstream ? await upstream.text().catch(() => "Upstream error") : "Upstream error";
     return new Response(`OpenAI stream error: ${err}`, { status: 500 });
   }
-  return new Response(upstream.body, {
-    headers: {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "x-medx-provider": "openai",
-      "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-5"
+
+  const upstreamReader = upstream.body.getReader();
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+
+  queueMicrotask(async () => {
+    try {
+      const first = await upstreamReader.read();
+      if (!first.done && first.value) {
+        await writer.write(first.value);
+      }
+      while (true) {
+        const { value, done } = await upstreamReader.read();
+        if (done) break;
+        if (value) {
+          await writer.write(value);
+        }
+      }
+      await writer.close();
+    } catch (error) {
+      await writer.abort(error);
     }
+  });
+
+  const totalMs = Date.now() - t0;
+  const appMs = Math.max(0, totalMs - modelMs);
+  const headers = new Headers({
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "Transfer-Encoding": "chunked",
+    "Server-Timing": `app;dur=${appMs},model;dur=${modelMs}`,
+    "x-medx-provider": "openai",
+    "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-5",
+  });
+
+  return new Response(readable, {
+    status: 200,
+    headers,
   });
 }
