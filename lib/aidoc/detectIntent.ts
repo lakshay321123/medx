@@ -108,13 +108,16 @@ function extractCompareWindow(dates: string[]): { a: string; b: string } | null 
 function extractMetric(q: string): { metric?: string; metricAlias?: string } {
   const nq = normalize(q);
   for (const key of Object.keys(ALIAS_TO_METRIC)) {
-    if (nq.includes(key)) return ALIAS_TO_METRIC[key];
+    if (nq.includes(key)) {
+      const { canonical, alias } = ALIAS_TO_METRIC[key];
+      return { metric: canonical, metricAlias: alias };
+    }
   }
   const qTokens = tokens(q);
   for (const [canonical, aliases] of Object.entries(METRIC_ALIASES)) {
     const names = [canonical, ...aliases].map(normalize);
     if (qTokens.some(t => names.includes(t))) {
-      return { canonical, alias: canonical } as any;
+      return { metric: canonical, metricAlias: canonical };
     }
   }
   return {};
@@ -173,7 +176,7 @@ export function detectIntentAndEntities(query: string): DetectResult {
   const compareWindow = extractCompareWindow(dates);
 
   // Heuristics
-  if (metricEnt.canonical && winner.cat !== "pull_reports") {
+  if (metricEnt.metric && winner.cat !== "pull_reports") {
     winner = { cat: "compare_metric", score: Math.max(winner.score, 0.6) };
   }
   if (/\bcompare\b|\bvs\b|\bversus\b/.test(qNorm) && compareWindow) {
@@ -190,8 +193,8 @@ export function detectIntentAndEntities(query: string): DetectResult {
     intent: winner.cat,
     confidence: Math.max(0, Math.min(1, winner.score)),
     entities: {
-      metric: (metricEnt as any)?.canonical || null,
-      metricAlias: (metricEnt as any)?.alias || null,
+      metric: metricEnt.metric ?? null,
+      metricAlias: metricEnt.metricAlias ?? null,
       dates,
       compareWindow: compareWindow || null,
     },
