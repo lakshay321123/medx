@@ -31,6 +31,7 @@ import { getTrials } from "@/lib/hooks/useTrials";
 import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials";
 import MessageActions from "@/components/chat/MessageActions";
 import { useAidocStore } from "@/stores/useAidocStore";
+import AidocReportViewer from "@/components/aidoc/ReportViewer";
 import SharePanel from "@/components/panels/SharePanel";
 import type { ChatMessage as BaseChatMessage } from "@/types/chat";
 import type { AnalysisCategory } from '@/lib/context';
@@ -60,7 +61,7 @@ import { usePendingAssistantStages } from "@/hooks/usePendingAssistantStages";
 import type { PendingAssistantState } from "@/hooks/usePendingAssistantStages";
 import { mark, since } from "@/utils/latency";
 
-const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
+const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI !== '0';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
 const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== '0';
 
@@ -3729,6 +3730,18 @@ ${systemCommon}` + baseSys;
           <div className="mx-auto w-full max-w-3xl space-y-4">
             {renderedMessages}
           </div>
+
+          {AIDOC_UI && aidoc?.kind === 'reports' && (
+            <div className="mx-auto mt-6 w-full max-w-3xl">
+              <AidocReportViewer
+                patient={aidoc.patient ?? null}
+                reports={Array.isArray(aidoc.reports) ? aidoc.reports : []}
+                comparisons={typeof aidoc.comparisons === 'object' && aidoc.comparisons ? aidoc.comparisons : {}}
+                summary={typeof aidoc.summary === 'string' ? aidoc.summary : ''}
+                nextSteps={Array.isArray(aidoc.nextSteps) ? aidoc.nextSteps : []}
+              />
+            </div>
+          )}
 
           {AIDOC_UI && aidoc && (
             <div className="mx-auto mt-6 w-full max-w-3xl">

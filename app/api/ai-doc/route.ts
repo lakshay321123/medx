@@ -5,43 +5,43 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from "next/server";
 import { getUserId } from "@/lib/getUserId";
 import { prisma } from "@/lib/prisma";
-import { AiDocIntent, detectAidocIntent } from "@/lib/aidoc/schema";
-import { AiDocIntentCategory } from "@/lib/aidoc/intents";
 import { detectIntentAndEntities } from "@/lib/aidoc/detectIntent";
-import { buildStructuredAidocResponse, SAMPLE_AIDOC_DATA } from "@/lib/aidoc/structured";
+import { SAMPLE_AIDOC_DATA } from "@/lib/aidoc/structured";
+import {
+  prepareAidocPayload,
+  buildNarrativeFallback,
+  buildNarrativePrompt,
+  type PlannerLabInput,
+  type PlannerMedication,
+  type PlannerCondition,
+  type PlannerNote,
+  type PlannerProfile,
+} from "@/lib/aidoc/planner";
+import { callOpenAIJson } from "@/lib/aidoc/vendor";
 
 interface PatientBundle {
-  profile: any;
-  labs: any[];
-  notes: any[];
-  medications: any[];
-  conditions: any[];
+  profile: PlannerProfile | null;
+  labs: PlannerLabInput[];
+  notes: PlannerNote[];
+  medications: PlannerMedication[];
+  conditions: PlannerCondition[];
 }
 
 function ensureArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
 }
 
-function mapIntentCategoryToIntent(intent: AiDocIntentCategory): AiDocIntent | null {
-  switch (intent) {
-    case "pull_reports":
-      return AiDocIntent.PullReports;
-    case "compare_metric":
-      return AiDocIntent.CompareMetric;
-    case "compare_reports":
-      return AiDocIntent.CompareReports;
-    case "health_summary":
-    case "medications":
-    case "conditions":
-    case "lifestyle":
-    case "tips":
-    case "vitals":
-      return AiDocIntent.HealthSummary;
-    case "interpret_report":
-    case "imaging":
-      return AiDocIntent.InterpretReport;
-    default:
-      return null;
+async function safeFindMany(client: any, args: any) {
+  if (!client?.findMany) return [];
+  try {
+    return await client.findMany(args);
+  } catch {
+    const fallbackArgs = { where: args?.where };
+    try {
+      return await client.findMany(fallbackArgs);
+    } catch {
+      return [];
+    }
   }
 }
 
@@ -49,28 +49,27 @@ async function loadFromPrisma(userId: string): Promise<PatientBundle | null> {
   try {
     const profileClient: any = (prisma as any)?.patientProfile;
     if (!profileClient?.findFirst) return null;
-    const profile = await profileClient.findFirst({ where: { userId } });
+    const profile = (await profileClient.findFirst({ where: { userId } })) ?? null;
     if (!profile) return null;
+    const profileId = profile.id ?? null;
     const labsClient: any = (prisma as any)?.labResult;
     const noteClient: any = (prisma as any)?.note;
     const medicationClient: any = (prisma as any)?.medication;
     const conditionClient: any = (prisma as any)?.condition;
+
     const [labs, notes, medications, conditions] = await Promise.all([
-      labsClient?.findMany ? labsClient.findMany({ where: { profileId: profile.id } }) : Promise.resolve([]),
-      noteClient?.findMany ? noteClient.findMany({ where: { profileId: profile.id } }) : Promise.resolve([]),
-      medicationClient?.findMany
-        ? medicationClient.findMany({ where: { profileId: profile.id } })
-        : Promise.resolve([]),
-      conditionClient?.findMany
-        ? conditionClient.findMany({ where: { profileId: profile.id } })
-        : Promise.resolve([]),
+      safeFindMany(labsClient, { where: { profileId }, orderBy: { takenAt: "desc" }, take: 1000 }),
+      safeFindMany(noteClient, { where: { profileId }, orderBy: { createdAt: "desc" }, take: 200 }),
+      safeFindMany(medicationClient, { where: { profileId } }),
+      safeFindMany(conditionClient, { where: { profileId } }),
     ]);
+
     return {
-      profile,
-      labs: ensureArray(labs),
-      notes: ensureArray(notes),
-      medications: ensureArray(medications),
-      conditions: ensureArray(conditions),
+      profile: profile as PlannerProfile,
+      labs: ensureArray(labs) as PlannerLabInput[],
+      notes: ensureArray(notes) as PlannerNote[],
+      medications: ensureArray(medications) as PlannerMedication[],
+      conditions: ensureArray(conditions) as PlannerCondition[],
     };
   } catch {
     return null;
@@ -87,6 +86,14 @@ async function loadPatientBundle(userId: string): Promise<PatientBundle> {
     medications: SAMPLE_AIDOC_DATA.medications,
     conditions: SAMPLE_AIDOC_DATA.conditions,
   };
+}
+
+function sanitizeNextSteps(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(item => (typeof item === "string" ? item.trim() : ""))
+    .filter(step => step.length > 0)
+    .slice(0, 3);
 }
 
 export async function POST(req: NextRequest) {
@@ -106,51 +113,47 @@ export async function POST(req: NextRequest) {
   const userText = String(message || "");
   const { intent, confidence, entities } = detectIntentAndEntities(userText);
 
-  // optional: log confidence for telemetry
-  // console.log("AIDOC_INTENT", intent, confidence, entities);
-
-  switch (intent) {
-    case "pull_reports":
-      // return reports[]
-      break;
-    case "compare_metric":
-      // return comparisons for metric
-      break;
-    case "compare_reports":
-      // return differences between reports
-      break;
-    case "health_summary":
-      // return AI summary
-      break;
-    case "interpret_report":
-      // handle non-lab report (X-ray, MRI)
-      break;
-    case "medications":
-    case "conditions":
-    case "lifestyle":
-    case "tips":
-    case "vitals":
-    case "imaging":
-    default:
-      break;
-  }
-
-  const mappedIntent =
-    mapIntentCategoryToIntent(intent) ?? detectAidocIntent(userText) ?? AiDocIntent.HealthSummary;
   const bundle = await loadPatientBundle(userId);
 
-  const structured = buildStructuredAidocResponse({
+  const prepared = prepareAidocPayload({
     profile: bundle.profile,
     labs: bundle.labs,
     notes: bundle.notes,
     medications: bundle.medications,
     conditions: bundle.conditions,
-    message,
-    intent: mappedIntent,
+    intent,
+    focusMetric: entities.metric ?? null,
+    compareWindow: entities.compareWindow ?? null,
   });
 
-  return NextResponse.json({
-    ...structured,
-    reply: structured.summary,
-  });
+  let summaryPack = buildNarrativeFallback(prepared);
+
+  try {
+    const { system, instruction, user } = buildNarrativePrompt({ payload: prepared, userText, intent });
+    const ai = await callOpenAIJson({ system, instruction, user, metadata: { intent, source: "aidoc_reports" } });
+    const aiSummary = typeof ai?.summary === "string" ? ai.summary.trim() : typeof ai?.reply === "string" ? ai.reply.trim() : "";
+    const aiNext = sanitizeNextSteps(ai?.nextSteps);
+    if (aiSummary) {
+      summaryPack = { summary: aiSummary, nextSteps: aiNext.length ? aiNext : summaryPack.nextSteps };
+    } else if (aiNext.length) {
+      summaryPack = { summary: summaryPack.summary, nextSteps: aiNext };
+    }
+  } catch (error) {
+    console.error("aidoc_summary_error", error);
+  }
+
+  const response = {
+    kind: "reports" as const,
+    intent,
+    confidence,
+    patient: prepared.patient,
+    reports: prepared.reports,
+    comparisons: prepared.comparisons,
+    summary: summaryPack.summary,
+    nextSteps: summaryPack.nextSteps,
+    reply: summaryPack.summary,
+    entities,
+  };
+
+  return NextResponse.json(response);
 }
