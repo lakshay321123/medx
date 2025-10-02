@@ -31,6 +31,8 @@ type NormalizedPoint = {
   ref_high: number | null;
   status: string | null;
   flag: string | null;
+  report_id: string | null;
+  document_id: string | null;
 };
 
 export type LabSeriesPoint = {
@@ -41,6 +43,8 @@ export type LabSeriesPoint = {
   ref_high: number | null;
   status: string | null;
   flag: string | null;
+  report_id: string | null;
+  document_id: string | null;
 };
 
 export type LabTrend = {
@@ -219,6 +223,25 @@ function normalizeValue(testCode: string, rawValue: number, unitInput: string | 
   return { value, unit };
 }
 
+function getMetaString(meta: Record<string, unknown> | null | undefined, ...keys: string[]): string | null {
+  if (!meta || typeof meta !== "object") return null;
+  for (const key of keys) {
+    const raw = (meta as any)[key];
+    if (typeof raw === "string" && raw.trim()) return raw.trim();
+  }
+  return null;
+}
+
+function extractDocumentId(row: ObservationRow): { documentId: string | null; reportId: string | null } {
+  const meta = row.meta;
+  const metaDoc = getMetaString(meta, "documentId", "document_id", "docId", "doc_id", "sourceId", "source_id");
+  const reportMeta = getMetaString(meta, "reportId", "report_id");
+  const reportId = row.report_id ?? reportMeta ?? null;
+  const fallback = row.thread_id ?? null;
+  const documentId = metaDoc ?? row.report_id ?? reportMeta ?? fallback;
+  return { documentId: documentId ?? null, reportId };
+}
+
 function normalizeObservation(row: ObservationRow): NormalizedPoint | null {
   const def = KIND_TO_TEST.get(row.kind);
   if (!def) return null;
@@ -228,6 +251,7 @@ function normalizeObservation(row: ObservationRow): NormalizedPoint | null {
   const normalized = normalizeValue(def.test_code, row.value_num, row.unit);
   if (!normalized) return null;
   const meta = extractRangeMeta(row.meta);
+  const { documentId, reportId } = extractDocumentId(row);
   return {
     test_code: def.test_code,
     test_name: def.test_name,
@@ -239,6 +263,8 @@ function normalizeObservation(row: ObservationRow): NormalizedPoint | null {
     ref_high: meta.refHigh,
     status: meta.status,
     flag: meta.flag,
+    report_id: reportId,
+    document_id: documentId,
   };
 }
 
@@ -331,6 +357,8 @@ function buildTrendFromRows(
         ref_high: p.ref_high,
         status: p.status,
         flag: p.flag,
+        report_id: p.report_id,
+        document_id: p.document_id,
       }));
 
     if (series.length === 0) continue;

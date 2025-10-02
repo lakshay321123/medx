@@ -108,10 +108,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (labsError && !labsPacket) {
-      const fallbackMessage =
-        labIntent.kind === "snapshot"
-          ? "**Patient Snapshot**\n\nI couldn’t load your lab reports right now. Please try again in a bit.\n\n**What to do next**\n- Discuss abnormal or outdated results with your clinician before making changes.\n- Upload new lab reports when you receive them so this view stays current.\n- Keep up balanced meals, movement, and sleep unless your clinician advises otherwise."
-          : `**${labIntent.metric.label} — Comparison**\n\nI couldn’t load your lab reports right now. Please try again in a bit.\n\n**What to do next**\n- Discuss abnormal or outdated results with your clinician before making changes.\n- Upload new lab reports when you receive them so this view stays current.\n- Keep up balanced meals, movement, and sleep unless your clinician advises otherwise.`;
+      const fallbackMessage = formatLabIntentResponse([], labIntent, {
+        emptyMessage: "I couldn’t load your lab reports right now. Please try again in a bit.",
+      });
       return streamTextResponse(fallbackMessage);
     }
 

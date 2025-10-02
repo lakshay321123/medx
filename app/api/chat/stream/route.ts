@@ -8,6 +8,7 @@ import {
   detectLabSnapshotIntent,
   formatLabIntentResponse,
   isLabSnapshotEnabled,
+  isLabSnapshotHardMode,
   type LabSnapshotIntent,
 } from "@/lib/aidoc/labsSnapshot";
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
@@ -127,13 +128,16 @@ export async function POST(req: NextRequest) {
       : [latestUser];
 
   const latestContent = typeof latestUser?.content === 'string' ? latestUser.content : '';
-  const isAidocContext = typeof body?.context === 'string' && body.context.includes('ai-doc');
+  const contextRaw = typeof body?.context === 'string' ? body.context : '';
+  const contextLower = contextRaw.toLowerCase().trim();
+  const isAidocContext = contextLower.includes('ai-doc');
+  const allowHardIntercept = isLabSnapshotHardMode() && !contextLower;
   const labIntent: LabSnapshotIntent | null =
     isLabSnapshotEnabled() && latestContent
       ? detectLabSnapshotIntent(latestContent)
       : null;
 
-  if (labIntent && isAidocContext) {
+  if (labIntent && (isAidocContext || allowHardIntercept)) {
     const cookie = req.headers.get('cookie') || '';
     try {
       const summaryRes = await fetch(`${origin}/api/labs/summary?mode=ai-doc`, {
@@ -153,10 +157,9 @@ export async function POST(req: NextRequest) {
       const messageText = formatLabIntentResponse(payload.trend, labIntent);
       return streamTextResponse(messageText);
     } catch (err) {
-      const fallback =
-        labIntent.kind === 'snapshot'
-          ? "**Patient Snapshot**\n\nI couldn’t load your lab reports right now. Please try again in a bit.\n\n**What to do next**\n- Discuss abnormal or outdated results with your clinician before making changes.\n- Upload new lab reports when you receive them so this view stays current.\n- Keep up balanced meals, movement, and sleep unless your clinician advises otherwise."
-          : `**${labIntent.metric.label} — Comparison**\n\nI couldn’t load your lab reports right now. Please try again in a bit.\n\n**What to do next**\n- Discuss abnormal or outdated results with your clinician before making changes.\n- Upload new lab reports when you receive them so this view stays current.\n- Keep up balanced meals, movement, and sleep unless your clinician advises otherwise.`;
+      const fallback = formatLabIntentResponse([], labIntent, {
+        emptyMessage: "I couldn’t load your lab reports right now. Please try again in a bit.",
+      });
       return streamTextResponse(fallback);
     }
   }

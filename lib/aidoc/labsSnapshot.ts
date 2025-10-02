@@ -6,6 +6,7 @@ type SummaryStatus = DerivedStatus | "mixed";
 
 type SnapshotTest = {
   code: string;
+  canonicalKey: string;
   name: string;
   shortName: string;
   value: number;
@@ -13,6 +14,7 @@ type SnapshotTest = {
   status: DerivedStatus;
   severity: number;
   timestamp: number;
+  documentId: string | null;
 };
 
 type SnapshotBucket = {
@@ -20,6 +22,7 @@ type SnapshotBucket = {
   timestamp: number;
   displayDate: string;
   tests: Map<string, SnapshotTest>;
+  docTests: Map<string, SnapshotTest>;
 };
 
 type MetricInfo = {
@@ -36,12 +39,15 @@ export type LabSnapshotIntent =
   | { kind: "snapshot" }
   | { kind: "compare"; metric: MetricInfo };
 
-const FEATURE_FLAG = (process.env.FEATURE_AIDOC_LAB_SNAPSHOT ?? "1") !== "0";
+const FEATURE_FLAG =
+  process.env.AIDOC_FORCE_INTERCEPT === undefined || process.env.AIDOC_FORCE_INTERCEPT === "1";
+const HARD_FLAG = process.env.AIDOC_FORCE_INTERCEPT_HARD === "1";
 
 const SNAPSHOT_PATTERNS: RegExp[] = [
   /\bpull (?:all )?my reports?\b/i,
   /\bshow (?:all )?my reports?\b/i,
   /\bfetch (?:all )?my reports?\b/i,
+  /\blist(?:\s+out)? (?:all )?my reports?\b/i,
   /\bwhat do my reports say\b/i,
   /\bcompare my reports?\b/i,
   /\blab (?:history|trend)\b/i,
@@ -100,6 +106,10 @@ const SHORT_NAME_MAP: Record<string, string> = {
   TIBC: "TIBC",
 };
 
+const CANONICAL_CODE_MAP: Record<string, string> = Object.fromEntries(
+  getTestDefinitions().map((def) => [def.test_code, canonicalize(def.test_name)]),
+);
+
 const GROUP_LABEL_BY_CODE: Record<string, string> = {
   "LDL-C": "Cholesterol",
   "HDL-C": "Cholesterol",
@@ -134,6 +144,10 @@ const MAX_SUMMARY_SEGMENTS = 3;
 
 export function isLabSnapshotEnabled(): boolean {
   return FEATURE_FLAG;
+}
+
+export function isLabSnapshotHardMode(): boolean {
+  return HARD_FLAG;
 }
 
 export function detectLabSnapshotIntent(message: string): LabSnapshotIntent | null {
@@ -171,7 +185,7 @@ export function formatLabIntentResponse(
 
 function buildSnapshotResponse(trend: LabTrend[], opts: { emptyMessage?: string }): string {
   const buckets = buildBuckets(trend).slice(0, MAX_DATES);
-  const lines: string[] = ["**Patient Snapshot**", ""];
+  const lines: string[] = ["## Patient Snapshot", ""];
 
   if (buckets.length === 0) {
     if (opts.emptyMessage) {
@@ -197,24 +211,17 @@ function buildSnapshotResponse(trend: LabTrend[], opts: { emptyMessage?: string 
 }
 
 function buildComparisonResponse(trend: LabTrend[], metric: MetricInfo, opts: { emptyMessage?: string }): string {
-  const lines: string[] = [`**${metric.label} — Comparison**`, ""];
+  const headerLabel = metricHeader(metric);
+  const lines: string[] = [`## Compare ${headerLabel}`, ""];
   const entry = trend.find((t) => t.test_code === metric.code || canonicalize(t.test_name) === canonicalize(metric.label));
 
-  const points = entry?.series
-    ?.filter((p) => Number.isFinite(p.value) && typeof p.sample_date === "string" && p.sample_date)
-    .map((p) => ({
-      value: p.value,
-      unit: formatUnit(p.unit || entry?.unit || ""),
-      status: deriveStatus(p),
-      sample_date: p.sample_date,
-    })) ?? [];
-
-  points.sort((a, b) => {
-    const aTime = Date.parse(a.sample_date);
-    const bTime = Date.parse(b.sample_date);
-    if (!Number.isFinite(aTime) || !Number.isFinite(bTime)) return a.sample_date.localeCompare(b.sample_date);
-    return aTime - bTime;
-  });
+  const series = entry?.series ? dedupeSeriesByDate(entry.series) : [];
+  const points = series.map((p) => ({
+    value: p.value,
+    unit: formatUnit(p.unit || entry?.unit || ""),
+    status: deriveStatus(p),
+    sample_date: p.sample_date,
+  }));
 
   if (points.length === 0) {
     if (opts.emptyMessage) {
@@ -247,6 +254,7 @@ function buildBuckets(trend: LabTrend[]): SnapshotBucket[] {
     const code = series.test_code;
     const name = series.test_name;
     const shortName = SHORT_NAME_MAP[code] ?? series.test_name;
+    const canonicalCode = canonicalKeyForTest(code, name);
 
     for (const point of series.series || []) {
       if (!Number.isFinite(point.value)) continue;
@@ -257,34 +265,61 @@ function buildBuckets(trend: LabTrend[]): SnapshotBucket[] {
       const baseTs = Date.parse(`${dateKey}T00:00:00Z`);
       const timestamp = Number.isFinite(baseTs) ? baseTs : date.getTime();
       const displayDate = formatDateLabel(point.sample_date);
-      const bucket = buckets.get(dateKey) ?? {
-        key: dateKey,
-        timestamp,
-        displayDate,
-        tests: new Map<string, SnapshotTest>(),
-      };
-      if (!bucket.tests.size || bucket.timestamp < timestamp) {
-        bucket.timestamp = Math.max(bucket.timestamp, timestamp);
-        bucket.displayDate = displayDate;
+      let bucket = buckets.get(dateKey);
+      if (!bucket) {
+        bucket = {
+          key: dateKey,
+          timestamp,
+          displayDate,
+          tests: new Map<string, SnapshotTest>(),
+          docTests: new Map<string, SnapshotTest>(),
+        };
+        buckets.set(dateKey, bucket);
       }
       const status = deriveStatus(point);
       const severity = statusPriority(status);
       const unit = formatUnit(point.unit || "");
+      const documentId = point.document_id ?? point.report_id ?? null;
+      const sampleTs = Date.parse(point.sample_date);
       const test: SnapshotTest = {
         code,
+        canonicalKey: canonicalCode,
         name,
         shortName,
         value: point.value,
         unit,
         status,
         severity,
-        timestamp: date.getTime(),
+        timestamp: Number.isFinite(sampleTs) ? sampleTs : date.getTime(),
+        documentId,
       };
-      const existing = bucket.tests.get(code);
-      if (!existing || existing.timestamp < test.timestamp) {
-        bucket.tests.set(code, test);
+      let accepted = true;
+      if (documentId) {
+        const docKey = `${documentId}::${canonicalCode}`;
+        const existingDoc = bucket.docTests.get(docKey);
+        if (
+          existingDoc &&
+          (existingDoc.timestamp > test.timestamp ||
+            (existingDoc.timestamp === test.timestamp && existingDoc.severity >= test.severity))
+        ) {
+          accepted = false;
+        } else {
+          bucket.docTests.set(docKey, test);
+        }
       }
-      buckets.set(dateKey, bucket);
+
+      if (!accepted) {
+        continue;
+      }
+
+      const existing = bucket.tests.get(canonicalCode);
+      if (
+        !existing ||
+        existing.timestamp < test.timestamp ||
+        (existing.timestamp === test.timestamp && existing.severity < test.severity)
+      ) {
+        bucket.tests.set(canonicalCode, test);
+      }
     }
   }
 
@@ -462,7 +497,7 @@ function formatUnit(unit: string): string {
 }
 
 function appendNextSteps(lines: string[]) {
-  lines.push("", "**What to do next**");
+  lines.push("", "### What to do next");
   for (const step of NEXT_STEPS) {
     lines.push(`- ${step}`);
   }
@@ -476,6 +511,57 @@ function trimTrailingBlanks(lines: string[]) {
 
 function canonicalize(input: string | null | undefined): string {
   return (input || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function canonicalKeyForTest(code: string, name: string): string {
+  return CANONICAL_CODE_MAP[code] ?? canonicalize(name || code);
+}
+
+function metricHeader(metric: MetricInfo): string {
+  return SHORT_NAME_MAP[metric.code] ?? metric.label;
+}
+
+function dedupeSeriesByDate(series: LabSeriesPoint[]): LabSeriesPoint[] {
+  const filtered = series.filter(
+    (p): p is LabSeriesPoint =>
+      !!p && Number.isFinite(p.value) && typeof p.sample_date === "string" && !!p.sample_date,
+  );
+
+  const sorted = filtered.slice().sort((a, b) => {
+    const aTime = Date.parse(a.sample_date);
+    const bTime = Date.parse(b.sample_date);
+    if (!Number.isFinite(aTime) || !Number.isFinite(bTime)) {
+      return a.sample_date.localeCompare(b.sample_date);
+    }
+    return bTime - aTime;
+  });
+
+  const docSeen = new Set<string>();
+  const dateMap = new Map<string, LabSeriesPoint>();
+
+  for (const point of sorted) {
+    const dateKey = point.sample_date.slice(0, 10);
+    const docId = point.document_id ?? point.report_id ?? null;
+    if (docId) {
+      const docKey = `${docId}::${dateKey}`;
+      if (docSeen.has(docKey)) {
+        continue;
+      }
+      docSeen.add(docKey);
+    }
+    if (!dateMap.has(dateKey)) {
+      dateMap.set(dateKey, point);
+    }
+  }
+
+  return Array.from(dateMap.values()).sort((a, b) => {
+    const aTime = Date.parse(a.sample_date);
+    const bTime = Date.parse(b.sample_date);
+    if (!Number.isFinite(aTime) || !Number.isFinite(bTime)) {
+      return a.sample_date.localeCompare(b.sample_date);
+    }
+    return aTime - bTime;
+  });
 }
 
 function buildMetricPatterns(): MetricPattern[] {
