@@ -20,12 +20,14 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({} as any));
   const message = (body?.message ?? body?.text ?? "").toString();
   const threadTypeHint = body?.threadType;
+  const modeHint = body?.mode;
   const threadId = typeof body?.threadId === "string" ? body.threadId : null;
 
   const earlyIntercept = await maybeHandleAidocLabIntent({
     req,
     message,
     threadTypeHint,
+    modeHint,
     threadId,
   });
   if (earlyIntercept) return earlyIntercept;
@@ -233,6 +235,7 @@ async function maybeHandleAidocLabIntent(params: {
   req: NextRequest;
   message: string;
   threadTypeHint: unknown;
+  modeHint: unknown;
   threadId: string | null;
 }): Promise<NextResponse | null> {
   if (!isLabSnapshotEnabled()) return null;
@@ -244,10 +247,12 @@ async function maybeHandleAidocLabIntent(params: {
 
   const resolvedThreadType = await resolveAidocThreadType({
     explicitType: params.threadTypeHint,
+    mode: params.modeHint,
     threadId: params.threadId ?? undefined,
   });
   const normalizedThreadType = normalizeAidocThreadType(params.threadTypeHint);
-  const effectiveType = resolvedThreadType ?? normalizedThreadType;
+  const normalizedMode = normalizeAidocThreadType(params.modeHint);
+  const effectiveType = resolvedThreadType ?? normalizedThreadType ?? normalizedMode;
   const allowHard = isLabSnapshotHardMode() && !effectiveType;
   if ((effectiveType ?? "aidoc") !== "aidoc" && !allowHard) {
     return null;
@@ -257,7 +262,7 @@ async function maybeHandleAidocLabIntent(params: {
   console.log("[aidoc-labs] intercept", {
     flag: process.env.AIDOC_FORCE_INTERCEPT ?? "0",
     hardFlag: process.env.AIDOC_FORCE_INTERCEPT_HARD ?? "0",
-    threadType: resolvedThreadType ?? normalizedThreadType ?? "unknown",
+    threadType: resolvedThreadType ?? normalizedThreadType ?? normalizedMode ?? "unknown",
     intent: intentLabel,
     threadId: params.threadId ?? undefined,
   });

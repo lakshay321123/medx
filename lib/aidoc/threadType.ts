@@ -1,10 +1,23 @@
 const AIDOC_MATCH = /ai[\s_-]*doc/;
 
+function normalizeAidocCandidate(lower: string): string | null {
+  if (!lower) return null;
+  const compact = lower.replace(/[^a-z0-9]/g, "");
+  if (!compact) return null;
+  if (compact.includes("aidoc")) return "aidoc";
+  if (compact.startsWith("docai")) return "aidoc";
+  if (compact.startsWith("docmode")) return "aidoc";
+  if (compact.startsWith("aidocmode")) return "aidoc";
+  return null;
+}
+
 export function normalizeAidocThreadType(input: unknown): string | null {
   if (!input || typeof input !== "string") return null;
   const trimmed = input.trim();
   if (!trimmed) return null;
   const lower = trimmed.toLowerCase();
+  const direct = normalizeAidocCandidate(lower);
+  if (direct) return direct;
   if (AIDOC_MATCH.test(lower)) {
     return "aidoc";
   }
@@ -16,10 +29,14 @@ let loggedLookupError = false;
 export async function resolveAidocThreadType(params: {
   explicitType?: unknown;
   context?: unknown;
+  mode?: unknown;
   threadId?: unknown;
 }): Promise<string | null> {
   const explicit = normalizeAidocThreadType(params.explicitType);
   if (explicit) return explicit;
+
+  const fromMode = normalizeAidocThreadType(params.mode);
+  if (fromMode) return fromMode;
 
   const fromContext = normalizeAidocThreadType(params.context);
   if (fromContext) return fromContext;

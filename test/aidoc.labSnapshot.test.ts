@@ -1,5 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import { detectLabSnapshotIntent, formatLabIntentResponse } from '../lib/aidoc/labsSnapshot';
+import { normalizeAidocThreadType } from '../lib/aidoc/threadType';
+
+describe('AI Doc lab intent detection', () => {
+  it('detects snapshot intents with optional all qualifier', () => {
+    const intent = detectLabSnapshotIntent('Compare all my reports');
+    expect(intent).toEqual({ kind: 'snapshot' });
+  });
+
+  it('detects metric comparisons deterministically', () => {
+    const intent = detectLabSnapshotIntent('compare my LDL results');
+    expect(intent).toMatchObject({ kind: 'compare', metric: { code: 'LDL-C' } });
+  });
+
+  it('normalizes common AI Doc thread labels', () => {
+    expect(normalizeAidocThreadType('Doc AI')).toBe('aidoc');
+    expect(normalizeAidocThreadType('doc-mode')).toBe('aidoc');
+    expect(normalizeAidocThreadType('AIDocPreview')).toBe('aidoc');
+  });
+});
 import type { LabTrend } from '../lib/labs/summary';
 
 const SAMPLE_TREND: LabTrend[] = [

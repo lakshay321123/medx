@@ -49,7 +49,7 @@ const SNAPSHOT_PATTERNS: RegExp[] = [
   /\bfetch (?:all )?my reports?\b/i,
   /\blist(?:\s+out)? (?:all )?my reports?\b/i,
   /\bwhat do my reports say\b/i,
-  /\bcompare my reports?\b/i,
+  /\bcompare (?:all )?my reports?\b/i,
   /\blab (?:history|trend)\b/i,
   /\breport (?:history|trend)\b/i,
   /\bdate\s*wise\b/i,

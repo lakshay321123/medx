@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
   const resolvedThreadType = await resolveAidocThreadType({
     explicitType: body?.threadType,
     context: body?.context,
+    mode: body?.mode,
     threadId: body?.threadId,
   });
 
@@ -226,6 +227,7 @@ export async function POST(req: NextRequest) {
       resolvedThreadType,
       contextHint: body?.context,
       latestUserContent: latestContent,
+      modeHint: body?.mode,
     });
   }
 
@@ -347,6 +349,7 @@ export async function POST(req: NextRequest) {
     resolvedThreadType,
     contextHint: body?.context,
     latestUserContent: latestContent,
+    modeHint: body?.mode,
   });
 }
 
@@ -358,6 +361,7 @@ type FinalizeParams = {
   resolvedThreadType: string | null;
   contextHint: unknown;
   latestUserContent: string;
+  modeHint: unknown;
 };
 
 const LEGACY_MARKERS = [
@@ -378,12 +382,17 @@ async function finalizeAidocStreamResponse({
   resolvedThreadType,
   contextHint,
   latestUserContent,
+  modeHint,
 }: FinalizeParams): Promise<Response> {
   const normalizedContext = normalizeAidocThreadType(contextHint);
+  const normalizedMode = normalizeAidocThreadType(modeHint);
   const treatAsAidoc =
     resolvedThreadType === 'aidoc' ||
     normalizedContext === 'aidoc' ||
+    normalizedMode === 'aidoc' ||
     (isLabSnapshotHardMode() && !resolvedThreadType);
+
+  const threadLabel = resolvedThreadType ?? normalizedMode ?? normalizedContext ?? 'unknown';
 
   if (!treatAsAidoc) {
     return new Response(upstream.body, {
@@ -398,6 +407,14 @@ async function finalizeAidocStreamResponse({
     try {
       await upstream.body?.cancel?.();
     } catch {}
+    const intentLabel = intent.kind === 'snapshot' ? 'snapshot' : `compare:${intent.metric.label}`;
+    console.log('[aidoc-labs] final gate', {
+      reason: 'intent',
+      flag: process.env.AIDOC_FORCE_INTERCEPT ?? '0',
+      hardFlag: process.env.AIDOC_FORCE_INTERCEPT_HARD ?? '0',
+      threadType: threadLabel,
+      intent: intentLabel,
+    });
     return buildAidocStreamLabResponse({ req, origin, intent });
   }
 
@@ -408,6 +425,15 @@ async function finalizeAidocStreamResponse({
   if (hasLegacyMarker) {
     const fallbackIntent: LabSnapshotIntent =
       detectLabSnapshotIntent(latestUserContent) ?? { kind: 'snapshot' };
+    const intentLabel =
+      fallbackIntent.kind === 'snapshot' ? 'snapshot' : `compare:${fallbackIntent.metric.label}`;
+    console.log('[aidoc-labs] final gate', {
+      reason: 'legacy-marker',
+      flag: process.env.AIDOC_FORCE_INTERCEPT ?? '0',
+      hardFlag: process.env.AIDOC_FORCE_INTERCEPT_HARD ?? '0',
+      threadType: threadLabel,
+      intent: intentLabel,
+    });
     return buildAidocStreamLabResponse({ req, origin, intent: fallbackIntent });
   }
 
@@ -516,6 +542,7 @@ async function maybeHandleStreamLabIntent({ req, origin, body, resolvedThreadTyp
     (await resolveAidocThreadType({
       explicitType: body?.threadType,
       context: body?.context,
+      mode: body?.mode,
       threadId: body?.threadId,
     }));
   const allowHard = isLabSnapshotHardMode() && !resolvedType;
@@ -524,7 +551,11 @@ async function maybeHandleStreamLabIntent({ req, origin, body, resolvedThreadTyp
   }
 
   const intentLabel = intent.kind === "snapshot" ? "snapshot" : `compare:${intent.metric.label}`;
-  const threadTypeLabel = resolvedType ?? normalizeAidocThreadType(body?.context) ?? "unknown";
+  const threadTypeLabel =
+    resolvedType ??
+    normalizeAidocThreadType(body?.mode) ??
+    normalizeAidocThreadType(body?.context) ??
+    "unknown";
   const threadId = typeof body?.threadId === "string" ? body.threadId : undefined;
 
   console.log("[aidoc-labs] intercept", {
