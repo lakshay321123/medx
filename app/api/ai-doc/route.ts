@@ -5,7 +5,7 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from "next/server";
 import { getUserId } from "@/lib/getUserId";
 import { prisma } from "@/lib/prisma";
-import { detectIntentAndEntities } from "@/lib/aidoc/detectIntent";
+import { detectIntentAndEntities, type DetectedIntent } from "@/lib/aidoc/detectIntent";
 import { SAMPLE_AIDOC_DATA } from "@/lib/aidoc/structured";
 import {
   prepareAidocPayload,
@@ -18,36 +18,7 @@ import {
   type PlannerProfile,
 } from "@/lib/aidoc/planner";
 import { callOpenAIJson } from "@/lib/aidoc/vendor";
-
-// --- Normalization maps ---
-const NAME_ALIAS: Record<string, string> = {
-  "alt (sgpt)": "ALT",
-  "ast (sgot)": "AST",
-  "hdl cholesterol": "HDL",
-  "ldl cholesterol": "LDL",
-  "total cholesterol": "Total Cholesterol",
-  "fasting glucose": "Fasting Glucose",
-  "vitamin d (25-oh)": "Vitamin D",
-};
-
-const UNIT_ALIAS: Record<string, string> = {
-  "mg/dl": "mg/dL",
-  "u/l": "U/L",
-  "ng/ml": "ng/mL",
-  "%": "%",
-};
-
-function normName(raw?: string) {
-  if (!raw) return "";
-  const k = raw.trim().toLowerCase();
-  return NAME_ALIAS[k] || raw.replace(/\s+/g, " ").trim();
-}
-
-function normUnit(raw?: string | null) {
-  if (!raw) return undefined;
-  const k = raw.trim().toLowerCase();
-  return UNIT_ALIAS[k] || raw.trim();
-}
+import { normName, normUnit, type LabLike } from "@/lib/aidoc/normalize";
 
 // --- Ideal ranges (minimal starter; expand later) ---
 function idealFor(name: string): string | undefined {
@@ -111,8 +82,6 @@ function markerFor(
 // --- De-duplication per date ---
 // If the SAME (normalized) test repeats, keep the latest occurrence for that date.
 // Key: `${name}|${unit}`; if values differ same day, keep the last seen (DB orderBy desc handles "latest first").
-type LabLike = { name?: string; value?: number | string | null; unit?: string | null | undefined };
-
 function dedupeLabs(items: LabLike[]): LabLike[] {
   const map = new Map<string, LabLike>();
   for (const item of items) {
@@ -238,6 +207,7 @@ export async function POST(req: NextRequest) {
 
   const userText = String(message || "");
   const { intent, confidence, entities } = detectIntentAndEntities(userText);
+  const intentCategory: DetectedIntent = confidence < 0.35 ? "pull_reports" : intent;
 
   const bundle = await loadPatientBundle(userId);
 
@@ -247,7 +217,7 @@ export async function POST(req: NextRequest) {
     notes: bundle.notes,
     medications: bundle.medications,
     conditions: bundle.conditions,
-    intent,
+    intent: intentCategory,
     focusMetric: entities.metric ?? null,
     compareWindow: entities.compareWindow ?? null,
   });
@@ -297,8 +267,8 @@ export async function POST(req: NextRequest) {
   let summaryPack = buildNarrativeFallback(prepared);
 
   try {
-    const { system, instruction, user } = buildNarrativePrompt({ payload: prepared, userText, intent });
-    const ai = await callOpenAIJson({ system, instruction, user, metadata: { intent, source: "aidoc_reports" } });
+    const { system, instruction, user } = buildNarrativePrompt({ payload: prepared, userText, intent: intentCategory });
+    const ai = await callOpenAIJson({ system, instruction, user, metadata: { intent: intentCategory, source: "aidoc_reports" } });
     const aiSummary = typeof ai?.summary === "string" ? ai.summary.trim() : typeof ai?.reply === "string" ? ai.reply.trim() : "";
     const aiNext = sanitizeNextSteps(ai?.nextSteps);
     if (aiSummary) {
@@ -312,7 +282,7 @@ export async function POST(req: NextRequest) {
 
   const response = {
     kind: "reports" as const,
-    intent,
+    intent: intentCategory,
     confidence,
     patient: prepared.patient,
     reports: prepared.reports,

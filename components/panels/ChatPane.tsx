@@ -27,6 +27,7 @@ import type { Suggestion } from "@/lib/chat/suggestions";
 import { getDefaultSuggestions, getInlineSuggestions } from "@/lib/suggestions/engine";
 import { safeJson } from '@/lib/safeJson';
 import { splitFollowUps } from '@/lib/splitFollowUps';
+import { groupAndDedupeByDate, type LabLike } from "@/lib/aidoc/normalize";
 import { getTrials } from "@/lib/hooks/useTrials";
 import { patientTrialsPrompt, clinicianTrialsPrompt } from "@/lib/prompts/trials";
 import MessageActions from "@/components/chat/MessageActions";
@@ -87,6 +88,7 @@ const NO_LABS_MESSAGE = "I couldn't find structured lab values yet.";
 const REPORTS_LOCKED_MESSAGE = "Reports are available only in AI Doc mode.";
 // Updated LABS_TREND_INTENT: only triggers on explicit lab/report phrases
 const LABS_TREND_INTENT = /\b(pull my reports|show my reports|fetch my reports|what do my reports say|compare my reports|lab history|lab trend|report history|report trend|date\s*wise|datewise)\b/i;
+const PULL_REPORTS_RE = /\bpull (?:all )?my reports?\b/i;
 const RAW_TEXT_INTENT = /(raw text|full text|show .*report text)/i;
 
 const formatTrendDate = (iso?: string) => {
@@ -960,35 +962,41 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       setLabSummary(body);
 
       const trend: any[] = Array.isArray(body.trend) ? body.trend : [];
-      const dayMap = new Map<string, { date: Date; items: string[] }>();
+      const labs: LabLike[] = [];
       for (const t of trend) {
         const series = Array.isArray(t?.series) ? t.series : [];
-        for (const p of series) {
-          if (!p?.sample_date) continue;
-          const d = new Date(p.sample_date);
-          if (Number.isNaN(d.getTime())) continue;
-          const key = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10);
-          const name = t?.test_name ?? t?.test_code ?? 'Test';
-          const unit = t?.unit ? ` ${t.unit}` : '';
-          const existing = dayMap.get(key);
-          if (existing) {
-            existing.items.push(`${name}: ${p.value}${unit}`);
-          } else {
-            dayMap.set(key, { date: d, items: [`${name}: ${p.value}${unit}`] });
-          }
+        for (const point of series) {
+          if (!point?.sample_date) continue;
+          labs.push({
+            name: t?.test_name ?? t?.test_code ?? 'Test',
+            value: typeof point?.value === 'number' || typeof point?.value === 'string' ? point.value : null,
+            unit: typeof t?.unit === 'string' ? t.unit : null,
+            takenAt: point.sample_date,
+          });
         }
       }
 
-      const days = Array.from(dayMap.values()).sort((a, b) => b.date.getTime() - a.date.getTime());
+      const grouped = groupAndDedupeByDate(labs).sort((a, b) => b.date.localeCompare(a.date));
       const totalReports =
-        typeof body.meta?.total_reports === 'number' ? body.meta.total_reports : days.length;
+        typeof body.meta?.total_reports === 'number' ? body.meta.total_reports : grouped.length;
 
       let md = `**Report Timeline**\n\nHere are your reports, sorted by date:\n\n`;
-      if (days.length === 0) {
+      if (grouped.length === 0) {
         md += `${NO_LABS_MESSAGE}`;
       } else {
-        for (const group of days) {
-          md += `- **${group.date.toLocaleDateString()}**: ${group.items.join(' • ')}\n`;
+        for (const group of grouped) {
+          const parts = group.labs.map(lab => {
+            const rawValue = lab.value;
+            const value =
+              rawValue === null || rawValue === undefined
+                ? '—'
+                : typeof rawValue === 'number'
+                ? String(rawValue)
+                : String(rawValue);
+            const unit = lab.unit ? ` ${lab.unit}` : '';
+            return `${lab.name}: ${value}${unit}`;
+          });
+          md += `- **${formatTrendDate(group.date)}**: ${parts.join(' • ')}\n`;
         }
       }
       md += `\n**Total documents:** ${totalReports}`;
@@ -2293,6 +2301,68 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             }
           } catch {}
         }
+
+    const wantsStructuredReports = isAiDocMode && PULL_REPORTS_RE.test(messageText);
+    if (wantsStructuredReports) {
+      mark('send');
+      try {
+        markPendingAssistantStreaming(pendingId);
+        const res = await fetch('/api/ai-doc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-user-lang': lang },
+          body: JSON.stringify({
+            threadId,
+            message: messageText,
+            lang,
+            personalization,
+            allowHistory,
+          }),
+          cache: 'no-store',
+          signal: ctrl.signal,
+        });
+        if (res.status === 409) {
+          cancelPendingAssistant(pendingId);
+          setMessages(prev => prev.filter(m => m.id !== pendingId));
+          setBusy(false);
+          setThinkingStartedAt(null);
+          return;
+        }
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          throw new Error(text || `Request failed (${res.status})`);
+        }
+        const data = await res.json().catch(() => null);
+        if (!data || typeof data !== 'object') {
+          throw new Error('Empty response from AI Doc.');
+        }
+        const parsed: any = data;
+        setAidoc(parsed);
+        if (parsed?.kind === 'reports') {
+          setStructuredAidoc(parsed);
+        } else {
+          setStructuredAidoc(null);
+        }
+        const summaryText =
+          typeof parsed?.summary === 'string' && parsed.summary.trim().length > 0
+            ? parsed.summary.trim()
+            : 'Pulled your reports. See the structured view below.';
+        enqueuePendingAssistant(pendingId, summaryText);
+        finishPendingAssistant(pendingId, summaryText);
+        recordShortMem(threadId, 'assistant', summaryText);
+        recordStructured(threadId, summaryText);
+        recordShortMem(stableThreadId, 'assistant', summaryText);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err ?? 'Unknown error');
+        const content = `⚠️ Could not pull reports: ${message}`;
+        enqueuePendingAssistant(pendingId, content);
+        finishPendingAssistant(pendingId, content, { error: message });
+        opts.onError?.();
+      } finally {
+        setBusy(false);
+        setThinkingStartedAt(null);
+      }
+      return;
+    }
 
     const history = opts.historyOverride ?? messages;
     const baseHistory = allowHistory ? history : [];
