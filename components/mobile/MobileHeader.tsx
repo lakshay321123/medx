@@ -190,7 +190,13 @@ export default function MobileHeader() {
           className="mobile-icon-btn"
           onClick={handleNewChat}
         >
-          <IconNewChat className="h-5 w-5" size={20} />
+          <IconNewChat
+            className="h-5 w-5"
+            size={20}
+            weight={2}
+            activeWeight={2}
+            style={{ opacity: 1, transition: "opacity .15s ease, stroke-width .15s ease" }}
+          />
         </button>
         <button
           type="button"
