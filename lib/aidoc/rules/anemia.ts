@@ -2,7 +2,7 @@ export type AnemiaRuleOut = {
   steps: string[];
   nudges: string[];
   fired: string[];
-  softAlerts?: string[];
+  softAlerts: string[];
 };
 
 type Lab = {
