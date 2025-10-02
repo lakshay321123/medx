@@ -57,6 +57,7 @@ import { pushToast } from "@/lib/ui/toast";
 import { useFeedback } from "@/hooks/useFeedback";
 import { usePendingAssistantStages } from "@/hooks/usePendingAssistantStages";
 import type { PendingAssistantState } from "@/hooks/usePendingAssistantStages";
+import { mark, since } from "@/utils/latency";
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -2300,6 +2301,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     ];
 
         const endpoint = '/api/aidoc/chat';
+        mark('send');
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-user-lang': lang },
@@ -2313,6 +2315,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             personalization,
             allowHistory,
           }),
+          cache: 'no-store',
           signal: ctrl.signal
         });
       if (res.status === 409) {
@@ -2322,11 +2325,13 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         setThinkingStartedAt(null);
         return;
       }
+        console.log('[latency] Tfb(ms)=', since('send'));
         if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         acc = '';
         let sawContent = false;
+        let loggedFirstToken = false;
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -2342,6 +2347,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
                 if (!sawContent) {
                   markPendingAssistantStreaming(pendingId);
                   sawContent = true;
+                }
+                if (!loggedFirstToken) {
+                  loggedFirstToken = true;
+                  console.log('[latency] Tft(ms)=', since('send'));
                 }
                 enqueuePendingAssistant(pendingId, delta);
                 if (!CHAT_UX_V2_ENABLED) {
@@ -2635,6 +2644,7 @@ ${systemCommon}` + baseSys;
       }
 
       const url = `/api/chat/stream${researchMode ? '?research=1' : ''}`;
+      mark('send');
       const res = await fetch(url, {
         method: 'POST',
         headers: {
@@ -2654,6 +2664,7 @@ ${systemCommon}` + baseSys;
           personalization,
           allowHistory,
         }),
+        cache: 'no-store',
         signal: ctrl.signal
       });
       if (res.status === 409) {
@@ -2663,12 +2674,14 @@ ${systemCommon}` + baseSys;
         setThinkingStartedAt(null);
         return;
       }
+      console.log('[latency] Tfb(ms)=', since('send'));
       if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       acc = '';
       let sawContent = false;
+      let loggedFirstToken = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -2686,6 +2699,10 @@ ${systemCommon}` + baseSys;
               if (!sawContent) {
                 markPendingAssistantStreaming(pendingId);
                 sawContent = true;
+              }
+              if (!loggedFirstToken) {
+                loggedFirstToken = true;
+                console.log('[latency] Tft(ms)=', since('send'));
               }
               enqueuePendingAssistant(pendingId, delta);
               if (!CHAT_UX_V2_ENABLED) {
