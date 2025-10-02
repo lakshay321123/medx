@@ -24,7 +24,15 @@ export type PlannerCondition = { label?: string | null; status?: string | null; 
 export type PlannerNote = { body?: string | null; createdAt?: MaybeDate; updatedAt?: MaybeDate; profileId?: string | null };
 export type PlannerProfile = { id?: string | null; userId?: string | null; name?: string | null; age?: number | null; sex?: string | null };
 
-export type LabRow = { name: string; value: number | string | null; unit?: string; marker?: string; ideal?: string };
+export type MarkerValue = "High" | "Low" | "Borderline" | "Normal";
+
+export type LabRow = {
+  name: string;
+  value: number | string | null;
+  unit?: string;
+  marker?: MarkerValue;
+  ideal?: string;
+};
 export type ReportBlock = { date: string; labs: LabRow[]; summary: string };
 
 export type PlannedLab = LabRow;
@@ -109,7 +117,7 @@ export function idealFor(name: string): string | undefined {
   }
 }
 
-export function markerFor(name: string, value: number | null | undefined): "High" | "Low" | "Borderline" | "Normal" | undefined {
+export function markerFor(name: string, value: number | null | undefined): MarkerValue | undefined {
   if (value == null || Number.isNaN(value)) return undefined;
   switch (name) {
     case "LDL":

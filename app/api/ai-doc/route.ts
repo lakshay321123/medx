@@ -18,10 +18,21 @@ import {
   idealFor,
   markerFor,
   buildSingleLineSummary,
+  type LabRow,
+  type ReportBlock,
+  type MarkerValue,
 } from "@/lib/aidoc/planner";
 import { callOpenAIJson } from "@/lib/aidoc/vendor";
 import { groupByIsoDate, dedupeSameDay, normUnit, type LabLike } from "@/lib/aidoc/normalize";
 import { AIDOC_JSON_INSTRUCTION } from "@/lib/aidoc/schema";
+
+const MARKER_VALUES = new Set<MarkerValue>(["High", "Low", "Borderline", "Normal"]);
+
+function toMarkerValue(value: unknown): MarkerValue | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return MARKER_VALUES.has(trimmed as MarkerValue) ? (trimmed as MarkerValue) : undefined;
+}
 
 interface PatientBundle {
   profile: PlannerProfile | null;
@@ -132,7 +143,7 @@ function defaultNextSteps(comparisons: Record<string, string>): string[] {
 type ModelReport = {
   date: string;
   summary: string;
-  labs: { name: string; value: number | string | null; unit?: string | null; marker?: string }[];
+  labs: { name: string; value: number | string | null; unit?: string | null; marker?: MarkerValue }[];
 };
 
 function formatReportsForModel(reports: ModelReport[]): string {
@@ -209,7 +220,7 @@ export async function POST(req: NextRequest) {
 
   const labs = ensureArray(bundle.labs) as LabLike[];
   const grouped = groupByIsoDate(labs);
-  let reports = grouped.map(([date, items]) => {
+  let reports: ReportBlock[] = grouped.map(([date, items]) => {
     const cleaned = dedupeSameDay(
       items.map(item => ({
         name: item?.name ?? undefined,
@@ -218,32 +229,35 @@ export async function POST(req: NextRequest) {
       })),
     );
 
-    const labsOut = cleaned
-      .filter(item => item.name)
-      .map(item => {
-        const rawValue = item.value;
-        let numeric: number | null = null;
-        if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
-          numeric = rawValue;
-        } else if (typeof rawValue === "string") {
-          const parsed = Number(rawValue);
-          if (!Number.isNaN(parsed)) numeric = parsed;
-        }
-        const displayValue =
-          numeric ?? (typeof rawValue === "string" ? rawValue : rawValue ?? null);
-        const displayName = item.name ? String(item.name) : "";
-        return {
-          name: displayName,
-          value: displayValue,
-          unit: normUnit(item.unit ?? undefined),
-          marker: markerFor(displayName, numeric) ?? undefined,
-          ideal: idealFor(displayName),
-        };
-      });
+    const labsOut: LabRow[] = [];
+    for (const item of cleaned) {
+      const rawValue = item.value;
+      let numeric: number | null = null;
+      if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
+        numeric = rawValue;
+      } else if (typeof rawValue === "string") {
+        const parsed = Number(rawValue);
+        if (!Number.isNaN(parsed)) numeric = parsed;
+      }
+
+      const displayValue: number | string | null =
+        numeric ?? (typeof rawValue === "string" ? rawValue : rawValue ?? null);
+      const displayName = typeof item.name === "string" ? item.name : "";
+      if (!displayName) continue;
+      const unit = normUnit(item.unit ?? undefined);
+
+      labsOut.push({
+        name: displayName,
+        value: displayValue,
+        unit,
+        marker: markerFor(displayName, numeric ?? null),
+        ideal: idealFor(displayName),
+      } satisfies LabRow);
+    }
 
     const summary = buildSingleLineSummary(labsOut);
 
-    return { date, labs: labsOut, summary };
+    return { date, labs: labsOut, summary } satisfies ReportBlock;
   });
 
   if (intentCategory === "compare_reports" && entities.compareWindow) {
@@ -258,11 +272,11 @@ export async function POST(req: NextRequest) {
       labs: report.labs.map(lab => ({
         name: lab.name,
         value: lab.value,
-        unit: lab.unit ?? null,
-        marker: lab.marker ?? undefined,
+        unit: lab.unit ?? undefined,
+        marker: toMarkerValue(lab.marker),
         ideal: lab.ideal ?? undefined,
-      })),
-    }));
+      } satisfies LabRow)),
+    } satisfies ReportBlock);
   }
 
   if (intentCategory === "interpret_report") {
@@ -271,8 +285,8 @@ export async function POST(req: NextRequest) {
       .map(report => ({
         date: report.date,
         summary: report.summary,
-        labs: [] as { name: string; value: number | string | null; unit?: string | null; marker?: string; ideal?: string }[],
-      }));
+        labs: [] as LabRow[],
+      } satisfies ReportBlock));
     if (imagingReports.length) {
       reports = [...reports, ...imagingReports];
       reports.sort((a, b) => b.date.localeCompare(a.date));
