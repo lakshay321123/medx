@@ -113,30 +113,30 @@ function buildModelSystem(patient: any, reports: ModelReport[], comparisons: Rec
   ].join("\n");
 }
 
-async function getActiveProfile(profileId?: string | null): Promise<{ id: string } | null> {
-  if (profileId?.trim()) {
-    const scoped = await prisma.profile.findFirst({ where: { id: profileId.trim() }, select: { id: true } });
-    if (scoped) return scoped;
-  }
-
-  return prisma.profile.findFirst({
-    where: {},
-    orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-    select: { id: true },
-  });
-}
-
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as { message?: string; text?: string; profileId?: string };
 
-  const message = typeof body?.message === "string" ? body.message.trim() : "";
-  const text = typeof body?.text === "string" ? body.text.trim() : "";
-  const userText = message || text;
+  const message = String(body.message ?? body.text ?? "");
+  const userText = message.trim();
   if (!userText) {
     return NextResponse.json({ error: "no_message" }, { status: 400 });
   }
 
-  const profile = await getActiveProfile(body.profileId ?? null);
+  let profile: { id: string } | null = null;
+
+  if (body.profileId?.trim()) {
+    profile = await prisma.profile.findFirst({
+      where: { id: body.profileId.trim() },
+      select: { id: true },
+    });
+  }
+  if (!profile) {
+    profile = await prisma.profile.findFirst({
+      where: {},
+      orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+      select: { id: true },
+    });
+  }
   if (!profile) {
     return NextResponse.json({ error: "no_profile_available" }, { status: 404 });
   }

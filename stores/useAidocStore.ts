@@ -1,5 +1,34 @@
 import { create } from 'zustand';
-import type { StructuredAidocResponse } from '@/lib/aidoc/structured';
+
+export type StructuredAidocResponse = {
+  kind: string;
+  intent: string | null;
+  patient: {
+    name?: string | null;
+    age?: number | null;
+    sex?: string | null;
+    predispositions?: string[];
+    medications?: string[];
+    symptoms?: string[];
+    conditions?: string[];
+  } | null;
+  reports: {
+    date: string;
+    summary: string;
+    labs: {
+      name: string;
+      value: number | string | null;
+      unit?: string | null;
+      marker?: string | null;
+      ideal?: string | null;
+    }[];
+  }[];
+  comparisons: Record<string, string>;
+  summary: string;
+  nextSteps: string[];
+  reply?: string;
+  entities?: unknown;
+};
 
 export type AidocMsg = { role: string; content: string };
 
