@@ -59,6 +59,23 @@ export async function POST(req: NextRequest) {
   const message = rawMessage;
   const answers = (body?.answers && typeof body.answers === "object") ? body.answers : null;
   const incomingProfile = (body?.profile && typeof body.profile === "object") ? body.profile : null;
+
+  // hard-route report intents to the structured endpoint
+  const PULL_REPORTS_RE =
+    /\b(pull|show|get|fetch|list|display|give|provide|bring\s*up|open|view|see|export|share)\s+(?:me\s+)?(?:my\s+)?(?:all|full|entire|complete)?\s*(?:report|reports|lab(?:\s*results)?|test(?:\s*results)?|medical\s*(?:reports|records)|report\s*(?:history|timeline)|lab\s*history|previous\s*test\s*results)\b/i;
+
+  if (PULL_REPORTS_RE.test(message || "")) {
+    // no login flow? let /api/ai-doc pick primary/oldest profile internally
+    const structured = await fetch(new URL("/api/ai-doc", req.url), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ message }),
+      cache: "no-store",
+    });
+    const data = await structured.json();
+    return NextResponse.json(data);
+  }
+
   const messages: Array<{ role: string; content: string }> = Array.isArray(body?.messages)
     ? [...body.messages]
     : [];
