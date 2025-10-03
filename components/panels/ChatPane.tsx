@@ -88,6 +88,8 @@ const NO_LABS_MESSAGE = "I couldn't find structured lab values yet.";
 const REPORTS_LOCKED_MESSAGE = "Reports are available only in AI Doc mode.";
 // Updated LABS_TREND_INTENT: only triggers on explicit lab/report phrases
 const LABS_TREND_INTENT = /\b(pull my reports|show my reports|fetch my reports|what do my reports say|compare my reports|lab history|lab trend|report history|report trend|date\s*wise|datewise)\b/i;
+// Wide matcher for report-pulling phrases (singular/plural + synonyms)
+const PULL_REPORTS_RE = /\b(pull|show|get|fetch|list|display|give|provide|bring\s*up|open|view|see|export|share)\s+(?:me\s+)?(?:my\s+)?(?:all|full|entire|complete)?\s*(?:report|reports|lab(?:\s*results)?|test(?:\s*results)?|medical\s*(?:reports|records)|report\s*(?:history|timeline)|lab\s*history|previous\s*test\s*results)\b/i;
 const RAW_TEXT_INTENT = /(raw text|full text|show .*report text)/i;
 
 const formatTrendDate = (iso?: string) => {
@@ -789,6 +791,18 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       }
     },
     [allowHistory],
+  );
+
+  const enqueueSystemMessage = useCallback(
+    (content: string) => {
+      const trimmed = content?.trim();
+      if (!trimmed) return;
+      setMessages(prev => [
+        ...prev,
+        { id: uid(), role: 'system', kind: 'chat', content: trimmed } as ChatMessage,
+      ]);
+    },
+    [setMessages],
   );
 
   const handlePendingContentUpdate = useCallback(
@@ -2335,11 +2349,16 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       { role: 'user', content: `${messageText}${contextBlock}` },
     ];
 
-        const isReportIntent =
-          isAiDocMode &&
-          /\b(pull|show|get|fetch|list|display|give|provide|bring\s*up|open|view|see|export|share)\s+(me\s+)?(my\s+)?(all|full|entire|complete)?\s*(report|reports|lab(\s*results)?|test(\s*results)?|medical\s*(reports|records)|report\s*(history|timeline)|lab\s*history|previous\s*test\s*results)\b/i.test(
-            messageText,
-          );
+        const isReportIntent = PULL_REPORTS_RE.test(messageText);
+        if (isReportIntent && !activeProfileId) {
+          cancelPendingAssistant(pendingId);
+          setMessages(prev => prev.filter(m => m.id !== pendingId));
+          enqueueSystemMessage('Select a patient profile to pull reports.');
+          setBusy(false);
+          setThinkingStartedAt(null);
+          return;
+        }
+
         const endpoint = isReportIntent ? '/api/ai-doc' : '/api/aidoc/chat';
         const payload = isReportIntent
           ? {
@@ -2348,7 +2367,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               lang,
               personalization,
               allowHistory,
-              ...(activeProfileId ? { profileId: activeProfileId } : {}),
+              profileId: activeProfileId!,
             }
           : {
               mode: mode === 'doctor' ? 'doctor' : 'patient',
@@ -2359,7 +2378,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               lang,
               personalization,
               allowHistory,
-              ...(activeProfileId ? { profileId: activeProfileId } : {}),
             };
         mark('send');
         const res = await fetch(endpoint, {
