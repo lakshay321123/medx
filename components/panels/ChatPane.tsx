@@ -2372,7 +2372,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               lang,
               personalization,
               allowHistory,
-              profileId: activeProfileId ?? undefined,
+              profileId: activeProfileId,
             }
           : {
               mode: mode === 'doctor' ? 'doctor' : 'patient',
@@ -2383,7 +2383,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               lang,
               personalization,
               allowHistory,
-              profileId: activeProfileId ?? undefined,
+              profileId: activeProfileId,
             };
         mark('send');
         const res = await fetch(endpoint, {
@@ -3636,7 +3636,7 @@ ${systemCommon}` + baseSys;
           lang,
           personalization,
           allowHistory,
-          profileId: activeProfileId ?? undefined,
+          profileId: activeProfileId,
         })
       });
       const data = await r.json();
