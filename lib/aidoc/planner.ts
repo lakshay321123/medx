@@ -22,7 +22,16 @@ export type PlannerLabInput = {
 export type PlannerMedication = { name?: string | null; profileId?: string | null };
 export type PlannerCondition = { label?: string | null; status?: string | null; profileId?: string | null };
 export type PlannerNote = { body?: string | null; createdAt?: MaybeDate; updatedAt?: MaybeDate; profileId?: string | null };
-export type PlannerProfile = { id?: string | null; userId?: string | null; name?: string | null; age?: number | null; sex?: string | null };
+export type PlannerProfile = {
+  id?: string | null;
+  userId?: string | null;
+  name?: string | null;
+  age?: number | null;
+  sex?: string | null;
+  fullName?: string | null;
+  conditions_predisposition?: string[] | null;
+  chronic_conditions?: string[] | null;
+};
 
 export type MarkerValue = "High" | "Low" | "Borderline" | "Normal";
 
@@ -46,6 +55,7 @@ export type PlannerPatient = {
   predispositions: string[];
   medications: string[];
   symptoms: string[];
+  conditions: string[];
 };
 
 export type PreparedAidocPayload = {
@@ -205,7 +215,7 @@ export function compareTrend(reports: ReportBlock[], metric: string) {
   const rangeMin = Math.min(...numericSeries);
   const rangeMax = Math.max(...numericSeries);
   const direction = latestNumeric > prevNumeric ? "↑" : latestNumeric < prevNumeric ? "↓" : "→";
-  return `${metric}: ${latestLab.value} (${reports[latestIndex].date}) ${direction} from ${prev.value} (${prev.date}); range ${rangeMin}-${rangeMax}`;
+  return `${latestLab.value} (${reports[latestIndex].date}) ${direction} from ${prev.value} (${prev.date}); range ${rangeMin}-${rangeMax}`;
 }
 
 function sortReportsByDate(reports: PlannedReport[]): PlannedReport[] {
@@ -218,22 +228,37 @@ function buildPatient(
   medications: PlannerMedication[] = [],
   notes: PlannerNote[] = [],
 ): PlannerPatient {
-  const predispositions = Array.from(
+  const rawPredispositions = Array.isArray((profile as any)?.conditions_predisposition)
+    ? ((profile as any).conditions_predisposition as unknown[])
+    : [];
+  let predispositions = Array.from(
+    new Set(
+      (rawPredispositions as string[])
+        .map(item => (typeof item === "string" ? item.trim() : ""))
+        .filter(Boolean),
+    ),
+  );
+  const chronicConditions = Array.from(
     new Set(
       conditions
         .filter(condition => condition?.label && condition.status !== "resolved")
         .map(condition => String(condition.label)),
     ),
   );
+  if (!predispositions.length) {
+    predispositions = [...chronicConditions];
+  }
   const meds = medications.filter(med => med?.name).map(med => String(med.name));
   const symptoms = extractSymptoms(notes);
+  const displayName = (profile as any)?.fullName || profile?.name || "Unknown Patient";
   return {
-    name: profile?.name || "Unknown Patient",
+    name: displayName,
     age: typeof profile?.age === "number" ? profile.age : null,
     sex: profile?.sex ?? undefined,
     predispositions,
     medications: meds,
     symptoms,
+    conditions: chronicConditions,
   };
 }
 

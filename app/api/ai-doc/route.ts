@@ -182,6 +182,16 @@ function defaultNextSteps(comparisons: Record<string, string>): string[] {
   return steps;
 }
 
+function sanitizeSummary(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value
+    .replace(/^[\s\u200B]+/g, "")
+    .replace(/^thanks[^\n]*\n?/i, "")
+    .replace(/^i'?ll\s+personalize[^\n]*\n?/i, "")
+    .replace(/what\s+symptoms[^\n]*\??\s*$/i, "")
+    .trim();
+}
+
 type ModelReport = {
   date: string;
   summary: string;
@@ -377,6 +387,9 @@ export async function POST(req: NextRequest) {
   const predispositions = Array.isArray(profile?.conditions_predisposition)
     ? profile.conditions_predisposition.filter(Boolean)
     : preparedRaw.patient?.predispositions ?? [];
+  const chronicConditions = Array.isArray(profile?.chronic_conditions)
+    ? profile.chronic_conditions.filter(Boolean)
+    : (preparedRaw.patient as any)?.conditions ?? [];
   const medicationsList = ensureArray(bundle.medications)
     .map((med: any) => med?.name)
     .filter((name: any): name is string => typeof name === "string" && name.length > 0);
@@ -388,6 +401,7 @@ export async function POST(req: NextRequest) {
         predispositions,
         medications: medicationsList.length ? medicationsList : preparedRaw.patient.medications ?? [],
         symptoms: preparedRaw.patient.symptoms ?? [],
+        conditions: chronicConditions,
       }
     : null;
 
@@ -403,19 +417,20 @@ export async function POST(req: NextRequest) {
   }));
 
   const system = buildModelSystem(patient, modelReports, comparisons);
-  let summary = reports[0]?.summary ?? defaultSummaryFromComparisons(comparisons);
+  let summary = defaultSummaryFromComparisons(comparisons);
   let nextSteps = defaultNextSteps(comparisons);
 
   try {
     const ai = await callOpenAIJson({
       system,
-      user: "Write a short, 3–5 sentence clinical interpretation that synthesizes the trends and risk areas from the provided patient card and reports. Do NOT restate the single-line date summaries verbatim.",
+      user:
+        "Write a short (3–5 sentence) clinical interpretation using only the provided patient card, reports, and comparisons. Do not ask questions and avoid coaching phrases like 'thanks' or 'what symptoms'.",
       instruction: AIDOC_JSON_INSTRUCTION,
       metadata: { feature: "pull_reports" },
     });
-    const aiReply = typeof ai?.reply === "string" ? ai.reply.trim() : "";
-    if (aiReply && aiReply.length > 80) {
-      summary = aiReply;
+    const rawSummary = sanitizeSummary(ai?.reply);
+    if (rawSummary && rawSummary.split(/\s+/).length >= 15) {
+      summary = rawSummary;
     }
     const aiNotes = sanitizeNextSteps((ai as any)?.save?.notes ?? (ai as any)?.nextSteps);
     if (aiNotes.length) {

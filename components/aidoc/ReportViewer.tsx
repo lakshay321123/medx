@@ -23,6 +23,7 @@ export type AidocPatient = {
   predispositions: string[];
   medications: string[];
   symptoms: string[];
+  conditions?: string[];
 };
 
 export type AidocViewerProps = {
@@ -75,6 +76,11 @@ export function AidocReportViewer({
             {patient.predispositions.length > 0 && (
               <div>
                 <span className="font-medium">Predispositions:</span> {patient.predispositions.join(', ')}
+              </div>
+            )}
+            {Array.isArray(patient.conditions) && patient.conditions.length > 0 && (
+              <div>
+                <span className="font-medium">Conditions:</span> {patient.conditions.join(', ')}
               </div>
             )}
             {patient.medications.length > 0 && (

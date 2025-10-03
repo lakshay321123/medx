@@ -2359,7 +2359,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       { role: 'user', content: `${messageText}${contextBlock}` },
     ];
 
-        const isReportIntent = isAiDocMode && /pull (all )?my report(s)?\b/i.test(messageText);
+        const isReportIntent =
+          isAiDocMode &&
+          /\b(pull|show|get|fetch|list|display|give|provide|bring\s*up|open|view|see|export|share)\s+(me\s+)?(my\s+)?(all|full|entire|complete)?\s*(report|reports|lab(\s*results)?|test(\s*results)?|medical\s*(reports|records)|report\s*(history|timeline)|lab\s*history|previous\s*test\s*results)\b/i.test(
+            messageText,
+          );
         const endpoint = isReportIntent ? '/api/ai-doc' : '/api/aidoc/chat';
         const payload = isReportIntent
           ? {
@@ -3839,7 +3843,7 @@ ${systemCommon}` + baseSys;
             </div>
           )}
 
-          {AIDOC_UI && aidoc && (
+          {AIDOC_UI && aidoc && !(aidoc.kind === 'reports' && Array.isArray(aidoc.reports) && aidoc.reports.length > 0) && (
             <div className="mx-auto mt-6 w-full max-w-3xl">
               <div className="space-y-2 rounded-xl border border-slate-200 bg-white/85 p-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
                 <div className="font-medium">Observations</div>

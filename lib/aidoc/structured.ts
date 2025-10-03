@@ -30,6 +30,7 @@ export type StructuredPatient = {
   predispositions: string[];
   medications: string[];
   symptoms: string[];
+  conditions: string[];
 };
 
 export type StructuredAidocResponse = {

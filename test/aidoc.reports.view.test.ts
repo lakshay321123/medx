@@ -122,7 +122,7 @@ describe('Aidoc helpers', () => {
             ],
           },
         ],
-        comparisons: { LDL: 'LDL: 182 (2025-10-01) ↑ from 160 (2025-05-01); range 160-182' },
+        comparisons: { LDL: '182 (2025-10-01) ↑ from 160 (2025-05-01); range 160-182' },
         summary: 'Summary text',
         nextSteps: ['Follow up'],
       }),
