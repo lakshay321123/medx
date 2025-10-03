@@ -7,7 +7,7 @@ import { getUserId } from "@/lib/getUserId";
 import { prisma } from "@/lib/prisma";
 import { AiDocIntent, detectAidocIntent } from "@/lib/aidoc/schema";
 import { AiDocPrompts, AiDocIntentCategory } from "@/lib/aidoc/intents";
-import { buildStructuredAidocResponse, SAMPLE_AIDOC_DATA } from "@/lib/aidoc/structured";
+import { buildStructuredAidocResponse } from "@/lib/aidoc/structured";
 
 interface PatientBundle {
   profile: any;
@@ -92,11 +92,11 @@ async function loadPatientBundle(userId: string): Promise<PatientBundle> {
   const fromPrisma = await loadFromPrisma(userId);
   if (fromPrisma) return fromPrisma;
   return {
-    profile: SAMPLE_AIDOC_DATA.profile,
-    labs: SAMPLE_AIDOC_DATA.labs,
-    notes: SAMPLE_AIDOC_DATA.notes,
-    medications: SAMPLE_AIDOC_DATA.medications,
-    conditions: SAMPLE_AIDOC_DATA.conditions,
+    profile: null,
+    labs: [],
+    notes: [],
+    medications: [],
+    conditions: [],
   };
 }
 
