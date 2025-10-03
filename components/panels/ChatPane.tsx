@@ -317,7 +317,7 @@ type SendOpts = {
   skipUserMemory?: boolean;
   replacesId?: string;
   onFinish?: () => void;
-  onError?: () => void;
+  onError?: (info?: { reason?: string }) => void;
   onSuccess?: (newMessageId: string) => void;
   onPending?: (pendingMessageId: string) => void;
 };
@@ -708,6 +708,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const t = useT();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const messagesStateRef = useRef<ChatMessage[]>([]);
+  messagesStateRef.current = messages;
   const [userText, setUserText] = useState('');
   const [mounted, setMounted] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
@@ -808,6 +810,21 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     onContentUpdate: handlePendingContentUpdate,
     onFinalize: handlePendingFinalize,
   });
+
+  const getMessageById = useCallback(
+    (id?: string | null) => {
+      if (!id) return null;
+      return messagesStateRef.current.find(m => m.id === id) ?? null;
+    },
+    [],
+  );
+
+  const replaceMessage = useCallback(
+    (id: string, message: ChatMessage) => {
+      setMessages(list => list.map(m => (m.id === id ? message : m)));
+    },
+    [setMessages],
+  );
 
   const sp = useSearchParams();
   const isAiDocMode = useIsAiDocMode();
@@ -1320,8 +1337,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         onFinish: () => {
           setRefreshingMessageId(prev => (prev === message.id ? null : prev));
         },
-        onError: () => {
+        onError: info => {
           setRefreshingMessageId(prev => (prev === message.id ? null : prev));
+          if (info?.reason === 'aborted') {
+            return;
+          }
           revert();
         },
       }).catch(() => {
@@ -2183,6 +2203,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       // never block the normal flow
     }
 
+    const regenTargetId = opts.replacesId ?? null;
+    const prevAssistantSnapshot = regenTargetId ? getMessageById(regenTargetId) : null;
+
     const userId = uid();
     const pendingId = uid();
     // Dedupe: avoid back-to-back identical user bubbles
@@ -2765,7 +2788,15 @@ ${systemCommon}` + baseSys;
       }
     } catch (e: any) {
       if (e?.name === 'AbortError') {
-        finishPendingAssistant(pendingId, acc);
+        const hasNewText = (acc ?? '').length > 0;
+        if (regenTargetId && !hasNewText && prevAssistantSnapshot) {
+          cancelPendingAssistant(pendingId);
+          replaceMessage(regenTargetId, prevAssistantSnapshot);
+          setMessages(list => list.filter(m => m.id !== pendingId));
+        } else {
+          finishPendingAssistant(pendingId, acc ?? '');
+        }
+        opts.onError?.({ reason: 'aborted' });
         return;
       }
       console.error(e);
