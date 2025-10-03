@@ -317,7 +317,7 @@ export function buildStructuredAidocResponse(input: StructuredBuildInput): Struc
 }
 
 export const SAMPLE_AIDOC_DATA = {
-  profile: { name: "Lakshay Mehra", age: 32 },
+  profile: { name: "Demo Patient", age: 32 },
   labs: [
     {
       name: "LDL",

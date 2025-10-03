@@ -30,13 +30,13 @@ This project includes:
 
 ## Endpoints
 - `GET /api/banner` — aggregated headlines
-- `POST /api/chat` — body: `{question, role: "patient"|"clinician"}`
+- `POST /api/chat` — body: `{question, role: "Patient"|"clinician"}`
 - `POST /api/analyze` — multipart form-data with `file` and optional `doctorMode` (Clinical mode toggle)
 - Plus wrappers: `/api/clinicaltrials`, `/api/pubmed`, `/api/who`, `/api/openfda`, `/api/dailymed`, `/api/rxnorm`, `/api/icd11`
 
 ## Notes
 - OpenAI models power the `/api/analyze` endpoint for PDF and image summaries.
-- Images for banner should follow source licenses; this demo just returns text/meta.
+- Images for banner should follow source licenses; this Demo just returns text/meta.
 
 ### Imaging
 - Supported: PDF, PNG, JPG

@@ -3,7 +3,7 @@ import { buildStructuredAidocResponse } from '../lib/aidoc/structured';
 import { AiDocIntent } from '../lib/aidoc/schema';
 
 const bundle = {
-  profile: { name: 'Lakshay Mehra', age: 32 },
+  profile: { name: 'Demo Patient', age: 32 },
   medications: [{ name: 'Timolol' }],
   conditions: [{ label: 'Blood cancer', status: 'active' }],
   notes: [
