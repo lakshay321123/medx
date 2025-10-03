@@ -262,10 +262,10 @@ export async function POST(req: NextRequest) {
   }
 
   const profileClient: any = (prisma as any)?.profile;
-  const profile = profileClient?.findFirst
+  const dbProfile = profileClient?.findFirst
     ? await profileClient.findFirst({ where: { id: clientPid, userId } })
     : null;
-  if (!profile && clientPid !== SAMPLE_AIDOC_DATA.profile.id) {
+  if (!dbProfile && clientPid !== SAMPLE_AIDOC_DATA.profile.id) {
     return NextResponse.json({ error: "profile_not_found_or_not_owned" }, { status: 404 });
   }
 
@@ -394,12 +394,12 @@ export async function POST(req: NextRequest) {
   const focusMetric = intentCategory === "compare_metric" ? entities.metric ?? null : null;
   const comparisons = buildComparisons(reports, focusMetric);
 
-  const profile: any = bundle.profile ?? {};
-  const predispositions = Array.isArray(profile?.conditions_predisposition)
-    ? profile.conditions_predisposition.filter(Boolean)
+  const bundleProfile: any = bundle.profile ?? {};
+  const predispositions = Array.isArray(bundleProfile?.conditions_predisposition)
+    ? bundleProfile.conditions_predisposition.filter(Boolean)
     : preparedRaw.patient?.predispositions ?? [];
-  const chronicConditions = Array.isArray(profile?.chronic_conditions)
-    ? profile.chronic_conditions.filter(Boolean)
+  const chronicConditions = Array.isArray(bundleProfile?.chronic_conditions)
+    ? bundleProfile.chronic_conditions.filter(Boolean)
     : (preparedRaw.patient as any)?.conditions ?? [];
   const medicationsList = ensureArray(bundle.medications)
     .map((med: any) => med?.name)
@@ -407,8 +407,10 @@ export async function POST(req: NextRequest) {
   const patient = preparedRaw.patient
     ? {
         ...preparedRaw.patient,
-        name: profile?.fullName ?? profile?.name ?? preparedRaw.patient.name,
-        age: profile?.dob ? computeAgeFromDob(profile.dob) ?? preparedRaw.patient.age : preparedRaw.patient.age,
+        name: bundleProfile?.fullName ?? bundleProfile?.name ?? preparedRaw.patient.name,
+        age: bundleProfile?.dob
+          ? computeAgeFromDob(bundleProfile.dob) ?? preparedRaw.patient.age
+          : preparedRaw.patient.age,
         predispositions,
         medications: medicationsList.length ? medicationsList : preparedRaw.patient.medications ?? [],
         symptoms: preparedRaw.patient.symptoms ?? [],
