@@ -43,6 +43,10 @@ type Item = {
 type Groups = Record<GroupKey, Item[]>;
 
 const ADDONS_ENABLED = flagEnabled(process.env.FEATURE_PROFILE_ADDONS);
+const PROFILE_COLUMNS_BASE =
+  "id, full_name, dob, sex, blood_group, conditions_predisposition, chronic_conditions";
+const PROFILE_COLUMNS_WITH_ADDONS = `${PROFILE_COLUMNS_BASE}, profile_extra`;
+const PG_UNDEFINED_COLUMN = "42703";
 
 function flagEnabled(raw: string | undefined) {
   const normalized = (raw ?? "").toString().trim().toLowerCase();
@@ -204,13 +208,24 @@ export async function GET(_req: NextRequest) {
 
   const sb = supabaseAdmin();
 
-  const { data: profile, error: perr } = await sb
+  let addonsStorageAvailable = ADDONS_ENABLED;
+  const profileColumns = addonsStorageAvailable ? PROFILE_COLUMNS_WITH_ADDONS : PROFILE_COLUMNS_BASE;
+
+  let { data: profile, error: perr } = await sb
     .from("profiles")
-    .select(
-      "id, full_name, dob, sex, blood_group, conditions_predisposition, chronic_conditions, profile_extra"
-    )
+    .select(profileColumns)
     .eq("id", userId)
     .maybeSingle();
+
+  if (perr && perr.code === PG_UNDEFINED_COLUMN && addonsStorageAvailable) {
+    addonsStorageAvailable = false;
+    ({ data: profile, error: perr } = await sb
+      .from("profiles")
+      .select(PROFILE_COLUMNS_BASE)
+      .eq("id", userId)
+      .maybeSingle());
+  }
+
   if (perr) {
     return NextResponse.json({ error: perr.message }, { status: 500, headers: noStoreHeaders() });
   }
@@ -231,7 +246,7 @@ export async function GET(_req: NextRequest) {
   if (profile) {
     (profile as any).conditions_predisposition = asArray((profile as any).conditions_predisposition);
     (profile as any).chronic_conditions = asArray((profile as any).chronic_conditions);
-    if (ADDONS_ENABLED) {
+    if (addonsStorageAvailable && ADDONS_ENABLED) {
       const extras = ((profile as any).profile_extra ?? {}) as Record<string, any>;
       const addons = (extras?.addons ?? {}) as Record<string, unknown>;
       (profile as any).familyHistory = Array.isArray(addons.familyHistory)
@@ -256,7 +271,7 @@ export async function GET(_req: NextRequest) {
     }
   }
 
-  if (profile && !ADDONS_ENABLED) {
+  if (profile && (!ADDONS_ENABLED || !addonsStorageAvailable)) {
     delete (profile as any).profile_extra;
   }
 
@@ -353,7 +368,9 @@ export async function PUT(req: NextRequest) {
 
   let addonsPayload: Record<string, any> | null = null;
 
-  if (ADDONS_ENABLED) {
+  let addonsStorageAvailable = ADDONS_ENABLED;
+
+  if (addonsStorageAvailable) {
     const addonsUpdates: Record<string, any> = {};
     let hasAddonUpdate = false;
 
@@ -453,27 +470,32 @@ export async function PUT(req: NextRequest) {
         .select("profile_extra")
         .eq("id", userId)
         .maybeSingle();
-      if (fetchErr) {
+
+      if (fetchErr && fetchErr.code === PG_UNDEFINED_COLUMN) {
+        addonsStorageAvailable = false;
+      } else if (fetchErr) {
         return NextResponse.json({ error: fetchErr.message }, { status: 500 });
       }
 
-      const currentExtras = ((existing?.profile_extra as any) ?? {}) as Record<string, any>;
-      const currentAddons = (currentExtras.addons ?? {}) as Record<string, any>;
-      const mergedAddons: Record<string, any> = { ...currentAddons };
-      for (const [key, value] of Object.entries(addonsUpdates)) {
-        if (value === null) {
-          delete mergedAddons[key];
-          continue;
+      if (addonsStorageAvailable) {
+        const currentExtras = ((existing?.profile_extra as any) ?? {}) as Record<string, any>;
+        const currentAddons = (currentExtras.addons ?? {}) as Record<string, any>;
+        const mergedAddons: Record<string, any> = { ...currentAddons };
+        for (const [key, value] of Object.entries(addonsUpdates)) {
+          if (value === null) {
+            delete mergedAddons[key];
+            continue;
+          }
+          mergedAddons[key] = value;
         }
-        mergedAddons[key] = value;
-      }
 
-      addonsPayload = { addons: mergedAddons };
+        addonsPayload = { addons: mergedAddons };
+      }
     }
   }
 
   // Create-or-update by primary key id
-  const upsertPayload = addonsPayload
+  const upsertPayload = addonsPayload && addonsStorageAvailable
     ? { id: userId, ...patch, profile_extra: addonsPayload }
     : { id: userId, ...patch };
 
