@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { buildStructuredAidocResponse } from '../lib/aidoc/structured';
 import { AiDocIntent } from '../lib/aidoc/schema';
-import { SAMPLE_AIDOC_DATA } from './fixtures/aidoc.sample';
+import { SAMPLE_AIDOC_DATA } from '@/../test/fixtures/aidoc.sample';
 
 const bundle = {
   ...SAMPLE_AIDOC_DATA,
