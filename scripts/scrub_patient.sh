@@ -12,9 +12,13 @@ SAFE_FIRST="Demo"
 SAFE_LAST="Patient"
 SAFE_UUID="00000000-0000-0000-0000-000000000000"
 
-# 1) Safety: ensure we're in a git repo with a clean index
+# 1) Safety: ensure we're in a git repo with a **clean tree** (no staged/unstaged changes)
 git rev-parse --is-inside-work-tree >/dev/null 2>&1
-git add -A && git diff --cached --quiet || true
+if ! git diff --quiet --ignore-submodules -- || ! git diff --cached --quiet --ignore-submodules --; then
+  echo "✖ Working tree must be clean (no staged or unstaged changes) before running the scrub."
+  echo "  Commit/stash/reset your changes and re-run."
+  exit 1
+fi
 
 # 2) Show all hits so you can review
 echo ">>> Scanning for offending strings..."
@@ -52,9 +56,9 @@ if rg -n --hidden -S -i "(?:$BAD_UUID|$BAD_FULL|$BAD_FIRST|$BAD_LAST)" \
   exit 1
 fi
 
-# 5) Commit the scrub
-git add -A
-git commit -m "chore: scrub private patient seed (remove Lakshay Mehra + UUID) and replace with Demo Patient"
+# 5) Commit ONLY the edits introduced by this script (tree was clean at start)
+git add -u
+git commit -m "chore: scrub private patient seed (remove forbidden names/UUIDs)"
 
 # 6) Install a pre-commit guard to BLOCK reintroduction
 echo ">>> Installing pre-commit guard..."
