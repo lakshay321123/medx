@@ -375,6 +375,14 @@ type ChatMessage =
       error?: string | null;
     })
   | (BaseChatMessage & {
+      role: "system";
+      kind: "chat";
+      tempId?: string;
+      parentId?: string;
+      pending?: boolean;
+      error?: string | null;
+    })
+  | (BaseChatMessage & {
       role: "user";
       kind: "chat";
       tempId?: string;
