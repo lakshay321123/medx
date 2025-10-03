@@ -1014,12 +1014,12 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [aidoc, setAidoc] = useState<any | null>(null);
   const setStructuredAidoc = useAidocStore(s => s.setStructured);
   const [loadingAidoc, setLoadingAidoc] = useState(false);
-  const [showPatientChooser, setShowPatientChooser] = useState(false);
   const [showNewIntake, setShowNewIntake] = useState(false);
   const [intake, setIntake] = useState({
     name: "", age: "", sex: "female", pregnant: "", symptoms: "", meds: "", allergies: ""
   });
   const [activeProfile, setActiveProfile] = useState<any>(null);
+  const didAutoRunPlan = useRef(false);
   const topAlerts = Array.isArray(aidoc?.softAlerts) ? aidoc.softAlerts : [];
   const planAlerts = Array.isArray(aidoc?.plan?.softAlerts)
     ? aidoc.plan.softAlerts
@@ -1356,9 +1356,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     const m = arr.find(m => m?.role === 'user' && typeof m?.content === 'string');
     return (m?.content || '').trim();
   }, [messages]);
-  const activeProfileName = activeProfile?.full_name || activeProfile?.name || 'current patient';
-  const activeProfileId = activeProfile?.id || null;
-
   const labSummaryCard = useMemo(() => {
     if (!labSummary?.ok) return null;
     const trend = Array.isArray(labSummary.trend) ? labSummary.trend : [];
@@ -3521,36 +3518,64 @@ ${systemCommon}` + baseSys;
     ]
   );
 
-  async function runAiDocWith(profileIntent: 'current' | 'new', newProfile?: any) {
-    setLoadingAidoc(true);
-    try {
-      const text = (userText || '').trim() || lastUserMessageText || '';
-      const r = await fetch('/api/ai-doc', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-lang': lang },
-        body: JSON.stringify({
-          threadId,
-          message: text,
-          profileIntent,
-          newProfile,
-          lang,
-          personalization,
-          allowHistory,
-        })
-      });
-      const data = await r.json();
-      setAidoc(data);
-      if (data?.kind === 'reports') {
-        setStructuredAidoc(data);
-      } else {
-        setStructuredAidoc(null);
+  const runAiDocWith = useCallback(
+    async (profileIntent: 'current' | 'new', newProfile?: any) => {
+      setLoadingAidoc(true);
+      try {
+        const text = (userText || '').trim() || lastUserMessageText || '';
+        const r = await fetch('/api/ai-doc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-user-lang': lang },
+          body: JSON.stringify({
+            threadId,
+            message: text,
+            profileIntent,
+            newProfile,
+            lang,
+            personalization,
+            allowHistory,
+          })
+        });
+        const data = await r.json();
+        setAidoc(data);
+        if (data?.kind === 'reports') {
+          setStructuredAidoc(data);
+        } else {
+          setStructuredAidoc(null);
+        }
+      } finally {
+        setLoadingAidoc(false);
+        setShowNewIntake(false);
       }
-    } finally {
-      setLoadingAidoc(false);
-      setShowPatientChooser(false);
-      setShowNewIntake(false);
+    },
+    [
+      allowHistory,
+      lang,
+      lastUserMessageText,
+      personalization,
+      setAidoc,
+      setLoadingAidoc,
+      setShowNewIntake,
+      setStructuredAidoc,
+      threadId,
+      userText
+    ]
+  );
+
+  useEffect(() => {
+    if (!AIDOC_UI || !AIDOC_PREFLIGHT) return;
+    if (!isAiDocMode) {
+      didAutoRunPlan.current = false;
+      return;
     }
-  }
+    if (didAutoRunPlan.current) return;
+    didAutoRunPlan.current = true;
+    runAiDocWith('current');
+  }, [activeProfile, isAiDocMode, runAiDocWith]);
+
+  useEffect(() => {
+    didAutoRunPlan.current = false;
+  }, [threadId]);
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape' && busy) {
@@ -3839,23 +3864,6 @@ ${systemCommon}` + baseSys;
       <div className="mt-auto mobile-composer-region">
         <div className="px-6 pb-4 md:pb-6">
           <div className="mx-auto max-w-3xl space-y-3 px-4 py-4">
-              {AIDOC_UI && isAiDocMode && (
-                <button
-                  className="rounded-full border border-slate-200 px-3 py-1 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-                  onClick={async () => {
-                    if (AIDOC_PREFLIGHT) {
-                      setShowPatientChooser(true);
-                    } else {
-                      runAiDocWith('current');
-                    }
-                  }}
-                  aria-label="AI Doc Next Steps"
-                  disabled={loadingAidoc}
-                >
-                  {loadingAidoc ? 'Analyzing…' : 'Next steps (AI Doc)'}
-                </button>
-              )}
-
               {((showDefaultSuggestions && showSuggestions) || showLiveSuggestions) && (
                 <div className="w-full">
                   {showDefaultSuggestions && showSuggestions && (
@@ -3980,30 +3988,7 @@ ${systemCommon}` + baseSys;
             </div>
         </div>
       </div>
-      {/* Preflight chooser (flagged) */}
-      {AIDOC_UI && AIDOC_PREFLIGHT && showPatientChooser && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/20">
-          <div className="w-full max-w-md rounded-xl bg-white p-4 shadow-xl">
-            <div className="text-sm font-medium mb-3">Who is this about?</div>
-            {activeProfileId ? (
-              <button
-                className="w-full rounded-md border px-3 py-2 text-sm mb-2"
-                onClick={() => runAiDocWith('current')}
-              >
-                Use existing profile: <span className="font-semibold">{activeProfileName}</span>
-              </button>
-            ) : null}
-            <button
-              className="w-full rounded-md border px-3 py-2 text-sm"
-              onClick={() => { setShowNewIntake(true); setShowPatientChooser(false); }}
-            >
-              New patient
-            </button>
-            <div className="mt-3 text-xs opacity-70">You can switch later from Medical Profile.</div>
-          </div>
-        </div>
-      )}
-
+      {/* button intentionally removed; plan auto-runs on mount */}
       {/* Mini intake for NEW patient (flagged) */}
       {AIDOC_UI && AIDOC_PREFLIGHT && showNewIntake && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/20">
