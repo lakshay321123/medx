@@ -17,13 +17,13 @@ export type AidocReport = {
 };
 
 export type AidocPatient = {
-  name: string;
-  age: number | null;
+  name?: string | null;
+  age?: number | null;
   sex?: string | null;
-  predispositions: string[];
-  medications: string[];
-  symptoms: string[];
-  conditions?: string[];
+  predispositions?: string[] | null;
+  medications?: string[] | null;
+  symptoms?: string[] | null;
+  conditions?: string[] | null;
 };
 
 export type AidocViewerProps = {
@@ -62,35 +62,54 @@ export function AidocReportViewer({
   const hasComparisons = Object.keys(comparisons || {}).length > 0;
   const safeSummary = summary?.trim();
   const safeNextSteps = Array.isArray(nextSteps) ? nextSteps.filter(Boolean) : [];
+  const patientInfo = patient
+    ? {
+        name: typeof patient.name === 'string' && patient.name.trim().length > 0 ? patient.name : '—',
+        age:
+          typeof patient.age === 'number'
+            ? patient.age
+            : typeof patient.age === 'string'
+            ? Number.isFinite(Number(patient.age))
+              ? Number(patient.age)
+              : null
+            : patient.age ?? null,
+        predispositions: Array.isArray(patient.predispositions)
+          ? patient.predispositions.filter(Boolean)
+          : [],
+        medications: Array.isArray(patient.medications) ? patient.medications.filter(Boolean) : [],
+        symptoms: Array.isArray(patient.symptoms) ? patient.symptoms.filter(Boolean) : [],
+        conditions: Array.isArray(patient.conditions) ? patient.conditions.filter(Boolean) : [],
+      }
+    : null;
 
   return (
     <div className={clsx('flex min-h-full flex-col gap-4', className)}>
-      {patient && (
+      {patientInfo && (
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <div className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Patient Info
           </div>
           <div className="mt-2 space-y-1 text-sm text-slate-700 dark:text-slate-200">
-            <div><span className="font-medium">Name:</span> {patient.name}</div>
-            {patient.age != null && <div><span className="font-medium">Age:</span> {patient.age}</div>}
-            {patient.predispositions.length > 0 && (
+            <div><span className="font-medium">Name:</span> {patientInfo.name}</div>
+            {patientInfo.age != null && <div><span className="font-medium">Age:</span> {patientInfo.age}</div>}
+            {patientInfo.predispositions.length > 0 && (
               <div>
-                <span className="font-medium">Predispositions:</span> {patient.predispositions.join(', ')}
+                <span className="font-medium">Predispositions:</span> {patientInfo.predispositions.join(', ')}
               </div>
             )}
-            {Array.isArray(patient.conditions) && patient.conditions.length > 0 && (
+            {patientInfo.conditions.length > 0 && (
               <div>
-                <span className="font-medium">Conditions:</span> {patient.conditions.join(', ')}
+                <span className="font-medium">Conditions:</span> {patientInfo.conditions.join(', ')}
               </div>
             )}
-            {patient.medications.length > 0 && (
+            {patientInfo.medications.length > 0 && (
               <div>
-                <span className="font-medium">Medications:</span> {patient.medications.join(', ')}
+                <span className="font-medium">Medications:</span> {patientInfo.medications.join(', ')}
               </div>
             )}
-            {patient.symptoms.length > 0 && (
+            {patientInfo.symptoms.length > 0 && (
               <div>
-                <span className="font-medium">Symptoms:</span> {patient.symptoms.join(', ')}
+                <span className="font-medium">Symptoms:</span> {patientInfo.symptoms.join(', ')}
               </div>
             )}
           </div>
