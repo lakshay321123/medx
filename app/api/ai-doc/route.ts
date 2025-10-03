@@ -257,8 +257,19 @@ export async function POST(req: NextRequest) {
 
   const rawPid = typeof body?.profileId === "string" ? body.profileId.trim() : undefined;
   const clientPid = rawPid && rawPid.length ? rawPid : undefined;
+  if (!clientPid) {
+    return NextResponse.json({ error: "missing_profileId" }, { status: 400 });
+  }
 
-  const { bundle } = await loadPatientBundle(userId, clientPid ?? null);
+  const profileClient: any = (prisma as any)?.profile;
+  const profile = profileClient?.findFirst
+    ? await profileClient.findFirst({ where: { id: clientPid, userId } })
+    : null;
+  if (!profile && clientPid !== SAMPLE_AIDOC_DATA.profile.id) {
+    return NextResponse.json({ error: "profile_not_found_or_not_owned" }, { status: 404 });
+  }
+
+  const { bundle } = await loadPatientBundle(userId, clientPid);
   if (!bundle) {
     return NextResponse.json({ error: "profile_not_found_or_not_owned" }, { status: 404 });
   }
