@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 
-import Section from "@/components/profile/Section";
+import { SectionShell } from "@/components/profile/SectionShell";
 import { useT } from "@/components/hooks/useI18n";
 import type { AdvanceDirectives } from "@/types/profile";
 import type { AdvanceDirectivesEditorProps } from "@/components/profile/editors/AdvanceDirectivesEditor";
@@ -30,44 +30,47 @@ export default function AdvanceDirectivesSection({
   const [open, setOpen] = useState(false);
   const entries = useMemo(() => buildEntries(directives, t), [directives, t]);
   const hasData = entries.length > 0;
+  const handlePrimary = useCallback(() => {
+    if (!disabled) setOpen(true);
+  }, [disabled]);
 
   return (
     <>
-      <Section
+      <SectionShell
         title={t("profile.advanceDirectives.title")}
-        ctaLabel={t(hasData ? "profile.common.edit" : "profile.common.add")}
-        onCta={() => {
-          if (!disabled) setOpen(true);
-        }}
-        ctaDisabled={saving || disabled}
-        isEmpty={!hasData}
-        emptyMessage={t("profile.common.noItems")}
+        primaryLabel={t(hasData ? "profile.common.edit" : "profile.common.add")}
+        onPrimary={handlePrimary}
+        primaryDisabled={saving || disabled}
       >
-        <ul className="divide-y rounded-lg border">
-          {entries.map(entry => (
-            <li key={entry.key} className="space-y-1 px-3 py-3">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                {entry.label}
-              </div>
-              {entry.isLink ? (
-                <a
-                  href={entry.value}
-                  className="truncate text-primary underline"
-                  target="_blank"
-                  rel="noreferrer"
-                  title={entry.value}
-                >
-                  {entry.value}
-                </a>
-              ) : (
-                <div className="truncate" title={entry.value}>
-                  {entry.value}
+        {hasData ? (
+          <ul className="divide-y rounded-lg border">
+            {entries.map(entry => (
+              <li key={entry.key} className="space-y-1 px-3 py-3">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {entry.label}
                 </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      </Section>
+                {entry.isLink ? (
+                  <a
+                    href={entry.value}
+                    className="truncate text-primary underline"
+                    target="_blank"
+                    rel="noreferrer"
+                    title={entry.value}
+                  >
+                    {entry.value}
+                  </a>
+                ) : (
+                  <div className="truncate" title={entry.value}>
+                    {entry.value}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t("profile.common.noItems")}</p>
+        )}
+      </SectionShell>
       <AdvanceDirectivesEditor
         open={open}
         directives={directives}

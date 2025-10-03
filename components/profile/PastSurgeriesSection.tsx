@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 
-import Section from "@/components/profile/Section";
+import { SectionShell } from "@/components/profile/SectionShell";
 import { useT } from "@/components/hooks/useI18n";
 import type { SurgeryItem } from "@/types/profile";
 import type { SurgeriesEditorProps } from "@/components/profile/editors/SurgeriesEditor";
@@ -30,39 +30,42 @@ export default function PastSurgeriesSection({
   const [open, setOpen] = useState(false);
   const items = useMemo(() => (Array.isArray(surgeries) ? surgeries : []), [surgeries]);
   const hasItems = items.length > 0;
+  const handlePrimary = useCallback(() => {
+    if (!disabled) setOpen(true);
+  }, [disabled]);
 
   return (
     <>
-      <Section
+      <SectionShell
         title={t("profile.surgeries.title")}
-        ctaLabel={t(hasItems ? "profile.common.edit" : "profile.common.add")}
-        onCta={() => {
-          if (!disabled) setOpen(true);
-        }}
-        ctaDisabled={saving || disabled}
-        isEmpty={!hasItems}
-        emptyMessage={t("profile.common.noItems")}
+        primaryLabel={t(hasItems ? "profile.common.edit" : "profile.common.add")}
+        onPrimary={handlePrimary}
+        primaryDisabled={saving || disabled}
       >
-        <ul className="divide-y rounded-lg border">
-          {items.map((item, index) => (
-            <li key={`${item.procedure}-${index}`} className="space-y-1 px-3 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <span className="font-medium" title={item.procedure}>
-                  {item.procedure}
-                </span>
-                <span className="text-xs text-muted-foreground" title={formatDate(item.date)}>
-                  {formatDate(item.date)}
-                </span>
-              </div>
-              {item.notes ? (
-                <p className="text-xs text-muted-foreground" title={item.notes}>
-                  {item.notes}
-                </p>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      </Section>
+        {hasItems ? (
+          <ul className="divide-y rounded-lg border">
+            {items.map((item, index) => (
+              <li key={`${item.procedure}-${index}`} className="space-y-1 px-3 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium" title={item.procedure}>
+                    {item.procedure}
+                  </span>
+                  <span className="text-xs text-muted-foreground" title={formatDate(item.date)}>
+                    {formatDate(item.date)}
+                  </span>
+                </div>
+                {item.notes ? (
+                  <p className="text-xs text-muted-foreground" title={item.notes}>
+                    {item.notes}
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t("profile.common.noItems")}</p>
+        )}
+      </SectionShell>
       <SurgeriesEditor
         open={open}
         items={items}

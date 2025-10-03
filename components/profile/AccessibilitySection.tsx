@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 
-import Section from "@/components/profile/Section";
+import { SectionShell } from "@/components/profile/SectionShell";
 import { useT } from "@/components/hooks/useI18n";
 import type { Accessibility } from "@/types/profile";
 import type { AccessibilityEditorProps } from "@/components/profile/editors/AccessibilityEditor";
@@ -36,32 +36,35 @@ export default function AccessibilitySection({
     [accessibility],
   );
   const hasData = entries.length > 0;
+  const handlePrimary = useCallback(() => {
+    if (!disabled) setOpen(true);
+  }, [disabled]);
 
   return (
     <>
-      <Section
+      <SectionShell
         title={t("profile.accessibility.title")}
-        ctaLabel={t(hasData ? "profile.common.edit" : "profile.common.add")}
-        onCta={() => {
-          if (!disabled) setOpen(true);
-        }}
-        ctaDisabled={saving || disabled}
-        isEmpty={!hasData}
-        emptyMessage={t("profile.common.noItems")}
+        primaryLabel={t(hasData ? "profile.common.edit" : "profile.common.add")}
+        onPrimary={handlePrimary}
+        primaryDisabled={saving || disabled}
       >
-        <ul className="divide-y rounded-lg border">
-          {entries.map(entry => (
-            <li key={entry.key} className="space-y-1 px-3 py-3">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                {t(`profile.accessibility.${entry.key}`)}
-              </div>
-              <div className="truncate" title={entry.value}>
-                {entry.value}
-              </div>
-            </li>
-          ))}
-        </ul>
-      </Section>
+        {hasData ? (
+          <ul className="divide-y rounded-lg border">
+            {entries.map(entry => (
+              <li key={entry.key} className="space-y-1 px-3 py-3">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {t(`profile.accessibility.${entry.key}`)}
+                </div>
+                <div className="truncate" title={entry.value}>
+                  {entry.value}
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t("profile.common.noItems")}</p>
+        )}
+      </SectionShell>
       <AccessibilityEditor
         open={open}
         accessibility={accessibility}

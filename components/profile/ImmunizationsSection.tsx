@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 
-import Section from "@/components/profile/Section";
+import { SectionShell } from "@/components/profile/SectionShell";
 import { useT } from "@/components/hooks/useI18n";
 import type { ImmunizationItem } from "@/types/profile";
 import type { ImmunizationsEditorProps } from "@/components/profile/editors/ImmunizationsEditor";
@@ -30,55 +30,58 @@ export default function ImmunizationsSection({
   const [open, setOpen] = useState(false);
   const safeItems = useMemo(() => (Array.isArray(items) ? items : []), [items]);
   const hasItems = safeItems.length > 0;
+  const handlePrimary = useCallback(() => {
+    if (!disabled) setOpen(true);
+  }, [disabled]);
 
   return (
     <>
-      <Section
+      <SectionShell
         title={t("profile.immunizations.title")}
-        ctaLabel={t(hasItems ? "profile.common.edit" : "profile.common.add")}
-        onCta={() => {
-          if (!disabled) setOpen(true);
-        }}
-        ctaDisabled={saving || disabled}
-        isEmpty={!hasItems}
-        emptyMessage={t("profile.common.noItems")}
+        primaryLabel={t(hasItems ? "profile.common.edit" : "profile.common.add")}
+        onPrimary={handlePrimary}
+        primaryDisabled={saving || disabled}
       >
-        <ul className="divide-y rounded-lg border">
-          {safeItems.map((item, index) => {
-            const dateLabel = formatDate(item.date, t);
-            return (
-              <li key={`${item.vaccine}-${index}`} className="space-y-1 px-3 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-medium" title={item.vaccine}>
-                    {item.vaccine}
-                  </span>
-                  <span className="text-xs text-muted-foreground" title={dateLabel}>
-                    {dateLabel}
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                  {item.lot ? (
-                    <span title={item.lot} className="truncate">
-                      {t("profile.immunizations.lot")}: {item.lot}
+        {hasItems ? (
+          <ul className="divide-y rounded-lg border">
+            {safeItems.map((item, index) => {
+              const dateLabel = formatDate(item.date, t);
+              return (
+                <li key={`${item.vaccine}-${index}`} className="space-y-1 px-3 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-medium" title={item.vaccine}>
+                      {item.vaccine}
                     </span>
-                  ) : null}
-                  {item.source ? (
-                    <a
-                      href={item.source}
-                      className="truncate underline"
-                      target="_blank"
-                      rel="noreferrer"
-                      title={item.source}
-                    >
-                      {t("profile.immunizations.source")}
-                    </a>
-                  ) : null}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </Section>
+                    <span className="text-xs text-muted-foreground" title={dateLabel}>
+                      {dateLabel}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    {item.lot ? (
+                      <span title={item.lot} className="truncate">
+                        {t("profile.immunizations.lot")}: {item.lot}
+                      </span>
+                    ) : null}
+                    {item.source ? (
+                      <a
+                        href={item.source}
+                        className="truncate underline"
+                        target="_blank"
+                        rel="noreferrer"
+                        title={item.source}
+                      >
+                        {t("profile.immunizations.source")}
+                      </a>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t("profile.common.noItems")}</p>
+        )}
+      </SectionShell>
       <ImmunizationsEditor
         open={open}
         items={safeItems}

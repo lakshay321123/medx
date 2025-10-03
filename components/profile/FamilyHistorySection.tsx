@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 
-import Section from "@/components/profile/Section";
+import { SectionShell } from "@/components/profile/SectionShell";
 import { useT } from "@/components/hooks/useI18n";
 import type { FamilyHistoryItem } from "@/types/profile";
 import type { FamilyHistoryEditorProps } from "@/components/profile/editors/FamilyHistoryEditor";
@@ -30,40 +30,43 @@ export default function FamilyHistorySection({
   const [open, setOpen] = useState(false);
   const safeItems = useMemo(() => (Array.isArray(items) ? items : []), [items]);
   const hasItems = safeItems.length > 0;
+  const handlePrimary = useCallback(() => {
+    if (!disabled) setOpen(true);
+  }, [disabled]);
 
   return (
     <>
-      <Section
+      <SectionShell
         title={t("profile.familyHistory.title")}
-        ctaLabel={t(hasItems ? "profile.common.edit" : "profile.common.add")}
-        onCta={() => {
-          if (!disabled) setOpen(true);
-        }}
-        ctaDisabled={saving || disabled}
-        isEmpty={!hasItems}
-        emptyMessage={t("profile.common.noItems")}
+        primaryLabel={t(hasItems ? "profile.common.edit" : "profile.common.add")}
+        onPrimary={handlePrimary}
+        primaryDisabled={saving || disabled}
       >
-        <ul className="divide-y rounded-lg border">
-          {safeItems.map((item, index) => (
-            <li key={`${item.relation}-${item.condition}-${index}`} className="space-y-1 px-3 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <span className="font-medium" title={item.condition}>
-                  {item.condition}
-                </span>
-                <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                  {relationLabel(item.relation, t)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                <span>{t("profile.familyHistory.onsetAge")}</span>
-                <span>
-                  {item.onsetAge != null ? item.onsetAge : t("profile.common.notRecorded")}
-                </span>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </Section>
+        {hasItems ? (
+          <ul className="divide-y rounded-lg border">
+            {safeItems.map((item, index) => (
+              <li key={`${item.relation}-${item.condition}-${index}`} className="space-y-1 px-3 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium" title={item.condition}>
+                    {item.condition}
+                  </span>
+                  <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                    {relationLabel(item.relation, t)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                  <span>{t("profile.familyHistory.onsetAge")}</span>
+                  <span>
+                    {item.onsetAge != null ? item.onsetAge : t("profile.common.notRecorded")}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t("profile.common.noItems")}</p>
+        )}
+      </SectionShell>
       <FamilyHistoryEditor
         open={open}
         items={safeItems}

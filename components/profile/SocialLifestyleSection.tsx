@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 
-import Section from "@/components/profile/Section";
+import { SectionShell } from "@/components/profile/SectionShell";
 import { useT } from "@/components/hooks/useI18n";
 import type { Lifestyle } from "@/types/profile";
 import type { LifestyleEditorProps } from "@/components/profile/editors/LifestyleEditor";
@@ -52,44 +52,47 @@ export default function SocialLifestyleSection({
   }, [lifestyle?.alcohol, t]);
 
   const hasData = Boolean(smokingInfo || alcoholInfo);
+  const handlePrimary = useCallback(() => {
+    if (!disabled) setOpen(true);
+  }, [disabled]);
 
   return (
     <>
-      <Section
+      <SectionShell
         title={t("profile.lifestyle.title")}
-        ctaLabel={t(hasData ? "profile.common.edit" : "profile.common.add")}
-        onCta={() => {
-          if (!disabled) setOpen(true);
-        }}
-        ctaDisabled={saving || disabled}
-        isEmpty={!hasData}
-        emptyMessage={t("profile.common.noItems")}
+        primaryLabel={t(hasData ? "profile.common.edit" : "profile.common.add")}
+        onPrimary={handlePrimary}
+        primaryDisabled={saving || disabled}
       >
-        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-              {t("profile.lifestyle.smoking")}
-            </dt>
-            <dd className="text-base font-medium">
-              {smokingInfo?.status ?? t("profile.lifestyle.none")}
-            </dd>
-            {smokingInfo?.details.length ? (
-              <dd className="text-xs text-muted-foreground">{smokingInfo.details.join(" · ")}</dd>
-            ) : null}
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-              {t("profile.lifestyle.alcohol")}
-            </dt>
-            <dd className="text-base font-medium">
-              {alcoholInfo?.status ?? t("profile.lifestyle.none")}
-            </dd>
-            {alcoholInfo?.details.length ? (
-              <dd className="text-xs text-muted-foreground">{alcoholInfo.details.join(" · ")}</dd>
-            ) : null}
-          </div>
-        </dl>
-      </Section>
+        {hasData ? (
+          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                {t("profile.lifestyle.smoking")}
+              </dt>
+              <dd className="text-base font-medium">
+                {smokingInfo?.status ?? t("profile.lifestyle.none")}
+              </dd>
+              {smokingInfo?.details.length ? (
+                <dd className="text-xs text-muted-foreground">{smokingInfo.details.join(" · ")}</dd>
+              ) : null}
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                {t("profile.lifestyle.alcohol")}
+              </dt>
+              <dd className="text-base font-medium">
+                {alcoholInfo?.status ?? t("profile.lifestyle.none")}
+              </dd>
+              {alcoholInfo?.details.length ? (
+                <dd className="text-xs text-muted-foreground">{alcoholInfo.details.join(" · ")}</dd>
+              ) : null}
+            </div>
+          </dl>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t("profile.common.noItems")}</p>
+        )}
+      </SectionShell>
       <LifestyleEditor
         open={open}
         lifestyle={lifestyle}
