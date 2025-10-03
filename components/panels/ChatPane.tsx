@@ -601,22 +601,22 @@ function ChatCard({
           Replaced by a newer answer
         </div>
       )}
-      <ChatMarkdown content={m.content} />
       {structuredPayload ? (
-        <div className="mt-4">
-          <AidocReportViewer
-            patient={structuredPayload.patient ?? null}
-            reports={Array.isArray(structuredPayload.reports) ? structuredPayload.reports : []}
-            comparisons={
-              structuredPayload.comparisons && typeof structuredPayload.comparisons === "object"
-                ? structuredPayload.comparisons
-                : {}
-            }
-            summary={typeof structuredPayload.summary === "string" ? structuredPayload.summary : undefined}
-            nextSteps={Array.isArray(structuredPayload.nextSteps) ? structuredPayload.nextSteps : undefined}
-          />
-        </div>
-      ) : null}
+        <AidocReportViewer
+          className="mt-1"
+          patient={structuredPayload.patient ?? null}
+          reports={Array.isArray(structuredPayload.reports) ? structuredPayload.reports : []}
+          comparisons={
+            structuredPayload.comparisons && typeof structuredPayload.comparisons === "object"
+              ? structuredPayload.comparisons
+              : {}
+          }
+          summary={typeof structuredPayload.summary === "string" ? structuredPayload.summary : undefined}
+          nextSteps={Array.isArray(structuredPayload.nextSteps) ? structuredPayload.nextSteps : undefined}
+        />
+      ) : (
+        <ChatMarkdown content={m.content} />
+      )}
       {m.role === "assistant" && (m.citations?.length || 0) > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {(m.citations || []).slice(0, simple ? 3 : 6).map((c, i) => (
