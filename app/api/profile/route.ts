@@ -42,7 +42,9 @@ type Item = {
 
 type Groups = Record<GroupKey, Item[]>;
 
-const ADDONS_ENABLED = flagEnabled(process.env.FEATURE_PROFILE_ADDONS);
+const ADDONS_ENABLED = flagEnabled(
+  process.env.FEATURE_PROFILE_ADDONS ?? process.env.NEXT_PUBLIC_FEATURE_PROFILE_ADDONS
+);
 const PROFILE_COLUMNS_BASE =
   "id, full_name, dob, sex, blood_group, conditions_predisposition, chronic_conditions";
 const PROFILE_COLUMNS_WITH_ADDONS = `${PROFILE_COLUMNS_BASE}, profile_extra`;
