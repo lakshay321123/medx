@@ -42,18 +42,10 @@ type Item = {
 
 type Groups = Record<GroupKey, Item[]>;
 
-const ADDONS_ENABLED = flagEnabled(
-  process.env.FEATURE_PROFILE_ADDONS ?? process.env.NEXT_PUBLIC_FEATURE_PROFILE_ADDONS
-);
 const PROFILE_COLUMNS_BASE =
   "id, full_name, dob, sex, blood_group, conditions_predisposition, chronic_conditions";
 const PROFILE_COLUMNS_WITH_ADDONS = `${PROFILE_COLUMNS_BASE}, profile_extra`;
 const PG_UNDEFINED_COLUMN = "42703";
-
-function flagEnabled(raw: string | undefined) {
-  const normalized = (raw ?? "").toString().trim().toLowerCase();
-  return ["1", "true", "yes", "on"].includes(normalized);
-}
 
 // --- labels (extendable) ---
 const LABELS: Record<string, string> = {
@@ -210,8 +202,8 @@ export async function GET(_req: NextRequest) {
 
   const sb = supabaseAdmin();
 
-  let addonsStorageAvailable = ADDONS_ENABLED;
-  const profileColumns = addonsStorageAvailable ? PROFILE_COLUMNS_WITH_ADDONS : PROFILE_COLUMNS_BASE;
+  let addonsStorageAvailable = true;
+  let profileColumns = PROFILE_COLUMNS_WITH_ADDONS;
 
   let { data: profile, error: perr } = await sb
     .from("profiles")
@@ -221,9 +213,10 @@ export async function GET(_req: NextRequest) {
 
   if (perr && perr.code === PG_UNDEFINED_COLUMN && addonsStorageAvailable) {
     addonsStorageAvailable = false;
+    profileColumns = PROFILE_COLUMNS_BASE;
     ({ data: profile, error: perr } = await sb
       .from("profiles")
-      .select(PROFILE_COLUMNS_BASE)
+      .select(profileColumns)
       .eq("id", userId)
       .maybeSingle());
   }
@@ -248,7 +241,7 @@ export async function GET(_req: NextRequest) {
   if (profile) {
     (profile as any).conditions_predisposition = asArray((profile as any).conditions_predisposition);
     (profile as any).chronic_conditions = asArray((profile as any).chronic_conditions);
-    if (addonsStorageAvailable && ADDONS_ENABLED) {
+    if (addonsStorageAvailable) {
       const extras = ((profile as any).profile_extra ?? {}) as Record<string, any>;
       const addons = (extras?.addons ?? {}) as Record<string, unknown>;
       (profile as any).familyHistory = Array.isArray(addons.familyHistory)
@@ -273,7 +266,7 @@ export async function GET(_req: NextRequest) {
     }
   }
 
-  if (profile && (!ADDONS_ENABLED || !addonsStorageAvailable)) {
+  if (profile && !addonsStorageAvailable) {
     delete (profile as any).profile_extra;
   }
 
@@ -346,7 +339,7 @@ export async function GET(_req: NextRequest) {
     latest[k] = { value: v.value, unit: v.unit, observedAt: v.observedAt };
   }
 
-  const addonsFeatureEnabled = ADDONS_ENABLED && addonsStorageAvailable;
+  const addonsFeatureEnabled = addonsStorageAvailable;
 
   return NextResponse.json(
     { profile: profile ?? null, groups, latest, addonsFeatureEnabled },
@@ -375,7 +368,7 @@ export async function PUT(req: NextRequest) {
 
   let addonsPayload: Record<string, any> | null = null;
 
-  let addonsStorageAvailable = ADDONS_ENABLED;
+  let addonsStorageAvailable = true;
 
   if (addonsStorageAvailable) {
     const addonsUpdates: Record<string, any> = {};

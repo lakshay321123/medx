@@ -6,7 +6,7 @@ import ProfileAddonModal from "@/components/profile/editors/ProfileAddonModal";
 import { useT } from "@/components/hooks/useI18n";
 import type { Accessibility } from "@/types/profile";
 
-type AccessibilityEditorProps = {
+export type AccessibilityEditorProps = {
   open: boolean;
   accessibility?: Accessibility;
   onClose: () => void;

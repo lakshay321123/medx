@@ -9,7 +9,7 @@ import type { ImmunizationItem } from "@/types/profile";
 
 type DraftItem = ImmunizationItem & { id: string; dateInput: string };
 
-type ImmunizationsEditorProps = {
+export type ImmunizationsEditorProps = {
   open: boolean;
   items?: ImmunizationItem[];
   onClose: () => void;

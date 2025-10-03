@@ -7,7 +7,7 @@ import ProfileAddonModal from "@/components/profile/editors/ProfileAddonModal";
 import { useT } from "@/components/hooks/useI18n";
 import type { FamilyHistoryItem } from "@/types/profile";
 
-type FamilyHistoryEditorProps = {
+export type FamilyHistoryEditorProps = {
   open: boolean;
   items?: FamilyHistoryItem[];
   onClose: () => void;

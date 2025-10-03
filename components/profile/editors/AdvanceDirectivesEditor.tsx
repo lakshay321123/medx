@@ -6,7 +6,7 @@ import ProfileAddonModal from "@/components/profile/editors/ProfileAddonModal";
 import { useT } from "@/components/hooks/useI18n";
 import type { AdvanceDirectives } from "@/types/profile";
 
-type AdvanceDirectivesEditorProps = {
+export type AdvanceDirectivesEditorProps = {
   open: boolean;
   directives?: AdvanceDirectives;
   onClose: () => void;

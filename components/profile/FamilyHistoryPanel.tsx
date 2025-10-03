@@ -1,19 +1,31 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { Plus } from "lucide-react";
 
-import FamilyHistoryEditor from "@/components/profile/editors/FamilyHistoryEditor";
 import { useT } from "@/components/hooks/useI18n";
 import type { FamilyHistoryItem } from "@/types/profile";
+import type { FamilyHistoryEditorProps } from "@/components/profile/editors/FamilyHistoryEditor";
+
+const FamilyHistoryEditor = dynamic<FamilyHistoryEditorProps>(
+  () => import("@/components/profile/editors/FamilyHistoryEditor"),
+  { ssr: false },
+);
 
 type FamilyHistoryPanelProps = {
   items?: FamilyHistoryItem[];
   onSave: (items: FamilyHistoryItem[]) => Promise<void> | void;
   saving?: boolean;
+  disabled?: boolean;
 };
 
-export default function FamilyHistoryPanel({ items, onSave, saving = false }: FamilyHistoryPanelProps) {
+export default function FamilyHistoryPanel({
+  items,
+  onSave,
+  saving = false,
+  disabled = false,
+}: FamilyHistoryPanelProps) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const safeItems = useMemo(() => (Array.isArray(items) ? items : []), [items]);
@@ -48,9 +60,11 @@ export default function FamilyHistoryPanel({ items, onSave, saving = false }: Fa
           <button
             type="button"
             className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs"
-            onClick={() => setOpen(true)}
+            onClick={() => {
+              if (!disabled) setOpen(true);
+            }}
             aria-label={t("profile.familyHistory.add")}
-            disabled={saving}
+            disabled={saving || disabled}
           >
             <Plus className="h-3 w-3" aria-hidden="true" />
             {t("profile.common.add")}
@@ -62,8 +76,10 @@ export default function FamilyHistoryPanel({ items, onSave, saving = false }: Fa
           <button
             type="button"
             className="rounded-md border px-3 py-1.5 text-sm"
-            onClick={() => setOpen(true)}
-            disabled={saving}
+            onClick={() => {
+              if (!disabled) setOpen(true);
+            }}
+            disabled={saving || disabled}
           >
             {t("profile.common.edit")}
           </button>
@@ -81,7 +97,7 @@ export default function FamilyHistoryPanel({ items, onSave, saving = false }: Fa
             console.error(error);
           }
         }}
-        saving={saving}
+        saving={saving || disabled}
       />
     </div>
   );

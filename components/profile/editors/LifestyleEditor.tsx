@@ -6,7 +6,7 @@ import ProfileAddonModal from "@/components/profile/editors/ProfileAddonModal";
 import { useT } from "@/components/hooks/useI18n";
 import type { Lifestyle } from "@/types/profile";
 
-type LifestyleEditorProps = {
+export type LifestyleEditorProps = {
   open: boolean;
   lifestyle?: Lifestyle;
   onClose: () => void;

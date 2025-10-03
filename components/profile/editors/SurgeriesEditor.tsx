@@ -9,7 +9,7 @@ import type { SurgeryItem } from "@/types/profile";
 
 type DraftItem = SurgeryItem & { id: string; dateInput: string };
 
-type SurgeriesEditorProps = {
+export type SurgeriesEditorProps = {
   open: boolean;
   items?: SurgeryItem[];
   onClose: () => void;

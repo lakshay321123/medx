@@ -1,19 +1,31 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { Plus } from "lucide-react";
 
-import AccessibilityEditor from "@/components/profile/editors/AccessibilityEditor";
 import { useT } from "@/components/hooks/useI18n";
 import type { Accessibility } from "@/types/profile";
+import type { AccessibilityEditorProps } from "@/components/profile/editors/AccessibilityEditor";
+
+const AccessibilityEditor = dynamic<AccessibilityEditorProps>(
+  () => import("@/components/profile/editors/AccessibilityEditor"),
+  { ssr: false },
+);
 
 type AccessibilityPanelProps = {
   accessibility?: Accessibility;
   onSave: (accessibility: Accessibility | null) => Promise<void> | void;
   saving?: boolean;
+  disabled?: boolean;
 };
 
-export default function AccessibilityPanel({ accessibility, onSave, saving = false }: AccessibilityPanelProps) {
+export default function AccessibilityPanel({
+  accessibility,
+  onSave,
+  saving = false,
+  disabled = false,
+}: AccessibilityPanelProps) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const hasData = Boolean(accessibility && Object.keys(accessibility).length);
@@ -41,9 +53,11 @@ export default function AccessibilityPanel({ accessibility, onSave, saving = fal
           <button
             type="button"
             className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs"
-            onClick={() => setOpen(true)}
+            onClick={() => {
+              if (!disabled) setOpen(true);
+            }}
             aria-label={t("profile.accessibility.title")}
-            disabled={saving}
+            disabled={saving || disabled}
           >
             <Plus className="h-3 w-3" aria-hidden="true" />
             {t("profile.common.add")}
@@ -54,8 +68,10 @@ export default function AccessibilityPanel({ accessibility, onSave, saving = fal
         <button
           type="button"
           className="rounded-md border px-3 py-1.5 text-sm"
-          onClick={() => setOpen(true)}
-          disabled={saving}
+          onClick={() => {
+            if (!disabled) setOpen(true);
+          }}
+          disabled={saving || disabled}
         >
           {t(hasData ? "profile.common.edit" : "profile.common.add")}
         </button>
@@ -72,7 +88,7 @@ export default function AccessibilityPanel({ accessibility, onSave, saving = fal
             console.error(error);
           }
         }}
-        saving={saving}
+        saving={saving || disabled}
       />
     </div>
   );

@@ -1,19 +1,31 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { Pencil } from "lucide-react";
 
-import LifestyleEditor from "@/components/profile/editors/LifestyleEditor";
 import { useT } from "@/components/hooks/useI18n";
 import type { Lifestyle } from "@/types/profile";
+import type { LifestyleEditorProps } from "@/components/profile/editors/LifestyleEditor";
+
+const LifestyleEditor = dynamic<LifestyleEditorProps>(
+  () => import("@/components/profile/editors/LifestyleEditor"),
+  { ssr: false },
+);
 
 type LifestylePanelProps = {
   lifestyle?: Lifestyle;
   onSave: (lifestyle: Lifestyle | null) => Promise<void> | void;
   saving?: boolean;
+  disabled?: boolean;
 };
 
-export default function LifestylePanel({ lifestyle, onSave, saving = false }: LifestylePanelProps) {
+export default function LifestylePanel({
+  lifestyle,
+  onSave,
+  saving = false,
+  disabled = false,
+}: LifestylePanelProps) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
 
@@ -108,9 +120,11 @@ export default function LifestylePanel({ lifestyle, onSave, saving = false }: Li
           <button
             type="button"
             className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs"
-            onClick={() => setOpen(true)}
+            onClick={() => {
+              if (!disabled) setOpen(true);
+            }}
             aria-label={t("profile.lifestyle.title")}
-            disabled={saving}
+            disabled={saving || disabled}
           >
             <Pencil className="h-3 w-3" aria-hidden="true" />
             {t("profile.common.add")}
@@ -121,8 +135,10 @@ export default function LifestylePanel({ lifestyle, onSave, saving = false }: Li
         <button
           type="button"
           className="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm"
-          onClick={() => setOpen(true)}
-          disabled={saving}
+          onClick={() => {
+            if (!disabled) setOpen(true);
+          }}
+          disabled={saving || disabled}
         >
           <Pencil className="h-4 w-4" aria-hidden="true" />
           {t(hasData ? "profile.common.edit" : "profile.common.add")}
@@ -140,7 +156,7 @@ export default function LifestylePanel({ lifestyle, onSave, saving = false }: Li
             console.error(error);
           }
         }}
-        saving={saving}
+        saving={saving || disabled}
       />
     </div>
   );

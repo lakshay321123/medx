@@ -215,7 +215,7 @@ export default function MedicalProfile() {
   const noDataText = t(NO_DATA_TEXT);
   const noMedicationsText = t("No medications recorded yet.");
   const medicalProfile = (data?.profile ?? null) as MedicalProfile | null;
-  const addonsEnabled = data?.addonsFeatureEnabled === true;
+  const addonsEnabled = data?.addonsFeatureEnabled !== false;
   const familyHistory = medicalProfile?.familyHistory;
   const immunizations = medicalProfile?.immunizations;
   const lifestyle = medicalProfile?.lifestyle;
@@ -1404,57 +1404,59 @@ export default function MedicalProfile() {
       </ProfileSection>
       ) : null}
 
-      {addonsEnabled ? (
-        <>
-          <ProfileSection title={t("profile.familyHistory.title")}>
-            <FamilyHistoryPanel
-              items={familyHistory}
-              onSave={handleFamilyHistorySave}
-              saving={savingAddon === "familyHistory"}
-            />
-          </ProfileSection>
+      <ProfileSection title={t("profile.familyHistory.title")}>
+        <FamilyHistoryPanel
+          items={familyHistory}
+          onSave={handleFamilyHistorySave}
+          saving={savingAddon === "familyHistory"}
+          disabled={!addonsEnabled}
+        />
+      </ProfileSection>
 
-          <ProfileSection title={t("profile.immunizations.title")}>
-            <ImmunizationsPanel
-              items={immunizations}
-              onSave={handleImmunizationsSave}
-              saving={savingAddon === "immunizations"}
-            />
-          </ProfileSection>
+      <ProfileSection title={t("profile.immunizations.title")}>
+        <ImmunizationsPanel
+          items={immunizations}
+          onSave={handleImmunizationsSave}
+          saving={savingAddon === "immunizations"}
+          disabled={!addonsEnabled}
+        />
+      </ProfileSection>
 
-          <ProfileSection title={t("profile.lifestyle.title")}>
-            <LifestylePanel
-              lifestyle={lifestyle ?? undefined}
-              onSave={handleLifestyleSave}
-              saving={savingAddon === "lifestyle"}
-            />
-          </ProfileSection>
+      <ProfileSection title={t("profile.lifestyle.title")}>
+        <LifestylePanel
+          lifestyle={lifestyle ?? undefined}
+          onSave={handleLifestyleSave}
+          saving={savingAddon === "lifestyle"}
+          disabled={!addonsEnabled}
+        />
+      </ProfileSection>
 
-          <ProfileSection title={t("profile.surgeries.title")}>
-            <SurgeriesPanel
-              surgeries={surgeries}
-              onSave={handleSurgeriesSave}
-              saving={savingAddon === "surgeries"}
-            />
-          </ProfileSection>
+      <ProfileSection title={t("profile.surgeries.title")}>
+        <SurgeriesPanel
+          surgeries={surgeries}
+          onSave={handleSurgeriesSave}
+          saving={savingAddon === "surgeries"}
+          disabled={!addonsEnabled}
+        />
+      </ProfileSection>
 
-          <ProfileSection title={t("profile.accessibility.title")}>
-            <AccessibilityPanel
-              accessibility={accessibility ?? undefined}
-              onSave={handleAccessibilitySave}
-              saving={savingAddon === "accessibility"}
-            />
-          </ProfileSection>
+      <ProfileSection title={t("profile.accessibility.title")}>
+        <AccessibilityPanel
+          accessibility={accessibility ?? undefined}
+          onSave={handleAccessibilitySave}
+          saving={savingAddon === "accessibility"}
+          disabled={!addonsEnabled}
+        />
+      </ProfileSection>
 
-          <ProfileSection title={t("profile.advanceDirectives.title")}>
-            <AdvanceDirectivesPanel
-              directives={advanceDirectives ?? undefined}
-              onSave={handleAdvanceDirectivesSave}
-              saving={savingAddon === "advanceDirectives"}
-            />
-          </ProfileSection>
-        </>
-      ) : null}
+      <ProfileSection title={t("profile.advanceDirectives.title")}>
+        <AdvanceDirectivesPanel
+          directives={advanceDirectives ?? undefined}
+          onSave={handleAdvanceDirectivesSave}
+          saving={savingAddon === "advanceDirectives"}
+          disabled={!addonsEnabled}
+        />
+      </ProfileSection>
     </div>
   );
 }

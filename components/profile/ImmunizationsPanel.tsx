@@ -1,19 +1,31 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { Calendar, Plus } from "lucide-react";
 
-import ImmunizationsEditor from "@/components/profile/editors/ImmunizationsEditor";
 import { useT } from "@/components/hooks/useI18n";
 import type { ImmunizationItem } from "@/types/profile";
+import type { ImmunizationsEditorProps } from "@/components/profile/editors/ImmunizationsEditor";
+
+const ImmunizationsEditor = dynamic<ImmunizationsEditorProps>(
+  () => import("@/components/profile/editors/ImmunizationsEditor"),
+  { ssr: false },
+);
 
 type ImmunizationsPanelProps = {
   items?: ImmunizationItem[];
   onSave: (items: ImmunizationItem[]) => Promise<void> | void;
   saving?: boolean;
+  disabled?: boolean;
 };
 
-export default function ImmunizationsPanel({ items, onSave, saving = false }: ImmunizationsPanelProps) {
+export default function ImmunizationsPanel({
+  items,
+  onSave,
+  saving = false,
+  disabled = false,
+}: ImmunizationsPanelProps) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const safeItems = useMemo(() => (Array.isArray(items) ? items : []), [items]);
@@ -64,9 +76,11 @@ export default function ImmunizationsPanel({ items, onSave, saving = false }: Im
           <button
             type="button"
             className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs"
-            onClick={() => setOpen(true)}
+            onClick={() => {
+              if (!disabled) setOpen(true);
+            }}
             aria-label={t("profile.immunizations.add")}
-            disabled={saving}
+            disabled={saving || disabled}
           >
             <Plus className="h-3 w-3" aria-hidden="true" />
             {t("profile.common.add")}
@@ -78,8 +92,10 @@ export default function ImmunizationsPanel({ items, onSave, saving = false }: Im
           <button
             type="button"
             className="rounded-md border px-3 py-1.5 text-sm"
-            onClick={() => setOpen(true)}
-            disabled={saving}
+            onClick={() => {
+              if (!disabled) setOpen(true);
+            }}
+            disabled={saving || disabled}
           >
             {t("profile.common.edit")}
           </button>
@@ -97,7 +113,7 @@ export default function ImmunizationsPanel({ items, onSave, saving = false }: Im
             console.error(error);
           }
         }}
-        saving={saving}
+        saving={saving || disabled}
       />
     </div>
   );

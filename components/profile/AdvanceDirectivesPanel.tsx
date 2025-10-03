@@ -1,19 +1,31 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { FileText } from "lucide-react";
 
-import AdvanceDirectivesEditor from "@/components/profile/editors/AdvanceDirectivesEditor";
 import { useT } from "@/components/hooks/useI18n";
 import type { AdvanceDirectives } from "@/types/profile";
+import type { AdvanceDirectivesEditorProps } from "@/components/profile/editors/AdvanceDirectivesEditor";
+
+const AdvanceDirectivesEditor = dynamic<AdvanceDirectivesEditorProps>(
+  () => import("@/components/profile/editors/AdvanceDirectivesEditor"),
+  { ssr: false },
+);
 
 type AdvanceDirectivesPanelProps = {
   directives?: AdvanceDirectives;
   onSave: (directives: AdvanceDirectives | null) => Promise<void> | void;
   saving?: boolean;
+  disabled?: boolean;
 };
 
-export default function AdvanceDirectivesPanel({ directives, onSave, saving = false }: AdvanceDirectivesPanelProps) {
+export default function AdvanceDirectivesPanel({
+  directives,
+  onSave,
+  saving = false,
+  disabled = false,
+}: AdvanceDirectivesPanelProps) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const hasData = Boolean(directives && Object.keys(directives).length);
@@ -49,9 +61,11 @@ export default function AdvanceDirectivesPanel({ directives, onSave, saving = fa
           <button
             type="button"
             className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs"
-            onClick={() => setOpen(true)}
+            onClick={() => {
+              if (!disabled) setOpen(true);
+            }}
             aria-label={t("profile.advanceDirectives.add")}
-            disabled={saving}
+            disabled={saving || disabled}
           >
             <FileText className="h-3 w-3" aria-hidden="true" />
             {t("profile.common.add")}
@@ -62,8 +76,10 @@ export default function AdvanceDirectivesPanel({ directives, onSave, saving = fa
         <button
           type="button"
           className="rounded-md border px-3 py-1.5 text-sm"
-          onClick={() => setOpen(true)}
-          disabled={saving}
+          onClick={() => {
+            if (!disabled) setOpen(true);
+          }}
+          disabled={saving || disabled}
         >
           {t(hasData ? "profile.common.edit" : "profile.common.add")}
         </button>
@@ -80,7 +96,7 @@ export default function AdvanceDirectivesPanel({ directives, onSave, saving = fa
             console.error(error);
           }
         }}
-        saving={saving}
+        saving={saving || disabled}
       />
     </div>
   );
