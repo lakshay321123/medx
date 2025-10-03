@@ -728,7 +728,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [shareUrls, setShareUrls] = useState<Record<string, string>>({});
   const [systemShareSupported, setSystemShareSupported] = useState(false);
   const [canCopyLink, setCanCopyLink] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
+  const [activeController, setActiveController] = useState<AbortController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef =
     (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ??
@@ -2254,7 +2254,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       upsertThreadIndex(threadId, nt);
     }
     const ctrl = new AbortController();
-    abortRef.current = ctrl;
+    setActiveController(ctrl);
     let acc = '';
     try {
       const fullContext = allowHistory && stableThreadId ? buildFullContext(stableThreadId) : "";
@@ -2766,7 +2766,6 @@ ${systemCommon}` + baseSys;
     } catch (e: any) {
       if (e?.name === 'AbortError') {
         finishPendingAssistant(pendingId, acc);
-        opts.onError?.();
         return;
       }
       console.error(e);
@@ -2779,12 +2778,12 @@ ${systemCommon}` + baseSys;
     } finally {
       setBusy(false);
       setThinkingStartedAt(null);
-      abortRef.current = null;
+      setActiveController(null);
       opts.onFinish?.();
     }
   }
 
-  function onStopQueue() {
+  const onStopQueue = useCallback(() => {
     const c = queueAbortRef.current;
     if (c) {
       try {
@@ -2792,7 +2791,7 @@ ${systemCommon}` + baseSys;
       } catch {}
     }
     queueAbortRef.current = null;
-  }
+  }, []);
 
   function onFilesSelected(files: File[]) {
     if (files.length === 0) return;
@@ -2805,11 +2804,14 @@ ${systemCommon}` + baseSys;
     setPendingFiles(prev => prev.filter((_, i) => i !== index));
   }
 
-  function onStop() {
+  const onStop = useCallback(() => {
     onStopQueue();
-    const c = abortRef.current;
-    if (c) c.abort();
-  }
+    if (activeController) {
+      try {
+        activeController.abort();
+      } catch {}
+    }
+  }, [activeController, onStopQueue]);
 
   async function analyzeFile(
     file: File,
@@ -3585,7 +3587,7 @@ ${systemCommon}` + baseSys;
     }
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [busy]);
+  }, [busy, onStop]);
 
   const hasScrollableContent =
     visibleMessages.length > 0 ||
@@ -3962,7 +3964,7 @@ ${systemCommon}` + baseSys;
                     }}
                   />
 
-                  {(queueActive || busy || abortRef.current) && (
+                  {(queueActive || busy || activeController) && (
                     <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
                       <StopButton
                         onClick={onStop}
