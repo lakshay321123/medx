@@ -1062,7 +1062,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const [aidoc, setAidoc] = useState<any | null>(null);
   const setStructuredAidoc = useAidocStore(s => s.setStructured);
-  const setActiveProfileId = useAidocStore(s => s.setActiveProfileId);
   const trackedProfileId = useAidocStore(s => s.activeProfileId);
   const [loadingAidoc, setLoadingAidoc] = useState(false);
   const [showPatientChooser, setShowPatientChooser] = useState(false);
@@ -1070,7 +1069,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [intake, setIntake] = useState({
     name: "", age: "", sex: "female", pregnant: "", symptoms: "", meds: "", allergies: ""
   });
-  const [activeProfile, setActiveProfile] = useState<any>(null);
   const topAlerts = Array.isArray(aidoc?.softAlerts) ? aidoc.softAlerts : [];
   const planAlerts = Array.isArray(aidoc?.plan?.softAlerts)
     ? aidoc.plan.softAlerts
@@ -1407,13 +1405,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     const m = arr.find(m => m?.role === 'user' && typeof m?.content === 'string');
     return (m?.content || '').trim();
   }, [messages]);
-  useEffect(() => {
-    const nextId = activeProfile?.id ? String(activeProfile.id) : null;
-    setActiveProfileId(nextId);
-  }, [activeProfile, setActiveProfileId]);
-
-  const activeProfileId = trackedProfileId ?? (activeProfile?.id || null);
-  const activeProfileName = activeProfile?.full_name || activeProfile?.name || 'current patient';
+  const activeProfileId = trackedProfileId ?? null;
+  // Name now comes from the patient selector/store. Fall back to a generic label when unavailable.
+  const activeProfileName = 'current patient';
 
 
   const labSummaryCard = useMemo(() => {
@@ -1894,24 +1888,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     return () => window.removeEventListener('medx:push-assistant', onPush as EventListener);
   }, []);
 
-  useEffect(() => {
-    const fetchProfile = () => {
-      fetch('/api/profile', { cache: 'no-store' })
-        .then(r => r.ok ? r.json() : null)
-        .then(j => setActiveProfile(j?.profile || null))
-        .catch(() => {});
-    };
-    const onProfileUpdated = () => {
-      // if profile thread is open, nudge a silent refresh of readiness/prompts
-      // (kept light: we don’t spam messages, just clear cached “askedRecently”.)
-      sessionStorage.removeItem('asked:proactive');
-      fetchProfile();
-    };
-    fetchProfile();
-    window.addEventListener('profile-updated', onProfileUpdated);
-    return () => window.removeEventListener('profile-updated', onProfileUpdated);
-  }, []);
-
   // Load per-thread UI whenever threadId changes
   useEffect(() => {
     if (!threadId) { setUi(UI_DEFAULTS); return; }
@@ -2372,7 +2348,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               lang,
               personalization,
               allowHistory,
-              profileId: activeProfileId,
+              ...(activeProfileId ? { profileId: activeProfileId } : {}),
             }
           : {
               mode: mode === 'doctor' ? 'doctor' : 'patient',
@@ -2383,7 +2359,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
               lang,
               personalization,
               allowHistory,
-              profileId: activeProfileId,
+              ...(activeProfileId ? { profileId: activeProfileId } : {}),
             };
         mark('send');
         const res = await fetch(endpoint, {
@@ -3636,7 +3612,7 @@ ${systemCommon}` + baseSys;
           lang,
           personalization,
           allowHistory,
-          profileId: activeProfileId,
+          ...(activeProfileId ? { profileId: activeProfileId } : {}),
         })
       });
       const data = await r.json();
