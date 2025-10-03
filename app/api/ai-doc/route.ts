@@ -23,7 +23,7 @@ import {
   type MarkerValue,
 } from "@/lib/aidoc/planner";
 import { callOpenAIJson } from "@/lib/aidoc/vendor";
-import { groupByIsoDate, dedupeSameDay, normUnit, type LabLike } from "@/lib/aidoc/normalize";
+import { groupByIsoDate, dedupeSameDay, normUnit, normName, type LabLike } from "@/lib/aidoc/normalize";
 import { AIDOC_JSON_INSTRUCTION } from "@/lib/aidoc/schema";
 
 const MARKER_VALUES = new Set<MarkerValue>(["High", "Low", "Borderline", "Normal"]);
@@ -324,15 +324,19 @@ export async function POST(req: NextRequest) {
       const sourceLabs = Array.isArray(report.labs) ? report.labs : [];
       const labs = sourceLabs
         .map(lab => {
-          const name = typeof lab?.name === "string" ? lab.name.trim() : "";
-          if (!name) return null;
-            const labRow: LabRow = {
-              name,
-              value: lab?.value ?? null,
-              unit: normUnit(lab?.unit ?? undefined),
-              marker: toMarkerValue(lab?.marker),
-              ideal: lab?.ideal ?? undefined,
-            };
+          const rawName = typeof lab?.name === "string" ? lab.name.trim() : "";
+          if (!rawName) return null;
+
+          const normalizedName = normName(rawName);
+          if (!normalizedName) return null;
+
+          const labRow: LabRow = {
+            name: normalizedName,
+            value: lab?.value ?? null,
+            unit: normUnit(lab?.unit ?? undefined),
+            marker: toMarkerValue(lab?.marker),
+            ideal: lab?.ideal ?? undefined,
+          };
           return labRow;
         })
         .filter((lab): lab is LabRow => lab !== null);
