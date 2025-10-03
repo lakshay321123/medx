@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'vitest';
 import { buildStructuredAidocResponse } from '../lib/aidoc/structured';
 import { AiDocIntent } from '../lib/aidoc/schema';
+import { SAMPLE_AIDOC_DATA } from './fixtures/aidoc.sample';
 
 const bundle = {
-  profile: { name: 'Demo Patient', age: 32 },
+  ...SAMPLE_AIDOC_DATA,
   medications: [{ name: 'Timolol' }],
-  conditions: [{ label: 'Blood cancer', status: 'active' }],
+  conditions: [{ label: 'Hypertension', status: 'active' }],
   notes: [
     {
       body: 'Symptoms: Hair loss',
@@ -17,9 +18,7 @@ const bundle = {
     },
   ],
   labs: [
-    { name: 'LDL', value: 160, unit: 'mg/dL', refHigh: 160, takenAt: '2025-05-01' },
-    { name: 'LDL', value: 182, unit: 'mg/dL', refHigh: 160, takenAt: '2025-10-01' },
-    { name: 'HbA1c', value: 6.1, unit: '%', refHigh: 6.0, takenAt: '2025-10-01' },
+    ...SAMPLE_AIDOC_DATA.labs.map(lab => ({ ...lab, refHigh: lab.name === 'LDL' ? 160 : lab.name === 'HbA1c' ? 6.0 : undefined })),
   ],
 };
 

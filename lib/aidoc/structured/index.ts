@@ -1,5 +1,5 @@
-import { AiDocIntent, detectAidocIntent } from "./schema";
-import { computeTrendStats, describeTrend } from "./trends";
+import { AiDocIntent, detectAidocIntent } from "../schema";
+import { computeTrendStats, describeTrend } from "../trends";
 
 type MaybeDate = string | Date | null | undefined;
 
@@ -73,7 +73,7 @@ function markerForLab(lab: LabRow): { marker: string; ideal?: string } {
   const refHigh = typeof lab.refHigh === "number" ? lab.refHigh : undefined;
   let marker = "Normal";
   if (lab.abnormal && typeof lab.abnormal === "string") {
-    marker = lab.abnormal.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    marker = lab.abnormal.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
   } else if (!Number.isNaN(value)) {
     if (typeof refHigh === "number" && value > refHigh) marker = "High";
     else if (typeof refLow === "number" && value < refLow) marker = "Low";
@@ -86,11 +86,11 @@ function markerForLab(lab: LabRow): { marker: string; ideal?: string } {
 }
 
 function summarizeLabs(labs: StructuredLab[]): string {
-  const highlights = labs.filter((lab) => lab.marker.toLowerCase() !== "normal");
+  const highlights = labs.filter(lab => lab.marker.toLowerCase() !== "normal");
   if (highlights.length === 0) {
     return "All labs are within expected limits.";
   }
-  const phrases = highlights.map((lab) => `${lab.name} ${lab.marker.toLowerCase()}`);
+  const phrases = highlights.map(lab => `${lab.name} ${lab.marker.toLowerCase()}`);
   return `Key findings: ${phrases.join(", ")}.`;
 }
 
@@ -128,7 +128,7 @@ function extractSymptoms(notes: NoteRow[]): string[] {
     if (match) {
       const parts = match[1]
         .split(/[;,]/)
-        .map((part) => part.trim())
+        .map(part => part.trim())
         .filter(Boolean);
       out.push(...parts);
     }
@@ -143,11 +143,11 @@ function buildPatient(
   notes: NoteRow[] = [],
 ): StructuredPatient {
   const predispositions = conditions
-    .filter((condition) => condition?.label && condition.status !== "resolved")
-    .map((condition) => String(condition.label));
+    .filter(condition => condition?.label && condition.status !== "resolved")
+    .map(condition => String(condition.label));
   const meds = medications
-    .filter((med) => med?.name)
-    .map((med) => String(med.name!));
+    .filter(med => med?.name)
+    .map(med => String(med.name!));
   const symptoms = extractSymptoms(notes);
   return {
     name: profile?.name || "Unknown Patient",
@@ -173,10 +173,10 @@ function extractMetricFromQuery(message: string): string | null {
 
 function buildMetricComparison(metric: string, labs: LabRow[]): string | null {
   const normalizedMetric = normalizeMetricName(metric);
-  const series = labs.filter((lab) => normalizeMetricName(lab?.name || "") === normalizedMetric);
+  const series = labs.filter(lab => normalizeMetricName(lab?.name || "") === normalizedMetric);
   if (series.length < 2) return null;
   const stats = computeTrendStats(
-    series.map((lab) => ({
+    series.map(lab => ({
       date: toDateLabel(lab.takenAt),
       value: Number(lab.value),
       unit: lab.unit ?? null,
@@ -227,7 +227,7 @@ function buildSummary(
     fragments.push(`Trends: ${sample}.`);
   }
   if (intent === AiDocIntent.InterpretReport) {
-    const note = notes.find((entry) => entry?.body && /fracture|injur|imaging|scan/i.test(entry.body));
+    const note = notes.find(entry => entry?.body && /fracture|injur|imaging|scan/i.test(entry.body));
     if (note?.body) {
       fragments.push(`Report interpretation: ${note.body}`);
     }
@@ -255,12 +255,12 @@ function buildNextSteps(
   }
   if (intent === AiDocIntent.InterpretReport) {
     steps.add("Follow orthopedic guidance and resume activities gradually.");
-    if (notes.some((note) => note?.body && /healed/.test(note.body))) {
+    if (notes.some(note => note?.body && /healed/.test(note.body))) {
       steps.add("Maintain strengthening exercises to support recovery.");
     }
   }
   if (!steps.size && reports.length) {
-    const abnormalReport = reports.find((report) => /key findings/i.test(report.summary));
+    const abnormalReport = reports.find(report => /key findings/i.test(report.summary));
     if (abnormalReport) {
       steps.add("Discuss highlighted abnormalities with your clinician.");
     }
@@ -276,8 +276,8 @@ function combineReports(
 ): StructuredReport[] {
   if (intent !== AiDocIntent.InterpretReport) return labReports;
   const interpretNotes = notes
-    .filter((note) => note?.body && /fracture|imaging|scan|injur/i.test(note.body))
-    .map((note) => ({
+    .filter(note => note?.body && /fracture|imaging|scan|injur/i.test(note.body))
+    .map(note => ({
       date: toDateLabel(note.createdAt || note.updatedAt || new Date()),
       summary: note.body?.trim() || "Imaging report",
       labs: [],
@@ -315,41 +315,3 @@ export function buildStructuredAidocResponse(input: StructuredBuildInput): Struc
     nextSteps,
   };
 }
-
-export const SAMPLE_AIDOC_DATA = {
-  profile: { name: "Demo Patient", age: 32 },
-  labs: [
-    {
-      name: "LDL",
-      value: 182,
-      unit: "mg/dL",
-      refLow: 0,
-      refHigh: 160,
-      takenAt: "2025-10-01",
-    },
-    {
-      name: "LDL",
-      value: 160,
-      unit: "mg/dL",
-      refLow: 0,
-      refHigh: 160,
-      takenAt: "2025-05-01",
-    },
-    {
-      name: "HbA1c",
-      value: 6.2,
-      unit: "%",
-      refLow: 4.0,
-      refHigh: 6.0,
-      takenAt: "2025-10-01",
-    },
-  ],
-  notes: [
-    {
-      body: "Fracture report: Right forearm fracture, radius shaft. Healed with immobilization.",
-      createdAt: "2025-07-15",
-    },
-  ],
-  medications: [{ name: "Timolol" }],
-  conditions: [{ label: "Blood cancer", status: "active" }],
-};
