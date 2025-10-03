@@ -3839,7 +3839,7 @@ ${systemCommon}` + baseSys;
       <div className="mt-auto mobile-composer-region">
         <div className="px-6 pb-4 md:pb-6">
           <div className="mx-auto max-w-3xl space-y-3 px-4 py-4">
-              {mode === 'doctor' && AIDOC_UI && (
+              {AIDOC_UI && isAiDocMode && (
                 <button
                   className="rounded-full border border-slate-200 px-3 py-1 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
                   onClick={async () => {
