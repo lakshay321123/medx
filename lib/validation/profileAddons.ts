@@ -24,12 +24,6 @@ export const zLifestyle = z
       status: z.enum(["none", "occasional", "regular"]),
       unitsPerWeek: z.number().int().min(0).max(100).optional(),
     }),
-    drugs: z.string().optional(),
-    diet: z.string().optional(),
-    activity: z.string().optional(),
-    sleep: z.string().optional(),
-    occupation: z.string().optional(),
-    exposures: z.string().optional(),
   })
   .partial();
 

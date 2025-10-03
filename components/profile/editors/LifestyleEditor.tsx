@@ -24,12 +24,6 @@ export default function LifestyleEditor({ open, lifestyle, onClose, onSave, savi
   const [years, setYears] = useState("");
   const [alcoholStatus, setAlcoholStatus] = useState<AlcoholStatus>("none");
   const [unitsPerWeek, setUnitsPerWeek] = useState("");
-  const [drugs, setDrugs] = useState("");
-  const [diet, setDiet] = useState("");
-  const [activity, setActivity] = useState("");
-  const [sleep, setSleep] = useState("");
-  const [occupation, setOccupation] = useState("");
-  const [exposures, setExposures] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -39,12 +33,6 @@ export default function LifestyleEditor({ open, lifestyle, onClose, onSave, savi
     setYears(lifestyle?.smoking?.years != null ? String(lifestyle.smoking.years) : "");
     setAlcoholStatus(lifestyle?.alcohol?.status ?? "none");
     setUnitsPerWeek(lifestyle?.alcohol?.unitsPerWeek != null ? String(lifestyle.alcohol.unitsPerWeek) : "");
-    setDrugs(lifestyle?.drugs ?? "");
-    setDiet(lifestyle?.diet ?? "");
-    setActivity(lifestyle?.activity ?? "");
-    setSleep(lifestyle?.sleep ?? "");
-    setOccupation(lifestyle?.occupation ?? "");
-    setExposures(lifestyle?.exposures ?? "");
     setError(null);
   }, [lifestyle, open]);
 
@@ -94,12 +82,6 @@ export default function LifestyleEditor({ open, lifestyle, onClose, onSave, savi
                   status: alcoholStatus,
                   ...(unitsPerWeek ? { unitsPerWeek: Number(unitsPerWeek) } : {}),
                 },
-                ...(drugs.trim() ? { drugs: drugs.trim() } : {}),
-                ...(diet.trim() ? { diet: diet.trim() } : {}),
-                ...(activity.trim() ? { activity: activity.trim() } : {}),
-                ...(sleep.trim() ? { sleep: sleep.trim() } : {}),
-                ...(occupation.trim() ? { occupation: occupation.trim() } : {}),
-                ...(exposures.trim() ? { exposures: exposures.trim() } : {}),
               };
 
               setError(null);
@@ -108,13 +90,7 @@ export default function LifestyleEditor({ open, lifestyle, onClose, onSave, savi
                 !packsPerDay &&
                 !years &&
                 alcoholStatus === "none" &&
-                !unitsPerWeek &&
-                !drugs.trim() &&
-                !diet.trim() &&
-                !activity.trim() &&
-                !sleep.trim() &&
-                !occupation.trim() &&
-                !exposures.trim();
+                !unitsPerWeek;
 
               await onSave(isEmpty ? null : nextLifestyle);
             }}
@@ -126,18 +102,12 @@ export default function LifestyleEditor({ open, lifestyle, onClose, onSave, savi
       </div>
     ),
     [
-      activity,
       alcoholStatus,
-      diet,
-      drugs,
       error,
-      exposures,
-      occupation,
       onClose,
       onSave,
       packsPerDay,
       saving,
-      sleep,
       smokingStatus,
       t,
       unitsPerWeek,
@@ -224,26 +194,6 @@ export default function LifestyleEditor({ open, lifestyle, onClose, onSave, savi
               disabled={saving}
             />
           </label>
-        </div>
-        <div className="grid grid-cols-1 gap-3">
-          {[
-            [drugs, setDrugs, "drugs"],
-            [diet, setDiet, "diet"],
-            [activity, setActivity, "activity"],
-            [sleep, setSleep, "sleep"],
-            [occupation, setOccupation, "occupation"],
-            [exposures, setExposures, "exposures"],
-          ].map(([value, setter, key]) => (
-            <label key={key as string} className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-muted-foreground">{t(`profile.lifestyle.${key}`)}</span>
-              <input
-                className="rounded-md border px-3 py-2"
-                value={value as string}
-                onChange={event => (setter as (next: string) => void)(event.target.value)}
-                disabled={saving}
-              />
-            </label>
-          ))}
         </div>
       </div>
     </ProfileAddonModal>

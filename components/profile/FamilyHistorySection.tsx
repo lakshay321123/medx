@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { Plus } from "lucide-react";
 
+import Section from "@/components/profile/Section";
 import { useT } from "@/components/hooks/useI18n";
 import type { FamilyHistoryItem } from "@/types/profile";
 import type { FamilyHistoryEditorProps } from "@/components/profile/editors/FamilyHistoryEditor";
@@ -13,27 +13,36 @@ const FamilyHistoryEditor = dynamic<FamilyHistoryEditorProps>(
   { ssr: false },
 );
 
-type FamilyHistoryPanelProps = {
+type Props = {
   items?: FamilyHistoryItem[];
   onSave: (items: FamilyHistoryItem[]) => Promise<void> | void;
   saving?: boolean;
   disabled?: boolean;
 };
 
-export default function FamilyHistoryPanel({
+export default function FamilyHistorySection({
   items,
   onSave,
   saving = false,
   disabled = false,
-}: FamilyHistoryPanelProps) {
+}: Props) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const safeItems = useMemo(() => (Array.isArray(items) ? items : []), [items]);
   const hasItems = safeItems.length > 0;
 
   return (
-    <div className="space-y-3 text-sm">
-      {hasItems ? (
+    <>
+      <Section
+        title={t("profile.familyHistory.title")}
+        ctaLabel={t(hasItems ? "profile.common.edit" : "profile.common.add")}
+        onCta={() => {
+          if (!disabled) setOpen(true);
+        }}
+        ctaDisabled={saving || disabled}
+        isEmpty={!hasItems}
+        emptyMessage={t("profile.common.noItems")}
+      >
         <ul className="divide-y rounded-lg border">
           {safeItems.map((item, index) => (
             <li key={`${item.relation}-${item.condition}-${index}`} className="space-y-1 px-3 py-3">
@@ -54,37 +63,7 @@ export default function FamilyHistoryPanel({
             </li>
           ))}
         </ul>
-      ) : (
-        <div className="flex items-center justify-between rounded-lg border px-3 py-3">
-          <span className="text-muted-foreground">{t("profile.common.noItems")}</span>
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs"
-            onClick={() => {
-              if (!disabled) setOpen(true);
-            }}
-            aria-label={t("profile.familyHistory.add")}
-            disabled={saving || disabled}
-          >
-            <Plus className="h-3 w-3" aria-hidden="true" />
-            {t("profile.common.add")}
-          </button>
-        </div>
-      )}
-      {hasItems ? (
-        <div className="flex justify-end">
-          <button
-            type="button"
-            className="rounded-md border px-3 py-1.5 text-sm"
-            onClick={() => {
-              if (!disabled) setOpen(true);
-            }}
-            disabled={saving || disabled}
-          >
-            {t("profile.common.edit")}
-          </button>
-        </div>
-      ) : null}
+      </Section>
       <FamilyHistoryEditor
         open={open}
         items={safeItems}
@@ -99,7 +78,7 @@ export default function FamilyHistoryPanel({
         }}
         saving={saving || disabled}
       />
-    </div>
+    </>
   );
 }
 

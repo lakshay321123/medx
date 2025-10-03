@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { Calendar, Plus } from "lucide-react";
 
+import Section from "@/components/profile/Section";
 import { useT } from "@/components/hooks/useI18n";
 import type { ImmunizationItem } from "@/types/profile";
 import type { ImmunizationsEditorProps } from "@/components/profile/editors/ImmunizationsEditor";
@@ -13,27 +13,36 @@ const ImmunizationsEditor = dynamic<ImmunizationsEditorProps>(
   { ssr: false },
 );
 
-type ImmunizationsPanelProps = {
+type Props = {
   items?: ImmunizationItem[];
   onSave: (items: ImmunizationItem[]) => Promise<void> | void;
   saving?: boolean;
   disabled?: boolean;
 };
 
-export default function ImmunizationsPanel({
+export default function ImmunizationsSection({
   items,
   onSave,
   saving = false,
   disabled = false,
-}: ImmunizationsPanelProps) {
+}: Props) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const safeItems = useMemo(() => (Array.isArray(items) ? items : []), [items]);
   const hasItems = safeItems.length > 0;
 
   return (
-    <div className="space-y-3 text-sm">
-      {hasItems ? (
+    <>
+      <Section
+        title={t("profile.immunizations.title")}
+        ctaLabel={t(hasItems ? "profile.common.edit" : "profile.common.add")}
+        onCta={() => {
+          if (!disabled) setOpen(true);
+        }}
+        ctaDisabled={saving || disabled}
+        isEmpty={!hasItems}
+        emptyMessage={t("profile.common.noItems")}
+      >
         <ul className="divide-y rounded-lg border">
           {safeItems.map((item, index) => {
             const dateLabel = formatDate(item.date, t);
@@ -43,8 +52,7 @@ export default function ImmunizationsPanel({
                   <span className="font-medium" title={item.vaccine}>
                     {item.vaccine}
                   </span>
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title={dateLabel}>
-                    <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span className="text-xs text-muted-foreground" title={dateLabel}>
                     {dateLabel}
                   </span>
                 </div>
@@ -70,37 +78,7 @@ export default function ImmunizationsPanel({
             );
           })}
         </ul>
-      ) : (
-        <div className="flex items-center justify-between rounded-lg border px-3 py-3">
-          <span className="text-muted-foreground">{t("profile.common.noItems")}</span>
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs"
-            onClick={() => {
-              if (!disabled) setOpen(true);
-            }}
-            aria-label={t("profile.immunizations.add")}
-            disabled={saving || disabled}
-          >
-            <Plus className="h-3 w-3" aria-hidden="true" />
-            {t("profile.common.add")}
-          </button>
-        </div>
-      )}
-      {hasItems ? (
-        <div className="flex justify-end">
-          <button
-            type="button"
-            className="rounded-md border px-3 py-1.5 text-sm"
-            onClick={() => {
-              if (!disabled) setOpen(true);
-            }}
-            disabled={saving || disabled}
-          >
-            {t("profile.common.edit")}
-          </button>
-        </div>
-      ) : null}
+      </Section>
       <ImmunizationsEditor
         open={open}
         items={safeItems}
@@ -115,7 +93,7 @@ export default function ImmunizationsPanel({
         }}
         saving={saving || disabled}
       />
-    </div>
+    </>
   );
 }
 

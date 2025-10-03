@@ -21,12 +21,6 @@ export type Lifestyle = {
     status: "none" | "occasional" | "regular";
     unitsPerWeek?: number;
   };
-  drugs?: string;
-  diet?: string;
-  activity?: string;
-  sleep?: string;
-  occupation?: string;
-  exposures?: string;
 };
 
 export type SurgeryItem = {

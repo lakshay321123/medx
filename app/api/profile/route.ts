@@ -140,6 +140,11 @@ const KIND_CATEGORY_OVERRIDES: Record<string, GroupKey> = {
   weight: "vitals",
   spo2: "vitals",
   pulse: "vitals",
+  respiratory_rate: "vitals",
+  resp_rate: "vitals",
+  temperature: "vitals",
+  temperature_c: "vitals",
+  temp_c: "vitals",
 };
 
 // imaging trigger words, but require 'report' or meta.imaging to avoid false positives
