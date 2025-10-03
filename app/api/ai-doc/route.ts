@@ -3,147 +3,21 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { NextRequest, NextResponse } from "next/server";
-import { getUserId } from "@/lib/getUserId";
+
 import { prisma } from "@/lib/prisma";
 import { detectIntentAndEntities, type DetectedIntent } from "@/lib/aidoc/detectIntent";
-import { SAMPLE_AIDOC_DATA } from "@/lib/aidoc/structured";
 import {
-  prepareAidocPayload,
   buildComparisons,
-  type PlannerLabInput,
-  type PlannerMedication,
-  type PlannerCondition,
-  type PlannerNote,
-  type PlannerProfile,
+  buildSingleLineSummary,
   idealFor,
   markerFor,
-  buildSingleLineSummary,
   type LabRow,
   type ReportBlock,
   type MarkerValue,
 } from "@/lib/aidoc/planner";
 import { callOpenAIJson } from "@/lib/aidoc/vendor";
-import { groupByIsoDate, dedupeSameDay, normUnit, normName, type LabLike } from "@/lib/aidoc/normalize";
+import { groupByIsoDate, dedupeSameDay, normUnit, type LabLike } from "@/lib/aidoc/normalize";
 import { AIDOC_JSON_INSTRUCTION } from "@/lib/aidoc/schema";
-
-const MARKER_VALUES = new Set<MarkerValue>(["High", "Low", "Borderline", "Normal"]);
-
-function toMarkerValue(value: unknown): MarkerValue | undefined {
-  if (typeof value !== "string") return undefined;
-  const trimmed = value.trim();
-  return MARKER_VALUES.has(trimmed as MarkerValue) ? (trimmed as MarkerValue) : undefined;
-}
-
-type AiDocRequest = {
-  message?: string;
-  text?: string;
-  profileId?: string;
-  threadId?: string;
-};
-
-interface PatientBundle {
-  profile: PlannerProfile | null;
-  labs: PlannerLabInput[];
-  notes: PlannerNote[];
-  medications: PlannerMedication[];
-  conditions: PlannerCondition[];
-}
-
-function ensureArray<T>(value: T[] | null | undefined): T[] {
-  return Array.isArray(value) ? value : [];
-}
-
-async function safeFindMany(client: any, args: any) {
-  if (!client?.findMany) return [];
-  try {
-    return await client.findMany(args);
-  } catch {
-    const fallbackArgs = { where: args?.where };
-    try {
-      return await client.findMany(fallbackArgs);
-    } catch {
-      return [];
-    }
-  }
-}
-
-async function loadFromPrisma(
-  userId: string,
-  requestedProfileId?: string | null,
-): Promise<{ bundle: PatientBundle | null; clientAvailable: boolean }> {
-  try {
-    const profileClient: any = (prisma as any)?.patientProfile;
-    if (!profileClient?.findFirst) {
-      return { bundle: null, clientAvailable: false };
-    }
-
-    let profile: any = null;
-    try {
-      if (requestedProfileId) {
-        profile = await profileClient.findFirst({ where: { id: requestedProfileId, userId } });
-      } else {
-        profile =
-          (await profileClient.findFirst({ where: { userId, isPrimary: true } })) ??
-          (await profileClient.findFirst({ where: { userId } }));
-      }
-    } catch {
-      profile = null;
-    }
-
-    if (!profile) {
-      return { bundle: null, clientAvailable: true };
-    }
-
-    const profileId = profile.id ?? null;
-    const labsClient: any = (prisma as any)?.labResult;
-    const noteClient: any = (prisma as any)?.note;
-    const medicationClient: any = (prisma as any)?.medication;
-    const conditionClient: any = (prisma as any)?.condition;
-
-    const [labs, notes, medications, conditions] = await Promise.all([
-      safeFindMany(labsClient, { where: { profileId }, orderBy: { takenAt: "desc" }, take: 1000 }),
-      safeFindMany(noteClient, { where: { profileId }, orderBy: { createdAt: "desc" }, take: 200 }),
-      safeFindMany(medicationClient, { where: { profileId } }),
-      safeFindMany(conditionClient, { where: { profileId } }),
-    ]);
-
-    return {
-      bundle: {
-        profile: profile as PlannerProfile,
-        labs: ensureArray(labs) as PlannerLabInput[],
-        notes: ensureArray(notes) as PlannerNote[],
-        medications: ensureArray(medications) as PlannerMedication[],
-        conditions: ensureArray(conditions) as PlannerCondition[],
-      },
-      clientAvailable: true,
-    };
-  } catch {
-    return { bundle: null, clientAvailable: true };
-  }
-}
-
-async function loadPatientBundle(
-  userId: string,
-  requestedProfileId?: string | null,
-): Promise<{ bundle: PatientBundle | null; clientAvailable: boolean }> {
-  const fromPrisma = await loadFromPrisma(userId, requestedProfileId);
-  if (fromPrisma.bundle) {
-    return fromPrisma;
-  }
-  if (!fromPrisma.clientAvailable) {
-    return {
-      bundle: {
-        profile: SAMPLE_AIDOC_DATA.profile,
-        labs: SAMPLE_AIDOC_DATA.labs,
-        notes: SAMPLE_AIDOC_DATA.notes,
-        medications: SAMPLE_AIDOC_DATA.medications,
-        conditions: SAMPLE_AIDOC_DATA.conditions,
-      },
-      clientAvailable: false,
-    };
-  }
-  return { bundle: null, clientAvailable: true };
-}
 
 function sanitizeNextSteps(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -153,14 +27,14 @@ function sanitizeNextSteps(value: unknown): string[] {
     .slice(0, 3);
 }
 
-function computeAgeFromDob(dob?: string | Date | null): number | undefined {
-  if (!dob) return undefined;
+function computeAgeFromDob(dob?: string | Date | null): number | null {
+  if (!dob) return null;
   const birth = dob instanceof Date ? dob : new Date(dob);
-  if (Number.isNaN(birth.getTime())) return undefined;
+  if (Number.isNaN(birth.getTime())) return null;
   const diff = Date.now() - birth.getTime();
   const ageDate = new Date(diff);
   const age = Math.abs(ageDate.getUTCFullYear() - 1970);
-  return Number.isFinite(age) ? age : undefined;
+  return Number.isFinite(age) ? age : null;
 }
 
 function defaultSummaryFromComparisons(comparisons: Record<string, string>): string {
@@ -239,71 +113,74 @@ function buildModelSystem(patient: any, reports: ModelReport[], comparisons: Rec
   ].join("\n");
 }
 
-export async function POST(req: NextRequest) {
-  const userId = await getUserId(req);
-  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
-  let body: AiDocRequest;
-  try {
-    body = (await req.json()) as AiDocRequest;
-  } catch {
-    body = {};
+async function getActiveProfile(profileId?: string | null): Promise<{ id: string } | null> {
+  if (profileId?.trim()) {
+    const scoped = await prisma.profile.findFirst({ where: { id: profileId.trim() }, select: { id: true } });
+    if (scoped) return scoped;
   }
 
-  const messageInput = typeof body?.message === "string" ? body.message.trim() : "";
-  const textInput = typeof body?.text === "string" ? body.text.trim() : "";
-  const message = messageInput || textInput;
-  if (!message) return NextResponse.json({ error: "no message" }, { status: 400 });
-
-  const rawPid = typeof body?.profileId === "string" ? body.profileId.trim() : undefined;
-  const clientPid = rawPid && rawPid.length ? rawPid : undefined;
-  if (!clientPid) {
-    return NextResponse.json({ error: "missing_profileId" }, { status: 400 });
-  }
-
-  const profileClient: any = (prisma as any)?.profile;
-  const dbProfile = profileClient?.findFirst
-    ? await profileClient.findFirst({ where: { id: clientPid, userId } })
-    : null;
-  if (!dbProfile && clientPid !== SAMPLE_AIDOC_DATA.profile.id) {
-    return NextResponse.json({ error: "profile_not_found_or_not_owned" }, { status: 404 });
-  }
-
-  const { bundle } = await loadPatientBundle(userId, clientPid);
-  if (!bundle) {
-    return NextResponse.json({ error: "profile_not_found_or_not_owned" }, { status: 404 });
-  }
-
-  console.info("AIDOC_PROFILE", { userId, profileId: bundle.profile?.id ?? null });
-
-  const userText = String(message || "");
-  const { intent, confidence, entities } = detectIntentAndEntities(userText);
-  const intentCategory: DetectedIntent = confidence < 0.35 ? "pull_reports" : intent;
-
-  const preparedRaw = prepareAidocPayload({
-    profile: bundle.profile,
-    labs: bundle.labs,
-    notes: bundle.notes,
-    medications: bundle.medications,
-    conditions: bundle.conditions,
-    intent: intentCategory,
-    focusMetric: entities.metric ?? null,
-    compareWindow: entities.compareWindow ?? null,
+  return prisma.profile.findFirst({
+    where: {},
+    orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+    select: { id: true },
   });
+}
 
-  const labs = ensureArray(bundle.labs) as LabLike[];
-  const grouped = groupByIsoDate(labs);
+export async function POST(req: NextRequest) {
+  const body = (await req.json().catch(() => ({}))) as { message?: string; text?: string; profileId?: string };
+
+  const message = typeof body?.message === "string" ? body.message.trim() : "";
+  const text = typeof body?.text === "string" ? body.text.trim() : "";
+  const userText = message || text;
+  if (!userText) {
+    return NextResponse.json({ error: "no_message" }, { status: 400 });
+  }
+
+  const profile = await getActiveProfile(body.profileId ?? null);
+  if (!profile) {
+    return NextResponse.json({ error: "no_profile_available" }, { status: 404 });
+  }
+
+  const [labs, meds, prof] = await Promise.all([
+    prisma.labResult.findMany({
+      where: { profileId: profile.id },
+      orderBy: { takenAt: "desc" },
+      take: 1000,
+    }),
+    prisma.medication.findMany({
+      where: { profileId: profile.id, active: true },
+      orderBy: { startedAt: "desc" },
+    }),
+    prisma.profile.findFirst({
+      where: { id: profile.id },
+      select: {
+        full_name: true,
+        dob: true,
+        sex: true,
+        blood_group: true,
+        chronic_conditions: true,
+        conditions_predisposition: true,
+      },
+    }),
+  ]);
+
+  const labLikes: LabLike[] = Array.isArray(labs)
+    ? labs.map(lab => ({
+        name: lab?.name ?? undefined,
+        value: (lab as any)?.value ?? null,
+        unit: (lab as any)?.unit ?? null,
+        takenAt: (lab as any)?.takenAt ?? null,
+      }))
+    : [];
+
+  const grouped = groupByIsoDate(labLikes);
   let reports: ReportBlock[] = grouped.map(([date, items]) => {
-    const cleaned = dedupeSameDay(
-      items.map(item => ({
-        name: item?.name ?? undefined,
-        value: (item as any)?.value ?? null,
-        unit: (item as any)?.unit ?? null,
-      })),
-    );
-
+    const cleaned = dedupeSameDay(items);
     const labsOut: LabRow[] = [];
     for (const item of cleaned) {
+      const displayName = typeof item.name === "string" ? item.name : "";
+      if (!displayName) continue;
+
       const rawValue = item.value;
       let numeric: number | null = null;
       if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
@@ -315,14 +192,11 @@ export async function POST(req: NextRequest) {
 
       const displayValue: number | string | null =
         numeric ?? (typeof rawValue === "string" ? rawValue : rawValue ?? null);
-      const displayName = typeof item.name === "string" ? item.name : "";
-      if (!displayName) continue;
-      const unit = normUnit(item.unit ?? undefined);
 
       const labRow: LabRow = {
         name: displayName,
         value: displayValue,
-        unit,
+        unit: typeof item.unit === "string" ? normUnit(item.unit) : undefined,
         marker: markerFor(displayName, numeric ?? null),
         ideal: idealFor(displayName),
       };
@@ -330,90 +204,42 @@ export async function POST(req: NextRequest) {
     }
 
     const summary = buildSingleLineSummary(labsOut);
-
-    const reportBlock: ReportBlock = { date, labs: labsOut, summary };
-    return reportBlock;
+    return { date, labs: labsOut, summary } satisfies ReportBlock;
   });
+
+  const { intent, confidence, entities } = detectIntentAndEntities(userText);
+  const intentCategory: DetectedIntent = confidence < 0.35 ? "pull_reports" : intent;
 
   if (intentCategory === "compare_reports" && entities.compareWindow) {
     const { a, b } = entities.compareWindow;
     reports = reports.filter(report => report.date === a || report.date === b);
   }
 
-  if (!reports.length && preparedRaw.reports.length) {
-    reports = preparedRaw.reports.map(report => {
-      const sourceLabs = Array.isArray(report.labs) ? report.labs : [];
-      const labs = sourceLabs
-        .map(lab => {
-          const rawName = typeof lab?.name === "string" ? lab.name.trim() : "";
-          if (!rawName) return null;
-
-          const normalizedName = normName(rawName);
-          if (!normalizedName) return null;
-
-          const labRow: LabRow = {
-            name: normalizedName,
-            value: lab?.value ?? null,
-            unit: normUnit(lab?.unit ?? undefined),
-            marker: toMarkerValue(lab?.marker),
-            ideal: lab?.ideal ?? undefined,
-          };
-          return labRow;
-        })
-        .filter((lab): lab is LabRow => lab !== null);
-      const reportBlock: ReportBlock = {
-        date: report.date,
-        summary: report.summary,
-        labs,
-      };
-      return reportBlock;
-    });
-  }
-
-  if (intentCategory === "interpret_report") {
-    const imagingReports = preparedRaw.reports
-      .filter(report => (!report.labs || report.labs.length === 0) && report.summary)
-      .map(report => ({
-        date: report.date,
-        summary: report.summary,
-        labs: [],
-      } satisfies ReportBlock));
-
-    if (imagingReports.length) {
-      const labReports = reports.filter(report => report.labs.length > 0);
-      labReports.sort((a, b) => b.date.localeCompare(a.date));
-      imagingReports.sort((a, b) => b.date.localeCompare(a.date));
-      reports = [...imagingReports, ...labReports];
-    } else {
-      reports.sort((a, b) => b.date.localeCompare(a.date));
-    }
-  } else {
-    reports.sort((a, b) => b.date.localeCompare(a.date));
-  }
+  reports.sort((a, b) => b.date.localeCompare(a.date));
 
   const focusMetric = intentCategory === "compare_metric" ? entities.metric ?? null : null;
   const comparisons = buildComparisons(reports, focusMetric);
 
-  const bundleProfile: any = bundle.profile ?? {};
-  const predispositions = Array.isArray(bundleProfile?.conditions_predisposition)
-    ? bundleProfile.conditions_predisposition.filter(Boolean)
-    : preparedRaw.patient?.predispositions ?? [];
-  const chronicConditions = Array.isArray(bundleProfile?.chronic_conditions)
-    ? bundleProfile.chronic_conditions.filter(Boolean)
-    : (preparedRaw.patient as any)?.conditions ?? [];
-  const medicationsList = ensureArray(bundle.medications)
-    .map((med: any) => med?.name)
-    .filter((name: any): name is string => typeof name === "string" && name.length > 0);
-  const patient = preparedRaw.patient
+  const predispositions = Array.isArray(prof?.conditions_predisposition)
+    ? prof!.conditions_predisposition.filter(Boolean)
+    : [];
+  const chronicConditions = Array.isArray(prof?.chronic_conditions)
+    ? prof!.chronic_conditions.filter(cond => cond && !predispositions.includes(cond))
+    : [];
+  const medicationNames = Array.isArray(meds)
+    ? meds
+        .map(med => (med as any)?.name)
+        .filter((name): name is string => typeof name === "string" && name.trim().length > 0)
+    : [];
+
+  const patient = prof
     ? {
-        ...preparedRaw.patient,
-        name: bundleProfile?.fullName ?? bundleProfile?.name ?? preparedRaw.patient.name,
-        age: bundleProfile?.dob
-          ? computeAgeFromDob(bundleProfile.dob) ?? preparedRaw.patient.age
-          : preparedRaw.patient.age,
+        name: prof.full_name ?? undefined,
+        age: computeAgeFromDob(prof.dob),
+        sex: prof.sex ?? undefined,
         predispositions,
-        medications: medicationsList.length ? medicationsList : preparedRaw.patient.medications ?? [],
-        symptoms: preparedRaw.patient.symptoms ?? [],
+        medications: medicationNames,
+        symptoms: [] as string[],
         conditions: chronicConditions,
       }
     : null;
@@ -430,6 +256,7 @@ export async function POST(req: NextRequest) {
   }));
 
   const system = buildModelSystem(patient, modelReports, comparisons);
+
   let summary = defaultSummaryFromComparisons(comparisons);
   let nextSteps = defaultNextSteps(comparisons);
 
@@ -453,7 +280,7 @@ export async function POST(req: NextRequest) {
     console.error("aidoc_summary_error", error);
   }
 
-  const response = {
+  return NextResponse.json({
     kind: "reports" as const,
     intent: intentCategory,
     confidence,
@@ -464,7 +291,5 @@ export async function POST(req: NextRequest) {
     nextSteps,
     reply: summary,
     entities,
-  };
-
-  return NextResponse.json(response);
+  });
 }
