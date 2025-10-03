@@ -121,11 +121,11 @@ export async function POST(req: NextRequest) {
       const derivedAge =
         typeof scopedProfile?.age === "number"
           ? scopedProfile.age
-          : computeAgeFromDob(dob) ?? supabaseAge;
+          : (computeAgeFromDob(dob) ?? supabaseAge);
       profile = {
-        name: scopedProfile?.fullName ?? scopedProfile?.name ?? prof?.full_name || undefined,
+        name: (scopedProfile?.fullName ?? scopedProfile?.name ?? prof?.full_name) ?? undefined,
         age: derivedAge,
-        sex: scopedProfile?.sex ?? prof?.sex || undefined,
+        sex: (scopedProfile?.sex ?? prof?.sex) ?? undefined,
       };
       observations = Array.isArray(obs) ? obs : [];
       if (needsContextPacket) {
