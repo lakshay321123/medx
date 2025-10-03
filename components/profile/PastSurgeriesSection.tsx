@@ -28,8 +28,8 @@ export default function PastSurgeriesSection({
 }: Props) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
-  const safeItems = useMemo(() => (Array.isArray(surgeries) ? surgeries : []), [surgeries]);
-  const hasItems = safeItems.length > 0;
+  const items = useMemo(() => (Array.isArray(surgeries) ? surgeries : []), [surgeries]);
+  const hasItems = items.length > 0;
 
   return (
     <>
@@ -44,7 +44,7 @@ export default function PastSurgeriesSection({
         emptyMessage={t("profile.common.noItems")}
       >
         <ul className="divide-y rounded-lg border">
-          {safeItems.map((item, index) => (
+          {items.map((item, index) => (
             <li key={`${item.procedure}-${index}`} className="space-y-1 px-3 py-3">
               <div className="flex items-center justify-between gap-3">
                 <span className="font-medium" title={item.procedure}>
@@ -65,7 +65,7 @@ export default function PastSurgeriesSection({
       </Section>
       <SurgeriesEditor
         open={open}
-        surgeries={safeItems}
+        items={items}
         onClose={() => setOpen(false)}
         onSave={async data => {
           try {
