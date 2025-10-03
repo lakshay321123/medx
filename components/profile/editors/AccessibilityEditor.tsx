@@ -48,7 +48,7 @@ export default function AccessibilityEditor({
             onClick={onClose}
             disabled={saving}
           >
-            {t("Cancel")}
+            {t("profile.common.cancel")}
           </button>
           <button
             type="button"
@@ -68,7 +68,7 @@ export default function AccessibilityEditor({
             }}
             disabled={saving}
           >
-            {saving ? t("Saving…") : t("Save changes")}
+            {saving ? t("profile.common.saving") : t("profile.common.saveChanges")}
           </button>
         </div>
       </div>

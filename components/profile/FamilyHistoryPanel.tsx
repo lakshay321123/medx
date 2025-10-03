@@ -34,13 +34,9 @@ export default function FamilyHistoryPanel({ items, onSave, saving = false }: Fa
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                <span className="truncate" title={item.condition}>
-                  {t("profile.familyHistory.condition")}
-                </span>
+                <span>{t("profile.familyHistory.onsetAge")}</span>
                 <span>
-                  {item.onsetAge != null
-                    ? t("Age") + ": " + item.onsetAge
-                    : t("profile.common.notRecorded")}
+                  {item.onsetAge != null ? item.onsetAge : t("profile.common.notRecorded")}
                 </span>
               </div>
             </li>
@@ -57,7 +53,7 @@ export default function FamilyHistoryPanel({ items, onSave, saving = false }: Fa
             disabled={saving}
           >
             <Plus className="h-3 w-3" aria-hidden="true" />
-            {t("Add")}
+            {t("profile.common.add")}
           </button>
         </div>
       )}
@@ -69,7 +65,7 @@ export default function FamilyHistoryPanel({ items, onSave, saving = false }: Fa
             onClick={() => setOpen(true)}
             disabled={saving}
           >
-            {t("Edit")}
+            {t("profile.common.edit")}
           </button>
         </div>
       ) : null}

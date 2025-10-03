@@ -51,7 +51,7 @@ export default function AdvanceDirectivesEditor({
             onClick={onClose}
             disabled={saving}
           >
-            {t("Cancel")}
+            {t("profile.common.cancel")}
           </button>
           <button
             type="button"
@@ -75,7 +75,7 @@ export default function AdvanceDirectivesEditor({
             }}
             disabled={saving}
           >
-            {saving ? t("Saving…") : t("Save changes")}
+            {saving ? t("profile.common.saving") : t("profile.common.saveChanges")}
           </button>
         </div>
       </div>

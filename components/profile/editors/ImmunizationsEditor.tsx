@@ -46,7 +46,7 @@ export default function ImmunizationsEditor({ open, items, onClose, onSave, savi
             onClick={onClose}
             disabled={saving}
           >
-            {t("Cancel")}
+            {t("profile.common.cancel")}
           </button>
           <button
             type="button"
@@ -92,7 +92,7 @@ export default function ImmunizationsEditor({ open, items, onClose, onSave, savi
             }}
             disabled={saving}
           >
-            {saving ? t("Saving…") : t("Save changes")}
+            {saving ? t("profile.common.saving") : t("profile.common.saveChanges")}
           </button>
         </div>
       </div>
@@ -184,7 +184,7 @@ export default function ImmunizationsEditor({ open, items, onClose, onSave, savi
                           ),
                         )
                       }
-                      placeholder="https://"
+                      placeholder={t("profile.immunizations.source")}
                       disabled={saving}
                     />
                   </label>
@@ -194,7 +194,7 @@ export default function ImmunizationsEditor({ open, items, onClose, onSave, savi
                     type="button"
                     className="rounded-md border px-2 py-2 text-muted-foreground transition hover:bg-muted"
                     onClick={() => setDrafts(prev => prev.filter((_, i) => i !== index))}
-                    aria-label={t("Delete")}
+                    aria-label={t("profile.common.delete")}
                     disabled={saving}
                   >
                     <Trash2 className="h-4 w-4" aria-hidden="true" />

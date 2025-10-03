@@ -50,11 +50,11 @@ export default function AdvanceDirectivesPanel({ directives, onSave, saving = fa
             type="button"
             className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs"
             onClick={() => setOpen(true)}
-            aria-label={t("profile.advanceDirectives.title")}
+            aria-label={t("profile.advanceDirectives.add")}
             disabled={saving}
           >
             <FileText className="h-3 w-3" aria-hidden="true" />
-            {t("Add")}
+            {t("profile.common.add")}
           </button>
         </div>
       )}
@@ -65,7 +65,7 @@ export default function AdvanceDirectivesPanel({ directives, onSave, saving = fa
           onClick={() => setOpen(true)}
           disabled={saving}
         >
-          {t(hasData ? "Edit" : "Add")}
+          {t(hasData ? "profile.common.edit" : "profile.common.add")}
         </button>
       </div>
       <AdvanceDirectivesEditor
@@ -88,14 +88,12 @@ export default function AdvanceDirectivesPanel({ directives, onSave, saving = fa
 
 type Formatter = (value: string) => string;
 
-type Renderer = ReturnType<typeof renderLine>;
-
 function renderLine(
   key: keyof AdvanceDirectives,
   value: string | undefined,
   formatter: Formatter,
   translate: (key: string) => string,
-): Renderer | null {
+){
   if (!value) return null;
   return (
     <li key={key} className="space-y-1 px-3 py-3">

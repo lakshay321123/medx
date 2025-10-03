@@ -113,7 +113,7 @@ export default function LifestylePanel({ lifestyle, onSave, saving = false }: Li
             disabled={saving}
           >
             <Pencil className="h-3 w-3" aria-hidden="true" />
-            {t("Add")}
+            {t("profile.common.add")}
           </button>
         </div>
       )}
@@ -125,7 +125,7 @@ export default function LifestylePanel({ lifestyle, onSave, saving = false }: Li
           disabled={saving}
         >
           <Pencil className="h-4 w-4" aria-hidden="true" />
-          {t(hasData ? "Edit" : "Add")}
+          {t(hasData ? "profile.common.edit" : "profile.common.add")}
         </button>
       </div>
       <LifestyleEditor

@@ -59,7 +59,7 @@ export default function LifestyleEditor({ open, lifestyle, onClose, onSave, savi
             onClick={onClose}
             disabled={saving}
           >
-            {t("Cancel")}
+            {t("profile.common.cancel")}
           </button>
           <button
             type="button"
@@ -120,7 +120,7 @@ export default function LifestyleEditor({ open, lifestyle, onClose, onSave, savi
             }}
             disabled={saving}
           >
-            {saving ? t("Saving…") : t("Save changes")}
+            {saving ? t("profile.common.saving") : t("profile.common.saveChanges")}
           </button>
         </div>
       </div>

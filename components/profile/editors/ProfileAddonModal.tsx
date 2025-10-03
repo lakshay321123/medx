@@ -113,7 +113,7 @@ export default function ProfileAddonModal({
           <button
             type="button"
             className="rounded-full p-2 text-muted-foreground transition hover:bg-muted"
-            aria-label={t("Close")}
+            aria-label={t("profile.common.close")}
             onClick={onClose}
           >
             <X className="h-4 w-4" aria-hidden="true" />

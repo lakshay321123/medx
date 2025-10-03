@@ -530,13 +530,13 @@ export default function MedicalProfile() {
         });
         if (!res.ok) {
           const message = await res.text();
-          throw new Error(message || "Failed to save add-on");
+          throw new Error(message || t("profile.common.saveFailed"));
         }
         await mutateProfile();
         await mutateGlobal("/api/profile");
         pushToast({ title: t("profile.common.saved") });
       } catch (err: any) {
-        const message = err?.message || t("Please try again.");
+        const message = err?.message || t("profile.common.pleaseRetry");
         pushToast({
           title: t("profile.common.saveFailed"),
           description: message,

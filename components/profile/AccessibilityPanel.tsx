@@ -46,7 +46,7 @@ export default function AccessibilityPanel({ accessibility, onSave, saving = fal
             disabled={saving}
           >
             <Plus className="h-3 w-3" aria-hidden="true" />
-            {t("Add")}
+            {t("profile.common.add")}
           </button>
         </div>
       )}
@@ -57,7 +57,7 @@ export default function AccessibilityPanel({ accessibility, onSave, saving = fal
           onClick={() => setOpen(true)}
           disabled={saving}
         >
-          {t(hasData ? "Edit" : "Add")}
+          {t(hasData ? "profile.common.edit" : "profile.common.add")}
         </button>
       </div>
       <AccessibilityEditor

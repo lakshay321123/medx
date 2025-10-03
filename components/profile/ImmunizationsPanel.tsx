@@ -24,7 +24,7 @@ export default function ImmunizationsPanel({ items, onSave, saving = false }: Im
       {hasItems ? (
         <ul className="divide-y rounded-lg border">
           {safeItems.map((item, index) => {
-            const dateLabel = formatDate(item.date);
+            const dateLabel = formatDate(item.date, t);
             return (
               <li key={`${item.vaccine}-${index}`} className="space-y-1 px-3 py-3">
                 <div className="flex items-center justify-between gap-3">
@@ -69,7 +69,7 @@ export default function ImmunizationsPanel({ items, onSave, saving = false }: Im
             disabled={saving}
           >
             <Plus className="h-3 w-3" aria-hidden="true" />
-            {t("Add")}
+            {t("profile.common.add")}
           </button>
         </div>
       )}
@@ -81,7 +81,7 @@ export default function ImmunizationsPanel({ items, onSave, saving = false }: Im
             onClick={() => setOpen(true)}
             disabled={saving}
           >
-            {t("Edit")}
+            {t("profile.common.edit")}
           </button>
         </div>
       ) : null}
@@ -103,8 +103,8 @@ export default function ImmunizationsPanel({ items, onSave, saving = false }: Im
   );
 }
 
-function formatDate(value: string | undefined) {
-  if (!value) return "—";
+function formatDate(value: string | undefined, translate: (key: string) => string) {
+  if (!value) return translate("profile.common.notRecorded");
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value.slice(0, 10);
