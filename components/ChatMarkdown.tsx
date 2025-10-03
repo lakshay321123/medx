@@ -20,37 +20,8 @@ function normalize(raw: string){
   return s + "\n";
 }
 
-function AutoCollapse({ children, maxHeight = 600 }: { children: React.ReactNode; maxHeight?: number }) {
-  const [expanded, setExpanded] = React.useState(false);
-  const ref = React.useRef<HTMLDivElement>(null);
-  const [collapse, setCollapse] = React.useState(false);
-  React.useEffect(() => {
-    if (!ref.current) return;
-    const shouldCollapse = ref.current.scrollHeight > maxHeight && !expanded;
-    setCollapse(shouldCollapse);
-    if (expanded && ref.current) {
-      ref.current.style.maxHeight = "none";
-    }
-  }, [expanded, maxHeight, children]);
-  return (
-    <div>
-      <div
-        ref={ref}
-        className={collapse ? "max-h-[600px] overflow-hidden" : ""}
-      >
-        {children}
-      </div>
-      {collapse && (
-        <button
-          type="button"
-          className="mt-3 text-sm underline opacity-80 transition hover:opacity-100"
-          onClick={() => setExpanded(true)}
-        >
-          Show more
-        </button>
-      )}
-    </div>
-  );
+function AutoCollapse({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }
 
 type MarkdownCodeProps = React.ComponentPropsWithoutRef<"code"> & {

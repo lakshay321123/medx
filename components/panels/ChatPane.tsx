@@ -74,7 +74,6 @@ const NEARBY_CONFIRM_RE = /\b(yes|ok|okay|sure|go ahead|proceed|haan|haanji)\b/i
 const NEARBY_EXPAND_RE = /\b(expand|wider|broaden|increase range)\b/i;
 const NEARBY_RADIUS_RE = /(\d+(?:\.\d+)?)\s*(km|kms|kilometers|kilometres|m|meter|meters)\b/i;
 const NEARBY_LOCATION_REFRESH_RE = /\b(near me|use my location|refresh location)\b/i;
-const NEARBY_SHOW_MORE_RE = /\b(show more|next)\b/i;
 const NEARBY_PREVIOUS_RE = /\b(previous|back)\b/i;
 const NEARBY_DIRECTIONS_RE = /\b(?:directions|navigate)\s*#?(\d{1,2})\b/i;
 const NEARBY_CALL_RE = /\bcall\s*#?(\d{1,2})\b/i;
@@ -1439,9 +1438,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         : `More ${NEARBY_LABELS[session.kind].plural}:`;
     let message = `${options?.prefix ?? defaultPrefix}\n\n${formatNearbyCards(session.lastResults, safeStart, actualCount)}`;
 
-    if (available > safeStart + actualCount) {
-      message += `\n\nSay "show more" to see additional places.`;
-    }
     if (safeStart > 0) {
       message += `\n\nSay "previous" to go back.`;
     }
@@ -1474,7 +1470,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       setNearbySession(key, updated);
       pushAssistantText('Nearby service is busy right now. Please try again in a moment.');
       if (updated.lastResults.length) {
-        emitNearbyResults(updated, 0, Math.min(updated.lastResults.length, ensureChunkSize(updated)), {
+        emitNearbyResults(updated, 0, updated.lastResults.length, {
           prefix: `Reusing the last ${NEARBY_LABELS[updated.kind].plural}:`,
         });
       }
@@ -1508,41 +1504,19 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       return true;
     }
 
-    const chunkSize = ensureChunkSize(session);
-    const firstCount = Math.min(response.results.length, chunkSize);
+    const totalResults = response.results.length;
+    const chunkSize = totalResults || ensureChunkSize(session);
     const updated: NearbySessionState = {
       ...session,
       attribution,
       lastResults: response.results,
       lastResultsEmpty: false,
-      nextIndex: firstCount,
+      nextIndex: totalResults,
       chunkSize,
       lastAction: "nearby",
     };
     setNearbySession(key, updated);
-    emitNearbyResults(updated, 0, firstCount);
-    return true;
-  };
-
-  const showMoreNearby = (key: string, session: NearbySessionState) => {
-    if (!session.lastResults.length) {
-      pushAssistantText('No saved nearby results yet. Try searching again.');
-      return true;
-    }
-    const chunkSize = ensureChunkSize(session);
-    if (session.nextIndex >= session.lastResults.length) {
-      pushAssistantText('You have reached the end of the list. Try widening the radius or another category.');
-      return true;
-    }
-    const start = session.nextIndex;
-    const count = Math.min(chunkSize, session.lastResults.length - start);
-    const updated: NearbySessionState = {
-      ...session,
-      nextIndex: start + count,
-      lastAction: "nearby",
-    };
-    setNearbySession(key, updated);
-    emitNearbyResults(updated, start, count, { prefix: `More ${NEARBY_LABELS[session.kind].plural}:` });
+    emitNearbyResults(updated, 0, totalResults);
     return true;
   };
 
@@ -1551,21 +1525,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       pushAssistantText('No saved nearby results yet. Try searching again.');
       return true;
     }
-    const chunkSize = ensureChunkSize(session);
-    if (session.nextIndex <= chunkSize) {
-      emitNearbyResults(session, 0, Math.min(chunkSize, session.lastResults.length));
-      return true;
-    }
-    const start = Math.max(0, session.nextIndex - chunkSize * 2);
-    const updated: NearbySessionState = {
-      ...session,
-      nextIndex: Math.max(chunkSize, start + chunkSize),
-      lastAction: "nearby",
-    };
-    setNearbySession(key, updated);
-    emitNearbyResults(updated, start, Math.min(chunkSize, updated.lastResults.length - start), {
+    emitNearbyResults(session, 0, session.lastResults.length, {
       prefix: `Previous ${NEARBY_LABELS[session.kind].plural}:`,
+      includeChips: false,
     });
+    setNearbySession(key, { ...session, nextIndex: session.lastResults.length, lastAction: "nearby" });
     return true;
   };
 
@@ -1613,7 +1577,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     const withHours = session.lastResults.filter((item) => typeof item.opening_hours === 'string' && item.opening_hours.trim().length);
     if (!withHours.length) {
       pushAssistantText('The current results do not list opening hours. Showing all places instead.');
-      emitNearbyResults(session, 0, Math.min(ensureChunkSize(session), session.lastResults.length));
+      emitNearbyResults(session, 0, session.lastResults.length);
       return true;
     }
     const aroundTheClock = withHours.filter((item) => /24\s*[x/\-]?7/i.test(item.opening_hours ?? ''));
@@ -1626,7 +1590,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       lastResults: aroundTheClock,
       attribution: session.attribution,
     };
-    emitNearbyResults(mockSession, 0, Math.min(ensureChunkSize(session), aroundTheClock.length), {
+    emitNearbyResults(mockSession, 0, aroundTheClock.length, {
       prefix: `Places tagged 24/7 (${NEARBY_LABELS[session.kind].plural}):`,
     });
     return true;
@@ -1681,10 +1645,6 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
           lastResultsEmpty: false,
         };
         return fetchAndRenderNearby(key, updatedSession);
-      }
-
-      if (NEARBY_SHOW_MORE_RE.test(lower) && inNearbyContext) {
-        return showMoreNearby(key, session);
       }
 
       if (NEARBY_PREVIOUS_RE.test(lower) && inNearbyContext) {
