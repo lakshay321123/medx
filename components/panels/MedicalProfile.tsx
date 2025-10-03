@@ -31,15 +31,6 @@ import type {
   Accessibility,
 } from "@/types/profile";
 
-const PROFILE_ADDONS_ENABLED = isFlagEnabled(
-  process.env.NEXT_PUBLIC_FEATURE_PROFILE_ADDONS ?? process.env.FEATURE_PROFILE_ADDONS,
-);
-
-function isFlagEnabled(value?: string) {
-  const normalized = (value ?? "").toString().trim().toLowerCase();
-  return ["1", "true", "yes", "on"].includes(normalized);
-}
-
 type AddonSection =
   | "familyHistory"
   | "immunizations"
@@ -224,7 +215,7 @@ export default function MedicalProfile() {
   const noDataText = t(NO_DATA_TEXT);
   const noMedicationsText = t("No medications recorded yet.");
   const medicalProfile = (data?.profile ?? null) as MedicalProfile | null;
-  const addonsEnabled = PROFILE_ADDONS_ENABLED;
+  const addonsEnabled = data?.addonsFeatureEnabled === true;
   const familyHistory = medicalProfile?.familyHistory;
   const immunizations = medicalProfile?.immunizations;
   const lifestyle = medicalProfile?.lifestyle;

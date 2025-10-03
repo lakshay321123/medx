@@ -203,7 +203,7 @@ export async function GET(_req: NextRequest) {
   const userId = await getUserId();
   if (!userId) {
     return NextResponse.json(
-      { profile: null },
+      { profile: null, addonsFeatureEnabled: false },
       { status: 200, headers: noStoreHeaders() }
     );
   }
@@ -346,7 +346,12 @@ export async function GET(_req: NextRequest) {
     latest[k] = { value: v.value, unit: v.unit, observedAt: v.observedAt };
   }
 
-  return NextResponse.json({ profile: profile ?? null, groups, latest }, { headers: noStoreHeaders() });
+  const addonsFeatureEnabled = ADDONS_ENABLED && addonsStorageAvailable;
+
+  return NextResponse.json(
+    { profile: profile ?? null, groups, latest, addonsFeatureEnabled },
+    { headers: noStoreHeaders() }
+  );
 }
 
 export async function PUT(req: NextRequest) {
