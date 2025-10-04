@@ -332,7 +332,9 @@ export function ChatInput({
           aria-label={moreText}
           title={moreText}
           className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-[color:var(--medx-text)] transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-[color:var(--medx-text)] dark:hover:bg-white/10"
-          onClick={() => {
+          onClick={event => {
+            event.preventDefault();
+            event.stopPropagation();
             setDropupOpen(open => !open);
           }}
         >
@@ -363,7 +365,7 @@ export function ChatInput({
           <div
             role="menu"
             onKeyDown={handleMenuKeyDown}
-            className="absolute bottom-[calc(100%+8px)] left-0 z-10 w-56 rounded-xl border border-border bg-background p-1 shadow-lg"
+            className="absolute bottom-[calc(100%+8px)] left-0 z-50 w-64 rounded-xl border border-border bg-background p-1 shadow-lg"
           >
             <button
               type="button"
