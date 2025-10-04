@@ -118,6 +118,14 @@ export function ChatInput({
     [logSelect, setComposerLabel],
   );
 
+  const selectUpload = useCallback(() => {
+    setComposerLabel(useChatStore.getState().currentId, "upload");
+    logSelect("upload");
+    setDropupOpen(false);
+    fileInputRef.current?.click();
+    textareaRef.current?.focus();
+  }, [logSelect, setComposerLabel]);
+
   const hasChip = activeLabel === "study" || activeLabel === "thinking";
   const chipLabelText = hasChip ? labelToText[activeLabel as NonUploadLabel] : "";
   const selectionAnnouncement = hasChip
@@ -372,12 +380,7 @@ export function ChatInput({
               role="menuitem"
               ref={registerMenuItem(0)}
               className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
-              onClick={() => {
-                logSelect("upload");
-                setDropupOpen(false);
-                fileInputRef.current?.click();
-                textareaRef.current?.focus();
-              }}
+              onClick={selectUpload}
             >
               {uploadOptionText}
             </button>
