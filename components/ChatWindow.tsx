@@ -2,6 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import { useChatStore, type ChatMessage } from "@/lib/state/chatStore";
 import { ChatInput } from "@/components/ChatInput";
+import type { ComposerDropupMeta } from "@/types/chat";
 import { persistIfTemp } from "@/lib/chat/persist";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { getResearchFlagFromUrl } from "@/utils/researchFlag";
@@ -377,13 +378,22 @@ export function ChatWindow() {
     [],
   );
 
-  const handleSend = async (content: string, locationToken?: string, langOverride?: string) => {
+  const handleSend = async (
+    content: string,
+    locationToken?: string,
+    langOverride?: string,
+    meta: ComposerDropupMeta | null = null,
+  ) => {
     if (!prefs.canSend()) {
       gotoAccount();
       return;
     }
 
     const lang = langOverride ?? prefs.lang;
+    const researchFromUrl = getResearchFlagFromUrl();
+    const metaLabel = meta?.label ?? null;
+    const researchOverride = metaLabel === "study";
+    const effectiveResearch = researchOverride || researchFromUrl;
 
     const snapshotState = useChatStore.getState();
     const draftTitleFromStore = snapshotState.currentId
@@ -397,7 +407,6 @@ export function ChatWindow() {
     await persistIfTemp({ title: computedTitle });
     const persistedThreadId = useChatStore.getState().currentId;
     const effectiveThreadId = persistedThreadId ?? currentId;
-    const research = getResearchFlagFromUrl();
     const pendingId =
       typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
         ? crypto.randomUUID()
@@ -429,7 +438,7 @@ export function ChatWindow() {
       ? {
           query: content,
           locationToken,
-          research,
+          research: effectiveResearch,
           lang,
           activeThreadId: effectiveThreadId,
           threadId: effectiveThreadId,
@@ -443,12 +452,20 @@ export function ChatWindow() {
           activeThreadId: effectiveThreadId,
           threadId: effectiveThreadId,
           mode: modeChoice,
-          researchOn: research,
+          researchOn: effectiveResearch,
           personalization,
           include: includeFlags,
         };
 
     const req = { ...baseBody, idemKey: idem } as Record<string, unknown>;
+
+    if (metaLabel === "study") {
+      req.formatDefault = "essay";
+      req.format = "essay";
+    }
+    if (metaLabel === "thinking") {
+      req.thinkingProfile = "balanced";
+    }
 
     const snapshot: AssistantRequestSnapshot = {
       route: "/api/chat",
@@ -456,7 +473,7 @@ export function ChatWindow() {
       headers,
       meta: {
         mode: modeChoice,
-        research,
+        research: effectiveResearch,
         text: content,
       },
     };

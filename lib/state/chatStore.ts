@@ -3,6 +3,10 @@ import { nanoid } from "nanoid";
 import type { AppMode } from "@/lib/welcomeMessages";
 import type { DraftMode } from "@/lib/chat/types";
 
+export type ComposerDropupLabel = "upload" | "study" | "thinking" | null;
+
+export const COMPOSER_DRAFT_THREAD_KEY = "__draft__" as const;
+
 export type PendingDraft = {
   mode: DraftMode;
   research?: boolean;
@@ -42,6 +46,7 @@ type ChatState = {
   currentId: string | null;
   threads: Record<string, Thread>;
   draft: PendingDraft;
+  composerLabels: Record<string, ComposerDropupLabel>;
   startNewThread: () => string;
   upsertThread: (t: Partial<Thread> & { id: string }) => void;
   addMessage: (m: Omit<ChatMessage, "id" | "ts"> & { id?: string }) => void;
@@ -51,6 +56,7 @@ type ChatState = {
   setDraftText: (text: string) => void;
   addDraftAttachments: (files: File[]) => void;
   clearDraft: () => void;
+  setComposerLabel: (threadId: string | null, label: ComposerDropupLabel) => void;
 };
 
 export function createDefaultDraft(): PendingDraft {
@@ -68,12 +74,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
   currentId: null,
   threads: {},
   draft: initialDraft,
+  composerLabels: { [COMPOSER_DRAFT_THREAD_KEY]: null },
 
   startNewThread: () => {
     const id = `temp_${nanoid(8)}`;
     const now = Date.now();
     const t: Thread = { id, title: "New chat", createdAt: now, updatedAt: now, messages: [], isTemp: true };
-    set(s => ({ currentId: id, threads: { ...s.threads, [id]: t }, draft: createDefaultDraft() }));
+    set(s => ({
+      currentId: id,
+      threads: { ...s.threads, [id]: t },
+      draft: createDefaultDraft(),
+      composerLabels: { ...s.composerLabels, [id]: null },
+    }));
     return id;
   },
 
@@ -111,7 +123,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
 
-  resetToEmpty: () => set({ currentId: null, threads: {}, draft: createDefaultDraft() }),
+  resetToEmpty: () =>
+    set({
+      currentId: null,
+      threads: {},
+      draft: createDefaultDraft(),
+      composerLabels: { [COMPOSER_DRAFT_THREAD_KEY]: null },
+    }),
 
   setDraft: (draft) => set({ draft }),
 
@@ -124,6 +142,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set(s => ({ draft: { ...s.draft, attachments: [...s.draft.attachments, ...files] } }));
   },
 
-  clearDraft: () => set({ draft: createDefaultDraft() }),
+  clearDraft: () =>
+    set(s => ({
+      draft: createDefaultDraft(),
+      composerLabels: { ...s.composerLabels, [COMPOSER_DRAFT_THREAD_KEY]: null },
+    })),
+
+  setComposerLabel: (threadId, label) => {
+    const key = threadId ?? COMPOSER_DRAFT_THREAD_KEY;
+    set(s => ({
+      composerLabels: {
+        ...s.composerLabels,
+        [key]: label,
+      },
+    }));
+  },
 }));
 

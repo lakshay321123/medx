@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, useMemo, RefObject, useCallback } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fromSearchParams } from '@/lib/modes/url';
 import { useRouter } from 'next/navigation';
@@ -54,6 +55,8 @@ import { formatTrialBriefMarkdown } from "@/lib/trials/brief";
 import { useIsAiDocMode } from "@/hooks/useIsAiDocMode";
 import { exportMessageToPng } from "@/lib/share/snapshot";
 import { trackAnalyticsEvent } from "@/lib/analytics";
+
+type DropupMenuKey = 'upload' | 'study' | 'thinking';
 import { pushToast } from "@/lib/ui/toast";
 import { useFeedback } from "@/hooks/useFeedback";
 import { usePendingAssistantStages } from "@/hooks/usePendingAssistantStages";
@@ -713,6 +716,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [inputFocused, setInputFocused] = useState(false);
   const [proactive, setProactive] = useState<null | { kind: 'predispositions'|'medications'|'weight' }>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [isDropupOpen, setDropupOpen] = useState(false);
+  const [activeDropupLabel, setActiveDropupLabel] = useState<'study' | 'thinking' | null>(null);
+  const [selectionAnnouncement, setSelectionAnnouncement] = useState('');
   const [queueActive, setQueueActive] = useState(false);
   const [busy, setBusy] = useState(false);
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
@@ -722,6 +728,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [welcomeContent, setWelcomeContent] = useState<WelcomeMessage | null>(null);
   const feedback = useFeedback();
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const dropupContainerRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const uploadMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const studyMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const thinkingMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const [refreshingMessageId, setRefreshingMessageId] = useState<string | null>(null);
   const [shareTarget, setShareTarget] = useState<{ id: string; content: string } | null>(null);
   const [shareBusy, setShareBusy] = useState<null | 'link' | 'download' | 'system'>(null);
@@ -738,6 +749,102 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const researchModeRef = useRef<boolean>(false);
   const queueAbortRef = useRef<AbortController | null>(null);
   const { filters } = useResearchFilters();
+  const menuItems = useMemo(
+    () => [
+      { key: 'upload' as const, label: t('ui.composer.upload_option'), ref: uploadMenuButtonRef },
+      { key: 'study' as const, label: t('ui.composer.study_option'), ref: studyMenuButtonRef },
+      { key: 'thinking' as const, label: t('ui.composer.thinking_option'), ref: thinkingMenuButtonRef },
+    ],
+    [t],
+  );
+
+  const clearActiveLabel = useCallback(() => {
+    setActiveDropupLabel(prev => {
+      if (!prev) {
+        return prev;
+      }
+      trackAnalyticsEvent('composer.dropup.clear', { label: prev });
+      setSelectionAnnouncement('');
+      return null;
+    });
+  }, [setSelectionAnnouncement]);
+
+  const handleMenuSelect = useCallback(
+    (label: DropupMenuKey) => {
+      trackAnalyticsEvent('composer.dropup.select', { label });
+      setDropupOpen(false);
+      if (label === 'upload') {
+        clearActiveLabel();
+        setTimeout(() => {
+          fileInputRef.current?.click();
+        }, 0);
+        return;
+      }
+      setActiveDropupLabel(label);
+      const labelText = label === 'study'
+        ? t('ui.composer.study_option')
+        : t('ui.composer.thinking_option');
+      setSelectionAnnouncement(`${t('ui.composer.selected_label')}: ${labelText}`);
+    },
+    [clearActiveLabel, t],
+  );
+
+  const handleMenuItemKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const total = menuItems.length;
+        if (total === 0) return;
+        const direction = event.key === 'ArrowDown' ? 1 : -1;
+        const nextIndex = (index + direction + total) % total;
+        menuItems[nextIndex]?.ref.current?.focus();
+      } else if (event.key === 'Home') {
+        event.preventDefault();
+        menuItems[0]?.ref.current?.focus();
+      } else if (event.key === 'End') {
+        event.preventDefault();
+        menuItems[menuItems.length - 1]?.ref.current?.focus();
+      }
+    },
+    [menuItems],
+  );
+
+  useEffect(() => {
+    if (!isDropupOpen) return;
+    const timer = typeof window !== 'undefined'
+      ? window.setTimeout(() => {
+          menuItems[0]?.ref.current?.focus();
+        }, 0)
+      : undefined;
+    return () => {
+      if (typeof window !== 'undefined' && timer !== undefined) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, [isDropupOpen, menuItems]);
+
+  useEffect(() => {
+    if (!isDropupOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      const container = dropupContainerRef.current;
+      if (container && !container.contains(event.target as Node)) {
+        setDropupOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setDropupOpen(false);
+        clearActiveLabel();
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isDropupOpen, clearActiveLabel]);
   const recordShortMem = useCallback(
     (threadId: string | null | undefined, role: "user" | "assistant", text: string) => {
       if (!allowHistory || !threadId) return;
@@ -2134,6 +2241,13 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   async function send(text: string, researchMode: boolean, opts: SendOpts = {}) {
     if (!text.trim() || busy) return;
+    const dropupSelection = activeDropupLabel;
+    const studySelected = dropupSelection === 'study';
+    const thinkingSelected = dropupSelection === 'thinking';
+    const effectiveResearch = researchMode || studySelected;
+    const dropupFormat = studySelected ? 'essay' : undefined;
+    const dropupThinkingProfile = thinkingSelected ? 'balanced' : undefined;
+    setDropupOpen(false);
     setBusy(true);
     setThinkingStartedAt(Date.now());
 
@@ -2227,7 +2341,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       nextMsgs = [...baseMessages, pendingMessage];
     }
     setMessages(nextMsgs);
-    beginPendingAssistant(pendingId, { mode: uiMode, research: Boolean(researchMode), text: messageText });
+    beginPendingAssistant(pendingId, { mode: uiMode, research: Boolean(effectiveResearch), text: messageText });
     opts.onPending?.(pendingId);
     const maybe = maybeFixMedicalTypo(messageText);
     if (maybe && messages.filter(m => m.role === "assistant").slice(-1)[0]?.content !== maybe.ask) {
@@ -2640,7 +2754,7 @@ ${systemCommon}` + baseSys;
           fetch('/api/medx', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: text, mode, researchMode, filters })
+            body: JSON.stringify({ query: text, mode, researchMode: effectiveResearch, filters })
           })
         );
 
@@ -2654,8 +2768,36 @@ ${systemCommon}` + baseSys;
         ];
       }
 
-      const url = `/api/chat/stream${researchMode ? '?research=1' : ''}`;
+      const urlParams = new URLSearchParams();
+      if (effectiveResearch) {
+        urlParams.set('research', '1');
+      }
+      if (dropupFormat) {
+        urlParams.set('format', dropupFormat);
+      }
+      if (dropupThinkingProfile) {
+        urlParams.set('thinking', dropupThinkingProfile);
+      }
+      const url = `/api/chat/stream${urlParams.toString() ? `?${urlParams.toString()}` : ''}`;
       mark('send');
+      const requestBody: Record<string, any> = {
+        mode: mode === 'doctor' ? 'doctor' : 'patient',
+        messages: chatMessages,
+        threadId,
+        context,
+        clientRequestId,
+        research: effectiveResearch,
+        lang,
+        personalization,
+        allowHistory,
+      };
+      if (dropupFormat) {
+        requestBody.formatDefault = dropupFormat;
+      }
+      if (dropupThinkingProfile) {
+        requestBody.thinkingProfile = dropupThinkingProfile;
+      }
+
       const res = await fetch(url, {
         method: 'POST',
         headers: {
@@ -2664,17 +2806,7 @@ ${systemCommon}` + baseSys;
           'x-new-chat': messages.length === 0 ? 'true' : 'false',
           'x-user-lang': lang
         },
-        body: JSON.stringify({
-          mode: mode === 'doctor' ? 'doctor' : 'patient',
-          messages: chatMessages,
-          threadId,
-          context,
-          clientRequestId,
-          research: researchMode,
-          lang,
-          personalization,
-          allowHistory,
-        }),
+        body: JSON.stringify(requestBody),
         cache: 'no-store',
         signal: ctrl.signal
       });
@@ -2740,7 +2872,8 @@ ${systemCommon}` + baseSys;
       const { main, followUps } = splitFollowUps(acc);
       finishPendingAssistant(pendingId, main, { followUps });
       opts.onSuccess?.(pendingId);
-      if (researchMode) {
+      clearActiveLabel();
+      if (effectiveResearch) {
         const lastUserMsg = text;
         const audience = mode;
         try {
@@ -3043,6 +3176,7 @@ ${systemCommon}` + baseSys;
     if (busy || inFlight) return;
     inFlight = true;
     try {
+      setDropupOpen(false);
       const trimmed = userText.trim();
 
       const hasPendingFiles = pendingFiles.length > 0;
@@ -3916,23 +4050,74 @@ ${systemCommon}` + baseSys;
                 }}
                 className="flex w-full items-end gap-3 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80"
               >
-                <label
-                  className="inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-slate-700 transition hover:bg-slate-200/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
-                  title="Upload PDF or image"
-                >
-                  <Plus className="h-5 w-5" aria-hidden="true" />
-                  <input
-                    type="file"
-                    accept="application/pdf,image/*"
-                    multiple
-                    className="hidden"
-                    onChange={e => {
-                      const files = Array.from(e.target.files ?? []);
-                      if (files.length) onFilesSelected(files);
-                      e.currentTarget.value = '';
+                <div ref={dropupContainerRef} className="relative flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    aria-haspopup="menu"
+                    aria-expanded={isDropupOpen}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDropupOpen(v => !v);
                     }}
-                  />
-                </label>
+                    className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-slate-700 transition hover:bg-slate-200/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-slate-200 dark:hover:bg-slate-800/60"
+                    title={t('ui.composer.more')}
+                  >
+                    <Plus className="h-5 w-5" aria-hidden="true" />
+                  </button>
+
+                  {activeDropupLabel && (
+                    <span className="inline-flex items-center gap-2 rounded-full border border-slate-300/70 bg-slate-50 px-3 py-1 text-sm text-slate-700 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
+                      {activeDropupLabel === 'study'
+                        ? t('ui.composer.study_option')
+                        : t('ui.composer.thinking_option')}
+                      <button
+                        type="button"
+                        aria-label={t('ui.composer.clear_label')}
+                        onClick={clearActiveLabel}
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-400/20 hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-slate-300 dark:hover:bg-slate-700/40"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  )}
+
+                  {isDropupOpen && (
+                    <div
+                      role="menu"
+                      className="absolute bottom-[calc(100%+8px)] left-0 w-64 rounded-xl border border-slate-300/70 bg-white p-1 shadow-lg z-50 dark:border-slate-700/60 dark:bg-slate-900"
+                    >
+                      {menuItems.map((item, index) => (
+                        <button
+                          key={item.key}
+                          role="menuitem"
+                          type="button"
+                          ref={item.ref}
+                          className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-slate-200 dark:hover:bg-slate-800"
+                          onClick={() => handleMenuSelect(item.key)}
+                          onKeyDown={(event) => handleMenuItemKeyDown(event, index)}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/pdf,image/*"
+                  multiple
+                  className="hidden"
+                  onChange={e => {
+                    const files = Array.from(e.target.files ?? []);
+                    if (files.length) onFilesSelected(files);
+                    e.currentTarget.value = '';
+                  }}
+                />
+                <span aria-live="polite" className="sr-only">
+                  {selectionAnnouncement}
+                </span>
                 <div className="relative flex-1">
                   <textarea
                     ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
@@ -3954,6 +4139,13 @@ ${systemCommon}` + baseSys;
                       setInputFocused(false);
                     }}
                     onKeyDown={(e) => {
+                      if (e.key === 'Backspace' && !userText && activeDropupLabel) {
+                        clearActiveLabel();
+                      }
+                      if (e.key === 'Escape' && isDropupOpen) {
+                        e.preventDefault();
+                        setDropupOpen(false);
+                      }
                       const isComposing = (e.nativeEvent as any).isComposing;
                       if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
                         e.preventDefault();
