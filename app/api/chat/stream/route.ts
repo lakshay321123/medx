@@ -251,6 +251,13 @@ export async function POST(req: NextRequest) {
   const finalSystem = [combinedSystem, sysPrelude].filter(Boolean).join('\n\n');
   finalMessages = finalSystem ? [{ role: 'system', content: finalSystem }, ...nonSystemMessages] : nonSystemMessages;
 
+  const isAiDoc = mode === 'doctor';
+  const AIDOC_MAX_TOKENS = Number(process.env.AIDOC_MAX_TOKENS || 3000);
+  const targetMax = Math.round((targetWordCap + 40) * 1.7);
+  const max_tokens = isAiDoc
+    ? Math.min(AIDOC_MAX_TOKENS, Math.max(200, targetMax))
+    : Math.min(768, Math.max(200, targetMax));
+
   const upstream = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
@@ -258,7 +265,7 @@ export async function POST(req: NextRequest) {
       model,
       messages: finalMessages,
       // Token cap with buffer to avoid API truncation while honoring SOFT word cap
-      max_tokens: Math.min(768, Math.max(200, Math.round((targetWordCap + 40) * 1.7))),
+      max_tokens,
       stream: true,
       temperature: 0.4,
       top_p: 1,
