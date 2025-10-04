@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
 import { useOpenPass } from "@/hooks/useOpenPass";
 import { Plus, SendHorizontal } from "lucide-react";
@@ -8,11 +8,25 @@ import { useT } from "@/components/hooks/useI18n";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
 import { useUIStore } from "@/components/hooks/useUIStore";
 
+export type ComposerDropupMeta = {
+  intent?: "upload";
+  formatDefault?: string;
+  research?: number;
+  thinkingProfile?: string;
+};
+
+type DropupLabel = "upload" | "study" | "thinking" | null;
+
 export function ChatInput({
   onSend,
   canSend,
 }: {
-  onSend: (text: string, locationToken?: string, lang?: string) => Promise<void>;
+  onSend: (
+    text: string,
+    locationToken?: string,
+    lang?: string,
+    meta?: ComposerDropupMeta | null,
+  ) => Promise<void>;
   canSend: () => boolean;
 }) {
   const [text, setText] = useState("");
@@ -26,11 +40,33 @@ export function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const t = useT();
-  const uploadText = t("ui.composer.upload");
   const sendText = t("ui.composer.send");
   const composerPlaceholder = t("ui.composer.placeholder");
+  const moreText = t("ui.composer.more");
+  const uploadOptionText = t("ui.composer.upload_option");
+  const studyOptionText = t("ui.composer.study_option");
+  const thinkingOptionText = t("ui.composer.thinking_option");
+  const selectedLabelText = t("ui.composer.selected_label");
   const { lang } = usePrefs();
   const openPrefs = useUIStore((state) => state.openPrefs);
+  const dropupRef = useRef<HTMLDivElement | null>(null);
+  const [activeLabel, setActiveLabel] = useState<DropupLabel>(null);
+  const [isDropupOpen, setDropupOpen] = useState(false);
+
+  const labelToMeta = useMemo((): Record<Exclude<DropupLabel, null>, ComposerDropupMeta> => ({
+    upload: { intent: "upload" },
+    study: { formatDefault: "essay", research: 1 },
+    thinking: { thinkingProfile: "balanced" },
+  }), []);
+
+  const labelToText = useMemo(
+    () => ({
+      upload: uploadOptionText,
+      study: studyOptionText,
+      thinking: thinkingOptionText,
+    }),
+    [studyOptionText, thinkingOptionText, uploadOptionText],
+  );
 
   const redirectToAccount = useCallback(() => {
     openPrefs("Account");
@@ -58,6 +94,46 @@ export function ChatInput({
     el.style.height = `${next}px`;
   }, [text]);
 
+  useEffect(() => {
+    if (!isDropupOpen) return;
+    const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
+      if (!dropupRef.current) return;
+      if (event.target instanceof Node && dropupRef.current.contains(event.target)) {
+        return;
+      }
+      setDropupOpen(false);
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("touchstart", handleOutsideClick);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("touchstart", handleOutsideClick);
+    };
+  }, [isDropupOpen]);
+
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setDropupOpen(false);
+      }
+      if (event.key === "Backspace") {
+        const activeElement = document.activeElement;
+        if (
+          activeLabel &&
+          textareaRef.current &&
+          activeElement === textareaRef.current &&
+          text.length === 0
+        ) {
+          setActiveLabel(null);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [activeLabel, text]);
+
   const handleSend = async () => {
     if (isSending) return;
     const content = text.trim();
@@ -81,7 +157,12 @@ export function ChatInput({
         locationToken = (await openPass.getLocationToken()) || undefined;
       }
 
-      await onSend(content, locationToken, lang); // your existing streaming/send logic
+      const meta = activeLabel ? labelToMeta[activeLabel] ?? null : null;
+      await onSend(content, locationToken, lang, meta); // your existing streaming/send logic
+      if (activeLabel) {
+        setActiveLabel(null);
+      }
+      setDropupOpen(false);
     } finally {
       setIsSending(false);
     }
@@ -108,19 +189,90 @@ export function ChatInput({
         e.preventDefault();
         onDropFiles(e.dataTransfer.files);
       }}
-      className="chat-input-container flex w-full items-end gap-2 rounded-2xl border border-[color:var(--medx-outline)] bg-[color:var(--medx-surface)] px-3 py-2 shadow-sm transition dark:border-white/10 dark:bg-[color:var(--medx-panel)] md:border-0 md:bg-transparent md:px-0 md:py-0 md:shadow-none"
+      className="chat-input-container flex w-full flex-wrap items-end gap-2 rounded-2xl border border-[color:var(--medx-outline)] bg-[color:var(--medx-surface)] px-3 py-2 shadow-sm transition dark:border-white/10 dark:bg-[color:var(--medx-panel)] md:border-0 md:bg-transparent md:px-0 md:py-0 md:shadow-none"
     >
-      <button
-        type="button"
-        disabled={!!currentId}
-        aria-label={currentId ? "Attach files is available before you start a new chat" : uploadText}
-        className="flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--medx-text)] transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:text-[color:var(--medx-text)] dark:hover:bg-white/10"
-        onClick={() => {
-          fileInputRef.current?.click();
-        }}
-      >
-        <Plus className="h-5 w-5" />
-      </button>
+      <div ref={dropupRef} className="relative flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={isDropupOpen}
+          aria-label={moreText}
+          title={moreText}
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-[color:var(--medx-text)] transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-[color:var(--medx-text)] dark:hover:bg-white/10"
+          onClick={() => {
+            setDropupOpen(open => !open);
+          }}
+        >
+          <Plus className="h-5 w-5" />
+        </button>
+
+        {activeLabel && (
+          <span
+            role="status"
+            aria-live="polite"
+            className="inline-flex max-w-xs shrink items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-sm text-foreground"
+          >
+            <span className="sr-only">{`${selectedLabelText}: ${labelToText[activeLabel]}`}</span>
+            <span aria-hidden="true">{labelToText[activeLabel]}</span>
+            <button
+              type="button"
+              aria-label={t("ui.composer.clear_label")}
+              onClick={() => {
+                setActiveLabel(null);
+                textareaRef.current?.focus();
+              }}
+              className="text-base leading-none transition hover:opacity-70"
+            >
+              ×
+            </button>
+          </span>
+        )}
+
+        {isDropupOpen && (
+          <div
+            role="menu"
+            className="absolute bottom-12 left-0 z-10 w-64 rounded-xl border border-border bg-[color:var(--medx-surface)] text-left shadow-lg dark:bg-[color:var(--medx-panel)]"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              className="block w-full px-3 py-2 text-left text-sm hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:hover:bg-white/10"
+              onClick={() => {
+                setActiveLabel("upload");
+                setDropupOpen(false);
+                fileInputRef.current?.click();
+                textareaRef.current?.focus();
+              }}
+            >
+              {uploadOptionText}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="block w-full px-3 py-2 text-left text-sm hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:hover:bg-white/10"
+              onClick={() => {
+                setActiveLabel("study");
+                setDropupOpen(false);
+                textareaRef.current?.focus();
+              }}
+            >
+              {studyOptionText}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="block w-full px-3 py-2 text-left text-sm hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:hover:bg-white/10"
+              onClick={() => {
+                setActiveLabel("thinking");
+                setDropupOpen(false);
+                textareaRef.current?.focus();
+              }}
+            >
+              {thinkingOptionText}
+            </button>
+          </div>
+        )}
+      </div>
       <input
         ref={fileInputRef}
         type="file"
