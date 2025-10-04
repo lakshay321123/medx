@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import { useChatStore, type ChatMessage } from "@/lib/state/chatStore";
-import { ChatInput, type ComposerDropupMeta } from "@/components/ChatInput";
+import { ChatInput } from "@/components/ChatInput";
+import type { ComposerDropupMeta } from "@/types/chat";
 import { persistIfTemp } from "@/lib/chat/persist";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { getResearchFlagFromUrl } from "@/utils/researchFlag";
@@ -381,7 +382,7 @@ export function ChatWindow() {
     content: string,
     locationToken?: string,
     langOverride?: string,
-    meta?: ComposerDropupMeta | null,
+    meta: ComposerDropupMeta | null = null,
   ) => {
     if (!prefs.canSend()) {
       gotoAccount();
@@ -390,8 +391,9 @@ export function ChatWindow() {
 
     const lang = langOverride ?? prefs.lang;
     const researchFromUrl = getResearchFlagFromUrl();
-    const researchOverride = meta?.research === 1;
-    const effectiveResearch = researchOverride ? true : researchFromUrl;
+    const metaLabel = meta?.label ?? null;
+    const researchOverride = metaLabel === "study";
+    const effectiveResearch = researchOverride || researchFromUrl;
 
     const snapshotState = useChatStore.getState();
     const draftTitleFromStore = snapshotState.currentId
@@ -457,15 +459,12 @@ export function ChatWindow() {
 
     const req = { ...baseBody, idemKey: idem } as Record<string, unknown>;
 
-    if (meta?.intent) {
-      req.intent = meta.intent;
+    if (metaLabel === "study") {
+      req.formatDefault = "essay";
+      req.format = "essay";
     }
-    if (meta?.formatDefault) {
-      req.formatDefault = meta.formatDefault;
-      req.format = meta.formatDefault;
-    }
-    if (meta?.thinkingProfile) {
-      req.thinkingProfile = meta.thinkingProfile;
+    if (metaLabel === "thinking") {
+      req.thinkingProfile = "balanced";
     }
 
     const snapshot: AssistantRequestSnapshot = {

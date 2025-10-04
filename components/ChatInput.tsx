@@ -11,18 +11,12 @@ import {
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { COMPOSER_DRAFT_THREAD_KEY, useChatStore } from "@/lib/state/chatStore";
 import type { ComposerDropupLabel } from "@/lib/state/chatStore";
+import type { ComposerDropupMeta } from "@/types/chat";
 import { useOpenPass } from "@/hooks/useOpenPass";
 import { Plus, SendHorizontal } from "lucide-react";
 import { useT } from "@/components/hooks/useI18n";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
 import { useUIStore } from "@/components/hooks/useUIStore";
-
-export type ComposerDropupMeta = {
-  intent?: "upload";
-  formatDefault?: string;
-  research?: number;
-  thinkingProfile?: string;
-};
 
 type DropupLabel = ComposerDropupLabel;
 type NonUploadLabel = Exclude<DropupLabel, "upload" | null>;
@@ -68,14 +62,6 @@ export function ChatInput({
 
   const threadKey = currentId ?? COMPOSER_DRAFT_THREAD_KEY;
   const activeLabel = composerLabels[threadKey] ?? null;
-
-  const labelToMeta = useMemo<Record<NonUploadLabel, ComposerDropupMeta>>( 
-    () => ({
-      study: { formatDefault: "essay", research: 1 },
-      thinking: { thinkingProfile: "balanced" },
-    }),
-    [],
-  );
 
   const labelToText = useMemo(
     () => ({
@@ -296,13 +282,8 @@ export function ChatInput({
         locationToken = (await openPass.getLocationToken()) || undefined;
       }
 
-      const labelForRequest: NonUploadLabel | null =
-        activeLabel === "study" || activeLabel === "thinking" ? activeLabel : null;
-      const meta = labelForRequest ? labelToMeta[labelForRequest] : null;
+      const meta = activeLabel ? { label: activeLabel } : null;
       await onSend(content, locationToken, lang, meta);
-      if (labelForRequest) {
-        clearActiveLabel();
-      }
       setDropupOpen(false);
     } finally {
       setIsSending(false);

@@ -12,3 +12,7 @@ export type ChatMessage = {
   replacedByMessageId?: string;
   refreshOf?: string;
 };
+
+export type ComposerDropupMeta = {
+  label?: "upload" | "study" | "thinking";
+};
