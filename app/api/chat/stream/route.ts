@@ -4,12 +4,11 @@ import { languageDirectiveFor, personaFromPrefs, SYSTEM_DEFAULT_LANG } from '@/l
 import { extractAll, canonicalizeInputs } from '@/lib/medical/engine/extract';
 import { BRAND_NAME } from "@/lib/brand";
 import { computeAll } from '@/lib/medical/engine/computeAll';
+import { clamp } from '@/lib/medical/engine/calculators/utils';
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
 import { RESEARCH_BRIEF_STYLE } from '@/lib/styles';
-
-const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
 function readIntEnv(name: string, fallback: number) {
   const raw = process.env[name];
