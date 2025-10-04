@@ -7,6 +7,12 @@ import { useTheme } from "next-themes";
 import PanelLoader from "@/components/mobile/PanelLoader";
 import ProfileSection from "@/components/profile/ProfileSection";
 import VitalsEditor from "@/components/profile/VitalsEditor";
+import FamilyHistorySection from "@/components/profile/FamilyHistorySection";
+import ImmunizationsSection from "@/components/profile/ImmunizationsSection";
+import SocialLifestyleSection from "@/components/profile/SocialLifestyleSection";
+import PastSurgeriesSection from "@/components/profile/PastSurgeriesSection";
+import AccessibilitySection from "@/components/profile/AccessibilitySection";
+import AdvanceDirectivesSection from "@/components/profile/AdvanceDirectivesSection";
 import MedicationInput from "@/components/meds/MedicationInput";
 import MedicationTag from "@/components/meds/MedicationTag";
 import { useT } from "@/components/hooks/useI18n";
@@ -15,6 +21,23 @@ import { pushToast } from "@/lib/ui/toast";
 import { fromSearchParams } from "@/lib/modes/url";
 import { extractManualObservation } from "@/lib/profile/extractManualObservation";
 import { useSWRConfig } from "swr";
+import type {
+  AdvanceDirectives,
+  FamilyHistoryItem,
+  ImmunizationItem,
+  Lifestyle,
+  MedicalProfile,
+  SurgeryItem,
+  Accessibility,
+} from "@/types/profile";
+
+type AddonSection =
+  | "familyHistory"
+  | "immunizations"
+  | "lifestyle"
+  | "surgeries"
+  | "accessibility"
+  | "advanceDirectives";
 
 const SEXES = ["male", "female", "other"] as const;
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -178,6 +201,7 @@ export default function MedicalProfile() {
 
   const [bootstrapped, setBootstrapped] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [savingAddon, setSavingAddon] = useState<AddonSection | null>(null);
   const [editingVitals, setEditingVitals] = useState(false);
   const [recomputeBusy, setRecomputeBusy] = useState(false);
   const [notesEditing, setNotesEditing] = useState(false);
@@ -190,6 +214,14 @@ export default function MedicalProfile() {
 
   const noDataText = t(NO_DATA_TEXT);
   const noMedicationsText = t("No medications recorded yet.");
+  const medicalProfile = (data?.profile ?? null) as MedicalProfile | null;
+  const addonsEnabled = data?.addonsFeatureEnabled !== false;
+  const familyHistory = medicalProfile?.familyHistory;
+  const immunizations = medicalProfile?.immunizations;
+  const lifestyle = medicalProfile?.lifestyle;
+  const surgeries = medicalProfile?.surgeries;
+  const accessibility = medicalProfile?.accessibility;
+  const advanceDirectives = medicalProfile?.advanceDirectives;
   const summaryDisplay = useMemo(() => {
     if (parsedSummary) {
       const formatValue = (value?: string | null) => {
@@ -253,6 +285,19 @@ export default function MedicalProfile() {
     ]);
     const dpEntry = pickObservation(latestMap, ["bp_diastolic", "dbp", "diastolic_bp"]);
     const heartEntry = pickObservation(latestMap, ["heart_rate", "hr", "pulse", "heart_rate_bpm"]);
+    const respiratoryEntry = pickObservation(latestMap, [
+      "respiratory_rate",
+      "resp_rate",
+      "rr",
+      "respiratoryrate",
+    ]);
+    const spo2Entry = pickObservation(latestMap, ["spo2", "oxygen_saturation", "o2_saturation"]);
+    const temperatureEntry = pickObservation(latestMap, [
+      "temperature",
+      "temperature_c",
+      "temp_c",
+      "body_temperature",
+    ]);
     const heightEntry = pickObservation(latestMap, ["height", "height_cm", "height_m"]);
     const weightEntry = pickObservation(latestMap, ["weight", "weight_kg", "body_weight"]);
     const bmiEntry = pickObservation(latestMap, ["bmi"]);
@@ -262,6 +307,9 @@ export default function MedicalProfile() {
     const systolic = bpPair.systolic ?? parseNumber(bpEntry?.value);
     const diastolic = bpPair.diastolic ?? parseNumber(dpEntry?.value);
     const heartRate = parseNumber(heartEntry?.value);
+    const respiratoryRate = parseNumber(respiratoryEntry?.value);
+    const spo2 = parseNumber(spo2Entry?.value);
+    const temperature = parseNumber(temperatureEntry?.value);
 
     const heightMeters = heightToMeters(heightEntry?.value, heightEntry?.unit);
     const weightKg = weightToKg(weightEntry?.value, weightEntry?.unit);
@@ -273,6 +321,9 @@ export default function MedicalProfile() {
       systolic,
       diastolic,
       heartRate,
+      respiratoryRate,
+      spo2,
+      temperature,
       bmi: observedBmi ?? computedBmi,
       weightKg,
       heightMeters,
@@ -470,12 +521,104 @@ export default function MedicalProfile() {
           ? n(profileVitals.bmi, { maximumFractionDigits: 1 })
           : "—",
     },
+    {
+      label: t("RESPIRATORY RATE"),
+      value:
+        profileVitals.respiratoryRate != null
+          ? `${n(profileVitals.respiratoryRate)} ${t("breaths/min")}`
+          : "—",
+    },
+    {
+      label: t("SpO₂"),
+      value: profileVitals.spo2 != null ? `${n(profileVitals.spo2)}%` : "—",
+    },
+    {
+      label: t("TEMPERATURE"),
+      value:
+        profileVitals.temperature != null
+          ? `${n(profileVitals.temperature, { maximumFractionDigits: 1 })} °C`
+          : "—",
+    },
   ];
 
   const medsEmpty = medications.length === 0;
   const displayedNotes = manualNotes ?? (summaryNotes !== NO_DATA_TEXT ? summaryNotes : null);
   const displayedNextSteps =
     manualNextSteps ?? (summaryNextSteps !== NO_DATA_TEXT ? summaryNextSteps : null);
+
+  const updateAddon = useCallback(
+    async (section: AddonSection, payload: Record<string, unknown>) => {
+      if (!addonsEnabled) return;
+      setSavingAddon(section);
+      try {
+        const res = await fetch("/api/profile", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const message = await res.text();
+          throw new Error(message || t("profile.common.saveFailed"));
+        }
+        await mutateProfile();
+        await mutateGlobal("/api/profile");
+        pushToast({ title: t("profile.common.saved") });
+      } catch (err: any) {
+        const message = err?.message || t("profile.common.pleaseRetry");
+        pushToast({
+          title: t("profile.common.saveFailed"),
+          description: message,
+          variant: "destructive",
+        });
+        throw err;
+      } finally {
+        setSavingAddon(null);
+      }
+    },
+    [addonsEnabled, mutateGlobal, mutateProfile, t],
+  );
+
+  const handleFamilyHistorySave = useCallback(
+    async (items: FamilyHistoryItem[]) => {
+      await updateAddon("familyHistory", { familyHistory: items });
+    },
+    [updateAddon],
+  );
+
+  const handleImmunizationsSave = useCallback(
+    async (items: ImmunizationItem[]) => {
+      await updateAddon("immunizations", { immunizations: items });
+    },
+    [updateAddon],
+  );
+
+  const handleLifestyleSave = useCallback(
+    async (value: Lifestyle | null) => {
+      await updateAddon("lifestyle", { lifestyle: value });
+    },
+    [updateAddon],
+  );
+
+  const handleSurgeriesSave = useCallback(
+    async (items: SurgeryItem[]) => {
+      await updateAddon("surgeries", { surgeries: items });
+    },
+    [updateAddon],
+  );
+
+  const handleAccessibilitySave = useCallback(
+    async (value: Accessibility | null) => {
+      await updateAddon("accessibility", { accessibility: value });
+    },
+    [updateAddon],
+  );
+
+  const handleAdvanceDirectivesSave = useCallback(
+    async (value: AdvanceDirectives | null) => {
+      await updateAddon("advanceDirectives", { advanceDirectives: value });
+    },
+    [updateAddon],
+  );
 
   const handleProfileSave = async () => {
     setSavingProfile(true);
@@ -983,22 +1126,36 @@ export default function MedicalProfile() {
           }
         >
           {editingVitals ? (
-            <VitalsEditor
-              initialSystolic={
-                (data?.profile as any)?.vitals?.bp_systolic ?? profileVitals.systolic ?? ""
-              }
-              initialDiastolic={
-                (data?.profile as any)?.vitals?.bp_diastolic ?? profileVitals.diastolic ?? ""
-              }
-              initialHeartRate={
-                (data?.profile as any)?.vitals?.heart_rate ?? profileVitals.heartRate ?? ""
-              }
-              initialBmi={profileVitals.bmi ?? null}
-              heightCm={
-                parseNumber((data?.profile as any)?.vitals?.height_cm) ??
-                (profileVitals.heightMeters != null
-                  ? Number((profileVitals.heightMeters * 100).toFixed(1))
-                  : null)
+              <VitalsEditor
+                initialSystolic={
+                  (data?.profile as any)?.vitals?.bp_systolic ?? profileVitals.systolic ?? ""
+                }
+                initialDiastolic={
+                  (data?.profile as any)?.vitals?.bp_diastolic ?? profileVitals.diastolic ?? ""
+                }
+                initialHeartRate={
+                  (data?.profile as any)?.vitals?.heart_rate ?? profileVitals.heartRate ?? ""
+                }
+                initialBmi={profileVitals.bmi ?? null}
+                initialRespiratoryRate={
+                  (data?.profile as any)?.vitals?.respiratory_rate ??
+                  profileVitals.respiratoryRate ??
+                  ""
+                }
+                initialSpO2={
+                  (data?.profile as any)?.vitals?.spo2 ?? profileVitals.spo2 ?? ""
+                }
+                initialTemperature={
+                  (data?.profile as any)?.vitals?.temperature ??
+                  (data?.profile as any)?.vitals?.temperature_c ??
+                  profileVitals.temperature ??
+                  ""
+                }
+                heightCm={
+                  parseNumber((data?.profile as any)?.vitals?.height_cm) ??
+                  (profileVitals.heightMeters != null
+                    ? Number((profileVitals.heightMeters * 100).toFixed(1))
+                    : null)
               }
               weightKg={
                 parseNumber((data?.profile as any)?.vitals?.weight_kg) ??
@@ -1276,27 +1433,69 @@ export default function MedicalProfile() {
       ) : null}
 
       {showClinicalSections ? (
-        <ProfileSection
-          title={t("Active medication")}
-          isEmpty={medsEmpty}
-          emptyMessage={noMedicationsText}
-        >
-          {medications.length ? (
-            <div className="flex flex-wrap gap-2">
-              {medications.map(med => (
-                <MedicationTag
-                  key={med.key}
-                  label={formatMedicationLabel(med)}
-                  onRemove={() => handleRemoveMedication(med)}
-                />
-              ))}
-            </div>
-          ) : null}
-          <div className="mt-3">
-            <MedicationInput onSave={handleAddMedication} />
+      <ProfileSection
+        title={t("Active medication")}
+        isEmpty={medsEmpty}
+        emptyMessage={noMedicationsText}
+      >
+        {medications.length ? (
+          <div className="flex flex-wrap gap-2">
+            {medications.map(med => (
+              <MedicationTag
+                key={med.key}
+                label={formatMedicationLabel(med)}
+                onRemove={() => handleRemoveMedication(med)}
+              />
+            ))}
           </div>
-        </ProfileSection>
+        ) : null}
+        <div className="mt-3">
+          <MedicationInput onSave={handleAddMedication} />
+        </div>
+      </ProfileSection>
       ) : null}
+
+      <FamilyHistorySection
+        items={familyHistory}
+        onSave={handleFamilyHistorySave}
+        saving={savingAddon === "familyHistory"}
+        disabled={!addonsEnabled}
+      />
+
+      <ImmunizationsSection
+        items={immunizations}
+        onSave={handleImmunizationsSave}
+        saving={savingAddon === "immunizations"}
+        disabled={!addonsEnabled}
+      />
+
+      <SocialLifestyleSection
+        lifestyle={lifestyle ?? undefined}
+        onSave={handleLifestyleSave}
+        saving={savingAddon === "lifestyle"}
+        disabled={!addonsEnabled}
+      />
+
+      <PastSurgeriesSection
+        surgeries={surgeries}
+        onSave={handleSurgeriesSave}
+        saving={savingAddon === "surgeries"}
+        disabled={!addonsEnabled}
+      />
+
+      <AccessibilitySection
+        accessibility={accessibility ?? undefined}
+        onSave={handleAccessibilitySave}
+        saving={savingAddon === "accessibility"}
+        disabled={!addonsEnabled}
+      />
+
+      <AdvanceDirectivesSection
+        directives={advanceDirectives ?? undefined}
+        onSave={handleAdvanceDirectivesSave}
+        saving={savingAddon === "advanceDirectives"}
+        disabled={!addonsEnabled}
+      />
     </div>
   );
 }
