@@ -4,10 +4,23 @@ import { languageDirectiveFor, personaFromPrefs, SYSTEM_DEFAULT_LANG } from '@/l
 import { extractAll, canonicalizeInputs } from '@/lib/medical/engine/extract';
 import { BRAND_NAME } from "@/lib/brand";
 import { computeAll } from '@/lib/medical/engine/computeAll';
+import { clamp } from '@/lib/medical/engine/calculators/utils';
 // === [MEDX_CALC_ROUTE_IMPORTS_START] ===
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
 import { RESEARCH_BRIEF_STYLE } from '@/lib/styles';
+
+function readIntEnv(name: string, fallback: number) {
+  const raw = process.env[name];
+  if (raw == null || raw.trim() === "") return fallback;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n <= 0) {
+    // eslint-disable-next-line no-console
+    console.warn(`[AI-Doc] Invalid ${name}="${raw}". Falling back to ${fallback}.`);
+    return fallback;
+  }
+  return n;
+}
 
 // --- tiny helper: keep only the last N non-system turns (cheap token control)
 function takeRecentTurns(
@@ -170,9 +183,12 @@ export async function POST(req: NextRequest) {
   const isShortQuery = wordCount <= 6;
   const briefTopic = /\b(what is|types?|symptoms?|causes?|treatment|home care|prevention|red flags?)\b/i
     .test(latestUserMessage || '');
-  const targetWordCap = (mode === 'doctor')
+  const isAiDoc = mode === 'doctor';
+  const targetWordCap = isAiDoc
     ? (isShortQuery || briefTopic ? 220 : 360)
     : (isShortQuery || briefTopic ? 180 : 280);
+  const AIDOC_MAX_TOKENS = readIntEnv('AIDOC_MAX_TOKENS', 3000);
+  const targetMax = Math.round((targetWordCap + 40) * 1.7);
   const brevitySystem = [
     `You are ${BRAND_NAME} chat. Be concise and structured.`,
     `Aim to keep the entire answer under ${targetWordCap} words (SOFT cap).`,
@@ -251,6 +267,10 @@ export async function POST(req: NextRequest) {
   const finalSystem = [combinedSystem, sysPrelude].filter(Boolean).join('\n\n');
   finalMessages = finalSystem ? [{ role: 'system', content: finalSystem }, ...nonSystemMessages] : nonSystemMessages;
 
+  const max_tokens = isAiDoc
+    ? clamp(Math.max(200, targetMax), 200, AIDOC_MAX_TOKENS)
+    : clamp(Math.max(200, targetMax), 200, 768);
+
   const upstream = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
@@ -258,7 +278,7 @@ export async function POST(req: NextRequest) {
       model,
       messages: finalMessages,
       // Token cap with buffer to avoid API truncation while honoring SOFT word cap
-      max_tokens: Math.min(768, Math.max(200, Math.round((targetWordCap + 40) * 1.7))),
+      max_tokens,
       stream: true,
       temperature: 0.4,
       top_p: 1,
