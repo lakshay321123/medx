@@ -822,9 +822,12 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     [allowHistory],
   );
 
+  const pendingContentRef = useRef(new Map<string, string>());
+
   const handlePendingContentUpdate = useCallback(
     (messageId: string, text: string) => {
       const safeText = enforceLocale(text, uiLanguage ?? 'en', { forbidEnglishHeadings: true });
+      pendingContentRef.current.set(messageId, safeText);
       setMessages(prev =>
         prev.map(m => (m.id === messageId ? ({ ...m, content: safeText } as ChatMessage) : m)),
       );
@@ -835,6 +838,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const handlePendingFinalize = useCallback(
     (messageId: string, finalContent: string, extras?: { followUps?: unknown; citations?: unknown; error?: string | null }) => {
       const processedContent = enforceLocale(finalContent, uiLanguage ?? 'en', { forbidEnglishHeadings: true });
+      pendingContentRef.current.delete(messageId);
       setMessages(prev =>
         prev.map(m => {
           if (m.id !== messageId) return m;
@@ -2965,7 +2969,13 @@ ${systemCommon}` + baseSys;
       }
     } catch (e: any) {
       if (e?.name === 'AbortError') {
-        finishPendingAssistant(pendingId, acc);
+        const fallback = pendingContentRef.current.get(pendingId);
+        const finalContent = acc && acc.trim().length > 0
+          ? acc
+          : typeof fallback === 'string'
+            ? fallback
+            : '';
+        finishPendingAssistant(pendingId, finalContent);
         opts.onError?.();
         return;
       }
