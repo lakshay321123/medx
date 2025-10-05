@@ -33,7 +33,7 @@ export default function AppToastHost() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="pointer-events-none fixed bottom-6 right-4 z-50 flex max-w-sm flex-col gap-2">
+    <div className="click-through pointer-events-none fixed bottom-6 right-4 z-50 flex max-w-sm flex-col gap-2">
       {toasts.map(({ id, title, description, variant }) => {
         const destructive = variant === "destructive";
         const classes = destructive

@@ -67,20 +67,22 @@ export default function FamilyHistorySection({
           <p className="text-sm text-muted-foreground">{t("profile.common.noItems")}</p>
         )}
       </SectionShell>
-      <FamilyHistoryEditor
-        open={open}
-        items={safeItems}
-        onClose={() => setOpen(false)}
-        onSave={async data => {
-          try {
-            await onSave(data);
-            setOpen(false);
-          } catch (error) {
-            console.error(error);
-          }
-        }}
-        saving={saving || disabled}
-      />
+      {open ? (
+        <FamilyHistoryEditor
+          open
+          items={safeItems}
+          onClose={() => setOpen(false)}
+          onSave={async data => {
+            try {
+              await onSave(data);
+              setOpen(false);
+            } catch (error) {
+              console.error(error);
+            }
+          }}
+          saving={saving || disabled}
+        />
+      ) : null}
     </>
   );
 }

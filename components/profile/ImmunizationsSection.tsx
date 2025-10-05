@@ -82,20 +82,22 @@ export default function ImmunizationsSection({
           <p className="text-sm text-muted-foreground">{t("profile.common.noItems")}</p>
         )}
       </SectionShell>
-      <ImmunizationsEditor
-        open={open}
-        items={safeItems}
-        onClose={() => setOpen(false)}
-        onSave={async data => {
-          try {
-            await onSave(data);
-            setOpen(false);
-          } catch (error) {
-            console.error(error);
-          }
-        }}
-        saving={saving || disabled}
-      />
+      {open ? (
+        <ImmunizationsEditor
+          open
+          items={safeItems}
+          onClose={() => setOpen(false)}
+          onSave={async data => {
+            try {
+              await onSave(data);
+              setOpen(false);
+            } catch (error) {
+              console.error(error);
+            }
+          }}
+          saving={saving || disabled}
+        />
+      ) : null}
     </>
   );
 }

@@ -93,20 +93,22 @@ export default function SocialLifestyleSection({
           <p className="text-sm text-muted-foreground">{t("profile.common.noItems")}</p>
         )}
       </SectionShell>
-      <LifestyleEditor
-        open={open}
-        lifestyle={lifestyle}
-        onClose={() => setOpen(false)}
-        onSave={async data => {
-          try {
-            await onSave(data);
-            setOpen(false);
-          } catch (error) {
-            console.error(error);
-          }
-        }}
-        saving={saving || disabled}
-      />
+      {open ? (
+        <LifestyleEditor
+          open
+          lifestyle={lifestyle}
+          onClose={() => setOpen(false)}
+          onSave={async data => {
+            try {
+              await onSave(data);
+              setOpen(false);
+            } catch (error) {
+              console.error(error);
+            }
+          }}
+          saving={saving || disabled}
+        />
+      ) : null}
     </>
   );
 }

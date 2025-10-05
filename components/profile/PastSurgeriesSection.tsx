@@ -66,20 +66,22 @@ export default function PastSurgeriesSection({
           <p className="text-sm text-muted-foreground">{t("profile.common.noItems")}</p>
         )}
       </SectionShell>
-      <SurgeriesEditor
-        open={open}
-        items={items}
-        onClose={() => setOpen(false)}
-        onSave={async data => {
-          try {
-            await onSave(data);
-            setOpen(false);
-          } catch (error) {
-            console.error(error);
-          }
-        }}
-        saving={saving || disabled}
-      />
+      {open ? (
+        <SurgeriesEditor
+          open
+          items={items}
+          onClose={() => setOpen(false)}
+          onSave={async data => {
+            try {
+              await onSave(data);
+              setOpen(false);
+            } catch (error) {
+              console.error(error);
+            }
+          }}
+          saving={saving || disabled}
+        />
+      ) : null}
     </>
   );
 }

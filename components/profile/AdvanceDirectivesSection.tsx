@@ -71,20 +71,22 @@ export default function AdvanceDirectivesSection({
           <p className="text-sm text-muted-foreground">{t("profile.common.noItems")}</p>
         )}
       </SectionShell>
-      <AdvanceDirectivesEditor
-        open={open}
-        directives={directives}
-        onClose={() => setOpen(false)}
-        onSave={async data => {
-          try {
-            await onSave(data);
-            setOpen(false);
-          } catch (error) {
-            console.error(error);
-          }
-        }}
-        saving={saving || disabled}
-      />
+      {open ? (
+        <AdvanceDirectivesEditor
+          open
+          directives={directives}
+          onClose={() => setOpen(false)}
+          onSave={async data => {
+            try {
+              await onSave(data);
+              setOpen(false);
+            } catch (error) {
+              console.error(error);
+            }
+          }}
+          saving={saving || disabled}
+        />
+      ) : null}
     </>
   );
 }
