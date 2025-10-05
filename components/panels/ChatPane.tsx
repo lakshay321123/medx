@@ -2872,7 +2872,6 @@ ${systemCommon}` + baseSys;
       const { main, followUps } = splitFollowUps(acc);
       finishPendingAssistant(pendingId, main, { followUps });
       opts.onSuccess?.(pendingId);
-      clearActiveLabel();
       if (effectiveResearch) {
         const lastUserMsg = text;
         const audience = mode;
