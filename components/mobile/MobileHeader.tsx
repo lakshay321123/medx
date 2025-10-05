@@ -6,6 +6,7 @@ import { useMobileUiStore } from "@/lib/state/mobileUiStore";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createNewThreadId } from "@/lib/chatThreads";
 import { useModeController } from "@/hooks/useModeController";
+import { useT } from "@/components/hooks/useI18n";
 import WwwGlobeIcon from "@/components/icons/WwwGlobe";
 import { IconNewChat } from "@/components/icons";
 
@@ -21,6 +22,7 @@ export default function MobileHeader() {
     toggleResearch,
     researchEnabled,
   } = useModeController();
+  const t = useT();
 
   const [modeOpen, setModeOpen] = useState(false);
   const modeRef = useRef<HTMLDivElement | null>(null);
@@ -37,11 +39,11 @@ export default function MobileHeader() {
   }, [router, searchParams]);
 
   const modeLabel = useMemo(() => {
-    if (state.therapy) return "Therapy";
-    if (state.base === "aidoc") return "AI Doc";
-    if (state.base === "doctor") return "Clinical";
-    return "Wellness";
-  }, [state.base, state.therapy]);
+    if (state.therapy) return t("ui.modes.therapy");
+    if (state.base === "aidoc") return t("ui.modes.ai_doc");
+    if (state.base === "doctor") return t("ui.modes.clinical");
+    return t("ui.modes.wellness");
+  }, [state.base, state.therapy, t]);
 
   useEffect(() => {
     if (!modeOpen) return;
@@ -80,25 +82,25 @@ export default function MobileHeader() {
       [
         {
           key: "wellness" as HeaderModeChoice,
-          label: "Wellness",
+          label: t("ui.modes.wellness"),
           active: state.base === "patient" && !state.therapy,
           disabled: false,
         },
         {
           key: "therapy" as HeaderModeChoice,
-          label: "Therapy",
+          label: t("ui.modes.therapy"),
           active: state.therapy,
           disabled: therapyBusy && !state.therapy,
         },
         {
           key: "doctor" as HeaderModeChoice,
-          label: "Clinical",
+          label: t("ui.modes.clinical"),
           active: state.base === "doctor" && !state.therapy,
           disabled: false,
         },
         {
           key: "aidoc" as HeaderModeChoice,
-          label: "AI Doc",
+          label: t("ui.modes.ai_doc"),
           active: state.base === "aidoc",
           disabled: false,
         },
@@ -108,7 +110,7 @@ export default function MobileHeader() {
         active: boolean;
         disabled: boolean;
       }>,
-    [state.base, state.therapy, therapyBusy],
+    [state.base, state.therapy, t, therapyBusy],
   );
 
   return (
