@@ -11,7 +11,14 @@ import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 import { RESEARCH_BRIEF_STYLE } from '@/lib/styles';
 import { SUPPORTED_LANGS } from '@/lib/i18n/constants';
 import { STUDY_MODE_SYSTEM, THINKING_MODE_HINT, STUDY_OUTPUT_GUIDE, languageInstruction } from '@/lib/prompts/presets';
-import { createLocaleEnforcedStream } from '@/lib/i18n/enforce';
+import { createLocaleEnforcedStream, enforceLocale } from '@/lib/i18n/enforce';
+import { normalizeModeTag } from '@/lib/i18n/normalize';
+import { buildFormatInstruction } from '@/lib/formats/build';
+import { FORMATS } from '@/lib/formats/registry';
+import { isValidLang, isValidMode } from '@/lib/formats/constants';
+import { needsTableCoercion } from '@/lib/formats/tableGuard';
+import { hasMarkdownTable, shapeToTable } from '@/lib/formats/tableShape';
+import type { FormatId, Mode } from '@/lib/formats/types';
 
 function normalizeLang(raw: string | null | undefined): string {
   const cleaned = (raw || 'en').toLowerCase().split('-')[0].replace(/[^a-z]/g, '');
@@ -107,13 +114,29 @@ export async function POST(req: NextRequest) {
   const long = reqUrl.searchParams.get('long') === '1';
   const studyFlag = reqUrl.searchParams.get('study') === '1';
   const thinkingFlag = reqUrl.searchParams.get('thinking') === '1';
-  const modeTag = reqUrl.searchParams.get('mode');
+  const formatParam = reqUrl.searchParams.get('formatId');
   const langQuery = reqUrl.searchParams.get('lang');
   let body: any = {};
   try { body = await req.json(); } catch {}
   const { context, clientRequestId, mode } = body;
-  const flags = gateFlagsByMode(modeTag, { study: studyFlag, thinking: thinkingFlag });
-  const normalizedModeTag = (modeTag || '').toLowerCase();
+  const formatFromBody = typeof body?.formatId === 'string' ? body.formatId : undefined;
+  const rawModeTag =
+    body?.modeTag
+    ?? reqUrl.searchParams.get('modeTag')
+    ?? body?.mode
+    ?? reqUrl.searchParams.get('mode')
+    ?? '';
+  const normalizedModeTag = normalizeModeTag(rawModeTag);
+  const resolvedMode: Mode = isValidMode(normalizedModeTag) ? normalizedModeTag : 'wellness';
+  if (process.env.NODE_ENV !== 'production' && !body?.modeTag) {
+    // eslint-disable-next-line no-console
+    console.warn('[medx] Missing modeTag in request body; falling back to legacy mode:', body?.mode);
+  }
+  const flags = gateFlagsByMode(resolvedMode, { study: studyFlag, thinking: thinkingFlag });
+  const rawFormatId = (formatParam || formatFromBody || '').trim().toLowerCase();
+  const formatId = rawFormatId && FORMATS.some(f => f.id === rawFormatId)
+    ? (rawFormatId as FormatId)
+    : undefined;
   const allowHistory = body?.allowHistory !== false;
   const requestedLang = typeof body?.lang === 'string' ? body.lang : null;
   const headerLang = req.headers.get('x-user-lang') || req.headers.get('x-lang') || null;
@@ -124,6 +147,9 @@ export async function POST(req: NextRequest) {
       || null,
   );
   const langDirectiveBlock = languageInstruction(lang);
+  const formatInstruction = isValidLang(lang)
+    ? buildFormatInstruction(lang, resolvedMode, formatId)
+    : '';
   const persona = personaFromPrefs(body?.personalization);
   const sysPrelude = [persona].filter(Boolean).join('\n\n');
   const studyChunks = flags.study ? [STUDY_MODE_SYSTEM.trim(), STUDY_OUTPUT_GUIDE.trim()] : [];
@@ -172,10 +198,12 @@ export async function POST(req: NextRequest) {
         .join('\n\n')
     : '';
 
+  const formatChunks = formatInstruction ? [formatInstruction] : [];
   const researchSystem = [
     langDirectiveBlock,
     ...studyChunks,
     ...thinkingChunks,
+    ...formatChunks,
     ...thinkingGuard,
     RESEARCH_BRIEF_STYLE + (srcBlock ? `\n\nSOURCES:\n${srcBlock}` : ''),
     sysPrelude,
@@ -243,7 +271,7 @@ export async function POST(req: NextRequest) {
   const briefTopic = /\b(what is|types?|symptoms?|causes?|treatment|home care|prevention|red flags?)\b/i
     .test(latestUserMessage || '');
   const isDoctorLike = mode === 'doctor';
-  const isAiDoc = normalizedModeTag === 'aidoc';
+  const isAiDoc = resolvedMode === 'aidoc';
   const targetWordCap = (isAiDoc || isDoctorLike)
     ? (isShortQuery || briefTopic ? 220 : 360)
     : (isShortQuery || briefTopic ? 180 : 280);
@@ -328,6 +356,7 @@ export async function POST(req: NextRequest) {
     langDirectiveBlock,
     ...studyChunks,
     ...thinkingChunks,
+    ...formatChunks,
     ...thinkingGuard,
     combinedSystem,
     sysPrelude,
@@ -364,6 +393,50 @@ export async function POST(req: NextRequest) {
     })
   });
 
+  const modeAllowed = Boolean(formatInstruction);
+  const shouldCoerceToTable = modeAllowed && needsTableCoercion(formatId);
+
+  if (shouldCoerceToTable) {
+    const rawSse = await upstream.text();
+    if (!upstream.ok) {
+      return new Response(rawSse || 'LLM error', { status: upstream.status || 500 });
+    }
+
+    const fullText = rawSse
+      .split(/\n\n/)
+      .map(line => line.replace(/^data:\s*/, ''))
+      .filter(Boolean)
+      .filter(line => line !== '[DONE]')
+      .map(chunk => {
+        try {
+          return JSON.parse(chunk)?.choices?.[0]?.delta?.content ?? '';
+        } catch {
+          return '';
+        }
+      })
+      .join('');
+
+    const subject = (latestUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
+    let table = shapeToTable(subject, fullText);
+    table = enforceLocale(table, lang, { forbidEnglishHeadings: true });
+    const payload = {
+      choices: [{ delta: { content: table, medx_reset: true } }],
+    };
+
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      },
+    });
+
+    return new Response(stream, {
+      headers: { 'Content-Type': 'text/event-stream; charset=utf-8' },
+    });
+  }
+
   if (!upstream.ok) {
     const err = await upstream.text();
     return new Response(`LLM error: ${err}`, { status: 500 });
@@ -373,7 +446,18 @@ export async function POST(req: NextRequest) {
     return new Response('LLM error: empty body', { status: 500 });
   }
 
-  const enforcedStream = createLocaleEnforcedStream(upstream.body, lang, { forbidEnglishHeadings: true });
+  const formatFinalizer = shouldCoerceToTable
+    ? (text: string) => {
+        if (hasMarkdownTable(text)) return text;
+        const subject = (latestUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
+        return shapeToTable(subject, text);
+      }
+    : undefined;
+
+  const enforcedStream = createLocaleEnforcedStream(upstream.body, lang, {
+    forbidEnglishHeadings: true,
+    finalizer: formatFinalizer,
+  });
 
   return new Response(enforcedStream, {
     headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }

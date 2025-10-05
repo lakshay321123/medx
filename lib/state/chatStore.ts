@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { nanoid } from "nanoid";
 import type { AppMode } from "@/lib/welcomeMessages";
 import type { DraftMode } from "@/lib/chat/types";
+import type { FormatId } from "@/lib/formats/types";
 
 export type PendingDraft = {
   mode: DraftMode;
@@ -27,6 +28,8 @@ export type ChatMessage = {
   role: "user" | "assistant" | "system";
   content: string;
   ts: number;
+  formatId?: FormatId;
+  userPrompt?: string;
 } & ChatMessageMeta;
 
 type Thread = {

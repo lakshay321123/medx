@@ -4,6 +4,8 @@ import { localizeDigits } from '@/lib/i18n/numeral';
 
 const SAFE = '__SAFESEG__';
 const SAFE_RE = new RegExp(`${SAFE}([A-Z]+)__`, 'g');
+const TABLE_SAFE = '__SAFETBL__';
+const TABLE_SAFE_RE = new RegExp(`${TABLE_SAFE}([A-Z]+)__`, 'g');
 const MEDX_RE = /MEDX_MASK_(\d+)/g;
 
 function numberToAlpha(n: number): string {
@@ -37,6 +39,27 @@ function protect(text: string) {
 
 function restore(text: string, slots: string[]) {
   return text.replace(SAFE_RE, (_match, alpha) => {
+    const idx = alphaToNumber(alpha as string);
+    return slots[idx] ?? '';
+  });
+}
+
+function protectTableBlocks(text: string) {
+  const slots: string[] = [];
+  const protect = (segment: string) => {
+    const token = `${TABLE_SAFE}${numberToAlpha(slots.length)}__`;
+    slots.push(segment);
+    return token;
+  };
+
+  let out = text.replace(/(^\|[^\n]+\|\n\|[ :\-|]+\|\n(?:\|.*\|\n?)+)/gm, segment => protect(segment));
+  out = out.replace(/^\|[ :\-|]+\|$/gm, segment => protect(segment));
+  return { out, slots };
+}
+
+function restoreTableBlocks(text: string, slots: string[]) {
+  if (!slots.length) return text;
+  return text.replace(TABLE_SAFE_RE, (_match, alpha) => {
     const idx = alphaToNumber(alpha as string);
     return slots[idx] ?? '';
   });
@@ -83,26 +106,52 @@ export function enforceLocale(
   if (!raw) return raw;
 
   let working = raw;
-  const blockedMd = /^(#{1,4}\s*)(What it is|Types|Overview)\s*$/gim;
-  const blockedBold = /^(\*\*)(What it is|Types|Overview)(\*\*)\s*$/gim;
-
   const { out: protectedText, slots } = protect(working);
   let out = unmask(protectedText, opts?.maskLookup);
   out = localizeDigits(out, lang);
   out = restore(out, slots);
+
+  const { out: tableGuarded, slots: tableSlots } = protectTableBlocks(out);
+  out = tableGuarded;
   out = stripHeadingParens(out);
   out = rewriteHeadings(out, lang);
+  out = restoreTableBlocks(out, tableSlots);
 
   if (opts?.forbidEnglishHeadings && lang !== 'en') {
-    out = out.replace(blockedMd, (_match, hashes, title) => {
-      const key = normalizeHeadingKey(String(title));
-      const tr = HEADING_MAP[lang]?.[key];
-      return tr ? `${hashes}${tr}` : '';
+    const englishMap = HEADING_MAP.en ?? {};
+    const targetMap = HEADING_MAP[lang] ?? {};
+    const englishLookup = new Map<string, string>();
+    Object.entries(englishMap).forEach(([key, value]) => {
+      if (typeof value === 'string') {
+        englishLookup.set(value.toLowerCase(), key);
+      }
     });
-    out = out.replace(blockedBold, (_match, open, title, close) => {
-      const key = normalizeHeadingKey(String(title));
-      const tr = HEADING_MAP[lang]?.[key];
-      return tr ? `${open}${tr}${close}` : '';
+
+    const localizeHeading = (title: string): string | null => {
+      const trimmed = title.trim();
+      if (!trimmed) return null;
+      const lower = trimmed.toLowerCase();
+      const canonical = englishLookup.get(lower) ?? normalizeHeadingKey(trimmed);
+      const englishLabel = typeof englishMap[canonical] === 'string' ? englishMap[canonical] as string : undefined;
+      if (englishLabel && englishLabel.toLowerCase() === lower) {
+        const localized = targetMap[canonical];
+        return typeof localized === 'string' ? localized : '';
+      }
+      return null;
+    };
+
+    out = out.replace(/^(#{1,4}\s*)([^\n]+)$/gm, (match, hashes, title) => {
+      const localized = localizeHeading(String(title));
+      if (localized === null) return match;
+      if (localized === '') return '';
+      return `${hashes}${localized}`;
+    });
+
+    out = out.replace(/^(\*\*)([^*]+)(\*\*)\s*$/gm, (match, open, title, close) => {
+      const localized = localizeHeading(String(title));
+      if (localized === null) return match;
+      if (localized === '') return '';
+      return `${open}${localized}${close}`;
     });
   }
 
@@ -111,13 +160,22 @@ export function enforceLocale(
 
 export type EnforceLocaleOptions = Parameters<typeof enforceLocale>[2];
 
+type LocaleStreamOptions = {
+  maskLookup?: Record<string, string>;
+  forbidEnglishHeadings?: boolean;
+  finalizer?: (text: string) => string;
+};
+
 export function createLocaleEnforcedStream(
   source: ReadableStream<Uint8Array>,
   lang: string,
-  opts?: { maskLookup?: Record<string, string>; forbidEnglishHeadings?: boolean },
+  opts?: LocaleStreamOptions,
 ) {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
+  const maskLookup = opts?.maskLookup;
+  const forbidEnglishHeadings = opts?.forbidEnglishHeadings;
+  const finalizer = opts?.finalizer;
 
   return new ReadableStream<Uint8Array>({
     start(controller) {
@@ -125,6 +183,7 @@ export function createLocaleEnforcedStream(
       let buffer = '';
       let aggregated = '';
       let sanitizedSoFar = '';
+      let lastParsed: any = null;
 
       const sendLine = (line: string) => {
         controller.enqueue(encoder.encode(`${line}\n\n`));
@@ -136,6 +195,37 @@ export function createLocaleEnforcedStream(
 
       let sentDone = false;
 
+      const emitFinalIfNeeded = () => {
+        if (!finalizer) return;
+        const revised = finalizer(aggregated);
+        if (typeof revised === 'string') {
+          aggregated = revised;
+        }
+        const finalSanitized = enforceLocale(aggregated, lang, { maskLookup, forbidEnglishHeadings });
+        if (finalSanitized === sanitizedSoFar) return;
+        sanitizedSoFar = finalSanitized;
+        const base = lastParsed && typeof lastParsed === 'object'
+          ? lastParsed
+          : { choices: [{ delta: {} }] };
+        const payload = {
+          ...base,
+          choices: Array.isArray(base?.choices)
+            ? base.choices.map((choice: any, index: number) => {
+                if (index !== 0) return choice;
+                return {
+                  ...choice,
+                  delta: {
+                    ...(choice?.delta || {}),
+                    content: finalSanitized,
+                    medx_reset: true,
+                  },
+                };
+              })
+            : [{ delta: { content: finalSanitized, medx_reset: true } }],
+        };
+        sendPayload(payload);
+      };
+
       const processEvent = (event: string) => {
         if (!event.startsWith('data:')) {
           sendLine(event);
@@ -145,6 +235,7 @@ export function createLocaleEnforcedStream(
         if (!body) return;
         if (body === '[DONE]') {
           sentDone = true;
+          emitFinalIfNeeded();
           sendLine('data: [DONE]');
           return;
         }
@@ -155,12 +246,13 @@ export function createLocaleEnforcedStream(
           sendLine(`data: ${body}`);
           return;
         }
+        lastParsed = parsed;
         const choices = Array.isArray(parsed?.choices) ? parsed.choices : [];
         const primary = choices[0];
         const delta = primary?.delta;
         if (delta && typeof delta.content === 'string' && delta.content.length > 0) {
           aggregated += delta.content;
-          const sanitized = enforceLocale(aggregated, lang, opts);
+          const sanitized = enforceLocale(aggregated, lang, { maskLookup, forbidEnglishHeadings });
           let payload: any;
           if (!sanitized.startsWith(sanitizedSoFar)) {
             sanitizedSoFar = sanitized;
@@ -216,6 +308,7 @@ export function createLocaleEnforcedStream(
       const pump = () => reader.read().then(({ done, value }) => {
         if (done) {
           flush();
+          emitFinalIfNeeded();
           if (!sentDone) {
             sentDone = true;
             sendLine('data: [DONE]');
