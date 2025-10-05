@@ -11,6 +11,13 @@ import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
 import { RESEARCH_BRIEF_STYLE } from '@/lib/styles';
 
+const SUPPORTED_LANGS = ['en', 'hi', 'es', 'fr', 'it', 'ar', 'de', 'zh'];
+
+function normalizeUILang(raw?: string | null): string {
+  const cleaned = (raw ?? SYSTEM_DEFAULT_LANG).toLowerCase().replace(/[^a-z-]/g, '');
+  return SUPPORTED_LANGS.includes(cleaned) ? cleaned : SYSTEM_DEFAULT_LANG;
+}
+
 function readIntEnv(name: string, fallback: number) {
   const raw = process.env[name];
   if (raw == null || raw.trim() === "") return fallback;
@@ -88,7 +95,7 @@ export async function POST(req: NextRequest) {
     (requestedLang && requestedLang.trim()) ||
     (headerLang && headerLang.trim()) ||
     SYSTEM_DEFAULT_LANG;
-  const lang = langTag.toLowerCase();
+  const lang = normalizeUILang(langTag);
   const helperDirectives: string[] = [];
   if (studyFlag) {
     helperDirectives.push(STUDY_MODE_SYSTEM, STUDY_OUTPUT_GUIDE);

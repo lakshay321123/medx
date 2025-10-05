@@ -19,9 +19,10 @@ Default structure if format is unspecified:
 `.trim();
 
 export function languageInstruction(lang: string) {
+  const safe = JSON.stringify(lang);
   return `
-Respond entirely in "${lang}".
-Do not mix languages. If user input contains multiple languages, translate your output into "${lang}".
-Keep technical terms in "${lang}" unless the canonical term is universally used in another language (e.g., drug names).
+Respond entirely in ${safe}.
+Do not mix languages. If user input contains multiple languages, translate your output into ${safe}.
+Keep technical terms in ${safe} unless the canonical term is universally used in another language (e.g., drug names).
 `.trim();
 }

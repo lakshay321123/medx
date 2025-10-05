@@ -2724,6 +2724,7 @@ ${systemCommon}` + baseSys;
         }
       }
       if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
+      setActiveHelper(null);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
