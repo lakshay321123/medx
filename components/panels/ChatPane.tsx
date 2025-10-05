@@ -9,7 +9,7 @@ import { LinkBadge } from '@/components/SafeLink';
 import TrialsResults from "@/components/TrialsResults";
 import type { TrialRow } from "@/types/trials";
 import { useResearchFilters } from '@/store/researchFilters';
-import { Send, Plus, Clipboard, Stethoscope, Users, ChevronDown, ChevronUp, GraduationCap, Brain, X } from 'lucide-react';
+import { Send, Plus, Clipboard, Stethoscope, Users, ChevronDown, ChevronUp, GraduationCap, Brain, X, BookOpen } from 'lucide-react';
 import { useCountry } from '@/lib/country';
 import WelcomeCard from '@/components/ui/WelcomeCard';
 import { getWelcomeOptions, pickWelcome, type AppMode, type WelcomeMessage } from '@/lib/welcomeMessages';
@@ -3992,152 +3992,178 @@ ${systemCommon}` + baseSys;
                   e.preventDefault();
                   onSubmit();
                 }}
-                className="flex w-full items-end gap-3 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80"
+                className="w-full"
               >
-                <div ref={plusMenuRef} className="relative inline-flex items-center">
-                  <button
-                    type="button"
-                    aria-haspopup="menu"
-                    aria-expanded={isPlusMenuOpen}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setPlusMenuOpen((v) => !v);
-                    }}
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300/70 hover:bg-slate-100/70 dark:border-slate-700/60 dark:hover:bg-slate-800/60"
-                    title={t('more')}
-                  >
-                    <Plus className="h-5 w-5" aria-hidden="true" />
-                  </button>
-
-                  {activeHelper && (
-                    <span
-                      className="ml-2 inline-flex items-center gap-2 rounded-full border border-slate-300/70 bg-slate-50 px-3 py-1 text-sm text-foreground dark:border-slate-700/60 dark:bg-slate-900/60"
-                      aria-live="polite"
-                    >
-                      {activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
-                      <button
-                        type="button"
-                        aria-label={t('clearSelection')}
-                        className="opacity-70 hover:opacity-100"
-                        onClick={() => setActiveHelper(null)}
-                      >
-                        <X className="h-3.5 w-3.5" aria-hidden="true" />
-                      </button>
-                    </span>
-                  )}
-
-                  {isPlusMenuOpen && (
-                    <div
-                      role="menu"
-                      aria-label={t('composerMenu')}
-                      className="absolute bottom-12 left-0 z-50 w-64 overflow-hidden rounded-xl border border-slate-300/70 bg-white shadow-lg dark:border-slate-700/60 dark:bg-slate-900"
-                    >
-                      <button
-                        role="menuitem"
-                        type="button"
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
-                        onClick={() => {
-                          setPlusMenuOpen(false);
-                          fileInputRef.current?.click();
-                        }}
-                      >
-                        <Plus className="h-4 w-4" aria-hidden="true" />
-                        <span>{t('upload')}</span>
-                      </button>
-
-                      <button
-                        role="menuitem"
-                        type="button"
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
-                        onClick={() => {
-                          setPlusMenuOpen(false);
-                          setActiveHelper('study');
-                        }}
-                      >
-                        <GraduationCap className="h-4 w-4" aria-hidden="true" />
-                        <span>{t('studyLearn')}</span>
-                      </button>
-
-                      <button
-                        role="menuitem"
-                        type="button"
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
-                        onClick={() => {
-                          setPlusMenuOpen(false);
-                          setActiveHelper('thinking');
-                        }}
-                      >
-                        <Brain className="h-4 w-4" aria-hidden="true" />
-                        <span>{t('thinkingMode')}</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="application/pdf,image/*"
-                  multiple
-                  className="hidden"
-                  onChange={e => {
-                    const files = Array.from(e.target.files ?? []);
-                    if (files.length) onFilesSelected(files);
-                    e.currentTarget.value = '';
-                  }}
-                />
-                <div className="relative flex-1">
-                  <textarea
-                    ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
-                    rows={1}
-                    className="w-full resize-none bg-transparent px-2 pr-12 text-sm leading-6 text-slate-900 outline-none placeholder:text-slate-500 dark:text-slate-100 dark:placeholder:text-slate-400"
-                    placeholder={
-                      pendingFiles.length > 0
-                        ? 'Add a note or question for this document (optional)'
-                        : 'Send a message'
-                    }
-                    value={userText}
-                    onChange={(e) => setUserText(e.target.value)}
-                    onFocus={() => setInputFocused(true)}
-                    onBlur={(e) => {
-                      const next = e.relatedTarget as HTMLElement | null;
-                      if (next?.dataset?.suggestionButton === 'true') {
-                        return;
-                      }
-                      setInputFocused(false);
-                    }}
-                    onKeyDown={(e) => {
-                      const isComposing = (e.nativeEvent as any).isComposing;
-                      if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
+                <div className="flex items-end gap-2 rounded-2xl border border-slate-200/60 bg-white/90 px-2 py-2 dark:border-slate-700/60 dark:bg-slate-900/80">
+                  <div ref={plusMenuRef} className="relative shrink-0">
+                    <button
+                      type="button"
+                      aria-haspopup="menu"
+                      aria-expanded={isPlusMenuOpen}
+                      onClick={(e) => {
                         e.preventDefault();
-                        onSubmit();
-                      }
+                        e.stopPropagation();
+                        setPlusMenuOpen((v) => !v);
+                      }}
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300/70 hover:bg-slate-100/70 dark:border-slate-700/60 dark:hover:bg-slate-800/60"
+                      title={t('more')}
+                    >
+                      <Plus className="h-5 w-5" aria-hidden="true" />
+                    </button>
+
+                    {isPlusMenuOpen && (
+                      <div
+                        role="menu"
+                        aria-label={t('composerMenu')}
+                        className="absolute bottom-12 left-0 z-50 w-64 overflow-hidden rounded-xl border border-slate-300/70 bg-white shadow-lg dark:border-slate-700/60 dark:bg-slate-900"
+                      >
+                        <button
+                          role="menuitem"
+                          type="button"
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                          onClick={() => {
+                            setPlusMenuOpen(false);
+                            fileInputRef.current?.click();
+                          }}
+                        >
+                          <Plus className="h-4 w-4" aria-hidden="true" />
+                          <span>{t('upload')}</span>
+                        </button>
+
+                        <button
+                          role="menuitem"
+                          type="button"
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                          onClick={() => {
+                            setPlusMenuOpen(false);
+                            setActiveHelper('study');
+                          }}
+                        >
+                          <GraduationCap className="h-4 w-4" aria-hidden="true" />
+                          <span>{t('studyLearn')}</span>
+                        </button>
+
+                        <button
+                          role="menuitem"
+                          type="button"
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                          onClick={() => {
+                            setPlusMenuOpen(false);
+                            setActiveHelper('thinking');
+                          }}
+                        >
+                          <Brain className="h-4 w-4" aria-hidden="true" />
+                          <span>{t('thinkingMode')}</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex max-w-[40vw] shrink-0 gap-2 overflow-x-auto py-1 no-scrollbar sm:max-w-none">
+                    {activeHelper && (
+                      <>
+                        <span
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300/70 bg-slate-50 text-slate-700 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 sm:hidden"
+                          role="status"
+                          aria-label={activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
+                          title={activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
+                        >
+                          {activeHelper === 'study' ? (
+                            <BookOpen className="h-4 w-4" aria-hidden="true" />
+                          ) : (
+                            <Brain className="h-4 w-4" aria-hidden="true" />
+                          )}
+                        </span>
+
+                        <span
+                          className="hidden items-center gap-1 rounded-full border border-slate-300/70 bg-slate-50 px-3 py-1 text-[12px] leading-[18px] text-foreground dark:border-slate-700/60 dark:bg-slate-900/60 sm:inline-flex sm:text-[14px] sm:leading-[20px]"
+                          aria-live="polite"
+                        >
+                          <span className="block max-w-[36vw] overflow-hidden text-ellipsis whitespace-nowrap sm:max-w-none">
+                            {activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={t('clearSelection')}
+                            className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-xs opacity-70 hover:opacity-100"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setActiveHelper(null);
+                            }}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="application/pdf,image/*"
+                    multiple
+                    className="hidden"
+                    onChange={e => {
+                      const files = Array.from(e.target.files ?? []);
+                      if (files.length) onFilesSelected(files);
+                      e.currentTarget.value = '';
                     }}
                   />
 
-                  {(queueActive || busy || abortRef.current) && (
-                    <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                      <StopButton
-                        onClick={onStop}
-                        className="pointer-events-auto"
-                        title="Stop (Esc)"
-                      />
-                    </div>
+                  <div className="relative flex-1 min-w-0">
+                    <textarea
+                      ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
+                      rows={1}
+                      className="w-full resize-none bg-transparent px-3 py-2 pr-12 text-sm leading-6 text-slate-900 whitespace-pre-wrap break-words outline-none placeholder:text-slate-500 dark:text-slate-100 dark:placeholder:text-slate-400"
+                      placeholder={
+                        pendingFiles.length > 0
+                          ? 'Add a note or question for this document (optional)'
+                          : 'Send a message'
+                      }
+                      value={userText}
+                      onChange={(e) => setUserText(e.target.value)}
+                      onFocus={() => setInputFocused(true)}
+                      onBlur={(e) => {
+                        const next = e.relatedTarget as HTMLElement | null;
+                        if (next?.dataset?.suggestionButton === 'true') {
+                          return;
+                        }
+                        setInputFocused(false);
+                      }}
+                      onKeyDown={(e) => {
+                        const isComposing = (e.nativeEvent as any).isComposing;
+                        if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
+                          e.preventDefault();
+                          onSubmit();
+                        }
+                      }}
+                    />
+
+                    {(queueActive || busy || abortRef.current) && (
+                      <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+                        <StopButton
+                          onClick={onStop}
+                          className="pointer-events-auto"
+                          title="Stop (Esc)"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {!busy && (
+                    <button
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50"
+                      type="submit"
+                      disabled={pendingFiles.length === 0 && !userText.trim()}
+                      aria-label="Send"
+                      title="Send"
+                    >
+                      <Send size={16} />
+                    </button>
                   )}
                 </div>
-
-                {!busy && (
-                  <button
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50"
-                    type="submit"
-                    disabled={pendingFiles.length === 0 && !userText.trim()}
-                    aria-label="Send"
-                    title="Send"
-                  >
-                    <Send size={16} />
-                  </button>
-                )}
               </form>
             </div>
         </div>
