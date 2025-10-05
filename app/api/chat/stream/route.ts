@@ -12,6 +12,8 @@ import { RESEARCH_BRIEF_STYLE } from '@/lib/styles';
 import { SUPPORTED_LANGS } from '@/lib/i18n/constants';
 import { STUDY_MODE_SYSTEM, THINKING_MODE_HINT, STUDY_OUTPUT_GUIDE, languageInstruction } from '@/lib/prompts/presets';
 import { createLocaleEnforcedStream } from '@/lib/i18n/enforce';
+import { buildFormatInstruction } from '@/lib/formats/build';
+import type { FormatId, Mode as FormatMode, Lang as FormatLang } from '@/lib/formats/types';
 
 function normalizeLang(raw: string | null | undefined): string {
   const cleaned = (raw || 'en').toLowerCase().split('-')[0].replace(/[^a-z]/g, '');
@@ -108,12 +110,16 @@ export async function POST(req: NextRequest) {
   const studyFlag = reqUrl.searchParams.get('study') === '1';
   const thinkingFlag = reqUrl.searchParams.get('thinking') === '1';
   const modeTag = reqUrl.searchParams.get('mode');
+  const formatParam = reqUrl.searchParams.get('formatId');
   const langQuery = reqUrl.searchParams.get('lang');
   let body: any = {};
   try { body = await req.json(); } catch {}
   const { context, clientRequestId, mode } = body;
+  const formatFromBody = typeof body?.formatId === 'string' ? body.formatId : undefined;
   const flags = gateFlagsByMode(modeTag, { study: studyFlag, thinking: thinkingFlag });
   const normalizedModeTag = (modeTag || '').toLowerCase();
+  const rawFormatId = (formatParam || formatFromBody || '').trim().toLowerCase();
+  const formatId = rawFormatId ? (rawFormatId as FormatId) : undefined;
   const allowHistory = body?.allowHistory !== false;
   const requestedLang = typeof body?.lang === 'string' ? body.lang : null;
   const headerLang = req.headers.get('x-user-lang') || req.headers.get('x-lang') || null;
@@ -124,6 +130,7 @@ export async function POST(req: NextRequest) {
       || null,
   );
   const langDirectiveBlock = languageInstruction(lang);
+  const formatInstruction = buildFormatInstruction(lang as FormatLang, normalizedModeTag as FormatMode, formatId);
   const persona = personaFromPrefs(body?.personalization);
   const sysPrelude = [persona].filter(Boolean).join('\n\n');
   const studyChunks = flags.study ? [STUDY_MODE_SYSTEM.trim(), STUDY_OUTPUT_GUIDE.trim()] : [];
@@ -172,10 +179,12 @@ export async function POST(req: NextRequest) {
         .join('\n\n')
     : '';
 
+  const formatChunks = formatInstruction ? [formatInstruction] : [];
   const researchSystem = [
     langDirectiveBlock,
     ...studyChunks,
     ...thinkingChunks,
+    ...formatChunks,
     ...thinkingGuard,
     RESEARCH_BRIEF_STYLE + (srcBlock ? `\n\nSOURCES:\n${srcBlock}` : ''),
     sysPrelude,
@@ -328,6 +337,7 @@ export async function POST(req: NextRequest) {
     langDirectiveBlock,
     ...studyChunks,
     ...thinkingChunks,
+    ...formatChunks,
     ...thinkingGuard,
     combinedSystem,
     sysPrelude,
