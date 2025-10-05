@@ -2348,14 +2348,14 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     const resolvedMode = activeModeTag && isValidMode(activeModeTag) ? activeModeTag : undefined;
     if (!resolvedMode) return formatId;
 
-    const userPinnedFormat = formatMap[resolvedMode];
-    if (userPinnedFormat && isFormatAllowed(userPinnedFormat, resolvedMode)) {
-      return userPinnedFormat;
-    }
-
     const wantsTable = looksLikeTableIntent(messageText) || looksLikeComparisonIntent(messageText);
     if (wantsTable && isFormatAllowed('table_compare', resolvedMode)) {
       return 'table_compare';
+    }
+
+    const userPinnedFormat = formatMap[resolvedMode];
+    if (userPinnedFormat && isFormatAllowed(userPinnedFormat, resolvedMode)) {
+      return userPinnedFormat;
     }
 
     if (formatId && isFormatAllowed(formatId, resolvedMode)) {
