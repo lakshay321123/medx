@@ -173,11 +173,11 @@ export async function POST(req: NextRequest) {
 
   const researchSystem = [
     langDirectiveBlock,
-    RESEARCH_BRIEF_STYLE + (srcBlock ? `\n\nSOURCES:\n${srcBlock}` : ''),
-    sysPrelude,
     ...studyChunks,
     ...thinkingChunks,
     ...thinkingGuard,
+    RESEARCH_BRIEF_STYLE + (srcBlock ? `\n\nSOURCES:\n${srcBlock}` : ''),
+    sysPrelude,
   ].filter(Boolean).join('\n\n');
 
   const briefMessages: Array<{role:'system'|'user'|'assistant'; content:string}> =
@@ -325,11 +325,11 @@ export async function POST(req: NextRequest) {
   const combinedSystem = systemMessages.map((m: any) => m.content).filter(Boolean).join('\n\n');
   const finalSystem = [
     langDirectiveBlock,
-    combinedSystem,
-    sysPrelude,
     ...studyChunks,
     ...thinkingChunks,
     ...thinkingGuard,
+    combinedSystem,
+    sysPrelude,
   ].filter(Boolean).join('\n\n');
   finalMessages = finalSystem ? [{ role: 'system', content: finalSystem }, ...nonSystemMessages] : nonSystemMessages;
 

@@ -19,7 +19,7 @@ import { detectFollowupIntent } from '@/lib/intents';
 import { BRAND_NAME } from "@/lib/brand";
 import { usePrefs, buildPersonalizationPayload } from "@/components/providers/PreferencesProvider";
 import { useI18n } from '@/lib/i18n/useI18n';
-import { applyLocalePostprocessing } from '@/lib/chat/postprocess';
+import { applyLanguageEnforcement } from '@/lib/chat/outputPipeline';
 import SuggestionChips from "@/components/chat/SuggestionChips";
 import SuggestBar from "@/components/suggest/SuggestBar";
 import ComposerFocus from "@/components/chat/ComposerFocus";
@@ -785,7 +785,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const handlePendingFinalize = useCallback(
     (messageId: string, finalContent: string, extras?: { followUps?: unknown; citations?: unknown; error?: string | null }) => {
       const processedContent = uiLanguage && uiLanguage !== 'en'
-        ? applyLocalePostprocessing(finalContent, uiLanguage)
+        ? applyLanguageEnforcement(finalContent, uiLanguage)
         : finalContent;
       setMessages(prev =>
         prev.map(m => {
