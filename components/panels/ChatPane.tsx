@@ -784,9 +784,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const handlePendingFinalize = useCallback(
     (messageId: string, finalContent: string, extras?: { followUps?: unknown; citations?: unknown; error?: string | null }) => {
-      const processedContent = uiLanguage && uiLanguage !== 'en'
-        ? applyLanguageEnforcement(finalContent, uiLanguage)
-        : finalContent;
+      const processedContent = applyLanguageEnforcement(finalContent, uiLanguage ?? 'en');
       setMessages(prev =>
         prev.map(m => {
           if (m.id !== messageId) return m;
