@@ -709,6 +709,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const lang = prefs.lang;
   const allowHistory = prefs.allowHistory !== false && prefs.referenceChatHistory !== false;
   const { t, language: uiLanguage } = useI18n();
+  const composerPlaceholder = t('ui.composer.placeholder');
+  const documentNotePlaceholder = t('ui.composer.document_note_placeholder');
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userText, setUserText] = useState('');
@@ -4094,8 +4096,8 @@ ${systemCommon}` + baseSys;
                     className="w-full resize-none bg-transparent px-2 pr-12 text-sm leading-6 text-slate-900 outline-none placeholder:text-slate-500 dark:text-slate-100 dark:placeholder:text-slate-400"
                     placeholder={
                       pendingFiles.length > 0
-                        ? 'Add a note or question for this document (optional)'
-                        : 'Send a message'
+                        ? documentNotePlaceholder
+                        : composerPlaceholder
                     }
                     value={userText}
                     onChange={(e) => setUserText(e.target.value)}
