@@ -705,9 +705,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       prefs.about,
     ],
   );
-  const lang = prefs.lang;
+  const { t, language } = useI18n();
+  const lang = language ?? prefs.lang ?? 'en';
   const allowHistory = prefs.allowHistory !== false && prefs.referenceChatHistory !== false;
-  const { t } = useI18n();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userText, setUserText] = useState('');
@@ -2680,9 +2680,15 @@ ${systemCommon}` + baseSys;
         ];
       }
 
-      const url = `/api/chat/stream${researchMode ? '?research=1' : ''}`;
+      const qp = new URLSearchParams();
+      if (activeHelper === 'study') qp.set('study', '1');
+      if (activeHelper === 'thinking') qp.set('thinking', '1');
+      if (mode) qp.set('mode', String(mode));
+      if (researchMode) qp.set('research', '1');
+      if (language) qp.set('lang', language);
+      const endpoint = `/api/chat/stream${qp.toString() ? `?${qp.toString()}` : ''}`;
       mark('send');
-      const res = await fetch(url, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

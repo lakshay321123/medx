@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { profileChatSystem } from '@/lib/profileChatSystem';
 import { languageDirectiveFor, personaFromPrefs, SYSTEM_DEFAULT_LANG } from '@/lib/prompt/system';
+import { STUDY_MODE_SYSTEM, THINKING_MODE_HINT, STUDY_OUTPUT_GUIDE, languageInstruction } from '@/lib/prompts/presets';
 import { extractAll, canonicalizeInputs } from '@/lib/medical/engine/extract';
 import { BRAND_NAME } from "@/lib/brand";
 import { computeAll } from '@/lib/medical/engine/computeAll';
@@ -68,22 +69,46 @@ type WebHit = { title:string; snippet?:string; url:string; source?:string };
 export async function POST(req: NextRequest) {
   const reqUrl = new URL(req.url);
   const origin = reqUrl.origin;
-  const qp = reqUrl.searchParams.get('research');
+  const researchParam = reqUrl.searchParams.get('research');
   const long = reqUrl.searchParams.get('long') === '1';
+  const studyFlag = reqUrl.searchParams.get('study') === '1';
+  const thinkingFlag = reqUrl.searchParams.get('thinking') === '1';
+  const modeParam = reqUrl.searchParams.get('mode');
+  const langParam = reqUrl.searchParams.get('lang');
   let body: any = {};
   try { body = await req.json(); } catch {}
-  const { context, clientRequestId, mode } = body;
+  const { context, clientRequestId } = body;
+  const bodyMode = typeof body?.mode === 'string' ? body.mode : undefined;
+  const mode = typeof modeParam === 'string' && modeParam.length > 0 ? modeParam : bodyMode;
   const allowHistory = body?.allowHistory !== false;
   const requestedLang = typeof body?.lang === 'string' ? body.lang : undefined;
   const headerLang = req.headers.get('x-user-lang') || req.headers.get('x-lang') || undefined;
-  const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
+  const langTag =
+    (typeof langParam === 'string' && langParam.trim()) ||
+    (requestedLang && requestedLang.trim()) ||
+    (headerLang && headerLang.trim()) ||
+    SYSTEM_DEFAULT_LANG;
   const lang = langTag.toLowerCase();
+  const helperDirectives: string[] = [];
+  if (studyFlag) {
+    helperDirectives.push(STUDY_MODE_SYSTEM, STUDY_OUTPUT_GUIDE);
+  }
+  if (thinkingFlag) {
+    helperDirectives.push(THINKING_MODE_HINT);
+  }
   const langDirective = languageDirectiveFor(lang);
   const persona = personaFromPrefs(body?.personalization);
-  const sysPrelude = [langDirective, persona].filter(Boolean).join('\n\n');
+  const sysPrelude = [
+    languageInstruction(lang),
+    langDirective,
+    persona,
+    ...helperDirectives,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 
   const research =
-    qp === '1' || qp === 'true' || body?.research === true || body?.research === 'true';
+    researchParam === '1' || researchParam === 'true' || body?.research === true || body?.research === 'true';
 
   // 1) Gather existing conversation
   const history: Array<{role:'system'|'user'|'assistant'; content:string}> =
