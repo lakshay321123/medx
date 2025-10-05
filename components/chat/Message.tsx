@@ -1,4 +1,4 @@
-import Markdown from "react-markdown";
+import ChatMarkdown from "@/components/ChatMarkdown";
 import FeedbackControls from "./FeedbackControls";
 
 type ChatMessage = {
@@ -35,7 +35,7 @@ export default function Message({ message }: MessageProps) {
 
   return (
     <div>
-      <Markdown>{message.content ?? ""}</Markdown>
+      <ChatMarkdown content={message.content ?? ""} />
       <div className="mt-2">
         <FeedbackControls messageId={message.id} />
       </div>
