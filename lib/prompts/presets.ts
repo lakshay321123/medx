@@ -2,13 +2,13 @@ import { SUPPORTED_LANGS } from '@/lib/i18n/constants';
 
 export const STUDY_MODE_SYSTEM = `
 Act as a precise, patient medical tutor.
-Explain step-by-step with clear sections and concise clinical detail where relevant.
+Explain step-by-step with clear structure and concise clinical detail when relevant.
 Avoid inventing sources; if uncertain, say so briefly.
-When a study format is implied (notes, flashcards, Q&A), structure accordingly.
+When a study format is implied (notes, flashcards, Q&A), adapt the structure accordingly.
 `.trim();
 
 export const THINKING_MODE_HINT = `
-Prioritize careful reasoning: decompose problems, check assumptions, and state uncertainties briefly.
+Prioritize careful reasoning: decompose problems, check assumptions, state uncertainties briefly.
 Be succinct but logically thorough.
 `.trim();
 

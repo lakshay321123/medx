@@ -127,6 +127,9 @@ export async function POST(req: NextRequest) {
   const sysPrelude = [persona].filter(Boolean).join('\n\n');
   const studyChunks = flags.study ? [STUDY_MODE_SYSTEM.trim(), STUDY_OUTPUT_GUIDE.trim()] : [];
   const thinkingChunks = flags.thinking ? [THINKING_MODE_HINT.trim()] : [];
+  const thinkingGuard = flags.thinking
+    ? [`Headings and section labels must be in ${lang} only; do not append English parentheticals.`]
+    : [];
 
   const research =
     qp === '1' || qp === 'true' || body?.research === true || body?.research === 'true';
@@ -174,6 +177,7 @@ export async function POST(req: NextRequest) {
     sysPrelude,
     ...studyChunks,
     ...thinkingChunks,
+    ...thinkingGuard,
   ].filter(Boolean).join('\n\n');
 
   const briefMessages: Array<{role:'system'|'user'|'assistant'; content:string}> =
@@ -325,6 +329,7 @@ export async function POST(req: NextRequest) {
     sysPrelude,
     ...studyChunks,
     ...thinkingChunks,
+    ...thinkingGuard,
   ].filter(Boolean).join('\n\n');
   finalMessages = finalSystem ? [{ role: 'system', content: finalSystem }, ...nonSystemMessages] : nonSystemMessages;
 
