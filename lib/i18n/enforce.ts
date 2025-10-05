@@ -1,4 +1,5 @@
 import { HEADING_MAP } from '@/lib/i18n/headingMap';
+import { normalizeHeadingKey } from '@/lib/i18n/headingKey';
 import { localizeDigits } from '@/lib/i18n/numeral';
 
 const SAFE = '__SAFESEG__';
@@ -59,13 +60,13 @@ function rewriteHeadings(text: string, lang: string) {
   if (!map) return text;
 
   let out = text.replace(/^(#{1,4}\s*)([^\n]+)$/gm, (_match, hashes, title) => {
-    const key = String(title).trim().toLowerCase();
+    const key = normalizeHeadingKey(String(title));
     const tr = map[key];
     return tr ? `${hashes}${tr}` : `${hashes}${title}`;
   });
 
   out = out.replace(/^(\*\*)([^*]+)(\*\*)\s*$/gm, (_match, open, title, close) => {
-    const key = String(title).trim().toLowerCase();
+    const key = normalizeHeadingKey(String(title));
     const tr = map[key];
     return tr ? `${open}${tr}${close}` : `${open}${title}${close}`;
   });
