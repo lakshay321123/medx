@@ -9,14 +9,12 @@ import { clamp } from '@/lib/medical/engine/calculators/utils';
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
 import { RESEARCH_BRIEF_STYLE } from '@/lib/styles';
+import { SUPPORTED_LANGS } from '@/lib/i18n/constants';
 import { STUDY_MODE_SYSTEM, THINKING_MODE_HINT, STUDY_OUTPUT_GUIDE, languageInstruction } from '@/lib/prompts/presets';
 
-const SUPPORTED_LANGS = ['en', 'hi', 'es', 'fr', 'it', 'ar', 'de', 'zh'];
-
 function normalizeLang(raw: string | null | undefined): string {
-  if (!raw) return 'en';
-  const base = raw.toLowerCase().split('-')[0].replace(/[^a-z]/g, '');
-  return SUPPORTED_LANGS.includes(base) ? base : 'en';
+  const cleaned = (raw || 'en').toLowerCase().split('-')[0].replace(/[^a-z]/g, '');
+  return (SUPPORTED_LANGS as readonly string[]).includes(cleaned) ? cleaned : 'en';
 }
 
 function readIntEnv(name: string, fallback: number) {

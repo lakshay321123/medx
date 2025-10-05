@@ -1,3 +1,5 @@
+import { SUPPORTED_LANGS } from '@/lib/i18n/constants';
+
 export const STUDY_MODE_SYSTEM = `
 Act as a precise, patient medical tutor.
 Explain step-by-step with clear sections and concise clinical detail where relevant.
@@ -24,8 +26,7 @@ Default structure if format is unspecified:
  */
 export function languageInstruction(lang: string) {
   const safe = (lang || 'en').toLowerCase().split('-')[0].replace(/[^a-z]/g, '');
-  const SUPPORTED_LANGS = ['en', 'hi', 'es', 'fr', 'it', 'ar', 'de', 'zh'];
-  const target = SUPPORTED_LANGS.includes(safe) ? safe : 'en';
+  const target = (SUPPORTED_LANGS as readonly string[]).includes(safe) ? safe : 'en';
 
   return `
 Respond entirely in "${target}".

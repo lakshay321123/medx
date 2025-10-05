@@ -1,79 +1,36 @@
 import { HEADING_MAP } from '@/lib/i18n/headingMap';
 
-function hasIdentifierNeighbor(original: string, start: number, direction: -1 | 1, asciiTest: RegExp) {
-  let index = start + direction;
-  while (index >= 0 && index < original.length) {
-    const char = original[index];
-    if (char === '-' || char === '_' || char === ':') {
-      index += direction;
-      continue;
-    }
-    return asciiTest.test(char);
-  }
-  return false;
-}
-
-function convertDigitsSegment(segment: string, lang: string): string {
-  const asciiAdjacent = /[A-Za-z]/;
+function convertDigit(lang: string, digit: string): string {
   if (lang === 'zh') {
     const zhDigits = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
-    return segment.replace(/\d/g, (digit, offset, original) => {
-      const prev = original[offset - 1];
-      const next = original[offset + 1];
-      if (
-        (prev && asciiAdjacent.test(prev)) ||
-        (next && asciiAdjacent.test(next)) ||
-        hasIdentifierNeighbor(original, offset, -1, asciiAdjacent) ||
-        hasIdentifierNeighbor(original, offset, 1, asciiAdjacent)
-      ) {
-        return digit;
-      }
-      return zhDigits[Number(digit)] ?? digit;
-    });
+    return zhDigits[Number(digit)] ?? digit;
   }
 
   const ranges: Record<string, number> = { hi: 0x0966, ar: 0x0660 };
   const base = ranges[lang];
-  if (!base) return segment;
-
-  return segment.replace(/\d/g, (digit, offset, original) => {
-    const prev = original[offset - 1];
-    const next = original[offset + 1];
-    if (
-      (prev && asciiAdjacent.test(prev)) ||
-      (next && asciiAdjacent.test(next)) ||
-      hasIdentifierNeighbor(original, offset, -1, asciiAdjacent) ||
-      hasIdentifierNeighbor(original, offset, 1, asciiAdjacent)
-    ) {
-      return digit;
-    }
-    return String.fromCharCode(base + Number(digit));
-  });
+  if (!base) return digit;
+  return String.fromCharCode(base + Number(digit));
 }
 
 export function localizeDigits(text: string, lang: string) {
   if (lang !== 'hi' && lang !== 'ar' && lang !== 'zh') return text;
 
   const maskPattern = /```[\s\S]*?```|`[^`]*`|\[[^\]]*\]\([^\)]+\)|https?:\/\/\S+|(?=\S*[A-Za-z])\S*[\\\/]\S*/g;
-  let result = '';
-  let lastIndex = 0;
-  const matches = text.matchAll(maskPattern);
+  const placeholders: string[] = [];
+  const masked = text.replace(maskPattern, match => {
+    const token = `__MEDX_MASK_${placeholders.length}__`;
+    placeholders.push(match);
+    return token;
+  });
 
-  for (const match of matches) {
-    const index = match.index ?? 0;
-    if (index > lastIndex) {
-      const segment = text.slice(lastIndex, index);
-      result += convertDigitsSegment(segment, lang);
-    }
-    result += match[0];
-    lastIndex = index + match[0].length;
-  }
+  const converted = masked.replace(/\d/g, d => convertDigit(lang, d));
 
-  if (lastIndex < text.length) {
-    result += convertDigitsSegment(text.slice(lastIndex), lang);
-  }
-
-  return result;
+  return converted.replace(/__MEDX_MASK_(\d+)__/g, (_, index) => {
+    const idx = Number(index);
+    return Number.isFinite(idx) && placeholders[idx] !== undefined
+      ? placeholders[idx]
+      : `__MEDX_MASK_${index}__`;
+  });
 }
 
 export function applyLocalePostprocessing(raw: string, lang: string): string {
