@@ -7,20 +7,24 @@ const DEFAULT_LOCALE = "en-IN";
 
 const LANGUAGE_NAMES: Record<string, string> = {
   ar: "Arabic",
+  de: "German",
   en: "English",
   es: "Spanish",
   fr: "French",
   hi: "Hindi",
   it: "Italian",
+  zh: "Chinese",
 };
 
 const LOCALE_MAP: Record<string, string> = {
   ar: "ar-AE",
+  de: "de-DE",
   en: "en-IN",
   es: "es-ES",
   fr: "fr-FR",
   hi: "hi-IN",
   it: "it-IT",
+  zh: "zh-CN",
 };
 
 const cap = (s: string, n: number) =>
@@ -79,7 +83,8 @@ export function resolveLocaleForLang(lang?: string): string {
 
 export const languageDirectiveFor = (lang: string = SYSTEM_DEFAULT_LANG): string => {
   const code = normalizeLang(lang);
-  return `Always answer in ${code}. If the user writes in another language, still answer in ${code}.`;
+  const label = languageNameFor(code);
+  return `Always answer in ${label} (${code}). If the user writes in another language, still answer in ${label} (${code}).`;
 };
 
 type BuildSystemPromptOptions = {

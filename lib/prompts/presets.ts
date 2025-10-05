@@ -1,4 +1,5 @@
 import { SUPPORTED_LANGS } from '@/lib/i18n/constants';
+import { languageNameFor } from '@/lib/prompt/system';
 
 export const STUDY_MODE_SYSTEM = `
 Act as a precise, patient medical tutor.
@@ -27,12 +28,13 @@ Default structure if format is unspecified:
 export function languageInstruction(lang: string) {
   const safe = (lang || 'en').toLowerCase().split('-')[0].replace(/[^a-z]/g, '');
   const target = (SUPPORTED_LANGS as readonly string[]).includes(safe) ? safe : 'en';
+  const label = languageNameFor(target);
 
   return `
-Respond entirely in "${target}".
-Do not mix languages. If user input mixes multiple languages, output must be in "${target}".
+Respond entirely in ${label} (${target}).
+Do not mix languages. If user input mixes multiple languages, output must stay in ${label} (${target}).
 Translate numeric headings, lists, and section titles.
 Preserve hyperlinks, file paths, and identifiers exactly as-is.
-Keep technical/medical terms in "${target}" unless no native equivalent exists.
+Keep technical/medical terms in ${label} (${target}) unless no native equivalent exists.
 `.trim();
 }
