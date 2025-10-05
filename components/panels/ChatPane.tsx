@@ -19,6 +19,7 @@ import { detectFollowupIntent } from '@/lib/intents';
 import { BRAND_NAME } from "@/lib/brand";
 import { usePrefs, buildPersonalizationPayload } from "@/components/providers/PreferencesProvider";
 import { useI18n } from '@/lib/i18n/useI18n';
+import { enforceLocale } from '@/lib/i18n/enforce';
 import SuggestionChips from "@/components/chat/SuggestionChips";
 import SuggestBar from "@/components/suggest/SuggestBar";
 import ComposerFocus from "@/components/chat/ComposerFocus";
@@ -743,6 +744,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const sendRef = useRef<(text: string, researchMode: boolean, opts?: SendOpts) => void>();
   const researchModeRef = useRef<boolean>(false);
   const queueAbortRef = useRef<AbortController | null>(null);
+  const helperStorageBooted = useRef(false);
   const { filters } = useResearchFilters();
   const recordShortMem = useCallback(
     (threadId: string | null | undefined, role: "user" | "assistant", text: string) => {
@@ -773,19 +775,21 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const handlePendingContentUpdate = useCallback(
     (messageId: string, text: string) => {
+      const safeText = enforceLocale(text, uiLanguage ?? 'en', { forbidEnglishHeadings: true });
       setMessages(prev =>
-        prev.map(m => (m.id === messageId ? ({ ...m, content: text } as ChatMessage) : m)),
+        prev.map(m => (m.id === messageId ? ({ ...m, content: safeText } as ChatMessage) : m)),
       );
     },
-    [setMessages],
+    [setMessages, uiLanguage],
   );
 
   const handlePendingFinalize = useCallback(
     (messageId: string, finalContent: string, extras?: { followUps?: unknown; citations?: unknown; error?: string | null }) => {
+      const processedContent = enforceLocale(finalContent, uiLanguage ?? 'en', { forbidEnglishHeadings: true });
       setMessages(prev =>
         prev.map(m => {
           if (m.id !== messageId) return m;
-          const next = { ...m, content: finalContent, pending: false } as ChatMessage;
+          const next = { ...m, content: processedContent, pending: false } as ChatMessage;
           if (extras?.followUps !== undefined) {
             (next as any).followUps = extras.followUps;
           }
@@ -799,7 +803,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         }),
       );
     },
-    [setMessages],
+    [setMessages, uiLanguage],
   );
 
   const {
@@ -807,6 +811,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     begin: beginPendingAssistant,
     markStreaming: markPendingAssistantStreaming,
     enqueue: enqueuePendingAssistant,
+    reset: resetPendingAssistant,
     finish: finishPendingAssistant,
     cancel: cancelPendingAssistant,
   } = usePendingAssistantStages({
@@ -1092,6 +1097,24 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const router = useRouter(); // auto-new-thread
   const threadId = sp.get('threadId');
+  const storageThreadId = threadId ?? 'default';
+  useEffect(() => {
+    helperStorageBooted.current = false;
+    const key = `thread:${storageThreadId}:helper`;
+    const saved = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null;
+    helperStorageBooted.current = true;
+    setActiveHelper((saved === 'study' || saved === 'thinking') ? (saved as HelperLabel) : null);
+  }, [storageThreadId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !helperStorageBooted.current) return;
+    const key = `thread:${storageThreadId}:helper`;
+    if (activeHelper) {
+      window.localStorage.setItem(key, activeHelper);
+    } else {
+      window.localStorage.removeItem(key);
+    }
+  }, [activeHelper, storageThreadId]);
   const context = sp.get('context');
   // ADD: stable fallback thread key for default chat
   const stableThreadId = threadId || 'default-thread';
@@ -2693,8 +2716,11 @@ ${systemCommon}` + baseSys;
       if (activeHelper === 'study') qp.set('study', '1');
       if (activeHelper === 'thinking') qp.set('thinking', '1');
       if (activeModeTag) qp.set('mode', activeModeTag);
-      const languageParam = (uiLanguage || lang || '').trim();
-      if (languageParam) qp.set('lang', languageParam);
+      const languageParam = (uiLanguage?.trim() || lang?.trim() || '');
+      if (languageParam) {
+        // Always send the active UI language for server-side locking.
+        qp.set('lang', languageParam);
+      }
       const qs = qp.toString();
       const url = `/api/chat/stream${qs ? `?${qs}` : ''}`;
       mark('send');
@@ -2751,36 +2777,46 @@ ${systemCommon}` + baseSys;
           if (line.trim() === 'data: [DONE]') continue;
           try {
             const payload = JSON.parse(line.replace(/^data:\s*/, ''));
-            const delta = payload?.choices?.[0]?.delta?.content;
-            if (delta) {
-              acc += delta;
-              if (!sawContent) {
-                markPendingAssistantStreaming(pendingId);
-                sawContent = true;
-              }
-              if (!loggedFirstToken) {
-                loggedFirstToken = true;
-                try {
-                  const tft = since('send', { clearBase: true });
-                  if (!Number.isNaN(tft)) {
-                    console.log('[latency] Tft(ms)=', tft);
-                  }
-                } catch {
-                  // ignore timing failures; keep streaming
+            const deltaNode = payload?.choices?.[0]?.delta;
+            const resetStream = deltaNode?.medx_reset === true;
+            const delta = typeof deltaNode?.content === 'string' ? deltaNode.content : '';
+            if (!delta && !resetStream) continue;
+
+            if (!sawContent) {
+              markPendingAssistantStreaming(pendingId);
+              sawContent = true;
+            }
+            if (!loggedFirstToken) {
+              loggedFirstToken = true;
+              try {
+                const tft = since('send', { clearBase: true });
+                if (!Number.isNaN(tft)) {
+                  console.log('[latency] Tft(ms)=', tft);
                 }
+              } catch {
+                // ignore timing failures; keep streaming
               }
+            }
+
+            if (resetStream) {
+              acc = delta;
+              resetPendingAssistant(pendingId, delta);
+            } else if (delta) {
+              acc += delta;
               enqueuePendingAssistant(pendingId, delta);
-              if (!CHAT_UX_V2_ENABLED) {
-                setMessages(prev =>
-                  prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m))
-                );
-              }
+            }
+
+            if (!CHAT_UX_V2_ENABLED) {
+              setMessages(prev =>
+                prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m))
+              );
             }
           } catch {}
         }
       }
       const { main, followUps } = splitFollowUps(acc);
-      finishPendingAssistant(pendingId, main, { followUps });
+      const safeMain = enforceLocale(main, uiLanguage ?? 'en', { forbidEnglishHeadings: true });
+      finishPendingAssistant(pendingId, safeMain, { followUps });
       opts.onSuccess?.(pendingId);
       if (researchMode) {
         const lastUserMsg = text;
@@ -2798,11 +2834,11 @@ ${systemCommon}` + baseSys;
           ));
         } catch {}
       }
-      recordShortMem(threadId, "assistant", main);
-      recordStructured(threadId, main);
-      recordShortMem(stableThreadId, "assistant", main);
-      if (main.length > 400) {
-        setFromChat({ id: pendingId, content: main });
+      recordShortMem(threadId, "assistant", safeMain);
+      recordStructured(threadId, safeMain);
+      recordShortMem(stableThreadId, "assistant", safeMain);
+      if (safeMain.length > 400) {
+        setFromChat({ id: pendingId, content: safeMain });
         setUi(prev => ({ ...prev, contextFrom: 'Conversation summary' }));
       }
     } catch (e: any) {
@@ -2819,7 +2855,6 @@ ${systemCommon}` + baseSys;
       recordShortMem(stableThreadId, 'assistant', content);
       opts.onError?.();
     } finally {
-      setActiveHelper(null);
       setBusy(false);
       setThinkingStartedAt(null);
       abortRef.current = null;

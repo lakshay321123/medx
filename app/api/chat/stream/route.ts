@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { profileChatSystem } from '@/lib/profileChatSystem';
-import { languageDirectiveFor, personaFromPrefs, SYSTEM_DEFAULT_LANG } from '@/lib/prompt/system';
+import { personaFromPrefs } from '@/lib/prompt/system';
 import { extractAll, canonicalizeInputs } from '@/lib/medical/engine/extract';
 import { BRAND_NAME } from "@/lib/brand";
 import { computeAll } from '@/lib/medical/engine/computeAll';
@@ -9,7 +9,14 @@ import { clamp } from '@/lib/medical/engine/calculators/utils';
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
 import { RESEARCH_BRIEF_STYLE } from '@/lib/styles';
+import { SUPPORTED_LANGS } from '@/lib/i18n/constants';
 import { STUDY_MODE_SYSTEM, THINKING_MODE_HINT, STUDY_OUTPUT_GUIDE, languageInstruction } from '@/lib/prompts/presets';
+import { createLocaleEnforcedStream } from '@/lib/i18n/enforce';
+
+function normalizeLang(raw: string | null | undefined): string {
+  const cleaned = (raw || 'en').toLowerCase().split('-')[0].replace(/[^a-z]/g, '');
+  return (SUPPORTED_LANGS as readonly string[]).includes(cleaned) ? cleaned : 'en';
+}
 
 function readIntEnv(name: string, fallback: number) {
   const raw = process.env[name];
@@ -108,16 +115,22 @@ export async function POST(req: NextRequest) {
   const flags = gateFlagsByMode(modeTag, { study: studyFlag, thinking: thinkingFlag });
   const normalizedModeTag = (modeTag || '').toLowerCase();
   const allowHistory = body?.allowHistory !== false;
-  const requestedLang = typeof body?.lang === 'string' ? body.lang : undefined;
-  const headerLang = req.headers.get('x-user-lang') || req.headers.get('x-lang') || undefined;
-  const langTag = (langQuery && langQuery.trim())
-    || (requestedLang && requestedLang.trim())
-    || (headerLang && headerLang.trim())
-    || SYSTEM_DEFAULT_LANG;
-  const lang = langTag.toLowerCase();
-  const langDirective = languageDirectiveFor(lang);
+  const requestedLang = typeof body?.lang === 'string' ? body.lang : null;
+  const headerLang = req.headers.get('x-user-lang') || req.headers.get('x-lang') || null;
+  const lang = normalizeLang(
+    (langQuery && langQuery.trim())
+      || (requestedLang && requestedLang.trim())
+      || (headerLang && headerLang.trim())
+      || null,
+  );
+  const langDirectiveBlock = languageInstruction(lang);
   const persona = personaFromPrefs(body?.personalization);
-  const sysPrelude = [langDirective, persona].filter(Boolean).join('\n\n');
+  const sysPrelude = [persona].filter(Boolean).join('\n\n');
+  const studyChunks = flags.study ? [STUDY_MODE_SYSTEM.trim(), STUDY_OUTPUT_GUIDE.trim()] : [];
+  const thinkingChunks = flags.thinking ? [THINKING_MODE_HINT.trim()] : [];
+  const thinkingGuard = flags.thinking
+    ? [`Headings and section labels must be in ${lang} only; do not append English parentheticals.`]
+    : [];
 
   const research =
     qp === '1' || qp === 'true' || body?.research === true || body?.research === 'true';
@@ -159,15 +172,13 @@ export async function POST(req: NextRequest) {
         .join('\n\n')
     : '';
 
-  const researchPresetChunks: string[] = [];
-  if (sysPrelude) researchPresetChunks.push(sysPrelude);
-  if (lang) researchPresetChunks.push(languageInstruction(lang));
-  if (flags.study) researchPresetChunks.push(STUDY_MODE_SYSTEM.trim(), STUDY_OUTPUT_GUIDE.trim());
-  if (flags.thinking) researchPresetChunks.push(THINKING_MODE_HINT.trim());
-
   const researchSystem = [
+    langDirectiveBlock,
+    ...studyChunks,
+    ...thinkingChunks,
+    ...thinkingGuard,
     RESEARCH_BRIEF_STYLE + (srcBlock ? `\n\nSOURCES:\n${srcBlock}` : ''),
-    ...researchPresetChunks,
+    sysPrelude,
   ].filter(Boolean).join('\n\n');
 
   const briefMessages: Array<{role:'system'|'user'|'assistant'; content:string}> =
@@ -313,17 +324,14 @@ export async function POST(req: NextRequest) {
   const systemMessages = finalMessages.filter((m: any) => m.role === 'system');
   const nonSystemMessages = finalMessages.filter((m: any) => m.role !== 'system');
   const combinedSystem = systemMessages.map((m: any) => m.content).filter(Boolean).join('\n\n');
-  const presetChunks: string[] = [];
-  if (lang) {
-    presetChunks.push(languageInstruction(lang));
-  }
-  if (flags.study) {
-    presetChunks.push(STUDY_MODE_SYSTEM.trim(), STUDY_OUTPUT_GUIDE.trim());
-  }
-  if (flags.thinking) {
-    presetChunks.push(THINKING_MODE_HINT.trim());
-  }
-  const finalSystem = [combinedSystem, sysPrelude, ...presetChunks.filter(Boolean)].filter(Boolean).join('\n\n');
+  const finalSystem = [
+    langDirectiveBlock,
+    ...studyChunks,
+    ...thinkingChunks,
+    ...thinkingGuard,
+    combinedSystem,
+    sysPrelude,
+  ].filter(Boolean).join('\n\n');
   finalMessages = finalSystem ? [{ role: 'system', content: finalSystem }, ...nonSystemMessages] : nonSystemMessages;
 
   const requestedMaxTokens = typeof body?.max_tokens === 'number' ? body.max_tokens : undefined;
@@ -361,8 +369,13 @@ export async function POST(req: NextRequest) {
     return new Response(`LLM error: ${err}`, { status: 500 });
   }
 
-  // Pass-through SSE; frontend parses "data: {delta.content}"
-  return new Response(upstream.body, {
+  if (!upstream.body) {
+    return new Response('LLM error: empty body', { status: 500 });
+  }
+
+  const enforcedStream = createLocaleEnforcedStream(upstream.body, lang, { forbidEnglishHeadings: true });
+
+  return new Response(enforcedStream, {
     headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }
   });
 }

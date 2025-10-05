@@ -1,12 +1,14 @@
+import { SUPPORTED_LANGS } from '@/lib/i18n/constants';
+
 export const STUDY_MODE_SYSTEM = `
 Act as a precise, patient medical tutor.
-Explain step-by-step with clear sections and concise clinical detail where relevant.
+Explain step-by-step with clear structure and concise clinical detail when relevant.
 Avoid inventing sources; if uncertain, say so briefly.
-When a study format is implied (notes, flashcards, Q&A), structure accordingly.
+When a study format is implied (notes, flashcards, Q&A), adapt the structure accordingly.
 `.trim();
 
 export const THINKING_MODE_HINT = `
-Prioritize careful reasoning: decompose problems, check assumptions, and state uncertainties briefly.
+Prioritize careful reasoning: decompose problems, check assumptions, state uncertainties briefly.
 Be succinct but logically thorough.
 `.trim();
 
@@ -18,10 +20,19 @@ Default structure if format is unspecified:
 - Caveats/contraindications if applicable
 `.trim();
 
+/**
+ * Injection-safe language directive.
+ * IMPORTANT: Server must pass a SANITIZED language code (see server patch).
+ */
 export function languageInstruction(lang: string) {
+  const safe = (lang || 'en').toLowerCase().split('-')[0].replace(/[^a-z]/g, '');
+  const target = (SUPPORTED_LANGS as readonly string[]).includes(safe) ? safe : 'en';
+
   return `
-Respond entirely in "${lang}". Do not mix languages.
-If user input contains multiple languages, translate your output into "${lang}".
-Keep technical terms in "${lang}" unless the canonical term is universally used in another language.
+Respond entirely in "${target}".
+Do not mix languages. If user input mixes multiple languages, output must be in "${target}".
+Translate numeric headings, lists, and section titles.
+Preserve hyperlinks, file paths, and identifiers exactly as-is.
+Keep technical/medical terms in "${target}" unless no native equivalent exists.
 `.trim();
 }

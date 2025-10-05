@@ -6,6 +6,8 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { LinkBadge } from "./SafeLink";
+import { useI18n } from "@/lib/i18n/useI18n";
+import { enforceLocale } from "@/lib/i18n/enforce";
 
 // --- Normalizer ---
 // normalize: unwrap full-message fences, convert ==== to <hr>, bold-lines → headings, list bullets
@@ -91,7 +93,9 @@ function normalizeLLM(s: string) {
 }
 
 export default function ChatMarkdown({ content }: { content: string }) {
-  const prepared = normalizeLLM(normalize(content));
+  const { language } = useI18n();
+  const safeContent = enforceLocale(content, language ?? 'en', { forbidEnglishHeadings: true });
+  const prepared = normalizeLLM(normalize(safeContent));
 
   return (
     <div

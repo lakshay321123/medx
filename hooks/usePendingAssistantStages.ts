@@ -303,6 +303,39 @@ export function usePendingAssistantStages({ enabled, onContentUpdate, onFinalize
     [enabled, cancelTypewriter, onContentUpdate, runTypewriter],
   );
 
+  const reset = useCallback(
+    (messageId: string, text: string) => {
+      if (!enabled) {
+        onContentUpdate(messageId, text);
+        return;
+      }
+      clearAnalyzingTimers();
+      let tw = typewriterRef.current;
+      if (!tw.messageId || tw.messageId !== messageId) {
+        cancelTypewriter();
+        tw = typewriterRef.current = {
+          messageId,
+          queue: '',
+          displayed: text,
+          raf: null,
+          streaming: true,
+          lastTimestamp: 0,
+          onDrain: null,
+        };
+      } else {
+        if (typeof window !== 'undefined' && tw.raf != null) {
+          window.cancelAnimationFrame(tw.raf);
+          tw.raf = null;
+        }
+        tw.queue = '';
+        tw.displayed = text;
+        tw.lastTimestamp = 0;
+      }
+      onContentUpdate(messageId, text);
+    },
+    [enabled, onContentUpdate, clearAnalyzingTimers, cancelTypewriter],
+  );
+
   const finish = useCallback(
     (messageId: string, finalContent: string, extras?: PendingAssistantExtras) => {
       if (!enabled) {
@@ -362,6 +395,7 @@ export function usePendingAssistantStages({ enabled, onContentUpdate, onFinalize
     begin,
     markStreaming,
     enqueue,
+    reset,
     finish,
     cancel,
   } as const;

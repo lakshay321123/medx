@@ -18,6 +18,8 @@ import { newIdempotencyKey } from "@/lib/net/idempotency";
 import { retryFetch } from "@/lib/net/retry";
 import { normalizeNetworkError } from "@/lib/net/errors";
 import { pollJob } from "@/lib/net/pollJob";
+import { enforceLocale } from "@/lib/i18n/enforce";
+import { useI18n } from "@/lib/i18n/useI18n";
 
 const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== "0";
 const JOB_STORAGE_KEY = "lastJob";
@@ -96,6 +98,7 @@ function MessageRow({ m }: { m: ChatMessage }) {
 }
 
 export function ChatWindow() {
+  const { language } = useI18n();
   const messages = useChatStore(s => s.currentId ? s.threads[s.currentId]?.messages ?? [] : []);
   const addMessage = useChatStore(s => s.addMessage);
   const removeMessage = useChatStore(s => s.removeMessage);
@@ -189,16 +192,18 @@ export function ChatWindow() {
   }, []);
 
   const handlePendingContentUpdate = useCallback((messageId: string, text: string) => {
-    setPendingMessage(prev => (prev && prev.id === messageId ? { ...prev, content: text } : prev));
-  }, []);
+    const safeText = enforceLocale(text, language ?? 'en', { forbidEnglishHeadings: true });
+    setPendingMessage(prev => (prev && prev.id === messageId ? { ...prev, content: safeText } : prev));
+  }, [language]);
 
   const handlePendingFinalize = useCallback(
     (messageId: string, finalContent: string) => {
-      setPendingMessage(prev => (prev && prev.id === messageId ? { ...prev, content: finalContent } : prev));
-      addMessage({ id: messageId, role: "assistant", content: finalContent });
+      const safeFinal = enforceLocale(finalContent, language ?? 'en', { forbidEnglishHeadings: true });
+      setPendingMessage(prev => (prev && prev.id === messageId ? { ...prev, content: safeFinal } : prev));
+      addMessage({ id: messageId, role: "assistant", content: safeFinal });
       setPendingMessage(null);
     },
-    [addMessage],
+    [addMessage, language],
   );
 
   const {
