@@ -398,7 +398,6 @@ export function ChatWindow() {
     if (metaLabel === "study") {
       qs.set("research", "1");
       qs.set("format", "essay");
-      qs.set("cap", "high");
     }
 
     if (metaLabel === "thinking") {
@@ -478,7 +477,6 @@ export function ChatWindow() {
     if (metaLabel === "study") {
       req.formatDefault = "essay";
       req.format = "essay";
-      req.cap = "high";
     }
     if (metaLabel === "thinking") {
       req.thinkingProfile = "balanced";
