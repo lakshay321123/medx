@@ -44,7 +44,12 @@ export const FORMATS: FormatMeta[] = [
     id: 'table_compare',
     label: { en: 'Comparison table', hi: 'तुलनात्मक तालिका', es: 'Tabla comparativa', it: 'Tabella comparativa' },
     allowedModes: ['wellness', 'clinical', 'wellness_research', 'clinical_research', 'aidoc'],
-    systemHint: `Return a simple markdown table with consistent columns and short cells.`,
+    systemHint: [
+      'Return a **single markdown table only** (no paragraphs before or after).',
+      'Columns (exact, in this order): Topic | Mechanism/How it works | Expected benefit | Limitations/Side effects | Notes/Evidence',
+      'Keep cells concise (<= 20 words).',
+      'If information is missing, leave the cell blank rather than adding prose.',
+    ].join('\n'),
   },
   {
     id: 'json_structured',

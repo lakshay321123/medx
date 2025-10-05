@@ -4,6 +4,7 @@ import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 import { SUPPORTED_LANGS } from "@/lib/i18n/constants";
 import { createLocaleEnforcedStream } from "@/lib/i18n/enforce";
 import { buildFormatInstruction } from "@/lib/formats/build";
+import { coerceToTable, hasMarkdownTable, needsTableCoercion } from "@/lib/formats/tableGuard";
 import type { FormatId, Mode as FormatMode, Lang as FormatLang } from "@/lib/formats/types";
 
 // Optional calculator prelude (safe if engine absent)
@@ -77,7 +78,18 @@ export async function POST(req: Request) {
     return new Response(`OpenAI stream error: ${err}`, { status: 500 });
   }
 
-  const enforcedStream = createLocaleEnforcedStream(upstream.body, lang, { forbidEnglishHeadings: true });
+  const formatFinalizer = needsTableCoercion(formatId)
+    ? (text: string) => {
+        if (hasMarkdownTable(text)) return text;
+        const subject = (lastUser || '').split('\n')[0]?.trim() || 'Comparison';
+        return coerceToTable(subject, text);
+      }
+    : undefined;
+
+  const enforcedStream = createLocaleEnforcedStream(upstream.body, lang, {
+    forbidEnglishHeadings: true,
+    finalizer: formatFinalizer,
+  });
 
   const totalMs = Date.now() - t0;
   const appMs = Math.max(0, totalMs - modelMs);

@@ -111,13 +111,22 @@ export function enforceLocale(
 
 export type EnforceLocaleOptions = Parameters<typeof enforceLocale>[2];
 
+type LocaleStreamOptions = {
+  maskLookup?: Record<string, string>;
+  forbidEnglishHeadings?: boolean;
+  finalizer?: (text: string) => string;
+};
+
 export function createLocaleEnforcedStream(
   source: ReadableStream<Uint8Array>,
   lang: string,
-  opts?: { maskLookup?: Record<string, string>; forbidEnglishHeadings?: boolean },
+  opts?: LocaleStreamOptions,
 ) {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
+  const maskLookup = opts?.maskLookup;
+  const forbidEnglishHeadings = opts?.forbidEnglishHeadings;
+  const finalizer = opts?.finalizer;
 
   return new ReadableStream<Uint8Array>({
     start(controller) {
@@ -125,6 +134,7 @@ export function createLocaleEnforcedStream(
       let buffer = '';
       let aggregated = '';
       let sanitizedSoFar = '';
+      let lastParsed: any = null;
 
       const sendLine = (line: string) => {
         controller.enqueue(encoder.encode(`${line}\n\n`));
@@ -136,6 +146,37 @@ export function createLocaleEnforcedStream(
 
       let sentDone = false;
 
+      const emitFinalIfNeeded = () => {
+        if (!finalizer) return;
+        const revised = finalizer(aggregated);
+        if (typeof revised === 'string') {
+          aggregated = revised;
+        }
+        const finalSanitized = enforceLocale(aggregated, lang, { maskLookup, forbidEnglishHeadings });
+        if (finalSanitized === sanitizedSoFar) return;
+        sanitizedSoFar = finalSanitized;
+        const base = lastParsed && typeof lastParsed === 'object'
+          ? lastParsed
+          : { choices: [{ delta: {} }] };
+        const payload = {
+          ...base,
+          choices: Array.isArray(base?.choices)
+            ? base.choices.map((choice: any, index: number) => {
+                if (index !== 0) return choice;
+                return {
+                  ...choice,
+                  delta: {
+                    ...(choice?.delta || {}),
+                    content: finalSanitized,
+                    medx_reset: true,
+                  },
+                };
+              })
+            : [{ delta: { content: finalSanitized, medx_reset: true } }],
+        };
+        sendPayload(payload);
+      };
+
       const processEvent = (event: string) => {
         if (!event.startsWith('data:')) {
           sendLine(event);
@@ -145,6 +186,7 @@ export function createLocaleEnforcedStream(
         if (!body) return;
         if (body === '[DONE]') {
           sentDone = true;
+          emitFinalIfNeeded();
           sendLine('data: [DONE]');
           return;
         }
@@ -155,12 +197,13 @@ export function createLocaleEnforcedStream(
           sendLine(`data: ${body}`);
           return;
         }
+        lastParsed = parsed;
         const choices = Array.isArray(parsed?.choices) ? parsed.choices : [];
         const primary = choices[0];
         const delta = primary?.delta;
         if (delta && typeof delta.content === 'string' && delta.content.length > 0) {
           aggregated += delta.content;
-          const sanitized = enforceLocale(aggregated, lang, opts);
+          const sanitized = enforceLocale(aggregated, lang, { maskLookup, forbidEnglishHeadings });
           let payload: any;
           if (!sanitized.startsWith(sanitizedSoFar)) {
             sanitizedSoFar = sanitized;
@@ -216,6 +259,7 @@ export function createLocaleEnforcedStream(
       const pump = () => reader.read().then(({ done, value }) => {
         if (done) {
           flush();
+          emitFinalIfNeeded();
           if (!sentDone) {
             sentDone = true;
             sendLine('data: [DONE]');

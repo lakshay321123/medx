@@ -13,6 +13,7 @@ import { SUPPORTED_LANGS } from '@/lib/i18n/constants';
 import { STUDY_MODE_SYSTEM, THINKING_MODE_HINT, STUDY_OUTPUT_GUIDE, languageInstruction } from '@/lib/prompts/presets';
 import { createLocaleEnforcedStream } from '@/lib/i18n/enforce';
 import { buildFormatInstruction } from '@/lib/formats/build';
+import { coerceToTable, hasMarkdownTable, needsTableCoercion } from '@/lib/formats/tableGuard';
 import type { FormatId, Mode as FormatMode, Lang as FormatLang } from '@/lib/formats/types';
 
 function normalizeLang(raw: string | null | undefined): string {
@@ -383,7 +384,18 @@ export async function POST(req: NextRequest) {
     return new Response('LLM error: empty body', { status: 500 });
   }
 
-  const enforcedStream = createLocaleEnforcedStream(upstream.body, lang, { forbidEnglishHeadings: true });
+  const formatFinalizer = needsTableCoercion(formatId)
+    ? (text: string) => {
+        if (hasMarkdownTable(text)) return text;
+        const subject = (latestUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
+        return coerceToTable(subject, text);
+      }
+    : undefined;
+
+  const enforcedStream = createLocaleEnforcedStream(upstream.body, lang, {
+    forbidEnglishHeadings: true,
+    finalizer: formatFinalizer,
+  });
 
   return new Response(enforcedStream, {
     headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }
