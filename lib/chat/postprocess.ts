@@ -51,21 +51,27 @@ export function unmaskMedxTokens(text: string, lookup?: Record<string, string>):
 
 function normalizeHeadings(text: string, lang: string) {
   let out = text;
-  const hmap = HEADING_MAP[lang];
 
+  const markdownHeadingWithParen = /^(#{1,4}\s*.+?)\s*\(([^)]+)\)\s*$/gm;
+  out = out.replace(markdownHeadingWithParen, (_: string, head: string) => head.trim());
+
+  const boldHeadingWithParen = /^(\*\*.+?\*\*)\s*\(([^)]+)\)\s*$/gm;
+  out = out.replace(boldHeadingWithParen, (_: string, head: string) => head.trim());
+
+  const hmap = HEADING_MAP[lang];
   if (hmap) {
     out = out.replace(
       /^(#{1,4}\s*)([^\n]+)$/gm,
-      (_, hashes: string, title: string) => {
+      (_: string, hashes: string, title: string) => {
         const normalized = title.trim().toLowerCase();
         const replacement = hmap[normalized];
-        return `${hashes}${replacement ?? title.trim()}`;
+        return replacement ? `${hashes}${replacement}` : `${hashes}${title.trim()}`;
       }
     );
 
     out = out.replace(
       /^(\*\*)([^*]+)(\*\*)\s*$/gm,
-      (_, open: string, title: string, close: string) => {
+      (_: string, open: string, title: string, close: string) => {
         const normalized = title.trim().toLowerCase();
         const replacement = hmap[normalized];
         const finalTitle = replacement ?? title.trim();
@@ -73,12 +79,6 @@ function normalizeHeadings(text: string, lang: string) {
       }
     );
   }
-
-  const markdownHeadingWithParen = /^(#{1,4}\s*.+?)\s*\(([^)]+)\)\s*$/gm;
-  out = out.replace(markdownHeadingWithParen, (_: string, head: string) => head.trim());
-
-  const boldHeadingWithParen = /^(\*\*.+?\*\*)\s*\(([^)]+)\)\s*$/gm;
-  out = out.replace(boldHeadingWithParen, (_: string, head: string) => head.trim());
 
   return out;
 }

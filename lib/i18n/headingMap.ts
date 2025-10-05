@@ -1,14 +1,26 @@
 export const HEADING_MAP: Record<string, Record<string, string>> = {
+  en: {
+    'what it is': 'What it is',
+    'overview': 'Overview',
+    'types': 'Types',
+    'causes': 'Causes',
+    'how to recognize': 'How to recognize',
+    'symptoms': 'Symptoms',
+    'treatment': 'Treatment',
+    'when to seek care': 'When to seek care',
+    'prevention': 'Prevention',
+    'risks': 'Risks',
+  },
   hi: {
     'what it is': 'क्या है',
     'overview': 'सार',
     'types': 'प्रकार',
     'causes': 'सम्भावित कारण',
     'how to recognize': 'कैसे पहचानें',
+    'symptoms': 'लक्षण',
     'treatment': 'इलाज',
-    'when to seek care': 'कब तुरंत डॉक्टर/आपातकाल जाएं',
+    'when to seek care': 'कब डॉक्टर से मिलें',
     'prevention': 'बचाव',
     'risks': 'जोखिम',
-    'symptoms': 'लक्षण',
   },
 };
