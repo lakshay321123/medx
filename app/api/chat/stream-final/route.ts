@@ -48,13 +48,15 @@ export async function POST(req: Request) {
   const langDirective = languageDirectiveFor(lang);
   const formatInstruction = buildFormatInstruction(lang as FormatLang, normalizedModeTag as FormatMode, formatId);
 
+  const lastUserMessage =
+    messages.slice().reverse().find((m: any) => m.role === "user")?.content || "";
+
   // This endpoint is explicitly the OpenAI (final say) stream for non-basic modes.
   // Keep your current /api/chat/stream for Groq/basic.
   let system = "Validate all calculations and medical logic before answering. Correct any inconsistencies.";
   if ((process.env.CALC_AI_DISABLE || "0") !== "1") {
     try {
-      const lastUser = messages.slice().reverse().find((m: any) => m.role === "user")?.content || "";
-      const extracted = extractAll?.(lastUser);
+      const extracted = extractAll?.(lastUserMessage);
       const canonical = canonicalizeInputs?.(extracted);
       const computed = computeAll?.(canonical);
       const prelude = composeCalcPrelude?.(computed);
@@ -81,7 +83,7 @@ export async function POST(req: Request) {
   const formatFinalizer = needsTableCoercion(formatId)
     ? (text: string) => {
         if (hasMarkdownTable(text)) return text;
-        const subject = (lastUser || '').split('\n')[0]?.trim() || 'Comparison';
+        const subject = (lastUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
         return coerceToTable(subject, text);
       }
     : undefined;
