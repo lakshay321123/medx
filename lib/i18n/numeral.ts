@@ -7,5 +7,14 @@ const DIGIT_MAPS: Record<string, Record<string, string>> = {
 export function localizeDigits(text: string, lang: string): string {
   const map = DIGIT_MAPS[lang];
   if (!map) return text;
-  return text.replace(/\d/g, digit => map[digit] ?? digit);
+
+  return text.replace(/\d/g, (digit, offset: number) => {
+    const prevChar = offset > 0 ? text[offset - 1] : '';
+
+    if (/[A-Za-z]/.test(prevChar)) {
+      return digit;
+    }
+
+    return map[digit] ?? digit;
+  });
 }
