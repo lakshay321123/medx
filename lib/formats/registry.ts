@@ -52,7 +52,31 @@ export const FORMATS: FormatMeta[] = [
     allowedModes: ['aidoc', 'clinical_research', 'wellness_research'],
     systemHint: `Strictly return valid JSON matching the provided schema. Do not add commentary.`,
   },
-  // add more as needed...
+  {
+    id: 'step_by_step',
+    label: { en: 'Step-by-step', hi: 'चरण-दर-चरण', es: 'Paso a paso', it: 'Passo dopo passo' },
+    allowedModes: ['wellness', 'therapy', 'clinical', 'aidoc'],
+    systemHint: `Outline the process in clear, numbered steps. Each step should include actionable detail and required context.`,
+  },
+  {
+    id: 'patient_leaflet',
+    label: { en: 'Patient leaflet', hi: 'रोगी पुस्तिका', es: 'Folleto para pacientes', it: 'Opuscolo per pazienti' },
+    allowedModes: ['wellness', 'therapy', 'clinical'],
+    systemHint: `Communicate in friendly, plain language at approximately a 5th-grade reading level. Use short sections with reassuring tone.`,
+    userGuide: `Include what it is, why it matters, do's & don'ts, and when to seek help.`,
+  },
+  {
+    id: 'checklist',
+    label: { en: 'Checklist', hi: 'जाँच सूची', es: 'Lista de verificación', it: 'Lista di controllo' },
+    allowedModes: ['clinical', 'clinical_research', 'aidoc'],
+    systemHint: `Provide a concise checklist with checkbox-style bullets. Group related items with short subheadings when useful.`,
+  },
+  {
+    id: 'algorithm',
+    label: { en: 'Algorithm', hi: 'एल्गोरिदम', es: 'Algoritmo', it: 'Algoritmo' },
+    allowedModes: ['clinical', 'clinical_research', 'aidoc'],
+    systemHint: `Lay out a decision pathway with conditional branches. Use nested bullets or numbered logic to reflect if/then choices.`,
+  },
 ];
 
 export function isFormatAllowed(id: FormatMeta['id'], mode: Mode) {
