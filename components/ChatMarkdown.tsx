@@ -26,39 +26,6 @@ function normalize(raw: string){
   return s + "\n";
 }
 
-function AutoCollapse({ children, maxHeight = 600 }: { children: React.ReactNode; maxHeight?: number }) {
-  const [expanded, setExpanded] = React.useState(false);
-  const ref = React.useRef<HTMLDivElement>(null);
-  const [collapse, setCollapse] = React.useState(false);
-  React.useEffect(() => {
-    if (!ref.current) return;
-    const shouldCollapse = ref.current.scrollHeight > maxHeight && !expanded;
-    setCollapse(shouldCollapse);
-    if (expanded && ref.current) {
-      ref.current.style.maxHeight = "none";
-    }
-  }, [expanded, maxHeight, children]);
-  return (
-    <div>
-      <div
-        ref={ref}
-        className={collapse ? "max-h-[600px] overflow-hidden" : ""}
-      >
-        {children}
-      </div>
-      {collapse && (
-        <button
-          type="button"
-          className="mt-3 text-sm underline opacity-80 transition hover:opacity-100"
-          onClick={() => setExpanded(true)}
-        >
-          Show more
-        </button>
-      )}
-    </div>
-  );
-}
-
 type MarkdownCodeProps = React.ComponentPropsWithoutRef<"code"> & {
   inline?: boolean;
   node?: unknown;
@@ -139,72 +106,70 @@ export default function ChatMarkdown({ content, formatId, userPrompt }: { conten
         leading-7 text-[15px]
       "
     >
-      <AutoCollapse>
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm, remarkMath]}
-          rehypePlugins={[[rehypeSanitize, tableSchema], rehypeKatex]}
-          components={{
-            a: ({ href, children }) => (
-              <LinkBadge href={href as string}>
-                {children}
-              </LinkBadge>
-            ),
-            ul: ({ children }) => <ul className="list-disc pl-5">{children}</ul>,
-            ol: ({ children }) => <ol className="list-decimal pl-5">{children}</ol>,
-            hr: () => <hr className="my-3 border-dashed opacity-40" />,
-            p: ({ children }) => (
-              <p className="text-left">{children}</p>
-            ),
-            li: ({ children }) => (
-              <li>{children}</li>
-            ),
-            h1: ({ children }) => (
-              <h1>{children}</h1>
-            ),
-            h2: ({ children }) => (
-              <h2>{children}</h2>
-            ),
-            h3: ({ children }) => (
-              <h3>{children}</h3>
-            ),
-            h4: ({ children }) => (
-              <h4>{children}</h4>
-            ),
-            table: ({ children, ...props }) => (
-              <div className="overflow-x-auto">
-                <table {...props}>{children}</table>
-              </div>
-            ),
-            code: (props: MarkdownCodeProps) => {
-              const { inline, children, className, ...rest } = props;
-              if (inline) {
-                const combined = [
-                  "rounded bg-black/5 px-1 py-0.5 dark:bg-white/10",
-                  className || "",
-                ]
-                  .filter(Boolean)
-                  .join(" ");
-                return (
-                  <code
-                    {...rest}
-                    className={combined}
-                  >
-                    {children}
-                  </code>
-                );
-              }
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[[rehypeSanitize, tableSchema], rehypeKatex]}
+        components={{
+          a: ({ href, children }) => (
+            <LinkBadge href={href as string}>
+              {children}
+            </LinkBadge>
+          ),
+          ul: ({ children }) => <ul className="list-disc pl-5">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal pl-5">{children}</ol>,
+          hr: () => <hr className="my-3 border-dashed opacity-40" />,
+          p: ({ children }) => (
+            <p className="text-left">{children}</p>
+          ),
+          li: ({ children }) => (
+            <li>{children}</li>
+          ),
+          h1: ({ children }) => (
+            <h1>{children}</h1>
+          ),
+          h2: ({ children }) => (
+            <h2>{children}</h2>
+          ),
+          h3: ({ children }) => (
+            <h3>{children}</h3>
+          ),
+          h4: ({ children }) => (
+            <h4>{children}</h4>
+          ),
+          table: ({ children, ...props }) => (
+            <div className="overflow-x-auto">
+              <table {...props}>{children}</table>
+            </div>
+          ),
+          code: (props: MarkdownCodeProps) => {
+            const { inline, children, className, ...rest } = props;
+            if (inline) {
+              const combined = [
+                "rounded bg-black/5 px-1 py-0.5 dark:bg-white/10",
+                className || "",
+              ]
+                .filter(Boolean)
+                .join(" ");
+              return (
+                <code
+                  {...rest}
+                  className={combined}
+                >
+                  {children}
+                </code>
+              );
+            }
 
-              const text = Array.isArray(children)
-                ? children.join("")
-                : String(children ?? "");
+            const text = Array.isArray(children)
+              ? children.join("")
+              : String(children ?? "");
 
-              return <CodeBlock className={typeof className === "string" ? className : undefined}>{text}</CodeBlock>;
-            },
-          }}
-        >
-          {prepared}
-        </ReactMarkdown>
-      </AutoCollapse>
+            return <CodeBlock className={typeof className === "string" ? className : undefined}>{text}</CodeBlock>;
+          },
+        }}
+      >
+        {prepared}
+      </ReactMarkdown>
     </div>
   );
 }
