@@ -4116,7 +4116,7 @@ ${systemCommon}` + baseSys;
                 }}
                 className="flex w-full flex-wrap items-end gap-2 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80 md:flex-nowrap md:gap-3"
               >
-                <div ref={plusMenuRef} className="relative inline-flex items-center">
+                <div ref={plusMenuRef} className="relative inline-flex flex-shrink-0 items-center">
                   <button
                     type="button"
                     aria-haspopup="menu"
@@ -4131,23 +4131,6 @@ ${systemCommon}` + baseSys;
                   >
                     <Plus className="h-5 w-5" aria-hidden="true" />
                   </button>
-
-                  {activeHelper && (
-                    <span
-                      className="order-3 inline-flex flex-shrink-0 items-center gap-1 rounded-full border border-slate-300/70 bg-slate-50 px-2 py-1 text-xs text-foreground dark:border-slate-700/60 dark:bg-slate-900/60 md:ml-2 md:gap-2 md:px-3 md:py-1 md:text-sm md:order-none"
-                      aria-live="polite"
-                    >
-                      {activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
-                      <button
-                        type="button"
-                        aria-label={t('clearSelection')}
-                        className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200/80 text-slate-600 transition hover:bg-slate-300 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-700"
-                        onClick={() => setActiveHelper(null)}
-                      >
-                        <X className="h-3.5 w-3.5" aria-hidden="true" />
-                      </button>
-                    </span>
-                  )}
 
                   {isPlusMenuOpen && (
                     <div
@@ -4197,6 +4180,23 @@ ${systemCommon}` + baseSys;
                   )}
                 </div>
 
+                {activeHelper && (
+                  <span
+                    className="order-3 inline-flex min-h-[2.25rem] basis-full items-center gap-1 rounded-full border border-slate-300/70 bg-slate-50 px-2 py-1 text-xs text-foreground dark:border-slate-700/60 dark:bg-slate-900/60 md:order-none md:ml-2 md:basis-auto md:gap-2 md:px-3 md:py-1 md:text-sm"
+                    aria-live="polite"
+                  >
+                    {activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
+                    <button
+                      type="button"
+                      aria-label={t('clearSelection')}
+                      className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200/80 text-slate-600 transition hover:bg-slate-300 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-700"
+                      onClick={() => setActiveHelper(null)}
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </span>
+                )}
+
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -4209,7 +4209,7 @@ ${systemCommon}` + baseSys;
                     e.currentTarget.value = '';
                   }}
                 />
-                <div className="relative flex-1">
+                <div className="relative flex-1 basis-full min-w-0 md:basis-auto">
                   <textarea
                     ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
                     rows={1}
