@@ -2,7 +2,7 @@ import { ensureMinDelay, minDelayMs } from "@/lib/utils/ensureMinDelay";
 import { callOpenAIChat } from "@/lib/medx/providers";
 import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 import { SUPPORTED_LANGS } from "@/lib/i18n/constants";
-import { createLocaleEnforcedStream } from "@/lib/i18n/enforce";
+import { createLocaleEnforcedStream, enforceLocale } from "@/lib/i18n/enforce";
 import { buildFormatInstruction } from "@/lib/formats/build";
 import { coerceToTable, hasMarkdownTable, needsTableCoercion } from "@/lib/formats/tableGuard";
 import type { FormatId, Mode as FormatMode, Lang as FormatLang } from "@/lib/formats/types";
@@ -74,6 +74,58 @@ export async function POST(req: Request) {
     minMs,
   );
   const modelMs = Date.now() - modelStart;
+
+  if (needsTableCoercion(formatId)) {
+    const raw = await upstream.text();
+    if (!upstream.ok) {
+      return new Response(`OpenAI stream error: ${raw}`, { status: 500 });
+    }
+
+    const fullText = raw
+      .split(/\n\n/)
+      .map(line => line.replace(/^data:\s*/, ''))
+      .filter(line => line && line !== '[DONE]')
+      .map(chunk => {
+        try {
+          return JSON.parse(chunk)?.choices?.[0]?.delta?.content ?? '';
+        } catch {
+          return '';
+        }
+      })
+      .join('');
+
+    const subject = (lastUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
+
+    let shaped = hasMarkdownTable(fullText) ? fullText : coerceToTable(subject, fullText);
+    shaped = enforceLocale(shaped, lang, { forbidEnglishHeadings: true });
+
+    const payload = { choices: [{ delta: { content: shaped, medx_reset: true } }] };
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const encoder = new TextEncoder();
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      },
+    });
+
+    const totalMs = Date.now() - t0;
+    const appMs = Math.max(0, totalMs - modelMs);
+    const headers = new Headers({
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "Transfer-Encoding": "chunked",
+      "Server-Timing": `app;dur=${appMs},model;dur=${modelMs}`,
+      "x-medx-provider": "openai",
+      "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-5",
+    });
+
+    return new Response(stream, {
+      status: 200,
+      headers,
+    });
+  }
 
   if (!upstream?.ok || !upstream.body) {
     const err = upstream ? await upstream.text().catch(() => "Upstream error") : "Upstream error";

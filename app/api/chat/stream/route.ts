@@ -11,7 +11,7 @@ import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 import { RESEARCH_BRIEF_STYLE } from '@/lib/styles';
 import { SUPPORTED_LANGS } from '@/lib/i18n/constants';
 import { STUDY_MODE_SYSTEM, THINKING_MODE_HINT, STUDY_OUTPUT_GUIDE, languageInstruction } from '@/lib/prompts/presets';
-import { createLocaleEnforcedStream } from '@/lib/i18n/enforce';
+import { createLocaleEnforcedStream, enforceLocale } from '@/lib/i18n/enforce';
 import { buildFormatInstruction } from '@/lib/formats/build';
 import { coerceToTable, hasMarkdownTable, needsTableCoercion } from '@/lib/formats/tableGuard';
 import type { FormatId, Mode as FormatMode, Lang as FormatLang } from '@/lib/formats/types';
@@ -374,6 +374,45 @@ export async function POST(req: NextRequest) {
       presence_penalty: 0,
     })
   });
+
+  if (needsTableCoercion(formatId)) {
+    const raw = await upstream.text();
+    if (!upstream.ok) {
+      return new Response(`LLM error: ${raw}`, { status: 500 });
+    }
+
+    const fullText = raw
+      .split(/\n\n/)
+      .map(line => line.replace(/^data:\s*/, ''))
+      .filter(line => line && line !== '[DONE]')
+      .map(chunk => {
+        try {
+          return JSON.parse(chunk)?.choices?.[0]?.delta?.content ?? '';
+        } catch {
+          return '';
+        }
+      })
+      .join('');
+
+    const subject = (latestUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
+
+    let shaped = hasMarkdownTable(fullText) ? fullText : coerceToTable(subject, fullText);
+    shaped = enforceLocale(shaped, lang, { forbidEnglishHeadings: true });
+
+    const payload = { choices: [{ delta: { content: shaped, medx_reset: true } }] };
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const encoder = new TextEncoder();
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      },
+    });
+
+    return new Response(stream, {
+      headers: { 'Content-Type': 'text/event-stream; charset=utf-8' },
+    });
+  }
 
   if (!upstream.ok) {
     const err = await upstream.text();

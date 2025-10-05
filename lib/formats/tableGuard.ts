@@ -1,7 +1,8 @@
 import type { FormatId } from './types';
 
 export function hasMarkdownTable(text: string) {
-  return /\n\|.*\|\n\|[-:| ]+\|\n/.test(`\n${text}`);
+  // Require header, separator, and at least one data row to reduce false positives.
+  return /\n\|[^|]*\|.*\n\|\s*[:\-| ]+\|\s*\n\|.+\|/m.test(`\n${text}`);
 }
 
 function sanitizeCell(text: string) {
