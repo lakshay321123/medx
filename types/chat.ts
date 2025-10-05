@@ -13,6 +13,7 @@ export type ChatMessage = {
   refreshOf?: string;
 };
 
-export type ComposerDropupMeta = {
-  label?: "upload" | "study" | "thinking";
-};
+export type ComposerMeta = { label?: "upload" | "study" | "thinking" } | null;
+
+// Backwards compatibility for older imports; prefer ComposerMeta going forward.
+export type ComposerDropupMeta = ComposerMeta;

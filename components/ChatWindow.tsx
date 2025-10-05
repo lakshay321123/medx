@@ -2,7 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import { useChatStore, type ChatMessage } from "@/lib/state/chatStore";
 import { ChatInput } from "@/components/ChatInput";
-import type { ComposerDropupMeta } from "@/types/chat";
+import type { ComposerMeta } from "@/types/chat";
 import { persistIfTemp } from "@/lib/chat/persist";
 import ScrollToBottom from "@/components/ui/ScrollToBottom";
 import { getResearchFlagFromUrl } from "@/utils/researchFlag";
@@ -382,7 +382,7 @@ export function ChatWindow() {
     content: string,
     locationToken?: string,
     langOverride?: string,
-    meta: ComposerDropupMeta | null = null,
+    meta: ComposerMeta = null,
   ) => {
     if (!prefs.canSend()) {
       gotoAccount();
@@ -392,6 +392,20 @@ export function ChatWindow() {
     const lang = langOverride ?? prefs.lang;
     const researchFromUrl = getResearchFlagFromUrl();
     const metaLabel = meta?.label ?? null;
+    const qs = new URLSearchParams();
+
+    if (metaLabel === "study") {
+      qs.set("research", "1");
+      qs.set("format", "essay");
+      qs.set("cap", "high");
+    }
+
+    if (metaLabel === "thinking") {
+      qs.set("thinking", "balanced");
+    }
+
+    const queryString = qs.toString();
+    const route = `/api/chat${queryString ? `?${queryString}` : ""}`;
     const researchOverride = metaLabel === "study";
     const effectiveResearch = researchOverride || researchFromUrl;
 
@@ -462,13 +476,14 @@ export function ChatWindow() {
     if (metaLabel === "study") {
       req.formatDefault = "essay";
       req.format = "essay";
+      req.cap = "high";
     }
     if (metaLabel === "thinking") {
       req.thinkingProfile = "balanced";
     }
 
     const snapshot: AssistantRequestSnapshot = {
-      route: "/api/chat",
+      route,
       req,
       headers,
       meta: {

@@ -11,7 +11,7 @@ import {
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { COMPOSER_DRAFT_THREAD_KEY, useChatStore } from "@/lib/state/chatStore";
 import type { ComposerDropupLabel } from "@/lib/state/chatStore";
-import type { ComposerDropupMeta } from "@/types/chat";
+import type { ComposerMeta } from "@/types/chat";
 import { useOpenPass } from "@/hooks/useOpenPass";
 import { Plus, SendHorizontal } from "lucide-react";
 import { useT } from "@/components/hooks/useI18n";
@@ -29,7 +29,7 @@ export function ChatInput({
     text: string,
     locationToken?: string,
     lang?: string,
-    meta?: ComposerDropupMeta | null,
+    meta?: ComposerMeta,
   ) => Promise<void>;
   canSend: () => boolean;
 }) {
@@ -282,7 +282,7 @@ export function ChatInput({
         locationToken = (await openPass.getLocationToken()) || undefined;
       }
 
-      const meta = activeLabel ? { label: activeLabel } : null;
+      const meta: ComposerMeta = activeLabel ? { label: activeLabel } : null;
       await onSend(content, locationToken, lang, meta);
       setDropupOpen(false);
     } finally {
