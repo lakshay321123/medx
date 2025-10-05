@@ -31,6 +31,7 @@ const DEFAULT_DIGITS_POLICY: DigitsPolicy = "latn";
 const BASE_DICTIONARY: Record<string, Record<string, string>> = {
   en: {
     "ui.composer.placeholder": "Send a message",
+    "ui.composer.document_note_placeholder": "Add a note or question for this document (optional)",
     "ui.composer.send": "Send",
     "ui.composer.upload": "Upload photos/files",
     "ui.composer.study_learn": "Study & Learn",
@@ -338,6 +339,7 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
   },
   hi: {
     "ui.composer.placeholder": "संदेश भेजें",
+    "ui.composer.document_note_placeholder": "इस दस्तावेज़ के लिए कोई नोट या सवाल जोड़ें (वैकल्पिक)",
     "ui.composer.send": "भेजें",
     "ui.composer.upload": "फोटो/फ़ाइल अपलोड करें",
     "ui.composer.study_learn": "अध्ययन और सीखें",
@@ -645,6 +647,7 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
   },
   ar: {
     "ui.composer.placeholder": "أرسل رسالة",
+    "ui.composer.document_note_placeholder": "أضف ملاحظة أو سؤالاً لهذا المستند (اختياري)",
     "ui.composer.send": "إرسال",
     "ui.composer.upload": "تحميل الصور/الملفات",
     "ui.composer.study_learn": "الدراسة والتعلم",
@@ -951,6 +954,7 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
   },
   it: {
     "ui.composer.placeholder": "Invia un messaggio",
+    "ui.composer.document_note_placeholder": "Aggiungi una nota o una domanda per questo documento (facoltativo)",
     "ui.composer.send": "Invia",
     "ui.composer.upload": "Carica foto/file",
     "ui.composer.study_learn": "Studia e impara",
@@ -1257,6 +1261,7 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
   },
   zh: {
     "ui.composer.placeholder": "发送消息",
+    "ui.composer.document_note_placeholder": "为此文档添加备注或问题（可选）",
     "ui.composer.send": "发送",
     "ui.composer.upload": "上传照片/文件",
     "ui.composer.study_learn": "学习与了解",
@@ -1557,6 +1562,7 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
   },
   es: {
     "ui.composer.placeholder": "Enviar un mensaje",
+    "ui.composer.document_note_placeholder": "Añade una nota o pregunta para este documento (opcional)",
     "ui.composer.send": "Enviar",
     "ui.composer.upload": "Subir fotos/archivos",
     "ui.composer.study_learn": "Estudiar y aprender",
@@ -1863,6 +1869,9 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "Custom…": "Personalizado…",
   },
   fr: {
+    "ui.composer.placeholder": "Envoyer un message",
+    "ui.composer.document_note_placeholder": "Ajoutez une note ou une question pour ce document (facultatif)",
+    "ui.composer.send": "Envoyer",
     "ui.composer.upload": "Télécharger des photos/fichiers",
     "ui.composer.study_learn": "Étudier et apprendre",
     "ui.composer.thinking_mode": "Mode réflexion",
@@ -1872,6 +1881,7 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "more": "Plus",
     "clearSelection": "Effacer la sélection",
     "composerMenu": "Options du compositeur",
+    "ui.composer.send_aria": "Envoyer le message",
     "ui.composer.upload_aria": "Télécharger une photo ou un fichier",
     "Network error": "Erreur réseau",
     Retry: "Réessayer",
