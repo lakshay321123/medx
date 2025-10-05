@@ -43,6 +43,8 @@ import { detectSocialIntent } from "@/lib/social";
 import { pushFullMem, buildFullContext } from "@/lib/memory/shortTerm";
 import { maybeIndexStructured } from "@/lib/memory/structured";
 import { detectAdvancedDomain } from "@/lib/intents/advanced";
+import type { FormatId, Mode as FormatMode } from '@/lib/formats/types';
+import { isFormatAllowed } from '@/lib/formats/registry';
 // === ADD-ONLY for domain routing ===
 import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
@@ -90,6 +92,16 @@ const REPORTS_LOCKED_MESSAGE = "Reports are available only in AI Doc mode.";
 // Updated LABS_TREND_INTENT: only triggers on explicit lab/report phrases
 const LABS_TREND_INTENT = /\b(pull my reports|show my reports|fetch my reports|what do my reports say|compare my reports|lab history|lab trend|report history|report trend|date\s*wise|datewise)\b/i;
 const RAW_TEXT_INTENT = /(raw text|full text|show .*report text)/i;
+
+const FORMAT_STORAGE_KEY = 'medx.formatId';
+const DEFAULT_FORMAT_BY_MODE: Partial<Record<FormatMode, FormatId>> = {
+  wellness: 'bullet_summary',
+  clinical: 'soap_note',
+  therapy: 'essay',
+  wellness_research: 'abstract_imrad',
+  clinical_research: 'abstract_imrad',
+  aidoc: 'json_structured',
+};
 
 const formatTrendDate = (iso?: string) => {
   if (!iso) return "—";
@@ -720,6 +732,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [activeHelper, setActiveHelper] = useState<HelperLabel>(null);
   const [queueActive, setQueueActive] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [formatId, setFormatId] = useState<FormatId | undefined>(undefined);
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
   const [labSummary, setLabSummary] = useState<any | null>(null);
@@ -870,6 +883,43 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const stored = window.localStorage.getItem(FORMAT_STORAGE_KEY);
+      if (stored) {
+        setFormatId(stored as FormatId);
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (formatId) {
+        window.localStorage.setItem(FORMAT_STORAGE_KEY, formatId);
+      } else {
+        window.localStorage.removeItem(FORMAT_STORAGE_KEY);
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [formatId]);
+
+  useEffect(() => {
+    if (!activeModeTag) return;
+    setFormatId(prev => {
+      const modeForFormat = activeModeTag as FormatMode;
+      if (prev && isFormatAllowed(prev, modeForFormat)) {
+        return prev;
+      }
+      const fallback = DEFAULT_FORMAT_BY_MODE[modeForFormat];
+      return fallback ?? undefined;
+    });
+  }, [activeModeTag]);
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -2716,6 +2766,7 @@ ${systemCommon}` + baseSys;
       if (activeHelper === 'study') qp.set('study', '1');
       if (activeHelper === 'thinking') qp.set('thinking', '1');
       if (activeModeTag) qp.set('mode', activeModeTag);
+      if (formatId) qp.set('formatId', formatId);
       const languageParam = (uiLanguage?.trim() || lang?.trim() || '');
       if (languageParam) {
         // Always send the active UI language for server-side locking.
@@ -2742,6 +2793,7 @@ ${systemCommon}` + baseSys;
           lang,
           personalization,
           allowHistory,
+          formatId,
         }),
         cache: 'no-store',
         signal: ctrl.signal

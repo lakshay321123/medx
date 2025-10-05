@@ -3,6 +3,8 @@ import { callOpenAIChat } from "@/lib/medx/providers";
 import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 import { SUPPORTED_LANGS } from "@/lib/i18n/constants";
 import { createLocaleEnforcedStream } from "@/lib/i18n/enforce";
+import { buildFormatInstruction } from "@/lib/formats/build";
+import type { FormatId, Mode as FormatMode, Lang as FormatLang } from "@/lib/formats/types";
 
 // Optional calculator prelude (safe if engine absent)
 let composeCalcPrelude: any, extractAll: any, canonicalizeInputs: any, computeAll: any;
@@ -25,11 +27,25 @@ export async function POST(req: Request) {
   const t0 = Date.now();
   const payload = await req.json();
   const { messages = [], mode } = payload ?? {};
+  const rawFormat = typeof payload?.formatId === 'string' ? payload.formatId.trim().toLowerCase() : '';
+  const formatId = rawFormat ? (rawFormat as FormatId) : undefined;
+  const rawModeTag = typeof payload?.modeTag === 'string' ? payload.modeTag : undefined;
+  let normalizedModeTag = (rawModeTag || '').toLowerCase();
+  if (!normalizedModeTag && typeof mode === 'string') {
+    const lowered = mode.toLowerCase();
+    if (lowered === 'doctor') normalizedModeTag = 'clinical';
+    else if (lowered === 'aidoc') normalizedModeTag = 'aidoc';
+    else if (lowered === 'therapy') normalizedModeTag = 'therapy';
+    else if (lowered === 'clinical_research' || lowered === 'research') normalizedModeTag = 'clinical_research';
+    else if (lowered === 'wellness_research') normalizedModeTag = 'wellness_research';
+    else normalizedModeTag = 'wellness';
+  }
   const requestedLang = typeof payload?.lang === 'string' ? payload.lang : undefined;
   const headerLang = req.headers.get('x-user-lang') || req.headers.get('x-lang') || undefined;
   const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
   const lang = normalizeLangTag(langTag);
   const langDirective = languageDirectiveFor(lang);
+  const formatInstruction = buildFormatInstruction(lang as FormatLang, normalizedModeTag as FormatMode, formatId);
 
   // This endpoint is explicitly the OpenAI (final say) stream for non-basic modes.
   // Keep your current /api/chat/stream for Groq/basic.
@@ -45,7 +61,8 @@ export async function POST(req: Request) {
     } catch {}
   }
 
-  system = [system, langDirective].filter(Boolean).join('\n\n');
+  const systemChunks = [langDirective, formatInstruction, system].filter(Boolean);
+  system = systemChunks.join('\n\n');
 
   const minMs = minDelayMs();
   const modelStart = Date.now();
