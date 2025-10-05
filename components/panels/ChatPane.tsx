@@ -2204,6 +2204,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     }
 
     const regenTargetId = opts.replacesId ?? null;
+    // Snapshot the message we're about to regenerate so aborts can restore it.
     const prevAssistantSnapshot = regenTargetId ? getMessageById(regenTargetId) : null;
 
     const userId = uid();
@@ -2790,13 +2791,11 @@ ${systemCommon}` + baseSys;
       if (e?.name === 'AbortError') {
         const hasNewText = (acc ?? '').length > 0;
         if (regenTargetId && !hasNewText && prevAssistantSnapshot) {
-          cancelPendingAssistant(pendingId);
-          setMessages(list => list.filter(m => m.id !== regenTargetId));
           replaceMessage(pendingId, prevAssistantSnapshot);
         } else {
           finishPendingAssistant(pendingId, acc ?? '');
         }
-        opts.onError?.({ reason: 'aborted' });
+        opts.onError?.({ reason: 'aborted', pendingId, regenTargetId });
         return;
       }
       console.error(e);
