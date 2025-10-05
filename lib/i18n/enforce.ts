@@ -83,9 +83,8 @@ export function enforceLocale(
   if (!raw) return raw;
 
   let working = raw;
-  if (opts?.forbidEnglishHeadings && lang !== 'en') {
-    working = working.replace(/^(#{1,4}\s*)(What it is|Types|Overview)\s*$/gim, '$1');
-  }
+  const blockedMd = /^(#{1,4}\s*)(What it is|Types|Overview)\s*$/gim;
+  const blockedBold = /^(\*\*)(What it is|Types|Overview)(\*\*)\s*$/gim;
 
   const { out: protectedText, slots } = protect(working);
   let out = unmask(protectedText, opts?.maskLookup);
@@ -93,6 +92,19 @@ export function enforceLocale(
   out = restore(out, slots);
   out = stripHeadingParens(out);
   out = rewriteHeadings(out, lang);
+
+  if (opts?.forbidEnglishHeadings && lang !== 'en') {
+    out = out.replace(blockedMd, (_match, hashes, title) => {
+      const key = normalizeHeadingKey(String(title));
+      const tr = HEADING_MAP[lang]?.[key];
+      return tr ? `${hashes}${tr}` : '';
+    });
+    out = out.replace(blockedBold, (_match, open, title, close) => {
+      const key = normalizeHeadingKey(String(title));
+      const tr = HEADING_MAP[lang]?.[key];
+      return tr ? `${open}${tr}${close}` : '';
+    });
+  }
 
   return out;
 }
