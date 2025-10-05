@@ -872,6 +872,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     onContentUpdate: handlePendingContentUpdate,
     onFinalize: handlePendingFinalize,
   });
+  const showStopButton = queueActive || busy || Boolean(pendingAssistantState) || Boolean(abortRef.current);
 
   const sp = useSearchParams();
   const isAiDocMode = useIsAiDocMode();
@@ -4248,7 +4249,7 @@ ${systemCommon}` + baseSys;
                     }}
                   />
 
-                  {(queueActive || busy || abortRef.current) && (
+                  {showStopButton && (
                     <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
                       <StopButton
                         onClick={onStop}
