@@ -13,8 +13,10 @@ import { SUPPORTED_LANGS } from '@/lib/i18n/constants';
 import { STUDY_MODE_SYSTEM, THINKING_MODE_HINT, STUDY_OUTPUT_GUIDE, languageInstruction } from '@/lib/prompts/presets';
 import { createLocaleEnforcedStream, enforceLocale } from '@/lib/i18n/enforce';
 import { buildFormatInstruction } from '@/lib/formats/build';
+import { FORMATS } from '@/lib/formats/registry';
+import { isValidLang, isValidMode } from '@/lib/formats/constants';
 import { coerceToTable, hasMarkdownTable, needsTableCoercion } from '@/lib/formats/tableGuard';
-import type { FormatId, Mode as FormatMode, Lang as FormatLang } from '@/lib/formats/types';
+import type { FormatId } from '@/lib/formats/types';
 
 function normalizeLang(raw: string | null | undefined): string {
   const cleaned = (raw || 'en').toLowerCase().split('-')[0].replace(/[^a-z]/g, '');
@@ -120,7 +122,9 @@ export async function POST(req: NextRequest) {
   const flags = gateFlagsByMode(modeTag, { study: studyFlag, thinking: thinkingFlag });
   const normalizedModeTag = (modeTag || '').toLowerCase();
   const rawFormatId = (formatParam || formatFromBody || '').trim().toLowerCase();
-  const formatId = rawFormatId ? (rawFormatId as FormatId) : undefined;
+  const formatId = rawFormatId && FORMATS.some(f => f.id === rawFormatId)
+    ? (rawFormatId as FormatId)
+    : undefined;
   const allowHistory = body?.allowHistory !== false;
   const requestedLang = typeof body?.lang === 'string' ? body.lang : null;
   const headerLang = req.headers.get('x-user-lang') || req.headers.get('x-lang') || null;
@@ -131,7 +135,10 @@ export async function POST(req: NextRequest) {
       || null,
   );
   const langDirectiveBlock = languageInstruction(lang);
-  const formatInstruction = buildFormatInstruction(lang as FormatLang, normalizedModeTag as FormatMode, formatId);
+  const formatInstruction =
+    isValidMode(normalizedModeTag) && isValidLang(lang)
+      ? buildFormatInstruction(lang, normalizedModeTag, formatId)
+      : '';
   const persona = personaFromPrefs(body?.personalization);
   const sysPrelude = [persona].filter(Boolean).join('\n\n');
   const studyChunks = flags.study ? [STUDY_MODE_SYSTEM.trim(), STUDY_OUTPUT_GUIDE.trim()] : [];
@@ -375,7 +382,9 @@ export async function POST(req: NextRequest) {
     })
   });
 
-  if (needsTableCoercion(formatId)) {
+  const shouldCoerceToTable = Boolean(formatInstruction) && needsTableCoercion(formatId);
+
+  if (shouldCoerceToTable) {
     const raw = await upstream.text();
     if (!upstream.ok) {
       return new Response(`LLM error: ${raw}`, { status: 500 });
@@ -423,7 +432,7 @@ export async function POST(req: NextRequest) {
     return new Response('LLM error: empty body', { status: 500 });
   }
 
-  const formatFinalizer = needsTableCoercion(formatId)
+  const formatFinalizer = shouldCoerceToTable
     ? (text: string) => {
         if (hasMarkdownTable(text)) return text;
         const subject = (latestUserMessage || '').split('\n')[0]?.trim() || 'Comparison';

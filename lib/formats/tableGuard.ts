@@ -1,8 +1,8 @@
 import type { FormatId } from './types';
 
 export function hasMarkdownTable(text: string) {
-  // Require header, separator, and at least one data row to reduce false positives.
-  return /\n\|[^|]*\|.*\n\|\s*[:\-| ]+\|\s*\n\|.+\|/m.test(`\n${text}`);
+  // Require header, a separator row, and at least one data row.
+  return /\n\|[^|\n]+\|\n\|[ :\-|]+\|\n\|[^|\n]+\|/m.test(`\n${text}`);
 }
 
 function sanitizeCell(text: string) {
@@ -11,15 +11,20 @@ function sanitizeCell(text: string) {
 
 export function coerceToTable(subject: string, text: string) {
   const rows: string[] = [];
-  const bullets = Array.from(text.matchAll(/^\s*[-*]\s+(.+)$/gm)).map(match => match[1]).slice(0, 6);
+  const bullets = Array.from(text.matchAll(/^\s*[-*]\s+(.+)$/gm))
+    .map(match => match[1])
+    .filter(Boolean)
+    .slice(0, 10);
   const sanitizedSubject = sanitizeCell(subject || 'Comparison');
 
-  if (bullets.length >= 2) {
-    rows.push(`| ${sanitizedSubject} |  |  |  |  |`);
-    rows.push(`| Alt |  |  |  |  |`);
-  }
-
-  if (rows.length === 0) {
+  if (bullets.length > 0) {
+    rows.push(
+      ...bullets.map((bullet, index) => {
+        const label = index === 0 ? sanitizedSubject : sanitizeCell(`Alt ${index}`);
+        return `| ${label} |  |  |  | ${sanitizeCell(bullet)} |`;
+      }),
+    );
+  } else {
     rows.push(`| ${sanitizedSubject || 'Topic'} |  |  |  |  |`);
   }
 

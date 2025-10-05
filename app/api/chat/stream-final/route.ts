@@ -4,8 +4,10 @@ import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 import { SUPPORTED_LANGS } from "@/lib/i18n/constants";
 import { createLocaleEnforcedStream, enforceLocale } from "@/lib/i18n/enforce";
 import { buildFormatInstruction } from "@/lib/formats/build";
+import { FORMATS } from "@/lib/formats/registry";
+import { isValidLang, isValidMode } from "@/lib/formats/constants";
 import { coerceToTable, hasMarkdownTable, needsTableCoercion } from "@/lib/formats/tableGuard";
-import type { FormatId, Mode as FormatMode, Lang as FormatLang } from "@/lib/formats/types";
+import type { FormatId } from "@/lib/formats/types";
 
 // Optional calculator prelude (safe if engine absent)
 let composeCalcPrelude: any, extractAll: any, canonicalizeInputs: any, computeAll: any;
@@ -28,8 +30,12 @@ export async function POST(req: Request) {
   const t0 = Date.now();
   const payload = await req.json();
   const { messages = [], mode } = payload ?? {};
-  const rawFormat = typeof payload?.formatId === 'string' ? payload.formatId.trim().toLowerCase() : '';
-  const formatId = rawFormat ? (rawFormat as FormatId) : undefined;
+  const rawFormat = typeof payload?.formatId === 'string'
+    ? payload.formatId.trim().toLowerCase()
+    : '';
+  const formatId = rawFormat && FORMATS.some(f => f.id === rawFormat)
+    ? (rawFormat as FormatId)
+    : undefined;
   const rawModeTag = typeof payload?.modeTag === 'string' ? payload.modeTag : undefined;
   let normalizedModeTag = (rawModeTag || '').toLowerCase();
   if (!normalizedModeTag && typeof mode === 'string') {
@@ -46,7 +52,10 @@ export async function POST(req: Request) {
   const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
   const lang = normalizeLangTag(langTag);
   const langDirective = languageDirectiveFor(lang);
-  const formatInstruction = buildFormatInstruction(lang as FormatLang, normalizedModeTag as FormatMode, formatId);
+  const formatInstruction =
+    isValidMode(normalizedModeTag) && isValidLang(lang)
+      ? buildFormatInstruction(lang, normalizedModeTag, formatId)
+      : '';
 
   const lastUserMessage =
     messages.slice().reverse().find((m: any) => m.role === "user")?.content || "";
@@ -75,7 +84,9 @@ export async function POST(req: Request) {
   );
   const modelMs = Date.now() - modelStart;
 
-  if (needsTableCoercion(formatId)) {
+  const shouldCoerceToTable = Boolean(formatInstruction) && needsTableCoercion(formatId);
+
+  if (shouldCoerceToTable) {
     const raw = await upstream.text();
     if (!upstream.ok) {
       return new Response(`OpenAI stream error: ${raw}`, { status: 500 });
@@ -132,7 +143,7 @@ export async function POST(req: Request) {
     return new Response(`OpenAI stream error: ${err}`, { status: 500 });
   }
 
-  const formatFinalizer = needsTableCoercion(formatId)
+  const formatFinalizer = shouldCoerceToTable
     ? (text: string) => {
         if (hasMarkdownTable(text)) return text;
         const subject = (lastUserMessage || '').split('\n')[0]?.trim() || 'Comparison';

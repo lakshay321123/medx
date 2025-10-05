@@ -44,6 +44,7 @@ import { pushFullMem, buildFullContext } from "@/lib/memory/shortTerm";
 import { maybeIndexStructured } from "@/lib/memory/structured";
 import { detectAdvancedDomain } from "@/lib/intents/advanced";
 import type { FormatId, Mode as FormatMode } from '@/lib/formats/types';
+import { isValidMode } from '@/lib/formats/constants';
 import { isFormatAllowed } from '@/lib/formats/registry';
 // === ADD-ONLY for domain routing ===
 import { detectDomain } from "@/lib/intents/domains";
@@ -878,7 +879,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, [modeState.base, researchMode, therapyMode]);
   const initialFormatModeRef = useRef<FormatMode | undefined>(undefined);
   if (initialFormatModeRef.current === undefined) {
-    initialFormatModeRef.current = activeModeTag as FormatMode | undefined;
+    initialFormatModeRef.current = isValidMode(activeModeTag) ? activeModeTag : undefined;
   }
   const researchOn = Boolean(researchMode);
   const uiMode: AppMode = isAiDocMode
@@ -939,7 +940,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, []);
 
   useEffect(() => {
-    const mode = activeModeTag as FormatMode | undefined;
+    const mode = isValidMode(activeModeTag) ? activeModeTag : undefined;
     if (!mode) return;
 
     setFormatId(prev => {
@@ -954,11 +955,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, [activeModeTag, formatMap]);
 
   useEffect(() => {
-    const mode = activeModeTag as FormatMode | undefined;
+    const mode = isValidMode(activeModeTag) ? activeModeTag : undefined;
     if (typeof window === 'undefined' || !mode) return;
 
     setFormatMap(old => {
-      const next = { ...old } as FormatMap;
+      const next: FormatMap = { ...old };
 
       if (formatId && isFormatAllowed(formatId, mode)) {
         if (next[mode] === formatId) return old;
