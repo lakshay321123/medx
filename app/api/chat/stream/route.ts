@@ -69,6 +69,8 @@ export async function POST(req: NextRequest) {
   const reqUrl = new URL(req.url);
   const origin = reqUrl.origin;
   const qp = reqUrl.searchParams.get('research');
+  const formatParam = reqUrl.searchParams.get('format');
+  const thinkingParam = reqUrl.searchParams.get('thinking');
   const long = reqUrl.searchParams.get('long') === '1';
   let body: any = {};
   try { body = await req.json(); } catch {}
@@ -84,6 +86,25 @@ export async function POST(req: NextRequest) {
 
   const research =
     qp === '1' || qp === 'true' || body?.research === true || body?.research === 'true';
+
+  const formatFromBody =
+    typeof body?.format === 'string' && body.format.trim() ? body.format.trim() : undefined;
+  const normalizedFormat = (formatFromBody ?? formatParam ?? '').toLowerCase();
+  const narrativeFormats = new Set([
+    'essay',
+    'evidence_summary',
+    'guideline_digest',
+    'slide_outline',
+  ]);
+  const wantsNarrative = long || narrativeFormats.has(normalizedFormat);
+
+  const thinkingProfile =
+    typeof body?.thinkingProfile === 'string' && body.thinkingProfile.trim()
+      ? body.thinkingProfile.trim()
+      : (thinkingParam ?? '').trim();
+  if (thinkingProfile) {
+    // Style hints are currently handled on the client; keep the value available for future tuning.
+  }
 
   // 1) Gather existing conversation
   const history: Array<{role:'system'|'user'|'assistant'; content:string}> =
@@ -123,7 +144,7 @@ export async function POST(req: NextRequest) {
     : '';
 
   const briefMessages: Array<{role:'system'|'user'|'assistant'; content:string}> =
-    research && !long
+    research && !wantsNarrative
       ? [
           { role: 'system', content: RESEARCH_BRIEF_STYLE + (srcBlock ? `\n\nSOURCES:\n${srcBlock}` : '') },
           ...recent,             // preserve chat context
@@ -134,7 +155,7 @@ export async function POST(req: NextRequest) {
       : [latestUser];
 
   // 4) Tighter generation when research brief is active
-  const modelOptions = (research && !long)
+  const modelOptions = (research && !wantsNarrative)
     ? { temperature: 0.2, top_p: 0.9, max_tokens: 250, response_format: { type: 'json_object' } }
     : { temperature: 0.7, max_tokens: 900 };
 
@@ -156,7 +177,7 @@ export async function POST(req: NextRequest) {
   const key   = process.env.LLM_API_KEY!;
   const url = `${base.replace(/\/$/,'')}/chat/completions`;
 
-  if (research && !long) {
+  if (research && !wantsNarrative) {
     const upstream = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
