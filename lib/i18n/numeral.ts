@@ -10,8 +10,9 @@ export function localizeDigits(text: string, lang: string): string {
 
   return text.replace(/\d/g, (digit, offset: number) => {
     const prevChar = offset > 0 ? text[offset - 1] : '';
+    const nextChar = offset + 1 < text.length ? text[offset + 1] : '';
 
-    if (/[A-Za-z]/.test(prevChar)) {
+    if (/[A-Za-z]/.test(prevChar) || /[A-Za-z]/.test(nextChar)) {
       return digit;
     }
 
