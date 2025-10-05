@@ -707,7 +707,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   );
   const lang = prefs.lang;
   const allowHistory = prefs.allowHistory !== false && prefs.referenceChatHistory !== false;
-  const { t } = useI18n();
+  const { t, language: uiLanguage } = useI18n();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userText, setUserText] = useState('');
@@ -821,6 +821,14 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const mode: 'patient' | 'doctor' = modeState.base === 'doctor' ? 'doctor' : 'patient';
   const researchMode = modeState.research;
   const therapyMode = modeState.therapy;
+  const activeModeTag = useMemo(() => {
+    if (therapyMode) return 'therapy';
+    if (modeState.base === 'aidoc') return 'aidoc';
+    if (modeState.base === 'doctor' && researchMode) return 'clinical_research';
+    if (modeState.base === 'doctor') return 'clinical';
+    if (researchMode) return 'wellness_research';
+    return 'wellness';
+  }, [modeState.base, researchMode, therapyMode]);
   const researchOn = Boolean(researchMode);
   const uiMode: AppMode = isAiDocMode
     ? 'aidoc'
@@ -2680,7 +2688,15 @@ ${systemCommon}` + baseSys;
         ];
       }
 
-      const url = `/api/chat/stream${researchMode ? '?research=1' : ''}`;
+      const qp = new URLSearchParams();
+      if (researchMode) qp.set('research', '1');
+      if (activeHelper === 'study') qp.set('study', '1');
+      if (activeHelper === 'thinking') qp.set('thinking', '1');
+      if (activeModeTag) qp.set('mode', activeModeTag);
+      const languageParam = (uiLanguage || lang || '').trim();
+      if (languageParam) qp.set('lang', languageParam);
+      const qs = qp.toString();
+      const url = `/api/chat/stream${qs ? `?${qs}` : ''}`;
       mark('send');
       const res = await fetch(url, {
         method: 'POST',
@@ -2803,6 +2819,7 @@ ${systemCommon}` + baseSys;
       recordShortMem(stableThreadId, 'assistant', content);
       opts.onError?.();
     } finally {
+      setActiveHelper(null);
       setBusy(false);
       setThinkingStartedAt(null);
       abortRef.current = null;

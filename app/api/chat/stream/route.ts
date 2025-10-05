@@ -9,6 +9,7 @@ import { clamp } from '@/lib/medical/engine/calculators/utils';
 import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 // === [MEDX_CALC_ROUTE_IMPORTS_END] ===
 import { RESEARCH_BRIEF_STYLE } from '@/lib/styles';
+import { STUDY_MODE_SYSTEM, THINKING_MODE_HINT, STUDY_OUTPUT_GUIDE, languageInstruction } from '@/lib/prompts/presets';
 
 function readIntEnv(name: string, fallback: number) {
   const raw = process.env[name];
@@ -59,6 +60,33 @@ function filterComputedForDocMode(items: any[], latestUser: string) {
       return /(curb-?65|news2|qsofa|sirs)/i.test(lbl);
     });
 }
+
+function gateFlagsByMode(
+  mode: string | null,
+  flags: { study: boolean; thinking: boolean },
+) {
+  const normalized = (mode || '').toLowerCase();
+  const allowedStudy = new Set([
+    'wellness',
+    'wellness_research',
+    'clinical',
+    'clinical_research',
+    'research',
+  ]);
+  const allowedThinking = new Set([
+    'wellness',
+    'wellness_research',
+    'clinical',
+    'clinical_research',
+    'research',
+    'aidoc',
+  ]);
+
+  return {
+    study: flags.study && allowedStudy.has(normalized),
+    thinking: flags.thinking && allowedThinking.has(normalized),
+  };
+}
 export const runtime = 'edge';
 
 const recentReqs = new Map<string, number>();
@@ -70,13 +98,22 @@ export async function POST(req: NextRequest) {
   const origin = reqUrl.origin;
   const qp = reqUrl.searchParams.get('research');
   const long = reqUrl.searchParams.get('long') === '1';
+  const studyFlag = reqUrl.searchParams.get('study') === '1';
+  const thinkingFlag = reqUrl.searchParams.get('thinking') === '1';
+  const modeTag = reqUrl.searchParams.get('mode');
+  const langQuery = reqUrl.searchParams.get('lang');
   let body: any = {};
   try { body = await req.json(); } catch {}
   const { context, clientRequestId, mode } = body;
+  const flags = gateFlagsByMode(modeTag, { study: studyFlag, thinking: thinkingFlag });
+  const normalizedModeTag = (modeTag || '').toLowerCase();
   const allowHistory = body?.allowHistory !== false;
   const requestedLang = typeof body?.lang === 'string' ? body.lang : undefined;
   const headerLang = req.headers.get('x-user-lang') || req.headers.get('x-lang') || undefined;
-  const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
+  const langTag = (langQuery && langQuery.trim())
+    || (requestedLang && requestedLang.trim())
+    || (headerLang && headerLang.trim())
+    || SYSTEM_DEFAULT_LANG;
   const lang = langTag.toLowerCase();
   const langDirective = languageDirectiveFor(lang);
   const persona = personaFromPrefs(body?.personalization);
@@ -122,10 +159,21 @@ export async function POST(req: NextRequest) {
         .join('\n\n')
     : '';
 
+  const researchPresetChunks: string[] = [];
+  if (sysPrelude) researchPresetChunks.push(sysPrelude);
+  if (lang) researchPresetChunks.push(languageInstruction(lang));
+  if (flags.study) researchPresetChunks.push(STUDY_MODE_SYSTEM.trim(), STUDY_OUTPUT_GUIDE.trim());
+  if (flags.thinking) researchPresetChunks.push(THINKING_MODE_HINT.trim());
+
+  const researchSystem = [
+    RESEARCH_BRIEF_STYLE + (srcBlock ? `\n\nSOURCES:\n${srcBlock}` : ''),
+    ...researchPresetChunks,
+  ].filter(Boolean).join('\n\n');
+
   const briefMessages: Array<{role:'system'|'user'|'assistant'; content:string}> =
     research && !long
       ? [
-          { role: 'system', content: RESEARCH_BRIEF_STYLE + (srcBlock ? `\n\nSOURCES:\n${srcBlock}` : '') },
+          { role: 'system', content: researchSystem },
           ...recent,             // preserve chat context
           latestUser             // ask the new question
         ]
@@ -183,8 +231,9 @@ export async function POST(req: NextRequest) {
   const isShortQuery = wordCount <= 6;
   const briefTopic = /\b(what is|types?|symptoms?|causes?|treatment|home care|prevention|red flags?)\b/i
     .test(latestUserMessage || '');
-  const isAiDoc = mode === 'doctor';
-  const targetWordCap = isAiDoc
+  const isDoctorLike = mode === 'doctor';
+  const isAiDoc = normalizedModeTag === 'aidoc';
+  const targetWordCap = (isAiDoc || isDoctorLike)
     ? (isShortQuery || briefTopic ? 220 : 360)
     : (isShortQuery || briefTopic ? 180 : 280);
   const AIDOC_MAX_TOKENS = readIntEnv('AIDOC_MAX_TOKENS', 3000);
@@ -264,12 +313,32 @@ export async function POST(req: NextRequest) {
   const systemMessages = finalMessages.filter((m: any) => m.role === 'system');
   const nonSystemMessages = finalMessages.filter((m: any) => m.role !== 'system');
   const combinedSystem = systemMessages.map((m: any) => m.content).filter(Boolean).join('\n\n');
-  const finalSystem = [combinedSystem, sysPrelude].filter(Boolean).join('\n\n');
+  const presetChunks: string[] = [];
+  if (lang) {
+    presetChunks.push(languageInstruction(lang));
+  }
+  if (flags.study) {
+    presetChunks.push(STUDY_MODE_SYSTEM.trim(), STUDY_OUTPUT_GUIDE.trim());
+  }
+  if (flags.thinking) {
+    presetChunks.push(THINKING_MODE_HINT.trim());
+  }
+  const finalSystem = [combinedSystem, sysPrelude, ...presetChunks.filter(Boolean)].filter(Boolean).join('\n\n');
   finalMessages = finalSystem ? [{ role: 'system', content: finalSystem }, ...nonSystemMessages] : nonSystemMessages;
 
-  const max_tokens = isAiDoc
-    ? clamp(Math.max(200, targetMax), 200, AIDOC_MAX_TOKENS)
-    : clamp(Math.max(200, targetMax), 200, 768);
+  const requestedMaxTokens = typeof body?.max_tokens === 'number' ? body.max_tokens : undefined;
+  const defaultMaxTokens = typeof body?.default_max_tokens === 'number' ? body.default_max_tokens : undefined;
+  const fallbackDefault = clamp(Math.max(200, targetMax), 200, isAiDoc ? AIDOC_MAX_TOKENS : 768);
+  let computedMaxTokens = defaultMaxTokens ?? fallbackDefault;
+  if (flags.thinking) {
+    const boosted = Math.round(computedMaxTokens * 1.1);
+    computedMaxTokens = Math.min(boosted, isAiDoc ? AIDOC_MAX_TOKENS : 900);
+  }
+  const adjustedMaxTokens = isAiDoc
+    ? Math.min(AIDOC_MAX_TOKENS, requestedMaxTokens ?? computedMaxTokens ?? AIDOC_MAX_TOKENS)
+    : Math.min(2048, requestedMaxTokens ?? computedMaxTokens ?? fallbackDefault);
+  const max_tokens = adjustedMaxTokens;
+  const temperature = flags.study ? 0.4 : (flags.thinking ? 0.25 : 0.3);
 
   const upstream = await fetch(url, {
     method: 'POST',
@@ -280,7 +349,7 @@ export async function POST(req: NextRequest) {
       // Token cap with buffer to avoid API truncation while honoring SOFT word cap
       max_tokens,
       stream: true,
-      temperature: 0.4,
+      temperature,
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,
