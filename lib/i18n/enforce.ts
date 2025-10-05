@@ -106,13 +106,13 @@ export function enforceLocale(
   if (!raw) return raw;
 
   let working = raw;
-  const { out: tableGuarded, slots: tableSlots } = protectTableBlocks(working);
-  let out = tableGuarded;
-
-  const { out: protectedText, slots } = protect(out);
-  out = unmask(protectedText, opts?.maskLookup);
+  const { out: protectedText, slots } = protect(working);
+  let out = unmask(protectedText, opts?.maskLookup);
   out = localizeDigits(out, lang);
   out = restore(out, slots);
+
+  const { out: tableGuarded, slots: tableSlots } = protectTableBlocks(out);
+  out = tableGuarded;
   out = stripHeadingParens(out);
   out = rewriteHeadings(out, lang);
   out = restoreTableBlocks(out, tableSlots);
