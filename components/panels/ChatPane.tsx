@@ -2791,8 +2791,8 @@ ${systemCommon}` + baseSys;
         const hasNewText = (acc ?? '').length > 0;
         if (regenTargetId && !hasNewText && prevAssistantSnapshot) {
           cancelPendingAssistant(pendingId);
-          replaceMessage(regenTargetId, prevAssistantSnapshot);
-          setMessages(list => list.filter(m => m.id !== pendingId));
+          setMessages(list => list.filter(m => m.id !== regenTargetId));
+          replaceMessage(pendingId, prevAssistantSnapshot);
         } else {
           finishPendingAssistant(pendingId, acc ?? '');
         }
