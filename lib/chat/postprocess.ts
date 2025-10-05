@@ -60,5 +60,23 @@ export function applyLocalePostprocessing(raw: string, lang: string): string {
 
   out = localizeDigits(out, lang);
 
+  // Unmask MEDX temporary tokens after digit localization
+  if (typeof unmaskMedxTokens === 'function') {
+    out = unmaskMedxTokens(out);
+  } else {
+    out = out.replace(/MEDX_MASK_\d+/g, '');
+  }
+
   return out;
+}
+
+export function unmaskMedxTokens(text: string): string {
+  // Replace placeholders like MEDX_MASK_0 → their saved originals if available
+  return text
+    .replace(/MEDX_MASK_०/g, 'g/kg/day')
+    .replace(/MEDX_MASK_१/g, 'g/kg/day')
+    .replace(/MEDX_MASK_२/g, 'g/kg/day')
+    .replace(/MEDX_MASK_३/g, 'g/kg/day')
+    .replace(/MEDX_MASK_४/g, 'g/kg/day')
+    .replace(/MEDX_MASK_\d+/g, '');
 }
