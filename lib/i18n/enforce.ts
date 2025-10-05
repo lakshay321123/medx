@@ -106,9 +106,6 @@ export function enforceLocale(
   if (!raw) return raw;
 
   let working = raw;
-  const blockedMd = /^(#{1,4}\s*)(What it is|Types|Overview)\s*$/gim;
-  const blockedBold = /^(\*\*)(What it is|Types|Overview)(\*\*)\s*$/gim;
-
   const { out: tableGuarded, slots: tableSlots } = protectTableBlocks(working);
   let out = tableGuarded;
 
@@ -121,15 +118,40 @@ export function enforceLocale(
   out = restoreTableBlocks(out, tableSlots);
 
   if (opts?.forbidEnglishHeadings && lang !== 'en') {
-    out = out.replace(blockedMd, (_match, hashes, title) => {
-      const key = normalizeHeadingKey(String(title));
-      const tr = HEADING_MAP[lang]?.[key];
-      return tr ? `${hashes}${tr}` : '';
+    const englishMap = HEADING_MAP.en ?? {};
+    const targetMap = HEADING_MAP[lang] ?? {};
+    const englishLookup = new Map<string, string>();
+    Object.entries(englishMap).forEach(([key, value]) => {
+      if (typeof value === 'string') {
+        englishLookup.set(value.toLowerCase(), key);
+      }
     });
-    out = out.replace(blockedBold, (_match, open, title, close) => {
-      const key = normalizeHeadingKey(String(title));
-      const tr = HEADING_MAP[lang]?.[key];
-      return tr ? `${open}${tr}${close}` : '';
+
+    const localizeHeading = (title: string): string | null => {
+      const trimmed = title.trim();
+      if (!trimmed) return null;
+      const lower = trimmed.toLowerCase();
+      const canonical = englishLookup.get(lower) ?? normalizeHeadingKey(trimmed);
+      const englishLabel = typeof englishMap[canonical] === 'string' ? englishMap[canonical] as string : undefined;
+      if (englishLabel && englishLabel.toLowerCase() === lower) {
+        const localized = targetMap[canonical];
+        return typeof localized === 'string' ? localized : '';
+      }
+      return null;
+    };
+
+    out = out.replace(/^(#{1,4}\s*)([^\n]+)$/gm, (match, hashes, title) => {
+      const localized = localizeHeading(String(title));
+      if (localized === null) return match;
+      if (localized === '') return '';
+      return `${hashes}${localized}`;
+    });
+
+    out = out.replace(/^(\*\*)([^*]+)(\*\*)\s*$/gm, (match, open, title, close) => {
+      const localized = localizeHeading(String(title));
+      if (localized === null) return match;
+      if (localized === '') return '';
+      return `${open}${localized}${close}`;
     });
   }
 

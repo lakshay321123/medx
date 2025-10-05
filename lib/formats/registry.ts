@@ -45,7 +45,7 @@ export const FORMATS: FormatMeta[] = [
     label: { en: 'Comparison table', hi: 'तुलनात्मक तालिका', es: 'Tabla comparativa', it: 'Tabella comparativa' },
     allowedModes: ['wellness', 'clinical', 'wellness_research', 'clinical_research', 'aidoc'],
     systemHint: [
-      'Return a **single markdown table** with no prose before or after.',
+      'Return a **single markdown table only** (no prose before or after).',
       'Columns (exact, in this order): Topic | Mechanism/How it works | Expected benefit | Limitations/Side effects | Notes/Evidence',
       'Keep cells concise (≤ 20 words). If unknown, leave blank.',
       '',
