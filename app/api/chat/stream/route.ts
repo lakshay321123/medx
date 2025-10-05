@@ -14,7 +14,7 @@ import { STUDY_MODE_SYSTEM, THINKING_MODE_HINT, STUDY_OUTPUT_GUIDE, languageInst
 import { createLocaleEnforcedStream, enforceLocale } from '@/lib/i18n/enforce';
 import { normalizeModeTag } from '@/lib/i18n/normalize';
 import { buildFormatInstruction } from '@/lib/formats/build';
-import { FORMATS } from '@/lib/formats/registry';
+import { FORMATS, isFormatAllowed } from '@/lib/formats/registry';
 import { isValidLang, isValidMode } from '@/lib/formats/constants';
 import { needsTableCoercion } from '@/lib/formats/tableGuard';
 import { hasMarkdownTable, shapeToTable } from '@/lib/formats/tableShape';
@@ -393,7 +393,7 @@ export async function POST(req: NextRequest) {
     })
   });
 
-  const modeAllowed = Boolean(formatInstruction);
+  const modeAllowed = formatId ? isFormatAllowed(formatId, resolvedMode) : false;
   const shouldCoerceToTable = modeAllowed && needsTableCoercion(formatId);
 
   if (shouldCoerceToTable) {
