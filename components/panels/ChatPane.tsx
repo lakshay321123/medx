@@ -4182,7 +4182,7 @@ ${systemCommon}` + baseSys;
 
                 {activeHelper && (
                   <span
-                    className="order-3 inline-flex min-h-[2.25rem] basis-full items-center gap-1 rounded-full border border-slate-300/70 bg-slate-50 px-2 py-1 text-xs text-foreground dark:border-slate-700/60 dark:bg-slate-900/60 md:order-none md:ml-2 md:basis-auto md:gap-2 md:px-3 md:py-1 md:text-sm"
+                    className="order-3 hidden min-h-[2.25rem] basis-full items-center gap-1 rounded-full border border-slate-300/70 bg-slate-50 px-2 py-1 text-xs text-foreground dark:border-slate-700/60 dark:bg-slate-900/60 md:inline-flex md:order-none md:ml-2 md:basis-auto md:gap-2 md:px-3 md:py-1 md:text-sm"
                     aria-live="polite"
                   >
                     {activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
@@ -4209,7 +4209,7 @@ ${systemCommon}` + baseSys;
                     e.currentTarget.value = '';
                   }}
                 />
-                <div className="relative flex-1 basis-full min-w-0 md:basis-auto">
+                <div className="relative order-2 flex-1 min-w-0 md:order-none md:basis-auto">
                   <textarea
                     ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
                     rows={1}
@@ -4251,7 +4251,7 @@ ${systemCommon}` + baseSys;
 
                 {!busy && (
                   <button
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50"
+                    className="order-3 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50 md:order-none"
                     type="submit"
                     disabled={pendingFiles.length === 0 && !userText.trim()}
                     aria-label="Send"
@@ -4260,6 +4260,36 @@ ${systemCommon}` + baseSys;
                     <Send size={16} />
                   </button>
                 )}
+
+                <div className="order-4 flex w-full basis-full items-center gap-2 md:hidden">
+                  {([
+                    { id: 'study' as const, label: t('studyLearn'), Icon: GraduationCap },
+                    { id: 'thinking' as const, label: t('thinkingMode'), Icon: Brain },
+                  ]).map(
+                    ({ id, label, Icon }) => {
+                      const isActive = activeHelper === id;
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          aria-pressed={isActive}
+                          onClick={() => {
+                            setActiveHelper(prev => (prev === id ? null : id));
+                            setPlusMenuOpen(false);
+                          }}
+                          className={`flex flex-1 items-center justify-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                            isActive
+                              ? 'border-blue-600 bg-blue-600 text-white shadow-sm focus-visible:outline-blue-600'
+                              : 'border-slate-300/70 bg-white/70 text-slate-600 hover:bg-slate-100 focus-visible:outline-blue-500 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <Icon className="h-4 w-4" aria-hidden="true" />
+                          <span>{label}</span>
+                        </button>
+                      );
+                    }
+                  )}
+                </div>
               </form>
             </div>
         </div>
