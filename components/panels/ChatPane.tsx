@@ -93,7 +93,35 @@ const REPORTS_LOCKED_MESSAGE = "Reports are available only in AI Doc mode.";
 const LABS_TREND_INTENT = /\b(pull my reports|show my reports|fetch my reports|what do my reports say|compare my reports|lab history|lab trend|report history|report trend|date\s*wise|datewise)\b/i;
 const RAW_TEXT_INTENT = /(raw text|full text|show .*report text)/i;
 
-const FORMAT_STORAGE_KEY = 'medx.formatId';
+const FORMAT_STORAGE_KEY = 'medx.format.map.v1';
+type FormatMap = Partial<Record<FormatMode, FormatId>>;
+
+function safeParseFormatMap(str: string | null): FormatMap {
+  if (!str) return {};
+  try {
+    const obj = JSON.parse(str) as unknown;
+    if (obj && typeof obj === 'object') return obj as FormatMap;
+  } catch {}
+  return {};
+}
+
+function readFormatMap(): FormatMap {
+  try {
+    if (typeof window === 'undefined') return {};
+    return safeParseFormatMap(window.localStorage.getItem(FORMAT_STORAGE_KEY));
+  } catch {
+    return {};
+  }
+}
+
+function writeFormatMap(map: FormatMap) {
+  try {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(FORMAT_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    /* ignore */
+  }
+}
 const DEFAULT_FORMAT_BY_MODE: Partial<Record<FormatMode, FormatId>> = {
   wellness: 'bullet_summary',
   clinical: 'soap_note',
@@ -732,6 +760,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [activeHelper, setActiveHelper] = useState<HelperLabel>(null);
   const [queueActive, setQueueActive] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [formatMap, setFormatMap] = useState<FormatMap>({});
   const [formatId, setFormatId] = useState<FormatId | undefined>(undefined);
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
   const [loadingAction, setLoadingAction] = useState<null | 'simpler' | 'doctor' | 'next'>(null);
@@ -847,6 +876,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     if (researchMode) return 'wellness_research';
     return 'wellness';
   }, [modeState.base, researchMode, therapyMode]);
+  const initialFormatModeRef = useRef<FormatMode | undefined>(undefined);
+  if (initialFormatModeRef.current === undefined) {
+    initialFormatModeRef.current = activeModeTag as FormatMode | undefined;
+  }
   const researchOn = Boolean(researchMode);
   const uiMode: AppMode = isAiDocMode
     ? 'aidoc'
@@ -886,40 +919,60 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    const map = readFormatMap();
+
     try {
-      const stored = window.localStorage.getItem(FORMAT_STORAGE_KEY);
-      if (stored) {
-        setFormatId(stored as FormatId);
+      const legacy = window.localStorage.getItem('medx.formatId');
+      if (legacy) {
+        const mode = initialFormatModeRef.current;
+        if (mode && isFormatAllowed(legacy as FormatId, mode)) {
+          map[mode] = legacy as FormatId;
+        }
+        window.localStorage.removeItem('medx.formatId');
       }
     } catch {
-      // ignore storage errors
+      /* ignore */
     }
+
+    setFormatMap(map);
   }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      if (formatId) {
-        window.localStorage.setItem(FORMAT_STORAGE_KEY, formatId);
-      } else {
-        window.localStorage.removeItem(FORMAT_STORAGE_KEY);
-      }
-    } catch {
-      // ignore storage errors
-    }
-  }, [formatId]);
+    const mode = activeModeTag as FormatMode | undefined;
+    if (!mode) return;
 
-  useEffect(() => {
-    if (!activeModeTag) return;
     setFormatId(prev => {
-      const modeForFormat = activeModeTag as FormatMode;
-      if (prev && isFormatAllowed(prev, modeForFormat)) {
-        return prev;
-      }
-      const fallback = DEFAULT_FORMAT_BY_MODE[modeForFormat];
+      if (prev && isFormatAllowed(prev, mode)) return prev;
+
+      const stored = formatMap[mode];
+      if (stored && isFormatAllowed(stored, mode)) return stored;
+
+      const fallback = DEFAULT_FORMAT_BY_MODE[mode];
       return fallback ?? undefined;
     });
-  }, [activeModeTag]);
+  }, [activeModeTag, formatMap]);
+
+  useEffect(() => {
+    const mode = activeModeTag as FormatMode | undefined;
+    if (typeof window === 'undefined' || !mode) return;
+
+    setFormatMap(old => {
+      const next = { ...old } as FormatMap;
+
+      if (formatId && isFormatAllowed(formatId, mode)) {
+        if (next[mode] === formatId) return old;
+        next[mode] = formatId;
+      } else if (next[mode]) {
+        delete next[mode];
+      } else {
+        return old;
+      }
+
+      writeFormatMap(next);
+      return next;
+    });
+  }, [formatId, activeModeTag]);
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
