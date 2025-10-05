@@ -4180,9 +4180,9 @@ ${systemCommon}` + baseSys;
                   e.preventDefault();
                   onSubmit();
                 }}
-                className="flex w-full items-end gap-3 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80"
+                className="flex w-full flex-wrap items-end gap-2 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80 md:flex-nowrap md:gap-3"
               >
-                <div ref={plusMenuRef} className="relative inline-flex items-center">
+                <div ref={plusMenuRef} className="relative inline-flex flex-shrink-0 items-center">
                   <button
                     type="button"
                     aria-haspopup="menu"
@@ -4197,23 +4197,6 @@ ${systemCommon}` + baseSys;
                   >
                     <Plus className="h-5 w-5" aria-hidden="true" />
                   </button>
-
-                  {activeHelper && (
-                    <span
-                      className="ml-2 inline-flex items-center gap-2 rounded-full border border-slate-300/70 bg-slate-50 px-3 py-1 text-sm text-foreground dark:border-slate-700/60 dark:bg-slate-900/60"
-                      aria-live="polite"
-                    >
-                      {activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
-                      <button
-                        type="button"
-                        aria-label={t('clearSelection')}
-                        className="opacity-70 hover:opacity-100"
-                        onClick={() => setActiveHelper(null)}
-                      >
-                        <X className="h-3.5 w-3.5" aria-hidden="true" />
-                      </button>
-                    </span>
-                  )}
 
                   {isPlusMenuOpen && (
                     <div
@@ -4263,6 +4246,23 @@ ${systemCommon}` + baseSys;
                   )}
                 </div>
 
+                {activeHelper && (
+                  <span
+                    className="order-3 hidden min-h-[2.25rem] basis-full items-center gap-1 rounded-full border border-slate-300/70 bg-slate-50 px-2 py-1 text-xs text-foreground dark:border-slate-700/60 dark:bg-slate-900/60 md:inline-flex md:order-none md:ml-2 md:basis-auto md:gap-2 md:px-3 md:py-1 md:text-sm"
+                    aria-live="polite"
+                  >
+                    {activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
+                    <button
+                      type="button"
+                      aria-label={t('clearSelection')}
+                      className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200/80 text-slate-600 transition hover:bg-slate-300 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-700"
+                      onClick={() => setActiveHelper(null)}
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </span>
+                )}
+
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -4275,7 +4275,7 @@ ${systemCommon}` + baseSys;
                     e.currentTarget.value = '';
                   }}
                 />
-                <div className="relative flex-1">
+                <div className="relative order-2 flex-1 min-w-0 md:order-none md:basis-auto">
                   <textarea
                     ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
                     rows={1}
@@ -4317,7 +4317,7 @@ ${systemCommon}` + baseSys;
 
                 {!busy && (
                   <button
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50"
+                    className="order-3 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50 md:order-none"
                     type="submit"
                     disabled={pendingFiles.length === 0 && !userText.trim()}
                     aria-label="Send"
@@ -4325,6 +4325,38 @@ ${systemCommon}` + baseSys;
                   >
                     <Send size={16} />
                   </button>
+                )}
+
+                {activeHelper && (
+                  <div className="order-4 flex w-full basis-full items-center gap-2 md:hidden">
+                    {activeHelper === 'study' ? (
+                      <button
+                        type="button"
+                        aria-pressed={true}
+                        onClick={() => {
+                          setActiveHelper(prev => (prev === 'study' ? null : prev));
+                          setPlusMenuOpen(false);
+                        }}
+                        className="flex flex-1 items-center justify-center gap-1 rounded-full border border-blue-600 bg-blue-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                      >
+                        <GraduationCap className="h-4 w-4" aria-hidden="true" />
+                        <span>{t('studyLearn')}</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        aria-pressed={true}
+                        onClick={() => {
+                          setActiveHelper(prev => (prev === 'thinking' ? null : prev));
+                          setPlusMenuOpen(false);
+                        }}
+                        className="flex flex-1 items-center justify-center gap-1 rounded-full border border-blue-600 bg-blue-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                      >
+                        <Brain className="h-4 w-4" aria-hidden="true" />
+                        <span>{t('thinkingMode')}</span>
+                      </button>
+                    )}
+                  </div>
                 )}
               </form>
             </div>
