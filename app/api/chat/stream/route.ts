@@ -12,12 +12,13 @@ import { RESEARCH_BRIEF_STYLE } from '@/lib/styles';
 import { SUPPORTED_LANGS } from '@/lib/i18n/constants';
 import { STUDY_MODE_SYSTEM, THINKING_MODE_HINT, STUDY_OUTPUT_GUIDE, languageInstruction } from '@/lib/prompts/presets';
 import { createLocaleEnforcedStream, enforceLocale } from '@/lib/i18n/enforce';
+import { normalizeModeTag } from '@/lib/i18n/normalize';
 import { buildFormatInstruction } from '@/lib/formats/build';
 import { FORMATS } from '@/lib/formats/registry';
 import { isValidLang, isValidMode } from '@/lib/formats/constants';
 import { needsTableCoercion } from '@/lib/formats/tableGuard';
 import { hasMarkdownTable, shapeToTable } from '@/lib/formats/tableShape';
-import type { FormatId } from '@/lib/formats/types';
+import type { FormatId, Mode } from '@/lib/formats/types';
 
 function normalizeLang(raw: string | null | undefined): string {
   const cleaned = (raw || 'en').toLowerCase().split('-')[0].replace(/[^a-z]/g, '');
@@ -113,15 +114,25 @@ export async function POST(req: NextRequest) {
   const long = reqUrl.searchParams.get('long') === '1';
   const studyFlag = reqUrl.searchParams.get('study') === '1';
   const thinkingFlag = reqUrl.searchParams.get('thinking') === '1';
-  const modeTag = reqUrl.searchParams.get('mode');
   const formatParam = reqUrl.searchParams.get('formatId');
   const langQuery = reqUrl.searchParams.get('lang');
   let body: any = {};
   try { body = await req.json(); } catch {}
   const { context, clientRequestId, mode } = body;
   const formatFromBody = typeof body?.formatId === 'string' ? body.formatId : undefined;
-  const flags = gateFlagsByMode(modeTag, { study: studyFlag, thinking: thinkingFlag });
-  const normalizedModeTag = (modeTag || '').toLowerCase();
+  const rawModeTag =
+    body?.modeTag
+    ?? reqUrl.searchParams.get('modeTag')
+    ?? body?.mode
+    ?? reqUrl.searchParams.get('mode')
+    ?? '';
+  const normalizedModeTag = normalizeModeTag(rawModeTag);
+  const resolvedMode: Mode = isValidMode(normalizedModeTag) ? normalizedModeTag : 'wellness';
+  if (process.env.NODE_ENV !== 'production' && !body?.modeTag) {
+    // eslint-disable-next-line no-console
+    console.warn('[medx] Missing modeTag in request body; falling back to legacy mode:', body?.mode);
+  }
+  const flags = gateFlagsByMode(resolvedMode, { study: studyFlag, thinking: thinkingFlag });
   const rawFormatId = (formatParam || formatFromBody || '').trim().toLowerCase();
   const formatId = rawFormatId && FORMATS.some(f => f.id === rawFormatId)
     ? (rawFormatId as FormatId)
@@ -136,10 +147,9 @@ export async function POST(req: NextRequest) {
       || null,
   );
   const langDirectiveBlock = languageInstruction(lang);
-  const formatInstruction =
-    isValidMode(normalizedModeTag) && isValidLang(lang)
-      ? buildFormatInstruction(lang, normalizedModeTag, formatId)
-      : '';
+  const formatInstruction = isValidLang(lang)
+    ? buildFormatInstruction(lang, resolvedMode, formatId)
+    : '';
   const persona = personaFromPrefs(body?.personalization);
   const sysPrelude = [persona].filter(Boolean).join('\n\n');
   const studyChunks = flags.study ? [STUDY_MODE_SYSTEM.trim(), STUDY_OUTPUT_GUIDE.trim()] : [];
@@ -261,7 +271,7 @@ export async function POST(req: NextRequest) {
   const briefTopic = /\b(what is|types?|symptoms?|causes?|treatment|home care|prevention|red flags?)\b/i
     .test(latestUserMessage || '');
   const isDoctorLike = mode === 'doctor';
-  const isAiDoc = normalizedModeTag === 'aidoc';
+  const isAiDoc = resolvedMode === 'aidoc';
   const targetWordCap = (isAiDoc || isDoctorLike)
     ? (isShortQuery || briefTopic ? 220 : 360)
     : (isShortQuery || briefTopic ? 180 : 280);

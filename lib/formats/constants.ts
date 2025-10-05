@@ -3,11 +3,11 @@ import type { Lang, Mode } from './types';
 export const VALID_LANGS = ['en', 'hi', 'es', 'it'] as const;
 export const VALID_MODES = [
   'clinical',
-  'aidoc',
+  'wellness',
   'therapy',
   'clinical_research',
   'wellness_research',
-  'wellness',
+  'aidoc',
 ] as const;
 
 export const isValidLang = (value: string): value is Lang =>

@@ -3,12 +3,13 @@ import { callOpenAIChat } from "@/lib/medx/providers";
 import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 import { SUPPORTED_LANGS } from "@/lib/i18n/constants";
 import { createLocaleEnforcedStream, enforceLocale } from "@/lib/i18n/enforce";
+import { normalizeModeTag } from "@/lib/i18n/normalize";
 import { buildFormatInstruction } from "@/lib/formats/build";
 import { FORMATS } from "@/lib/formats/registry";
 import { isValidLang, isValidMode } from "@/lib/formats/constants";
 import { needsTableCoercion } from "@/lib/formats/tableGuard";
 import { hasMarkdownTable, shapeToTable } from "@/lib/formats/tableShape";
-import type { FormatId } from "@/lib/formats/types";
+import type { FormatId, Mode } from "@/lib/formats/types";
 
 // Optional calculator prelude (safe if engine absent)
 let composeCalcPrelude: any, extractAll: any, canonicalizeInputs: any, computeAll: any;
@@ -37,26 +38,21 @@ export async function POST(req: Request) {
   const formatId = rawFormat && FORMATS.some(f => f.id === rawFormat)
     ? (rawFormat as FormatId)
     : undefined;
-  const rawModeTag = typeof payload?.modeTag === 'string' ? payload.modeTag : undefined;
-  let normalizedModeTag = (rawModeTag || '').toLowerCase();
-  if (!normalizedModeTag && typeof mode === 'string') {
-    const lowered = mode.toLowerCase();
-    if (lowered === 'doctor') normalizedModeTag = 'clinical';
-    else if (lowered === 'aidoc') normalizedModeTag = 'aidoc';
-    else if (lowered === 'therapy') normalizedModeTag = 'therapy';
-    else if (lowered === 'clinical_research' || lowered === 'research') normalizedModeTag = 'clinical_research';
-    else if (lowered === 'wellness_research') normalizedModeTag = 'wellness_research';
-    else normalizedModeTag = 'wellness';
+  const rawModeTag = payload?.modeTag ?? mode;
+  const normalizedModeTag = normalizeModeTag(rawModeTag);
+  const resolvedMode: Mode = isValidMode(normalizedModeTag) ? normalizedModeTag : 'wellness';
+  if (process.env.NODE_ENV !== 'production' && !payload?.modeTag) {
+    // eslint-disable-next-line no-console
+    console.warn('[medx] Missing modeTag in request body; falling back to legacy mode:', mode);
   }
   const requestedLang = typeof payload?.lang === 'string' ? payload.lang : undefined;
   const headerLang = req.headers.get('x-user-lang') || req.headers.get('x-lang') || undefined;
   const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
   const lang = normalizeLangTag(langTag);
   const langDirective = languageDirectiveFor(lang);
-  const formatInstruction =
-    isValidMode(normalizedModeTag) && isValidLang(lang)
-      ? buildFormatInstruction(lang, normalizedModeTag, formatId)
-      : '';
+  const formatInstruction = isValidLang(lang)
+    ? buildFormatInstruction(lang, resolvedMode, formatId)
+    : '';
 
   const lastUserMessage =
     messages.slice().reverse().find((m: any) => m.role === "user")?.content || "";

@@ -2825,7 +2825,8 @@ ${systemCommon}` + baseSys;
       if (researchMode) qp.set('research', '1');
       if (activeHelper === 'study') qp.set('study', '1');
       if (activeHelper === 'thinking') qp.set('thinking', '1');
-      if (activeModeTag) qp.set('mode', activeModeTag);
+      qp.set('mode', mode);
+      if (activeModeTag) qp.set('modeTag', activeModeTag);
       if (formatId) qp.set('formatId', formatId);
       const languageParam = (uiLanguage?.trim() || lang?.trim() || '');
       if (languageParam) {
@@ -2845,6 +2846,7 @@ ${systemCommon}` + baseSys;
         },
         body: JSON.stringify({
           mode: mode === 'doctor' ? 'doctor' : 'patient',
+          modeTag: activeModeTag,
           messages: chatMessages,
           threadId,
           context,
