@@ -317,7 +317,11 @@ type SendOpts = {
   skipUserMemory?: boolean;
   replacesId?: string;
   onFinish?: () => void;
-  onError?: (info?: { reason?: string }) => void;
+  onError?: (info?: {
+    reason?: string;
+    pendingId?: string;
+    regenTargetId?: string | null;
+  }) => void;
   onSuccess?: (newMessageId: string) => void;
   onPending?: (pendingMessageId: string) => void;
 };
