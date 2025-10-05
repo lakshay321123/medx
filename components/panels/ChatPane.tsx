@@ -9,7 +9,7 @@ import { LinkBadge } from '@/components/SafeLink';
 import TrialsResults from "@/components/TrialsResults";
 import type { TrialRow } from "@/types/trials";
 import { useResearchFilters } from '@/store/researchFilters';
-import { Send, Plus, Clipboard, Stethoscope, Users, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, Plus, Clipboard, Stethoscope, Users, ChevronDown, ChevronUp, GraduationCap, Brain, X } from 'lucide-react';
 import { useCountry } from '@/lib/country';
 import WelcomeCard from '@/components/ui/WelcomeCard';
 import { getWelcomeOptions, pickWelcome, type AppMode, type WelcomeMessage } from '@/lib/welcomeMessages';
@@ -18,7 +18,7 @@ import { isFollowUp } from '@/lib/followup';
 import { detectFollowupIntent } from '@/lib/intents';
 import { BRAND_NAME } from "@/lib/brand";
 import { usePrefs, buildPersonalizationPayload } from "@/components/providers/PreferencesProvider";
-import { useT } from "@/components/hooks/useI18n";
+import { useI18n } from '@/lib/i18n/useI18n';
 import SuggestionChips from "@/components/chat/SuggestionChips";
 import SuggestBar from "@/components/suggest/SuggestBar";
 import ComposerFocus from "@/components/chat/ComposerFocus";
@@ -81,6 +81,8 @@ const NEARBY_CALL_RE = /\bcall\s*#?(\d{1,2})\b/i;
 const NEARBY_OPEN_NOW_RE = /\b(open now|24\/?7|24x7|24-7)\b/i;
 const NEARBY_CHANGE_CATEGORY_RE = /\b(change category|different (?:type|category)|another (?:category|type))\b/i;
 const NEARBY_NEAR_WORD_RE = /\b(near|nearby|around|close to|within)\b/i;
+
+type HelperLabel = 'study' | 'thinking' | null;
 
 const NO_LABS_MESSAGE = "I couldn't find structured lab values yet.";
 const REPORTS_LOCKED_MESSAGE = "Reports are available only in AI Doc mode.";
@@ -705,7 +707,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   );
   const lang = prefs.lang;
   const allowHistory = prefs.allowHistory !== false && prefs.referenceChatHistory !== false;
-  const t = useT();
+  const { t } = useI18n();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userText, setUserText] = useState('');
@@ -713,6 +715,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [inputFocused, setInputFocused] = useState(false);
   const [proactive, setProactive] = useState<null | { kind: 'predispositions'|'medications'|'weight' }>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [isPlusMenuOpen, setPlusMenuOpen] = useState(false);
+  const [activeHelper, setActiveHelper] = useState<HelperLabel>(null);
   const [queueActive, setQueueActive] = useState(false);
   const [busy, setBusy] = useState(false);
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
@@ -730,10 +734,12 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [canCopyLink, setCanCopyLink] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef =
     (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ??
     (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
   const previewUrlsRef = useRef<string[]>([]);
+  const plusMenuRef = useRef<HTMLDivElement>(null);
   const sendRef = useRef<(text: string, researchMode: boolean, opts?: SendOpts) => void>();
   const researchModeRef = useRef<boolean>(false);
   const queueAbortRef = useRef<AbortController | null>(null);
@@ -850,6 +856,26 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (!plusMenuRef.current) return;
+      if (!plusMenuRef.current.contains(e.target as Node)) {
+        setPlusMenuOpen(false);
+      }
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setPlusMenuOpen(false);
+      }
+    };
+    document.addEventListener('click', onDocClick, true);
+    document.addEventListener('keydown', onEsc, true);
+    return () => {
+      document.removeEventListener('click', onDocClick, true);
+      document.removeEventListener('keydown', onEsc, true);
+    };
   }, []);
 
   useEffect(() => {
@@ -3916,23 +3942,99 @@ ${systemCommon}` + baseSys;
                 }}
                 className="flex w-full items-end gap-3 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80"
               >
-                <label
-                  className="inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-slate-700 transition hover:bg-slate-200/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
-                  title="Upload PDF or image"
-                >
-                  <Plus className="h-5 w-5" aria-hidden="true" />
-                  <input
-                    type="file"
-                    accept="application/pdf,image/*"
-                    multiple
-                    className="hidden"
-                    onChange={e => {
-                      const files = Array.from(e.target.files ?? []);
-                      if (files.length) onFilesSelected(files);
-                      e.currentTarget.value = '';
+                <div ref={plusMenuRef} className="relative inline-flex items-center">
+                  <button
+                    type="button"
+                    aria-haspopup="menu"
+                    aria-expanded={isPlusMenuOpen}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setPlusMenuOpen((v) => !v);
                     }}
-                  />
-                </label>
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300/70 hover:bg-slate-100/70 dark:border-slate-700/60 dark:hover:bg-slate-800/60"
+                    title={t('more')}
+                  >
+                    <Plus className="h-5 w-5" aria-hidden="true" />
+                  </button>
+
+                  {activeHelper && (
+                    <span
+                      className="ml-2 inline-flex items-center gap-2 rounded-full border border-slate-300/70 bg-slate-50 px-3 py-1 text-sm text-foreground dark:border-slate-700/60 dark:bg-slate-900/60"
+                      aria-live="polite"
+                    >
+                      {activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
+                      <button
+                        type="button"
+                        aria-label={t('clearSelection')}
+                        className="opacity-70 hover:opacity-100"
+                        onClick={() => setActiveHelper(null)}
+                      >
+                        <X className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                    </span>
+                  )}
+
+                  {isPlusMenuOpen && (
+                    <div
+                      role="menu"
+                      aria-label={t('composerMenu')}
+                      className="absolute bottom-12 left-0 z-50 w-64 overflow-hidden rounded-xl border border-slate-300/70 bg-white shadow-lg dark:border-slate-700/60 dark:bg-slate-900"
+                    >
+                      <button
+                        role="menuitem"
+                        type="button"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                        onClick={() => {
+                          setPlusMenuOpen(false);
+                          fileInputRef.current?.click();
+                        }}
+                      >
+                        <Plus className="h-4 w-4" aria-hidden="true" />
+                        <span>{t('upload')}</span>
+                      </button>
+
+                      <button
+                        role="menuitem"
+                        type="button"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                        onClick={() => {
+                          setPlusMenuOpen(false);
+                          setActiveHelper('study');
+                        }}
+                      >
+                        <GraduationCap className="h-4 w-4" aria-hidden="true" />
+                        <span>{t('studyLearn')}</span>
+                      </button>
+
+                      <button
+                        role="menuitem"
+                        type="button"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                        onClick={() => {
+                          setPlusMenuOpen(false);
+                          setActiveHelper('thinking');
+                        }}
+                      >
+                        <Brain className="h-4 w-4" aria-hidden="true" />
+                        <span>{t('thinkingMode')}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/pdf,image/*"
+                  multiple
+                  className="hidden"
+                  onChange={e => {
+                    const files = Array.from(e.target.files ?? []);
+                    if (files.length) onFilesSelected(files);
+                    e.currentTarget.value = '';
+                  }}
+                />
                 <div className="relative flex-1">
                   <textarea
                     ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}

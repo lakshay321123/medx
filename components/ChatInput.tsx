@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useChatStore } from "@/lib/state/chatStore";
 import { useOpenPass } from "@/hooks/useOpenPass";
-import { Plus, SendHorizontal } from "lucide-react";
+import { Brain, GraduationCap, Plus, SendHorizontal, Upload } from "lucide-react";
 import { useT } from "@/components/hooks/useI18n";
 import { usePrefs } from "@/components/providers/PreferencesProvider";
 import { useUIStore } from "@/components/hooks/useUIStore";
@@ -25,12 +25,17 @@ export function ChatInput({
   const openPass = useOpenPass();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const uploadMenuRef = useRef<HTMLDivElement | null>(null);
+  const uploadTriggerRef = useRef<HTMLButtonElement | null>(null);
   const t = useT();
   const uploadText = t("ui.composer.upload");
   const sendText = t("ui.composer.send");
   const composerPlaceholder = t("ui.composer.placeholder");
+  const studyLearnText = t("ui.composer.study_learn");
+  const thinkingModeText = t("ui.composer.thinking_mode");
   const { lang } = usePrefs();
   const openPrefs = useUIStore((state) => state.openPrefs);
+  const [isUploadMenuOpen, setIsUploadMenuOpen] = useState(false);
 
   const redirectToAccount = useCallback(() => {
     openPrefs("Account");
@@ -97,6 +102,38 @@ export function ChatInput({
     // TODO: feed your existing upload pipeline here.
   };
 
+  useEffect(() => {
+    if (!isUploadMenuOpen) return;
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (uploadMenuRef.current?.contains(target)) return;
+      if (uploadTriggerRef.current?.contains(target)) return;
+      setIsUploadMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+    };
+  }, [isUploadMenuOpen]);
+
+  useEffect(() => {
+    if (!isUploadMenuOpen) return;
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsUploadMenuOpen(false);
+      }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [isUploadMenuOpen]);
+
+  useEffect(() => {
+    if (currentId) {
+      setIsUploadMenuOpen(false);
+    }
+  }, [currentId]);
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -110,17 +147,72 @@ export function ChatInput({
       }}
       className="chat-input-container flex w-full items-end gap-2 rounded-2xl border border-[color:var(--medx-outline)] bg-[color:var(--medx-surface)] px-3 py-2 shadow-sm transition dark:border-white/10 dark:bg-[color:var(--medx-panel)] md:border-0 md:bg-transparent md:px-0 md:py-0 md:shadow-none"
     >
-      <button
-        type="button"
-        disabled={!!currentId}
-        aria-label={currentId ? "Attach files is available before you start a new chat" : uploadText}
-        className="flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--medx-text)] transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:text-[color:var(--medx-text)] dark:hover:bg-white/10"
-        onClick={() => {
-          fileInputRef.current?.click();
-        }}
-      >
-        <Plus className="h-5 w-5" />
-      </button>
+      <div className="relative">
+        <button
+          ref={uploadTriggerRef}
+          type="button"
+          disabled={!!currentId}
+          aria-haspopup="menu"
+          aria-expanded={isUploadMenuOpen}
+          aria-label={
+            currentId
+              ? "Attach files is available before you start a new chat"
+              : uploadText
+          }
+          className="flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--medx-text)] transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:text-[color:var(--medx-text)] dark:hover:bg-white/10"
+          onClick={() => {
+            if (currentId) {
+              return;
+            }
+            setIsUploadMenuOpen((open) => !open);
+          }}
+        >
+          <Plus className="h-5 w-5" />
+        </button>
+
+        {isUploadMenuOpen && (
+          <div
+            ref={uploadMenuRef}
+            role="menu"
+            className="absolute bottom-14 left-0 z-20 w-56 rounded-xl border border-[color:var(--medx-outline)] bg-[color:var(--medx-surface)] p-1 text-[color:var(--medx-text)] shadow-lg backdrop-blur dark:border-white/10 dark:bg-[color:var(--medx-panel)]"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setIsUploadMenuOpen(false);
+                fileInputRef.current?.click();
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-muted/50"
+            >
+              <Upload className="h-4 w-4 text-[color:var(--medx-text)] opacity-80" />
+              {uploadText}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setIsUploadMenuOpen(false);
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-muted/50"
+            >
+              <GraduationCap className="h-4 w-4 text-[color:var(--medx-text)] opacity-80" />
+              {studyLearnText}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setIsUploadMenuOpen(false);
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-muted/50"
+            >
+              <Brain className="h-4 w-4 text-[color:var(--medx-text)] opacity-80" />
+              {thinkingModeText}
+            </button>
+          </div>
+        )}
+      </div>
       <input
         ref={fileInputRef}
         type="file"
