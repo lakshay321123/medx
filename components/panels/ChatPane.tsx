@@ -4261,35 +4261,37 @@ ${systemCommon}` + baseSys;
                   </button>
                 )}
 
-                <div className="order-4 flex w-full basis-full items-center gap-2 md:hidden">
-                  {([
-                    { id: 'study' as const, label: t('studyLearn'), Icon: GraduationCap },
-                    { id: 'thinking' as const, label: t('thinkingMode'), Icon: Brain },
-                  ]).map(
-                    ({ id, label, Icon }) => {
-                      const isActive = activeHelper === id;
-                      return (
-                        <button
-                          key={id}
-                          type="button"
-                          aria-pressed={isActive}
-                          onClick={() => {
-                            setActiveHelper(prev => (prev === id ? null : id));
-                            setPlusMenuOpen(false);
-                          }}
-                          className={`flex flex-1 items-center justify-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
-                            isActive
-                              ? 'border-blue-600 bg-blue-600 text-white shadow-sm focus-visible:outline-blue-600'
-                              : 'border-slate-300/70 bg-white/70 text-slate-600 hover:bg-slate-100 focus-visible:outline-blue-500 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:bg-slate-800'
-                          }`}
-                        >
-                          <Icon className="h-4 w-4" aria-hidden="true" />
-                          <span>{label}</span>
-                        </button>
-                      );
-                    }
-                  )}
-                </div>
+                {activeHelper && (
+                  <div className="order-4 flex w-full basis-full items-center gap-2 md:hidden">
+                    {([
+                      { id: 'study' as const, label: t('studyLearn'), Icon: GraduationCap },
+                      { id: 'thinking' as const, label: t('thinkingMode'), Icon: Brain },
+                    ]).map(
+                      ({ id, label, Icon }) => {
+                        const isActive = activeHelper === id;
+                        return (
+                          <button
+                            key={id}
+                            type="button"
+                            aria-pressed={isActive}
+                            onClick={() => {
+                              setActiveHelper(prev => (prev === id ? null : id));
+                              setPlusMenuOpen(false);
+                            }}
+                            className={`flex flex-1 items-center justify-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                              isActive
+                                ? 'border-blue-600 bg-blue-600 text-white shadow-sm focus-visible:outline-blue-600'
+                                : 'border-slate-300/70 bg-white/70 text-slate-600 hover:bg-slate-100 focus-visible:outline-blue-500 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:bg-slate-800'
+                            }`}
+                          >
+                            <Icon className="h-4 w-4" aria-hidden="true" />
+                            <span>{label}</span>
+                          </button>
+                        );
+                      }
+                    )}
+                  </div>
+                )}
               </form>
             </div>
         </div>
