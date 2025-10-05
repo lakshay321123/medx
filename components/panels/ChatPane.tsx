@@ -717,6 +717,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isPlusMenuOpen, setPlusMenuOpen] = useState(false);
   const [activeHelper, setActiveHelper] = useState<null | 'study' | 'thinking'>(null);
+  const hasHelper = !!activeHelper;
   const [queueActive, setQueueActive] = useState(false);
   const [busy, setBusy] = useState(false);
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
@@ -3993,75 +3994,26 @@ ${systemCommon}` + baseSys;
                 }}
                 className="relative mx-auto w-full max-w-3xl"
               >
-                <div className="flex items-center gap-2 rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-900">
-                  <div ref={plusMenuRef} className="relative shrink-0">
-                    <button
-                      type="button"
-                      className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300/70 hover:bg-slate-100/70 dark:border-slate-700/60 dark:hover:bg-slate-800/60 shrink-0"
-                      aria-haspopup="menu"
-                      aria-expanded={isPlusMenuOpen}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setPlusMenuOpen((v) => !v);
-                      }}
-                      title={t('more')}
-                    >
-                      <Plus className="h-5 w-5" aria-hidden="true" />
-                    </button>
-
-                    {isPlusMenuOpen && (
-                      <div
-                        role="menu"
-                        aria-label={t('composerMenu')}
-                        className="absolute bottom-12 left-0 z-50 w-64 overflow-hidden rounded-xl border border-slate-300/70 bg-white shadow-lg dark:border-slate-700/60 dark:bg-slate-900"
-                      >
-                        <button
-                          role="menuitem"
-                          type="button"
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
-                          onClick={() => {
-                            setPlusMenuOpen(false);
-                            fileInputRef.current?.click();
-                          }}
-                        >
-                          <Plus className="h-4 w-4" aria-hidden="true" />
-                          <span>{t('upload')}</span>
-                        </button>
-
-                        <button
-                          role="menuitem"
-                          type="button"
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
-                          onClick={() => {
-                            setPlusMenuOpen(false);
-                            setActiveHelper('study');
-                          }}
-                        >
-                          <GraduationCap className="h-4 w-4" aria-hidden="true" />
-                          <span>{t('studyLearn')}</span>
-                        </button>
-
-                        <button
-                          role="menuitem"
-                          type="button"
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
-                          onClick={() => {
-                            setPlusMenuOpen(false);
-                            setActiveHelper('thinking');
-                          }}
-                        >
-                          <Brain className="h-4 w-4" aria-hidden="true" />
-                          <span>{t('thinkingMode')}</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex shrink-0 gap-2 overflow-x-auto no-scrollbar py-1 max-w-[40vw] sm:max-w-none">
-                    {activeHelper && (
+                <div
+                  className={[
+                    'rounded-2xl bg-white shadow-sm dark:bg-slate-900 overflow-visible',
+                    hasHelper
+                      ? 'flex flex-col gap-2 p-2 sm:flex-row sm:items-end sm:gap-2'
+                      : 'flex flex-col gap-2 p-2 sm:flex-row sm:items-end sm:gap-2',
+                  ].join(' ')}
+                  style={{
+                    paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)',
+                  }}
+                >
+                  <div
+                    className={[
+                      'sm:hidden transition-all',
+                      hasHelper ? 'flex w-full gap-2 overflow-x-auto no-scrollbar py-1' : 'hidden',
+                  ].join(' ')}
+                  >
+                    {hasHelper && (
                       <span
-                        className="relative inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300/70 bg-slate-50 text-slate-700 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 sm:hidden"
+                        className="relative inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300/70 bg-slate-50 text-slate-700 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200"
                         role="status"
                         aria-label={activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
                         title={activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
@@ -4075,29 +4027,7 @@ ${systemCommon}` + baseSys;
                         <button
                           type="button"
                           aria-label={t('clearSelection')}
-                          className="absolute -top-1 -right-1 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-white opacity-80 hover:opacity-100 ring-1 ring-white/70 p-2 -m-2 dark:ring-black/40"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setActiveHelper(null);
-                          }}
-                        >
-                          <X className="h-3.5 w-3.5" aria-hidden="true" />
-                        </button>
-                      </span>
-                    )}
-
-                    {activeHelper && (
-                      <span
-                        className="hidden items-center gap-1 rounded-full border border-slate-300/70 bg-slate-50 px-3 py-1 text-sm text-slate-700 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 sm:inline-flex"
-                      >
-                        <span className="whitespace-nowrap">
-                          {activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
-                        </span>
-                        <button
-                          type="button"
-                          aria-label={t('clearSelection')}
-                          className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded-full opacity-70 hover:opacity-100"
+                          className="absolute -top-1 -right-1 z-20 pointer-events-auto inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-white opacity-90 hover:opacity-100 ring-1 ring-white/80 drop-shadow p-2 -m-2 dark:ring-black/40"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -4110,69 +4040,157 @@ ${systemCommon}` + baseSys;
                     )}
                   </div>
 
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="application/pdf,image/*"
-                    multiple
-                    className="hidden"
-                    onChange={e => {
-                      const files = Array.from(e.target.files ?? []);
-                      if (files.length) onFilesSelected(files);
-                      e.currentTarget.value = '';
-                    }}
-                  />
-
-                  <div className="relative flex flex-1 min-w-0">
-                    <textarea
-                      ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
-                      rows={1}
-                      className="flex-1 min-w-0 resize-none bg-transparent px-3 py-2 pr-12 leading-6 whitespace-pre-wrap break-words outline-none max-h-40 text-sm text-slate-900 placeholder:text-slate-500 dark:text-slate-100 dark:placeholder:text-slate-400"
-                      placeholder={
-                        pendingFiles.length > 0
-                          ? 'Add a note or question for this document (optional)'
-                          : 'Send a message'
-                      }
-                      value={userText}
-                      onChange={(e) => setUserText(e.target.value)}
-                      onFocus={() => setInputFocused(true)}
-                      onBlur={(e) => {
-                        const next = e.relatedTarget as HTMLElement | null;
-                        if (next?.dataset?.suggestionButton === 'true') {
-                          return;
-                        }
-                        setInputFocused(false);
-                      }}
-                      onKeyDown={(e) => {
-                        const isComposing = (e.nativeEvent as any).isComposing;
-                        if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
+                  <div className="flex w-full items-end gap-2">
+                    <div ref={plusMenuRef} className="relative shrink-0">
+                      <button
+                        type="button"
+                        className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300/70 hover:bg-slate-100/70 dark:border-slate-700/60 dark:hover:bg-slate-800/60 shrink-0"
+                        aria-haspopup="menu"
+                        aria-expanded={isPlusMenuOpen}
+                        onClick={(e) => {
                           e.preventDefault();
-                          onSubmit();
-                        }
+                          e.stopPropagation();
+                          setPlusMenuOpen((v) => !v);
+                        }}
+                        title={t('more')}
+                      >
+                        <Plus className="h-5 w-5" aria-hidden="true" />
+                      </button>
+
+                      {isPlusMenuOpen && (
+                        <div
+                          role="menu"
+                          aria-label={t('composerMenu')}
+                          className="absolute bottom-12 left-0 z-50 w-64 overflow-hidden rounded-xl border border-slate-300/70 bg-white shadow-lg dark:border-slate-700/60 dark:bg-slate-900"
+                        >
+                          <button
+                            role="menuitem"
+                            type="button"
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                            onClick={() => {
+                              setPlusMenuOpen(false);
+                              fileInputRef.current?.click();
+                            }}
+                          >
+                            <Plus className="h-4 w-4" aria-hidden="true" />
+                            <span>{t('upload')}</span>
+                          </button>
+
+                          <button
+                            role="menuitem"
+                            type="button"
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                            onClick={() => {
+                              setPlusMenuOpen(false);
+                              setActiveHelper('study');
+                            }}
+                          >
+                            <GraduationCap className="h-4 w-4" aria-hidden="true" />
+                            <span>{t('studyLearn')}</span>
+                          </button>
+
+                          <button
+                            role="menuitem"
+                            type="button"
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                            onClick={() => {
+                              setPlusMenuOpen(false);
+                              setActiveHelper('thinking');
+                            }}
+                          >
+                            <Brain className="h-4 w-4" aria-hidden="true" />
+                            <span>{t('thinkingMode')}</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="application/pdf,image/*"
+                      multiple
+                      className="hidden"
+                      onChange={e => {
+                        const files = Array.from(e.target.files ?? []);
+                        if (files.length) onFilesSelected(files);
+                        e.currentTarget.value = '';
                       }}
                     />
 
-                    {(queueActive || busy || abortRef.current) && (
-                      <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                        <StopButton
-                          onClick={onStop}
-                          className="pointer-events-auto"
-                          title="Stop (Esc)"
-                        />
-                      </div>
+                    <div className="relative flex flex-1 min-w-0">
+                      <textarea
+                        ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
+                        rows={1}
+                        className="flex-1 min-w-0 resize-none bg-transparent px-3 py-2 pr-12 leading-6 whitespace-pre-wrap break-words outline-none max-h-40 text-sm text-slate-900 placeholder:text-slate-500 dark:text-slate-100 dark:placeholder:text-slate-400"
+                        placeholder={
+                          pendingFiles.length > 0
+                            ? 'Add a note or question for this document (optional)'
+                            : 'Send a message'
+                        }
+                        value={userText}
+                        onChange={(e) => setUserText(e.target.value)}
+                        onFocus={() => setInputFocused(true)}
+                        onBlur={(e) => {
+                          const next = e.relatedTarget as HTMLElement | null;
+                          if (next?.dataset?.suggestionButton === 'true') {
+                            return;
+                          }
+                          setInputFocused(false);
+                        }}
+                        onKeyDown={(e) => {
+                          const isComposing = (e.nativeEvent as any).isComposing;
+                          if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
+                            e.preventDefault();
+                            onSubmit();
+                          }
+                        }}
+                      />
+
+                      {(queueActive || busy || abortRef.current) && (
+                        <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+                          <StopButton
+                            onClick={onStop}
+                            className="pointer-events-auto"
+                            title="Stop (Esc)"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {!busy && (
+                      <button
+                        type="submit"
+                        className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary-600 text-white hover:bg-primary-700 shrink-0 disabled:opacity-50"
+                        disabled={pendingFiles.length === 0 && !userText.trim()}
+                        aria-label="Send"
+                        title="Send"
+                      >
+                        <Send className="h-5 w-5" aria-hidden="true" />
+                      </button>
                     )}
                   </div>
 
-                  {!busy && (
-                    <button
-                      type="submit"
-                      className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary-600 text-white hover:bg-primary-700 shrink-0 disabled:opacity-50"
-                      disabled={pendingFiles.length === 0 && !userText.trim()}
-                      aria-label="Send"
-                      title="Send"
+                  {hasHelper && (
+                    <span
+                      className="hidden sm:inline-flex items-center gap-1 rounded-full border border-slate-300/70 bg-slate-50 px-3 py-1 text-sm text-slate-700 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200"
                     >
-                      <Send className="h-5 w-5" aria-hidden="true" />
-                    </button>
+                      <span className="whitespace-nowrap">
+                        {activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={t('clearSelection')}
+                        className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded-full opacity-70 hover:opacity-100"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setActiveHelper(null);
+                        }}
+                      >
+                        <X className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                    </span>
                   )}
                 </div>
               </form>
