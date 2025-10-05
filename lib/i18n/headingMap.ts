@@ -1,6 +1,7 @@
 export const HEADING_MAP: Record<string, Record<string, string>> = {
   hi: {
     'what it is': 'क्या है',
+    'overview': 'सार',
     'types': 'प्रकार',
     'causes': 'सम्भावित कारण',
     'how to recognize': 'कैसे पहचानें',
