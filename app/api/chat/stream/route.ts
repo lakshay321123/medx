@@ -11,6 +11,7 @@ import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 import { RESEARCH_BRIEF_STYLE } from '@/lib/styles';
 import { SUPPORTED_LANGS } from '@/lib/i18n/constants';
 import { STUDY_MODE_SYSTEM, THINKING_MODE_HINT, STUDY_OUTPUT_GUIDE, languageInstruction } from '@/lib/prompts/presets';
+import { createLocaleEnforcedStream } from '@/lib/i18n/enforce';
 
 function normalizeLang(raw: string | null | undefined): string {
   const cleaned = (raw || 'en').toLowerCase().split('-')[0].replace(/[^a-z]/g, '');
@@ -368,8 +369,13 @@ export async function POST(req: NextRequest) {
     return new Response(`LLM error: ${err}`, { status: 500 });
   }
 
-  // Pass-through SSE; frontend parses "data: {delta.content}"
-  return new Response(upstream.body, {
+  if (!upstream.body) {
+    return new Response('LLM error: empty body', { status: 500 });
+  }
+
+  const enforcedStream = createLocaleEnforcedStream(upstream.body, lang, { forbidEnglishHeadings: true });
+
+  return new Response(enforcedStream, {
     headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }
   });
 }
