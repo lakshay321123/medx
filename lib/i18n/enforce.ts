@@ -44,17 +44,20 @@ function restore(text: string, slots: string[]) {
   });
 }
 
-function protectTableSeparators(text: string) {
+function protectTableBlocks(text: string) {
   const slots: string[] = [];
-  const out = text.replace(/^\|[ :\-|]+\|$/gm, segment => {
+  const protect = (segment: string) => {
     const token = `${TABLE_SAFE}${numberToAlpha(slots.length)}__`;
     slots.push(segment);
     return token;
-  });
+  };
+
+  let out = text.replace(/(^\|[^\n]+\|\n\|[ :\-|]+\|\n(?:\|.*\|\n?)+)/gm, segment => protect(segment));
+  out = out.replace(/^\|[ :\-|]+\|$/gm, segment => protect(segment));
   return { out, slots };
 }
 
-function restoreTableSeparators(text: string, slots: string[]) {
+function restoreTableBlocks(text: string, slots: string[]) {
   if (!slots.length) return text;
   return text.replace(TABLE_SAFE_RE, (_match, alpha) => {
     const idx = alphaToNumber(alpha as string);
@@ -106,14 +109,16 @@ export function enforceLocale(
   const blockedMd = /^(#{1,4}\s*)(What it is|Types|Overview)\s*$/gim;
   const blockedBold = /^(\*\*)(What it is|Types|Overview)(\*\*)\s*$/gim;
 
-  const { out: protectedText, slots } = protect(working);
-  let out = unmask(protectedText, opts?.maskLookup);
-  const { out: tableProtected, slots: tableSlots } = protectTableSeparators(out);
-  out = localizeDigits(tableProtected, lang);
-  out = restoreTableSeparators(out, tableSlots);
+  const { out: tableGuarded, slots: tableSlots } = protectTableBlocks(working);
+  let out = tableGuarded;
+
+  const { out: protectedText, slots } = protect(out);
+  out = unmask(protectedText, opts?.maskLookup);
+  out = localizeDigits(out, lang);
   out = restore(out, slots);
   out = stripHeadingParens(out);
   out = rewriteHeadings(out, lang);
+  out = restoreTableBlocks(out, tableSlots);
 
   if (opts?.forbidEnglishHeadings && lang !== 'en') {
     out = out.replace(blockedMd, (_match, hashes, title) => {
