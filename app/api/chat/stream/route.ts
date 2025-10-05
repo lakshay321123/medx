@@ -16,7 +16,7 @@ import { buildFormatInstruction } from '@/lib/formats/build';
 import { FORMATS } from '@/lib/formats/registry';
 import { isValidLang, isValidMode } from '@/lib/formats/constants';
 import { needsTableCoercion } from '@/lib/formats/tableGuard';
-import { shapeToTable, wrapAsFencedTable } from '@/lib/formats/tableShape';
+import { hasMarkdownTable, shapeToTable } from '@/lib/formats/tableShape';
 import type { FormatId } from '@/lib/formats/types';
 
 function normalizeLang(raw: string | null | undefined): string {
@@ -384,9 +384,9 @@ export async function POST(req: NextRequest) {
   });
 
   const modeAllowed = Boolean(formatInstruction);
-  const wantsStrictTable = modeAllowed && needsTableCoercion(formatId);
+  const shouldCoerceToTable = modeAllowed && needsTableCoercion(formatId);
 
-  if (wantsStrictTable) {
+  if (shouldCoerceToTable) {
     const rawSse = await upstream.text();
     if (!upstream.ok) {
       return new Response(rawSse || 'LLM error', { status: upstream.status || 500 });
@@ -410,7 +410,7 @@ export async function POST(req: NextRequest) {
     let table = shapeToTable(subject, fullText);
     table = enforceLocale(table, lang, { forbidEnglishHeadings: true });
     const payload = {
-      choices: [{ delta: { content: wrapAsFencedTable(table), medx_reset: true } }],
+      choices: [{ delta: { content: table, medx_reset: true } }],
     };
 
     const encoder = new TextEncoder();
@@ -436,11 +436,11 @@ export async function POST(req: NextRequest) {
     return new Response('LLM error: empty body', { status: 500 });
   }
 
-  const formatFinalizer = wantsStrictTable
+  const formatFinalizer = shouldCoerceToTable
     ? (text: string) => {
+        if (hasMarkdownTable(text)) return text;
         const subject = (latestUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
-        const shaped = shapeToTable(subject, text);
-        return wrapAsFencedTable(shaped);
+        return shapeToTable(subject, text);
       }
     : undefined;
 

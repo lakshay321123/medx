@@ -948,10 +948,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     if (!mode) return;
 
     setFormatId(prev => {
-      if (prev && isFormatAllowed(prev, mode)) return prev;
-
       const stored = formatMap[mode];
       if (stored && isFormatAllowed(stored, mode)) return stored;
+
+      if (prev && isFormatAllowed(prev, mode)) return prev;
 
       const fallback = DEFAULT_FORMAT_BY_MODE[mode];
       return fallback ?? undefined;

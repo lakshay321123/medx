@@ -4,12 +4,14 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import rehypeSanitize from "rehype-sanitize";
+import { defaultSchema } from "hast-util-sanitize";
 import "katex/dist/katex.min.css";
 import { LinkBadge } from "./SafeLink";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { enforceLocale } from "@/lib/i18n/enforce";
 import type { FormatId } from "@/lib/formats/types";
-import { shapeToTable, wrapAsFencedTable } from "@/lib/formats/tableShape";
+import { hasMarkdownTable, shapeToTable } from "@/lib/formats/tableShape";
 
 // --- Normalizer ---
 // normalize: unwrap full-message fences, convert ==== to <hr>, bold-lines → headings, list bullets
@@ -94,11 +96,31 @@ function normalizeLLM(s: string) {
     .trim();
 }
 
+const tableSchema = {
+  ...defaultSchema,
+  tagNames: [
+    ...(defaultSchema.tagNames || []),
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+    "th",
+    "td",
+  ],
+  attributes: {
+    ...(defaultSchema.attributes || {}),
+    table: ["className"],
+    th: ["align", "colspan", "rowspan"],
+    td: ["align", "colspan", "rowspan"],
+  },
+};
+
 function ensureTable(content: string, formatId?: FormatId, userPrompt?: string) {
   if (formatId !== "table_compare") return content;
+  const body = content || "";
+  if (body.includes("```table") || hasMarkdownTable(body)) return body;
   const subject = (userPrompt || "").split("\n")[0]?.trim() || "Comparison";
-  const table = shapeToTable(subject, content || "");
-  return wrapAsFencedTable(table);
+  return shapeToTable(subject, body);
 }
 
 export default function ChatMarkdown({ content, formatId, userPrompt }: { content: string; formatId?: FormatId; userPrompt?: string }) {
@@ -120,7 +142,7 @@ export default function ChatMarkdown({ content, formatId, userPrompt }: { conten
       <AutoCollapse>
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkMath]}
-          rehypePlugins={[rehypeKatex]}
+          rehypePlugins={[[rehypeSanitize, tableSchema], rehypeKatex]}
           components={{
             a: ({ href, children }) => (
               <LinkBadge href={href as string}>

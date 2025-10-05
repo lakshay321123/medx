@@ -4,6 +4,8 @@ import { localizeDigits } from '@/lib/i18n/numeral';
 
 const SAFE = '__SAFESEG__';
 const SAFE_RE = new RegExp(`${SAFE}([A-Z]+)__`, 'g');
+const TABLE_SAFE = '__SAFETBL__';
+const TABLE_SAFE_RE = new RegExp(`${TABLE_SAFE}([A-Z]+)__`, 'g');
 const MEDX_RE = /MEDX_MASK_(\d+)/g;
 
 function numberToAlpha(n: number): string {
@@ -37,6 +39,24 @@ function protect(text: string) {
 
 function restore(text: string, slots: string[]) {
   return text.replace(SAFE_RE, (_match, alpha) => {
+    const idx = alphaToNumber(alpha as string);
+    return slots[idx] ?? '';
+  });
+}
+
+function protectTableSeparators(text: string) {
+  const slots: string[] = [];
+  const out = text.replace(/^\|[ :\-|]+\|$/gm, segment => {
+    const token = `${TABLE_SAFE}${numberToAlpha(slots.length)}__`;
+    slots.push(segment);
+    return token;
+  });
+  return { out, slots };
+}
+
+function restoreTableSeparators(text: string, slots: string[]) {
+  if (!slots.length) return text;
+  return text.replace(TABLE_SAFE_RE, (_match, alpha) => {
     const idx = alphaToNumber(alpha as string);
     return slots[idx] ?? '';
   });
@@ -88,7 +108,9 @@ export function enforceLocale(
 
   const { out: protectedText, slots } = protect(working);
   let out = unmask(protectedText, opts?.maskLookup);
-  out = localizeDigits(out, lang);
+  const { out: tableProtected, slots: tableSlots } = protectTableSeparators(out);
+  out = localizeDigits(tableProtected, lang);
+  out = restoreTableSeparators(out, tableSlots);
   out = restore(out, slots);
   out = stripHeadingParens(out);
   out = rewriteHeadings(out, lang);

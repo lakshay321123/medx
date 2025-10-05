@@ -1,10 +1,11 @@
 export function hasMarkdownTable(text: string): boolean {
+  // header + separator + ≥1 data row
   return /\n\|[^|\n]+\|\n\|[ :\-|]+\|\n\|[^|\n]+\|/m.test(`\n${text}`);
 }
 
-export function extractFencedTable(text: string): string | null {
-  const match = text.match(/```table\s+([\s\S]*?)```/i);
-  return match ? match[1].trim() : null;
+export function extractFirstTable(text: string): string | null {
+  const match = text.match(/\|[^|\n]+\|\n\|[ :\-|]+\|\n(?:\|.*\|\n?)+/m);
+  return match ? match[0].trim() : null;
 }
 
 export function sanitizeCell(value: string): string {
@@ -19,7 +20,7 @@ const HEADER =
   '| Topic | Mechanism/How it works | Expected benefit | Limitations/Side effects | Notes/Evidence |\n' +
   '|-------|-------------------------|------------------|--------------------------|----------------|';
 
-export function coerceBulletsToRows(subject: string, text: string): string[] {
+export function bulletsOrPairsToRows(subject: string, text: string): string[] {
   const rows: string[] = [];
   const bullets = Array.from(text.matchAll(/^\s*(?:[-*]|\d+\.)\s+(.+)$/gm))
     .map(match => match[1])
@@ -46,19 +47,9 @@ export function coerceBulletsToRows(subject: string, text: string): string[] {
 }
 
 export function shapeToTable(subject: string, raw: string): string {
-  const fenced = extractFencedTable(raw);
-  if (fenced && hasMarkdownTable(`\n${fenced}`)) return fenced;
+  const existing = extractFirstTable(raw);
+  if (existing) return existing;
 
-  if (hasMarkdownTable(raw)) {
-    const tableMatch = raw.match(/\|[^|\n]+\|\n\|[ :\-|]+\|\n(?:\|.*\|\n?)+/m);
-    if (tableMatch) return tableMatch[0].trim();
-  }
-
-  const rows = coerceBulletsToRows(subject, raw);
+  const rows = bulletsOrPairsToRows(subject, raw);
   return [HEADER, ...rows].join('\n');
-}
-
-export function wrapAsFencedTable(content: string): string {
-  const inner = content.trim();
-  return '```table\n' + inner + '\n```';
 }
