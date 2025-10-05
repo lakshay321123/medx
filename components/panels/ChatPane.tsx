@@ -85,6 +85,90 @@ const NEARBY_NEAR_WORD_RE = /\b(near|nearby|around|close to|within)\b/i;
 
 type HelperLabel = 'study' | 'thinking' | null;
 
+type HelperChipCommonProps = {
+  onClear: () => void;
+  labelStudy: string;
+  labelThinking: string;
+  clearLabel: string;
+};
+
+function HelperChipMobile({
+  active,
+  onClear,
+  labelStudy,
+  labelThinking,
+  clearLabel,
+}: {
+  active: 'study' | 'thinking';
+} & HelperChipCommonProps) {
+  const label = active === 'study' ? labelStudy : labelThinking;
+
+  return (
+    <span
+      className="relative inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300/70 bg-slate-50 text-slate-700 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 sm:hidden"
+      role="status"
+      aria-label={label}
+      title={label}
+    >
+      {active === 'study' ? (
+        <BookOpen className="h-4 w-4" aria-hidden="true" />
+      ) : (
+        <Brain className="h-4 w-4" aria-hidden="true" />
+      )}
+
+      <button
+        type="button"
+        aria-label={clearLabel}
+        className="absolute -top-1 -right-1 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-white opacity-80 ring-1 ring-white/70 transition hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-slate-100 dark:text-slate-900 dark:ring-black/40 p-2 -m-2"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onClear();
+        }}
+      >
+        <X className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+    </span>
+  );
+}
+
+function HelperChipDesktop({
+  active,
+  onClear,
+  labelStudy,
+  labelThinking,
+  clearLabel,
+  className = '',
+}: {
+  active: HelperLabel;
+  className?: string;
+} & HelperChipCommonProps) {
+  if (!active) return null;
+
+  const label = active === 'study' ? labelStudy : labelThinking;
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border border-slate-300/70 bg-slate-50 px-3 py-1 text-sm text-foreground dark:border-slate-700/60 dark:bg-slate-900/60 ${className}`.trim()}
+      aria-live="polite"
+    >
+      <span className="whitespace-nowrap">{label}</span>
+      <button
+        type="button"
+        aria-label={clearLabel}
+        className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded-full opacity-70 transition hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onClear();
+        }}
+      >
+        <X className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+    </span>
+  );
+}
+
 const NO_LABS_MESSAGE = "I couldn't find structured lab values yet.";
 const REPORTS_LOCKED_MESSAGE = "Reports are available only in AI Doc mode.";
 // Updated LABS_TREND_INTENT: only triggers on explicit lab/report phrases
@@ -3994,7 +4078,7 @@ ${systemCommon}` + baseSys;
                 }}
                 className="w-full"
               >
-                <div className="flex items-end gap-2 rounded-2xl border border-slate-200/60 bg-white/90 px-2 py-2 dark:border-slate-700/60 dark:bg-slate-900/80">
+                <div className="flex items-end gap-2 rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-900">
                   <div ref={plusMenuRef} className="relative shrink-0">
                     <button
                       type="button"
@@ -4061,42 +4145,22 @@ ${systemCommon}` + baseSys;
 
                   <div className="flex max-w-[40vw] shrink-0 gap-2 overflow-x-auto py-1 no-scrollbar sm:max-w-none">
                     {activeHelper && (
-                      <>
-                        <span
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300/70 bg-slate-50 text-slate-700 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 sm:hidden"
-                          role="status"
-                          aria-label={activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
-                          title={activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
-                        >
-                          {activeHelper === 'study' ? (
-                            <BookOpen className="h-4 w-4" aria-hidden="true" />
-                          ) : (
-                            <Brain className="h-4 w-4" aria-hidden="true" />
-                          )}
-                        </span>
-
-                        <span
-                          className="hidden items-center gap-1 rounded-full border border-slate-300/70 bg-slate-50 px-3 py-1 text-[12px] leading-[18px] text-foreground dark:border-slate-700/60 dark:bg-slate-900/60 sm:inline-flex sm:text-[14px] sm:leading-[20px]"
-                          aria-live="polite"
-                        >
-                          <span className="block max-w-[36vw] overflow-hidden text-ellipsis whitespace-nowrap sm:max-w-none">
-                            {activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
-                          </span>
-                          <button
-                            type="button"
-                            aria-label={t('clearSelection')}
-                            className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-xs opacity-70 hover:opacity-100"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setActiveHelper(null);
-                            }}
-                          >
-                            ×
-                          </button>
-                        </span>
-                      </>
+                      <HelperChipMobile
+                        active={activeHelper}
+                        onClear={() => setActiveHelper(null)}
+                        labelStudy={t('studyLearn')}
+                        labelThinking={t('thinkingMode')}
+                        clearLabel={t('clearSelection')}
+                      />
                     )}
+                    <HelperChipDesktop
+                      active={activeHelper}
+                      onClear={() => setActiveHelper(null)}
+                      labelStudy={t('studyLearn')}
+                      labelThinking={t('thinkingMode')}
+                      clearLabel={t('clearSelection')}
+                      className="hidden sm:inline-flex"
+                    />
                   </div>
 
                   <input
@@ -4112,11 +4176,11 @@ ${systemCommon}` + baseSys;
                     }}
                   />
 
-                  <div className="relative flex-1 min-w-0">
+                  <div className="relative flex flex-1 min-w-0">
                     <textarea
                       ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
                       rows={1}
-                      className="w-full resize-none bg-transparent px-3 py-2 pr-12 text-sm leading-6 text-slate-900 whitespace-pre-wrap break-words outline-none placeholder:text-slate-500 dark:text-slate-100 dark:placeholder:text-slate-400"
+                      className="flex-1 min-w-0 resize-none bg-transparent px-3 py-2 pr-12 text-sm leading-6 text-slate-900 whitespace-pre-wrap break-words outline-none placeholder:text-slate-500 dark:text-slate-100 dark:placeholder:text-slate-400 max-h-40"
                       placeholder={
                         pendingFiles.length > 0
                           ? 'Add a note or question for this document (optional)'
