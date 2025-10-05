@@ -14,8 +14,9 @@ import { STUDY_MODE_SYSTEM, THINKING_MODE_HINT, STUDY_OUTPUT_GUIDE, languageInst
 const SUPPORTED_LANGS = ['en', 'hi', 'es', 'fr', 'it', 'ar', 'de', 'zh'];
 
 function normalizeLang(raw: string | null | undefined): string {
-  const cleaned = (raw || 'en').toLowerCase().replace(/[^a-z-]/g, '');
-  return SUPPORTED_LANGS.includes(cleaned) ? cleaned : 'en';
+  if (!raw) return 'en';
+  const base = raw.toLowerCase().split('-')[0].replace(/[^a-z]/g, '');
+  return SUPPORTED_LANGS.includes(base) ? base : 'en';
 }
 
 function readIntEnv(name: string, fallback: number) {

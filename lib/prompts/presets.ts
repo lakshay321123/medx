@@ -21,16 +21,17 @@ Default structure if format is unspecified:
 /**
  * Injection-safe language directive.
  * IMPORTANT: Server must pass a SANITIZED language code (see server patch).
- * JSON.stringify ensures quotes/newlines cannot break the instruction.
  */
 export function languageInstruction(lang: string) {
-  const safe = JSON.stringify(lang); // e.g. "hi"
+  const safe = (lang || 'en').toLowerCase().split('-')[0].replace(/[^a-z]/g, '');
+  const SUPPORTED_LANGS = ['en', 'hi', 'es', 'fr', 'it', 'ar', 'de', 'zh'];
+  const target = SUPPORTED_LANGS.includes(safe) ? safe : 'en';
+
   return `
-Respond entirely in ${safe}. Do not mix languages.
-Translate all section labels/headings into ${safe} (e.g., “What it is”, “Types”, “Causes”, “Treatment”, “When to seek care”).
-Use numerals customary for ${safe} (e.g., Hindi → Devanagari). If the locale typically uses Arabic digits, keep them.
-If user input contains multiple languages, translate your output into ${safe}.
-Prefer technical terms in ${safe} unless a canonical universal term is standard (e.g., drug names).
-If user uses English technical tokens (e.g., drug names), you may keep those tokens but keep surrounding prose in ${safe}.
+Respond entirely in "${target}".
+Do not mix languages. If user input mixes multiple languages, output must be in "${target}".
+Translate numeric headings, lists, and section titles.
+Preserve hyperlinks, file paths, and identifiers exactly as-is.
+Keep technical/medical terms in "${target}" unless no native equivalent exists.
 `.trim();
 }
