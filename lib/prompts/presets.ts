@@ -18,10 +18,16 @@ Default structure if format is unspecified:
 - Caveats/contraindications if applicable
 `.trim();
 
+/**
+ * Injection-safe language directive.
+ * IMPORTANT: Server must pass a SANITIZED language code (see server patch).
+ * JSON.stringify ensures quotes/newlines cannot break the instruction.
+ */
 export function languageInstruction(lang: string) {
+  const safe = JSON.stringify(lang); // e.g. "hi"
   return `
-Respond entirely in "${lang}". Do not mix languages.
-If user input contains multiple languages, translate your output into "${lang}".
-Keep technical terms in "${lang}" unless the canonical term is universally used in another language.
+Respond entirely in ${safe}. Do not mix languages.
+If user input contains multiple languages, translate your output into ${safe}.
+Prefer technical terms in ${safe} unless a canonical universal term is standard (e.g., drug names).
 `.trim();
 }

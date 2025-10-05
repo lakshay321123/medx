@@ -2693,8 +2693,11 @@ ${systemCommon}` + baseSys;
       if (activeHelper === 'study') qp.set('study', '1');
       if (activeHelper === 'thinking') qp.set('thinking', '1');
       if (activeModeTag) qp.set('mode', activeModeTag);
-      const languageParam = (uiLanguage || lang || '').trim();
-      if (languageParam) qp.set('lang', languageParam);
+      const languageParam = (uiLanguage?.trim() || lang?.trim() || '');
+      if (languageParam) {
+        // Always send the active UI language for server-side locking.
+        qp.set('lang', languageParam);
+      }
       const qs = qp.toString();
       const url = `/api/chat/stream${qs ? `?${qs}` : ''}`;
       mark('send');
