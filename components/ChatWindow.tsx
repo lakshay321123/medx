@@ -46,6 +46,7 @@ function storeJobSafe(meta: {
 
 type AssistantRequestSnapshot = {
   route: ApiRoute;
+  url: string;
   req: Record<string, unknown>;
   headers: Record<string, string>;
   meta: {
@@ -326,7 +327,7 @@ export function ChatWindow() {
     async (messageId: string, snapshot: AssistantRequestSnapshot, threadId: string | null) => {
       try {
         const response = await retryFetch(
-          snapshot.route,
+          snapshot.url,
           {
             method: "POST",
             headers: snapshot.headers,
@@ -404,8 +405,9 @@ export function ChatWindow() {
       qs.set("thinking", "balanced");
     }
 
+    const baseRoute: ApiRoute = "/api/chat";
     const queryString = qs.toString();
-    const route = `/api/chat${queryString ? `?${queryString}` : ""}`;
+    const requestUrl = `${baseRoute}${queryString ? `?${queryString}` : ""}`;
     const researchOverride = metaLabel === "study";
     const effectiveResearch = researchOverride || researchFromUrl;
 
@@ -483,7 +485,8 @@ export function ChatWindow() {
     }
 
     const snapshot: AssistantRequestSnapshot = {
-      route,
+      route: baseRoute,
+      url: requestUrl,
       req,
       headers,
       meta: {
@@ -522,6 +525,7 @@ export function ChatWindow() {
         content: "",
         error: true,
         route: snapshot.route,
+        url: snapshot.url,
         req: snapshot.req,
         headers: snapshot.headers,
         retryMeta: snapshot.meta,
@@ -541,6 +545,7 @@ export function ChatWindow() {
 
       const reqData = message.req as Record<string, unknown>;
       const route = message.route as ApiRoute;
+      const requestUrl = typeof message.url === "string" ? message.url : route;
       let originalText = "";
       if (typeof reqData.text === "string") {
         originalText = reqData.text;
@@ -556,6 +561,7 @@ export function ChatWindow() {
 
       const snapshot: AssistantRequestSnapshot = {
         route,
+        url: requestUrl,
         req: reqData,
         headers: message.headers as Record<string, string>,
         meta: storedMeta,
@@ -590,6 +596,7 @@ export function ChatWindow() {
           content: "",
           error: true,
           route: snapshot.route,
+          url: snapshot.url,
           req: snapshot.req,
           headers: snapshot.headers,
           retryMeta: snapshot.meta,

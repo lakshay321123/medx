@@ -17,6 +17,7 @@ export type PendingDraft = {
 export type ChatMessageMeta = {
   error?: boolean;
   route?: string;
+  url?: string;
   req?: unknown;
   headers?: Record<string, string>;
   retryMeta?: {
