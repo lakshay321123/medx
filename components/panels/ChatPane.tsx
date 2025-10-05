@@ -4114,7 +4114,7 @@ ${systemCommon}` + baseSys;
                   e.preventDefault();
                   onSubmit();
                 }}
-                className="flex w-full items-end gap-3 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80"
+                className="flex w-full flex-wrap items-end gap-2 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80 md:flex-nowrap md:gap-3"
               >
                 <div ref={plusMenuRef} className="relative inline-flex items-center">
                   <button
@@ -4134,14 +4134,14 @@ ${systemCommon}` + baseSys;
 
                   {activeHelper && (
                     <span
-                      className="ml-2 inline-flex items-center gap-2 rounded-full border border-slate-300/70 bg-slate-50 px-3 py-1 text-sm text-foreground dark:border-slate-700/60 dark:bg-slate-900/60"
+                      className="order-3 inline-flex flex-shrink-0 items-center gap-1 rounded-full border border-slate-300/70 bg-slate-50 px-2 py-1 text-xs text-foreground dark:border-slate-700/60 dark:bg-slate-900/60 md:ml-2 md:gap-2 md:px-3 md:py-1 md:text-sm md:order-none"
                       aria-live="polite"
                     >
                       {activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
                       <button
                         type="button"
                         aria-label={t('clearSelection')}
-                        className="opacity-70 hover:opacity-100"
+                        className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200/80 text-slate-600 transition hover:bg-slate-300 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-700"
                         onClick={() => setActiveHelper(null)}
                       >
                         <X className="h-3.5 w-3.5" aria-hidden="true" />
