@@ -8,6 +8,8 @@ import "katex/dist/katex.min.css";
 import { LinkBadge } from "./SafeLink";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { enforceLocale } from "@/lib/i18n/enforce";
+import type { FormatId } from "@/lib/formats/types";
+import { shapeToTable, wrapAsFencedTable } from "@/lib/formats/tableShape";
 
 // --- Normalizer ---
 // normalize: unwrap full-message fences, convert ==== to <hr>, bold-lines → headings, list bullets
@@ -92,9 +94,17 @@ function normalizeLLM(s: string) {
     .trim();
 }
 
-export default function ChatMarkdown({ content }: { content: string }) {
+function ensureTable(content: string, formatId?: FormatId, userPrompt?: string) {
+  if (formatId !== "table_compare") return content;
+  const subject = (userPrompt || "").split("\n")[0]?.trim() || "Comparison";
+  const table = shapeToTable(subject, content || "");
+  return wrapAsFencedTable(table);
+}
+
+export default function ChatMarkdown({ content, formatId, userPrompt }: { content: string; formatId?: FormatId; userPrompt?: string }) {
   const { language } = useI18n();
-  const safeContent = enforceLocale(content, language ?? 'en', { forbidEnglishHeadings: true });
+  const guarded = ensureTable(content, formatId, userPrompt);
+  const safeContent = enforceLocale(guarded, language ?? 'en', { forbidEnglishHeadings: true });
   const prepared = normalizeLLM(normalize(safeContent));
 
   return (

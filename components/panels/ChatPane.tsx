@@ -613,6 +613,8 @@ function ChatCard({
           analyzingPhrase={pendingStageState.analyzingPhrase}
           thinkingLabel={pendingStageState.thinkingLabel}
           content={typeof m.content === "string" ? m.content : ""}
+          formatId={m.formatId}
+          userPrompt={m.originUserText || m.userPrompt}
         />
       );
     }
@@ -622,6 +624,8 @@ function ChatCard({
         analyzingPhrase={null}
         thinkingLabel={therapyMode ? "Reflecting…" : undefined}
         content={typeof m.content === "string" ? m.content : ""}
+        formatId={m.formatId}
+        userPrompt={m.originUserText || m.userPrompt}
       />
     );
   }
@@ -634,7 +638,7 @@ function ChatCard({
           Replaced by a newer answer
         </div>
       )}
-      <ChatMarkdown content={m.content} />
+      <ChatMarkdown content={m.content} formatId={m.formatId} userPrompt={m.originUserText || m.userPrompt} />
       {m.role === "assistant" && (m.citations?.length || 0) > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {(m.citations || []).slice(0, simple ? 3 : 6).map((c, i) => (
@@ -2363,6 +2367,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       content: '',
       pending: true,
       originUserText: messageText,
+      userPrompt: messageText,
+      formatId,
       refreshOf: opts.replacesId,
     } as ChatMessage;
 

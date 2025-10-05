@@ -15,7 +15,8 @@ import { createLocaleEnforcedStream, enforceLocale } from '@/lib/i18n/enforce';
 import { buildFormatInstruction } from '@/lib/formats/build';
 import { FORMATS } from '@/lib/formats/registry';
 import { isValidLang, isValidMode } from '@/lib/formats/constants';
-import { coerceToTable, hasMarkdownTable, needsTableCoercion } from '@/lib/formats/tableGuard';
+import { needsTableCoercion } from '@/lib/formats/tableGuard';
+import { shapeToTable, wrapAsFencedTable } from '@/lib/formats/tableShape';
 import type { FormatId } from '@/lib/formats/types';
 
 function normalizeLang(raw: string | null | undefined): string {
@@ -382,18 +383,20 @@ export async function POST(req: NextRequest) {
     })
   });
 
-  const shouldCoerceToTable = Boolean(formatInstruction) && needsTableCoercion(formatId);
+  const modeAllowed = Boolean(formatInstruction);
+  const wantsStrictTable = modeAllowed && needsTableCoercion(formatId);
 
-  if (shouldCoerceToTable) {
-    const raw = await upstream.text();
+  if (wantsStrictTable) {
+    const rawSse = await upstream.text();
     if (!upstream.ok) {
-      return new Response(`LLM error: ${raw}`, { status: 500 });
+      return new Response(rawSse || 'LLM error', { status: upstream.status || 500 });
     }
 
-    const fullText = raw
+    const fullText = rawSse
       .split(/\n\n/)
       .map(line => line.replace(/^data:\s*/, ''))
-      .filter(line => line && line !== '[DONE]')
+      .filter(Boolean)
+      .filter(line => line !== '[DONE]')
       .map(chunk => {
         try {
           return JSON.parse(chunk)?.choices?.[0]?.delta?.content ?? '';
@@ -404,14 +407,15 @@ export async function POST(req: NextRequest) {
       .join('');
 
     const subject = (latestUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
+    let table = shapeToTable(subject, fullText);
+    table = enforceLocale(table, lang, { forbidEnglishHeadings: true });
+    const payload = {
+      choices: [{ delta: { content: wrapAsFencedTable(table), medx_reset: true } }],
+    };
 
-    let shaped = hasMarkdownTable(fullText) ? fullText : coerceToTable(subject, fullText);
-    shaped = enforceLocale(shaped, lang, { forbidEnglishHeadings: true });
-
-    const payload = { choices: [{ delta: { content: shaped, medx_reset: true } }] };
+    const encoder = new TextEncoder();
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
-        const encoder = new TextEncoder();
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();
@@ -432,11 +436,11 @@ export async function POST(req: NextRequest) {
     return new Response('LLM error: empty body', { status: 500 });
   }
 
-  const formatFinalizer = shouldCoerceToTable
+  const formatFinalizer = wantsStrictTable
     ? (text: string) => {
-        if (hasMarkdownTable(text)) return text;
         const subject = (latestUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
-        return coerceToTable(subject, text);
+        const shaped = shapeToTable(subject, text);
+        return wrapAsFencedTable(shaped);
       }
     : undefined;
 

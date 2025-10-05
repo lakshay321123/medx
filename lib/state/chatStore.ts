@@ -27,6 +27,8 @@ export type ChatMessage = {
   role: "user" | "assistant" | "system";
   content: string;
   ts: number;
+  formatId?: string;
+  userPrompt?: string;
 } & ChatMessageMeta;
 
 type Thread = {

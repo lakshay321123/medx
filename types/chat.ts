@@ -1,4 +1,5 @@
 import type { Citation } from "@/lib/research/orchestrator";
+import type { FormatId } from "@/lib/formats/types";
 
 export type ChatMessage = {
   id: string;
@@ -11,4 +12,6 @@ export type ChatMessage = {
   replacedByNewer?: boolean;
   replacedByMessageId?: string;
   refreshOf?: string;
+  formatId?: FormatId;
+  userPrompt?: string;
 };
