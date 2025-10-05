@@ -27,7 +27,10 @@ export function languageInstruction(lang: string) {
   const safe = JSON.stringify(lang); // e.g. "hi"
   return `
 Respond entirely in ${safe}. Do not mix languages.
+Translate all section labels/headings into ${safe} (e.g., “What it is”, “Types”, “Causes”, “Treatment”, “When to seek care”).
+Use numerals customary for ${safe} (e.g., Hindi → Devanagari). If the locale typically uses Arabic digits, keep them.
 If user input contains multiple languages, translate your output into ${safe}.
 Prefer technical terms in ${safe} unless a canonical universal term is standard (e.g., drug names).
+If user uses English technical tokens (e.g., drug names), you may keep those tokens but keep surrounding prose in ${safe}.
 `.trim();
 }

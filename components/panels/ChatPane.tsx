@@ -19,6 +19,7 @@ import { detectFollowupIntent } from '@/lib/intents';
 import { BRAND_NAME } from "@/lib/brand";
 import { usePrefs, buildPersonalizationPayload } from "@/components/providers/PreferencesProvider";
 import { useI18n } from '@/lib/i18n/useI18n';
+import { applyLocalePostprocessing } from '@/lib/chat/postprocess';
 import SuggestionChips from "@/components/chat/SuggestionChips";
 import SuggestBar from "@/components/suggest/SuggestBar";
 import ComposerFocus from "@/components/chat/ComposerFocus";
@@ -743,6 +744,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const sendRef = useRef<(text: string, researchMode: boolean, opts?: SendOpts) => void>();
   const researchModeRef = useRef<boolean>(false);
   const queueAbortRef = useRef<AbortController | null>(null);
+  const helperStorageBooted = useRef(false);
   const { filters } = useResearchFilters();
   const recordShortMem = useCallback(
     (threadId: string | null | undefined, role: "user" | "assistant", text: string) => {
@@ -782,10 +784,13 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const handlePendingFinalize = useCallback(
     (messageId: string, finalContent: string, extras?: { followUps?: unknown; citations?: unknown; error?: string | null }) => {
+      const processedContent = uiLanguage && uiLanguage !== 'en'
+        ? applyLocalePostprocessing(finalContent, uiLanguage)
+        : finalContent;
       setMessages(prev =>
         prev.map(m => {
           if (m.id !== messageId) return m;
-          const next = { ...m, content: finalContent, pending: false } as ChatMessage;
+          const next = { ...m, content: processedContent, pending: false } as ChatMessage;
           if (extras?.followUps !== undefined) {
             (next as any).followUps = extras.followUps;
           }
@@ -799,7 +804,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         }),
       );
     },
-    [setMessages],
+    [setMessages, uiLanguage],
   );
 
   const {
@@ -1092,6 +1097,24 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   const router = useRouter(); // auto-new-thread
   const threadId = sp.get('threadId');
+  const storageThreadId = threadId ?? 'default';
+  useEffect(() => {
+    helperStorageBooted.current = false;
+    const key = `thread:${storageThreadId}:helper`;
+    const saved = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null;
+    helperStorageBooted.current = true;
+    setActiveHelper((saved === 'study' || saved === 'thinking') ? (saved as HelperLabel) : null);
+  }, [storageThreadId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !helperStorageBooted.current) return;
+    const key = `thread:${storageThreadId}:helper`;
+    if (activeHelper) {
+      window.localStorage.setItem(key, activeHelper);
+    } else {
+      window.localStorage.removeItem(key);
+    }
+  }, [activeHelper, storageThreadId]);
   const context = sp.get('context');
   // ADD: stable fallback thread key for default chat
   const stableThreadId = threadId || 'default-thread';
@@ -2822,7 +2845,6 @@ ${systemCommon}` + baseSys;
       recordShortMem(stableThreadId, 'assistant', content);
       opts.onError?.();
     } finally {
-      setActiveHelper(null);
       setBusy(false);
       setThinkingStartedAt(null);
       abortRef.current = null;
