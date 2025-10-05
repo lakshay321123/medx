@@ -707,7 +707,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   );
   const lang = prefs.lang;
   const allowHistory = prefs.allowHistory !== false && prefs.referenceChatHistory !== false;
-  const { t } = useI18n();
+  const { t, language: uiLanguage } = useI18n();
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userText, setUserText] = useState('');
@@ -2693,6 +2693,8 @@ ${systemCommon}` + baseSys;
       if (activeHelper === 'study') qp.set('study', '1');
       if (activeHelper === 'thinking') qp.set('thinking', '1');
       if (activeModeTag) qp.set('mode', activeModeTag);
+      const languageParam = (uiLanguage || lang || '').trim();
+      if (languageParam) qp.set('lang', languageParam);
       const qs = qp.toString();
       const url = `/api/chat/stream${qs ? `?${qs}` : ''}`;
       mark('send');
