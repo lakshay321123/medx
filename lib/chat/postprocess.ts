@@ -14,27 +14,51 @@ function convertDigit(lang: string, digit: string): string {
 
 export function localizeDigits(text: string, lang: string) {
   if (lang !== 'hi' && lang !== 'ar' && lang !== 'zh') return text;
-
-  const maskPattern = /```[\s\S]*?```|`[^`]*`|\[[^\]]*\]\([^\)]+\)|https?:\/\/\S+|(?=\S*[A-Za-z])\S*[\\\/]\S*/g;
-  const placeholders: string[] = [];
-  const masked = text.replace(maskPattern, match => {
-    const token = `__MEDX_MASK_${placeholders.length}__`;
-    placeholders.push(match);
-    return token;
-  });
-
-  const converted = masked.replace(/\d/g, d => convertDigit(lang, d));
-
-  return converted.replace(/__MEDX_MASK_(\d+)__/g, (_, index) => {
-    const idx = Number(index);
-    return Number.isFinite(idx) && placeholders[idx] !== undefined
-      ? placeholders[idx]
-      : `__MEDX_MASK_${index}__`;
-  });
+  return text.replace(/\d/g, d => convertDigit(lang, d));
 }
 
-export function applyLocalePostprocessing(raw: string, lang: string): string {
-  let out = raw;
+// Match MEDX placeholders that were injected upstream (Western digits only)
+const MEDX_PLACEHOLDER_RE = /MEDX_MASK_(\d+)/g;
+
+/**
+ * Data-driven unmask:
+ * - If a lookup map is provided (e.g., from server annotations), restore the original fragment.
+ * - If not, remove the placeholder (never substitute a default string).
+ */
+export function unmaskMedxTokens(text: string, lookup?: Record<string, string>): string {
+  if (!text) return text;
+  if (!lookup) {
+    // No map available → strip placeholders
+    return text.replace(MEDX_PLACEHOLDER_RE, '');
+  }
+  return text.replace(MEDX_PLACEHOLDER_RE, (_, id) => lookup[`MEDX_MASK_${id}`] ?? '');
+}
+
+// Protect markdown links and inline code so we don't localize digits inside them
+function protectSafeSegments(input: string) {
+  const safeRe = /(`[^`]*`|\[[^\]]*\]\([^\)]+\))/g;
+  const slots: string[] = [];
+  const out = input.replace(safeRe, (m) => {
+    const token = `__SAFE_SLOT_${slots.length}__`;
+    slots.push(m);
+    return token;
+  });
+  return { out, slots };
+}
+
+function restoreSafeSegments(input: string, slots: string[]) {
+  let out = input;
+  slots.forEach((m, i) => {
+    out = out.replace(new RegExp(`__SAFE_SLOT_${i}__`, 'g'), m);
+  });
+  return out;
+}
+
+export function applyLocalePostprocessing(raw: string, lang: string, maskLookup?: Record<string, string>): string {
+  const { out: protectedIn, slots } = protectSafeSegments(raw);
+
+  // Translate known headings before other replacements
+  let out = protectedIn;
 
   const hmap = HEADING_MAP[lang];
   if (hmap) {
@@ -58,25 +82,14 @@ export function applyLocalePostprocessing(raw: string, lang: string): string {
     );
   }
 
+  // Unmask placeholders (Western-digit tokens)
+  out = unmaskMedxTokens(out, maskLookup);
+
+  // Localize digits in the remaining plain text
   out = localizeDigits(out, lang);
 
-  // Unmask MEDX temporary tokens after digit localization
-  if (typeof unmaskMedxTokens === 'function') {
-    out = unmaskMedxTokens(out);
-  } else {
-    out = out.replace(/MEDX_MASK_\d+/g, '');
-  }
+  // Restore protected segments
+  out = restoreSafeSegments(out, slots);
 
   return out;
-}
-
-export function unmaskMedxTokens(text: string): string {
-  // Replace placeholders like MEDX_MASK_0 → their saved originals if available
-  return text
-    .replace(/MEDX_MASK_०/g, 'g/kg/day')
-    .replace(/MEDX_MASK_१/g, 'g/kg/day')
-    .replace(/MEDX_MASK_२/g, 'g/kg/day')
-    .replace(/MEDX_MASK_३/g, 'g/kg/day')
-    .replace(/MEDX_MASK_४/g, 'g/kg/day')
-    .replace(/MEDX_MASK_\d+/g, '');
 }
