@@ -2305,6 +2305,71 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }
 
 
+  function looksLikeComparisonIntent(text: string): boolean {
+    const q = (text || '').toLowerCase();
+    const negated =
+      /\b(no|without|avoid|not)\s+(a\s+)?(table|tabular|tabla|tabella|तालिका)\b/.test(q) ||
+      /\b(no|without|avoid|not)\s+(comparison|compare|vs|versus)\b/.test(q);
+    if (negated) return false;
+
+    const en = [
+      /\bcompare\b/, /\bcomparison\b/, /\bvs\b/, /\bversus\b/,
+      /\bdifference\b/, /\bdifferences\b/, /\bpros and cons\b/,
+      /\badvantages? and disadvantages?\b/, /\btrade[-\s]?offs?\b/,
+      /\bside[-\s]?by[-\s]?side\b/, /\bwhich is (better|best)\b/,
+      /\bmatrix\b/, /\bgrid\b/, /\bshortlist\b/,
+    ];
+    const hi = [/तुलना/, /फायदे\s*नुकसान/, /अंतर/];
+    const es = [
+      /\bcomparar\b/, /\bcomparación\b/, /\bventajas y desventajas\b/,
+      /\bdiferencia(s)?\b/, /\bcuál es (mejor|la mejor)\b/,
+    ];
+    const it = [
+      /\bconfronto\b/, /\bconfrontare\b/, /\bdifferenza(e)?\b/,
+      /\bpro e contro\b/, /\bqual[e] è (migliore|il migliore)\b/,
+    ];
+    const any = [...en, ...hi, ...es, ...it];
+    return any.some(re => re.test(q));
+  }
+
+  function looksLikeTableIntent(text: string): boolean {
+    const q = (text || '').toLowerCase();
+    if (/\b(no|without|avoid|not)\s+(a\s+)?(table|tabular|tabla|tabella|तालिका)\b/.test(q)) return false;
+
+    const word = /(?:^|[^a-z])(?:table|tabular|tabulate|as a table|in a table)(?:s)?(?:$|[^a-z])/;
+    const es = /(?:^|[^a-z])(?:tabla|tabular)(?:$|[^a-z])/;
+    const it = /(?:^|[^a-z])(?:tabella|tabellare)(?:$|[^a-z])/;
+    const hi = /तालिका/;
+    const soft = /\b(column|row|grid|matrix)\b/;
+    return word.test(q) || es.test(q) || it.test(q) || hi.test(q) || soft.test(q);
+  }
+
+  function pickEffectiveFormatIdForSend(messageText: string, activeModeTag: string | null): FormatId | undefined {
+    const resolvedMode = activeModeTag && isValidMode(activeModeTag) ? activeModeTag : undefined;
+    if (!resolvedMode) return formatId;
+
+    const userPinnedFormat = formatMap[resolvedMode];
+    if (userPinnedFormat && isFormatAllowed(userPinnedFormat, resolvedMode)) {
+      return userPinnedFormat;
+    }
+
+    const wantsTable = looksLikeTableIntent(messageText) || looksLikeComparisonIntent(messageText);
+    if (wantsTable && isFormatAllowed('table_compare', resolvedMode)) {
+      return 'table_compare';
+    }
+
+    if (formatId && isFormatAllowed(formatId, resolvedMode)) {
+      return formatId;
+    }
+
+    const fallback = DEFAULT_FORMAT_BY_MODE[resolvedMode];
+    if (fallback && isFormatAllowed(fallback, resolvedMode)) {
+      return fallback;
+    }
+
+    return undefined;
+  }
+
   async function send(text: string, researchMode: boolean, opts: SendOpts = {}) {
     if (!text.trim() || busy) return;
     setBusy(true);
@@ -2316,6 +2381,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         .replace(/\bsgpt\b/gi, "ALT (SGPT)")
         .replace(/\bsgot\b/gi, "AST (SGOT)");
     const messageText = isProfileThread ? normalize(text) : text;
+    const formatIdForSend = pickEffectiveFormatIdForSend(messageText, activeModeTag ?? null);
     const visualEcho = opts.visualEcho !== false;
     const clientRequestId = opts.clientRequestId || crypto.randomUUID();
     if (!opts.skipUserMemory) {
@@ -2376,7 +2442,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       pending: true,
       originUserText: messageText,
       userPrompt: messageText,
-      formatId,
+      formatId: formatIdForSend,
       refreshOf: opts.replacesId,
     } as ChatMessage;
 
@@ -2835,7 +2901,7 @@ ${systemCommon}` + baseSys;
       if (activeHelper === 'thinking') qp.set('thinking', '1');
       qp.set('mode', mode);
       if (activeModeTag) qp.set('modeTag', activeModeTag);
-      if (formatId) qp.set('formatId', formatId);
+      if (formatIdForSend) qp.set('formatId', formatIdForSend);
       const languageParam = (uiLanguage?.trim() || lang?.trim() || '');
       if (languageParam) {
         // Always send the active UI language for server-side locking.
@@ -2863,7 +2929,7 @@ ${systemCommon}` + baseSys;
           lang,
           personalization,
           allowHistory,
-          formatId,
+          formatId: formatIdForSend,
         }),
         cache: 'no-store',
         signal: ctrl.signal
