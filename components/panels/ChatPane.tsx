@@ -926,6 +926,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     if (typeof window === 'undefined') return;
 
     const map = readFormatMap();
+    let migrated = false;
 
     try {
       const legacy = window.localStorage.getItem('medx.formatId');
@@ -933,11 +934,16 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         const mode = initialFormatModeRef.current;
         if (mode && isFormatAllowed(legacy as FormatId, mode)) {
           map[mode] = legacy as FormatId;
+          migrated = true;
         }
         window.localStorage.removeItem('medx.formatId');
       }
     } catch {
       /* ignore */
+    }
+
+    if (migrated) {
+      writeFormatMap(map);
     }
 
     setFormatMap(map);
