@@ -53,3 +53,46 @@ export function shapeToTable(subject: string, raw: string): string {
   const rows = bulletsOrPairsToRows(subject, raw);
   return [HEADER, ...rows].join('\n');
 }
+
+export function sanitizeMarkdownTable(md: string) {
+  const lines = md.split('\n');
+
+  // keep only the first header + separator; drop duplicate headers
+  let seenHeader = false;
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const L = lines[i];
+    if (/^\s*\|/.test(L)) {
+      // collapse multiple spaces inside cells
+      const collapsed = L.replace(/\s{2,}/g, ' ').replace(/\s*\|\s*/g, ' | ').trim();
+      // skip fully empty rows like "|  |  |  |"
+      const content = collapsed.replace(/\|/g, '').trim();
+      if (!content) continue;
+
+      // detect header separator row like "|---|---|"
+      const isSep = /^\s*\|(?:\s*-+\s*\|)+\s*$/.test(L);
+
+      if (!seenHeader) {
+        out.push(collapsed);
+        if (i + 1 < lines.length && /^\s*\|(?:\s*-+\s*\|)+\s*$/.test(lines[i + 1])) {
+          out.push(lines[i + 1].replace(/\s+/g, ' ')); // keep the first separator as-is
+          i++; // skip it
+        } else if (!isSep) {
+          // ensure we have a separator row even if model forgot
+          const cols = (collapsed.match(/\|/g)?.length || 0) - 1;
+          out.push('|' + Array(cols).fill('---').join('|') + '|');
+        }
+        seenHeader = true;
+        continue;
+      }
+
+      // after header: drop duplicate header or separator rows
+      if (isSep) continue;
+
+      out.push(collapsed);
+    }
+  }
+
+  // trim trailing empty lines
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}

@@ -99,13 +99,21 @@ export default function ChatMarkdown({ content, formatId, userPrompt }: { conten
   return (
     <div
       className="
-        message-content prose prose-slate dark:prose-invert max-w-[72ch]
+        message-content prose prose-slate dark:prose-invert max-w-none overflow-x-auto
         prose-headings:font-semibold prose-headings:mb-2 prose-headings:mt-3
         prose-h3:text-lg prose-h4:text-base
         prose-p:my-2 prose-li:my-1 prose-strong:font-medium
         leading-7 text-[15px]
       "
     >
+      <style jsx global>{`
+        .message-content.prose table { table-layout: fixed; width: 100%; }
+        .message-content.prose th,
+        .message-content.prose td { word-wrap: break-word; white-space: normal; vertical-align: top; }
+        .message-content.prose th { position: sticky; top: 0; background: var(--bg-elevated); z-index: 1; }
+        .message-content.prose td,
+        .message-content.prose th { padding: .5rem .6rem; font-size: .9rem; line-height: 1.25rem; }
+      `}</style>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[[rehypeSanitize, tableSchema], rehypeKatex]}

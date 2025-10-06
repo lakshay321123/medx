@@ -8,7 +8,7 @@ import { buildFormatInstruction } from "@/lib/formats/build";
 import { FORMATS } from "@/lib/formats/registry";
 import { isValidLang, isValidMode } from "@/lib/formats/constants";
 import { needsTableCoercion } from "@/lib/formats/tableGuard";
-import { hasMarkdownTable, shapeToTable } from "@/lib/formats/tableShape";
+import { hasMarkdownTable, sanitizeMarkdownTable, shapeToTable } from "@/lib/formats/tableShape";
 import type { FormatId, Mode } from "@/lib/formats/types";
 
 // Optional calculator prelude (safe if engine absent)
@@ -126,7 +126,7 @@ export async function POST(req: Request) {
       .join('');
 
     const subject = (lastUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
-    let table = shapeToTable(subject, fullText);
+    let table = sanitizeMarkdownTable(shapeToTable(subject, fullText));
     table = enforceLocale(table, lang, { forbidEnglishHeadings: true });
     const payload = {
       choices: [{ delta: { content: table, medx_reset: true } }],
@@ -168,7 +168,7 @@ export async function POST(req: Request) {
     ? (text: string) => {
         if (hasMarkdownTable(text)) return text;
         const subject = (lastUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
-        return shapeToTable(subject, text);
+        return sanitizeMarkdownTable(shapeToTable(subject, text));
       }
     : undefined;
 
