@@ -56,43 +56,45 @@ export function shapeToTable(subject: string, raw: string): string {
 
 export function sanitizeMarkdownTable(md: string) {
   const lines = md.split('\n');
-
-  // keep only the first header + separator; drop duplicate headers
-  let seenHeader = false;
   const out: string[] = [];
+  let headerDone = false;
+
+  const isSep = (L: string) => /^\s*\|(?:\s*-+\s*\|)+\s*$/.test(L);
+  const isRow = (L: string) => /^\s*\|/.test(L);
+
+  const fillDashes = (row: string) => {
+    return row
+      .replace(/\s*\|\s*/g, ' | ')
+      .replace(/\|\s*(?=\|)/g, '| - ')
+      .replace(/\|\s*$/, '|');
+  };
+
   for (let i = 0; i < lines.length; i++) {
     const L = lines[i];
-    if (/^\s*\|/.test(L)) {
-      // collapse multiple spaces inside cells
-      const collapsed = L.replace(/\s{2,}/g, ' ').replace(/\s*\|\s*/g, ' | ').trim();
-      // skip fully empty rows like "|  |  |  |"
-      const content = collapsed.replace(/\|/g, '').trim();
-      if (!content) continue;
+    if (!isRow(L)) continue;
 
-      // detect header separator row like "|---|---|"
-      const isSep = /^\s*\|(?:\s*-+\s*\|)+\s*$/.test(L);
+    if (!headerDone) {
+      const hdr = fillDashes(L.trim());
+      out.push(hdr);
 
-      if (!seenHeader) {
-        out.push(collapsed);
-        if (i + 1 < lines.length && /^\s*\|(?:\s*-+\s*\|)+\s*$/.test(lines[i + 1])) {
-          out.push(lines[i + 1].replace(/\s+/g, ' ')); // keep the first separator as-is
-          i++; // skip it
-        } else if (!isSep) {
-          // ensure we have a separator row even if model forgot
-          const cols = (collapsed.match(/\|/g)?.length || 0) - 1;
-          out.push('|' + Array(cols).fill('---').join('|') + '|');
-        }
-        seenHeader = true;
-        continue;
+      if (i + 1 < lines.length && isSep(lines[i + 1])) {
+        out.push(lines[i + 1].replace(/\s+/g, ' ').trim());
+        i++;
+      } else {
+        const cols = (hdr.match(/\|/g)?.length || 0) - 1;
+        out.push('|' + Array(cols).fill('---').join('|') + '|');
       }
-
-      // after header: drop duplicate header or separator rows
-      if (isSep) continue;
-
-      out.push(collapsed);
+      headerDone = true;
+      continue;
     }
+
+    if (isSep(L)) continue;
+
+    const bare = L.replace(/\|/g, '').trim();
+    if (!bare) continue;
+
+    out.push(fillDashes(L.trim()));
   }
 
-  // trim trailing empty lines
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
