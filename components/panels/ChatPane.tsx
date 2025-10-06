@@ -2549,7 +2549,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             allowHistory,
             formatId: formatIdForSend,                        // current selection (may be undefined)
             formatPinned: userPinnedFormat,                   // did the user pin a per-mode format?
-            formatHint,                                       // ← one-shot suggestion: 'table_compare' when implied
+            formatHint,                                       // ← 'table_compare' when user implies table/comparison
           }),
           cache: 'no-store',
           signal: ctrl.signal
@@ -2929,7 +2929,7 @@ ${systemCommon}` + baseSys;
           allowHistory,
           formatId: formatIdForSend,                 // user selection (may be undefined)
           formatPinned: userPinnedFormat,            // did the user pin a per-mode format?
-          formatHint,                      // ← one-shot suggestion: 'table_compare' when implied
+          formatHint,                      // ← 'table_compare' when user implies table/comparison
         }),
         cache: 'no-store',
         signal: ctrl.signal
