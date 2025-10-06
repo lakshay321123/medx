@@ -8,7 +8,8 @@ import { buildFormatInstruction } from "@/lib/formats/build";
 import { FORMATS } from "@/lib/formats/registry";
 import { isValidLang, isValidMode } from "@/lib/formats/constants";
 import { needsTableCoercion } from "@/lib/formats/tableGuard";
-import { hasMarkdownTable, sanitizeMarkdownTable, shapeToTable } from "@/lib/formats/tableShape";
+import { hasMarkdownTable, shapeToTable } from "@/lib/formats/tableShape";
+import { analyzeTable, sanitizeMarkdownTable } from "@/lib/formats/tableQuality";
 import type { FormatId, Mode } from "@/lib/formats/types";
 
 // Optional calculator prelude (safe if engine absent)
@@ -105,58 +106,71 @@ export async function POST(req: Request) {
   const shouldCoerceToTable =
     (modeAllowsEffective && needsTableCoercion(effectiveFormatId)) || hintAllowsTable;
 
+  const collectSseContent = (rawSse: string) => rawSse
+    .split(/\n\n/)
+    .map(line => line.replace(/^data:\s*/, '').trim())
+    .filter(Boolean)
+    .filter(line => line !== '[DONE]')
+    .map(chunk => {
+      try {
+        const parsed = JSON.parse(chunk);
+        const delta = parsed?.choices?.[0]?.delta?.content;
+        if (typeof delta === 'string') return delta;
+      } catch {}
+      return '';
+    })
+    .join('');
+
   if (shouldCoerceToTable) {
     const rawSse = await upstream.text();
     if (!upstream.ok) {
       return new Response(rawSse || 'OpenAI stream error', { status: upstream.status || 500 });
     }
 
-    const fullText = rawSse
-      .split(/\n\n/)
-      .map(line => line.replace(/^data:\s*/, ''))
-      .filter(Boolean)
-      .filter(line => line !== '[DONE]')
-      .map(chunk => {
-        try {
-          return JSON.parse(chunk)?.choices?.[0]?.delta?.content ?? '';
-        } catch {
-          return '';
-        }
-      })
-      .join('');
-
+    const fullText = collectSseContent(rawSse);
     const subject = (lastUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
-    let table = sanitizeMarkdownTable(shapeToTable(subject, fullText));
-    table = enforceLocale(table, lang, { forbidEnglishHeadings: true });
-    const payload = {
-      choices: [{ delta: { content: table, medx_reset: true } }],
-    };
+    const table1 = sanitizeMarkdownTable(shapeToTable(subject, fullText));
+    const quality1 = analyzeTable(table1);
+    const tooSparse = quality1.rows < 3 || quality1.density < 0.7;
 
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-        controller.close();
-      },
-    });
+    let bestTable = table1;
+    let bestQuality = quality1;
 
+    if (tooSparse) {
+      const strictInstruction = `# Output format: Comparison table (STRICT)
+Return a SINGLE markdown table only (no prose).
+Columns (exact order):
+Topic | Mechanism/How it works | Expected benefit | Limitations/Side effects | Notes/Evidence
+Populate EVERY cell. If truly unknown, use a single dash "-".
+Keep cells concise (<= 18 words). No meta like "Short answer".
+Include main item plus 4–8 realistic alternatives.`;
+
+      try {
+        const retryPlain = await callOpenAIChat([
+          { role: 'system', content: strictInstruction },
+          { role: 'user', content: lastUserMessage || subject },
+        ], { stream: false, temperature: 0.2 }) as string;
+        const table2 = sanitizeMarkdownTable(shapeToTable(subject, retryPlain || ''));
+        const quality2 = analyzeTable(table2);
+        if (quality2.density > bestQuality.density) {
+          bestTable = table2;
+          bestQuality = quality2;
+        }
+      } catch {}
+    }
+
+    const finalTable = enforceLocale(bestTable, lang, { forbidEnglishHeadings: true });
     const totalMs = Date.now() - t0;
     const appMs = Math.max(0, totalMs - modelMs);
     const headers = new Headers({
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-      "Transfer-Encoding": "chunked",
+      "Content-Type": "text/markdown; charset=utf-8",
+      "Cache-Control": "no-store",
       "Server-Timing": `app;dur=${appMs},model;dur=${modelMs}`,
       "x-medx-provider": "openai",
       "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-5",
     });
 
-    return new Response(stream, {
-      status: 200,
-      headers,
-    });
+    return new Response(finalTable, { status: 200, headers });
   }
 
   if (!upstream?.ok || !upstream.body) {

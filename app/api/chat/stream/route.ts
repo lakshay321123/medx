@@ -17,7 +17,8 @@ import { buildFormatInstruction } from '@/lib/formats/build';
 import { FORMATS } from '@/lib/formats/registry';
 import { isValidLang, isValidMode } from '@/lib/formats/constants';
 import { needsTableCoercion } from '@/lib/formats/tableGuard';
-import { hasMarkdownTable, sanitizeMarkdownTable, shapeToTable } from '@/lib/formats/tableShape';
+import { hasMarkdownTable, shapeToTable } from '@/lib/formats/tableShape';
+import { analyzeTable, sanitizeMarkdownTable } from '@/lib/formats/tableQuality';
 import type { FormatId, Mode } from '@/lib/formats/types';
 
 function normalizeLang(raw: string | null | undefined): string {
@@ -394,20 +395,22 @@ export async function POST(req: NextRequest) {
   const max_tokens = adjustedMaxTokens;
   const temperature = flags.study ? 0.4 : (flags.thinking ? 0.25 : 0.3);
 
+  const upstreamHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` } as const;
+  const upstreamPayload = {
+    model,
+    messages: finalMessages,
+    // Token cap with buffer to avoid API truncation while honoring SOFT word cap
+    max_tokens,
+    stream: true,
+    temperature,
+    top_p: 1,
+    frequency_penalty: 0,
+    presence_penalty: 0,
+  };
   const upstream = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model,
-      messages: finalMessages,
-      // Token cap with buffer to avoid API truncation while honoring SOFT word cap
-      max_tokens,
-      stream: true,
-      temperature,
-      top_p: 1,
-      frequency_penalty: 0,
-      presence_penalty: 0,
-    })
+    headers: upstreamHeaders,
+    body: JSON.stringify(upstreamPayload)
   });
 
   const modeAllowsEffective =
@@ -420,44 +423,86 @@ export async function POST(req: NextRequest) {
   const shouldCoerceToTable =
     (modeAllowsEffective && needsTableCoercion(effectiveFormatId)) || hintAllowsTable;
 
+  const collectSseContent = (rawSse: string) => rawSse
+    .split(/\n\n/)
+    .map(line => line.replace(/^data:\s*/, '').trim())
+    .filter(Boolean)
+    .filter(line => line !== '[DONE]')
+    .map(chunk => {
+      try {
+        const parsed = JSON.parse(chunk);
+        const delta = parsed?.choices?.[0]?.delta?.content;
+        if (typeof delta === 'string') return delta;
+      } catch {}
+      return '';
+    })
+    .join('');
+
   if (shouldCoerceToTable) {
     const rawSse = await upstream.text();
     if (!upstream.ok) {
       return new Response(rawSse || 'LLM error', { status: upstream.status || 500 });
     }
 
-    const fullText = rawSse
-      .split(/\n\n/)
-      .map(line => line.replace(/^data:\s*/, ''))
-      .filter(Boolean)
-      .filter(line => line !== '[DONE]')
-      .map(chunk => {
-        try {
-          return JSON.parse(chunk)?.choices?.[0]?.delta?.content ?? '';
-        } catch {
-          return '';
-        }
-      })
-      .join('');
-
+    const fullText = collectSseContent(rawSse);
     const subject = (latestUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
-    let table = sanitizeMarkdownTable(shapeToTable(subject, fullText));
-    table = enforceLocale(table, lang, { forbidEnglishHeadings: true });
-    const payload = {
-      choices: [{ delta: { content: table, medx_reset: true } }],
-    };
+    const table1 = sanitizeMarkdownTable(shapeToTable(subject, fullText));
+    const quality1 = analyzeTable(table1);
+    const tooSparse = quality1.rows < 3 || quality1.density < 0.7;
 
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-        controller.close();
+    if (tooSparse) {
+      const strictInstruction = `# Output format: Comparison table (STRICT)
+Return a SINGLE markdown table only (no prose).
+Columns (exact order):
+Topic | Mechanism/How it works | Expected benefit | Limitations/Side effects | Notes/Evidence
+Populate EVERY cell. If truly unknown, use a single dash "-".
+Keep cells concise (<= 18 words). No meta like "Short answer".
+Include main item plus 4–8 realistic alternatives.`;
+
+      const retryMessages = [
+        { role: 'system', content: strictInstruction },
+        { role: 'user', content: latestUserMessage || subject },
+      ];
+
+      try {
+        const retryRes = await fetch(url, {
+          method: 'POST',
+          headers: upstreamHeaders,
+          body: JSON.stringify({
+            model,
+            messages: retryMessages,
+            stream: false,
+            temperature: 0.2,
+            top_p: 0.9,
+            max_tokens,
+          })
+        });
+
+        if (retryRes.ok) {
+          const retryJson = await retryRes.json().catch(() => null);
+          const retryPlain = retryJson?.choices?.[0]?.message?.content ?? '';
+          const table2 = sanitizeMarkdownTable(shapeToTable(subject, retryPlain));
+          const quality2 = analyzeTable(table2);
+          const bestTable = quality2.density > quality1.density ? table2 : table1;
+          const finalTable = enforceLocale(bestTable, lang, { forbidEnglishHeadings: true });
+          return new Response(finalTable, {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/markdown; charset=utf-8',
+              'Cache-Control': 'no-store',
+            },
+          });
+        }
+      } catch {}
+    }
+
+    const finalTable = enforceLocale(table1, lang, { forbidEnglishHeadings: true });
+    return new Response(finalTable, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/markdown; charset=utf-8',
+        'Cache-Control': 'no-store',
       },
-    });
-
-    return new Response(stream, {
-      headers: { 'Content-Type': 'text/event-stream; charset=utf-8' },
     });
   }
 
