@@ -77,7 +77,14 @@ async function fetchAd(payload: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  return r.json() as Promise<{ card?: AdCard; reason?: string }>;
+  if (!r.ok) {
+    throw new Error(`ads_broker_${r.status}`);
+  }
+  try {
+    return (await r.json()) as { card?: AdCard; reason?: string };
+  } catch {
+    throw new Error('ads_broker_invalid_json');
+  }
 }
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
@@ -802,9 +809,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const abortRef = useRef<AbortController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const internalInputRef = useRef<HTMLTextAreaElement>(null);
   const inputRef =
-    (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ??
-    (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
+    (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ?? internalInputRef;
   const requestedAdsRef = useRef<Set<string>>(new Set());
   const previewUrlsRef = useRef<string[]>([]);
   const plusMenuRef = useRef<HTMLDivElement>(null);
@@ -3672,13 +3679,12 @@ ${systemCommon}` + baseSys;
   const adRegion = country?.code3;
 
   useEffect(() => {
-    let assistantCount = 0;
     visibleMessages.forEach(msg => {
       if (msg.role !== 'assistant') return;
+      if ((msg as any).kind && (msg as any).kind !== 'chat') return;
       if (msg.pending) return;
       if (typeof msg.id !== 'string') return;
-      assistantCount += 1;
-      if (assistantCount % 2 !== 0) return;
+
       const messageId = msg.id;
       if (adsByMsg[messageId]) return;
       if (requestedAdsRef.current.has(messageId)) return;
@@ -3688,24 +3694,36 @@ ${systemCommon}` + baseSys;
           ? msg.content
           : (msg as any).originUserText || (msg as any).userPrompt || '';
 
-      requestedAdsRef.current.add(messageId);
-      if (!rawText || !String(rawText).trim()) {
-        return;
-      }
+      if (!rawText || !String(rawText).trim()) return;
 
-      fetchAd({ text: String(rawText).slice(0, 500), tier: adTier, region: adRegion, zone: adZone })
+      requestedAdsRef.current.add(messageId);
+
+      fetchAd({
+        text: String(rawText).slice(0, 500),
+        tier: adTier,
+        region: adRegion,
+        zone: adZone,
+      })
         .then(res => {
-          console.log('[ads] response', res);
           const card = res?.card;
           if (card) {
             setAdsByMsg(prev => ({ ...prev, [messageId]: card }));
           }
         })
         .catch(err => {
-          console.error('[ads] error', err);
+          if (process.env.NODE_ENV !== 'production') {
+            console.error('[ads] error', err);
+          }
         });
     });
-  }, [visibleMessages, adTier, adRegion, adZone, adsByMsg]);
+    // adsByMsg is intentionally not a dependency; requestedAdsRef handles deduping
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleMessages, adTier, adRegion, adZone]);
+
+  useEffect(() => {
+    setAdsByMsg({});
+    requestedAdsRef.current.clear();
+  }, [threadId, adZone]);
 
   const renderedMessages = useMemo(
     () =>
