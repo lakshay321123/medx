@@ -3663,15 +3663,22 @@ ${systemCommon}` + baseSys;
     [feedback.submittedFor, feedback.loading]
   );
   const panelParam = (sp.get('panel') ?? 'chat').toLowerCase();
-  const adZone = panelParam === 'timeline' ? 'reports' : isAiDocMode ? 'aidoc' : 'chat';
+  const adZone = isAiDocMode
+    ? 'aidoc'
+    : panelParam === 'timeline' || panelParam === 'reports'
+    ? 'reports'
+    : 'chat';
   const adTier: UserTier = prefs.plan === 'pro' ? '100' : 'free';
   const adRegion = country?.code3;
 
   useEffect(() => {
+    let assistantCount = 0;
     visibleMessages.forEach(msg => {
       if (msg.role !== 'assistant') return;
       if (msg.pending) return;
       if (typeof msg.id !== 'string') return;
+      assistantCount += 1;
+      if (assistantCount % 2 !== 0) return;
       const messageId = msg.id;
       if (adsByMsg[messageId]) return;
       if (requestedAdsRef.current.has(messageId)) return;
