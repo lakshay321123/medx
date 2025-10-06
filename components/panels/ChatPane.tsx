@@ -2373,6 +2373,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     const resolvedMode = activeModeTag && isValidMode(activeModeTag) ? activeModeTag : undefined;
     if (!resolvedMode) return formatId;
 
+    const wantsTable = looksLikeTableIntent(messageText) || looksLikeComparisonIntent(messageText);
+    if (wantsTable && isFormatAllowed('table_compare', resolvedMode)) {
+      return 'table_compare';
+    }
+
     const defaultForMode = DEFAULT_FORMAT_BY_MODE[resolvedMode];
     const pinned = formatMap[resolvedMode];
     const userPinnedFormat = pinned && pinned !== defaultForMode ? pinned : undefined;
@@ -2380,16 +2385,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       return userPinnedFormat;
     }
 
-    const wantsTable = looksLikeTableIntent(messageText) || looksLikeComparisonIntent(messageText);
-    if (wantsTable && isFormatAllowed('table_compare', resolvedMode)) {
-      return 'table_compare';
-    }
-
     if (formatId && isFormatAllowed(formatId, resolvedMode)) {
       return formatId;
     }
 
-    const fallback = DEFAULT_FORMAT_BY_MODE[resolvedMode];
+    const fallback = defaultForMode;
     if (fallback && isFormatAllowed(fallback, resolvedMode)) {
       return fallback;
     }
