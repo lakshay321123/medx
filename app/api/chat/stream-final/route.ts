@@ -133,7 +133,7 @@ export async function POST(req: Request) {
   });
 
   return new Response(enforcedStream, {
-    status: upstream.status,
+    status: 200,
     headers,
   });
 }

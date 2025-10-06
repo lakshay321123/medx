@@ -440,7 +440,7 @@ export async function POST(req: NextRequest) {
   });
 
   return new Response(enforcedStream, {
-    status: upstream.status,
+    status: 200,
     headers: {
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
