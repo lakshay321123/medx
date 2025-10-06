@@ -767,6 +767,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [activeHelper, setActiveHelper] = useState<HelperLabel>(null);
   const [queueActive, setQueueActive] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [liveText, setLiveText] = useState('');
   const [formatMap, setFormatMap] = useState<FormatMap>({});
   const [formatId, setFormatId] = useState<FormatId | undefined>(undefined);
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
@@ -784,6 +785,11 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [canCopyLink, setCanCopyLink] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
+  const bufRef = useRef<string>('');
+  const flushTimerRef = useRef<number | null>(null);
+  const pendingStreamIdRef = useRef<string | null>(null);
+  const scrollTickRef = useRef<number | null>(null);
+  const streamExtrasRef = useRef<{ sources?: any }>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef =
     (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ??
@@ -794,6 +800,23 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const researchModeRef = useRef<boolean>(false);
   const queueAbortRef = useRef<AbortController | null>(null);
   const helperStorageBooted = useRef(false);
+  const flushBuffer = useCallback(() => {
+    if (!bufRef.current) return;
+    const chunk = bufRef.current;
+    bufRef.current = '';
+    setLiveText(prev => prev + chunk);
+  }, []);
+  const scheduleFlush = useCallback((delay = 80) => {
+    if (typeof window === 'undefined') {
+      flushBuffer();
+      return;
+    }
+    if (flushTimerRef.current) return;
+    flushTimerRef.current = window.setTimeout(() => {
+      flushTimerRef.current = null;
+      flushBuffer();
+    }, delay);
+  }, [flushBuffer]);
   const { filters } = useResearchFilters();
   const recordShortMem = useCallback(
     (threadId: string | null | undefined, role: "user" | "assistant", text: string) => {
@@ -922,6 +945,18 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => () => {
+    if (typeof window === 'undefined') return;
+    if (flushTimerRef.current) {
+      window.clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+    if (scrollTickRef.current) {
+      window.clearTimeout(scrollTickRef.current);
+      scrollTickRef.current = null;
+    }
   }, []);
 
   useEffect(() => {
@@ -2048,31 +2083,51 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const isNearBottom = (el: HTMLElement, threshold = 120) =>
     el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
 
-  const scrollToBottom = useCallback((el: HTMLElement) => {
-    window.clearTimeout((scrollToBottom as any)._t);
-    (scrollToBottom as any)._t = window.setTimeout(() => {
-      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-    }, 90);
+  const scheduleScroll = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    if (scrollTickRef.current) return;
+    scrollTickRef.current = window.setTimeout(() => {
+      const el = chatRef.current;
+      if (el) {
+        el.scrollTo({ top: el.scrollHeight, behavior: 'auto' });
+      }
+      scrollTickRef.current = null;
+    }, 80);
   }, []);
 
   useEffect(() => {
     const el = chatRef.current;
     if (!el) return;
-    if (isNearBottom(el)) scrollToBottom(el);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages]);
+    if (isNearBottom(el)) scheduleScroll();
+  }, [messages, scheduleScroll]);
+
+  useEffect(() => {
+    const pendingId = pendingStreamIdRef.current;
+    if (!pendingId) return;
+    if (CHAT_UX_V2_ENABLED) {
+      resetPendingAssistant(pendingId, liveText);
+    } else {
+      setMessages(prev =>
+        prev.map(m => (m.id === pendingId ? ({ ...m, content: liveText } as ChatMessage) : m)),
+      );
+    }
+    const el = chatRef.current;
+    if (el && isNearBottom(el)) {
+      scheduleScroll();
+    }
+  }, [liveText, resetPendingAssistant, scheduleScroll, setMessages]);
 
   useEffect(() => {
     const el = chatRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
 
     const ro = new ResizeObserver(() => {
-      if (isNearBottom(el)) scrollToBottom(el);
+      if (isNearBottom(el)) scheduleScroll();
     });
     ro.observe(el);
 
     return () => ro.disconnect();
-  }, [scrollToBottom]);
+  }, [scheduleScroll]);
 
   useEffect(() => {
     posted.current.clear();
@@ -2910,6 +2965,16 @@ ${systemCommon}` + baseSys;
       const qs = qp.toString();
       const url = `/api/chat/stream${qs ? `?${qs}` : ''}`;
       mark('send');
+      pendingStreamIdRef.current = pendingId;
+      bufRef.current = '';
+      streamExtrasRef.current = {};
+      if (typeof window !== 'undefined' && flushTimerRef.current) {
+        window.clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+      setLiveText('');
+      const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
+
       const res = await fetch(url, {
         method: 'POST',
         headers: {
@@ -2965,9 +3030,13 @@ ${systemCommon}` + baseSys;
           if (line.trim() === 'data: [DONE]') continue;
           try {
             const payload = JSON.parse(line.replace(/^data:\s*/, ''));
-            const deltaNode = payload?.choices?.[0]?.delta;
+            const deltaNode = payload?.choices?.[0]?.delta ?? {};
             const resetStream = deltaNode?.medx_reset === true;
             const delta = typeof deltaNode?.content === 'string' ? deltaNode.content : '';
+            const maybeSources = (deltaNode as any)?.medx_sources;
+            if (Array.isArray(maybeSources)) {
+              streamExtrasRef.current.sources = maybeSources;
+            }
             if (!delta && !resetStream) continue;
 
             if (!sawContent) {
@@ -2976,6 +3045,10 @@ ${systemCommon}` + baseSys;
             }
             if (!loggedFirstToken) {
               loggedFirstToken = true;
+              if (typeof performance !== 'undefined') {
+                const firstTokenNow = performance.now();
+                console.log('[perf] First token ms =', Math.round(firstTokenNow - perfStart));
+              }
               try {
                 const tft = since('send', { clearBase: true });
                 if (!Number.isNaN(tft)) {
@@ -2987,24 +3060,36 @@ ${systemCommon}` + baseSys;
             }
 
             if (resetStream) {
-              acc = delta;
-              resetPendingAssistant(pendingId, delta);
+              acc = delta || '';
+              bufRef.current = '';
+              if (typeof window !== 'undefined' && flushTimerRef.current) {
+                window.clearTimeout(flushTimerRef.current);
+                flushTimerRef.current = null;
+              }
+              setLiveText(delta || '');
+              resetPendingAssistant(pendingId, delta || '');
             } else if (delta) {
               acc += delta;
-              enqueuePendingAssistant(pendingId, delta);
-            }
-
-            if (!CHAT_UX_V2_ENABLED) {
-              setMessages(prev =>
-                prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m))
-              );
+              bufRef.current += delta;
+              scheduleFlush(80);
             }
           } catch {}
         }
       }
+      if (typeof window !== 'undefined' && flushTimerRef.current) {
+        window.clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+      flushBuffer();
+      if (perfStart && typeof performance !== 'undefined') {
+        console.log('[perf] Total time ms =', Math.round(performance.now() - perfStart));
+      }
       const { main, followUps } = splitFollowUps(acc);
       const safeMain = enforceLocale(main, uiLanguage ?? 'en', { forbidEnglishHeadings: true });
-      finishPendingAssistant(pendingId, safeMain, { followUps });
+      finishPendingAssistant(pendingId, safeMain, {
+        followUps,
+        citations: streamExtrasRef.current.sources,
+      });
       opts.onSuccess?.(pendingId);
       if (researchMode) {
         const lastUserMsg = text;
@@ -3030,6 +3115,11 @@ ${systemCommon}` + baseSys;
         setUi(prev => ({ ...prev, contextFrom: 'Conversation summary' }));
       }
     } catch (e: any) {
+      if (typeof window !== 'undefined' && flushTimerRef.current) {
+        window.clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+      flushBuffer();
       if (e?.name === 'AbortError') {
         finishPendingAssistant(pendingId, acc);
         opts.onError?.();
@@ -3046,6 +3136,20 @@ ${systemCommon}` + baseSys;
       setBusy(false);
       setThinkingStartedAt(null);
       abortRef.current = null;
+      pendingStreamIdRef.current = null;
+      streamExtrasRef.current = {};
+      bufRef.current = '';
+      if (typeof window !== 'undefined') {
+        if (flushTimerRef.current) {
+          window.clearTimeout(flushTimerRef.current);
+          flushTimerRef.current = null;
+        }
+        if (scrollTickRef.current) {
+          window.clearTimeout(scrollTickRef.current);
+          scrollTickRef.current = null;
+        }
+      }
+      setLiveText('');
       opts.onFinish?.();
     }
   }

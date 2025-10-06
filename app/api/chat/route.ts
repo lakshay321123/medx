@@ -1,5 +1,10 @@
+export const runtime = "edge";
+export const dynamic = "force-dynamic";
+export const preferredRegion = ["bom1", "sin1", "hnd1"];
+
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
+import { createParser } from "eventsource-parser";
 import { prisma } from "@/lib/prisma";
 import { appendMessage } from "@/lib/memory/store";
 import { decideContext } from "@/lib/memory/contextRouter";
@@ -84,6 +89,167 @@ function contextStringFrom(messages: ChatCompletionMessageParam[]): string {
   return messages
     .map((m) => (typeof m.content === "string" ? m.content : ""))
     .join(" ");
+}
+
+type StreamOptions = {
+  messages: ChatCompletionMessageParam[];
+  conversationId: string;
+  threadId?: string | null;
+  userText: string;
+  state: any;
+  metadata: Record<string, any>;
+  researchSources: WebHit[];
+  temperature?: number;
+  maxTokens?: number;
+  persist?: boolean;
+};
+
+async function streamGroqResponse({
+  messages,
+  conversationId,
+  threadId,
+  userText,
+  state,
+  metadata,
+  researchSources,
+  temperature = 0.25,
+  maxTokens = 1200,
+  persist = true,
+}: StreamOptions): Promise<Response> {
+  const apiKey = process.env.GROQ_API_KEY;
+  const providerEndpoint = "https://api.groq.com/openai/v1/chat/completions";
+  const model = process.env.GROQ_DEFAULT_MODEL || "llama3-70b-8192";
+
+  async function finalize(raw: string) {
+    let assistant = raw;
+    assistant = polishText(assistant);
+    const check = selfCheck(assistant, state?.constraints, state?.entities);
+    assistant = check.fixed;
+    assistant = addEvidenceAnchorIfMedical(assistant);
+    const recap = buildConstraintRecap(state?.constraints);
+    if (recap) assistant += recap;
+    assistant = sanitizeLLM(assistant);
+    assistant = finalReplyGuard(userText, assistant);
+    if (persist && threadId) {
+      try {
+        await appendMessage({ threadId, role: "assistant", content: assistant });
+        const updated = updateSummary("", userText, assistant);
+        await persistUpdatedSummary(threadId, updated);
+      } catch (err) {
+        console.error("[chat] failed to persist assistant turn", err);
+      }
+    }
+    return assistant;
+  }
+
+  const headers = new Headers({
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+  });
+  headers.set("x-conversation-id", conversationId);
+
+  if (!apiKey) {
+    const lastUser = messages
+      .slice()
+      .reverse()
+      .find((m) => m.role === "user");
+    const fallback = typeof lastUser?.content === "string" && lastUser.content
+      ? `Mock response: ${lastUser.content}`
+      : "Mock response";
+    const sanitized = await finalize(fallback);
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode(": ping\n\n"));
+        const payload = {
+          choices: [{ delta: { content: sanitized, medx_reset: true, medx_sources: researchSources } }],
+        };
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+      },
+    });
+    return new Response(stream, { headers });
+  }
+
+  const upstream = await fetch(providerEndpoint, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature,
+      max_tokens: maxTokens,
+      metadata,
+      stream: true,
+    }),
+  });
+
+  if (!upstream.ok || !upstream.body) {
+    const text = await upstream.text().catch(() => "");
+    return new Response(text || "Upstream error", { status: upstream.status || 500, headers });
+  }
+
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const encoder = new TextEncoder();
+      const decoder = new TextDecoder();
+      let aggregated = "";
+      let doneReceived = false;
+      const parser = createParser((event) => {
+        if (event.type !== "event") return;
+        const data = event.data;
+        if (data === "[DONE]") {
+          doneReceived = true;
+          return;
+        }
+        controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+        try {
+          const json = JSON.parse(data);
+          const deltaNode = json?.choices?.[0]?.delta;
+          const resetStream = deltaNode?.medx_reset === true;
+          const delta = typeof deltaNode?.content === "string" ? deltaNode.content : "";
+          if (resetStream) {
+            aggregated = delta || "";
+          } else if (delta) {
+            aggregated += delta;
+          }
+        } catch {
+          /* ignore parse errors */
+        }
+      });
+
+      (async () => {
+        controller.enqueue(encoder.encode(": ping\n\n"));
+        const reader = upstream.body!.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          parser.feed(decoder.decode(value, { stream: true }));
+        }
+        if (!doneReceived) {
+          // ensure parser sees a DONE marker so finalize runs once
+          parser.feed("data: [DONE]\n\n");
+        }
+        const sanitized = await finalize(aggregated);
+        const payload = {
+          choices: [{ delta: { content: sanitized, medx_reset: true, medx_sources: researchSources } }],
+        };
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+      })().catch((err) => {
+        console.error("[chat] stream error", err);
+        controller.error(err);
+      });
+    },
+  });
+
+  return new Response(stream, { headers });
 }
 
 export async function POST(req: Request) {
@@ -313,31 +479,28 @@ export async function POST(req: Request) {
     }
 
     const feedback_summary = { up: 0, down: 0 };
-    let assistant = await callGroq(messages, {
+    const metadata = {
+      conversationId: statelessThreadId,
+      lastMessageId: null,
+      feedback_summary,
+      app: "medx",
+      mode: mode ?? "chat",
+      language: lang,
+      languageName,
+    };
+
+    return streamGroqResponse({
+      messages,
+      conversationId: conversationId!,
+      threadId: statelessThreadId,
+      userText: text,
+      state,
+      metadata,
+      researchSources,
       temperature: 0.25,
-      max_tokens: 1200,
-      metadata: {
-        conversationId: statelessThreadId,
-        lastMessageId: null,
-        feedback_summary,
-        app: "medx",
-        mode: mode ?? "chat",
-        language: lang,
-        languageName,
-      },
+      maxTokens: 1200,
+      persist: false,
     });
-
-    assistant = polishText(assistant);
-    const check = selfCheck(assistant, state.constraints, state.entities);
-    assistant = check.fixed;
-    assistant = addEvidenceAnchorIfMedical(assistant);
-    const recap = buildConstraintRecap(state.constraints);
-    if (recap) assistant += recap;
-
-    assistant = sanitizeLLM(assistant);
-    assistant = finalReplyGuard(text, assistant);
-
-    return respond({ ok: true, threadId: statelessThreadId, text: assistant, sources: researchSources });
   }
 
   // 1) Context routing (continue/clarify/newThread)
@@ -477,37 +640,26 @@ export async function POST(req: Request) {
     return respond({ ok: true, threadId, text: clarifierWithMem });
   }
   const feedback_summary = await getFeedbackSummary(threadId || "");
-  let assistant = await callGroq(messages, {
+  const metadata = {
+    conversationId: threadId,
+    lastMessageId: null,
+    feedback_summary,
+    app: "medx",
+    mode: mode ?? "chat",
+    language: lang,
+    languageName,
+  };
+
+  return streamGroqResponse({
+    messages,
+    conversationId: conversationId!,
+    threadId,
+    userText: text,
+    state,
+    metadata,
+    researchSources,
     temperature: 0.25,
-    max_tokens: 1200,
-    metadata: {
-      conversationId: threadId,
-      lastMessageId: null,
-      feedback_summary,
-      app: "medx",
-      mode: mode ?? "chat",
-      language: lang,
-      languageName,
-    },
+    maxTokens: 1200,
+    persist: true,
   });
-  // 6) Polish and append recap (if any constraints present)
-  assistant = polishText(assistant);
-  const check = selfCheck(assistant, state.constraints, state.entities);
-  assistant = check.fixed;
-  assistant = addEvidenceAnchorIfMedical(assistant);
-  const recap = buildConstraintRecap(state.constraints);
-  if (recap) assistant += recap;
-
-  assistant = sanitizeLLM(assistant);
-  assistant = finalReplyGuard(text, assistant);
-
-  // 7) Save assistant + summary
-  await appendMessage({ threadId, role: "assistant", content: assistant });
-  const updated = updateSummary("", text, assistant);
-  await persistUpdatedSummary(threadId, updated);
-
-  // 8) Optional natural pacing (2–4s)
-  await new Promise(r => setTimeout(r, 1800 + Math.random() * 1200));
-
-  return respond({ ok: true, threadId, text: assistant, sources: researchSources });
 }

@@ -1,4 +1,3 @@
-import ChatMarkdown from "@/components/ChatMarkdown";
 import type { PendingAssistantStage } from "@/hooks/usePendingAssistantStages";
 import type { FormatId } from "@/lib/formats/types";
 
@@ -25,7 +24,9 @@ export function AssistantPendingMessage({ stage, analyzingPhrase, thinkingLabel,
   if (stage === "streaming") {
     return (
       <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl min-h-[64px]">
-        <ChatMarkdown content={content || ""} formatId={formatId} userPrompt={userPrompt} />
+        <pre className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-800 dark:text-slate-200">
+          {content || ""}
+        </pre>
       </div>
     );
   }
