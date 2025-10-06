@@ -13,75 +13,29 @@ import MemorySnackbar from "@/components/memory/Snackbar";
 import UndoToast from "@/components/memory/UndoToast";
 import AppToastHost from "@/components/ui/AppToastHost";
 import dynamic from "next/dynamic";
-import Script from "next/script";
 import PreferencesProvider from "@/components/providers/PreferencesProvider";
 import LangDirEffect from "@/components/providers/LangDirEffect";
+import { Inter } from "next/font/google";
 
 // Mobile-only UI (loaded client-side)
 const MobileHeader = dynamic(() => import("@/components/mobile/MobileHeader"), { ssr: false });
 const MobileSidebarOverlay = dynamic(() => import("@/components/mobile/MobileSidebarOverlay"), { ssr: false });
 const MobileActionsSheet = dynamic(() => import("@/components/mobile/MobileActionsSheet"), { ssr: false });
 
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
+
 export const metadata = { title: BRAND_NAME, description: "Global medical AI" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${inter.className}`} suppressHydrationWarning>
       <head>
         <link rel="dns-prefetch" href="https://api.openai.com" />
         <link rel="preconnect" href="https://api.openai.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://api.groq.com" />
         <link rel="preconnect" href="https://api.groq.com" crossOrigin="anonymous" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
-        <link rel="dns-prefetch" href="https://fonts.cdnfonts.com" />
-        <link rel="preconnect" href="https://fonts.cdnfonts.com" crossOrigin="anonymous" />
-        {/* Keep this ONLY if you still rely on the CDN font.
-           If you've migrated to a local/next-font, remove this link. */}
-        <link
-          rel="stylesheet"
-          href="https://fonts.cdnfonts.com/css/proxima-nova-2"
-        />
-        <noscript>
-          <style>{"body.font-loading{opacity:1 !important}"}</style>
-        </noscript>
       </head>
-      <body className="font-loading h-full bg-slate-100 text-slate-900 dark:bg-transparent dark:text-slate-100 font-sans antialiased">
-        <Script id="ensure-proxima-first" strategy="beforeInteractive">
-          {`
-            (function() {
-              var className = "font-loading";
-              var removeClass = function() {
-                var body = document.body;
-                if (!body || !body.classList.contains(className)) return;
-                body.classList.remove(className);
-                try {
-                  window.sessionStorage.setItem("proxima-font-loaded", "1");
-                } catch (e) {
-                  // ignore
-                }
-              };
-
-              try {
-                if (window.sessionStorage.getItem("proxima-font-loaded")) {
-                  removeClass();
-                  return;
-                }
-              } catch (e) {
-                // ignore
-              }
-
-              if (document.fonts && document.fonts.ready) {
-                document.fonts.ready.then(removeClass);
-                if (document.fonts.status === "loaded") {
-                  removeClass();
-                }
-              } else {
-                window.addEventListener("load", removeClass, { once: true });
-              }
-            })();
-          `}
-        </Script>
+      <body className="h-full bg-slate-100 text-slate-900 dark:bg-transparent dark:text-slate-100 font-sans antialiased">
         <PreferencesProvider>
           <LangDirEffect />
           <ThemeProvider

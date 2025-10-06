@@ -11,22 +11,25 @@ body * {
   transition: color 0.15s ease, border-color 0.15s ease;
 }
 
-/* Prevent any fallback face from flashing before Proxima Nova is ready */
-body.font-loading {
-  opacity: 0;
-}
-
-body.font-loading *,
-body.font-loading *::before,
-body.font-loading *::after {
-  transition: none !important;
-}
-
 /* === Base font: single source of truth via CSS variable with sensible fallbacks === */
 @layer base {
   html,
   body {
-    font-family: var(--font-proxima-nova, "Proxima Nova", "Proxima Nova Rg", "ProximaNova", "proxima-nova");
+    font-family: var(
+        --font-sans,
+        var(--font-proxima-nova, "Proxima Nova", "Proxima Nova Rg", "ProximaNova", "proxima-nova")
+      ),
+      "Proxima Nova",
+      "Proxima Nova Rg",
+      "ProximaNova",
+      "proxima-nova",
+      ui-sans-serif,
+      system-ui,
+      "Segoe UI",
+      Roboto,
+      "Helvetica Neue",
+      Arial,
+      sans-serif;
   }
 }
 

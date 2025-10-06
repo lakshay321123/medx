@@ -24,9 +24,9 @@ export function AssistantPendingMessage({ stage, analyzingPhrase, thinkingLabel,
   if (stage === "streaming") {
     return (
       <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl min-h-[64px]">
-        <pre className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-800 dark:text-slate-200">
+        <div className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-800 dark:text-slate-200 font-sans">
           {content || ""}
-        </pre>
+        </div>
       </div>
     );
   }
