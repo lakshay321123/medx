@@ -1,11 +1,10 @@
 'use client';
 import { useEffect, useRef, useState, useMemo, RefObject, useCallback } from 'react';
-import type { ComponentProps } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fromSearchParams } from '@/lib/modes/url';
 import { useRouter } from 'next/navigation';
 import ChatMarkdown from '@/components/ChatMarkdown';
-import { InlineSponsoredCard } from '@/components/ads/InlineSponsoredCard';
+import InlineSponsoredCard from '@/components/ads/InlineSponsoredCard';
 import ResearchFilters from '@/components/ResearchFilters';
 import { LinkBadge } from '@/components/SafeLink';
 import TrialsResults from "@/components/TrialsResults";
@@ -65,8 +64,21 @@ import { useFeedback } from "@/hooks/useFeedback";
 import { usePendingAssistantStages } from "@/hooks/usePendingAssistantStages";
 import type { PendingAssistantState } from "@/hooks/usePendingAssistantStages";
 import { mark, since } from "@/utils/latency";
-import { fetchAd } from '@/lib/ads/fetch';
 import type { AdCard, UserTier } from '@/types/ads';
+
+async function fetchAd(payload: {
+  text: string;
+  tier: 'free' | '100' | '200' | '500';
+  region?: string;
+  zone: 'chat' | 'reports' | 'aidoc' | 'directory';
+}) {
+  const r = await fetch('/api/ads/broker', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return r.json() as Promise<{ card?: AdCard; reason?: string }>;
+}
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -740,74 +752,6 @@ function AssistantMessage(props: {
   );
 }
 
-type AssistantMessageProps = ComponentProps<typeof AssistantMessage>;
-
-function AssistantMessageWithAd(props: AssistantMessageProps & {
-  assistantIndex: number;
-  adTier: UserTier;
-  adZone: string;
-  adRegion?: string;
-}) {
-  const { assistantIndex, adTier, adZone, adRegion, ...assistantProps } = props;
-  const { m } = assistantProps;
-  const [ad, setAd] = useState<AdCard | null>(null);
-  const [status, setStatus] = useState<'idle' | 'loading' | 'done'>('idle');
-
-  useEffect(() => {
-    setAd(null);
-    setStatus('idle');
-  }, [m.id]);
-
-  useEffect(() => {
-    if (status !== 'idle') return;
-    if (m.role !== 'assistant') return;
-    if (m.pending) return;
-    if (typeof assistantIndex !== 'number' || assistantIndex < 0) return;
-    if (assistantIndex % 2 !== 1) return;
-
-    const text =
-      typeof m.content === 'string' && m.content.trim()
-        ? m.content
-        : (m as any).originUserText || (m as any).userPrompt || '';
-    if (!text || !String(text).trim()) {
-      setStatus('done');
-      return;
-    }
-
-    let cancelled = false;
-    setStatus('loading');
-    (async () => {
-      try {
-        const result = await fetchAd({
-          text: String(text),
-          region: adRegion,
-          tier: adTier,
-          zone: adZone,
-        });
-        if (cancelled) return;
-        if (result?.card) {
-          setAd(result.card as AdCard);
-        }
-      } catch {
-        // swallow fetch errors
-      } finally {
-        if (!cancelled) setStatus('done');
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [status, m, assistantIndex, adTier, adZone, adRegion]);
-
-  return (
-    <>
-      <AssistantMessage {...assistantProps} />
-      {ad ? <InlineSponsoredCard card={ad} /> : null}
-    </>
-  );
-}
-
 export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: RefObject<HTMLInputElement> } = {}) {
 
   const { country } = useCountry();
@@ -854,12 +798,14 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [shareUrls, setShareUrls] = useState<Record<string, string>>({});
   const [systemShareSupported, setSystemShareSupported] = useState(false);
   const [canCopyLink, setCanCopyLink] = useState(false);
+  const [adsByMsg, setAdsByMsg] = useState<Record<string, AdCard>>({});
   const abortRef = useRef<AbortController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef =
     (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ??
     (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
+  const requestedAdsRef = useRef<Set<string>>(new Set());
   const previewUrlsRef = useRef<string[]>([]);
   const plusMenuRef = useRef<HTMLDivElement>(null);
   const sendRef = useRef<(text: string, researchMode: boolean, opts?: SendOpts) => void>();
@@ -3716,21 +3662,43 @@ ${systemCommon}` + baseSys;
     () => ({ submittedFor: feedback.submittedFor, loading: feedback.loading }),
     [feedback.submittedFor, feedback.loading]
   );
-  const assistantOrdinals = useMemo(() => {
-    let count = 0;
-    return visibleMessages.map(msg => {
-      if (msg.role === 'assistant') {
-        const current = count;
-        count += 1;
-        return current;
-      }
-      return -1;
-    });
-  }, [visibleMessages]);
   const panelParam = (sp.get('panel') ?? 'chat').toLowerCase();
   const adZone = panelParam === 'timeline' ? 'reports' : isAiDocMode ? 'aidoc' : 'chat';
   const adTier: UserTier = prefs.plan === 'pro' ? '100' : 'free';
   const adRegion = country?.code3;
+
+  useEffect(() => {
+    visibleMessages.forEach(msg => {
+      if (msg.role !== 'assistant') return;
+      if (msg.pending) return;
+      if (typeof msg.id !== 'string') return;
+      const messageId = msg.id;
+      if (adsByMsg[messageId]) return;
+      if (requestedAdsRef.current.has(messageId)) return;
+
+      const rawText =
+        typeof msg.content === 'string' && msg.content.trim()
+          ? msg.content
+          : (msg as any).originUserText || (msg as any).userPrompt || '';
+
+      requestedAdsRef.current.add(messageId);
+      if (!rawText || !String(rawText).trim()) {
+        return;
+      }
+
+      fetchAd({ text: String(rawText).slice(0, 500), tier: adTier, region: adRegion, zone: adZone })
+        .then(res => {
+          console.log('[ads] response', res);
+          const card = res?.card;
+          if (card) {
+            setAdsByMsg(prev => ({ ...prev, [messageId]: card }));
+          }
+        })
+        .catch(err => {
+          console.error('[ads] error', err);
+        });
+    });
+  }, [visibleMessages, adTier, adRegion, adZone, adsByMsg]);
 
   const renderedMessages = useMemo(
     () =>
@@ -3815,7 +3783,7 @@ ${systemCommon}` + baseSys;
                   ref={registerMessageRef(m.id)}
                   data-testid={m.role === "assistant" ? "assistant-turn" : undefined}
                 >
-                  <AssistantMessageWithAd
+                  <AssistantMessage
                     m={m}
                     researchOn={researchMode}
                     onQuickAction={stableOnQuickAction}
@@ -3829,11 +3797,10 @@ ${systemCommon}` + baseSys;
                         ? pendingAssistantState
                         : null
                     }
-                    assistantIndex={assistantOrdinals[index] ?? -1}
-                    adTier={adTier}
-                    adZone={adZone}
-                    adRegion={adRegion}
                   />
+                  {m.role === 'assistant' && typeof m.id === 'string' && adsByMsg[m.id] ? (
+                    <InlineSponsoredCard card={adsByMsg[m.id]} />
+                  ) : null}
                 </div>
                 <MessageActions
                   conversationId={conversationId}
@@ -3872,10 +3839,7 @@ ${systemCommon}` + baseSys;
       pendingAssistantState,
       handleRefreshMessage,
       refreshingMessageId,
-      assistantOrdinals,
-      adTier,
-      adZone,
-      adRegion
+      adsByMsg,
     ]
   );
 
