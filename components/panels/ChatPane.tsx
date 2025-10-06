@@ -2547,6 +2547,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             lang,
             personalization,
             allowHistory,
+            formatId: formatIdForSend,                        // current selection (may be undefined)
+            formatPinned: userPinnedFormat,                   // did the user pin a per-mode format?
+            formatHint,                                       // ← one-shot suggestion: 'table_compare' when implied
           }),
           cache: 'no-store',
           signal: ctrl.signal
@@ -2925,8 +2928,8 @@ ${systemCommon}` + baseSys;
           personalization,
           allowHistory,
           formatId: formatIdForSend,                 // user selection (may be undefined)
-          formatPinned: userPinnedFormat,
-          formatHint,               // <= soft, per-message suggestion
+          formatPinned: userPinnedFormat,            // did the user pin a per-mode format?
+          formatHint,                      // ← one-shot suggestion: 'table_compare' when implied
         }),
         cache: 'no-store',
         signal: ctrl.signal
