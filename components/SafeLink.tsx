@@ -59,10 +59,97 @@ export const SafeAnchor: React.FC<React.AnchorHTMLAttributes<HTMLAnchorElement>>
   );
 };
 
+type LinkVerdict = "alive" | "dead" | "uncertain";
+
+const verdictMemory = new Map<string, LinkVerdict>();
+const inflightChecks = new Map<string, Promise<LinkVerdict>>();
+
+function storageKey(url: string) {
+  return `linkcheck:${url}`;
+}
+
+function rememberVerdict(url: string, verdict: LinkVerdict) {
+  verdictMemory.set(url, verdict);
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.sessionStorage.setItem(storageKey(url), verdict);
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function readCachedVerdict(url: string): LinkVerdict | null {
+  if (verdictMemory.has(url)) {
+    return verdictMemory.get(url)!;
+  }
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    const cached = window.sessionStorage.getItem(storageKey(url));
+    if (cached === "alive" || cached === "dead" || cached === "uncertain") {
+      verdictMemory.set(url, cached);
+      return cached;
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return null;
+}
+
+async function ensureLinkVerdict(url: string): Promise<LinkVerdict> {
+  const cached = readCachedVerdict(url);
+  if (cached) {
+    return cached;
+  }
+
+  if (typeof window === "undefined") {
+    return "uncertain";
+  }
+
+  const pending = inflightChecks.get(url);
+  if (pending) {
+    return pending;
+  }
+
+  const request: Promise<LinkVerdict> = (async () => {
+    try {
+      const response = await fetch("/api/linkcheck", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const json = await response.json();
+      const verdict: LinkVerdict =
+        json?.verdict === "dead" || json?.verdict === "alive" ? json.verdict : "uncertain";
+      rememberVerdict(url, verdict);
+      return verdict;
+    } catch {
+      rememberVerdict(url, "uncertain");
+      return "uncertain";
+    } finally {
+      inflightChecks.delete(url);
+    }
+  })();
+
+  inflightChecks.set(url, request);
+  return request;
+}
+
 export function LinkBadge(props: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
   const { href, children, className = "", ...rest } = props;
   const safe = normalizeExternalHref(typeof href === "string" ? href : undefined);
-  const [verdict, setVerdict] = React.useState<"alive" | "dead" | "uncertain" | null>(null);
+  const [verdict, setVerdict] = React.useState<LinkVerdict | null>(() => {
+    if (!safe) {
+      return "dead";
+    }
+    if (typeof window === "undefined") {
+      return "uncertain";
+    }
+    return readCachedVerdict(safe);
+  });
 
   React.useEffect(() => {
     let mounted = true;
@@ -80,45 +167,32 @@ export function LinkBadge(props: React.AnchorHTMLAttributes<HTMLAnchorElement>) 
       };
     }
 
-    const key = `linkcheck:${safe}`;
-    try {
-      const cached = window.sessionStorage.getItem(key);
-      if (cached === "alive" || cached === "dead" || cached === "uncertain") {
-        setVerdict(cached as "alive" | "dead" | "uncertain");
-        return () => {
-          mounted = false;
-        };
-      }
-    } catch {
-      // ignore storage errors
+    const cached = readCachedVerdict(safe);
+    if (cached) {
+      setVerdict(cached);
+      return () => {
+        mounted = false;
+      };
     }
 
-    setVerdict(null);
+    setVerdict((previous) => {
+      if (previous && previous !== "dead") {
+        return previous;
+      }
+      return "uncertain";
+    });
 
-    (async () => {
-      try {
-        const response = await fetch("/api/linkcheck", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ url: safe }),
-        });
-        const json = await response.json();
-        const v: "alive" | "dead" | "uncertain" =
-          json?.verdict === "dead" || json?.verdict === "alive" ? json.verdict : "uncertain";
+    ensureLinkVerdict(safe)
+      .then((v) => {
         if (mounted) {
           setVerdict(v);
         }
-        try {
-          window.sessionStorage.setItem(key, v);
-        } catch {
-          // ignore storage failures
-        }
-      } catch {
+      })
+      .catch(() => {
         if (mounted) {
           setVerdict("uncertain");
         }
-      }
-    })();
+      });
 
     return () => {
       mounted = false;
