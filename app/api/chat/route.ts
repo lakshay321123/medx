@@ -3,7 +3,6 @@ export const dynamic = "force-dynamic";
 export const preferredRegion = ["bom1", "sin1", "hnd1"];
 
 import { NextResponse } from "next/server";
-import { randomUUID } from "crypto";
 import { createParser } from "eventsource-parser";
 import { prisma } from "@/lib/prisma";
 import { appendMessage } from "@/lib/memory/store";
@@ -287,7 +286,7 @@ export async function POST(req: Request) {
   let conversationId = headers.get("x-conversation-id");
   let isNewChat = headers.get("x-new-chat") === "true";
   if (!conversationId) {
-    conversationId = randomUUID();
+    conversationId = generateConversationId();
     isNewChat = true;
     console.log("missing_conversation_id");
   }
@@ -662,4 +661,12 @@ export async function POST(req: Request) {
     maxTokens: 1200,
     persist: true,
   });
+}
+function generateConversationId() {
+  const globalCrypto = (globalThis as typeof globalThis & { crypto?: Crypto }).crypto;
+  if (globalCrypto?.randomUUID) {
+    return globalCrypto.randomUUID();
+  }
+  // Extremely unlikely fallback that keeps us working in older runtimes.
+  return `medx-${Math.random().toString(36).slice(2)}-${Date.now()}`;
 }

@@ -1,10 +1,13 @@
-import crypto from "crypto";
-
 export async function embed(text: string): Promise<number[]> {
   // TODO: Swap with real embeddings (OpenAI, Cohere, etc.)
   // Temporary deterministic pseudo-embedding: hash -> 256 dims
-  const hash = crypto.createHash("sha256").update(text).digest();
-  const arr = Array.from(hash).map((x) => (x - 128) / 128);
+  const globalCrypto = (globalThis as typeof globalThis & { crypto?: Crypto }).crypto;
+  if (!globalCrypto?.subtle) {
+    throw new Error("crypto.subtle digest not available in this runtime");
+  }
+  const encoded = new TextEncoder().encode(text);
+  const digest = await globalCrypto.subtle.digest("SHA-256", encoded);
+  const arr = Array.from(new Uint8Array(digest)).map((x) => (x - 128) / 128);
   // Repeat to 256 dims
   const dims = 256;
   const v: number[] = [];

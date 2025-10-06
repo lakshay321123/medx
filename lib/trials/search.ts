@@ -1,7 +1,6 @@
 // Add a Phase type that includes mixed values
 import { fetchEUCTR } from "./fetchEUCTR";
 import { fetchCTRI } from "./fetchCTRI";
-import { fetchISRCTNRecord } from "./fetchISRCTN";
 
 type PhaseStr = "1" | "2" | "3" | "4" | "1/2" | "2/3";
 
