@@ -7,7 +7,7 @@ import { normalizeModeTag } from "@/lib/i18n/normalize";
 import { buildFormatInstruction } from "@/lib/formats/build";
 import { FORMATS, isFormatAllowed } from "@/lib/formats/registry";
 import { isValidLang, isValidMode } from "@/lib/formats/constants";
-import { needsTableCoercion } from "@/lib/formats/tableGuard";
+import { inferTableFormat } from "@/lib/formats/tableGuard";
 import { hasMarkdownTable, shapeToTable } from "@/lib/formats/tableShape";
 import type { FormatId, Mode } from "@/lib/formats/types";
 
@@ -50,12 +50,12 @@ export async function POST(req: Request) {
   const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
   const lang = normalizeLangTag(langTag);
   const langDirective = languageDirectiveFor(lang);
-  const formatInstruction = isValidLang(lang)
-    ? buildFormatInstruction(lang, resolvedMode, formatId)
-    : '';
-
-  const lastUserMessage =
+  let lastUserMessage =
     messages.slice().reverse().find((m: any) => m.role === "user")?.content || "";
+  const effectiveFormatId = inferTableFormat(formatId, lastUserMessage);
+  const formatInstruction = isValidLang(lang)
+    ? buildFormatInstruction(lang, resolvedMode, effectiveFormatId)
+    : '';
 
   // This endpoint is explicitly the OpenAI (final say) stream for non-basic modes.
   // Keep your current /api/chat/stream for Groq/basic.
@@ -81,8 +81,9 @@ export async function POST(req: Request) {
   );
   const modelMs = Date.now() - modelStart;
 
-  const modeAllowed = formatId ? isFormatAllowed(formatId, resolvedMode) : false;
-  const shouldCoerceToTable = modeAllowed && needsTableCoercion(formatId);
+  const wantsTableFormat = effectiveFormatId === 'table_compare';
+  const tableModeAllowed = isFormatAllowed('table_compare', resolvedMode);
+  const shouldCoerceToTable = wantsTableFormat && tableModeAllowed;
 
   if (shouldCoerceToTable) {
     const rawSse = await upstream.text();

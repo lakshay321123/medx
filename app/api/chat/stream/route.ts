@@ -16,7 +16,7 @@ import { normalizeModeTag } from '@/lib/i18n/normalize';
 import { buildFormatInstruction } from '@/lib/formats/build';
 import { FORMATS, isFormatAllowed } from '@/lib/formats/registry';
 import { isValidLang, isValidMode } from '@/lib/formats/constants';
-import { needsTableCoercion } from '@/lib/formats/tableGuard';
+import { inferTableFormat } from '@/lib/formats/tableGuard';
 import { hasMarkdownTable, shapeToTable } from '@/lib/formats/tableShape';
 import type { FormatId, Mode } from '@/lib/formats/types';
 
@@ -147,9 +147,6 @@ export async function POST(req: NextRequest) {
       || null,
   );
   const langDirectiveBlock = languageInstruction(lang);
-  const formatInstruction = isValidLang(lang)
-    ? buildFormatInstruction(lang, resolvedMode, formatId)
-    : '';
   const persona = personaFromPrefs(body?.personalization);
   const sysPrelude = [persona].filter(Boolean).join('\n\n');
   const studyChunks = flags.study ? [STUDY_MODE_SYSTEM.trim(), STUDY_OUTPUT_GUIDE.trim()] : [];
@@ -171,6 +168,7 @@ export async function POST(req: NextRequest) {
     recent.length && recent[recent.length - 1].role === 'user'
       ? recent.pop()!
       : { role: 'user' as const, content: String(body?.question ?? '').trim() };
+  let latestUserMessage = typeof latestUser?.content === 'string' ? latestUser.content : '';
 
   // 3) Build or auto-fetch sources if research is on
   let sources: WebHit[] = Array.isArray(body?.__sources) ? body.__sources as WebHit[] : [];
@@ -198,6 +196,10 @@ export async function POST(req: NextRequest) {
         .join('\n\n')
     : '';
 
+  const effectiveFormatId = inferTableFormat(formatId, latestUserMessage);
+  const formatInstruction = isValidLang(lang)
+    ? buildFormatInstruction(lang, resolvedMode, effectiveFormatId)
+    : '';
   const formatChunks = formatInstruction ? [formatInstruction] : [];
   const researchSystem = [
     langDirectiveBlock,
@@ -264,8 +266,8 @@ export async function POST(req: NextRequest) {
   }
 
   // === Concision controls (SOFT cap, no cutoffs) ===
-  const latestUserMessage =
-    (messages || []).filter((m: any) => m.role === 'user').slice(-1)[0]?.content || '';
+  latestUserMessage =
+    (messages || []).filter((m: any) => m.role === 'user').slice(-1)[0]?.content || latestUserMessage;
   const wordCount = (latestUserMessage || '').trim().split(/\s+/).filter(Boolean).length;
   const isShortQuery = wordCount <= 6;
   const briefTopic = /\b(what is|types?|symptoms?|causes?|treatment|home care|prevention|red flags?)\b/i
@@ -393,8 +395,9 @@ export async function POST(req: NextRequest) {
     })
   });
 
-  const modeAllowed = formatId ? isFormatAllowed(formatId, resolvedMode) : false;
-  const shouldCoerceToTable = modeAllowed && needsTableCoercion(formatId);
+  const wantsTableFormat = effectiveFormatId === 'table_compare';
+  const tableModeAllowed = isFormatAllowed('table_compare', resolvedMode);
+  const shouldCoerceToTable = wantsTableFormat && tableModeAllowed;
 
   if (shouldCoerceToTable) {
     const rawSse = await upstream.text();
