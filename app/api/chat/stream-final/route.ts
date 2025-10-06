@@ -62,9 +62,13 @@ export async function POST(req: Request) {
   const effectiveFormatId = ((): FormatId | undefined => {
     const isAllowed = (fid?: FormatId) => (fid ? Boolean(formatInstructionFor(fid)) : false);
 
+    // 1) Respect user pin
     if (formatPinned && isAllowed(formatId)) return formatId!;
-    if (!formatPinned && isAllowed(formatId)) return formatId!;
+    // 2) Let the soft hint steer when not pinned
     if (isAllowed(formatHint)) return formatHint!;
+    // 3) Otherwise keep the current (unpinned) selection if allowed
+    if (!formatPinned && isAllowed(formatId)) return formatId!;
+    // 4) Fallback to mode default
     return undefined;
   })();
   const formatInstruction = isValidLang(lang)
