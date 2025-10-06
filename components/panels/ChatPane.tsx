@@ -2307,35 +2307,24 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
   function looksLikeComparisonIntent(text: string): boolean {
     const q = (text || '').toLowerCase();
-    const negated =
-      /\b(no|without|avoid|not)\s+(a\s+)?(table|tabular|tabla|tabella|तालिका)\b/.test(q) ||
-      /\b(no|without|avoid|not)\s+(comparison|compare|vs|versus)\b/.test(q);
-    if (negated) return false;
-
-    const en = [
+    const neg = /\b(no|without|avoid|not)\s+(comparison|compare|vs|versus)\b/.test(q);
+    if (neg) return false;
+    const patterns = [
       /\bcompare\b/, /\bcomparison\b/, /\bvs\b/, /\bversus\b/,
-      /\bdifference\b/, /\bdifferences\b/, /\bpros and cons\b/,
+      /\bdifference(s)?\b/, /\bpros and cons\b/,
       /\badvantages? and disadvantages?\b/, /\btrade[-\s]?offs?\b/,
       /\bside[-\s]?by[-\s]?side\b/, /\bwhich is (better|best)\b/,
-      /\bmatrix\b/, /\bgrid\b/, /\bshortlist\b/,
+      /\bmatrix\b/, /\bgrid\b/,
+      /तुलना/, /फायदे\s*नुकसान/, /अंतर/,
+      /\bcomparar\b/, /\bcomparación\b/, /\bdiferencia(s)?\b/, /\bventajas y desventajas\b/,
+      /\bconfronto\b/, /\bconfrontare\b/, /\bdifferenza(e)?\b/, /\bpro e contro\b/,
     ];
-    const hi = [/तुलना/, /फायदे\s*नुकसान/, /अंतर/];
-    const es = [
-      /\bcomparar\b/, /\bcomparación\b/, /\bventajas y desventajas\b/,
-      /\bdiferencia(s)?\b/, /\bcuál es (mejor|la mejor)\b/,
-    ];
-    const it = [
-      /\bconfronto\b/, /\bconfrontare\b/, /\bdifferenza(e)?\b/,
-      /\bpro e contro\b/, /\bqual[e] è (migliore|il migliore)\b/,
-    ];
-    const any = [...en, ...hi, ...es, ...it];
-    return any.some(re => re.test(q));
+    return patterns.some(re => re.test(q));
   }
 
   function looksLikeTableIntent(text: string): boolean {
     const q = (text || '').toLowerCase();
     if (/\b(no|without|avoid|not)\s+(a\s+)?(table|tabular|tabla|tabella|तालिका)\b/.test(q)) return false;
-
     const word = /(?:^|[^a-z])(?:table|tabular|tabulate|as a table|in a table)(?:s)?(?:$|[^a-z])/;
     const es = /(?:^|[^a-z])(?:tabla|tabular)(?:$|[^a-z])/;
     const it = /(?:^|[^a-z])(?:tabella|tabellare)(?:$|[^a-z])/;
@@ -2375,13 +2364,15 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         .replace(/\bsgpt\b/gi, "ALT (SGPT)")
         .replace(/\bsgot\b/gi, "AST (SGOT)");
     const messageText = isProfileThread ? normalize(text) : text;
+    // Resolve current mode for per-mode format map
     const resolvedMode: FormatMode = isValidMode(activeModeTag || '')
       ? (activeModeTag as FormatMode)
       : ((mode === 'doctor' ? 'clinical' : 'wellness') as FormatMode);
     const formatIdForSend = pickEffectiveFormatIdForSend(resolvedMode);
+    // User pinned a specific format for this mode?
     const userPinnedFormat = !!formatMap[resolvedMode];
 
-    // Soft signal only; do NOT mutate formatId.
+    // Soft signal: if message implies table/comparison, suggest 'table_compare' (do not mutate formatId)
     const wantsTable = looksLikeTableIntent(messageText) || looksLikeComparisonIntent(messageText);
     const formatHint = wantsTable ? 'table_compare' : undefined;
     const visualEcho = opts.visualEcho !== false;
@@ -2934,8 +2925,8 @@ ${systemCommon}` + baseSys;
           personalization,
           allowHistory,
           formatId: formatIdForSend,                 // user selection (may be undefined)
-          formatPinned: userPinnedFormat, // tell server if user explicitly chose one
-          formatHint,               // <= soft suggestion, e.g. 'table_compare'
+          formatPinned: userPinnedFormat,
+          formatHint,               // <= soft, per-message suggestion
         }),
         cache: 'no-store',
         signal: ctrl.signal

@@ -138,13 +138,10 @@ export async function POST(req: NextRequest) {
     ? (rawFormatId as FormatId)
     : undefined;
   const formatPinned: boolean = body?.formatPinned === true;
-  const formatHintRaw: string | undefined = typeof body?.formatHint === 'string' ? body.formatHint : undefined;
-  const formatHint: FormatId | undefined = (() => {
-    if (!formatHintRaw) return undefined;
-    const normalized = formatHintRaw.trim().toLowerCase();
-    const match = FORMATS.find(f => f.id === normalized);
-    return match ? (match.id as FormatId) : undefined;
-  })();
+  const rawHint = typeof body?.formatHint === 'string' ? body.formatHint.trim().toLowerCase() : '';
+  const formatHint: FormatId | undefined = rawHint && FORMATS.some(f => f.id === rawHint)
+    ? (rawHint as FormatId)
+    : undefined;
   const allowHistory = body?.allowHistory !== false;
   const requestedLang = typeof body?.lang === 'string' ? body.lang : null;
   const headerLang = req.headers.get('x-user-lang') || req.headers.get('x-lang') || null;
@@ -155,21 +152,18 @@ export async function POST(req: NextRequest) {
       || null,
   );
   const langDirectiveBlock = languageInstruction(lang);
-  const formatInstructionFor = (fid?: FormatId) => buildFormatInstruction(lang as any, resolvedMode, fid);
-  const effectiveFormatId = ((): FormatId | undefined => {
-    const isAllowed = (fid?: FormatId) => (fid ? Boolean(formatInstructionFor(fid)) : false);
-
-    // 1) Respect user pin
+  const formatInstructionFor = (fid?: FormatId) =>
+    buildFormatInstruction(lang as any, resolvedMode, fid);
+  const isAllowed = (fid?: FormatId) => (fid ? Boolean(formatInstructionFor(fid)) : false);
+  // Decision order: pinned > hint > unpinned > default
+  const effectiveFormatId: FormatId | undefined = (() => {
     if (formatPinned && isAllowed(formatId)) return formatId!;
-    // 2) Let the soft hint steer when not pinned
     if (isAllowed(formatHint)) return formatHint!;
-    // 3) Otherwise keep the current (unpinned) selection if allowed
     if (!formatPinned && isAllowed(formatId)) return formatId!;
-    // 4) Fallback to mode default
     return undefined;
   })();
   const formatInstruction = isValidLang(lang)
-    ? formatInstructionFor(effectiveFormatId)
+    ? buildFormatInstruction(lang as any, resolvedMode, effectiveFormatId)
     : '';
   const persona = personaFromPrefs(body?.personalization);
   const sysPrelude = [persona].filter(Boolean).join('\n\n');
