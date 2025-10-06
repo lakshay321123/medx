@@ -591,6 +591,7 @@ export async function POST(req: Request) {
       temperature: 0.25,
       maxTokens: 1200,
       persist: false,
+      origin,
     });
   }
 
