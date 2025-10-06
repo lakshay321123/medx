@@ -17,7 +17,7 @@ export async function broker(ctx: AdContext): Promise<BrokerResult> {
   if (!bool('ADS_ENABLED')) return { reason: 'disabled' };
   const noZones = flag('ADS_NO_ZONES','').split(',').map(s=>s.trim()).filter(Boolean);
   if (noZones.includes(ctx.zone)) return { reason: 'zone_blocked' };
-  if (!(['free','100'] as const).includes(ctx.tier)) return { reason: 'disabled' };
+  if (ctx.tier !== 'free' && ctx.tier !== '100') return { reason: 'disabled' };
 
   const kws = extractKeywords(ctx.text);
   const cat = chooseCategory(kws);
