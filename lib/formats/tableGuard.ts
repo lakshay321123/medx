@@ -49,8 +49,7 @@ function looksLikeComparisonIntent(text: string) {
 }
 
 export function needsTableCoercion(formatId?: FormatId, latestUserMessage?: string) {
-  if (formatId === 'table_compare') return true;
-  if (formatId && formatId !== 'table_compare') return false;
+  if (formatId) return formatId === 'table_compare';
   return looksLikeTableIntent(latestUserMessage) || looksLikeComparisonIntent(latestUserMessage);
 }
 
