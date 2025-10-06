@@ -16,9 +16,9 @@ import { normalizeModeTag } from '@/lib/i18n/normalize';
 import { buildFormatInstruction } from '@/lib/formats/build';
 import { FORMATS } from '@/lib/formats/registry';
 import { isValidLang, isValidMode } from '@/lib/formats/constants';
-import { needsTableCoercion } from '@/lib/formats/tableGuard';
-import { hasMarkdownTable, shapeToTable } from '@/lib/formats/tableShape';
-import type { FormatId, Mode } from '@/lib/formats/types';
+import { ensureValidTable, needsTableCoercion } from '@/lib/formats/tableGuard';
+import type { FormatId, Lang, Mode } from '@/lib/formats/types';
+import { wantsTable } from '@/lib/formats/intent';
 
 function normalizeLang(raw: string | null | undefined): string {
   const cleaned = (raw || 'en').toLowerCase().split('-')[0].replace(/[^a-z]/g, '');
@@ -147,9 +147,6 @@ export async function POST(req: NextRequest) {
       || null,
   );
   const langDirectiveBlock = languageInstruction(lang);
-  const formatInstruction = isValidLang(lang)
-    ? buildFormatInstruction(lang, resolvedMode, formatId)
-    : '';
   const persona = personaFromPrefs(body?.personalization);
   const sysPrelude = [persona].filter(Boolean).join('\n\n');
   const studyChunks = flags.study ? [STUDY_MODE_SYSTEM.trim(), STUDY_OUTPUT_GUIDE.trim()] : [];
@@ -171,6 +168,10 @@ export async function POST(req: NextRequest) {
     recent.length && recent[recent.length - 1].role === 'user'
       ? recent.pop()!
       : { role: 'user' as const, content: String(body?.question ?? '').trim() };
+  const latestUserContent = typeof latestUser?.content === 'string' ? latestUser.content : '';
+  const comparisonSubject = (latestUserContent || '').split('\n')[0]?.trim() || 'Comparison';
+  const wantsTableIntent = !formatId && wantsTable(latestUserContent);
+  const autoFormatId = wantsTableIntent ? 'table_compare' as FormatId : formatId;
 
   // 3) Build or auto-fetch sources if research is on
   let sources: WebHit[] = Array.isArray(body?.__sources) ? body.__sources as WebHit[] : [];
@@ -196,6 +197,9 @@ export async function POST(req: NextRequest) {
     ? sources.slice(0, 5)
         .map((s, i) => `[${i + 1}] ${s.title || s.url}\n${s.url}\n${s.snippet ?? ''}`)
         .join('\n\n')
+    : '';
+  const formatInstruction = (isValidLang(lang) && isValidMode(resolvedMode))
+    ? buildFormatInstruction(lang as Lang, resolvedMode, autoFormatId)
     : '';
 
   const formatChunks = formatInstruction ? [formatInstruction] : [];
@@ -394,7 +398,7 @@ export async function POST(req: NextRequest) {
   });
 
   const modeAllowed = Boolean(formatInstruction);
-  const shouldCoerceToTable = modeAllowed && needsTableCoercion(formatId);
+  const shouldCoerceToTable = modeAllowed && needsTableCoercion(autoFormatId);
 
   if (shouldCoerceToTable) {
     const rawSse = await upstream.text();
@@ -416,8 +420,7 @@ export async function POST(req: NextRequest) {
       })
       .join('');
 
-    const subject = (latestUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
-    let table = shapeToTable(subject, fullText);
+    let table = ensureValidTable(fullText, comparisonSubject, lang);
     table = enforceLocale(table, lang, { forbidEnglishHeadings: true });
     const payload = {
       choices: [{ delta: { content: table, medx_reset: true } }],
@@ -447,11 +450,7 @@ export async function POST(req: NextRequest) {
   }
 
   const formatFinalizer = shouldCoerceToTable
-    ? (text: string) => {
-        if (hasMarkdownTable(text)) return text;
-        const subject = (latestUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
-        return shapeToTable(subject, text);
-      }
+    ? (text: string) => ensureValidTable(text, comparisonSubject, lang)
     : undefined;
 
   const enforcedStream = createLocaleEnforcedStream(upstream.body, lang, {

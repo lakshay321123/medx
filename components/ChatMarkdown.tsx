@@ -11,7 +11,8 @@ import { LinkBadge } from "./SafeLink";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { enforceLocale } from "@/lib/i18n/enforce";
 import type { FormatId } from "@/lib/formats/types";
-import { hasMarkdownTable, shapeToTable } from "@/lib/formats/tableShape";
+import { hasMarkdownTable } from "@/lib/formats/tableShape";
+import { ensureValidTable } from "@/lib/formats/tableGuard";
 
 // --- Normalizer ---
 // normalize: unwrap full-message fences, convert ==== to <hr>, bold-lines → headings, list bullets
@@ -115,18 +116,19 @@ const tableSchema = {
   },
 };
 
-function ensureTable(content: string, formatId?: FormatId, userPrompt?: string) {
+function ensureTable(content: string, formatId: FormatId | undefined, userPrompt: string | undefined, lang: string) {
   if (formatId !== "table_compare") return content;
   const body = content || "";
   if (body.includes("```table") || hasMarkdownTable(body)) return body;
   const subject = (userPrompt || "").split("\n")[0]?.trim() || "Comparison";
-  return shapeToTable(subject, body);
+  return ensureValidTable(body, subject, lang);
 }
 
 export default function ChatMarkdown({ content, formatId, userPrompt }: { content: string; formatId?: FormatId; userPrompt?: string }) {
   const { language } = useI18n();
-  const guarded = ensureTable(content, formatId, userPrompt);
-  const safeContent = enforceLocale(guarded, language ?? 'en', { forbidEnglishHeadings: true });
+  const activeLang = language ?? 'en';
+  const guarded = ensureTable(content, formatId, userPrompt, activeLang);
+  const safeContent = enforceLocale(guarded, activeLang, { forbidEnglishHeadings: true });
   const prepared = normalizeLLM(normalize(safeContent));
 
   return (

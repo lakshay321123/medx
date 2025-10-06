@@ -1,3 +1,5 @@
+import { TABLE_HEADERS, TABLE_SEPARATOR } from '@/lib/i18n/tableHeaders';
+
 export function hasMarkdownTable(text: string): boolean {
   // header + separator + ≥1 data row
   return /\n\|[^|\n]+\|\n\|[ :\-|]+\|\n\|[^|\n]+\|/m.test(`\n${text}`);
@@ -16,11 +18,7 @@ export function sanitizeCell(value: string): string {
     .trim();
 }
 
-const HEADER =
-  '| Topic | Mechanism/How it works | Expected benefit | Limitations/Side effects | Notes/Evidence |\n' +
-  '|-------|-------------------------|------------------|--------------------------|----------------|';
-
-export function bulletsOrPairsToRows(subject: string, text: string): string[] {
+export function bulletsOrPairsToRows(subject: string, text: string, _lang?: string): string[] {
   const rows: string[] = [];
   const bullets = Array.from(text.matchAll(/^\s*(?:[-*]|\d+\.)\s+(.+)$/gm))
     .map(match => match[1])
@@ -46,10 +44,11 @@ export function bulletsOrPairsToRows(subject: string, text: string): string[] {
   return [`| ${topic} |  |  |  |  |`];
 }
 
-export function shapeToTable(subject: string, raw: string): string {
+export function shapeToTable(subject: string, raw: string, lang = 'en'): string {
   const existing = extractFirstTable(raw);
   if (existing) return existing;
 
-  const rows = bulletsOrPairsToRows(subject, raw);
-  return [HEADER, ...rows].join('\n');
+  const header = TABLE_HEADERS[lang] ?? TABLE_HEADERS.en;
+  const rows = bulletsOrPairsToRows(subject, raw, lang);
+  return [header, TABLE_SEPARATOR, ...rows].join('\n');
 }

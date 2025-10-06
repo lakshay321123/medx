@@ -7,9 +7,9 @@ import { normalizeModeTag } from "@/lib/i18n/normalize";
 import { buildFormatInstruction } from "@/lib/formats/build";
 import { FORMATS } from "@/lib/formats/registry";
 import { isValidLang, isValidMode } from "@/lib/formats/constants";
-import { needsTableCoercion } from "@/lib/formats/tableGuard";
-import { hasMarkdownTable, shapeToTable } from "@/lib/formats/tableShape";
-import type { FormatId, Mode } from "@/lib/formats/types";
+import { ensureValidTable, needsTableCoercion } from "@/lib/formats/tableGuard";
+import type { FormatId, Lang, Mode } from "@/lib/formats/types";
+import { wantsTable } from "@/lib/formats/intent";
 
 // Optional calculator prelude (safe if engine absent)
 let composeCalcPrelude: any, extractAll: any, canonicalizeInputs: any, computeAll: any;
@@ -50,12 +50,15 @@ export async function POST(req: Request) {
   const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
   const lang = normalizeLangTag(langTag);
   const langDirective = languageDirectiveFor(lang);
-  const formatInstruction = isValidLang(lang)
-    ? buildFormatInstruction(lang, resolvedMode, formatId)
-    : '';
 
   const lastUserMessage =
     messages.slice().reverse().find((m: any) => m.role === "user")?.content || "";
+  const comparisonSubject = (lastUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
+  const wantsTableIntent = !formatId && wantsTable(lastUserMessage);
+  const autoFormatId = wantsTableIntent ? 'table_compare' as FormatId : formatId;
+  const formatInstruction = (isValidLang(lang) && isValidMode(resolvedMode))
+    ? buildFormatInstruction(lang as Lang, resolvedMode, autoFormatId)
+    : '';
 
   // This endpoint is explicitly the OpenAI (final say) stream for non-basic modes.
   // Keep your current /api/chat/stream for Groq/basic.
@@ -82,7 +85,7 @@ export async function POST(req: Request) {
   const modelMs = Date.now() - modelStart;
 
   const modeAllowed = Boolean(formatInstruction);
-  const shouldCoerceToTable = modeAllowed && needsTableCoercion(formatId);
+  const shouldCoerceToTable = modeAllowed && needsTableCoercion(autoFormatId);
 
   if (shouldCoerceToTable) {
     const rawSse = await upstream.text();
@@ -104,8 +107,7 @@ export async function POST(req: Request) {
       })
       .join('');
 
-    const subject = (lastUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
-    let table = shapeToTable(subject, fullText);
+    let table = ensureValidTable(fullText, comparisonSubject, lang);
     table = enforceLocale(table, lang, { forbidEnglishHeadings: true });
     const payload = {
       choices: [{ delta: { content: table, medx_reset: true } }],
@@ -144,11 +146,7 @@ export async function POST(req: Request) {
   }
 
   const formatFinalizer = shouldCoerceToTable
-    ? (text: string) => {
-        if (hasMarkdownTable(text)) return text;
-        const subject = (lastUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
-        return shapeToTable(subject, text);
-      }
+    ? (text: string) => ensureValidTable(text, comparisonSubject, lang)
     : undefined;
 
   const enforcedStream = createLocaleEnforcedStream(upstream.body, lang, {

@@ -21,6 +21,17 @@ Default structure if format is unspecified:
 - Caveats/contraindications if applicable
 `.trim();
 
+export function tableDirective(lang: string, title: string) {
+  const subject = title && title.trim() ? title.trim() : 'Comparison';
+  return [
+    `Respond entirely in ${lang}.`,
+    'Output MUST be a GitHub-Flavored Markdown table with header row + separator.',
+    'No bullets before or after the table; no extra commentary.',
+    'Header columns (suggested): Topic | Mechanism/How it works | Expected benefit | Limitations/Side effects | Notes/Evidence.',
+    `Title for the first row label: ${subject}.`,
+  ].join('\n');
+}
+
 /**
  * Injection-safe language directive.
  * IMPORTANT: Server must pass a SANITIZED language code (see server patch).

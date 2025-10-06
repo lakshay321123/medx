@@ -46,6 +46,7 @@ import { detectAdvancedDomain } from "@/lib/intents/advanced";
 import type { FormatId, Mode as FormatMode } from '@/lib/formats/types';
 import { isValidMode } from '@/lib/formats/constants';
 import { isFormatAllowed } from '@/lib/formats/registry';
+import { wantsTable } from '@/lib/formats/intent';
 // === ADD-ONLY for domain routing ===
 import { detectDomain } from "@/lib/intents/domains";
 import * as DomainStyles from "@/lib/prompts/domains";
@@ -2316,6 +2317,13 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         .replace(/\bsgpt\b/gi, "ALT (SGPT)")
         .replace(/\bsgot\b/gi, "AST (SGOT)");
     const messageText = isProfileThread ? normalize(text) : text;
+    const normalizedMode = isValidMode(activeModeTag) ? activeModeTag : undefined;
+    const tableAllowed = normalizedMode ? isFormatAllowed('table_compare', normalizedMode) : false;
+    const wantsTableForPrompt = tableAllowed ? wantsTable(messageText) : false;
+    const effectiveFormatId: FormatId | undefined = formatId ?? (wantsTableForPrompt ? 'table_compare' : undefined);
+    if (!formatId && wantsTableForPrompt) {
+      setFormatId('table_compare');
+    }
     const visualEcho = opts.visualEcho !== false;
     const clientRequestId = opts.clientRequestId || crypto.randomUUID();
     if (!opts.skipUserMemory) {
@@ -2376,7 +2384,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       pending: true,
       originUserText: messageText,
       userPrompt: messageText,
-      formatId,
+      formatId: effectiveFormatId,
       refreshOf: opts.replacesId,
     } as ChatMessage;
 
@@ -2835,7 +2843,7 @@ ${systemCommon}` + baseSys;
       if (activeHelper === 'thinking') qp.set('thinking', '1');
       qp.set('mode', mode);
       if (activeModeTag) qp.set('modeTag', activeModeTag);
-      if (formatId) qp.set('formatId', formatId);
+      if (effectiveFormatId) qp.set('formatId', effectiveFormatId);
       const languageParam = (uiLanguage?.trim() || lang?.trim() || '');
       if (languageParam) {
         // Always send the active UI language for server-side locking.
@@ -2863,7 +2871,7 @@ ${systemCommon}` + baseSys;
           lang,
           personalization,
           allowHistory,
-          formatId,
+          formatId: effectiveFormatId,
         }),
         cache: 'no-store',
         signal: ctrl.signal

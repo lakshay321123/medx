@@ -113,8 +113,8 @@ export function enforceLocale(
 
   const { out: tableGuarded, slots: tableSlots } = protectTableBlocks(out);
   out = tableGuarded;
-  out = stripHeadingParens(out);
   out = rewriteHeadings(out, lang);
+  out = stripHeadingParens(out);
   out = restoreTableBlocks(out, tableSlots);
 
   if (opts?.forbidEnglishHeadings && lang !== 'en') {
