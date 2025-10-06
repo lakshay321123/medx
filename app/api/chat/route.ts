@@ -5,7 +5,6 @@ export const preferredRegion = ["bom1", "sin1", "hnd1"];
 import { NextResponse } from "next/server";
 import { createParser } from "eventsource-parser";
 import type { EventSourceMessage } from "eventsource-parser";
-import { prisma } from "@/lib/prisma";
 import { appendMessage } from "@/lib/memory/store";
 import { decideContext } from "@/lib/memory/contextRouter";
 import { seedTopicEmbedding } from "@/lib/memory/outOfContext";
@@ -51,6 +50,85 @@ import { byName } from "@/data/countries";
 import { searchNearby } from "@/lib/openpass";
 
 type WebHit = { title: string; snippet: string; url: string; source: string };
+
+type ChatLogEvent = {
+  id: string;
+  kind: string;
+  [key: string]: any;
+};
+
+async function logChatEvent(origin: string, event: ChatLogEvent) {
+  try {
+    await fetch(`${origin}/api/log`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(event),
+      cache: "no-store",
+    });
+  } catch (err) {
+    console.error("[chat] failed to log event", err);
+  }
+}
+
+type TopicStack = Awaited<ReturnType<typeof loadTopicStack>>;
+
+async function safeLoadTopicStack(threadId: string): Promise<TopicStack> {
+  try {
+    return await loadTopicStack(threadId);
+  } catch (err) {
+    console.warn("[chat] loadTopicStack failed", err);
+    return { active: -1, nodes: [] } as TopicStack;
+  }
+}
+
+async function safeSaveTopicStack(threadId: string, stack: TopicStack) {
+  try {
+    await saveTopicStack(threadId, stack);
+  } catch (err) {
+    console.warn("[chat] saveTopicStack failed", err);
+  }
+}
+
+async function safeSeedTopicEmbedding(threadId: string, text: string) {
+  try {
+    await seedTopicEmbedding(threadId, text);
+  } catch (err) {
+    console.warn("[chat] seedTopicEmbedding failed", err);
+  }
+}
+
+async function safeAppendMessage(args: Parameters<typeof appendMessage>[0]) {
+  try {
+    await appendMessage(args);
+  } catch (err) {
+    console.warn("[chat] appendMessage failed", err);
+  }
+}
+
+async function safePersistSummary(threadId: string, summary: string) {
+  try {
+    await persistUpdatedSummary(threadId, summary);
+  } catch (err) {
+    console.warn("[chat] persistUpdatedSummary failed", err);
+  }
+}
+
+async function safeLoadState(threadId: string) {
+  try {
+    return await loadState(threadId);
+  } catch (err) {
+    console.warn("[chat] loadState failed", err);
+    return { ...EMPTY_STATE };
+  }
+}
+
+async function safeSaveState(threadId: string, state: any) {
+  try {
+    await saveState(threadId, state);
+  } catch (err) {
+    console.warn("[chat] saveState failed", err);
+  }
+}
 
 async function runAggregator(req: Request, query: string): Promise<WebHit[]> {
   try {
@@ -131,13 +209,9 @@ async function streamGroqResponse({
     assistant = sanitizeLLM(assistant);
     assistant = finalReplyGuard(userText, assistant);
     if (persist && threadId) {
-      try {
-        await appendMessage({ threadId, role: "assistant", content: assistant });
-        const updated = updateSummary("", userText, assistant);
-        await persistUpdatedSummary(threadId, updated);
-      } catch (err) {
-        console.error("[chat] failed to persist assistant turn", err);
-      }
+      await safeAppendMessage({ threadId, role: "assistant", content: assistant });
+      const updated = updateSummary("", userText, assistant);
+      await safePersistSummary(threadId, updated);
     }
     return assistant;
   }
@@ -280,6 +354,7 @@ export async function POST(req: Request) {
     researchOn = true;
   }
 
+  const origin = new URL(req.url).origin;
   const headers = req.headers;
   const requestedLang = typeof body?.lang === "string" ? body.lang : undefined;
   const headerLang = headers.get("x-user-lang") || headers.get("x-lang") || undefined;
@@ -302,13 +377,23 @@ export async function POST(req: Request) {
   };
   if (isNewChat) {
     console.log("new_chat_started", { conversationId });
+    logChatEvent(origin, {
+      id: crypto.randomUUID(),
+      kind: "chat_start",
+      conversationId,
+      userId: userId ?? null,
+    });
   }
   const ISOLATE = process.env.NEW_CHAT_ISOLATION !== "false";
   const ALLOW_ROLL = process.env.ALLOW_CONTEXT_ROLLFORWARD === "true";
   if (ISOLATE) {
     activeThreadId = conversationId;
     if (isNewChat) {
-      await prisma.chatThread.delete({ where: { id: activeThreadId } }).catch(() => {});
+      logChatEvent(origin, {
+        id: crypto.randomUUID(),
+        kind: "chat_thread_cleanup",
+        threadId: activeThreadId,
+      });
     }
   }
 
@@ -510,26 +595,34 @@ export async function POST(req: Request) {
   // 1) Context routing (continue/clarify/newThread)
   const decision =
     ALLOW_ROLL && !ISOLATE
-      ? await decideContext(userId, activeThreadId, text)
-      : { action: "continue", threadId: activeThreadId } as any;
+      ? await decideContext(userId, activeThreadId, text).catch(
+          () => ({ action: "continue", threadId: activeThreadId } as any)
+        )
+      : ({ action: "continue", threadId: activeThreadId } as any);
 
   let threadId = activeThreadId;
-  let stack = await loadTopicStack(activeThreadId);
+  let stack = await safeLoadTopicStack(activeThreadId);
 
   if (decision.action === "continue") {
     threadId = decision.threadId;
   } else if (decision.action === "newThread") {
-    const t = await prisma.chatThread.create({ data: { userId, title: "New topic" } });
-    threadId = t.id;
-    await seedTopicEmbedding(threadId, text);
-    stack = await loadTopicStack(threadId);
+    const newId = crypto.randomUUID();
+    threadId = newId;
+    logChatEvent(origin, {
+      id: crypto.randomUUID(),
+      kind: "chat_thread_create",
+      threadId: newId,
+      userId: userId ?? null,
+    });
+    await safeSeedTopicEmbedding(threadId, text);
+    stack = await safeLoadTopicStack(threadId);
     stack = pushTopic(stack, "New topic");
-    await saveTopicStack(threadId, stack);
+    await safeSaveTopicStack(threadId, stack);
   } else if (decision.action === "clarify") {
     // If UI posted a prior clarify selection, switch. Else return options.
     if (clarifySelectId) {
       stack = switchTo(stack, clarifySelectId);
-      await saveTopicStack(activeThreadId, stack);
+      await safeSaveTopicStack(activeThreadId, stack);
       threadId = activeThreadId; // stay in same thread but switch topic stack active node
     } else {
       return respond({ ok: true, clarify: true, options: decision.candidates });
@@ -538,28 +631,20 @@ export async function POST(req: Request) {
 
   // ensure thread exists when continuing
   if (decision.action === "continue") {
-    const exists = await prisma.chatThread.findUnique({ where: { id: threadId } });
-    if (!exists) {
-      const t = await prisma.chatThread.create({ data: { id: threadId, userId, title: "New topic" } });
-      threadId = t.id;
-      await seedTopicEmbedding(threadId, text);
-      stack = await loadTopicStack(threadId);
-      stack = pushTopic(stack, "New topic");
-      await saveTopicStack(threadId, stack);
-    } else if (isNewChat) {
-      stack = await loadTopicStack(threadId);
+    if (isNewChat) {
+      stack = await safeLoadTopicStack(threadId);
       if (stack.nodes.length === 0) {
         stack = pushTopic(stack, "New topic");
-        await saveTopicStack(threadId, stack);
+        await safeSaveTopicStack(threadId, stack);
       }
     }
   }
 
   // 2) Save user message (+embedding via appendMessage)
-  await appendMessage({ threadId, role: "user", content: text });
+  await safeAppendMessage({ threadId, role: "user", content: text });
 
   // 3) Update state (contradictions + heuristics extraction; no OpenAI required)
-  let state = await loadState(threadId);
+  let state = await safeLoadState(threadId);
   const { state: withContradictions } = applyContradictions(state, text);
   state = withContradictions;
 
@@ -574,7 +659,7 @@ export async function POST(req: Request) {
   const entityDelta = parseEntitiesFromText(text);
   state.entities = mergeEntityLedger(state.entities, entityDelta);
 
-  await saveState(threadId, state);
+  await safeSaveState(threadId, state);
 
   // 4) Decide routing for current turn
   const systemExtra: string[] = [];
@@ -584,7 +669,7 @@ export async function POST(req: Request) {
   }
   if (routeDecision === "switch-topic") {
     state.topic = text.slice(0, 60);
-    await saveState(threadId, state);
+    await safeSaveState(threadId, state);
   }
 
   // 4.5) Optional web research
