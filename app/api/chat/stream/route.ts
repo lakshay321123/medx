@@ -137,6 +137,14 @@ export async function POST(req: NextRequest) {
   const formatId = rawFormatId && FORMATS.some(f => f.id === rawFormatId)
     ? (rawFormatId as FormatId)
     : undefined;
+  const formatPinned: boolean = body?.formatPinned === true;
+  const formatHintRaw: string | undefined = typeof body?.formatHint === 'string' ? body.formatHint : undefined;
+  const formatHint: FormatId | undefined = (() => {
+    if (!formatHintRaw) return undefined;
+    const normalized = formatHintRaw.trim().toLowerCase();
+    const match = FORMATS.find(f => f.id === normalized);
+    return match ? (match.id as FormatId) : undefined;
+  })();
   const allowHistory = body?.allowHistory !== false;
   const requestedLang = typeof body?.lang === 'string' ? body.lang : null;
   const headerLang = req.headers.get('x-user-lang') || req.headers.get('x-lang') || null;
@@ -147,8 +155,17 @@ export async function POST(req: NextRequest) {
       || null,
   );
   const langDirectiveBlock = languageInstruction(lang);
+  const formatInstructionFor = (fid?: FormatId) => buildFormatInstruction(lang as any, resolvedMode, fid);
+  const effectiveFormatId = ((): FormatId | undefined => {
+    const isAllowed = (fid?: FormatId) => (fid ? Boolean(formatInstructionFor(fid)) : false);
+
+    if (formatPinned && isAllowed(formatId)) return formatId!;
+    if (!formatPinned && isAllowed(formatId)) return formatId!;
+    if (isAllowed(formatHint)) return formatHint!;
+    return undefined;
+  })();
   const formatInstruction = isValidLang(lang)
-    ? buildFormatInstruction(lang, resolvedMode, formatId)
+    ? formatInstructionFor(effectiveFormatId)
     : '';
   const persona = personaFromPrefs(body?.personalization);
   const sysPrelude = [persona].filter(Boolean).join('\n\n');
@@ -394,7 +411,7 @@ export async function POST(req: NextRequest) {
   });
 
   const modeAllowed = Boolean(formatInstruction);
-  const shouldCoerceToTable = modeAllowed && needsTableCoercion(formatId);
+  const shouldCoerceToTable = modeAllowed && needsTableCoercion(effectiveFormatId);
 
   if (shouldCoerceToTable) {
     const rawSse = await upstream.text();

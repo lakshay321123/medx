@@ -2344,18 +2344,12 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     return word.test(q) || es.test(q) || it.test(q) || hi.test(q) || soft.test(q);
   }
 
-  function pickEffectiveFormatIdForSend(messageText: string, activeModeTag: string | null): FormatId | undefined {
-    const resolvedMode = activeModeTag && isValidMode(activeModeTag) ? activeModeTag : undefined;
+  function pickEffectiveFormatIdForSend(resolvedMode: FormatMode | null): FormatId | undefined {
     if (!resolvedMode) return formatId;
 
     const userPinnedFormat = formatMap[resolvedMode];
     if (userPinnedFormat && isFormatAllowed(userPinnedFormat, resolvedMode)) {
       return userPinnedFormat;
-    }
-
-    const wantsTable = looksLikeTableIntent(messageText) || looksLikeComparisonIntent(messageText);
-    if (wantsTable && isFormatAllowed('table_compare', resolvedMode)) {
-      return 'table_compare';
     }
 
     if (formatId && isFormatAllowed(formatId, resolvedMode)) {
@@ -2381,7 +2375,15 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         .replace(/\bsgpt\b/gi, "ALT (SGPT)")
         .replace(/\bsgot\b/gi, "AST (SGOT)");
     const messageText = isProfileThread ? normalize(text) : text;
-    const formatIdForSend = pickEffectiveFormatIdForSend(messageText, activeModeTag ?? null);
+    const resolvedMode: FormatMode = isValidMode(activeModeTag || '')
+      ? (activeModeTag as FormatMode)
+      : ((mode === 'doctor' ? 'clinical' : 'wellness') as FormatMode);
+    const formatIdForSend = pickEffectiveFormatIdForSend(resolvedMode);
+    const userPinnedFormat = !!formatMap[resolvedMode];
+
+    // Soft signal only; do NOT mutate formatId.
+    const wantsTable = looksLikeTableIntent(messageText) || looksLikeComparisonIntent(messageText);
+    const formatHint = wantsTable ? 'table_compare' : undefined;
     const visualEcho = opts.visualEcho !== false;
     const clientRequestId = opts.clientRequestId || crypto.randomUUID();
     if (!opts.skipUserMemory) {
@@ -2895,12 +2897,14 @@ ${systemCommon}` + baseSys;
         ];
       }
 
+      const outgoingModeTag = activeModeTag ?? resolvedMode;
+
       const qp = new URLSearchParams();
       if (researchMode) qp.set('research', '1');
       if (activeHelper === 'study') qp.set('study', '1');
       if (activeHelper === 'thinking') qp.set('thinking', '1');
       qp.set('mode', mode);
-      if (activeModeTag) qp.set('modeTag', activeModeTag);
+      if (outgoingModeTag) qp.set('modeTag', outgoingModeTag);
       if (formatIdForSend) qp.set('formatId', formatIdForSend);
       const languageParam = (uiLanguage?.trim() || lang?.trim() || '');
       if (languageParam) {
@@ -2920,7 +2924,7 @@ ${systemCommon}` + baseSys;
         },
         body: JSON.stringify({
           mode: mode === 'doctor' ? 'doctor' : 'patient',
-          modeTag: activeModeTag,
+          modeTag: outgoingModeTag, // always send real modeTag
           messages: chatMessages,
           threadId,
           context,
@@ -2929,7 +2933,9 @@ ${systemCommon}` + baseSys;
           lang,
           personalization,
           allowHistory,
-          formatId: formatIdForSend,
+          formatId: formatIdForSend,                 // user selection (may be undefined)
+          formatPinned: userPinnedFormat, // tell server if user explicitly chose one
+          formatHint,               // <= soft suggestion, e.g. 'table_compare'
         }),
         cache: 'no-store',
         signal: ctrl.signal
