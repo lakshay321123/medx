@@ -1,5 +1,8 @@
+"use client";
+
 import type { PendingAssistantStage } from "@/hooks/usePendingAssistantStages";
 import type { FormatId } from "@/lib/formats/types";
+import ChatMarkdown from "@/components/ChatMarkdown";
 
 type Props = {
   stage: PendingAssistantStage;
@@ -8,6 +11,7 @@ type Props = {
   content: string;
   formatId?: FormatId;
   userPrompt?: string;
+  renderedContent?: string;
 };
 
 function stripTrailingEllipsis(value: string) {
@@ -17,16 +21,23 @@ function stripTrailingEllipsis(value: string) {
   return withoutEllipsis.length > 0 ? withoutEllipsis : trimmed;
 }
 
-export function AssistantPendingMessage({ stage, analyzingPhrase, thinkingLabel, content, formatId, userPrompt }: Props) {
+export function AssistantPendingMessage({
+  stage,
+  analyzingPhrase,
+  thinkingLabel,
+  content,
+  formatId,
+  userPrompt,
+  renderedContent,
+}: Props) {
   const fallbackLabel = stage === "reflecting" ? "Reflecting…" : "Analyzing";
   const label = thinkingLabel?.trim().length ? thinkingLabel : fallbackLabel;
 
   if (stage === "streaming") {
+    const streamContent = renderedContent ?? content;
     return (
       <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl min-h-[64px]">
-        <div className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-800 dark:text-slate-200 font-sans">
-          {content || ""}
-        </div>
+        <ChatMarkdown content={streamContent || ""} formatId={formatId} userPrompt={userPrompt} />
       </div>
     );
   }

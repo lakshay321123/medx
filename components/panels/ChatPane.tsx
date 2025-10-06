@@ -596,6 +596,8 @@ function ChatCard({
   simple,
   pendingTimerActive,
   pendingStageState,
+  streamMarkdown,
+  streamingMessageId,
 }: {
   m: Extract<ChatMessage, { kind: "chat" }>;
   therapyMode: boolean;
@@ -603,8 +605,12 @@ function ChatCard({
   simple: boolean;
   pendingTimerActive?: boolean;
   pendingStageState?: PendingAssistantState | null;
+  streamMarkdown?: string;
+  streamingMessageId?: string | null;
 }) {
   const suggestions = normalizeSuggestions(m.followUps);
+  const streamingContent =
+    streamingMessageId && streamingMessageId === m.id ? streamMarkdown : undefined;
   if (m.pending) {
     if (pendingStageState && CHAT_UX_V2_ENABLED) {
       return (
@@ -615,6 +621,9 @@ function ChatCard({
           content={typeof m.content === "string" ? m.content : ""}
           formatId={m.formatId}
           userPrompt={m.originUserText || m.userPrompt}
+          renderedContent={
+            pendingStageState.stage === "streaming" ? streamingContent : undefined
+          }
         />
       );
     }
@@ -626,6 +635,7 @@ function ChatCard({
         content={typeof m.content === "string" ? m.content : ""}
         formatId={m.formatId}
         userPrompt={m.originUserText || m.userPrompt}
+        renderedContent={streamingContent}
       />
     );
   }
@@ -699,6 +709,8 @@ function AssistantMessage(props: {
   simple: boolean;
   pendingTimerActive?: boolean;
   pendingStageState?: PendingAssistantState | null;
+  streamMarkdown?: string;
+  streamingMessageId?: string | null;
 }) {
   const {
     m,
@@ -710,6 +722,8 @@ function AssistantMessage(props: {
     onQuickAction,
     busy,
     pendingStageState,
+    streamMarkdown,
+    streamingMessageId,
   } = props;
   if (m.kind === "analysis") {
     return (
@@ -732,6 +746,8 @@ function AssistantMessage(props: {
       simple={simple}
       pendingTimerActive={pendingTimerActive}
       pendingStageState={pendingStageState}
+      streamMarkdown={streamMarkdown}
+      streamingMessageId={streamingMessageId}
     />
   );
 }
@@ -768,6 +784,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [queueActive, setQueueActive] = useState(false);
   const [busy, setBusy] = useState(false);
   const [liveText, setLiveText] = useState('');
+  const [markdownText, setMarkdownText] = useState('');
   const [formatMap, setFormatMap] = useState<FormatMap>({});
   const [formatId, setFormatId] = useState<FormatId | undefined>(undefined);
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
@@ -800,6 +817,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const researchModeRef = useRef<boolean>(false);
   const queueAbortRef = useRef<AbortController | null>(null);
   const helperStorageBooted = useRef(false);
+  const streamingMessageId = pendingStreamIdRef.current;
   const flushBuffer = useCallback(() => {
     if (!bufRef.current) return;
     const chunk = bufRef.current;
@@ -2118,6 +2136,17 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }, [liveText, resetPendingAssistant, scheduleScroll, setMessages]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      setMarkdownText(liveText);
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      setMarkdownText(liveText);
+    }, 120);
+    return () => window.clearTimeout(handle);
+  }, [liveText]);
+
+  useEffect(() => {
     const el = chatRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
 
@@ -2973,6 +3002,7 @@ ${systemCommon}` + baseSys;
         flushTimerRef.current = null;
       }
       setLiveText('');
+      setMarkdownText('');
       const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
 
       const res = await fetch(url, {
@@ -3150,6 +3180,7 @@ ${systemCommon}` + baseSys;
         }
       }
       setLiveText('');
+      setMarkdownText('');
       opts.onFinish?.();
     }
   }
@@ -3846,6 +3877,8 @@ ${systemCommon}` + baseSys;
                         ? pendingAssistantState
                         : null
                     }
+                    streamMarkdown={markdownText}
+                    streamingMessageId={streamingMessageId}
                   />
                 </div>
                 <MessageActions

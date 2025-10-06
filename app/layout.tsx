@@ -15,27 +15,45 @@ import AppToastHost from "@/components/ui/AppToastHost";
 import dynamic from "next/dynamic";
 import PreferencesProvider from "@/components/providers/PreferencesProvider";
 import LangDirEffect from "@/components/providers/LangDirEffect";
-import { Inter } from "next/font/google";
 
 // Mobile-only UI (loaded client-side)
 const MobileHeader = dynamic(() => import("@/components/mobile/MobileHeader"), { ssr: false });
 const MobileSidebarOverlay = dynamic(() => import("@/components/mobile/MobileSidebarOverlay"), { ssr: false });
 const MobileActionsSheet = dynamic(() => import("@/components/mobile/MobileActionsSheet"), { ssr: false });
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
-
 export const metadata = { title: BRAND_NAME, description: "Global medical AI" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${inter.className}`} suppressHydrationWarning>
+    <html lang="en" className="font-sans" suppressHydrationWarning>
       <head>
         <link rel="dns-prefetch" href="https://api.openai.com" />
         <link rel="preconnect" href="https://api.openai.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://api.groq.com" />
         <link rel="preconnect" href="https://api.groq.com" crossOrigin="anonymous" />
+        <link
+          rel="preload"
+          href="/fonts/proxima/ProximaNova-Regular.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          href="/fonts/proxima/ProximaNova-Semibold.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          href="/fonts/proxima/ProximaNova-Bold.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
       </head>
-      <body className="h-full bg-slate-100 text-slate-900 dark:bg-transparent dark:text-slate-100 font-sans antialiased">
+      <body className="font-sans h-full bg-slate-100 text-slate-900 dark:bg-transparent dark:text-slate-100 antialiased">
         <PreferencesProvider>
           <LangDirEffect />
           <ThemeProvider

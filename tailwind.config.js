@@ -16,17 +16,19 @@ module.exports = {
       fontFamily: {
         // Used by className="font-sans"
         sans: [
-          "var(--font-sans)",
+          "Proxima",
           "Proxima Nova",
           "Proxima Nova Rg",
           "ProximaNova",
           "proxima-nova",
-          "ui-sans-serif",
-          "system-ui",
+          "-apple-system",
+          "BlinkMacSystemFont",
           "Segoe UI",
           "Roboto",
           "Helvetica Neue",
+          "Helvetica",
           "Arial",
+          "sans-serif",
         ],
       },
     },
