@@ -944,11 +944,35 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
       /* ignore */
     }
 
-    if (migrated) {
-      writeFormatMap(map);
+    const sanitized: FormatMap = {};
+    let changed = migrated;
+    for (const [mode, stored] of Object.entries(map)) {
+      if (!isValidMode(mode)) {
+        changed = true;
+        continue;
+      }
+      if (!stored) {
+        changed = true;
+        continue;
+      }
+      const typedMode = mode as FormatMode;
+      const fallback = DEFAULT_FORMAT_BY_MODE[typedMode];
+      if (stored === fallback) {
+        changed = true;
+        continue;
+      }
+      if (!isFormatAllowed(stored, typedMode)) {
+        changed = true;
+        continue;
+      }
+      sanitized[typedMode] = stored;
     }
 
-    setFormatMap(map);
+    if (changed) {
+      writeFormatMap(sanitized);
+    }
+
+    setFormatMap(sanitized);
   }, []);
 
   useEffect(() => {
@@ -972,8 +996,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
 
     setFormatMap(old => {
       const next: FormatMap = { ...old };
+      const fallback = DEFAULT_FORMAT_BY_MODE[mode];
 
-      if (formatId && isFormatAllowed(formatId, mode)) {
+      if (formatId && isFormatAllowed(formatId, mode) && formatId !== fallback) {
         if (next[mode] === formatId) return old;
         next[mode] = formatId;
       } else if (next[mode]) {
@@ -2348,7 +2373,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     const resolvedMode = activeModeTag && isValidMode(activeModeTag) ? activeModeTag : undefined;
     if (!resolvedMode) return formatId;
 
-    const userPinnedFormat = formatMap[resolvedMode];
+    const defaultForMode = DEFAULT_FORMAT_BY_MODE[resolvedMode];
+    const pinned = formatMap[resolvedMode];
+    const userPinnedFormat = pinned && pinned !== defaultForMode ? pinned : undefined;
     if (userPinnedFormat && isFormatAllowed(userPinnedFormat, resolvedMode)) {
       return userPinnedFormat;
     }
