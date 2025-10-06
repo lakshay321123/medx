@@ -97,9 +97,13 @@ export async function POST(req: Request) {
   );
   const modelMs = Date.now() - modelStart;
 
-  const modeAllowsFormat =
+  const modeAllowsEffective =
     !effectiveFormatId || FORMATS.some(f => f.id === effectiveFormatId && f.allowedModes.includes(resolvedMode));
-  const shouldCoerceToTable = modeAllowsFormat && needsTableCoercion(effectiveFormatId);
+  const hintAllowsTable =
+    (formatHint === 'table_compare') &&
+    FORMATS.some(f => f.id === 'table_compare' && f.allowedModes.includes(resolvedMode));
+  const shouldCoerceToTable =
+    (modeAllowsEffective && needsTableCoercion(effectiveFormatId)) || hintAllowsTable;
 
   if (shouldCoerceToTable) {
     const rawSse = await upstream.text();

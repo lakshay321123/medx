@@ -410,9 +410,15 @@ export async function POST(req: NextRequest) {
     })
   });
 
-  const modeAllowsFormat =
+  const modeAllowsEffective =
     !effectiveFormatId || FORMATS.some(f => f.id === effectiveFormatId && f.allowedModes.includes(resolvedMode));
-  const shouldCoerceToTable = modeAllowsFormat && needsTableCoercion(effectiveFormatId);
+  const hintAllowsTable =
+    (formatHint === 'table_compare') &&
+    FORMATS.some(f => f.id === 'table_compare' && f.allowedModes.includes(resolvedMode));
+
+  // Fire if either the chosen format is a table OR the (allowed) hint requested a table.
+  const shouldCoerceToTable =
+    (modeAllowsEffective && needsTableCoercion(effectiveFormatId)) || hintAllowsTable;
 
   if (shouldCoerceToTable) {
     const rawSse = await upstream.text();
