@@ -1,6 +1,6 @@
 import type { Lang, Mode } from './types';
 
-export const VALID_LANGS = ['en', 'hi', 'es', 'it'] as const;
+export const VALID_LANGS = ['en', 'hi', 'es', 'it', 'fr', 'ar', 'de', 'zh'] as const;
 export const VALID_MODES = [
   'clinical',
   'wellness',

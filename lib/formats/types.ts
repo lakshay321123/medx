@@ -20,7 +20,7 @@ export type FormatId =
   | 'checklist'
   | 'algorithm';
 
-export type Lang = 'en' | 'hi' | 'es' | 'it';
+export type Lang = 'en' | 'hi' | 'es' | 'it' | 'fr' | 'ar' | 'de' | 'zh';
 
 export interface FormatMeta {
   id: FormatId;
