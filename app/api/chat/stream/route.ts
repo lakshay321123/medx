@@ -11,14 +11,14 @@ import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 import { RESEARCH_BRIEF_STYLE } from '@/lib/styles';
 import { SUPPORTED_LANGS } from '@/lib/i18n/constants';
 import { STUDY_MODE_SYSTEM, THINKING_MODE_HINT, STUDY_OUTPUT_GUIDE, languageInstruction } from '@/lib/prompts/presets';
-import { createLocaleEnforcedStream, enforceLocale } from '@/lib/i18n/enforce';
+import { createLocaleEnforcedStream } from '@/lib/i18n/enforce';
 import { normalizeModeTag } from '@/lib/i18n/normalize';
 import { buildFormatInstruction } from '@/lib/formats/build';
 import { FORMATS } from '@/lib/formats/registry';
 import { isValidLang, isValidMode } from '@/lib/formats/constants';
 import { needsTableCoercion } from '@/lib/formats/tableGuard';
 import { hasMarkdownTable, shapeToTable } from '@/lib/formats/tableShape';
-import { analyzeTable, sanitizeMarkdownTable } from '@/lib/formats/tableQuality';
+import { sanitizeMarkdownTable } from '@/lib/formats/tableQuality';
 import type { FormatId, Mode } from '@/lib/formats/types';
 
 function normalizeLang(raw: string | null | undefined): string {
@@ -415,104 +415,15 @@ export async function POST(req: NextRequest) {
 
   const modeAllowsEffective =
     !effectiveFormatId || FORMATS.some(f => f.id === effectiveFormatId && f.allowedModes.includes(resolvedMode));
-  const hintAllowsTable =
-    (formatHint === 'table_compare') &&
-    FORMATS.some(f => f.id === 'table_compare' && f.allowedModes.includes(resolvedMode));
-
-  // Fire if either the chosen format is a table OR the (allowed) hint requested a table.
-  const shouldCoerceToTable =
-    (modeAllowsEffective && needsTableCoercion(effectiveFormatId)) || hintAllowsTable;
-
-  const collectSseContent = (rawSse: string) => rawSse
-    .split(/\n\n/)
-    .map(line => line.replace(/^data:\s*/, '').trim())
-    .filter(Boolean)
-    .filter(line => line !== '[DONE]')
-    .map(chunk => {
-      try {
-        const parsed = JSON.parse(chunk);
-        const delta = parsed?.choices?.[0]?.delta?.content;
-        if (typeof delta === 'string') return delta;
-      } catch {}
-      return '';
-    })
-    .join('');
-
-  if (shouldCoerceToTable) {
-    const rawSse = await upstream.text();
-    if (!upstream.ok) {
-      return new Response(rawSse || 'LLM error', { status: upstream.status || 500 });
-    }
-
-    const fullText = collectSseContent(rawSse);
-    const subject = (latestUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
-    const table1 = sanitizeMarkdownTable(shapeToTable(subject, fullText));
-    const quality1 = analyzeTable(table1);
-    const tooSparse = quality1.rows < 3 || quality1.density < 0.7;
-
-    if (tooSparse) {
-      const strictInstruction = `# Output format: Comparison table (STRICT)
-Return a SINGLE markdown table only (no prose).
-Columns (exact order):
-Topic | Mechanism/How it works | Expected benefit | Limitations/Side effects | Notes/Evidence
-Populate EVERY cell. If truly unknown, use a single dash "-".
-Keep cells concise (<= 18 words). No meta like "Short answer".
-Include main item plus 4–8 realistic alternatives.`;
-
-      const retryMessages = [
-        { role: 'system', content: strictInstruction },
-        { role: 'user', content: latestUserMessage || subject },
-      ];
-
-      try {
-        const retryRes = await fetch(url, {
-          method: 'POST',
-          headers: upstreamHeaders,
-          body: JSON.stringify({
-            model,
-            messages: retryMessages,
-            stream: false,
-            temperature: 0.2,
-            top_p: 0.9,
-            max_tokens,
-          })
-        });
-
-        if (retryRes.ok) {
-          const retryJson = await retryRes.json().catch(() => null);
-          const retryPlain = retryJson?.choices?.[0]?.message?.content ?? '';
-          const table2 = sanitizeMarkdownTable(shapeToTable(subject, retryPlain));
-          const quality2 = analyzeTable(table2);
-          const bestTable = quality2.density > quality1.density ? table2 : table1;
-          const finalTable = enforceLocale(bestTable, lang, { forbidEnglishHeadings: true });
-          return new Response(finalTable, {
-            status: 200,
-            headers: {
-              'Content-Type': 'text/markdown; charset=utf-8',
-              'Cache-Control': 'no-store',
-            },
-          });
-        }
-      } catch {}
-    }
-
-    const finalTable = enforceLocale(table1, lang, { forbidEnglishHeadings: true });
-    return new Response(finalTable, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/markdown; charset=utf-8',
-        'Cache-Control': 'no-store',
-      },
-    });
-  }
+  const shouldCoerceToTable = modeAllowsEffective && needsTableCoercion(effectiveFormatId);
 
   if (!upstream.ok) {
-    const err = await upstream.text();
-    return new Response(`LLM error: ${err}`, { status: 500 });
+    const err = await upstream.text().catch(() => 'LLM error');
+    return new Response(`LLM error: ${err}`, { status: upstream.status || 500 });
   }
 
   if (!upstream.body) {
-    return new Response('LLM error: empty body', { status: 500 });
+    return new Response('LLM error: empty body', { status: upstream.status || 500 });
   }
 
   const formatFinalizer = shouldCoerceToTable
@@ -523,12 +434,17 @@ Include main item plus 4–8 realistic alternatives.`;
       }
     : undefined;
 
-  const enforcedStream = createLocaleEnforcedStream(upstream.body, lang, {
+  const enforcedStream = createLocaleEnforcedStream(upstream.body, safeLang, {
     forbidEnglishHeadings: true,
     finalizer: formatFinalizer,
   });
 
   return new Response(enforcedStream, {
-    headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }
+    status: upstream.status,
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+    },
   });
 }

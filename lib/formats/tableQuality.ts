@@ -1,29 +1,3 @@
-export function analyzeTable(md: string) {
-  const rows = md.trim().split('\n').filter(line => /^\s*\|/.test(line));
-  if (rows.length < 2) return { rows: 0, cols: 0, emptyCells: 0, density: 0 };
-
-  const header = rows[0].split('|').slice(1, -1).map(cell => cell.trim());
-  const cols = header.length;
-  let emptyCells = 0;
-  let cellCount = 0;
-  let dataRows = 0;
-
-  for (let i = 2; i < rows.length; i++) {
-    const cells = rows[i].split('|').slice(1, -1).map(cell => cell.trim());
-    if (cells.length !== cols) continue;
-    dataRows++;
-    for (const cell of cells) {
-      cellCount++;
-      if (!cell || cell === '-' || cell === '—' || cell.toLowerCase() === 'n/a') {
-        emptyCells++;
-      }
-    }
-  }
-
-  const density = cellCount ? 1 - emptyCells / cellCount : 0;
-  return { rows: dataRows, cols, emptyCells, density };
-}
-
 export function sanitizeMarkdownTable(md: string) {
   const lines = md.split('\n');
   const out: string[] = [];
@@ -56,7 +30,6 @@ export function sanitizeMarkdownTable(md: string) {
     }
 
     if (isSep(current)) continue;
-
     const bare = current.replace(/\|/g, '').trim();
     if (!bare) continue;
 

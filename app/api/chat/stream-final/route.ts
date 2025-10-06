@@ -2,14 +2,14 @@ import { ensureMinDelay, minDelayMs } from "@/lib/utils/ensureMinDelay";
 import { callOpenAIChat } from "@/lib/medx/providers";
 import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 import { SUPPORTED_LANGS } from "@/lib/i18n/constants";
-import { createLocaleEnforcedStream, enforceLocale } from "@/lib/i18n/enforce";
+import { createLocaleEnforcedStream } from "@/lib/i18n/enforce";
 import { normalizeModeTag } from "@/lib/i18n/normalize";
 import { buildFormatInstruction } from "@/lib/formats/build";
 import { FORMATS } from "@/lib/formats/registry";
 import { isValidLang, isValidMode } from "@/lib/formats/constants";
 import { needsTableCoercion } from "@/lib/formats/tableGuard";
 import { hasMarkdownTable, shapeToTable } from "@/lib/formats/tableShape";
-import { analyzeTable, sanitizeMarkdownTable } from "@/lib/formats/tableQuality";
+import { sanitizeMarkdownTable } from "@/lib/formats/tableQuality";
 import type { FormatId, Mode } from "@/lib/formats/types";
 
 // Optional calculator prelude (safe if engine absent)
@@ -100,82 +100,11 @@ export async function POST(req: Request) {
 
   const modeAllowsEffective =
     !effectiveFormatId || FORMATS.some(f => f.id === effectiveFormatId && f.allowedModes.includes(resolvedMode));
-  const hintAllowsTable =
-    (formatHint === 'table_compare') &&
-    FORMATS.some(f => f.id === 'table_compare' && f.allowedModes.includes(resolvedMode));
-  const shouldCoerceToTable =
-    (modeAllowsEffective && needsTableCoercion(effectiveFormatId)) || hintAllowsTable;
-
-  const collectSseContent = (rawSse: string) => rawSse
-    .split(/\n\n/)
-    .map(line => line.replace(/^data:\s*/, '').trim())
-    .filter(Boolean)
-    .filter(line => line !== '[DONE]')
-    .map(chunk => {
-      try {
-        const parsed = JSON.parse(chunk);
-        const delta = parsed?.choices?.[0]?.delta?.content;
-        if (typeof delta === 'string') return delta;
-      } catch {}
-      return '';
-    })
-    .join('');
-
-  if (shouldCoerceToTable) {
-    const rawSse = await upstream.text();
-    if (!upstream.ok) {
-      return new Response(rawSse || 'OpenAI stream error', { status: upstream.status || 500 });
-    }
-
-    const fullText = collectSseContent(rawSse);
-    const subject = (lastUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
-    const table1 = sanitizeMarkdownTable(shapeToTable(subject, fullText));
-    const quality1 = analyzeTable(table1);
-    const tooSparse = quality1.rows < 3 || quality1.density < 0.7;
-
-    let bestTable = table1;
-    let bestQuality = quality1;
-
-    if (tooSparse) {
-      const strictInstruction = `# Output format: Comparison table (STRICT)
-Return a SINGLE markdown table only (no prose).
-Columns (exact order):
-Topic | Mechanism/How it works | Expected benefit | Limitations/Side effects | Notes/Evidence
-Populate EVERY cell. If truly unknown, use a single dash "-".
-Keep cells concise (<= 18 words). No meta like "Short answer".
-Include main item plus 4–8 realistic alternatives.`;
-
-      try {
-        const retryPlain = await callOpenAIChat([
-          { role: 'system', content: strictInstruction },
-          { role: 'user', content: lastUserMessage || subject },
-        ], { stream: false, temperature: 0.2 }) as string;
-        const table2 = sanitizeMarkdownTable(shapeToTable(subject, retryPlain || ''));
-        const quality2 = analyzeTable(table2);
-        if (quality2.density > bestQuality.density) {
-          bestTable = table2;
-          bestQuality = quality2;
-        }
-      } catch {}
-    }
-
-    const finalTable = enforceLocale(bestTable, lang, { forbidEnglishHeadings: true });
-    const totalMs = Date.now() - t0;
-    const appMs = Math.max(0, totalMs - modelMs);
-    const headers = new Headers({
-      "Content-Type": "text/markdown; charset=utf-8",
-      "Cache-Control": "no-store",
-      "Server-Timing": `app;dur=${appMs},model;dur=${modelMs}`,
-      "x-medx-provider": "openai",
-      "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-5",
-    });
-
-    return new Response(finalTable, { status: 200, headers });
-  }
+  const shouldCoerceToTable = modeAllowsEffective && needsTableCoercion(effectiveFormatId);
 
   if (!upstream?.ok || !upstream.body) {
     const err = upstream ? await upstream.text().catch(() => "Upstream error") : "Upstream error";
-    return new Response(`OpenAI stream error: ${err}`, { status: 500 });
+    return new Response(`OpenAI stream error: ${err}`, { status: upstream?.status || 500 });
   }
 
   const formatFinalizer = shouldCoerceToTable
@@ -186,7 +115,7 @@ Include main item plus 4–8 realistic alternatives.`;
       }
     : undefined;
 
-  const enforcedStream = createLocaleEnforcedStream(upstream.body, lang, {
+  const enforcedStream = createLocaleEnforcedStream(upstream.body, safeLang, {
     forbidEnglishHeadings: true,
     finalizer: formatFinalizer,
   });
@@ -204,7 +133,7 @@ Include main item plus 4–8 realistic alternatives.`;
   });
 
   return new Response(enforcedStream, {
-    status: 200,
+    status: upstream.status,
     headers,
   });
 }
