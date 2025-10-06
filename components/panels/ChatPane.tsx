@@ -2306,6 +2306,71 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   }
 
 
+  function looksLikeComparisonIntent(text: string): boolean {
+    const q = (text || '').toLowerCase();
+    const negated =
+      /\b(no|without|avoid|not)\s+(a\s+)?(table|tabular|tabla|tabella|तालिका)\b/.test(q) ||
+      /\b(no|without|avoid|not)\s+(comparison|compare|vs|versus)\b/.test(q);
+    if (negated) return false;
+
+    const en = [
+      /\bcompare\b/, /\bcomparison\b/, /\bvs\b/, /\bversus\b/,
+      /\bdifference\b/, /\bdifferences\b/, /\bpros and cons\b/,
+      /\badvantages? and disadvantages?\b/, /\btrade[-\s]?offs?\b/,
+      /\bside[-\s]?by[-\s]?side\b/, /\bwhich is (better|best)\b/,
+      /\bmatrix\b/, /\bgrid\b/, /\bshortlist\b/,
+    ];
+    const hi = [/तुलना/, /फायदे\s*नुकसान/, /अंतर/];
+    const es = [
+      /\bcomparar\b/, /\bcomparación\b/, /\bventajas y desventajas\b/,
+      /\bdiferencia(s)?\b/, /\bcuál es (mejor|la mejor)\b/,
+    ];
+    const it = [
+      /\bconfronto\b/, /\bconfrontare\b/, /\bdifferenza(e)?\b/,
+      /\bpro e contro\b/, /\bqual[e] è (migliore|il migliore)\b/,
+    ];
+    const any = [...en, ...hi, ...es, ...it];
+    return any.some(re => re.test(q));
+  }
+
+  function looksLikeTableIntent(text: string): boolean {
+    const q = (text || '').toLowerCase();
+    if (/\b(no|without|avoid|not)\s+(a\s+)?(table|tabular|tabla|tabella|तालिका)\b/.test(q)) return false;
+
+    const word = /(?:^|[^a-z])(?:table|tabular|tabulate|as a table|in a table)(?:s)?(?:$|[^a-z])/;
+    const es = /(?:^|[^a-z])(?:tabla|tabular)(?:$|[^a-z])/;
+    const it = /(?:^|[^a-z])(?:tabella|tabellare)(?:$|[^a-z])/;
+    const hi = /तालिका/;
+    const soft = /\b(column|row|grid|matrix)\b/;
+    return word.test(q) || es.test(q) || it.test(q) || hi.test(q) || soft.test(q);
+  }
+
+  function pickEffectiveFormatIdForSend(messageText: string, activeModeTag: string | null): FormatId | undefined {
+    const resolvedMode = activeModeTag && isValidMode(activeModeTag) ? activeModeTag : undefined;
+    if (!resolvedMode) return formatId;
+
+    const userPinnedFormat = formatMap[resolvedMode];
+    if (userPinnedFormat && isFormatAllowed(userPinnedFormat, resolvedMode)) {
+      return userPinnedFormat;
+    }
+
+    const wantsTable = looksLikeTableIntent(messageText) || looksLikeComparisonIntent(messageText);
+    if (wantsTable && isFormatAllowed('table_compare', resolvedMode)) {
+      return 'table_compare';
+    }
+
+    if (formatId && isFormatAllowed(formatId, resolvedMode)) {
+      return formatId;
+    }
+
+    const fallback = DEFAULT_FORMAT_BY_MODE[resolvedMode];
+    if (fallback && isFormatAllowed(fallback, resolvedMode)) {
+      return fallback;
+    }
+
+    return undefined;
+  }
+
   async function send(text: string, researchMode: boolean, opts: SendOpts = {}) {
     if (!text.trim() || busy) return;
     setBusy(true);
@@ -4122,9 +4187,9 @@ ${systemCommon}` + baseSys;
                   e.preventDefault();
                   onSubmit();
                 }}
-                className="flex w-full items-end gap-3 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80"
+                className="flex w-full flex-wrap items-end gap-2 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80 md:flex-nowrap md:gap-3"
               >
-                <div ref={plusMenuRef} className="relative inline-flex items-center">
+                <div ref={plusMenuRef} className="relative inline-flex flex-shrink-0 items-center">
                   <button
                     type="button"
                     aria-haspopup="menu"
@@ -4139,23 +4204,6 @@ ${systemCommon}` + baseSys;
                   >
                     <Plus className="h-5 w-5" aria-hidden="true" />
                   </button>
-
-                  {activeHelper && (
-                    <span
-                      className="ml-2 inline-flex items-center gap-2 rounded-full border border-slate-300/70 bg-slate-50 px-3 py-1 text-sm text-foreground dark:border-slate-700/60 dark:bg-slate-900/60"
-                      aria-live="polite"
-                    >
-                      {activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
-                      <button
-                        type="button"
-                        aria-label={t('clearSelection')}
-                        className="opacity-70 hover:opacity-100"
-                        onClick={() => setActiveHelper(null)}
-                      >
-                        <X className="h-3.5 w-3.5" aria-hidden="true" />
-                      </button>
-                    </span>
-                  )}
 
                   {isPlusMenuOpen && (
                     <div
@@ -4205,6 +4253,23 @@ ${systemCommon}` + baseSys;
                   )}
                 </div>
 
+                {activeHelper && (
+                  <span
+                    className="order-3 hidden min-h-[2.25rem] basis-full items-center gap-1 rounded-full border border-slate-300/70 bg-slate-50 px-2 py-1 text-xs text-foreground dark:border-slate-700/60 dark:bg-slate-900/60 md:inline-flex md:order-none md:ml-2 md:basis-auto md:gap-2 md:px-3 md:py-1 md:text-sm"
+                    aria-live="polite"
+                  >
+                    {activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
+                    <button
+                      type="button"
+                      aria-label={t('clearSelection')}
+                      className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200/80 text-slate-600 transition hover:bg-slate-300 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-700"
+                      onClick={() => setActiveHelper(null)}
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </span>
+                )}
+
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -4217,7 +4282,7 @@ ${systemCommon}` + baseSys;
                     e.currentTarget.value = '';
                   }}
                 />
-                <div className="relative flex-1">
+                <div className="relative order-2 flex-1 min-w-0 md:order-none md:basis-auto">
                   <textarea
                     ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
                     rows={1}
@@ -4259,7 +4324,7 @@ ${systemCommon}` + baseSys;
 
                 {!busy && (
                   <button
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50"
+                    className="order-3 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50 md:order-none"
                     type="submit"
                     disabled={pendingFiles.length === 0 && !userText.trim()}
                     aria-label="Send"
@@ -4267,6 +4332,38 @@ ${systemCommon}` + baseSys;
                   >
                     <Send size={16} />
                   </button>
+                )}
+
+                {activeHelper && (
+                  <div className="order-4 flex w-full basis-full items-center gap-2 md:hidden">
+                    {activeHelper === 'study' ? (
+                      <button
+                        type="button"
+                        aria-pressed={true}
+                        onClick={() => {
+                          setActiveHelper(prev => (prev === 'study' ? null : prev));
+                          setPlusMenuOpen(false);
+                        }}
+                        className="flex flex-1 items-center justify-center gap-1 rounded-full border border-blue-600 bg-blue-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                      >
+                        <GraduationCap className="h-4 w-4" aria-hidden="true" />
+                        <span>{t('studyLearn')}</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        aria-pressed={true}
+                        onClick={() => {
+                          setActiveHelper(prev => (prev === 'thinking' ? null : prev));
+                          setPlusMenuOpen(false);
+                        }}
+                        className="flex flex-1 items-center justify-center gap-1 rounded-full border border-blue-600 bg-blue-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                      >
+                        <Brain className="h-4 w-4" aria-hidden="true" />
+                        <span>{t('thinkingMode')}</span>
+                      </button>
+                    )}
+                  </div>
                 )}
               </form>
             </div>

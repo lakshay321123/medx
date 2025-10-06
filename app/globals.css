@@ -2,8 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-/* smooth theme transitions */
-* { transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
+/* smooth theme transitions without triggering scroll flicker */
+body {
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+body * {
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
 
 /* Prevent any fallback face from flashing before Proxima Nova is ready */
 body.font-loading {
