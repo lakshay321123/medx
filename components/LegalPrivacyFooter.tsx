@@ -38,6 +38,55 @@ const parseConsentValue = (value: string | null): "true" | "false" | null => {
   return "true";
 };
 
+const COOKIE_EXPIRY_SECONDS = 60 * 60 * 24 * 365; // 1 year
+
+const readCookie = (name: string): string | null => {
+  if (typeof document === "undefined") return null;
+  const cookies = document.cookie?.split("; ") ?? [];
+  for (const cookie of cookies) {
+    if (cookie.startsWith(`${name}=`)) {
+      return decodeURIComponent(cookie.substring(name.length + 1));
+    }
+  }
+  return null;
+};
+
+const writeCookie = (name: string, value: string) => {
+  if (typeof document === "undefined") return;
+  try {
+    document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${COOKIE_EXPIRY_SECONDS}; SameSite=Lax`;
+  } catch (error) {
+    console.warn("Unable to persist consent cookie", error);
+  }
+};
+
+const readStoredConsent = (): "true" | "false" | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = window.localStorage.getItem(CONSENT_KEY);
+    const parsed = parseConsentValue(stored);
+    if (parsed !== null) {
+      return parsed;
+    }
+  } catch (error) {
+    console.warn("Unable to read stored consent from localStorage", error);
+  }
+
+  const cookieValue = readCookie(CONSENT_KEY);
+  return parseConsentValue(cookieValue);
+};
+
+const persistConsent = (value: "true" | "false") => {
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.setItem(CONSENT_KEY, value);
+    } catch (error) {
+      console.warn("Unable to persist consent in localStorage", error);
+    }
+  }
+  writeCookie(CONSENT_KEY, value);
+};
+
 function getStoredPrefs(): CookiePrefs {
   if (typeof window === "undefined") return DEFAULT_PREFS;
   try {
@@ -163,8 +212,7 @@ export default function LegalPrivacyFooter() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const storedConsentRaw = window.localStorage.getItem(CONSENT_KEY);
-    const parsedConsent = parseConsentValue(storedConsentRaw);
+    const parsedConsent = readStoredConsent();
     const storedPrefs = getStoredPrefs();
 
     setCookiePrefs(storedPrefs);
@@ -254,9 +302,13 @@ export default function LegalPrivacyFooter() {
   const handleAccept = () => {
     if (!agreeChecked) return;
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(CONSENT_KEY, "true");
-      window.localStorage.setItem(COOKIE_KEY, JSON.stringify(cookiePrefs));
+      try {
+        window.localStorage.setItem(COOKIE_KEY, JSON.stringify(cookiePrefs));
+      } catch (error) {
+        console.warn("Unable to persist cookie preferences", error);
+      }
     }
+    persistConsent("true");
     setConsentValue("true");
     setIsOpen(false);
   };
@@ -295,9 +347,13 @@ export default function LegalPrivacyFooter() {
       const essentialOnly: CookiePrefs = {
         ...DEFAULT_PREFS,
       };
-      window.localStorage.setItem(CONSENT_KEY, "false");
-      window.localStorage.setItem(COOKIE_KEY, JSON.stringify(essentialOnly));
+      try {
+        window.localStorage.setItem(COOKIE_KEY, JSON.stringify(essentialOnly));
+      } catch (error) {
+        console.warn("Unable to persist cookie preferences", error);
+      }
     }
+    persistConsent("false");
     setCookiePrefs({ ...DEFAULT_PREFS });
     setConsentValue("false");
     setAgreeChecked(false);
