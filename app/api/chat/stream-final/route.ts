@@ -56,8 +56,9 @@ export async function POST(req: Request) {
   const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
   const lang = normalizeLangTag(langTag);
   const langDirective = languageDirectiveFor(lang);
+  const safeLang = (isValidLang(lang) ? lang : 'en') as any;
   const formatInstructionFor = (fid?: FormatId) =>
-    buildFormatInstruction(lang as any, resolvedMode, fid);
+    buildFormatInstruction(safeLang, resolvedMode, fid);
   const isAllowed = (fid?: FormatId) => (fid ? Boolean(formatInstructionFor(fid)) : false);
 
   const effectiveFormatId: FormatId | undefined = (() => {
@@ -67,9 +68,7 @@ export async function POST(req: Request) {
     return undefined; // mode default
   })();
 
-  const formatInstruction = isValidLang(lang)
-    ? buildFormatInstruction(lang as any, resolvedMode, effectiveFormatId)
-    : '';
+  const formatInstruction = buildFormatInstruction(safeLang, resolvedMode, effectiveFormatId);
 
   const lastUserMessage =
     messages.slice().reverse().find((m: any) => m.role === "user")?.content || "";

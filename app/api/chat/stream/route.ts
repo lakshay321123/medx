@@ -153,8 +153,9 @@ export async function POST(req: NextRequest) {
       || null,
   );
   const langDirectiveBlock = languageInstruction(lang);
+  const safeLang = (isValidLang(lang) ? lang : 'en') as any;
   const formatInstructionFor = (fid?: FormatId) =>
-    buildFormatInstruction(lang as any, resolvedMode, fid);
+    buildFormatInstruction(safeLang, resolvedMode, fid);
   const isAllowed = (fid?: FormatId) => (fid ? Boolean(formatInstructionFor(fid)) : false);
 
   const effectiveFormatId: FormatId | undefined = (() => {
@@ -164,9 +165,7 @@ export async function POST(req: NextRequest) {
     return undefined; // mode default
   })();
 
-  const formatInstruction = isValidLang(lang)
-    ? buildFormatInstruction(lang as any, resolvedMode, effectiveFormatId)
-    : '';
+  const formatInstruction = buildFormatInstruction(safeLang, resolvedMode, effectiveFormatId);
   const persona = personaFromPrefs(body?.personalization);
   const sysPrelude = [persona].filter(Boolean).join('\n\n');
   const studyChunks = flags.study ? [STUDY_MODE_SYSTEM.trim(), STUDY_OUTPUT_GUIDE.trim()] : [];
