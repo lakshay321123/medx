@@ -97,8 +97,9 @@ export async function POST(req: Request) {
   );
   const modelMs = Date.now() - modelStart;
 
-  const modeAllowed = Boolean(formatInstruction);
-  const shouldCoerceToTable = modeAllowed && needsTableCoercion(effectiveFormatId);
+  const modeAllowsFormat =
+    !effectiveFormatId || FORMATS.some(f => f.id === effectiveFormatId && f.allowedModes.includes(resolvedMode));
+  const shouldCoerceToTable = modeAllowsFormat && needsTableCoercion(effectiveFormatId);
 
   if (shouldCoerceToTable) {
     const rawSse = await upstream.text();

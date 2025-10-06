@@ -153,6 +153,7 @@ export async function POST(req: NextRequest) {
       || null,
   );
   const langDirectiveBlock = languageInstruction(lang);
+  // Always build using a safe language fallback to avoid empty-instruction traps
   const safeLang = (isValidLang(lang) ? lang : 'en') as any;
   const formatInstructionFor = (fid?: FormatId) =>
     buildFormatInstruction(safeLang, resolvedMode, fid);
@@ -409,8 +410,9 @@ export async function POST(req: NextRequest) {
     })
   });
 
-  const modeAllowed = Boolean(formatInstruction);
-  const shouldCoerceToTable = modeAllowed && needsTableCoercion(effectiveFormatId);
+  const modeAllowsFormat =
+    !effectiveFormatId || FORMATS.some(f => f.id === effectiveFormatId && f.allowedModes.includes(resolvedMode));
+  const shouldCoerceToTable = modeAllowsFormat && needsTableCoercion(effectiveFormatId);
 
   if (shouldCoerceToTable) {
     const rawSse = await upstream.text();
