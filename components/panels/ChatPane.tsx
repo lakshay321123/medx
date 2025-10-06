@@ -1,9 +1,11 @@
 'use client';
 import { useEffect, useRef, useState, useMemo, RefObject, useCallback } from 'react';
+import type { ComponentProps } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fromSearchParams } from '@/lib/modes/url';
 import { useRouter } from 'next/navigation';
 import ChatMarkdown from '@/components/ChatMarkdown';
+import { InlineSponsoredCard } from '@/components/ads/InlineSponsoredCard';
 import ResearchFilters from '@/components/ResearchFilters';
 import { LinkBadge } from '@/components/SafeLink';
 import TrialsResults from "@/components/TrialsResults";
@@ -63,6 +65,8 @@ import { useFeedback } from "@/hooks/useFeedback";
 import { usePendingAssistantStages } from "@/hooks/usePendingAssistantStages";
 import type { PendingAssistantState } from "@/hooks/usePendingAssistantStages";
 import { mark, since } from "@/utils/latency";
+import { fetchAd } from '@/lib/ads/fetch';
+import type { AdCard, UserTier } from '@/types/ads';
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -733,6 +737,74 @@ function AssistantMessage(props: {
       pendingTimerActive={pendingTimerActive}
       pendingStageState={pendingStageState}
     />
+  );
+}
+
+type AssistantMessageProps = ComponentProps<typeof AssistantMessage>;
+
+function AssistantMessageWithAd(props: AssistantMessageProps & {
+  assistantIndex: number;
+  adTier: UserTier;
+  adZone: string;
+  adRegion?: string;
+}) {
+  const { assistantIndex, adTier, adZone, adRegion, ...assistantProps } = props;
+  const { m } = assistantProps;
+  const [ad, setAd] = useState<AdCard | null>(null);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'done'>('idle');
+
+  useEffect(() => {
+    setAd(null);
+    setStatus('idle');
+  }, [m.id]);
+
+  useEffect(() => {
+    if (status !== 'idle') return;
+    if (m.role !== 'assistant') return;
+    if (m.pending) return;
+    if (typeof assistantIndex !== 'number' || assistantIndex < 0) return;
+    if (assistantIndex % 2 !== 1) return;
+
+    const text =
+      typeof m.content === 'string' && m.content.trim()
+        ? m.content
+        : (m as any).originUserText || (m as any).userPrompt || '';
+    if (!text || !String(text).trim()) {
+      setStatus('done');
+      return;
+    }
+
+    let cancelled = false;
+    setStatus('loading');
+    (async () => {
+      try {
+        const result = await fetchAd({
+          text: String(text),
+          region: adRegion,
+          tier: adTier,
+          zone: adZone,
+        });
+        if (cancelled) return;
+        if (result?.card) {
+          setAd(result.card as AdCard);
+        }
+      } catch {
+        // swallow fetch errors
+      } finally {
+        if (!cancelled) setStatus('done');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [status, m, assistantIndex, adTier, adZone, adRegion]);
+
+  return (
+    <>
+      <AssistantMessage {...assistantProps} />
+      {ad ? <InlineSponsoredCard card={ad} /> : null}
+    </>
   );
 }
 
@@ -3644,6 +3716,21 @@ ${systemCommon}` + baseSys;
     () => ({ submittedFor: feedback.submittedFor, loading: feedback.loading }),
     [feedback.submittedFor, feedback.loading]
   );
+  const assistantOrdinals = useMemo(() => {
+    let count = 0;
+    return visibleMessages.map(msg => {
+      if (msg.role === 'assistant') {
+        const current = count;
+        count += 1;
+        return current;
+      }
+      return -1;
+    });
+  }, [visibleMessages]);
+  const panelParam = (sp.get('panel') ?? 'chat').toLowerCase();
+  const adZone = panelParam === 'timeline' ? 'reports' : isAiDocMode ? 'aidoc' : 'chat';
+  const adTier: UserTier = prefs.plan === 'pro' ? '100' : 'free';
+  const adRegion = country?.code3;
 
   const renderedMessages = useMemo(
     () =>
@@ -3728,7 +3815,7 @@ ${systemCommon}` + baseSys;
                   ref={registerMessageRef(m.id)}
                   data-testid={m.role === "assistant" ? "assistant-turn" : undefined}
                 >
-                  <AssistantMessage
+                  <AssistantMessageWithAd
                     m={m}
                     researchOn={researchMode}
                     onQuickAction={stableOnQuickAction}
@@ -3742,6 +3829,10 @@ ${systemCommon}` + baseSys;
                         ? pendingAssistantState
                         : null
                     }
+                    assistantIndex={assistantOrdinals[index] ?? -1}
+                    adTier={adTier}
+                    adZone={adZone}
+                    adRegion={adRegion}
                   />
                 </div>
                 <MessageActions
@@ -3780,7 +3871,11 @@ ${systemCommon}` + baseSys;
       handleFeedbackSubmit,
       pendingAssistantState,
       handleRefreshMessage,
-      refreshingMessageId
+      refreshingMessageId,
+      assistantOrdinals,
+      adTier,
+      adZone,
+      adRegion
     ]
   );
 
