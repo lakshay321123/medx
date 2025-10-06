@@ -39,10 +39,11 @@ export async function POST(req: Request) {
     ? (rawFormat as FormatId)
     : undefined;
   const formatPinned: boolean = payload?.formatPinned === true;
-  const rawHint = typeof payload?.formatHint === 'string' ? payload.formatHint.trim().toLowerCase() : '';
-  const formatHint: FormatId | undefined = rawHint && FORMATS.some(f => f.id === rawHint)
-    ? (rawHint as FormatId)
-    : undefined;
+  const rawHint = typeof payload?.formatHint === 'string'
+    ? payload.formatHint.trim().toLowerCase()
+    : '';
+  const formatHint: FormatId | undefined =
+    rawHint && FORMATS.some(f => f.id === rawHint) ? (rawHint as FormatId) : undefined;
   const rawModeTag = payload?.modeTag ?? mode;
   const normalizedModeTag = normalizeModeTag(rawModeTag);
   const resolvedMode: Mode = isValidMode(normalizedModeTag) ? normalizedModeTag : 'wellness';
@@ -58,13 +59,14 @@ export async function POST(req: Request) {
   const formatInstructionFor = (fid?: FormatId) =>
     buildFormatInstruction(lang as any, resolvedMode, fid);
   const isAllowed = (fid?: FormatId) => (fid ? Boolean(formatInstructionFor(fid)) : false);
-  // Decision order: pinned > hint > unpinned > default
+
   const effectiveFormatId: FormatId | undefined = (() => {
     if (formatPinned && isAllowed(formatId)) return formatId!;
     if (isAllowed(formatHint)) return formatHint!;
     if (!formatPinned && isAllowed(formatId)) return formatId!;
-    return undefined;
+    return undefined; // mode default
   })();
+
   const formatInstruction = isValidLang(lang)
     ? buildFormatInstruction(lang as any, resolvedMode, effectiveFormatId)
     : '';

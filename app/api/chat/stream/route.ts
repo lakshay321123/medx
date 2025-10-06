@@ -138,10 +138,11 @@ export async function POST(req: NextRequest) {
     ? (rawFormatId as FormatId)
     : undefined;
   const formatPinned: boolean = body?.formatPinned === true;
-  const rawHint = typeof body?.formatHint === 'string' ? body.formatHint.trim().toLowerCase() : '';
-  const formatHint: FormatId | undefined = rawHint && FORMATS.some(f => f.id === rawHint)
-    ? (rawHint as FormatId)
-    : undefined;
+  const rawHint = typeof body?.formatHint === 'string'
+    ? body.formatHint.trim().toLowerCase()
+    : '';
+  const formatHint: FormatId | undefined =
+    rawHint && FORMATS.some(f => f.id === rawHint) ? (rawHint as FormatId) : undefined;
   const allowHistory = body?.allowHistory !== false;
   const requestedLang = typeof body?.lang === 'string' ? body.lang : null;
   const headerLang = req.headers.get('x-user-lang') || req.headers.get('x-lang') || null;
@@ -155,13 +156,14 @@ export async function POST(req: NextRequest) {
   const formatInstructionFor = (fid?: FormatId) =>
     buildFormatInstruction(lang as any, resolvedMode, fid);
   const isAllowed = (fid?: FormatId) => (fid ? Boolean(formatInstructionFor(fid)) : false);
-  // Decision order: pinned > hint > unpinned > default
+
   const effectiveFormatId: FormatId | undefined = (() => {
     if (formatPinned && isAllowed(formatId)) return formatId!;
     if (isAllowed(formatHint)) return formatHint!;
     if (!formatPinned && isAllowed(formatId)) return formatId!;
-    return undefined;
+    return undefined; // mode default
   })();
+
   const formatInstruction = isValidLang(lang)
     ? buildFormatInstruction(lang as any, resolvedMode, effectiveFormatId)
     : '';
