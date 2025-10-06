@@ -4,6 +4,7 @@ export const preferredRegion = ["bom1", "sin1", "hnd1"];
 
 import { NextResponse } from "next/server";
 import { createParser } from "eventsource-parser";
+import type { EventSourceMessage } from "eventsource-parser";
 import { prisma } from "@/lib/prisma";
 import { appendMessage } from "@/lib/memory/store";
 import { decideContext } from "@/lib/memory/contextRouter";
@@ -199,27 +200,31 @@ async function streamGroqResponse({
       const decoder = new TextDecoder();
       let aggregated = "";
       let doneReceived = false;
-      const parser = createParser((event) => {
-        if (event.type !== "event") return;
-        const data = event.data;
-        if (data === "[DONE]") {
-          doneReceived = true;
-          return;
-        }
-        controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-        try {
-          const json = JSON.parse(data);
-          const deltaNode = json?.choices?.[0]?.delta;
-          const resetStream = deltaNode?.medx_reset === true;
-          const delta = typeof deltaNode?.content === "string" ? deltaNode.content : "";
-          if (resetStream) {
-            aggregated = delta || "";
-          } else if (delta) {
-            aggregated += delta;
+      const parser = createParser({
+        onEvent(event: EventSourceMessage) {
+          const data = event.data;
+          if (!data) {
+            return;
           }
-        } catch {
-          /* ignore parse errors */
-        }
+          if (data === "[DONE]") {
+            doneReceived = true;
+            return;
+          }
+          controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+          try {
+            const json = JSON.parse(data);
+            const deltaNode = json?.choices?.[0]?.delta;
+            const resetStream = deltaNode?.medx_reset === true;
+            const delta = typeof deltaNode?.content === "string" ? deltaNode.content : "";
+            if (resetStream) {
+              aggregated = delta || "";
+            } else if (delta) {
+              aggregated += delta;
+            }
+          } catch {
+            /* ignore parse errors */
+          }
+        },
       });
 
       (async () => {
