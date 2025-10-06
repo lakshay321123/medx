@@ -20,6 +20,7 @@
     "@tanstack/react-query": "^5.89.0",
     "clsx": "^2.1.1",
     "eventsource-parser": "^3.0.6",
+    "fast-xml-parser": "^4.5.3",
     "framer-motion": "^12.23.12",
     "hast-util-sanitize": "^5.0.2",
     "html-to-image": "^1.11.11",

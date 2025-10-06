@@ -5,10 +5,9 @@ export const preferredRegion = ["bom1", "sin1", "hnd1"];
 import { NextResponse } from "next/server";
 import { createParser } from "eventsource-parser";
 import type { EventSourceMessage } from "eventsource-parser";
-import { appendMessage } from "@/lib/memory/store";
 import { decideContext } from "@/lib/memory/contextRouter";
 import { seedTopicEmbedding } from "@/lib/memory/outOfContext";
-import { updateSummary, persistUpdatedSummary } from "@/lib/memory/summary";
+import { updateSummary } from "@/lib/memory/summary";
 import { buildPromptContext } from "@/lib/memory/contextBuilder";
 import {
   buildSystemPrompt,
@@ -57,17 +56,35 @@ type ChatLogEvent = {
   [key: string]: any;
 };
 
-async function logChatEvent(origin: string, event: ChatLogEvent) {
+type LogPayload =
+  | { type: "chat_event"; event: ChatLogEvent }
+  | { type: "persist_message"; data: { threadId: string; role: "user" | "assistant"; content: string } }
+  | { type: "finalize_turn"; data: { threadId: string; assistant: string; summary?: string } };
+
+async function postLog(origin: string, payload: LogPayload) {
   try {
     await fetch(`${origin}/api/log`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(event),
+      body: JSON.stringify(payload),
       cache: "no-store",
+      keepalive: true,
     });
   } catch (err) {
-    console.error("[chat] failed to log event", err);
+    console.error("[chat] failed to reach log endpoint", err);
   }
+}
+
+async function logChatEvent(origin: string, event: ChatLogEvent) {
+  await postLog(origin, { type: "chat_event", event });
+}
+
+async function persistMessage(origin: string, data: { threadId: string; role: "user" | "assistant"; content: string }) {
+  await postLog(origin, { type: "persist_message", data });
+}
+
+async function finalizeAssistantTurn(origin: string, data: { threadId: string; assistant: string; summary?: string }) {
+  await postLog(origin, { type: "finalize_turn", data });
 }
 
 type TopicStack = Awaited<ReturnType<typeof loadTopicStack>>;
@@ -94,22 +111,6 @@ async function safeSeedTopicEmbedding(threadId: string, text: string) {
     await seedTopicEmbedding(threadId, text);
   } catch (err) {
     console.warn("[chat] seedTopicEmbedding failed", err);
-  }
-}
-
-async function safeAppendMessage(args: Parameters<typeof appendMessage>[0]) {
-  try {
-    await appendMessage(args);
-  } catch (err) {
-    console.warn("[chat] appendMessage failed", err);
-  }
-}
-
-async function safePersistSummary(threadId: string, summary: string) {
-  try {
-    await persistUpdatedSummary(threadId, summary);
-  } catch (err) {
-    console.warn("[chat] persistUpdatedSummary failed", err);
   }
 }
 
@@ -180,6 +181,7 @@ type StreamOptions = {
   temperature?: number;
   maxTokens?: number;
   persist?: boolean;
+  origin: string;
 };
 
 async function streamGroqResponse({
@@ -193,6 +195,7 @@ async function streamGroqResponse({
   temperature = 0.25,
   maxTokens = 1200,
   persist = true,
+  origin,
 }: StreamOptions): Promise<Response> {
   const apiKey = process.env.GROQ_API_KEY;
   const providerEndpoint = "https://api.groq.com/openai/v1/chat/completions";
@@ -209,9 +212,8 @@ async function streamGroqResponse({
     assistant = sanitizeLLM(assistant);
     assistant = finalReplyGuard(userText, assistant);
     if (persist && threadId) {
-      await safeAppendMessage({ threadId, role: "assistant", content: assistant });
       const updated = updateSummary("", userText, assistant);
-      await safePersistSummary(threadId, updated);
+      await finalizeAssistantTurn(origin, { threadId, assistant, summary: updated });
     }
     return assistant;
   }
@@ -640,8 +642,10 @@ export async function POST(req: Request) {
     }
   }
 
-  // 2) Save user message (+embedding via appendMessage)
-  await safeAppendMessage({ threadId, role: "user", content: text });
+  // 2) Save user message via Node logger (skip when threadless)
+  if (threadId && text.trim().length > 0) {
+    await persistMessage(origin, { threadId, role: "user", content: text });
+  }
 
   // 3) Update state (contradictions + heuristics extraction; no OpenAI required)
   let state = await safeLoadState(threadId);
@@ -750,6 +754,7 @@ export async function POST(req: Request) {
     temperature: 0.25,
     maxTokens: 1200,
     persist: true,
+    origin,
   });
 }
 function generateConversationId() {
