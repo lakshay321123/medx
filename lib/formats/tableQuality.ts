@@ -3,9 +3,8 @@ export function sanitizeMarkdownTable(md: string) {
   const out: string[] = [];
   let headerDone = false;
 
-  const isSep = (line: string) => /^\s*\|(?:\s*-+\s*\|)+\s*$/.test(line);
-  const isRow = (line: string) => /^\s*\|/.test(line);
-  // Fill all empty cells (leading/middle/trailing) and normalize spacing
+  const isSep = (L: string) => /^\s*\|(?:\s*-+\s*\|)+\s*$/.test(L);
+  const isRow = (L: string) => /^\s*\|/.test(L);
   const fill = (row: string) => {
     const inner = row.trim().replace(/^\|/, '').replace(/\|$/, '');
     const cells = inner.split('|').map(cell => {
@@ -16,28 +15,28 @@ export function sanitizeMarkdownTable(md: string) {
   };
 
   for (let i = 0; i < lines.length; i++) {
-    const current = lines[i];
-    if (!isRow(current)) continue;
+    const L = lines[i];
+    if (!isRow(L)) continue;
 
     if (!headerDone) {
-      const header = fill(current);
-      out.push(header);
+      const hdr = fill(L);
+      out.push(hdr);
       if (i + 1 < lines.length && isSep(lines[i + 1])) {
         out.push(lines[i + 1].replace(/\s+/g, ' ').trim());
         i++;
       } else {
-        const cols = (header.match(/\|/g)?.length || 0) - 1;
+        const cols = (hdr.match(/\|/g)?.length || 0) - 1;
         out.push('|' + Array(cols).fill('---').join('|') + '|');
       }
       headerDone = true;
       continue;
     }
 
-    if (isSep(current)) continue;
-    const bare = current.replace(/\|/g, '').trim();
+    if (isSep(L)) continue;
+    const bare = L.replace(/\|/g, '').trim();
     if (!bare) continue;
 
-    out.push(fill(current));
+    out.push(fill(L));
   }
 
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();

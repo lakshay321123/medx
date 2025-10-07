@@ -6,7 +6,6 @@ import { normalizeModeTag } from "@/lib/i18n/normalize";
 import { buildFormatInstruction } from "@/lib/formats/build";
 import { FORMATS } from "@/lib/formats/registry";
 import { isValidLang, isValidMode } from "@/lib/formats/constants";
-import { needsTableCoercion } from "@/lib/formats/tableGuard";
 import { hasMarkdownTable, shapeToTable } from "@/lib/formats/tableShape";
 import { sanitizeMarkdownTable } from "@/lib/formats/tableQuality";
 import { proxySseWithFinalizer } from "@/lib/sse/proxy";
@@ -72,7 +71,8 @@ export async function POST(req: Request) {
   const formatInstruction = buildFormatInstruction(safeLang, resolvedMode, effectiveFormatId);
   const modeAllowsEffective =
     !effectiveFormatId || FORMATS.some(f => f.id === effectiveFormatId && f.allowedModes.includes(resolvedMode));
-  const shouldCoerceToTable = modeAllowsEffective && needsTableCoercion(effectiveFormatId);
+  const shouldCoerceToTable =
+    modeAllowsEffective && effectiveFormatId === 'table_compare';
   const buildFormatFinalizer = (userText: string) =>
     shouldCoerceToTable
       ? (fullText: string) => {
