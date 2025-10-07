@@ -161,171 +161,93 @@ export function enforceLocale(
 export type EnforceLocaleOptions = Parameters<typeof enforceLocale>[2];
 
 type LocaleStreamOptions = {
+  lang: string;
   maskLookup?: Record<string, string>;
   forbidEnglishHeadings?: boolean;
-  finalizer?: (text: string) => string;
+  formatFinalizer?: (fullText: string) => string;
 };
 
 export function createLocaleEnforcedStream(
-  source: ReadableStream<Uint8Array>,
-  lang: string,
-  opts?: LocaleStreamOptions,
+  upstream: ReadableStream<Uint8Array>,
+  opts: LocaleStreamOptions,
 ) {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
-  const maskLookup = opts?.maskLookup;
-  const forbidEnglishHeadings = opts?.forbidEnglishHeadings;
-  const finalizer = opts?.finalizer;
+  let buffer = '';
+  let carry = '';
 
   return new ReadableStream<Uint8Array>({
     start(controller) {
-      const reader = source.getReader();
-      let buffer = '';
-      let aggregated = '';
-      let sanitizedSoFar = '';
-      let lastParsed: any = null;
+      const reader = upstream.getReader();
 
-      const sendLine = (line: string) => {
-        controller.enqueue(encoder.encode(`${line}\n\n`));
+      const push = (value: string | Uint8Array) => {
+        if (typeof value === 'string') {
+          controller.enqueue(encoder.encode(value));
+        } else {
+          controller.enqueue(value);
+        }
       };
 
-      const sendPayload = (data: any) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-      };
-
-      let sentDone = false;
-
-      const emitFinalIfNeeded = () => {
-        if (!finalizer) return;
-        const revised = finalizer(aggregated);
-        if (typeof revised === 'string') {
-          aggregated = revised;
-        }
-        const finalSanitized = enforceLocale(aggregated, lang, { maskLookup, forbidEnglishHeadings });
-        if (finalSanitized === sanitizedSoFar) return;
-        sanitizedSoFar = finalSanitized;
-        const base = lastParsed && typeof lastParsed === 'object'
-          ? lastParsed
-          : { choices: [{ delta: {} }] };
-        const payload = {
-          ...base,
-          choices: Array.isArray(base?.choices)
-            ? base.choices.map((choice: any, index: number) => {
-                if (index !== 0) return choice;
-                return {
-                  ...choice,
-                  delta: {
-                    ...(choice?.delta || {}),
-                    content: finalSanitized,
-                    medx_reset: true,
-                  },
-                };
-              })
-            : [{ delta: { content: finalSanitized, medx_reset: true } }],
-        };
-        sendPayload(payload);
-      };
-
-      const processEvent = (event: string) => {
-        if (!event.startsWith('data:')) {
-          sendLine(event);
-          return;
-        }
-        const body = event.slice(5).trim();
-        if (!body) return;
-        if (body === '[DONE]') {
-          sentDone = true;
-          emitFinalIfNeeded();
-          sendLine('data: [DONE]');
-          return;
-        }
-        let parsed: any;
-        try {
-          parsed = JSON.parse(body);
-        } catch {
-          sendLine(`data: ${body}`);
-          return;
-        }
-        lastParsed = parsed;
-        const choices = Array.isArray(parsed?.choices) ? parsed.choices : [];
-        const primary = choices[0];
-        const delta = primary?.delta;
-        if (delta && typeof delta.content === 'string' && delta.content.length > 0) {
-          aggregated += delta.content;
-          const sanitized = enforceLocale(aggregated, lang, { maskLookup, forbidEnglishHeadings });
-          let payload: any;
-          if (!sanitized.startsWith(sanitizedSoFar)) {
-            sanitizedSoFar = sanitized;
-            payload = {
-              ...parsed,
-              choices: choices.map((choice: any, index: number) => {
-                if (index !== 0) return choice;
-                return {
-                  ...choice,
-                  delta: {
-                    ...choice.delta,
-                    content: sanitized,
-                    medx_reset: true,
-                  },
-                };
-              }),
-            };
-            sendPayload(payload);
+      const readNext = (): any =>
+        reader.read().then(({ done, value }) => {
+          if (done) {
+            if (opts.formatFinalizer) {
+              try {
+                const finalized = opts.formatFinalizer(buffer || '');
+                if (typeof finalized === 'string' && finalized.length > 0) {
+                  push(`data: ${JSON.stringify({ role: 'assistant', content: finalized })}\n\n`);
+                }
+              } catch {
+                // ignore finalizer errors
+              }
+            }
+            push('data: [DONE]\n\n');
+            controller.close();
             return;
           }
-          const addition = sanitized.slice(sanitizedSoFar.length);
-          sanitizedSoFar = sanitized;
-          if (!addition) return;
-          payload = {
-            ...parsed,
-            choices: choices.map((choice: any, index: number) => {
-              if (index !== 0) return choice;
-              return {
-                ...choice,
-                delta: {
-                  ...choice.delta,
-                  content: addition,
-                },
-              };
-            }),
-          };
-          sendPayload(payload);
-          return;
-        }
-        sendPayload(parsed);
-      };
 
-      const flush = () => {
-        let idx = buffer.indexOf('\n\n');
-        while (idx >= 0) {
-          const chunk = buffer.slice(0, idx);
-          buffer = buffer.slice(idx + 2);
-          if (chunk.length > 0) processEvent(chunk);
-          idx = buffer.indexOf('\n\n');
-        }
-      };
+          if (value) {
+            push(value);
+            const chunk = decoder.decode(value, { stream: true });
+            carry += chunk;
 
-      const pump = () => reader.read().then(({ done, value }) => {
-        if (done) {
-          flush();
-          emitFinalIfNeeded();
-          if (!sentDone) {
-            sentDone = true;
-            sendLine('data: [DONE]');
+            let sepIndex = carry.indexOf('\n\n');
+            while (sepIndex !== -1) {
+              const frame = carry.slice(0, sepIndex);
+              carry = carry.slice(sepIndex + 2);
+
+              for (const line of frame.split('\n')) {
+                const trimmed = line.trim();
+                if (!trimmed.startsWith('data:')) continue;
+                const payload = trimmed.slice(5).trim();
+                if (!payload || payload === '[DONE]') continue;
+                try {
+                  const parsed = JSON.parse(payload);
+                  if (parsed && typeof parsed === 'object') {
+                    if (parsed.role === 'assistant' && typeof parsed.content === 'string') {
+                      buffer += parsed.content;
+                    }
+                    const choices = Array.isArray(parsed.choices) ? parsed.choices : [];
+                    for (const choice of choices) {
+                      const delta = choice?.delta;
+                      if (delta && typeof delta.content === 'string') {
+                        buffer += delta.content;
+                      }
+                    }
+                  }
+                } catch {
+                  // swallow parse issues
+                }
+              }
+
+              sepIndex = carry.indexOf('\n\n');
+            }
           }
-          controller.close();
-          return;
-        }
-        if (value) {
-          buffer += decoder.decode(value, { stream: true });
-          flush();
-        }
-        return pump();
-      }).catch((err) => {
-        controller.error(err);
-      });
 
-      pump();
+          return readNext();
+        });
+
+      readNext();
     },
   });
 }

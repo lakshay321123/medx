@@ -434,9 +434,9 @@ export async function POST(req: NextRequest) {
       }
     : undefined;
 
-  const enforcedStream = createLocaleEnforcedStream(upstream.body, safeLang, {
-    forbidEnglishHeadings: true,
-    finalizer: formatFinalizer,
+  const enforcedStream = createLocaleEnforcedStream(upstream.body!, {
+    lang: safeLang,
+    formatFinalizer,
   });
 
   return new Response(enforcedStream, {

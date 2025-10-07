@@ -115,9 +115,9 @@ export async function POST(req: Request) {
       }
     : undefined;
 
-  const enforcedStream = createLocaleEnforcedStream(upstream.body, safeLang, {
-    forbidEnglishHeadings: true,
-    finalizer: formatFinalizer,
+  const enforcedStream = createLocaleEnforcedStream(upstream.body, {
+    lang: safeLang,
+    formatFinalizer,
   });
 
   const totalMs = Date.now() - t0;
