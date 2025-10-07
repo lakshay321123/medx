@@ -111,7 +111,9 @@ export async function POST(req: Request) {
 
     if (mime === "application/pdf" || name.toLowerCase().endsWith(".pdf")) {
       text = await extractTextFromPDF(buf);
-      if (!doctorMode && text) {
+      if (!doctorMode) {
+        const ingestText = typeof text === "string" ? text : "";
+        const hasExtractedText = ingestText.trim().length > 0;
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
         const cookie = req.headers.get("cookie") || undefined;
         try {
@@ -123,9 +125,14 @@ export async function POST(req: Request) {
             },
             body: JSON.stringify({
               threadId,
-              text,
+              text: ingestText,
               sourceHash,
-              defaults: { meta: { source_type: "pdf" } },
+              defaults: {
+                meta: {
+                  source_type: "pdf",
+                  ...(hasExtractedText ? {} : { no_text_extracted: true }),
+                },
+              },
             }),
           });
           const ingestJson = await ingestResp.json().catch(() => ({}));
@@ -195,8 +202,12 @@ export async function POST(req: Request) {
         const data = await r.json();
         report = data?.choices?.[0]?.message?.content || "";
       } else {
-        dataUrl = await rasterizeFirstPage(buf);
-        category = await classifyImage(dataUrl);
+        try {
+          dataUrl = await rasterizeFirstPage(buf);
+          category = await classifyImage(dataUrl);
+        } catch (err) {
+          console.warn("pdf_rasterize_failed", err);
+        }
       }
     } else if (mime.startsWith("image/")) {
       dataUrl = `data:${mime};base64,${buf.toString("base64")}`;
