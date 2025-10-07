@@ -4284,7 +4284,7 @@ ${systemCommon}` + baseSys;
 
       <div className="mt-auto mobile-composer-region">
         <div className="px-6 pb-4 md:pb-6">
-          <div className="mx-auto max-w-3xl space-y-3 px-4 py-4">
+          <div className="mx-auto w-full max-w-3xl space-y-3 px-4 py-4 md:px-0">
               {((showDefaultSuggestions && showSuggestions) || showLiveSuggestions) && (
                 <div className="w-full">
                   {showDefaultSuggestions && showSuggestions && (
