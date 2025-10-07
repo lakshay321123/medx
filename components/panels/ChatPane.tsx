@@ -4,6 +4,8 @@ import { useSearchParams } from 'next/navigation';
 import { fromSearchParams } from '@/lib/modes/url';
 import { useRouter } from 'next/navigation';
 import ChatMarkdown from '@/components/ChatMarkdown';
+import InlineSponsoredCard from '@/components/ads/InlineSponsoredCard';
+import InlineSponsoredSkeleton from '@/components/ads/InlineSponsoredSkeleton';
 import ResearchFilters from '@/components/ResearchFilters';
 import { LinkBadge } from '@/components/SafeLink';
 import TrialsResults from "@/components/TrialsResults";
@@ -63,6 +65,28 @@ import { useFeedback } from "@/hooks/useFeedback";
 import { usePendingAssistantStages } from "@/hooks/usePendingAssistantStages";
 import type { PendingAssistantState } from "@/hooks/usePendingAssistantStages";
 import { mark, since } from "@/utils/latency";
+import type { AdCard, UserTier } from '@/types/ads';
+
+async function fetchAd(payload: {
+  text: string;
+  tier: 'free' | '100' | '200' | '500';
+  region?: string;
+  zone: 'chat' | 'reports' | 'aidoc' | 'directory';
+}) {
+  const r = await fetch('/api/ads/broker', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    throw new Error(`ads_broker_${r.status}`);
+  }
+  try {
+    return (await r.json()) as { card?: AdCard; reason?: string };
+  } catch {
+    throw new Error('ads_broker_invalid_json');
+  }
+}
 
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
@@ -782,12 +806,15 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [shareUrls, setShareUrls] = useState<Record<string, string>>({});
   const [systemShareSupported, setSystemShareSupported] = useState(false);
   const [canCopyLink, setCanCopyLink] = useState(false);
+  const [adsByMsg, setAdsByMsg] = useState<Record<string, AdCard>>({});
+  const [adLoadingByMsg, setAdLoadingByMsg] = useState<Record<string, boolean>>({});
   const abortRef = useRef<AbortController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const internalInputRef = useRef<HTMLTextAreaElement>(null);
   const inputRef =
-    (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ??
-    (useRef<HTMLTextAreaElement>(null) as RefObject<HTMLTextAreaElement>);
+    (externalInputRef as unknown as RefObject<HTMLTextAreaElement>) ?? internalInputRef;
+  const requestedAdsRef = useRef<Set<string>>(new Set());
   const previewUrlsRef = useRef<string[]>([]);
   const plusMenuRef = useRef<HTMLDivElement>(null);
   const sendRef = useRef<(text: string, researchMode: boolean, opts?: SendOpts) => void>();
@@ -3644,6 +3671,66 @@ ${systemCommon}` + baseSys;
     () => ({ submittedFor: feedback.submittedFor, loading: feedback.loading }),
     [feedback.submittedFor, feedback.loading]
   );
+  const panelParam = (sp.get('panel') ?? 'chat').toLowerCase();
+  const adZone = isAiDocMode
+    ? 'aidoc'
+    : panelParam === 'timeline' || panelParam === 'reports'
+    ? 'reports'
+    : 'chat';
+  const adTier: UserTier = prefs.plan === 'pro' ? '100' : 'free';
+  const adRegion = country?.code3;
+
+  useEffect(() => {
+    visibleMessages.forEach(msg => {
+      if (msg.role !== 'assistant') return;
+      if ((msg as any).kind && (msg as any).kind !== 'chat') return;
+      if (msg.pending) return;
+      if (typeof msg.id !== 'string') return;
+
+      const messageId = msg.id;
+      if (adsByMsg[messageId]) return;
+      if (requestedAdsRef.current.has(messageId)) return;
+
+      const rawText =
+        typeof msg.content === 'string' && msg.content.trim()
+          ? msg.content
+          : (msg as any).originUserText || (msg as any).userPrompt || '';
+
+      if (!rawText || !String(rawText).trim()) return;
+
+      requestedAdsRef.current.add(messageId);
+      setAdLoadingByMsg(prev => ({ ...prev, [messageId]: true }));
+
+      fetchAd({
+        text: String(rawText).slice(0, 500),
+        tier: adTier,
+        region: adRegion,
+        zone: adZone,
+      })
+        .then(res => {
+          const card = res?.card;
+          if (card) {
+            setAdsByMsg(prev => ({ ...prev, [messageId]: card }));
+          }
+        })
+        .catch(err => {
+          if (process.env.NODE_ENV !== 'production') {
+            console.error('[ads] error', err);
+          }
+        })
+        .finally(() => {
+          setAdLoadingByMsg(prev => ({ ...prev, [messageId]: false }));
+        });
+    });
+    // adsByMsg is intentionally not a dependency; requestedAdsRef handles deduping
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleMessages, adTier, adRegion]);
+
+  useEffect(() => {
+    setAdsByMsg({});
+    setAdLoadingByMsg({});
+    requestedAdsRef.current.clear();
+  }, [threadId, adZone, adTier, adRegion]);
 
   const renderedMessages = useMemo(
     () =>
@@ -3743,6 +3830,12 @@ ${systemCommon}` + baseSys;
                         : null
                     }
                   />
+                  {m.role === 'assistant' && typeof m.id === 'string' ? (
+                    <>
+                      {adLoadingByMsg[m.id] && !adsByMsg[m.id] ? <InlineSponsoredSkeleton /> : null}
+                      {adsByMsg[m.id] ? <InlineSponsoredCard card={adsByMsg[m.id]} /> : null}
+                    </>
+                  ) : null}
                 </div>
                 <MessageActions
                   conversationId={conversationId}
@@ -3780,7 +3873,8 @@ ${systemCommon}` + baseSys;
       handleFeedbackSubmit,
       pendingAssistantState,
       handleRefreshMessage,
-      refreshingMessageId
+      refreshingMessageId,
+      adsByMsg,
     ]
   );
 
