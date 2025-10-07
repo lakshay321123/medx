@@ -2,7 +2,6 @@ import { ensureMinDelay, minDelayMs } from "@/lib/utils/ensureMinDelay";
 import { callOpenAIChat } from "@/lib/medx/providers";
 import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 import { SUPPORTED_LANGS } from "@/lib/i18n/constants";
-import { createLocaleEnforcedStream } from "@/lib/i18n/enforce";
 import { normalizeModeTag } from "@/lib/i18n/normalize";
 import { buildFormatInstruction } from "@/lib/formats/build";
 import { FORMATS } from "@/lib/formats/registry";
@@ -11,6 +10,65 @@ import { needsTableCoercion } from "@/lib/formats/tableGuard";
 import { hasMarkdownTable, shapeToTable } from "@/lib/formats/tableShape";
 import { sanitizeMarkdownTable } from "@/lib/formats/tableQuality";
 import type { FormatId, Mode } from "@/lib/formats/types";
+
+function proxySseWithFinalizer(upstream: ReadableStream<Uint8Array>, finalizer?: (full: string) => string) {
+  const enc = new TextEncoder();
+  const dec = new TextDecoder();
+  let buffer = '';
+
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      const reader = upstream.getReader();
+      const push = (s: string) => controller.enqueue(enc.encode(s));
+
+      function handleChunk(chunk: string) {
+        const frames = chunk.split('\n\n');
+        for (const frame of frames) {
+          if (!frame.trim()) continue;
+          const line = frame.trim();
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (payload === '[DONE]') continue;
+          push(frame + '\n\n');
+          try {
+            const evt = JSON.parse(payload);
+            if (evt?.role === 'assistant' && typeof evt?.content === 'string') {
+              buffer += evt.content;
+            }
+            const choices = Array.isArray(evt?.choices) ? evt.choices : [];
+            for (const choice of choices) {
+              const delta = choice?.delta;
+              if (delta && typeof delta.content === 'string') buffer += delta.content;
+            }
+          } catch {
+            // ignore parse errors
+          }
+        }
+      }
+
+      const pump = (): any =>
+        reader.read().then(({ done, value }) => {
+          if (done) {
+            if (finalizer) {
+              try {
+                const finalized = finalizer(buffer || '');
+                push(`data: ${JSON.stringify({ role: 'assistant', content: finalized })}\n\n`);
+              } catch {
+                // keep stream alive even if finalizer fails
+              }
+            }
+            push('data: [DONE]\n\n');
+            controller.close();
+            return;
+          }
+          const chunk = dec.decode(value, { stream: true });
+          handleChunk(chunk);
+          return pump();
+        });
+      pump();
+    }
+  });
+}
 
 // Optional calculator prelude (safe if engine absent)
 let composeCalcPrelude: any, extractAll: any, canonicalizeInputs: any, computeAll: any;
@@ -115,10 +173,7 @@ export async function POST(req: Request) {
       }
     : undefined;
 
-  const enforcedStream = createLocaleEnforcedStream(upstream.body, {
-    lang: safeLang,
-    formatFinalizer,
-  });
+  const proxied = proxySseWithFinalizer(upstream.body, formatFinalizer);
 
   const totalMs = Date.now() - t0;
   const appMs = Math.max(0, totalMs - modelMs);
@@ -132,8 +187,8 @@ export async function POST(req: Request) {
     "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-5",
   });
 
-  return new Response(enforcedStream, {
-    status: 200,
+  return new Response(proxied, {
+    status: upstream.status,
     headers,
   });
 }

@@ -11,7 +11,6 @@ import { composeCalcPrelude } from '@/lib/medical/engine/prelude';
 import { RESEARCH_BRIEF_STYLE } from '@/lib/styles';
 import { SUPPORTED_LANGS } from '@/lib/i18n/constants';
 import { STUDY_MODE_SYSTEM, THINKING_MODE_HINT, STUDY_OUTPUT_GUIDE, languageInstruction } from '@/lib/prompts/presets';
-import { createLocaleEnforcedStream } from '@/lib/i18n/enforce';
 import { normalizeModeTag } from '@/lib/i18n/normalize';
 import { buildFormatInstruction } from '@/lib/formats/build';
 import { FORMATS } from '@/lib/formats/registry';
@@ -20,6 +19,66 @@ import { needsTableCoercion } from '@/lib/formats/tableGuard';
 import { hasMarkdownTable, shapeToTable } from '@/lib/formats/tableShape';
 import { sanitizeMarkdownTable } from '@/lib/formats/tableQuality';
 import type { FormatId, Mode } from '@/lib/formats/types';
+
+// --- helper to proxy SSE and run a finalizer once at the end ---
+function proxySseWithFinalizer(upstream: ReadableStream<Uint8Array>, finalizer?: (full: string) => string) {
+  const enc = new TextEncoder();
+  const dec = new TextDecoder();
+  let buffer = '';
+
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      const reader = upstream.getReader();
+      const push = (s: string) => controller.enqueue(enc.encode(s));
+
+      function handleChunk(chunk: string) {
+        const frames = chunk.split('\n\n');
+        for (const frame of frames) {
+          if (!frame.trim()) continue;
+          const line = frame.trim();
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (payload === '[DONE]') continue;
+          push(frame + '\n\n');
+          try {
+            const evt = JSON.parse(payload);
+            if (evt?.role === 'assistant' && typeof evt?.content === 'string') {
+              buffer += evt.content;
+            }
+            const choices = Array.isArray(evt?.choices) ? evt.choices : [];
+            for (const choice of choices) {
+              const delta = choice?.delta;
+              if (delta && typeof delta.content === 'string') buffer += delta.content;
+            }
+          } catch {
+            // swallow parse errors
+          }
+        }
+      }
+
+      const pump = (): any =>
+        reader.read().then(({ done, value }) => {
+          if (done) {
+            if (finalizer) {
+              try {
+                const finalized = finalizer(buffer || '');
+                push(`data: ${JSON.stringify({ role: 'assistant', content: finalized })}\n\n`);
+              } catch {
+                // never break the stream on finalizer failure
+              }
+            }
+            push('data: [DONE]\n\n');
+            controller.close();
+            return;
+          }
+          const chunk = dec.decode(value, { stream: true });
+          handleChunk(chunk);
+          return pump();
+        });
+      pump();
+    }
+  });
+}
 
 function normalizeLang(raw: string | null | undefined): string {
   const cleaned = (raw || 'en').toLowerCase().split('-')[0].replace(/[^a-z]/g, '');
@@ -434,13 +493,10 @@ export async function POST(req: NextRequest) {
       }
     : undefined;
 
-  const enforcedStream = createLocaleEnforcedStream(upstream.body!, {
-    lang: safeLang,
-    formatFinalizer,
-  });
+  const proxied = proxySseWithFinalizer(upstream.body!, formatFinalizer);
 
-  return new Response(enforcedStream, {
-    status: 200,
+  return new Response(proxied, {
+    status: upstream.status,
     headers: {
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
