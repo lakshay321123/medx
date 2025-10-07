@@ -5,6 +5,7 @@ import { fromSearchParams } from '@/lib/modes/url';
 import { useRouter } from 'next/navigation';
 import ChatMarkdown from '@/components/ChatMarkdown';
 import InlineSponsoredCard from '@/components/ads/InlineSponsoredCard';
+import InlineSponsoredSkeleton from '@/components/ads/InlineSponsoredSkeleton';
 import ResearchFilters from '@/components/ResearchFilters';
 import { LinkBadge } from '@/components/SafeLink';
 import TrialsResults from "@/components/TrialsResults";
@@ -806,6 +807,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const [systemShareSupported, setSystemShareSupported] = useState(false);
   const [canCopyLink, setCanCopyLink] = useState(false);
   const [adsByMsg, setAdsByMsg] = useState<Record<string, AdCard>>({});
+  const [adLoadingByMsg, setAdLoadingByMsg] = useState<Record<string, boolean>>({});
   const abortRef = useRef<AbortController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -3697,6 +3699,7 @@ ${systemCommon}` + baseSys;
       if (!rawText || !String(rawText).trim()) return;
 
       requestedAdsRef.current.add(messageId);
+      setAdLoadingByMsg(prev => ({ ...prev, [messageId]: true }));
 
       fetchAd({
         text: String(rawText).slice(0, 500),
@@ -3714,16 +3717,20 @@ ${systemCommon}` + baseSys;
           if (process.env.NODE_ENV !== 'production') {
             console.error('[ads] error', err);
           }
+        })
+        .finally(() => {
+          setAdLoadingByMsg(prev => ({ ...prev, [messageId]: false }));
         });
     });
     // adsByMsg is intentionally not a dependency; requestedAdsRef handles deduping
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleMessages, adTier, adRegion, adZone]);
+  }, [visibleMessages, adTier, adRegion]);
 
   useEffect(() => {
     setAdsByMsg({});
+    setAdLoadingByMsg({});
     requestedAdsRef.current.clear();
-  }, [threadId, adZone]);
+  }, [threadId, adZone, adTier, adRegion]);
 
   const renderedMessages = useMemo(
     () =>
@@ -3823,8 +3830,11 @@ ${systemCommon}` + baseSys;
                         : null
                     }
                   />
-                  {m.role === 'assistant' && typeof m.id === 'string' && adsByMsg[m.id] ? (
-                    <InlineSponsoredCard card={adsByMsg[m.id]} />
+                  {m.role === 'assistant' && typeof m.id === 'string' ? (
+                    <>
+                      {adLoadingByMsg[m.id] && !adsByMsg[m.id] ? <InlineSponsoredSkeleton /> : null}
+                      {adsByMsg[m.id] ? <InlineSponsoredCard card={adsByMsg[m.id]} /> : null}
+                    </>
                   ) : null}
                 </div>
                 <MessageActions
