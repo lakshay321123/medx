@@ -116,7 +116,11 @@ async function persistMessage(data: z.infer<typeof persistMessageSchema>["data"]
     console.warn("[log] prisma message.create unavailable; skipping");
     return;
   }
-  await appendMessage(data);
+  await appendMessage({
+    threadId: data.threadId,
+    role: data.role,
+    content: data.content,
+  });
 }
 
 async function persistFinalizedTurn(data: z.infer<typeof finalizeTurnSchema>["data"]) {
