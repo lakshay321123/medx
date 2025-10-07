@@ -566,7 +566,7 @@ function AnalysisCard({
 }) {
   const header = titleForCategory(m.category);
   return (
-    <div className="max-w-3xl space-y-2 whitespace-normal px-1 py-2 text-start">
+    <div className="max-w-3xl space-y-2 whitespace-normal px-1 py-2 text-start md:pt-6 md:pr-16">
       <header className="flex items-center gap-2">
         <h2 className="text-lg md:text-xl font-semibold">{header}</h2>
         {researchOn && (
@@ -655,7 +655,7 @@ function ChatCard({
     );
   }
   return (
-    <div className="max-w-3xl whitespace-normal px-1 py-2 text-start">
+    <div className="max-w-3xl whitespace-normal px-1 py-2 text-start md:pt-6 md:pr-16">
       {m.replacedByNewer && (
         <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
           Replaced by a newer answer

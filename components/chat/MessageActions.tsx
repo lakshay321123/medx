@@ -82,7 +82,7 @@ export default function MessageActions({
   const feedbackDisabled = loading || isRefreshing;
 
   const desktopRow = (
-    <div className="absolute right-3 top-3 hidden gap-2 rounded-full bg-white/80 px-2 py-1 text-slate-500 shadow-sm ring-1 ring-slate-200 transition md:flex md:opacity-0 md:group-hover:opacity-80 md:group-focus-within:opacity-100 dark:bg-slate-900/80 dark:text-slate-300 dark:ring-slate-700">
+    <div className="absolute right-3 top-3 hidden gap-2 rounded-full bg-white/80 px-2 py-1 text-slate-500 shadow-sm ring-1 ring-slate-200 transition md:right-4 md:top-4 md:-translate-y-2 md:flex md:opacity-0 md:group-hover:opacity-80 md:group-focus-within:opacity-100 dark:bg-slate-900/80 dark:text-slate-300 dark:ring-slate-700">
       <ActionButton label="Copy full answer" onClick={() => void onCopy()}>
         <Copy size={14} />
       </ActionButton>
