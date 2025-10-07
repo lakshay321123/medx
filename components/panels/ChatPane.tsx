@@ -4,8 +4,8 @@ import { useSearchParams } from 'next/navigation';
 import { fromSearchParams } from '@/lib/modes/url';
 import { useRouter } from 'next/navigation';
 import ChatMarkdown from '@/components/ChatMarkdown';
-import InlineSponsoredCard from '@/components/ads/InlineSponsoredCard';
 import InlineSponsoredSkeleton from '@/components/ads/InlineSponsoredSkeleton';
+import InlineSponsoredCard from '@/components/ads/InlineSponsoredCard';
 import ResearchFilters from '@/components/ResearchFilters';
 import { LinkBadge } from '@/components/SafeLink';
 import TrialsResults from "@/components/TrialsResults";
@@ -66,6 +66,7 @@ import { usePendingAssistantStages } from "@/hooks/usePendingAssistantStages";
 import type { PendingAssistantState } from "@/hooks/usePendingAssistantStages";
 import { mark, since } from "@/utils/latency";
 import type { AdCard, UserTier } from '@/types/ads';
+import { shouldFetchAdForMessage } from '@/lib/ads/kindFilter';
 
 async function fetchAd(payload: {
   text: string;
@@ -758,6 +759,55 @@ function AssistantMessage(props: {
       pendingStageState={pendingStageState}
     />
   );
+}
+
+function TrackedInlineSponsoredCard({
+  card,
+  messageId,
+  tier,
+  zone,
+}: {
+  card: AdCard;
+  messageId: string;
+  tier: UserTier;
+  zone: 'chat' | 'reports' | 'aidoc' | 'directory';
+}) {
+  const partnerId = card?.sponsor?.id;
+  const category = card?.category;
+
+  useEffect(() => {
+    if (!partnerId) return;
+    fetch('/api/ads/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'impression',
+        partner: partnerId,
+        cat: category,
+        messageId,
+        tier,
+        zone,
+      }),
+    }).catch(() => {});
+  }, [partnerId, category, messageId, tier, zone]);
+
+  const handleClick = useCallback(() => {
+    if (!partnerId) return;
+    fetch('/api/ads/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'click',
+        partner: partnerId,
+        cat: category,
+        messageId,
+        tier,
+        zone,
+      }),
+    }).catch(() => {});
+  }, [partnerId, category, messageId, tier, zone]);
+
+  return <InlineSponsoredCard card={card} onCtaClick={handleClick} />;
 }
 
 export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: RefObject<HTMLInputElement> } = {}) {
@@ -3682,12 +3732,9 @@ ${systemCommon}` + baseSys;
 
   useEffect(() => {
     visibleMessages.forEach(msg => {
-      if (msg.role !== 'assistant') return;
-      if ((msg as any).kind && (msg as any).kind !== 'chat') return;
-      if (msg.pending) return;
-      if (typeof msg.id !== 'string') return;
+      if (!shouldFetchAdForMessage(msg as any)) return;
 
-      const messageId = msg.id;
+      const messageId = msg.id as string;
       if (adsByMsg[messageId]) return;
       if (requestedAdsRef.current.has(messageId)) return;
 
@@ -3833,7 +3880,14 @@ ${systemCommon}` + baseSys;
                   {m.role === 'assistant' && typeof m.id === 'string' ? (
                     <>
                       {adLoadingByMsg[m.id] && !adsByMsg[m.id] ? <InlineSponsoredSkeleton /> : null}
-                      {adsByMsg[m.id] ? <InlineSponsoredCard card={adsByMsg[m.id]} /> : null}
+                      {adsByMsg[m.id] ? (
+                        <TrackedInlineSponsoredCard
+                          card={adsByMsg[m.id]}
+                          messageId={m.id}
+                          tier={adTier}
+                          zone={adZone}
+                        />
+                      ) : null}
                     </>
                   ) : null}
                 </div>
