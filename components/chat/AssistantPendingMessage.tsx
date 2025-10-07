@@ -24,7 +24,7 @@ export function AssistantPendingMessage({ stage, analyzingPhrase, thinkingLabel,
 
   if (stage === "streaming") {
     return (
-      <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl min-h-[64px]">
+      <div className="max-w-3xl min-h-[64px] whitespace-normal px-1 py-2 text-left">
         <ChatMarkdown content={content || ""} formatId={formatId} userPrompt={userPrompt} />
       </div>
     );
@@ -36,7 +36,7 @@ export function AssistantPendingMessage({ stage, analyzingPhrase, thinkingLabel,
 
   return (
     <div
-      className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl min-h-[64px]"
+      className="max-w-3xl min-h-[64px] whitespace-normal px-1 py-2 text-left"
       aria-live="polite"
     >
       <div className="flex min-h-[24px] flex-col justify-center gap-2 text-sm text-slate-600 dark:text-slate-300">

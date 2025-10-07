@@ -566,7 +566,7 @@ function AnalysisCard({
 }) {
   const header = titleForCategory(m.category);
   return (
-    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-start whitespace-normal max-w-3xl space-y-2">
+    <div className="max-w-3xl space-y-2 whitespace-normal px-1 py-2 text-start">
       <header className="flex items-center gap-2">
         <h2 className="text-lg md:text-xl font-semibold">{header}</h2>
         {researchOn && (
@@ -577,7 +577,7 @@ function AnalysisCard({
       </header>
       <ChatMarkdown content={m.content} />
       {m.error ? (
-        <div className="inline-flex items-center gap-2 text-xs rounded-lg px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-900/20 dark:text-rose-200 dark:border-rose-800">
+        <div className="inline-flex items-center gap-2 rounded-lg border border-rose-200 px-3 py-1.5 text-xs text-rose-700 dark:border-rose-800 dark:text-rose-200">
           ⚠️ {m.error}
         </div>
       ) : (
@@ -655,9 +655,7 @@ function ChatCard({
     );
   }
   return (
-    <div
-      className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-start whitespace-normal max-w-3xl"
-    >
+    <div className="max-w-3xl whitespace-normal px-1 py-2 text-start">
       {m.replacedByNewer && (
         <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
           Replaced by a newer answer
@@ -3802,7 +3800,7 @@ ${systemCommon}` + baseSys;
 
           return (
             <div key={derivedKey} className="space-y-2">
-              <div className="ml-auto max-w-3xl whitespace-normal rounded-2xl bg-slate-200 px-4 py-3 text-start text-slate-900 shadow-sm dark:bg-gray-700 dark:text-gray-100">
+              <div className="ml-auto max-w-3xl whitespace-normal px-1 py-2 text-start text-slate-900 dark:text-slate-100">
                 <ChatMarkdown content={m.content ?? ''} />
               </div>
             </div>
