@@ -18,7 +18,7 @@ try {
   ({ computeAll } = require("@/lib/medical/engine/computeAll"));
 } catch {}
 
-export const runtime = "nodejs";
+export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
 function normalizeLangTag(tag?: string | null) {
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
   const modeAllowed = Boolean(formatInstruction);
   const shouldCoerceToTable = modeAllowed && needsTableCoercion(formatId);
 
-  const inlineTableCoercionEnabled = process.env.TABLE_COERCE_INLINE === "1";
+  const inlineTableCoercionEnabled = process.env.TABLE_COERCE_INLINE === "1"; // keep OFF in prod
 
   if (inlineTableCoercionEnabled && shouldCoerceToTable) {
     const rawSse = await upstream.text();
