@@ -275,7 +275,21 @@ async function streamGroqResponse({
       const encoder = new TextEncoder();
       const decoder = new TextDecoder();
       let aggregated = "";
-      let doneReceived = false;
+      let doneSent = false;
+      let finalizeQueued = false;
+
+      const queueFinalize = () => {
+        if (finalizeQueued) return;
+        finalizeQueued = true;
+        void (async () => {
+          try {
+            await finalize(aggregated);
+          } catch (err) {
+            console.error("[chat] finalize failed", err);
+          }
+        })();
+      };
+
       const parser = createParser({
         onEvent(event: EventSourceMessage) {
           const data = event.data;
@@ -283,7 +297,12 @@ async function streamGroqResponse({
             return;
           }
           if (data === "[DONE]") {
-            doneReceived = true;
+            if (!doneSent) {
+              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+              controller.close();
+              doneSent = true;
+            }
+            queueFinalize();
             return;
           }
           controller.enqueue(encoder.encode(`data: ${data}\n\n`));
@@ -303,28 +322,39 @@ async function streamGroqResponse({
         },
       });
 
-      (async () => {
-        controller.enqueue(encoder.encode(": ping\n\n"));
-        const reader = upstream.body!.getReader();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          parser.feed(decoder.decode(value, { stream: true }));
-        }
-        if (!doneReceived) {
-          // ensure parser sees a DONE marker so finalize runs once
-          parser.feed("data: [DONE]\n\n");
-        }
-        const sanitized = await finalize(aggregated);
+      controller.enqueue(encoder.encode(": ping\n\n"));
+      if (researchSources.length > 0) {
         const payload = {
-          choices: [{ delta: { content: sanitized, medx_reset: true, medx_sources: researchSources } }],
+          choices: [{ delta: { medx_sources: researchSources } }],
         };
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-        controller.close();
+      }
+
+      (async () => {
+        try {
+          const reader = upstream.body!.getReader();
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            parser.feed(decoder.decode(value, { stream: true }));
+          }
+        } catch (err) {
+          console.error("[chat] stream error", err);
+          controller.error(err);
+          queueFinalize();
+          return;
+        }
+
+        if (!doneSent) {
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+          doneSent = true;
+        }
+        queueFinalize();
       })().catch((err) => {
-        console.error("[chat] stream error", err);
+        console.error("[chat] stream pipeline error", err);
         controller.error(err);
+        queueFinalize();
       });
     },
   });
