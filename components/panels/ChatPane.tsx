@@ -68,11 +68,13 @@ import { mark, since } from "@/utils/latency";
 import type { AdCard, UserTier } from '@/types/ads';
 import { shouldFetchAdForMessage } from '@/lib/ads/kindFilter';
 
+type AdZone = 'chat' | 'reports' | 'aidoc' | 'directory' | 'therapy';
+
 async function fetchAd(payload: {
   text: string;
   tier: 'free' | '100' | '200' | '500';
   region?: string;
-  zone: 'chat' | 'reports' | 'aidoc' | 'directory';
+  zone: AdZone;
 }) {
   const r = await fetch('/api/ads/broker', {
     method: 'POST',
@@ -770,7 +772,7 @@ function TrackedInlineSponsoredCard({
   card: AdCard;
   messageId: string;
   tier: UserTier;
-  zone: 'chat' | 'reports' | 'aidoc' | 'directory';
+  zone: AdZone;
 }) {
   const partnerId = card?.sponsor?.id;
   const category = card?.category;
@@ -3722,7 +3724,9 @@ ${systemCommon}` + baseSys;
     [feedback.submittedFor, feedback.loading]
   );
   const panelParam = (sp.get('panel') ?? 'chat').toLowerCase();
-  const adZone = isAiDocMode
+  const adZone: AdZone = uiMode === 'therapy'
+    ? 'therapy'
+    : isAiDocMode
     ? 'aidoc'
     : panelParam === 'timeline' || panelParam === 'reports'
     ? 'reports'
@@ -3731,6 +3735,8 @@ ${systemCommon}` + baseSys;
   const adRegion = country?.code3;
 
   useEffect(() => {
+    if (uiMode === 'therapy') return;
+
     visibleMessages.forEach(msg => {
       if (!shouldFetchAdForMessage(msg as any)) return;
 
@@ -3771,13 +3777,13 @@ ${systemCommon}` + baseSys;
     });
     // adsByMsg is intentionally not a dependency; requestedAdsRef handles deduping
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleMessages, adTier, adRegion]);
+  }, [visibleMessages, adTier, adRegion, adZone, uiMode]);
 
   useEffect(() => {
     setAdsByMsg({});
     setAdLoadingByMsg({});
     requestedAdsRef.current.clear();
-  }, [threadId, adZone, adTier, adRegion]);
+  }, [threadId, adZone, adTier, adRegion, uiMode]);
 
   const renderedMessages = useMemo(
     () =>
@@ -3877,7 +3883,7 @@ ${systemCommon}` + baseSys;
                         : null
                     }
                   />
-                  {m.role === 'assistant' && typeof m.id === 'string' ? (
+                  {uiMode !== 'therapy' && m.role === 'assistant' && (m as any).kind === 'chat' && typeof m.id === 'string' ? (
                     <>
                       {adLoadingByMsg[m.id] && !adsByMsg[m.id] ? <InlineSponsoredSkeleton /> : null}
                       {adsByMsg[m.id] ? (
@@ -3929,6 +3935,7 @@ ${systemCommon}` + baseSys;
       handleRefreshMessage,
       refreshingMessageId,
       adsByMsg,
+      uiMode,
     ]
   );
 

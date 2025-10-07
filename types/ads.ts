@@ -6,7 +6,7 @@ export interface AdContext {
   text: string;  // last user/AI msg (server-side only)
   region: string; // e.g., IN-DL
   tier: UserTier;
-  zone: string;  // 'chat' | 'reports' | 'aidoc' | 'directory'
+  zone: string;  // 'chat' | 'reports' | 'aidoc' | 'directory' | 'therapy'
 }
 
 export interface AdCard {

@@ -4,7 +4,7 @@ import type { AdContext } from '@/types/ads';
 import { broker } from '@/lib/ads/broker';
 
 const VALID_TIERS = ['free', '100', '200', '500'] as const;
-const VALID_ZONES = ['chat', 'reports', 'aidoc', 'directory'] as const;
+const VALID_ZONES = ['chat', 'reports', 'aidoc', 'directory', 'therapy'] as const;
 type Tier = typeof VALID_TIERS[number];
 type Zone = typeof VALID_ZONES[number];
 
@@ -42,6 +42,14 @@ export async function POST(req: Request) {
 
   const zoneRaw = String(body.zone ?? 'chat');
   const zone: Zone = (VALID_ZONES as readonly string[]).includes(zoneRaw) ? (zoneRaw as Zone) : 'chat';
+
+  const noZones = (process.env.ADS_NO_ZONES ?? '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+  if (noZones.includes(zone)) {
+    return NextResponse.json({ reason: 'zone_blocked' }, { status: 200 });
+  }
 
   const ctx: AdContext = {
     text: sanitizeText(body.text),
