@@ -142,7 +142,7 @@ export function ChatWindow() {
 
     const updateMetrics = () => {
       const rect = composer.getBoundingClientRect();
-      const height = Math.max(64, Math.round(rect.height));
+      const height = Math.max(80, Math.round(rect.height));
       root.style.setProperty("--mobile-composer-height", `${height}px`);
     };
 
