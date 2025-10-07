@@ -9,7 +9,7 @@ import { needsTableCoercion } from "@/lib/formats/tableGuard";
 import { shapeToTable } from "@/lib/formats/tableShape";
 import type { FormatId, Mode } from "@/lib/formats/types";
 import { enforceLocale } from "@/lib/i18n/enforce";
-import { createParser } from "eventsource-parser";
+import { createParser, type ParsedEvent, type ReconnectInterval } from "eventsource-parser";
 import { polishText } from "@/lib/text/polish";
 import { selfCheck } from "@/lib/text/selfCheck";
 import { addEvidenceAnchorIfMedical } from "@/lib/text/medicalAnchor";
@@ -264,7 +264,7 @@ export async function POST(req: Request) {
         }
       }, heartbeatMs);
 
-      const parser = createParser((event) => {
+      const parser = createParser((event: ParsedEvent | ReconnectInterval) => {
         if (event.type !== "event") return;
         const data = event.data;
         if (data === "[DONE]") {
