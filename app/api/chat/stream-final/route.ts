@@ -1,4 +1,3 @@
-import { ensureMinDelay, minDelayMs } from "@/lib/utils/ensureMinDelay";
 import { callOpenAIChat } from "@/lib/medx/providers";
 import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 import { SUPPORTED_LANGS } from "@/lib/i18n/constants";
@@ -30,6 +29,8 @@ function normalizeLangTag(tag?: string | null) {
 
 export async function POST(req: Request) {
   const t0 = Date.now();
+  // eslint-disable-next-line no-console
+  console.log("[stream-final] start", t0);
   const payload = await req.json();
   const { messages = [], mode } = payload ?? {};
   const rawFormat = typeof payload?.formatId === 'string'
@@ -73,18 +74,21 @@ export async function POST(req: Request) {
   const systemChunks = [langDirective, formatInstruction, system].filter(Boolean);
   system = systemChunks.join('\n\n');
 
-  const minMs = minDelayMs();
   const modelStart = Date.now();
-  const upstream = await ensureMinDelay<Response>(
-    callOpenAIChat([{ role: "system", content: system }, ...messages], { stream: true }),
-    minMs,
+  const upstream = await callOpenAIChat(
+    [{ role: "system", content: system }, ...messages],
+    { stream: true },
   );
   const modelMs = Date.now() - modelStart;
+  // eslint-disable-next-line no-console
+  console.log("[stream-final] upstream ready ms=", modelMs);
 
   const modeAllowed = Boolean(formatInstruction);
   const shouldCoerceToTable = modeAllowed && needsTableCoercion(formatId);
 
-  if (shouldCoerceToTable) {
+  const inlineTableCoercionEnabled = process.env.TABLE_COERCE_INLINE === "1";
+
+  if (inlineTableCoercionEnabled && shouldCoerceToTable) {
     const rawSse = await upstream.text();
     if (!upstream.ok) {
       return new Response(rawSse || 'OpenAI stream error', { status: upstream.status || 500 });
@@ -156,6 +160,28 @@ export async function POST(req: Request) {
     finalizer: formatFinalizer,
   });
 
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode(': ping\n\n'));
+      const reader = enforcedStream.getReader();
+      (async () => {
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (value) controller.enqueue(value);
+          }
+          controller.close();
+        } catch (error) {
+          controller.error(error);
+        } finally {
+          reader.releaseLock();
+        }
+      })();
+    },
+  });
+
   const totalMs = Date.now() - t0;
   const appMs = Math.max(0, totalMs - modelMs);
   const headers = new Headers({
@@ -168,7 +194,7 @@ export async function POST(req: Request) {
     "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-5",
   });
 
-  return new Response(enforcedStream, {
+  return new Response(stream, {
     status: 200,
     headers,
   });
