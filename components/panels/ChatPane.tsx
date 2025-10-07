@@ -2373,7 +2373,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     const userPinnedFormat = !!formatMap[resolvedMode];
 
     // Soft signal: if message implies table/comparison, suggest 'table_compare' (do not mutate formatId)
-    const wantsTable = looksLikeTableIntent(text) || looksLikeComparisonIntent(text);
+    const wantsTable = looksLikeTableIntent(messageText) || looksLikeComparisonIntent(messageText);
     const formatHint = wantsTable ? 'table_compare' : undefined;
     const visualEcho = opts.visualEcho !== false;
     const clientRequestId = opts.clientRequestId || crypto.randomUUID();
