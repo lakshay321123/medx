@@ -25,15 +25,15 @@ export async function callGroqChat(messages: any[], options?: { temperature?: nu
 // Overloads: tell TS exactly what comes back
 export function callOpenAIChat(
   messages: any[],
-  options?: { stream?: false; temperature?: number }
+  options?: { stream?: false; temperature?: number; signal?: AbortSignal }
 ): Promise<string>;
 export function callOpenAIChat(
   messages: any[],
-  options: { stream: true; temperature?: number }
+  options: { stream: true; temperature?: number; signal?: AbortSignal }
 ): Promise<Response>;
 export async function callOpenAIChat(
   messages: any[],
-  { stream = false, temperature = 0.1 }: { stream?: boolean; temperature?: number } = {},
+  { stream = false, temperature = 0.1, signal }: { stream?: boolean; temperature?: number; signal?: AbortSignal } = {},
 ): Promise<string | Response> {
   const primary = process.env.OPENAI_TEXT_MODEL || "gpt-5";
   const fallbacks = (process.env.OPENAI_FALLBACK_MODELS || "gpt-4o,gpt-4o-mini")
@@ -69,7 +69,8 @@ export async function callOpenAIChat(
       fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal,
       });
 
     let res = await post(withTemp);

@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { appendMessage, setRunningSummary } from "@/lib/memory/store";
-import { embed } from "@/lib/memory/embeddings";
+import { appendAssistantAndUpdateSummaryAtomic } from "@/lib/db/threadWrites";
 
 const MAX_BYTES = 64 * 1024;
 
@@ -45,6 +45,14 @@ const finalizeTurnSchema = z.object({
     .strict(),
 });
 
+const appendSummarySchema = z.object({
+  kind: z.literal("assistant_append_summary"),
+  threadId: z.string().min(1),
+  assistantContent: z.string().min(1),
+  newSummary: z.string(),
+  expectedVersion: z.number().int().nonnegative().optional(),
+}).strict();
+
 const requestSchema = z.union([chatEventSchema, persistMessageSchema, finalizeTurnSchema]);
 
 export async function POST(req: Request) {
@@ -58,6 +66,25 @@ export async function POST(req: Request) {
     parsed = JSON.parse(text);
   } catch {
     return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+  }
+
+  if (parsed && typeof parsed === "object" && (parsed as any)?.kind === "assistant_append_summary") {
+    const summaryCheck = appendSummarySchema.safeParse(parsed);
+    if (!summaryCheck.success) {
+      return NextResponse.json({ ok: false, error: "invalid_payload" }, { status: 400 });
+    }
+    try {
+      await appendAssistantAndUpdateSummaryAtomic(summaryCheck.data);
+      return NextResponse.json({ ok: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === "prisma_unavailable" || message === "prisma_models_missing") {
+        console.warn("[log]", message, "– skipping assistant append");
+        return NextResponse.json({ ok: true, skipped: true });
+      }
+      const status = message === "version_conflict" ? 409 : 500;
+      return NextResponse.json({ ok: false, error: message }, { status });
+    }
   }
 
   const validation = requestSchema.safeParse(parsed);
@@ -124,46 +151,38 @@ async function persistMessage(data: z.infer<typeof persistMessageSchema>["data"]
 }
 
 async function persistFinalizedTurn(data: z.infer<typeof finalizeTurnSchema>["data"]) {
-  if (!prisma) {
-    console.warn("[log] prisma unavailable; skipping finalize turn");
-    return;
-  }
+  try {
+    await appendAssistantAndUpdateSummaryAtomic({
+      threadId: data.threadId,
+      assistantContent: data.assistant,
+      newSummary: data.summary ?? "",
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message === "prisma_unavailable" || message === "prisma_models_missing") {
+      console.warn("[log]", message, "– fallback persistence");
+    } else if (message === "version_conflict") {
+      console.warn("[log] version conflict while finalizing turn", err);
+      throw err;
+    } else {
+      console.error("[log] atomic finalize failed", err);
+    }
 
-  const summaryText = data.summary ?? "";
+    if (!prisma) {
+      return;
+    }
 
-  const prismaAny = prisma as any;
-  const messageModel = prismaAny.message;
-  const threadModel = prismaAny.chatThread;
+    const summaryText = data.summary ?? "";
+    const prismaAny = prisma as any;
+    const messageModel = prismaAny.message;
+    const threadModel = prismaAny.chatThread;
 
-  if (typeof prismaAny.$transaction === "function" && messageModel?.create && threadModel?.update) {
-    const vector = await embed(data.assistant);
-    const embedding = Buffer.from(new Float32Array(vector).buffer);
-    await prismaAny.$transaction([
-      messageModel.create({
-        data: {
-          threadId: data.threadId,
-          role: "assistant",
-          content: data.assistant,
-          embedding,
-        },
-      }),
-      threadModel.update({
-        where: { id: data.threadId },
-        data: { runningSummary: summaryText },
-      }),
-    ]);
-    return;
-  }
+    if (messageModel?.create) {
+      await appendMessage({ threadId: data.threadId, role: "assistant", content: data.assistant });
+    }
 
-  if (messageModel?.create) {
-    await appendMessage({ threadId: data.threadId, role: "assistant", content: data.assistant });
-  } else {
-    console.warn("[log] prisma message.create unavailable; skipping assistant append");
-  }
-
-  if (threadModel?.update) {
-    await setRunningSummary(data.threadId, summaryText);
-  } else {
-    console.warn("[log] prisma chatThread.update unavailable; skipping summary update");
+    if (threadModel?.update) {
+      await setRunningSummary(data.threadId, summaryText);
+    }
   }
 }
