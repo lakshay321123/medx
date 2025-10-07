@@ -9,7 +9,8 @@ import { needsTableCoercion } from "@/lib/formats/tableGuard";
 import { shapeToTable } from "@/lib/formats/tableShape";
 import type { FormatId, Mode } from "@/lib/formats/types";
 import { enforceLocale } from "@/lib/i18n/enforce";
-import { createParser, type ParsedEvent, type ReconnectInterval } from "eventsource-parser";
+import { createParser } from "eventsource-parser";
+import type { EventSourceMessage } from "eventsource-parser";
 import { polishText } from "@/lib/text/polish";
 import { selfCheck } from "@/lib/text/selfCheck";
 import { addEvidenceAnchorIfMedical } from "@/lib/text/medicalAnchor";
@@ -264,80 +265,81 @@ export async function POST(req: Request) {
         }
       }, heartbeatMs);
 
-      const parser = createParser((event: ParsedEvent | ReconnectInterval) => {
-        if (event.type !== "event") return;
-        const data = event.data;
-        if (data === "[DONE]") {
-          clearInterval(heartbeat);
-          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-          controller.close();
-          queueMicrotask(() => finalizeNonBlocking(sanitizedSoFar, finalizeCtx));
-          return;
-        }
+      const parser = createParser({
+        onEvent(event: EventSourceMessage) {
+          const data = event.data;
+          if (data === "[DONE]") {
+            clearInterval(heartbeat);
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            controller.close();
+            queueMicrotask(() => finalizeNonBlocking(sanitizedSoFar, finalizeCtx));
+            return;
+          }
 
-        let parsed: any;
-        try {
-          parsed = JSON.parse(data);
-        } catch {
-          controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-          return;
-        }
+          let parsed: any;
+          try {
+            parsed = JSON.parse(data);
+          } catch {
+            controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+            return;
+          }
 
-        const choices = Array.isArray(parsed?.choices) ? parsed.choices : [];
-        const primary = choices[0];
-        const delta = primary?.delta;
-        const content = typeof delta?.content === "string" ? delta.content : "";
+          const choices = Array.isArray(parsed?.choices) ? parsed.choices : [];
+          const primary = choices[0];
+          const delta = primary?.delta;
+          const content = typeof delta?.content === "string" ? delta.content : "";
 
-        if (content) {
-          aggregatedRaw += content;
-          const sanitized = enforceLocale(aggregatedRaw, lang, { forbidEnglishHeadings: true });
-          const previous = sanitizedSoFar;
+          if (content) {
+            aggregatedRaw += content;
+            const sanitized = enforceLocale(aggregatedRaw, lang, { forbidEnglishHeadings: true });
+            const previous = sanitizedSoFar;
 
-          if (!sanitized.startsWith(previous)) {
+            if (!sanitized.startsWith(previous)) {
+              sanitizedSoFar = sanitized;
+              const nextPayload = {
+                ...parsed,
+                choices: choices.map((choice: any, index: number) =>
+                  index === 0
+                    ? {
+                        ...choice,
+                        delta: {
+                          ...(choice?.delta || {}),
+                          content: sanitized,
+                          medx_reset: true,
+                        },
+                      }
+                    : choice,
+                ),
+              };
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(nextPayload)}\n\n`));
+              return;
+            }
+
+            const addition = sanitized.slice(previous.length);
             sanitizedSoFar = sanitized;
-            const nextPayload = {
-              ...parsed,
-              choices: choices.map((choice: any, index: number) =>
-                index === 0
-                  ? {
-                      ...choice,
-                      delta: {
-                        ...(choice?.delta || {}),
-                        content: sanitized,
-                        medx_reset: true,
-                      },
-                    }
-                  : choice,
-              ),
-            };
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(nextPayload)}\n\n`));
+            if (addition) {
+              const nextPayload = {
+                ...parsed,
+                choices: choices.map((choice: any, index: number) =>
+                  index === 0
+                    ? {
+                        ...choice,
+                        delta: {
+                          ...(choice?.delta || {}),
+                          content: addition,
+                        },
+                      }
+                    : choice,
+                ),
+              };
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(nextPayload)}\n\n`));
+              return;
+            }
             return;
           }
 
-          const addition = sanitized.slice(previous.length);
-          sanitizedSoFar = sanitized;
-          if (addition) {
-            const nextPayload = {
-              ...parsed,
-              choices: choices.map((choice: any, index: number) =>
-                index === 0
-                  ? {
-                      ...choice,
-                      delta: {
-                        ...(choice?.delta || {}),
-                        content: addition,
-                      },
-                    }
-                  : choice,
-              ),
-            };
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(nextPayload)}\n\n`));
-            return;
-          }
-          return;
-        }
-
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(parsed)}\n\n`));
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(parsed)}\n\n`));
+        },
       });
 
       (async () => {
