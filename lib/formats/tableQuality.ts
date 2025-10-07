@@ -20,7 +20,7 @@ export function sanitizeMarkdownTable(md: string) {
     if (!isRow(current)) continue;
 
     if (!headerDone) {
-      const header = fill(current.trim());
+      const header = fill(current);
       out.push(header);
       if (i + 1 < lines.length && isSep(lines[i + 1])) {
         out.push(lines[i + 1].replace(/\s+/g, ' ').trim());
@@ -37,7 +37,7 @@ export function sanitizeMarkdownTable(md: string) {
     const bare = current.replace(/\|/g, '').trim();
     if (!bare) continue;
 
-    out.push(fill(current.trim()));
+    out.push(fill(current));
   }
 
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();

@@ -18,67 +18,8 @@ import { isValidLang, isValidMode } from '@/lib/formats/constants';
 import { needsTableCoercion } from '@/lib/formats/tableGuard';
 import { hasMarkdownTable, shapeToTable } from '@/lib/formats/tableShape';
 import { sanitizeMarkdownTable } from '@/lib/formats/tableQuality';
+import { proxySseWithFinalizer } from '@/lib/sse/proxy';
 import type { FormatId, Mode } from '@/lib/formats/types';
-
-// --- helper to proxy SSE and run a finalizer once at the end ---
-function proxySseWithFinalizer(upstream: ReadableStream<Uint8Array>, finalizer?: (full: string) => string) {
-  const enc = new TextEncoder();
-  const dec = new TextDecoder();
-  let buffer = '';
-
-  return new ReadableStream<Uint8Array>({
-    start(controller) {
-      const reader = upstream.getReader();
-      const push = (s: string) => controller.enqueue(enc.encode(s));
-
-      function handleChunk(chunk: string) {
-        const frames = chunk.split('\n\n');
-        for (const frame of frames) {
-          if (!frame.trim()) continue;
-          const line = frame.trim();
-          if (!line.startsWith('data:')) continue;
-          const payload = line.slice(5).trim();
-          if (payload === '[DONE]') continue;
-          push(frame + '\n\n');
-          try {
-            const evt = JSON.parse(payload);
-            if (evt?.role === 'assistant' && typeof evt?.content === 'string') {
-              buffer += evt.content;
-            }
-            const choices = Array.isArray(evt?.choices) ? evt.choices : [];
-            for (const choice of choices) {
-              const delta = choice?.delta;
-              if (delta && typeof delta.content === 'string') buffer += delta.content;
-            }
-          } catch {
-            // swallow parse errors
-          }
-        }
-      }
-
-      const pump = (): any =>
-        reader.read().then(({ done, value }) => {
-          if (done) {
-            if (finalizer) {
-              try {
-                const finalized = finalizer(buffer || '');
-                push(`data: ${JSON.stringify({ role: 'assistant', content: finalized })}\n\n`);
-              } catch {
-                // never break the stream on finalizer failure
-              }
-            }
-            push('data: [DONE]\n\n');
-            controller.close();
-            return;
-          }
-          const chunk = dec.decode(value, { stream: true });
-          handleChunk(chunk);
-          return pump();
-        });
-      pump();
-    }
-  });
-}
 
 function normalizeLang(raw: string | null | undefined): string {
   const cleaned = (raw || 'en').toLowerCase().split('-')[0].replace(/[^a-z]/g, '');
@@ -227,6 +168,17 @@ export async function POST(req: NextRequest) {
   })();
 
   const formatInstruction = buildFormatInstruction(safeLang, resolvedMode, effectiveFormatId);
+  const modeAllowsEffective =
+    !effectiveFormatId || FORMATS.some(f => f.id === effectiveFormatId && f.allowedModes.includes(resolvedMode));
+  const shouldCoerceToTable = modeAllowsEffective && needsTableCoercion(effectiveFormatId);
+  const buildFormatFinalizer = (userText: string) =>
+    shouldCoerceToTable
+      ? (fullText: string) => {
+          if (hasMarkdownTable(fullText)) return fullText;
+          const subject = (userText || '').split('\n')[0]?.trim() || 'Comparison';
+          return sanitizeMarkdownTable(shapeToTable(subject, fullText));
+        }
+      : undefined;
   const persona = personaFromPrefs(body?.personalization);
   const sysPrelude = [persona].filter(Boolean).join('\n\n');
   const studyChunks = flags.study ? [STUDY_MODE_SYSTEM.trim(), STUDY_OUTPUT_GUIDE.trim()] : [];
@@ -303,6 +255,8 @@ export async function POST(req: NextRequest) {
     : { temperature: 0.7, max_tokens: 900 };
 
   const messages = history.length ? history : [latestUser];
+  let latestUserMessage =
+    (messages || []).filter((m: any) => m.role === 'user').slice(-1)[0]?.content || '';
   const showClinicalPrelude = mode === 'doctor' || mode === 'research';
   const now = Date.now();
   for (const [id, ts] of recentReqs.entries()) {
@@ -332,17 +286,30 @@ export async function POST(req: NextRequest) {
       })
     });
     if (!upstream.ok) {
-      const err = await upstream.text();
-      return new Response(`LLM error: ${err}`, { status: 500 });
+      const err = await upstream.text().catch(() => 'unknown error');
+      return new Response(`LLM error: ${err}`, { status: upstream.status || 500 });
     }
-    return new Response(upstream.body, {
-      headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }
+    if (!upstream.body) {
+      return new Response('LLM error: empty body', { status: upstream.status || 500 });
+    }
+
+    const stream = proxySseWithFinalizer(upstream.body!, {
+      lang: safeLang,
+      forbidEnglishHeadings: true,
+      formatFinalizer: buildFormatFinalizer(latestUserMessage),
+    });
+
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+      },
     });
   }
 
   // === Concision controls (SOFT cap, no cutoffs) ===
-  const latestUserMessage =
-    (messages || []).filter((m: any) => m.role === 'user').slice(-1)[0]?.content || '';
   const wordCount = (latestUserMessage || '').trim().split(/\s+/).filter(Boolean).length;
   const isShortQuery = wordCount <= 6;
   const briefTopic = /\b(what is|types?|symptoms?|causes?|treatment|home care|prevention|red flags?)\b/i
@@ -472,12 +439,8 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify(upstreamPayload)
   });
 
-  const modeAllowsEffective =
-    !effectiveFormatId || FORMATS.some(f => f.id === effectiveFormatId && f.allowedModes.includes(resolvedMode));
-  const shouldCoerceToTable = modeAllowsEffective && needsTableCoercion(effectiveFormatId);
-
   if (!upstream.ok) {
-    const err = await upstream.text().catch(() => 'LLM error');
+    const err = await upstream.text().catch(() => 'unknown error');
     return new Response(`LLM error: ${err}`, { status: upstream.status || 500 });
   }
 
@@ -485,18 +448,14 @@ export async function POST(req: NextRequest) {
     return new Response('LLM error: empty body', { status: upstream.status || 500 });
   }
 
-  const formatFinalizer = shouldCoerceToTable
-    ? (text: string) => {
-        if (hasMarkdownTable(text)) return text;
-        const subject = (latestUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
-        return sanitizeMarkdownTable(shapeToTable(subject, text));
-      }
-    : undefined;
+  const stream = proxySseWithFinalizer(upstream.body!, {
+    lang: safeLang,
+    forbidEnglishHeadings: true,
+    formatFinalizer: buildFormatFinalizer(latestUserMessage),
+  });
 
-  const proxied = proxySseWithFinalizer(upstream.body!, formatFinalizer);
-
-  return new Response(proxied, {
-    status: upstream.status,
+  return new Response(stream, {
+    status: 200,
     headers: {
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
