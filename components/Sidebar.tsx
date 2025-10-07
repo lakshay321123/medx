@@ -100,7 +100,7 @@ export default function Sidebar() {
 
       <div className="relative">
         <input
-          className="h-10 w-full rounded-full border border-slate-200 bg-white/80 px-3 pr-8 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none focus:ring-0 dark:border-white/10 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-400"
+          className="h-10 w-full rounded-full border border-slate-200 bg-white px-3 pr-8 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none focus:ring-0 dark:border-white/10 dark:bg-[#1f1f1f] dark:text-[#ececf1] dark:placeholder:text-slate-400"
           placeholder={t("Search")}
           onChange={(e) => handleSearch(e.target.value)}
         />
@@ -184,7 +184,7 @@ export default function Sidebar() {
           closeSidebar?.();
           openPrefs();
         }}
-        className="fixed bottom-3 left-3 z-20 flex items-center gap-1.5 rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm shadow-sm hover:bg-white/90 dark:border-white/10 dark:bg-slate-900/70 dark:hover:bg-slate-900"
+        className="fixed bottom-3 left-3 z-20 flex items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 py-2 text-sm shadow-sm hover:bg-slate-100 dark:border-white/10 dark:bg-[#1f1f1f] dark:hover:bg-[#2a2a2a]"
         aria-label={`${t("Preferences")} · ${locale.label}`}
       >
         <Settings size={14} />

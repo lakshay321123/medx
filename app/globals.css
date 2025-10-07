@@ -31,9 +31,9 @@ body.font-loading *::after {
 }
 
 .btn-secondary{
-  @apply inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm transition
-         bg-white text-slate-700 border-slate-200 hover:bg-slate-50
-         dark:bg-gray-800 dark:text-slate-100 dark:border-gray-600 dark:hover:bg-gray-700;
+  @apply inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm transition;
+  @apply bg-white text-slate-900 border-slate-200 hover:bg-slate-100;
+  @apply dark:bg-zinc-900 dark:text-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800;
 }
 
 /* Compact action buttons for mobile trial cards */
@@ -102,9 +102,10 @@ body.font-loading *::after {
 }
 
 /* Ensure body/content contrast in dark */
-.dark body { color: rgb(229 231 235); }           /* text-gray-200 */
-.dark .card,.dark .panel { background: #0f172a; } /* slate-900 */
-.dark .border { border-color: rgb(71 85 105); }   /* slate-600 */
+.dark body { color: #ececf1; }
+.dark .card,
+.dark .panel { background: rgba(24, 24, 27, 0.95); }
+.dark .border { border-color: rgba(255, 255, 255, 0.08); }
 .dark .prose-medx :where(li)::marker { color: rgb(148 163 184); }
 
 :root.therapy-mode, .therapy-mode body {
@@ -136,40 +137,40 @@ body.font-loading *::after {
 /* === MedX Theme Tokens (Light & Dark) === */
 :root {
   --font-proxima-nova: "Proxima Nova", "Proxima Nova Rg", "ProximaNova", "proxima-nova";
-  --medx-bg-a: #e9efff;   /* light indigo */
-  --medx-bg-b: #d0f3ff;   /* light cyan */
-  --medx-bg-c: #ffffff;   /* fallback third stop */
-  --medx-text: #0F172A;
-  --medx-subtext: #334155;
+  --medx-bg-a: #ffffff;
+  --medx-bg-b: #ffffff;
+  --medx-bg-c: #ffffff;
+  --medx-text: #202123;
+  --medx-subtext: #4b5563;
 
-  /* accents from reference */
-  --medx-accent:  #2563EB;  /* blue */
-  --medx-accent2: #0891B2;  /* teal/cyan */
-  --medx-red:     #F97316;  /* orange-red */
-  --medx-teal:    #14B8A6;  /* teal */
-  --medx-purple:  #7C3AED;  /* purple */
+  /* accents */
+  --medx-accent:  #0b65c2;
+  --medx-accent2: #0b65c2;
+  --medx-red:     #ef4444;
+  --medx-teal:    #0ea5e9;
+  --medx-purple:  #6366f1;
 
   /* surfaces */
-  --medx-surface: rgba(255,255,255,0.80);
-  --medx-panel:   rgba(255,255,255,0.90);
-  --medx-outline: rgba(15, 23, 42, 0.10);
+  --medx-surface: rgba(255, 255, 255, 0.92);
+  --medx-panel:   #ffffff;
+  --medx-outline: rgba(15, 23, 42, 0.08);
 }
 .dark {
-  --medx-bg-a: #06122E;   /* deep navy */
-  --medx-bg-b: #071534;   /* mid navy */
-  --medx-bg-c: #0A1C45;   /* rich midnight */
-  --medx-text: #E6E9F1;
-  --medx-subtext: #B6C2D0;
+  --medx-bg-a: #000000;
+  --medx-bg-b: #000000;
+  --medx-bg-c: #000000;
+  --medx-text: #ececf1;
+  --medx-subtext: #9ca3af;
 
-  --medx-accent:  #60A5FA;  /* blue */
-  --medx-accent2: #22D3EE;  /* cyan */
-  --medx-red:     #F97316;
-  --medx-teal:    #2DD4BF;
-  --medx-purple:  #A78BFA;
+  --medx-accent:  #3f3f46;
+  --medx-accent2: #52525b;
+  --medx-red:     #f87171;
+  --medx-teal:    #38bdf8;
+  --medx-purple:  #818cf8;
 
-  --medx-surface: rgba(0,0,0,0.35);
-  --medx-panel:   rgba(3,7,18,0.55);
-  --medx-outline: rgba(255,255,255,0.12);
+  --medx-surface: rgba(32, 32, 35, 0.9);
+  --medx-panel:   rgba(24, 24, 27, 0.95);
+  --medx-outline: rgba(255, 255, 255, 0.08);
 }
 
 /* Background painted behind UI (never affects layout) */
@@ -1031,13 +1032,13 @@ body {
   --text: var(--medx-text);
   --muted: var(--medx-subtext);
   --brand: var(--medx-accent);
-  --on-brand: var(--medx-text);
+  --on-brand: #ffffff;
   --backdrop: rgba(0, 0, 0, 0.6);
 }
 
 .dark {
   /* High-contrast text on brand surfaces in dark mode */
-  --on-brand: var(--medx-text);
+  --on-brand: #f4f4f5;
 }
 
 /* Hide scrollbars on horizontal tab scrollers (mobile pills) */

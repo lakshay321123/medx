@@ -18,8 +18,8 @@ export default function ModeBar() {
     [
       "h-9 rounded-full border px-4 text-sm font-medium transition",
       active
-        ? "bg-blue-600 border-blue-600 text-white shadow-sm"
-        : "bg-white/70 text-slate-900 border-slate-200 hover:bg-slate-100 dark:bg-slate-800/70 dark:text-white dark:border-slate-700 dark:hover:bg-slate-800",
+        ? "bg-[var(--brand)] border-[var(--brand)] text-[var(--on-brand)] shadow-sm"
+        : "bg-white text-[#202123] border-slate-200 hover:bg-slate-100 dark:bg-[#1f1f1f] dark:text-[#ececf1] dark:border-[#2f2f33] dark:hover:bg-[#2a2a2a]",
       disabled ? "opacity-60 cursor-not-allowed" : "",
     ].filter(Boolean).join(" ");
 
@@ -28,7 +28,7 @@ export default function ModeBar() {
   const doctorActive = state.base === "doctor";
 
   return (
-    <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-black/10 bg-white/60 px-2 py-1 backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
+    <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-black/10 bg-white px-2 py-1 backdrop-blur dark:border-white/10 dark:bg-[#121212]">
       <button
         className={btn(wellnessActive)}
         onClick={() => togglePatient()}

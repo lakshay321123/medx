@@ -364,7 +364,7 @@ export default function LegalPrivacyFooter() {
     <>
       <footer
         ref={footerRef}
-        className="mobile-footer flex-shrink-0 border-t border-black/10 bg-white/80 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/60"
+        className="mobile-footer flex-shrink-0 border-t border-black/10 bg-white backdrop-blur-sm dark:border-white/10 dark:bg-black/80"
       >
         <div className="mobile-footer-inner mx-auto flex w-full max-w-screen-2xl items-center justify-center gap-1.5 px-6 text-center text-[11px] text-slate-600 dark:text-slate-300 md:gap-3 md:py-1.5 md:pl-56 md:text-xs">
           <div
@@ -412,9 +412,9 @@ export default function LegalPrivacyFooter() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="legal-privacy-title"
-            className="relative z-10 w-full max-w-3xl overflow-hidden rounded-2xl border border-black/10 bg-white shadow-xl dark:border-white/10 dark:bg-slate-900"
+            className="relative z-10 w-full max-w-3xl overflow-hidden rounded-2xl border border-black/10 bg-white shadow-xl dark:border-white/10 dark:bg-[#121212]"
           >
-            <div className="flex items-center justify-between border-b border-black/5 bg-slate-50/70 px-5 py-4 dark:border-white/10 dark:bg-slate-900/40">
+            <div className="flex items-center justify-between border-b border-black/5 bg-white px-5 py-4 dark:border-white/10 dark:bg-[#1f1f1f]">
               <h2 id="legal-privacy-title" className="text-lg font-semibold text-primary">
                 {t("Legal & Privacy")}
               </h2>
