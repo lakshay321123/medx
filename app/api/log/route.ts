@@ -73,8 +73,14 @@ export async function POST(req: Request) {
     if (!summaryCheck.success) {
       return NextResponse.json({ ok: false, error: "invalid_payload" }, { status: 400 });
     }
+    const { threadId, assistantContent, newSummary, expectedVersion } = summaryCheck.data;
     try {
-      await appendAssistantAndUpdateSummaryAtomic(summaryCheck.data);
+      await appendAssistantAndUpdateSummaryAtomic({
+        threadId,
+        assistantContent,
+        newSummary,
+        expectedVersion,
+      });
       return NextResponse.json({ ok: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
