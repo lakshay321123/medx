@@ -297,6 +297,7 @@ export async function POST(req: NextRequest) {
       lang: safeLang,
       forbidEnglishHeadings: true,
       formatFinalizer: buildFormatFinalizer(latestUserMessage),
+      emitResetDelta: true,
     });
 
     return new Response(stream, {
@@ -452,6 +453,7 @@ export async function POST(req: NextRequest) {
     lang: safeLang,
     forbidEnglishHeadings: true,
     formatFinalizer: buildFormatFinalizer(latestUserMessage),
+    emitResetDelta: true,
   });
 
   return new Response(stream, {

@@ -117,6 +117,7 @@ export async function POST(req: Request) {
     lang: safeLang,
     forbidEnglishHeadings: true,
     formatFinalizer: buildFormatFinalizer(lastUserMessage),
+    emitResetDelta: true,
   });
 
   const totalMs = Date.now() - t0;
