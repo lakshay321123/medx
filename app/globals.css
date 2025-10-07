@@ -311,7 +311,7 @@ body {
     --mobile-footer-base-height: 48px;
     --mobile-footer-safe-area: env(safe-area-inset-bottom);
     --mobile-footer-height: var(--mobile-footer-base-height);
-    --mobile-composer-height: 88px;
+    --mobile-composer-height: 104px;
     --mobile-composer-offset: 1.75rem;
     --mobile-composer-gap: calc(var(--mobile-composer-height) + var(--mobile-composer-offset));
   }
@@ -638,7 +638,11 @@ body {
     right: 0;
     bottom: calc(var(--mobile-footer-height, 0px) + var(--mobile-composer-offset, 0px));
     z-index: 45;
-    padding: 0.75rem 1rem;
+    display: flex;
+    justify-content: center;
+    padding: 1rem 0;
+    padding-left: max(env(safe-area-inset-left), 0px);
+    padding-right: max(env(safe-area-inset-right), 0px);
     background: var(--medx-panel);
     backdrop-filter: saturate(140%) blur(16px);
     border-top: 1px solid var(--medx-outline);

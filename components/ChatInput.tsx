@@ -36,6 +36,7 @@ export function ChatInput({
   const { lang } = usePrefs();
   const openPrefs = useUIStore((state) => state.openPrefs);
   const [isUploadMenuOpen, setIsUploadMenuOpen] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
 
   const redirectToAccount = useCallback(() => {
     openPrefs("Account");
@@ -56,12 +57,28 @@ export function ChatInput({
   }, [currentId, draft.text]);
 
   useEffect(() => {
+    const query = window.matchMedia("(min-width: 768px)");
+    const update = (event: MediaQueryListEvent | MediaQueryList) => {
+      setIsDesktop(event.matches);
+    };
+    update(query);
+    const listener = (event: MediaQueryListEvent) => update(event);
+    if (typeof query.addEventListener === "function") {
+      query.addEventListener("change", listener);
+      return () => query.removeEventListener("change", listener);
+    }
+    query.addListener(listener);
+    return () => query.removeListener(listener);
+  }, []);
+
+  useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
-    const next = Math.min(el.scrollHeight, 160);
+    const minHeight = isDesktop ? 56 : 48;
+    const next = Math.min(Math.max(el.scrollHeight, minHeight), 160);
     el.style.height = `${next}px`;
-  }, [text]);
+  }, [text, isDesktop]);
 
   const handleSend = async () => {
     if (isSending) return;
@@ -145,7 +162,7 @@ export function ChatInput({
         e.preventDefault();
         onDropFiles(e.dataTransfer.files);
       }}
-      className="chat-input-container flex w-full items-end gap-2 rounded-2xl border border-[color:var(--medx-outline)] bg-[color:var(--medx-surface)] px-3 py-2 shadow-sm transition dark:border-white/10 dark:bg-[color:var(--medx-panel)] md:border-0 md:bg-transparent md:px-0 md:py-0 md:shadow-none"
+      className="chat-input-container mx-auto flex w-full max-w-3xl items-end gap-2 rounded-2xl border border-[color:var(--medx-outline)] bg-[color:var(--medx-surface)] px-4 py-3 shadow-sm transition dark:border-white/10 dark:bg-[color:var(--medx-panel)] md:border-0 md:bg-transparent md:px-0 md:py-0 md:shadow-none"
     >
       <div className="relative">
         <button
@@ -159,7 +176,7 @@ export function ChatInput({
               ? "Attach files is available before you start a new chat"
               : uploadText
           }
-          className="flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--medx-text)] transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:text-[color:var(--medx-text)] dark:hover:bg-white/10"
+          className="flex h-12 w-12 items-center justify-center rounded-full text-[color:var(--medx-text)] transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:text-[color:var(--medx-text)] dark:hover:bg-white/10 md:h-12 md:w-12"
           onClick={() => {
             if (currentId) {
               return;
@@ -247,14 +264,14 @@ export function ChatInput({
             void handleSend();
           }
         }}
-        className="min-h-[40px] max-h-[160px] flex-1 resize-none bg-transparent text-base leading-snug text-[color:var(--medx-text)] placeholder:text-slate-400 focus:outline-none dark:text-[color:var(--medx-text)] dark:placeholder:text-slate-500"
+        className="min-h-[48px] max-h-[160px] flex-1 resize-none bg-transparent text-base leading-snug text-[color:var(--medx-text)] placeholder:text-slate-400 focus:outline-none dark:text-[color:var(--medx-text)] dark:placeholder:text-slate-500 md:min-h-[56px]"
       />
       <button
         type="submit"
         aria-label={sendText}
         title={sendText}
         disabled={!text.trim() || isSending}
-        className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-sky-500 dark:hover:bg-sky-400"
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-sky-500 dark:hover:bg-sky-400 md:h-12 md:w-12"
       >
         <SendHorizontal className="h-5 w-5" />
       </button>
