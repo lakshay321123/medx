@@ -5,11 +5,15 @@ export function sanitizeMarkdownTable(md: string) {
 
   const isSep = (line: string) => /^\s*\|(?:\s*-+\s*\|)+\s*$/.test(line);
   const isRow = (line: string) => /^\s*\|/.test(line);
-  const fill = (row: string) =>
-    row
-      .replace(/\s*\|\s*/g, ' | ')
-      .replace(/\|\s*(?=\|)/g, '| - ')
-      .replace(/\|\s*$/, '|');
+  // Fill all empty cells (leading/middle/trailing) and normalize spacing
+  const fill = (row: string) => {
+    const inner = row.trim().replace(/^\|/, '').replace(/\|$/, '');
+    const cells = inner.split('|').map(cell => {
+      const value = cell.trim();
+      return value === '' ? '-' : value;
+    });
+    return `| ${cells.join(' | ')} |`;
+  };
 
   for (let i = 0; i < lines.length; i++) {
     const current = lines[i];
