@@ -5,7 +5,13 @@ import type { AdCard } from '@/types/ads';
 const CHIP = 'text-sky-700 bg-sky-50 dark:text-sky-200 dark:bg-sky-900/30';
 const RING = 'ring-sky-200';
 
-export default function InlineSponsoredCard({ card }: { card: AdCard }) {
+export default function InlineSponsoredCard({
+  card,
+  onCtaClick,
+}: {
+  card: AdCard;
+  onCtaClick?: () => void;
+}) {
   const safeHref = /^https?:\/\//i.test(card.cta.url) ? card.cta.url : '#';
 
   return (
@@ -41,6 +47,7 @@ export default function InlineSponsoredCard({ card }: { card: AdCard }) {
               'transition-colors hover:bg-white/70 dark:hover:bg-white/20',
               'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900',
             ].join(' ')}
+            onClick={onCtaClick}
           >
             {card.cta.label}
           </a>
