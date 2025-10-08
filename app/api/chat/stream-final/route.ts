@@ -1,4 +1,3 @@
-import { createParser } from 'eventsource-parser';
 import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from '@/lib/prompt/system';
 import { SUPPORTED_LANGS } from '@/lib/i18n/constants';
 import { normalizeModeTag } from '@/lib/i18n/normalize';
@@ -146,46 +145,59 @@ export async function POST(req: Request) {
         }
       }, 10000);
 
-      const parser = createParser((evt) => {
-        if (evt.type !== 'event') return;
-        const data = evt.data;
+      let buf = '';
 
-        if (data === '[DONE]') {
-          clearInterval(hb);
-          controller.enqueue(enc.encode('data: [DONE]\n\n'));
-          controller.close();
-          queueMicrotask(async () => {
-            try {
-              await finalizeOffPath(raw, req, finalizeContext);
-            } catch {
-              // swallow finalize errors
-            }
-          });
-          return;
+      const handleEvent = (evt: string) => {
+        const lines = evt.split('\n');
+        for (const line of lines) {
+          if (!line.startsWith('data:')) continue;
+          const data = line.slice(5).trimStart();
+          if (!data) continue;
+
+          if (data === '[DONE]') {
+            clearInterval(hb);
+            controller.enqueue(enc.encode('data: [DONE]\n\n'));
+            controller.close();
+            queueMicrotask(async () => {
+              try {
+                await finalizeOffPath(raw, req, finalizeContext);
+              } catch {
+                // swallow finalize errors
+              }
+            });
+            continue;
+          }
+
+          try {
+            const parsed = JSON.parse(data);
+            const delta = parsed?.choices?.[0]?.delta?.content ?? '';
+            if (delta) raw += delta;
+          } catch {
+            // ignore keep-alives and malformed events
+          }
+
+          controller.enqueue(enc.encode(`data: ${data}\n\n`));
         }
-
-        try {
-          const parsed = JSON.parse(data);
-          const delta = parsed?.choices?.[0]?.delta?.content ?? '';
-          if (delta) raw += delta;
-        } catch {
-          // ignore keep-alives and malformed events
-        }
-
-        controller.enqueue(enc.encode(`data: ${data}\n\n`));
-      });
+      };
 
       (async () => {
         const reader = upstream.body!.getReader();
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            parser.feed(dec.decode(value, { stream: true }));
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buf += dec.decode(value, { stream: true });
+
+          let idx: number;
+          while ((idx = buf.indexOf('\n\n')) !== -1) {
+            const evt = buf.slice(0, idx);
+            buf = buf.slice(idx + 2);
+            if (evt.trim()) handleEvent(evt);
           }
-        } finally {
-          clearInterval(hb);
         }
+
+        if (buf.trim()) handleEvent(buf);
+        clearInterval(hb);
       })().catch((err) => {
         clearInterval(hb);
         controller.error(err);
