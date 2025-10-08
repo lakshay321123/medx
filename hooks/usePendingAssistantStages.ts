@@ -18,16 +18,6 @@ export type PendingAssistantExtras = {
   error?: string | null;
 };
 
-type TypewriterState = {
-  messageId: string | null;
-  queue: string;
-  displayed: string;
-  raf: number | null;
-  streaming: boolean;
-  lastTimestamp: number;
-  onDrain: (() => void) | null;
-};
-
 type Options = {
   enabled: boolean;
   onContentUpdate: (messageId: string, next: string) => void;
@@ -45,9 +35,6 @@ type PendingMeta = PendingIntent & { messageId: string };
 const ANALYZING_DELAY_MS = 900;
 const ANALYZING_ROTATE_MS = 800;
 const ANALYZING_MAX_PHRASES = 2;
-const TYPEWRITER_SPEED = 50;
-const TYPEWRITER_MIN_BATCH = 4;
-const TYPEWRITER_MAX_BATCH = 8;
 const THINKING_LABEL = "Analyzing";
 const THERAPY_LABEL = "Reflecting…";
 
@@ -60,15 +47,7 @@ export function usePendingAssistantStages({ enabled, onContentUpdate, onFinalize
   const analyzeRotateRef = useRef<TimerHandle | null>(null);
   const analyzingQueueRef = useRef<string[]>([]);
   const pendingMetaRef = useRef<PendingMeta | null>(null);
-  const typewriterRef = useRef<TypewriterState>({
-    messageId: null,
-    queue: "",
-    displayed: "",
-    raf: null,
-    streaming: false,
-    lastTimestamp: 0,
-    onDrain: null,
-  });
+  const streamingContentRef = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     stateRef.current = state;
@@ -85,72 +64,6 @@ export function usePendingAssistantStages({ enabled, onContentUpdate, onFinalize
     }
     analyzingQueueRef.current = [];
   }, []);
-
-  const cancelTypewriter = useCallback((messageId?: string) => {
-    const tw = typewriterRef.current;
-    if (typeof window !== "undefined" && tw.raf != null) {
-      window.cancelAnimationFrame(tw.raf);
-    }
-    if (!messageId || tw.messageId === messageId) {
-      typewriterRef.current = {
-        messageId: null,
-        queue: "",
-        displayed: "",
-        raf: null,
-        streaming: false,
-        lastTimestamp: 0,
-        onDrain: null,
-      };
-    }
-  }, []);
-
-  const runTypewriter = useCallback(
-    (timestamp: number) => {
-      const tw = typewriterRef.current;
-      if (!enabled || !tw.messageId) {
-        tw.raf = null;
-        return;
-      }
-      if (tw.queue.length === 0) {
-        tw.lastTimestamp = 0;
-        tw.raf = null;
-        if (!tw.streaming && tw.onDrain) {
-          const finalize = tw.onDrain;
-          tw.onDrain = null;
-          finalize();
-        }
-        return;
-      }
-      if (tw.lastTimestamp === 0) tw.lastTimestamp = timestamp;
-      const elapsed = timestamp - tw.lastTimestamp;
-      let count = Math.floor((elapsed / 1000) * TYPEWRITER_SPEED);
-      if (count < TYPEWRITER_MIN_BATCH) {
-        count = tw.queue.length < TYPEWRITER_MIN_BATCH ? tw.queue.length : TYPEWRITER_MIN_BATCH;
-      }
-      count = Math.min(count, TYPEWRITER_MAX_BATCH, tw.queue.length);
-      if (count <= 0) {
-        tw.raf = window.requestAnimationFrame(runTypewriter);
-        return;
-      }
-      const chunk = tw.queue.slice(0, count);
-      tw.queue = tw.queue.slice(count);
-      tw.displayed += chunk;
-      tw.lastTimestamp = timestamp;
-      onContentUpdate(tw.messageId, tw.displayed);
-      if (tw.queue.length > 0) {
-        tw.raf = window.requestAnimationFrame(runTypewriter);
-      } else {
-        tw.lastTimestamp = 0;
-        tw.raf = null;
-        if (!tw.streaming && tw.onDrain) {
-          const finalize = tw.onDrain;
-          tw.onDrain = null;
-          finalize();
-        }
-      }
-    },
-    [enabled, onContentUpdate],
-  );
 
   const scheduleNextAnalyzing = useCallback(
     (messageId: string) => {
@@ -183,17 +96,8 @@ export function usePendingAssistantStages({ enabled, onContentUpdate, onFinalize
     (messageId: string, config: BeginConfig) => {
       if (!enabled) return;
       clearAnalyzingTimers();
-      cancelTypewriter();
       pendingMetaRef.current = null;
-      typewriterRef.current = {
-        messageId,
-        queue: "",
-        displayed: "",
-        raf: null,
-        streaming: false,
-        lastTimestamp: 0,
-        onDrain: null,
-      };
+      streamingContentRef.current.delete(messageId);
 
       const pendingIntent = parsePendingIntent(config);
       pendingMetaRef.current = { ...pendingIntent, messageId };
@@ -238,7 +142,7 @@ export function usePendingAssistantStages({ enabled, onContentUpdate, onFinalize
         })();
       }, ANALYZING_DELAY_MS);
     },
-    [enabled, cancelTypewriter, clearAnalyzingTimers, scheduleNextAnalyzing],
+    [enabled, clearAnalyzingTimers, scheduleNextAnalyzing],
   );
 
   const markStreaming = useCallback(
@@ -247,60 +151,24 @@ export function usePendingAssistantStages({ enabled, onContentUpdate, onFinalize
       clearAnalyzingTimers();
       analyzingQueueRef.current = [];
       pendingMetaRef.current = null;
-      const tw = typewriterRef.current;
-      if (!tw.messageId || tw.messageId !== messageId) {
-        cancelTypewriter();
-        typewriterRef.current = {
-          messageId,
-          queue: "",
-          displayed: "",
-          raf: null,
-          streaming: true,
-          lastTimestamp: 0,
-          onDrain: null,
-        };
-      } else {
-        tw.streaming = true;
-        tw.lastTimestamp = 0;
-      }
+      streamingContentRef.current.set(messageId, streamingContentRef.current.get(messageId) ?? "");
       setState(prev => {
         if (!prev || prev.id !== messageId) return prev;
         return { id: messageId, stage: "streaming", analyzingPhrase: null, thinkingLabel: prev.thinkingLabel };
       });
     },
-    [enabled, cancelTypewriter, clearAnalyzingTimers],
+    [enabled, clearAnalyzingTimers],
   );
 
   const enqueue = useCallback(
     (messageId: string, chunk: string) => {
       if (!enabled || !chunk) return;
-      if (!chunk.trim() && chunk.length === 0) return;
-      let tw = typewriterRef.current;
-      if (!tw.messageId || tw.messageId !== messageId) {
-        cancelTypewriter();
-        tw = typewriterRef.current = {
-          messageId,
-          queue: "",
-          displayed: "",
-          raf: null,
-          streaming: true,
-          lastTimestamp: 0,
-          onDrain: null,
-        };
-      }
-      tw.queue += chunk;
-      if (typeof window === "undefined") {
-        tw.displayed += tw.queue;
-        const full = tw.displayed;
-        tw.queue = "";
-        onContentUpdate(messageId, full);
-        return;
-      }
-      if (tw.raf == null) {
-        tw.raf = window.requestAnimationFrame(runTypewriter);
-      }
+      const current = streamingContentRef.current.get(messageId) ?? "";
+      const next = current + chunk;
+      streamingContentRef.current.set(messageId, next);
+      onContentUpdate(messageId, next);
     },
-    [enabled, cancelTypewriter, onContentUpdate, runTypewriter],
+    [enabled, onContentUpdate],
   );
 
   const reset = useCallback(
@@ -310,30 +178,10 @@ export function usePendingAssistantStages({ enabled, onContentUpdate, onFinalize
         return;
       }
       clearAnalyzingTimers();
-      let tw = typewriterRef.current;
-      if (!tw.messageId || tw.messageId !== messageId) {
-        cancelTypewriter();
-        tw = typewriterRef.current = {
-          messageId,
-          queue: '',
-          displayed: text,
-          raf: null,
-          streaming: true,
-          lastTimestamp: 0,
-          onDrain: null,
-        };
-      } else {
-        if (typeof window !== 'undefined' && tw.raf != null) {
-          window.cancelAnimationFrame(tw.raf);
-          tw.raf = null;
-        }
-        tw.queue = '';
-        tw.displayed = text;
-        tw.lastTimestamp = 0;
-      }
+      streamingContentRef.current.set(messageId, text);
       onContentUpdate(messageId, text);
     },
-    [enabled, onContentUpdate, clearAnalyzingTimers, cancelTypewriter],
+    [enabled, onContentUpdate, clearAnalyzingTimers],
   );
 
   const finish = useCallback(
@@ -345,29 +193,11 @@ export function usePendingAssistantStages({ enabled, onContentUpdate, onFinalize
       }
       clearAnalyzingTimers();
       pendingMetaRef.current = null;
-      const finalize = () => {
-        onFinalize(messageId, finalContent, extras);
-        setState(prev => (prev && prev.id === messageId ? null : prev));
-        cancelTypewriter(messageId);
-      };
-      const tw = typewriterRef.current;
-      if (!tw.messageId || tw.messageId !== messageId) {
-        finalize();
-        return;
-      }
-      tw.streaming = false;
-      tw.onDrain = finalize;
-      if (tw.queue.length === 0) {
-        finalize();
-      } else if (typeof window !== "undefined") {
-        if (tw.raf == null) {
-          tw.raf = window.requestAnimationFrame(runTypewriter);
-        }
-      } else {
-        finalize();
-      }
+      streamingContentRef.current.delete(messageId);
+      onFinalize(messageId, finalContent, extras);
+      setState(prev => (prev && prev.id === messageId ? null : prev));
     },
-    [enabled, onFinalize, clearAnalyzingTimers, cancelTypewriter, runTypewriter],
+    [enabled, onFinalize, clearAnalyzingTimers],
   );
 
   const cancel = useCallback(
@@ -376,18 +206,18 @@ export function usePendingAssistantStages({ enabled, onContentUpdate, onFinalize
       clearAnalyzingTimers();
       pendingMetaRef.current = null;
       setState(prev => (prev && prev.id === messageId ? null : prev));
-      cancelTypewriter(messageId);
+      streamingContentRef.current.delete(messageId);
     },
-    [enabled, clearAnalyzingTimers, cancelTypewriter],
+    [enabled, clearAnalyzingTimers],
   );
 
   useEffect(
     () => () => {
       clearAnalyzingTimers();
-      cancelTypewriter();
+      streamingContentRef.current.clear();
       pendingMetaRef.current = null;
     },
-    [clearAnalyzingTimers, cancelTypewriter],
+    [clearAnalyzingTimers],
   );
 
   return {

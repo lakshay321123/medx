@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import ChatMarkdown from "@/components/ChatMarkdown";
 import type { PendingAssistantStage } from "@/hooks/usePendingAssistantStages";
 import type { FormatId } from "@/lib/formats/types";
@@ -18,14 +19,85 @@ function stripTrailingEllipsis(value: string) {
   return withoutEllipsis.length > 0 ? withoutEllipsis : trimmed;
 }
 
+const CHARS_PER_TICK = 6;
+const TICK_MS = 12;
+
 export function AssistantPendingMessage({ stage, analyzingPhrase, thinkingLabel, content, formatId, userPrompt }: Props) {
   const fallbackLabel = stage === "reflecting" ? "Reflecting…" : "Analyzing";
   const label = thinkingLabel?.trim().length ? thinkingLabel : fallbackLabel;
+  const [visibleText, setVisibleText] = useState("");
+  const netBufRef = useRef("");
+  const pumpActiveRef = useRef(false);
+  const destroyedRef = useRef(false);
+  const fullContentRef = useRef("");
+
+  const resetAll = useCallback((text: string) => {
+    netBufRef.current = "";
+    pumpActiveRef.current = false;
+    fullContentRef.current = text;
+    setVisibleText(text);
+  }, []);
+
+  const pumpTypewriter = useCallback(() => {
+    if (pumpActiveRef.current) return;
+    pumpActiveRef.current = true;
+
+    const step = () => {
+      if (destroyedRef.current) return;
+
+      const out = netBufRef.current.slice(0, CHARS_PER_TICK);
+      netBufRef.current = netBufRef.current.slice(CHARS_PER_TICK);
+      if (out) {
+        setVisibleText(prev => prev + out);
+      }
+
+      if (netBufRef.current.length > 0) {
+        window.setTimeout(step, TICK_MS);
+      } else {
+        pumpActiveRef.current = false;
+      }
+    };
+
+    window.setTimeout(step, 0);
+  }, []);
+
+  useEffect(() => {
+    destroyedRef.current = false;
+    return () => {
+      destroyedRef.current = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (stage !== "streaming") {
+      resetAll(content || "");
+      return;
+    }
+
+    const full = content || "";
+    const previous = fullContentRef.current;
+    if (full.length < previous.length) {
+      // Reset requested mid-stream (e.g., medx_reset).
+      setVisibleText("");
+      netBufRef.current = "";
+      pumpActiveRef.current = false;
+      fullContentRef.current = "";
+    }
+
+    const startIndex = fullContentRef.current.length;
+    if (full.length > startIndex) {
+      netBufRef.current += full.slice(startIndex);
+      fullContentRef.current = full;
+      pumpTypewriter();
+    }
+  }, [content, stage, pumpTypewriter, resetAll]);
 
   if (stage === "streaming") {
     return (
       <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl min-h-[64px]">
-        <ChatMarkdown content={content || ""} formatId={formatId} userPrompt={userPrompt} />
+        <div className="font-sans whitespace-pre-wrap text-[14px] leading-6">
+          {visibleText}
+        </div>
       </div>
     );
   }

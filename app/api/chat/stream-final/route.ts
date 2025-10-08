@@ -1,26 +1,74 @@
-import { ensureMinDelay, minDelayMs } from "@/lib/utils/ensureMinDelay";
-import { callOpenAIChat } from "@/lib/medx/providers";
-import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
-import { SUPPORTED_LANGS } from "@/lib/i18n/constants";
-import { createLocaleEnforcedStream, enforceLocale } from "@/lib/i18n/enforce";
-import { normalizeModeTag } from "@/lib/i18n/normalize";
-import { buildFormatInstruction } from "@/lib/formats/build";
-import { FORMATS } from "@/lib/formats/registry";
-import { isValidLang, isValidMode } from "@/lib/formats/constants";
-import { needsTableCoercion } from "@/lib/formats/tableGuard";
-import { hasMarkdownTable, shapeToTable } from "@/lib/formats/tableShape";
-import type { FormatId, Mode } from "@/lib/formats/types";
+import { createParser } from 'eventsource-parser';
+import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from '@/lib/prompt/system';
+import { SUPPORTED_LANGS } from '@/lib/i18n/constants';
+import { normalizeModeTag } from '@/lib/i18n/normalize';
+import { buildFormatInstruction } from '@/lib/formats/build';
+import { FORMATS } from '@/lib/formats/registry';
+import { isValidLang, isValidMode } from '@/lib/formats/constants';
+import { needsTableCoercion } from '@/lib/formats/tableGuard';
+import type { FormatId, Mode } from '@/lib/formats/types';
 
-// Optional calculator prelude (safe if engine absent)
-let composeCalcPrelude: any, extractAll: any, canonicalizeInputs: any, computeAll: any;
-try {
-  ({ composeCalcPrelude } = require("@/lib/medical/engine/prelude"));
-  ({ extractAll, canonicalizeInputs } = require("@/lib/medical/engine/extract"));
-  ({ computeAll } = require("@/lib/medical/engine/computeAll"));
-} catch {}
+export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
+
+class UpstreamError extends Error {
+  status?: number;
+  constructor(message: string, status?: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+type PrepareResult = {
+  upstreamUrl: string;
+  upstreamHeaders: HeadersInit;
+  reqPayload: Record<string, any>;
+  models: string[];
+  provider: 'openai';
+  finalizeContext: {
+    lang: string;
+    shouldCoerceToTable: boolean;
+    formatId?: FormatId;
+    lastUserMessage: string;
+  };
+  metrics: {
+    prepMs: number;
+  };
+};
+
+type CalcModules = {
+  composeCalcPrelude?: (computed: any) => string | null | undefined;
+  extractAll?: (text: string) => any;
+  canonicalizeInputs?: (extracted: any) => any;
+  computeAll?: (canonical: any) => any;
+};
+
+let calcModulesPromise: Promise<CalcModules> | null = null;
+
+async function loadCalcModules(): Promise<CalcModules> {
+  if (!calcModulesPromise) {
+    calcModulesPromise = (async () => {
+      try {
+        const [prelude, extract, compute] = await Promise.all([
+          import('@/lib/medical/engine/prelude'),
+          import('@/lib/medical/engine/extract'),
+          import('@/lib/medical/engine/computeAll'),
+        ]);
+        return {
+          composeCalcPrelude: prelude.composeCalcPrelude,
+          extractAll: extract.extractAll,
+          canonicalizeInputs: extract.canonicalizeInputs,
+          computeAll: compute.computeAll,
+        };
+      } catch {
+        return {};
+      }
+    })();
+  }
+  return calcModulesPromise;
+}
 
 function normalizeLangTag(tag?: string | null) {
   if (!tag) return 'en';
@@ -28,16 +76,20 @@ function normalizeLangTag(tag?: string | null) {
   return (SUPPORTED_LANGS as readonly string[]).includes(base as any) ? base : 'en';
 }
 
-export async function POST(req: Request) {
-  const t0 = Date.now();
-  const payload = await req.json();
-  const { messages = [], mode } = payload ?? {};
-  const rawFormat = typeof payload?.formatId === 'string'
-    ? payload.formatId.trim().toLowerCase()
-    : '';
-  const formatId = rawFormat && FORMATS.some(f => f.id === rawFormat)
-    ? (rawFormat as FormatId)
-    : undefined;
+async function prepareUpstream(req: Request): Promise<PrepareResult> {
+  const prepStart = Date.now();
+  let payload: any = {};
+  try {
+    payload = await req.json();
+  } catch {
+    payload = {};
+  }
+
+  const messages = Array.isArray(payload?.messages) ? payload.messages : [];
+  const mode = payload?.mode;
+  const rawFormat = typeof payload?.formatId === 'string' ? payload.formatId.trim().toLowerCase() : '';
+  const formatId = rawFormat && FORMATS.some(f => f.id === rawFormat) ? (rawFormat as FormatId) : undefined;
+
   const rawModeTag = payload?.modeTag ?? mode;
   const normalizedModeTag = normalizeModeTag(rawModeTag);
   const resolvedMode: Mode = isValidMode(normalizedModeTag) ? normalizedModeTag : 'wellness';
@@ -45,6 +97,7 @@ export async function POST(req: Request) {
     // eslint-disable-next-line no-console
     console.warn('[medx] Missing modeTag in request body; falling back to legacy mode:', mode);
   }
+
   const requestedLang = typeof payload?.lang === 'string' ? payload.lang : undefined;
   const headerLang = req.headers.get('x-user-lang') || req.headers.get('x-lang') || undefined;
   const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
@@ -54,121 +107,267 @@ export async function POST(req: Request) {
     ? buildFormatInstruction(lang, resolvedMode, formatId)
     : '';
 
-  const lastUserMessage =
-    messages.slice().reverse().find((m: any) => m.role === "user")?.content || "";
+  const lastUserMessage = messages.slice().reverse().find((m: any) => m?.role === 'user')?.content || '';
+  let system = 'Validate all calculations and medical logic before answering. Correct any inconsistencies.';
 
-  // This endpoint is explicitly the OpenAI (final say) stream for non-basic modes.
-  // Keep your current /api/chat/stream for Groq/basic.
-  let system = "Validate all calculations and medical logic before answering. Correct any inconsistencies.";
-  if ((process.env.CALC_AI_DISABLE || "0") !== "1") {
+  if ((process.env.CALC_AI_DISABLE || '0') !== '1' && lastUserMessage) {
     try {
-      const extracted = extractAll?.(lastUserMessage);
-      const canonical = canonicalizeInputs?.(extracted);
-      const computed = computeAll?.(canonical);
-      const prelude = composeCalcPrelude?.(computed);
-      if (prelude) system = `Use and verify these pre-computed values first:\n${prelude}`;
-    } catch {}
+      const { composeCalcPrelude, extractAll, canonicalizeInputs, computeAll } = await loadCalcModules();
+      if (composeCalcPrelude && extractAll && canonicalizeInputs && computeAll) {
+        const extracted = extractAll(lastUserMessage);
+        const canonical = canonicalizeInputs(extracted);
+        const computed = computeAll(canonical);
+        const prelude = composeCalcPrelude(computed);
+        if (prelude) {
+          system = `Use and verify these pre-computed values first:\n${prelude}`;
+        }
+      }
+    } catch {
+      // ignore calculator errors; streaming must proceed
+    }
   }
 
   const systemChunks = [langDirective, formatInstruction, system].filter(Boolean);
-  system = systemChunks.join('\n\n');
+  const systemMessage = systemChunks.join('\n\n');
+  const chatMessages = [{ role: 'system', content: systemMessage }, ...messages];
 
-  const minMs = minDelayMs();
-  const modelStart = Date.now();
-  const upstream = await ensureMinDelay<Response>(
-    callOpenAIChat([{ role: "system", content: system }, ...messages], { stream: true }),
-    minMs,
-  );
-  const modelMs = Date.now() - modelStart;
+  const reqPayload: Record<string, any> = { messages: chatMessages };
+  const temperature = typeof payload?.temperature === 'number' ? payload.temperature : undefined;
+  if (typeof temperature === 'number') reqPayload.temperature = temperature;
+  const maxTokens = typeof payload?.max_tokens === 'number' ? payload.max_tokens : undefined;
+  if (typeof maxTokens === 'number') reqPayload.max_tokens = maxTokens;
 
-  const modeAllowed = Boolean(formatInstruction);
-  const shouldCoerceToTable = modeAllowed && needsTableCoercion(formatId);
-
-  if (shouldCoerceToTable) {
-    const rawSse = await upstream.text();
-    if (!upstream.ok) {
-      return new Response(rawSse || 'OpenAI stream error', { status: upstream.status || 500 });
-    }
-
-    const fullText = rawSse
-      .split(/\n\n/)
-      .map(line => line.replace(/^data:\s*/, ''))
-      .filter(Boolean)
-      .filter(line => line !== '[DONE]')
-      .map(chunk => {
-        try {
-          return JSON.parse(chunk)?.choices?.[0]?.delta?.content ?? '';
-        } catch {
-          return '';
-        }
-      })
-      .join('');
-
-    const subject = (lastUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
-    let table = shapeToTable(subject, fullText);
-    table = enforceLocale(table, lang, { forbidEnglishHeadings: true });
-    const payload = {
-      choices: [{ delta: { content: table, medx_reset: true } }],
-    };
-
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-        controller.close();
-      },
-    });
-
-    const totalMs = Date.now() - t0;
-    const appMs = Math.max(0, totalMs - modelMs);
-    const headers = new Headers({
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-      "Transfer-Encoding": "chunked",
-      "Server-Timing": `app;dur=${appMs},model;dur=${modelMs}`,
-      "x-medx-provider": "openai",
-      "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-5",
-    });
-
-    return new Response(stream, {
-      status: 200,
-      headers,
-    });
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) {
+    throw new UpstreamError('OPENAI_API_KEY missing', 500);
   }
 
-  if (!upstream?.ok || !upstream.body) {
-    const err = upstream ? await upstream.text().catch(() => "Upstream error") : "Upstream error";
-    return new Response(`OpenAI stream error: ${err}`, { status: 500 });
+  const upstreamHeaders: HeadersInit = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${key}`,
+  };
+
+  const primaryModel = process.env.OPENAI_TEXT_MODEL || 'gpt-5';
+  const fallbackModels = (process.env.OPENAI_FALLBACK_MODELS || 'gpt-4o,gpt-4o-mini')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+  const models = [primaryModel, ...fallbackModels].filter((model, idx, arr) => arr.indexOf(model) === idx);
+
+  const shouldCoerceToTable = Boolean(formatInstruction) && needsTableCoercion(formatId);
+
+  return {
+    upstreamUrl: OPENAI_URL,
+    upstreamHeaders,
+    reqPayload,
+    models,
+    provider: 'openai',
+    finalizeContext: {
+      lang,
+      shouldCoerceToTable,
+      formatId,
+      lastUserMessage,
+    },
+    metrics: {
+      prepMs: Date.now() - prepStart,
+    },
+  };
+}
+
+async function fetchWithFallback(prepared: PrepareResult) {
+  const { upstreamUrl, upstreamHeaders, reqPayload, models } = prepared;
+  if (!models.length) {
+    throw new UpstreamError('No OpenAI models configured', 500);
   }
 
-  const formatFinalizer = shouldCoerceToTable
-    ? (text: string) => {
-        if (hasMarkdownTable(text)) return text;
-        const subject = (lastUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
-        return shapeToTable(subject, text);
+  let lastErr: unknown = null;
+
+  for (const model of models) {
+    let triedWithoutTemp = false;
+    // Attempt with and without temperature if needed for compatibility.
+    for (;;) {
+      const omitTemperature = triedWithoutTemp || /^gpt-5/i.test(model);
+      const attemptPayload: Record<string, any> = { ...reqPayload, model, stream: true };
+      if (omitTemperature && 'temperature' in attemptPayload) {
+        delete attemptPayload.temperature;
       }
-    : undefined;
 
-  const enforcedStream = createLocaleEnforcedStream(upstream.body, lang, {
-    forbidEnglishHeadings: true,
-    finalizer: formatFinalizer,
+      try {
+        const res = await fetch(upstreamUrl, {
+          method: 'POST',
+          headers: upstreamHeaders,
+          body: JSON.stringify(attemptPayload),
+          signal: AbortSignal.timeout(30000),
+        });
+
+        if (res.ok && res.body) {
+          return { response: res, model };
+        }
+
+        const text = await res.text().catch(() => '');
+        if (!triedWithoutTemp && !omitTemperature && res.status === 400 && /temperature/i.test(text) && /unsupported/i.test(text)) {
+          triedWithoutTemp = true;
+          continue;
+        }
+
+        lastErr = new UpstreamError(`OpenAI ${model} error ${res.status}: ${text.slice(0, 200)}`, res.status);
+        break;
+      } catch (err) {
+        lastErr = err;
+        break;
+      }
+    }
+  }
+
+  if (lastErr instanceof UpstreamError) {
+    throw lastErr;
+  }
+  throw new UpstreamError(String(lastErr || 'OpenAI stream error'), 502);
+}
+
+type FinalizeContext = PrepareResult['finalizeContext'];
+
+async function finalizeOffPath(raw: string, _req: Request, ctx: FinalizeContext) {
+  void ctx;
+  if (!raw) return;
+  // Placeholders for any asynchronous post-processing (logging, persistence, etc.).
+}
+
+export async function POST(req: Request) {
+  let prepared: PrepareResult;
+  try {
+    prepared = await prepareUpstream(req);
+  } catch (error: any) {
+    const status = error instanceof UpstreamError && error.status ? error.status : 500;
+    const message = error instanceof Error ? error.message : 'Failed to prepare upstream request';
+    return new Response(message, { status });
+  }
+
+  const fetchStart = Date.now();
+  let upstream;
+  try {
+    upstream = await fetchWithFallback(prepared);
+  } catch (error: any) {
+    const status = error instanceof UpstreamError && error.status ? error.status : 502;
+    const message = error instanceof Error ? error.message : 'Upstream error';
+    return new Response(message, { status });
+  }
+
+  if (!upstream.response.body) {
+    return new Response('Upstream stream missing body', { status: 502 });
+  }
+
+  const modelInitMs = Date.now() - fetchStart;
+  const enc = new TextEncoder();
+  const dec = new TextDecoder();
+
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      let raw = '';
+      let closed = false;
+
+      const closeStream = () => {
+        if (closed) return;
+        closed = true;
+        try {
+          controller.enqueue(enc.encode('data: [DONE]\n\n'));
+        } catch {}
+        try {
+          controller.close();
+        } catch {}
+        queueMicrotask(() => {
+          void finalizeOffPath(raw, req, prepared.finalizeContext);
+        });
+      };
+
+      try {
+        controller.enqueue(enc.encode(': ping\n\n'));
+      } catch {}
+
+      const hb = setInterval(() => {
+        try {
+          controller.enqueue(enc.encode(': hb\n\n'));
+        } catch {
+          clearInterval(hb);
+        }
+      }, 10000);
+
+      const parser = createParser(event => {
+        if (event.type !== 'event') return;
+        const data = event.data;
+        if (data === '[DONE]') {
+          clearInterval(hb);
+          closeStream();
+          return;
+        }
+
+        if (data) {
+          try {
+            const parsed = JSON.parse(data);
+            const deltaNode = parsed?.choices?.[0]?.delta ?? {};
+            const resetStream = deltaNode?.medx_reset === true;
+            const delta = typeof deltaNode?.content === 'string' ? deltaNode.content : '';
+            if (resetStream) {
+              raw = delta || '';
+            } else if (delta) {
+              raw += delta;
+            }
+          } catch {
+            // ignore malformed SSE payloads (likely keepalives)
+          }
+        }
+
+        try {
+          controller.enqueue(enc.encode(`data: ${data}\n\n`));
+        } catch {
+          clearInterval(hb);
+        }
+      });
+
+      (async () => {
+        const reader = upstream.response.body!.getReader();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (value) {
+              parser.feed(dec.decode(value, { stream: true }));
+            }
+          }
+        } finally {
+          clearInterval(hb);
+          closeStream();
+        }
+      })().catch(error => {
+        clearInterval(hb);
+        try {
+          controller.error(error);
+        } catch {}
+      });
+    },
   });
 
-  const totalMs = Date.now() - t0;
-  const appMs = Math.max(0, totalMs - modelMs);
   const headers = new Headers({
-    "Content-Type": "text/event-stream; charset=utf-8",
-    "Cache-Control": "no-cache, no-transform",
-    Connection: "keep-alive",
-    "Transfer-Encoding": "chunked",
-    "Server-Timing": `app;dur=${appMs},model;dur=${modelMs}`,
-    "x-medx-provider": "openai",
-    "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-5",
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+    'x-medx-provider': prepared.provider,
+    'x-medx-model': upstream.model,
   });
 
-  return new Response(enforcedStream, {
+  const timings: string[] = [];
+  if (Number.isFinite(prepared.metrics.prepMs)) {
+    timings.push(`prep;dur=${Math.max(0, Math.round(prepared.metrics.prepMs))}`);
+  }
+  if (Number.isFinite(modelInitMs)) {
+    timings.push(`model_init;dur=${Math.max(0, Math.round(modelInitMs))}`);
+  }
+  if (timings.length) {
+    headers.set('Server-Timing', timings.join(','));
+  }
+
+  return new Response(stream, {
     status: 200,
     headers,
   });
