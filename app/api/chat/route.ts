@@ -61,6 +61,14 @@ type LogPayload =
   | { type: "persist_message"; data: { threadId: string; role: "user" | "assistant"; content: string } }
   | { type: "finalize_turn"; data: { threadId: string; assistant: string; summary?: string } };
 
+function randomId() {
+  const globalCrypto = (globalThis as typeof globalThis & { crypto?: Crypto }).crypto;
+  if (globalCrypto?.randomUUID) {
+    return globalCrypto.randomUUID();
+  }
+  return `${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`;
+}
+
 async function postLog(origin: string, payload: LogPayload) {
   try {
     await fetch(`${origin}/api/log`, {
@@ -410,7 +418,7 @@ export async function POST(req: Request) {
   if (isNewChat) {
     console.log("new_chat_started", { conversationId });
     logChatEvent(origin, {
-      id: crypto.randomUUID(),
+      id: randomId(),
       kind: "chat_start",
       conversationId,
       userId: userId ?? null,
@@ -422,7 +430,7 @@ export async function POST(req: Request) {
     activeThreadId = conversationId;
     if (isNewChat) {
       logChatEvent(origin, {
-        id: crypto.randomUUID(),
+        id: randomId(),
         kind: "chat_thread_cleanup",
         threadId: activeThreadId,
       });
@@ -639,10 +647,10 @@ export async function POST(req: Request) {
   if (decision.action === "continue") {
     threadId = decision.threadId;
   } else if (decision.action === "newThread") {
-    const newId = crypto.randomUUID();
+    const newId = randomId();
     threadId = newId;
     logChatEvent(origin, {
-      id: crypto.randomUUID(),
+      id: randomId(),
       kind: "chat_thread_create",
       threadId: newId,
       userId: userId ?? null,
@@ -791,8 +799,8 @@ export async function POST(req: Request) {
 function generateConversationId() {
   const globalCrypto = (globalThis as typeof globalThis & { crypto?: Crypto }).crypto;
   if (globalCrypto?.randomUUID) {
-    return globalCrypto.randomUUID();
+    return randomId();
   }
   // Extremely unlikely fallback that keeps us working in older runtimes.
-  return `medx-${Math.random().toString(36).slice(2)}-${Date.now()}`;
+  return `medx-${randomId()}`;
 }
