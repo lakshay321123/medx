@@ -64,6 +64,15 @@ body.font-loading *::after {
   pointer-events: auto;
 }
 
+/* Allow floating wrappers to forward events only to their children */
+.click-through {
+  pointer-events: none;
+}
+
+.click-through > * {
+  pointer-events: auto;
+}
+
 /* Compact typography for AI content */
 .prose-medx {
   /* narrower line-height than Tailwind Typography defaults */

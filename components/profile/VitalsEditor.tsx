@@ -11,6 +11,9 @@ export type VitalsEditorProps = {
   initialDiastolic: NumericLike;
   initialHeartRate: NumericLike;
   initialBmi?: NumericLike;
+  initialRespiratoryRate?: NumericLike;
+  initialSpO2?: NumericLike;
+  initialTemperature?: NumericLike;
   heightCm: number | null;
   weightKg: number | null;
   onCancel: () => void;
@@ -22,6 +25,9 @@ export default function VitalsEditor({
   initialDiastolic,
   initialHeartRate,
   initialBmi,
+  initialRespiratoryRate,
+  initialSpO2,
+  initialTemperature,
   heightCm,
   weightKg,
   onCancel,
@@ -30,12 +36,27 @@ export default function VitalsEditor({
   const [systolic, setSystolic] = useState(toInputValue(initialSystolic));
   const [diastolic, setDiastolic] = useState(toInputValue(initialDiastolic));
   const [heartRate, setHeartRate] = useState(toInputValue(initialHeartRate));
+  const [respiratoryRate, setRespiratoryRate] = useState(toInputValue(initialRespiratoryRate));
+  const [spo2, setSpo2] = useState(toInputValue(initialSpO2));
+  const [temperature, setTemperature] = useState(toInputValue(initialTemperature));
   const computedBmi = computeBmi(heightCm, weightKg);
   const [manualBmi, setManualBmi] = useState(
     computedBmi != null ? String(computedBmi) : toInputValue(initialBmi),
   );
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setRespiratoryRate(toInputValue(initialRespiratoryRate));
+  }, [initialRespiratoryRate]);
+
+  useEffect(() => {
+    setSpo2(toInputValue(initialSpO2));
+  }, [initialSpO2]);
+
+  useEffect(() => {
+    setTemperature(toInputValue(initialTemperature));
+  }, [initialTemperature]);
 
   useEffect(() => {
     if (computedBmi != null) {
@@ -49,6 +70,9 @@ export default function VitalsEditor({
     const systolicValue = toNumber(systolic);
     const diastolicValue = toNumber(diastolic);
     const heartRateValue = toNumber(heartRate);
+    const respiratoryRateValue = toNumber(respiratoryRate);
+    const spo2Value = toNumber(spo2);
+    const temperatureValue = toNumber(temperature);
     const bmiValue =
       computedBmi != null
         ? computedBmi
@@ -60,6 +84,9 @@ export default function VitalsEditor({
       systolicValue == null &&
       diastolicValue == null &&
       heartRateValue == null &&
+      respiratoryRateValue == null &&
+      spo2Value == null &&
+      temperatureValue == null &&
       bmiValue == null
     ) {
       setError("Enter at least one vital to save.");
@@ -99,6 +126,36 @@ export default function VitalsEditor({
             unit: "bpm",
             observed_at: observedAt,
             meta: { ...metaBase, normalizedName: "Heart Rate" },
+          }
+        : null,
+      respiratoryRateValue != null
+        ? {
+            kind: "respiratory_rate",
+            value_num: respiratoryRateValue,
+            value_text: String(respiratoryRateValue),
+            unit: "breaths/min",
+            observed_at: observedAt,
+            meta: { ...metaBase, normalizedName: "Respiratory Rate" },
+          }
+        : null,
+      spo2Value != null
+        ? {
+            kind: "spo2",
+            value_num: spo2Value,
+            value_text: String(spo2Value),
+            unit: "%",
+            observed_at: observedAt,
+            meta: { ...metaBase, normalizedName: "SpO₂" },
+          }
+        : null,
+      temperatureValue != null
+        ? {
+            kind: "temperature",
+            value_num: temperatureValue,
+            value_text: String(temperatureValue),
+            unit: "°C",
+            observed_at: observedAt,
+            meta: { ...metaBase, normalizedName: "Temperature" },
           }
         : null,
       bmiValue != null
@@ -196,6 +253,52 @@ export default function VitalsEditor({
             value={heartRate}
             onChange={event => setHeartRate(event.target.value)}
             disabled={isSaving}
+          />
+        </label>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-muted-foreground">
+            Respiratory rate (breaths/min)
+          </span>
+          <input
+            type="number"
+            inputMode="numeric"
+            className="rounded-md border px-3 py-2"
+            placeholder="16"
+            value={respiratoryRate}
+            onChange={event => setRespiratoryRate(event.target.value)}
+            disabled={isSaving}
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-muted-foreground">
+            Oxygen saturation (SpO₂ %)
+          </span>
+          <input
+            type="number"
+            inputMode="numeric"
+            className="rounded-md border px-3 py-2"
+            placeholder="98"
+            value={spo2}
+            onChange={event => setSpo2(event.target.value)}
+            min={0}
+            max={100}
+            disabled={isSaving}
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-muted-foreground">Temperature (°C)</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            className="rounded-md border px-3 py-2"
+            placeholder="36.8"
+            value={temperature}
+            onChange={event => setTemperature(event.target.value)}
+            disabled={isSaving}
+            step="0.1"
           />
         </label>
       </div>
