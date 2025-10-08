@@ -28,3 +28,7 @@ export const authOptions: NextAuthOptions = {
   },
 };
 
+export async function requireAdmin(req: Request) {
+  const h = req.headers.get('x-admin-key') || '';
+  return Boolean(h && process.env.ADMIN_API_KEY && h === process.env.ADMIN_API_KEY);
+}
