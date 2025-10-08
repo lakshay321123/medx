@@ -834,6 +834,13 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const documentNotePlaceholder = t('ui.composer.document_note_placeholder');
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const legacyTypewriterRef = useRef<{
+    messageId: string | null;
+    buffer: string;
+    visible: string;
+    pumpActive: boolean;
+    timer: ReturnType<typeof setTimeout> | null;
+  }>({ messageId: null, buffer: '', visible: '', pumpActive: false, timer: null });
   const [userText, setUserText] = useState('');
   const [mounted, setMounted] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
@@ -900,6 +907,131 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     },
     [allowHistory],
   );
+
+  const legacyPump = useCallback(() => {
+    if (CHAT_UX_V2_ENABLED) return;
+    if (typeof window === 'undefined') return;
+    const state = legacyTypewriterRef.current;
+    state.timer = null;
+    if (!state.messageId) {
+      state.buffer = '';
+      state.visible = '';
+      state.pumpActive = false;
+      return;
+    }
+    const chunk = state.buffer.slice(0, 6);
+    state.buffer = state.buffer.slice(6);
+    if (chunk) {
+      state.visible += chunk;
+      const messageId = state.messageId;
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? ({ ...m, content: state.visible } as ChatMessage) : m)),
+      );
+    }
+    if (state.buffer.length > 0) {
+      state.timer = window.setTimeout(legacyPump, 12);
+    } else {
+      state.pumpActive = false;
+    }
+  }, [setMessages]);
+
+  const kickLegacyPump = useCallback(() => {
+    if (CHAT_UX_V2_ENABLED) return;
+    if (typeof window === 'undefined') return;
+    const state = legacyTypewriterRef.current;
+    if (state.pumpActive) return;
+    state.pumpActive = true;
+    state.timer = window.setTimeout(legacyPump, 0);
+  }, [legacyPump]);
+
+  const startLegacyTypewriter = useCallback(
+    (messageId: string) => {
+      if (CHAT_UX_V2_ENABLED) return;
+      const timer = legacyTypewriterRef.current.timer;
+      if (typeof window !== 'undefined' && timer != null) {
+        window.clearTimeout(timer);
+      }
+      legacyTypewriterRef.current = {
+        messageId,
+        buffer: '',
+        visible: '',
+        pumpActive: false,
+        timer: null,
+      };
+    },
+    [],
+  );
+
+  const enqueueLegacyTypewriter = useCallback(
+    (messageId: string, chunk: string) => {
+      if (CHAT_UX_V2_ENABLED || !chunk) return;
+      const state = legacyTypewriterRef.current;
+      if (state.messageId !== messageId) {
+        startLegacyTypewriter(messageId);
+      }
+      legacyTypewriterRef.current.buffer += chunk;
+      kickLegacyPump();
+    },
+    [kickLegacyPump, startLegacyTypewriter],
+  );
+
+  const resetLegacyTypewriter = useCallback(
+    (messageId: string, text: string) => {
+      if (CHAT_UX_V2_ENABLED) return;
+      const timer = legacyTypewriterRef.current.timer;
+      if (typeof window !== 'undefined' && timer != null) {
+        window.clearTimeout(timer);
+      }
+      legacyTypewriterRef.current = {
+        messageId,
+        buffer: '',
+        visible: text,
+        pumpActive: false,
+        timer: null,
+      };
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? ({ ...m, content: text } as ChatMessage) : m)),
+      );
+    },
+    [setMessages],
+  );
+
+  const finalizeLegacyTypewriter = useCallback(
+    (messageId: string, text: string) => {
+      if (CHAT_UX_V2_ENABLED) return;
+      const timer = legacyTypewriterRef.current.timer;
+      if (typeof window !== 'undefined' && timer != null) {
+        window.clearTimeout(timer);
+      }
+      legacyTypewriterRef.current = {
+        messageId: null,
+        buffer: '',
+        visible: '',
+        pumpActive: false,
+        timer: null,
+      };
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? ({ ...m, content: text } as ChatMessage) : m)),
+      );
+    },
+    [setMessages],
+  );
+
+  useEffect(() => {
+    return () => {
+      const timer = legacyTypewriterRef.current.timer;
+      if (typeof window !== 'undefined' && timer != null) {
+        window.clearTimeout(timer);
+      }
+      legacyTypewriterRef.current = {
+        messageId: null,
+        buffer: '',
+        visible: '',
+        pumpActive: false,
+        timer: null,
+      };
+    };
+  }, []);
 
   const handlePendingContentUpdate = useCallback(
     (messageId: string, text: string) => {
@@ -2654,6 +2786,9 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         acc = '';
+        if (!CHAT_UX_V2_ENABLED) {
+          startLegacyTypewriter(pendingId);
+        }
         let sawContent = false;
         let loggedFirstToken = false;
         while (true) {
@@ -2685,13 +2820,16 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
                 }
                 enqueuePendingAssistant(pendingId, delta);
                 if (!CHAT_UX_V2_ENABLED) {
-                  setMessages(prev => prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m)));
+                  enqueueLegacyTypewriter(pendingId, delta);
                 }
               }
             } catch {}
           }
         }
         const { main, followUps } = splitFollowUps(acc);
+        if (!CHAT_UX_V2_ENABLED) {
+          finalizeLegacyTypewriter(pendingId, main);
+        }
         finishPendingAssistant(pendingId, main, { followUps });
         recordShortMem(threadId, "assistant", main);
         recordStructured(threadId, main);
@@ -3031,6 +3169,9 @@ ${systemCommon}` + baseSys;
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       acc = '';
+      if (!CHAT_UX_V2_ENABLED) {
+        startLegacyTypewriter(pendingId);
+      }
       let sawContent = false;
       let loggedFirstToken = false;
 
@@ -3068,21 +3209,24 @@ ${systemCommon}` + baseSys;
             if (resetStream) {
               acc = delta;
               resetPendingAssistant(pendingId, delta);
+              if (!CHAT_UX_V2_ENABLED) {
+                resetLegacyTypewriter(pendingId, delta);
+              }
             } else if (delta) {
               acc += delta;
               enqueuePendingAssistant(pendingId, delta);
-            }
-
-            if (!CHAT_UX_V2_ENABLED) {
-              setMessages(prev =>
-                prev.map(m => (m.id === pendingId ? { ...m, content: acc } : m))
-              );
+              if (!CHAT_UX_V2_ENABLED) {
+                enqueueLegacyTypewriter(pendingId, delta);
+              }
             }
           } catch {}
         }
       }
       const { main, followUps } = splitFollowUps(acc);
       const safeMain = enforceLocale(main, uiLanguage ?? 'en', { forbidEnglishHeadings: true });
+      if (!CHAT_UX_V2_ENABLED) {
+        finalizeLegacyTypewriter(pendingId, safeMain);
+      }
       finishPendingAssistant(pendingId, safeMain, { followUps });
       opts.onSuccess?.(pendingId);
       if (researchMode) {
@@ -3110,12 +3254,18 @@ ${systemCommon}` + baseSys;
       }
     } catch (e: any) {
       if (e?.name === 'AbortError') {
+        if (!CHAT_UX_V2_ENABLED) {
+          finalizeLegacyTypewriter(pendingId, acc);
+        }
         finishPendingAssistant(pendingId, acc);
         opts.onError?.();
         return;
       }
       console.error(e);
       const content = `⚠️ ${String(e?.message || e)}`;
+      if (!CHAT_UX_V2_ENABLED) {
+        finalizeLegacyTypewriter(pendingId, content);
+      }
       finishPendingAssistant(pendingId, content, { error: String(e?.message || e) });
       recordShortMem(threadId, 'assistant', content);
       recordStructured(threadId, content);

@@ -1,26 +1,32 @@
-import { ensureMinDelay, minDelayMs } from "@/lib/utils/ensureMinDelay";
-import { callOpenAIChat } from "@/lib/medx/providers";
-import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
-import { SUPPORTED_LANGS } from "@/lib/i18n/constants";
-import { createLocaleEnforcedStream, enforceLocale } from "@/lib/i18n/enforce";
-import { normalizeModeTag } from "@/lib/i18n/normalize";
-import { buildFormatInstruction } from "@/lib/formats/build";
-import { FORMATS } from "@/lib/formats/registry";
-import { isValidLang, isValidMode } from "@/lib/formats/constants";
-import { needsTableCoercion } from "@/lib/formats/tableGuard";
-import { hasMarkdownTable, shapeToTable } from "@/lib/formats/tableShape";
-import type { FormatId, Mode } from "@/lib/formats/types";
+import { createParser } from 'eventsource-parser';
+import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from '@/lib/prompt/system';
+import { SUPPORTED_LANGS } from '@/lib/i18n/constants';
+import { normalizeModeTag } from '@/lib/i18n/normalize';
+import { buildFormatInstruction } from '@/lib/formats/build';
+import { FORMATS } from '@/lib/formats/registry';
+import { isValidLang, isValidMode } from '@/lib/formats/constants';
+import { needsTableCoercion } from '@/lib/formats/tableGuard';
+import { hasMarkdownTable, shapeToTable } from '@/lib/formats/tableShape';
+import type { FormatId, Mode } from '@/lib/formats/types';
 
-// Optional calculator prelude (safe if engine absent)
-let composeCalcPrelude: any, extractAll: any, canonicalizeInputs: any, computeAll: any;
-try {
-  ({ composeCalcPrelude } = require("@/lib/medical/engine/prelude"));
-  ({ extractAll, canonicalizeInputs } = require("@/lib/medical/engine/extract"));
-  ({ computeAll } = require("@/lib/medical/engine/computeAll"));
-} catch {}
+export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+type PrepareResult = {
+  upstreamUrl: string;
+  upstreamHeaders: Record<string, string>;
+  reqPayload: Record<string, unknown>;
+  finalizeContext: FinalizeContext;
+};
+
+type FinalizeContext = {
+  lang: string;
+  lastUserMessage: string;
+  shouldCoerceToTable: boolean;
+  formatId?: FormatId;
+  threadId?: string;
+  modeTag?: string;
+};
 
 function normalizeLangTag(tag?: string | null) {
   if (!tag) return 'en';
@@ -28,23 +34,25 @@ function normalizeLangTag(tag?: string | null) {
   return (SUPPORTED_LANGS as readonly string[]).includes(base as any) ? base : 'en';
 }
 
-export async function POST(req: Request) {
-  const t0 = Date.now();
-  const payload = await req.json();
-  const { messages = [], mode } = payload ?? {};
-  const rawFormat = typeof payload?.formatId === 'string'
-    ? payload.formatId.trim().toLowerCase()
-    : '';
-  const formatId = rawFormat && FORMATS.some(f => f.id === rawFormat)
-    ? (rawFormat as FormatId)
-    : undefined;
-  const rawModeTag = payload?.modeTag ?? mode;
+async function prepareUpstream(req: Request): Promise<PrepareResult> {
+  let payload: any = {};
+  try {
+    payload = await req.json();
+  } catch {
+    payload = {};
+  }
+
+  const messages = Array.isArray(payload?.messages) ? payload.messages : [];
+  const rawFormat = typeof payload?.formatId === 'string' ? payload.formatId.trim().toLowerCase() : '';
+  const formatId = rawFormat && FORMATS.some((f) => f.id === rawFormat) ? (rawFormat as FormatId) : undefined;
+  const rawModeTag = payload?.modeTag ?? payload?.mode;
   const normalizedModeTag = normalizeModeTag(rawModeTag);
   const resolvedMode: Mode = isValidMode(normalizedModeTag) ? normalizedModeTag : 'wellness';
+
   if (process.env.NODE_ENV !== 'production' && !payload?.modeTag) {
-    // eslint-disable-next-line no-console
-    console.warn('[medx] Missing modeTag in request body; falling back to legacy mode:', mode);
+    console.warn('[medx] Missing modeTag in request body; falling back to legacy mode:', payload?.mode);
   }
+
   const requestedLang = typeof payload?.lang === 'string' ? payload.lang : undefined;
   const headerLang = req.headers.get('x-user-lang') || req.headers.get('x-lang') || undefined;
   const langTag = (requestedLang && requestedLang.trim()) || (headerLang && headerLang.trim()) || SYSTEM_DEFAULT_LANG;
@@ -55,121 +63,154 @@ export async function POST(req: Request) {
     : '';
 
   const lastUserMessage =
-    messages.slice().reverse().find((m: any) => m.role === "user")?.content || "";
+    messages.slice().reverse().find((m: any) => m?.role === 'user')?.content || '';
 
-  // This endpoint is explicitly the OpenAI (final say) stream for non-basic modes.
-  // Keep your current /api/chat/stream for Groq/basic.
-  let system = "Validate all calculations and medical logic before answering. Correct any inconsistencies.";
-  if ((process.env.CALC_AI_DISABLE || "0") !== "1") {
-    try {
-      const extracted = extractAll?.(lastUserMessage);
-      const canonical = canonicalizeInputs?.(extracted);
-      const computed = computeAll?.(canonical);
-      const prelude = composeCalcPrelude?.(computed);
-      if (prelude) system = `Use and verify these pre-computed values first:\n${prelude}`;
-    } catch {}
-  }
-
+  let system = 'Validate all calculations and medical logic before answering. Correct any inconsistencies.';
   const systemChunks = [langDirective, formatInstruction, system].filter(Boolean);
   system = systemChunks.join('\n\n');
 
-  const minMs = minDelayMs();
-  const modelStart = Date.now();
-  const upstream = await ensureMinDelay<Response>(
-    callOpenAIChat([{ role: "system", content: system }, ...messages], { stream: true }),
-    minMs,
-  );
-  const modelMs = Date.now() - modelStart;
+  const upstreamMessages = [{ role: 'system', content: system }, ...messages];
 
-  const modeAllowed = Boolean(formatInstruction);
-  const shouldCoerceToTable = modeAllowed && needsTableCoercion(formatId);
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    const error = new Error('OPENAI_API_KEY missing');
+    (error as any).status = 500;
+    throw error;
+  }
 
-  if (shouldCoerceToTable) {
-    const rawSse = await upstream.text();
-    if (!upstream.ok) {
-      return new Response(rawSse || 'OpenAI stream error', { status: upstream.status || 500 });
-    }
+  const model = process.env.OPENAI_TEXT_MODEL || 'gpt-5';
 
-    const fullText = rawSse
-      .split(/\n\n/)
-      .map(line => line.replace(/^data:\s*/, ''))
-      .filter(Boolean)
-      .filter(line => line !== '[DONE]')
-      .map(chunk => {
+  const reqPayload: Record<string, unknown> = {
+    model,
+    messages: upstreamMessages,
+    temperature: 0.1,
+  };
+
+  const finalizeContext: FinalizeContext = {
+    lang,
+    lastUserMessage,
+    shouldCoerceToTable: Boolean(formatInstruction) && needsTableCoercion(formatId),
+    formatId,
+    threadId: typeof payload?.threadId === 'string' ? payload.threadId : undefined,
+    modeTag: normalizedModeTag ?? undefined,
+  };
+
+  return {
+    upstreamUrl: 'https://api.openai.com/v1/chat/completions',
+    upstreamHeaders: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    reqPayload,
+    finalizeContext,
+  };
+}
+
+export async function POST(req: Request) {
+  let prepared: PrepareResult;
+  try {
+    prepared = await prepareUpstream(req);
+  } catch (error: any) {
+    const status = typeof error?.status === 'number' ? error.status : 400;
+    const message = typeof error?.message === 'string' ? error.message : 'Invalid request';
+    return new Response(message, { status });
+  }
+
+  const { upstreamUrl, upstreamHeaders, reqPayload, finalizeContext } = prepared;
+
+  const upstream = await fetch(upstreamUrl, {
+    method: 'POST',
+    headers: upstreamHeaders,
+    body: JSON.stringify({ ...reqPayload, stream: true }),
+    signal: AbortSignal.timeout(30000),
+  });
+
+  if (!upstream.ok || !upstream.body) {
+    const text = await upstream.text().catch(() => 'Upstream error');
+    return new Response(text, { status: upstream.status || 500 });
+  }
+
+  const enc = new TextEncoder();
+  const dec = new TextDecoder();
+  let raw = '';
+
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(enc.encode(': ping\n\n'));
+
+      const hb = setInterval(() => {
         try {
-          return JSON.parse(chunk)?.choices?.[0]?.delta?.content ?? '';
+          controller.enqueue(enc.encode(': hb\n\n'));
         } catch {
-          return '';
+          // ignore write errors
         }
-      })
-      .join('');
+      }, 10000);
 
+      const parser = createParser((evt) => {
+        if (evt.type !== 'event') return;
+        const data = evt.data;
+
+        if (data === '[DONE]') {
+          clearInterval(hb);
+          controller.enqueue(enc.encode('data: [DONE]\n\n'));
+          controller.close();
+          queueMicrotask(async () => {
+            try {
+              await finalizeOffPath(raw, req, finalizeContext);
+            } catch {
+              // swallow finalize errors
+            }
+          });
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed?.choices?.[0]?.delta?.content ?? '';
+          if (delta) raw += delta;
+        } catch {
+          // ignore keep-alives and malformed events
+        }
+
+        controller.enqueue(enc.encode(`data: ${data}\n\n`));
+      });
+
+      (async () => {
+        const reader = upstream.body!.getReader();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            parser.feed(dec.decode(value, { stream: true }));
+          }
+        } finally {
+          clearInterval(hb);
+        }
+      })().catch((err) => {
+        clearInterval(hb);
+        controller.error(err);
+      });
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    },
+  });
+}
+
+async function finalizeOffPath(raw: string, req: Request, context: FinalizeContext) {
+  if (!raw) return;
+  const { shouldCoerceToTable, lastUserMessage } = context;
+  if (shouldCoerceToTable && !hasMarkdownTable(raw)) {
     const subject = (lastUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
-    let table = shapeToTable(subject, fullText);
-    table = enforceLocale(table, lang, { forbidEnglishHeadings: true });
-    const payload = {
-      choices: [{ delta: { content: table, medx_reset: true } }],
-    };
-
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-        controller.close();
-      },
-    });
-
-    const totalMs = Date.now() - t0;
-    const appMs = Math.max(0, totalMs - modelMs);
-    const headers = new Headers({
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-      "Transfer-Encoding": "chunked",
-      "Server-Timing": `app;dur=${appMs},model;dur=${modelMs}`,
-      "x-medx-provider": "openai",
-      "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-5",
-    });
-
-    return new Response(stream, {
-      status: 200,
-      headers,
-    });
+    const table = shapeToTable(subject, raw);
+    void table;
   }
-
-  if (!upstream?.ok || !upstream.body) {
-    const err = upstream ? await upstream.text().catch(() => "Upstream error") : "Upstream error";
-    return new Response(`OpenAI stream error: ${err}`, { status: 500 });
-  }
-
-  const formatFinalizer = shouldCoerceToTable
-    ? (text: string) => {
-        if (hasMarkdownTable(text)) return text;
-        const subject = (lastUserMessage || '').split('\n')[0]?.trim() || 'Comparison';
-        return shapeToTable(subject, text);
-      }
-    : undefined;
-
-  const enforcedStream = createLocaleEnforcedStream(upstream.body, lang, {
-    forbidEnglishHeadings: true,
-    finalizer: formatFinalizer,
-  });
-
-  const totalMs = Date.now() - t0;
-  const appMs = Math.max(0, totalMs - modelMs);
-  const headers = new Headers({
-    "Content-Type": "text/event-stream; charset=utf-8",
-    "Cache-Control": "no-cache, no-transform",
-    Connection: "keep-alive",
-    "Transfer-Encoding": "chunked",
-    "Server-Timing": `app;dur=${appMs},model;dur=${modelMs}`,
-    "x-medx-provider": "openai",
-    "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-5",
-  });
-
-  return new Response(enforcedStream, {
-    status: 200,
-    headers,
-  });
+  // polishText → selfCheck → addEvidenceAnchorIfMedical → buildConstraintRecap → sanitizeLLM → finalReplyGuard
+  // Persist via Node logger route with keepalive (single transaction for message+summary; see Section C).
 }

@@ -16,7 +16,7 @@ export async function streamChat(
   handlers: StreamHandlers,
   signal?: AbortSignal
 ): Promise<void> {
-  const res = await fetch("/api/chat", {
+  const res = await fetch("/api/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),
