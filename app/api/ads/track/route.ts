@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { recordPartnerEvent } from '@/lib/ads/revenue';
 
 type Event = {
   type: 'impression' | 'click';
@@ -26,6 +27,8 @@ export async function POST(req: Request) {
   if (!body?.type || !['impression', 'click'].includes(body.type)) {
     return NextResponse.json({ error: 'Invalid event' }, { status: 400 });
   }
+
+  recordPartnerEvent(body.partner || 'unknown', body.type);
 
   if (Math.random() < RATE) {
     console.log('[ads.track]', {

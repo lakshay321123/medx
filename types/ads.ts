@@ -24,3 +24,16 @@ export interface BrokerResult {
   card?: AdCard;
   reason?: 'disabled'|'zone_blocked'|'freq_cap'|'no_fill';
 }
+
+export interface PartnerOfferInput {
+  region: string;
+  keywords: string[];
+  category: AdCategory;
+}
+
+export interface PartnerOffer extends AdCard {
+  slot: 'inline';
+  ttlSeconds?: number;
+}
+
+export type PartnerAdapter = (input: PartnerOfferInput) => Promise<PartnerOffer|null>;
