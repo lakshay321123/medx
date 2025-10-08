@@ -839,7 +839,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
     buffer: string;
     visible: string;
     pumpActive: boolean;
-    timer: ReturnType<typeof setTimeout> | null;
+    timer: number | null;
   }>({ messageId: null, buffer: '', visible: '', pumpActive: false, timer: null });
   const [userText, setUserText] = useState('');
   const [mounted, setMounted] = useState(false);
