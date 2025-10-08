@@ -4460,7 +4460,7 @@ ${systemCommon}` + baseSys;
                   />
 
                   {(queueActive || busy || abortRef.current) && (
-                    <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+                    <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
                       <StopButton
                         onClick={onStop}
                         className="pointer-events-auto"
