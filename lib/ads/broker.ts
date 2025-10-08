@@ -1,8 +1,6 @@
 import { AdContext, BrokerResult } from '@/types/ads';
 import { extractKeywords, chooseCategory } from './intent';
-import { getLabOffer } from './partners/labs';
-import { getOtcOffer } from './partners/otc';
-import { getClinicOffer } from './partners/clinic';
+import { getFirstFill } from './registry';
 
 function flag(name:string, def=''): string {
   const v = process.env[name];
@@ -20,11 +18,13 @@ export async function broker(ctx: AdContext): Promise<BrokerResult> {
   if (ctx.tier !== 'free' && ctx.tier !== '100') return { reason: 'disabled' };
 
   const kws = extractKeywords(ctx.text);
-  const cat = chooseCategory(kws);
-  let card = null;
-  if (cat==='labs') card = await getLabOffer(ctx.region);
-  else if (cat==='otc') card = await getOtcOffer(ctx.region);
-  else card = await getClinicOffer(ctx.region);
+  const category = chooseCategory(kws);
+
+  const card = await getFirstFill({
+    region: ctx.region,
+    keywords: kws,
+    category,
+  });
 
   if (!card) return { reason: 'no_fill' };
   return { card };
