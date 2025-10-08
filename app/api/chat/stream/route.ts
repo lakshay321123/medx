@@ -161,7 +161,7 @@ export async function POST(req: NextRequest) {
 
   const effectiveFormatId: FormatId | undefined = (() => {
     if (formatPinned && isAllowed(formatId)) return formatId!;
-    if (isAllowed(formatHint)) return formatHint!;
+    if (!formatPinned && isAllowed(formatHint)) return formatHint!;
     if (!formatPinned && isAllowed(formatId)) return formatId!;
     return undefined; // mode default
   })();
