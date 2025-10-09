@@ -94,6 +94,8 @@ async function fetchAd(payload: {
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
 const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== '0';
+const CHAT_STREAM_PROVIDER = 'openai';
+const CHAT_STREAM_MODEL = process.env.NEXT_PUBLIC_OPENAI_TEXT_MODEL || 'gpt-5';
 
 const NEARBY_DEFAULT_RADIUS_KM = 2;
 const NEARBY_RADIUS_CHOICES = [1, 2, 3, 5, 8, 10] as const;
@@ -3136,6 +3138,8 @@ ${systemCommon}` + baseSys;
           'x-user-lang': lang
         },
         body: JSON.stringify({
+          provider: CHAT_STREAM_PROVIDER,
+          model: CHAT_STREAM_MODEL,
           mode: mode === 'doctor' ? 'doctor' : 'patient',
           modeTag: activeModeTag,
           messages: chatMessages,

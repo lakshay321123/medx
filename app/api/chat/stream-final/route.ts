@@ -14,8 +14,9 @@ export const dynamic = 'force-dynamic';
 type PrepareResult = {
   upstreamUrl: string;
   upstreamHeaders: Record<string, string>;
-  reqPayload: Record<string, unknown>;
+  reqPayload: Record<string, unknown> & { model: string };
   finalizeContext: FinalizeContext;
+  provider: 'openai';
 };
 
 type FinalizeContext = {
@@ -33,15 +34,34 @@ function normalizeLangTag(tag?: string | null) {
   return (SUPPORTED_LANGS as readonly string[]).includes(base as any) ? base : 'en';
 }
 
-async function prepareUpstream(req: Request): Promise<PrepareResult> {
-  let payload: any = {};
-  try {
-    payload = await req.json();
-  } catch {
-    payload = {};
+async function prepareUpstream(req: Request, payload: any): Promise<PrepareResult> {
+  const provider = typeof payload?.provider === 'string' ? payload.provider.trim().toLowerCase() : '';
+  if (!provider || provider !== 'openai') {
+    const error = new Error('Unsupported provider. Expected "openai".');
+    (error as any).status = 400;
+    throw error;
   }
 
   const messages = Array.isArray(payload?.messages) ? payload.messages : [];
+  if (!messages.length) {
+    const error = new Error('messages must be a non-empty array.');
+    (error as any).status = 400;
+    throw error;
+  }
+
+  const invalidMessage = messages.find(
+    (m: any) => typeof m?.role !== 'string' || typeof m?.content !== 'string' || !m.role.trim()
+  );
+  if (invalidMessage) {
+    const error = new Error('Each message must include string role and content.');
+    (error as any).status = 400;
+    throw error;
+  }
+
+  const normalizedMessages = messages.map((m: any) => ({
+    role: m.role,
+    content: m.content,
+  }));
   const rawFormat = typeof payload?.formatId === 'string' ? payload.formatId.trim().toLowerCase() : '';
   const formatId = rawFormat && FORMATS.some((f) => f.id === rawFormat) ? (rawFormat as FormatId) : undefined;
   const rawModeTag = payload?.modeTag ?? payload?.mode;
@@ -68,7 +88,7 @@ async function prepareUpstream(req: Request): Promise<PrepareResult> {
   const systemChunks = [langDirective, formatInstruction, system].filter(Boolean);
   system = systemChunks.join('\n\n');
 
-  const upstreamMessages = [{ role: 'system', content: system }, ...messages];
+  const upstreamMessages = [{ role: 'system', content: system }, ...normalizedMessages];
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -77,9 +97,15 @@ async function prepareUpstream(req: Request): Promise<PrepareResult> {
     throw error;
   }
 
-  const model = process.env.OPENAI_TEXT_MODEL || 'gpt-5';
+  const requestedModel = typeof payload?.model === 'string' ? payload.model.trim() : '';
+  if (!requestedModel) {
+    const error = new Error('model is required.');
+    (error as any).status = 400;
+    throw error;
+  }
+  const model = requestedModel;
 
-  const reqPayload: Record<string, unknown> = {
+  const reqPayload: Record<string, unknown> & { model: string } = {
     model,
     messages: upstreamMessages,
     temperature: 0.1,
@@ -102,20 +128,37 @@ async function prepareUpstream(req: Request): Promise<PrepareResult> {
     },
     reqPayload,
     finalizeContext,
+    provider: 'openai',
   };
 }
 
 export async function POST(req: Request) {
+  const contentType = req.headers.get('content-type')?.toLowerCase() || '';
+  if (!contentType.includes('application/json')) {
+    return jsonResponse({ error: 'Expected application/json request body.' }, 400);
+  }
+
+  let payload: any;
+  try {
+    payload = await req.json();
+  } catch {
+    return jsonResponse({ error: 'Invalid JSON body.' }, 400);
+  }
+
+  if (!payload || typeof payload !== 'object') {
+    return jsonResponse({ error: 'Request body must be a JSON object.' }, 400);
+  }
+
   let prepared: PrepareResult;
   try {
-    prepared = await prepareUpstream(req);
+    prepared = await prepareUpstream(req, payload);
   } catch (error: any) {
     const status = typeof error?.status === 'number' ? error.status : 400;
     const message = typeof error?.message === 'string' ? error.message : 'Invalid request';
-    return new Response(message, { status });
+    return jsonResponse({ error: message }, status);
   }
 
-  const { upstreamUrl, upstreamHeaders, reqPayload, finalizeContext } = prepared;
+  const { upstreamUrl, upstreamHeaders, reqPayload, finalizeContext, provider } = prepared;
 
   const upstream = await fetch(upstreamUrl, {
     method: 'POST',
@@ -125,8 +168,21 @@ export async function POST(req: Request) {
   });
 
   if (!upstream.ok || !upstream.body) {
-    const text = await upstream.text().catch(() => 'Upstream error');
-    return new Response(text, { status: upstream.status || 500 });
+    if (upstream.status >= 400 && upstream.status < 500) {
+      const reason = await readUpstreamSnippet(upstream.body, 1000);
+      return jsonResponse(
+        {
+          upstream_status: upstream.status,
+          model: reqPayload.model,
+          provider,
+          reason,
+        },
+        upstream.status || 400
+      );
+    }
+
+    const reason = upstream.body ? await readUpstreamSnippet(upstream.body, 400) : 'Upstream error';
+    return jsonResponse({ error: reason || 'Upstream error' }, upstream.status || 502);
   }
 
   const enc = new TextEncoder();
@@ -225,4 +281,45 @@ async function finalizeOffPath(raw: string, req: Request, context: FinalizeConte
   }
   // polishText → selfCheck → addEvidenceAnchorIfMedical → buildConstraintRecap → sanitizeLLM → finalReplyGuard
   // Persist via Node logger route with keepalive (single transaction for message+summary; see Section C).
+}
+
+function jsonResponse(payload: any, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+async function readUpstreamSnippet(
+  stream: ReadableStream<Uint8Array> | null,
+  limit: number
+): Promise<string> {
+  if (!stream) return 'Upstream returned no response body.';
+
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let result = '';
+
+  try {
+    while (result.length < limit) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value) {
+        result += decoder.decode(value, { stream: true });
+        if (result.length >= limit) break;
+      }
+    }
+    result += decoder.decode();
+  } catch {
+    // ignore streaming read errors on diagnostics path
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // ignore release errors
+    }
+  }
+
+  const trimmed = result.trim();
+  return trimmed.slice(0, limit) || 'Unknown upstream error.';
 }
