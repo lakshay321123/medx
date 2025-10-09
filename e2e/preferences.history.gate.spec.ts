@@ -42,6 +42,8 @@ test("History OFF excludes prior turns; ON includes", async ({ page }) => {
     }
     callCount += 1;
     const body = route.request().postDataJSON();
+    expect(body.provider).toBe("openai");
+    expect(typeof body.model).toBe("string");
     if (callCount === 2) {
       expect(body.allowHistory).toBe(false);
       const latest = Array.isArray(body.messages) ? body.messages[body.messages.length - 1] : null;

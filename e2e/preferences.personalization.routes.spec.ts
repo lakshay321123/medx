@@ -91,7 +91,12 @@ test.describe("Personalization payload across routes", () => {
   });
 
   test("Chat / Therapy / AI-Doc carry personalization + lang", async ({ page }) => {
-    await intercept(page, "**/api/chat/stream",  (b) => { expect(b.personalization?.enabled).toBe(true); expect(typeof b.lang).toBe("string"); });
+    await intercept(page, "**/api/chat/stream",  (b) => {
+      expect(b.personalization?.enabled).toBe(true);
+      expect(typeof b.lang).toBe("string");
+      expect(b.provider).toBe("openai");
+      expect(typeof b.model).toBe("string");
+    });
     await intercept(page, "**/api/therapy", (b) => { expect(b.personalization?.enabled).toBe(true); expect(typeof b.lang).toBe("string"); });
     await intercept(page, "**/api/ai-doc", (b) => { expect(b.personalization?.enabled).toBe(true); expect(typeof b.lang).toBe("string"); });
 
