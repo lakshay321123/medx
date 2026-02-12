@@ -1,23 +1,45 @@
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { getUserId } from "@/lib/getUserId";
 import type { Artifact, ArtifactOps, ArtifactKind } from "./types";
 
-function scope(kind: ArtifactKind) { return `artifact/${kind}`; }
+function scope(kind: ArtifactKind) {
+  return `artifact/${kind}`;
+}
 const KEY = "active";
 
 export async function getArtifact(threadId: string, kind: ArtifactKind): Promise<Artifact | null> {
-  const rec = await prisma.memory.findUnique({
-    where: { threadId_scope_key: { threadId, scope: scope(kind), key: KEY } },
-  });
-  if (!rec) return null;
-  try { return JSON.parse(rec.value) as Artifact; } catch { return null; }
+  const userId = await getUserId();
+  if (!userId) return null;
+
+  const sb = db();
+  const { data } = await sb
+    .from("medx_memory")
+    .select("value")
+    .eq("user_id", userId)
+    .eq("scope", "thread")
+    .eq("thread_id", threadId)
+    .eq("key", `${scope(kind)}:${KEY}`)
+    .maybeSingle();
+
+  const val: any = data?.value;
+  return (val?.artifact ?? val ?? null) as Artifact | null;
 }
 
 export async function setArtifact(threadId: string, kind: ArtifactKind, art: Artifact) {
-  await prisma.memory.upsert({
-    where: { threadId_scope_key: { threadId, scope: scope(kind), key: KEY } },
-    create: { threadId, scope: scope(kind), key: KEY, value: JSON.stringify(art) },
-    update: { value: JSON.stringify(art) },
-  });
+  const userId = await getUserId();
+  if (!userId) return;
+
+  const sb = db();
+  await sb.from("medx_memory").upsert(
+    {
+      user_id: userId,
+      scope: "thread",
+      thread_id: threadId,
+      key: `${scope(kind)}:${KEY}`,
+      value: { artifact: art },
+    },
+    { onConflict: "user_id,scope,thread_id,key" }
+  );
 }
 
 function get(obj: any, path: string): any {
@@ -26,7 +48,10 @@ function get(obj: any, path: string): any {
 function set(obj: any, path: string, value: any) {
   const keys = path.split(".");
   let cur = obj;
-  for (let i = 0; i < keys.length - 1; i++) { cur[keys[i]] ??= {}; cur = cur[keys[i]]; }
+  for (let i = 0; i < keys.length - 1; i++) {
+    cur[keys[i]] ??= {};
+    cur = cur[keys[i]];
+  }
   cur[keys[keys.length - 1]] = value;
 }
 function addListItem(obj: any, path: string, value: string) {

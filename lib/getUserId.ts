@@ -1,21 +1,24 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { NextRequest } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
-/** Returns NextAuth user id, or MEDX_TEST_USER_ID if not logged in. */
+/**
+ * Returns Supabase Auth user id (uuid) if logged in.
+ * Falls back to MEDX_TEST_USER_ID / NEXT_PUBLIC_MEDX_TEST_USER_ID for dev.
+ */
 export async function getUserId(_req?: NextRequest): Promise<string | null> {
-  const fallback = () =>
-    process.env.MEDX_TEST_USER_ID
-    ?? process.env.NEXT_PUBLIC_MEDX_TEST_USER_ID
-    ?? null;
+  const fallback =
+    process.env.MEDX_TEST_USER_ID ??
+    process.env.NEXT_PUBLIC_MEDX_TEST_USER_ID ??
+    null;
 
   try {
-    const session = await getServerSession(authOptions);
-    const id = (session?.user as { id?: string } | undefined)?.id ?? null;
+    const supabase = createClient();
+    const { data } = await supabase.auth.getUser();
+    const id = data?.user?.id ?? null;
     if (id) return id;
   } catch {
-    // Ignore auth errors; rely on fallback below.
+    // ignore; use fallback
   }
 
-  return fallback();
+  return fallback;
 }

@@ -1,69 +1,84 @@
-import { prisma } from "@/lib/prisma";
-import { embed } from "./embeddings";
+import { db } from "@/lib/db";
+import { getUserId } from "@/lib/getUserId";
 
 export async function appendMessage(opts: {
-  threadId: string,
-  role: "user" | "assistant" | "system",
-  content: string
+  threadId: string;
+  role: "user" | "assistant" | "system";
+  content: string;
 }) {
-  const vector = await embed(opts.content);
-  return prisma.message.create({
-    data: {
-      threadId: opts.threadId,
-      role: opts.role,
-      content: opts.content,
-      embedding: Buffer.from(new Float32Array(vector).buffer),
-    },
+  const userId = await getUserId();
+  if (!userId) throw new Error("unauthorized");
+
+  const sb = db();
+  const { error } = await sb.from("chat_messages").insert({
+    user_id: userId,
+    thread_id: opts.threadId,
+    role: opts.role,
+    content: { text: opts.content },
   });
+  if (error) throw error;
+
+  await sb
+    .from("chat_threads")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", opts.threadId)
+    .eq("user_id", userId);
 }
 
 export async function getRecentMessages(threadId: string, limit = 10) {
-  const recent = await prisma.message.findMany({
-    where: { threadId },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-  });
-  return recent.reverse();
-}
+  const userId = await getUserId();
+  if (!userId) return [];
 
-export async function getThread(threadId: string) {
-  return prisma.chatThread.findUnique({
-    where: { id: threadId },
-    include: {
-      messages: {
-        orderBy: { createdAt: "asc" },
-      },
-      memories: true,
-    },
-  });
+  const sb = db();
+  const { data, error } = await sb
+    .from("chat_messages")
+    .select("role,content,created_at")
+    .eq("user_id", userId)
+    .eq("thread_id", threadId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) return [];
+  return (data ?? []).reverse().map((m: any) => ({
+    role: m.role,
+    content: typeof m.content === "string" ? m.content : (m.content?.text ?? ""),
+    createdAt: m.created_at,
+  }));
 }
 
 export async function upsertProfileMemory(threadId: string, key: string, value: string) {
-  // Normalize keys (avoid duplicates like "Weight" vs "weight")
+  const userId = await getUserId();
+  if (!userId) throw new Error("unauthorized");
+
   const normalizedKey = key.trim().toLowerCase();
   const normalizedValue = value.trim();
 
-  const v = await embed(`${normalizedKey}: ${normalizedValue}`);
-
-  return prisma.memory.upsert({
-    where: { threadId_scope_key: { threadId, scope: "profile", key: normalizedKey } },
-    create: {
-      threadId,
-      scope: "profile",
-      key: normalizedKey,
-      value: normalizedValue,
-      embedding: Buffer.from(new Float32Array(v).buffer),
+  const sb = db();
+  await sb.from("medx_memory").upsert(
+    {
+      user_id: userId,
+      scope: "thread",
+      thread_id: threadId,
+      key: `profile:${normalizedKey}`,
+      value: { v: normalizedValue },
     },
-    update: {
-      value: normalizedValue,
-      embedding: Buffer.from(new Float32Array(v).buffer),
-    },
-  });
+    { onConflict: "user_id,scope,thread_id,key" }
+  );
 }
 
 export async function setRunningSummary(threadId: string, text: string) {
-  return prisma.chatThread.update({
-    where: { id: threadId },
-    data: { runningSummary: text },
-  });
+  const userId = await getUserId();
+  if (!userId) throw new Error("unauthorized");
+
+  const sb = db();
+  await sb.from("medx_memory").upsert(
+    {
+      user_id: userId,
+      scope: "thread",
+      thread_id: threadId,
+      key: "running_summary",
+      value: { v: text },
+    },
+    { onConflict: "user_id,scope,thread_id,key" }
+  );
 }

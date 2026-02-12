@@ -4,7 +4,6 @@ export const revalidate = 0;
 
 import { NextRequest, NextResponse } from "next/server";
 import { getUserId } from "@/lib/getUserId";
-import { prisma } from "@/lib/prisma";
 import { AiDocIntent, detectAidocIntent } from "@/lib/aidoc/schema";
 import { AiDocPrompts, AiDocIntentCategory } from "@/lib/aidoc/intents";
 import { buildStructuredAidocResponse } from "@/lib/aidoc/structured";
@@ -56,41 +55,7 @@ function mapIntentCategoryToIntent(intent: AiDocIntentCategory): AiDocIntent | n
   }
 }
 
-async function loadFromPrisma(userId: string): Promise<PatientBundle | null> {
-  try {
-    const profileClient: any = (prisma as any)?.patientProfile;
-    if (!profileClient?.findFirst) return null;
-    const profile = await profileClient.findFirst({ where: { userId } });
-    if (!profile) return null;
-    const labsClient: any = (prisma as any)?.labResult;
-    const noteClient: any = (prisma as any)?.note;
-    const medicationClient: any = (prisma as any)?.medication;
-    const conditionClient: any = (prisma as any)?.condition;
-    const [labs, notes, medications, conditions] = await Promise.all([
-      labsClient?.findMany ? labsClient.findMany({ where: { profileId: profile.id } }) : Promise.resolve([]),
-      noteClient?.findMany ? noteClient.findMany({ where: { profileId: profile.id } }) : Promise.resolve([]),
-      medicationClient?.findMany
-        ? medicationClient.findMany({ where: { profileId: profile.id } })
-        : Promise.resolve([]),
-      conditionClient?.findMany
-        ? conditionClient.findMany({ where: { profileId: profile.id } })
-        : Promise.resolve([]),
-    ]);
-    return {
-      profile,
-      labs: ensureArray(labs),
-      notes: ensureArray(notes),
-      medications: ensureArray(medications),
-      conditions: ensureArray(conditions),
-    };
-  } catch {
-    return null;
-  }
-}
-
-async function loadPatientBundle(userId: string): Promise<PatientBundle> {
-  const fromPrisma = await loadFromPrisma(userId);
-  if (fromPrisma) return fromPrisma;
+async function loadPatientBundle(_userId: string): Promise<PatientBundle> {
   return {
     profile: null,
     labs: [],

@@ -3,9 +3,8 @@ import { cookies } from 'next/headers';
 // [AIDOC_TRIAGE_IMPORT] add triage imports
 import { handleDocAITriage, detectExperientialIntent } from "@/lib/aidoc/triage";
 import { getUserId } from "@/lib/getUserId";
-import { prisma } from "@/lib/prisma";
 import { wasAskedOnce, markAsked } from "@/lib/aidoc/memory";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { db } from "@/lib/db";
 
 export async function POST(req: Request) {
   const payload = await req.json().catch(() => ({} as any));
@@ -32,20 +31,21 @@ export async function POST(req: Request) {
     id: string;
     observed_at: string;
     kind: string;
-    title: string | null;
-    payload: unknown;
+    summary: string | null;
+    value_text: string | null;
+    meta: unknown;
   }> = [];
   if (rawUserId) {
     try {
-      const sb = supabaseAdmin();
+      const sb = db();
       const profilePromise = sb
         .from("profiles")
-        .select("full_name,dob,sex,blood_group,conditions_predisposition,chronic_conditions")
+        .select("display_name,dob,sex,meta")
         .eq("id", rawUserId)
         .maybeSingle();
       const observationsPromise = sb
         .from("observations")
-        .select("id, observed_at, kind, title, payload")
+        .select("id, observed_at, kind, summary, value_text, meta")
         .eq("user_id", rawUserId)
         .order("observed_at", { ascending: false })
         .limit(50);
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
         ? Math.max(0, Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 3600 * 1000)))
         : undefined;
       profile = {
-        name: prof?.full_name || undefined,
+        name: prof?.display_name || undefined,
         age,
         sex: prof?.sex || undefined,
       };
@@ -76,8 +76,8 @@ export async function POST(req: Request) {
     observationsSnapshot: observations.slice(0, 25).map((o) => ({
       when: o.observed_at,
       kind: o.kind,
-      title: o.title,
-      summary: typeof o.payload === "string" ? o.payload.slice(0, 600) : o.payload,
+      title: o.summary,
+      summary: typeof o.value_text === "string" ? o.value_text.slice(0, 600) : o.meta,
     })),
     ...(demoFromAnswers ?? {}),
   };
@@ -130,11 +130,19 @@ export async function POST(req: Request) {
   }
   if (!boot) {
     const title = payload.title ?? inferTitleFromText(message);
-    await prisma.chatThread.upsert({
-      where: { id: threadId },
-      create: { id: threadId, userId, type: "aidoc", title },
-      update: { updatedAt: new Date(), title: title || undefined },
-    });
+    if (userId) {
+      const sb = db();
+      await sb.from("chat_threads").upsert(
+        {
+          id: threadId,
+          user_id: userId,
+          mode: "aidoc",
+          title: title || "AI Doc — New Case",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      );
+    }
   }
 
   const canAskMeds = userId ? !(await wasAskedOnce(userId, threadId, "asked_meds")) : false;

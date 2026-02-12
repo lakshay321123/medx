@@ -1,6 +1,7 @@
 import { loadState } from "@/lib/context/stateStore";
 import { loadTopicStack, titleOf } from "@/lib/context/topicStack";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { getUserId } from "@/lib/getUserId";
 import { buildSystemPrompt, languageDirectiveFor, resolveLocaleForLang, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 
 export async function buildPromptContext({
@@ -10,10 +11,19 @@ export async function buildPromptContext({
   threadId: string;
   options: { mode?: string; researchOn?: boolean; lang?: string; includeHistory?: boolean };
 }) {
-  const thread = await prisma.chatThread.findUnique({
-    where: { id: threadId },
-    select: { runningSummary: true },
-  });
+  const userId = await getUserId();
+  const sb = db();
+
+  const { data: summaryRow } = userId
+    ? await sb
+        .from("medx_memory")
+        .select("value")
+        .eq("user_id", userId)
+        .eq("scope", "thread")
+        .eq("thread_id", threadId)
+        .eq("key", "running_summary")
+        .maybeSingle()
+    : { data: null as any };
 
   const convState = await loadState(threadId);
   const stack = await loadTopicStack(threadId);
@@ -30,7 +40,7 @@ export async function buildPromptContext({
   if (includeHistory) {
     parts.push(
       "Conversation summary:",
-      thread?.runningSummary || "(none)",
+      (summaryRow?.value as any)?.v || "(none)",
       "Conversation state (JSON):",
       JSON.stringify(convState, null, 2),
       "Constraint ledger (must be respected):",
@@ -39,23 +49,23 @@ export async function buildPromptContext({
       JSON.stringify({ mode: options.mode, researchOn: options.researchOn }),
     );
   } else {
-    parts.push(
-      "Mode flags:",
-      JSON.stringify({ mode: options.mode, researchOn: options.researchOn }),
-    );
+    parts.push("Mode flags:", JSON.stringify({ mode: options.mode, researchOn: options.researchOn }));
   }
 
   const system = parts.join("\n\n");
 
   let recent: { role: string; content: string }[] = [];
-  if (includeHistory) {
-    const r = await prisma.message.findMany({
-      where: { threadId },
-      orderBy: { createdAt: "desc" },
-      take: 8,
-      select: { role: true, content: true },
-    });
-    recent = r.reverse();
+  if (includeHistory && userId) {
+    const { data } = await sb
+      .from("chat_messages")
+      .select("role,content,created_at")
+      .eq("user_id", userId)
+      .eq("thread_id", threadId)
+      .order("created_at", { ascending: false })
+      .limit(8);
+    recent = (data ?? [])
+      .reverse()
+      .map((r: any) => ({ role: r.role, content: typeof r.content === "string" ? r.content : (r.content?.text ?? "") }));
   }
 
   return { system, recent, langDirective };

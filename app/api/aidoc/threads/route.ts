@@ -1,16 +1,22 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { getUserId } from '@/lib/getUserId';
+import { NextResponse } from "next/server";
+import { getUserId } from "@/lib/getUserId";
+import { db } from "@/lib/db";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   const userId = await getUserId();
   if (!userId) return NextResponse.json([]);
-  const threads = await prisma.chatThread.findMany({
-    where: { userId, type: 'aidoc' },
-    orderBy: { updatedAt: 'desc' },
-    take: 30,
-  });
-  return NextResponse.json(threads);
+
+  const supabase = db();
+  const { data, error } = await supabase
+    .from("chat_threads")
+    .select("id,user_id,title,mode,created_at,updated_at")
+    .eq("user_id", userId)
+    .eq("mode", "aidoc")
+    .order("updated_at", { ascending: false })
+    .limit(30);
+
+  if (error) return NextResponse.json([], { status: 200 });
+  return NextResponse.json(data ?? []);
 }

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { prisma } from "@/lib/prisma";
 import { appendMessage } from "@/lib/memory/store";
 import { decideContext } from "@/lib/memory/contextRouter";
 import { seedTopicEmbedding } from "@/lib/memory/outOfContext";
@@ -38,7 +37,8 @@ import { normalizeMode } from "@/lib/conversation/mode";
 import { DOCTOR_JSON_SYSTEM, coerceDoctorJson } from "@/lib/conversation/doctorJson";
 import { renderDeterministicDoctorReport } from "@/lib/renderer/templates/doctor";
 import { buildPatientSnapshot } from "@/lib/patient/snapshot";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { db } from "@/lib/db";
+import { getUserId } from "@/lib/getUserId";
 import { fetchTrialByNct } from "@/lib/trials/byId";
 import { singleTrialPatientPrompt, singleTrialClinicianPrompt } from "@/lib/prompts/trials";
 import { searchTrials, dedupeTrials, rankValue } from "@/lib/trials/search";
@@ -66,14 +66,14 @@ async function runAggregator(req: Request, query: string): Promise<WebHit[]> {
 
 async function getFeedbackSummary(conversationId: string) {
   try {
-    const db = supabaseAdmin();
-    const { data } = await db
+    const sb = db();
+    const { data } = await sb
       .from("ai_feedback")
-      .select("rating")
-      .eq("conversation_id", conversationId)
+      .select("rating,meta")
+      .eq("meta->>conversationId", conversationId)
       .limit(1000);
-    const up = (data ?? []).filter(r => r.rating === 1).length;
-    const down = (data ?? []).filter(r => r.rating === -1).length;
+    const up = (data ?? []).filter((r: any) => r.rating === 1).length;
+    const down = (data ?? []).filter((r: any) => r.rating === -1).length;
     return { up, down };
   } catch {
     return { up: 0, down: 0 };
@@ -101,7 +101,9 @@ export async function POST(req: Request) {
   const { messages: incomingMessages, mode: rawMode, thread_id } = body;
   const mode = normalizeMode(rawMode);
   const userMessage = incomingMessages?.[incomingMessages.length - 1]?.content || "";
-  let { userId, activeThreadId, text, researchOn, clarifySelectId, research } = body;
+  let { activeThreadId, text, researchOn, clarifySelectId, research } = body;
+  const userId = await getUserId();
+  if (!userId) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   if (researchOn === undefined) researchOn = research;
   if (typeof text !== "string" || text.trim() === "") {
     text = typeof userMessage === "string" ? userMessage : "";
@@ -138,7 +140,8 @@ export async function POST(req: Request) {
   if (ISOLATE) {
     activeThreadId = conversationId;
     if (isNewChat) {
-      await prisma.chatThread.delete({ where: { id: activeThreadId } }).catch(() => {});
+      const sb = db();
+      await sb.from("chat_threads").delete().eq("id", activeThreadId).eq("user_id", userId);
     }
   }
 
@@ -352,8 +355,10 @@ export async function POST(req: Request) {
   if (decision.action === "continue") {
     threadId = decision.threadId;
   } else if (decision.action === "newThread") {
-    const t = await prisma.chatThread.create({ data: { userId, title: "New topic" } });
-    threadId = t.id;
+    const sb = db();
+    const newId = randomUUID();
+    await sb.from("chat_threads").insert({ id: newId, user_id: userId, title: "New topic", mode });
+    threadId = newId;
     await seedTopicEmbedding(threadId, text);
     stack = await loadTopicStack(threadId);
     stack = pushTopic(stack, "New topic");
@@ -371,10 +376,15 @@ export async function POST(req: Request) {
 
   // ensure thread exists when continuing
   if (decision.action === "continue") {
-    const exists = await prisma.chatThread.findUnique({ where: { id: threadId } });
+    const sb = db();
+    const { data: exists } = await sb
+      .from("chat_threads")
+      .select("id")
+      .eq("id", threadId)
+      .eq("user_id", userId)
+      .maybeSingle();
     if (!exists) {
-      const t = await prisma.chatThread.create({ data: { id: threadId, userId, title: "New topic" } });
-      threadId = t.id;
+      await sb.from("chat_threads").insert({ id: threadId, user_id: userId, title: "New topic", mode });
       await seedTopicEmbedding(threadId, text);
       stack = await loadTopicStack(threadId);
       stack = pushTopic(stack, "New topic");
