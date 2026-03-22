@@ -52,7 +52,7 @@ export default function SuggestBar({ suggestions, onPick, title, className = "" 
               key={`${raw}-${index}`}
               type="button"
               onClick={() => onPick(label)}
-              className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700/80"
+              className="rounded-full px-2.5 py-0.5 text-xs transition" style={{ background: "var(--so-bg-secondary, #F2F2F7)", color: "var(--so-text, #000)" }}
               title={label}
               aria-label={label}
               data-suggestion-button="true"
