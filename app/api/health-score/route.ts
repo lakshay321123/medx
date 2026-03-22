@@ -55,17 +55,12 @@ export async function GET(req: Request) {
   if (latestLab["LDL-C"]) { const r = scoreLdl(latestLab["LDL-C"]); labScores.push(r.score); factors.push(r.factor); }
   if (latestLab["EGFR"] || latestLab["eGFR"]) { const r = scoreEgfr(latestLab["EGFR"] || latestLab["eGFR"]); labScores.push(r.score); factors.push(r.factor); }
 
-  // Vitals — BMI goes to vitalScores (not labScores)
-  const vitals = vitalsRes.data;
-  if (vitals) {
-    if (vitals.sbp && vitals.dbp) { const r = scoreBp(Number(vitals.sbp), Number(vitals.dbp)); vitalScores.push(r.score); factors.push(r.factor); }
-    if (vitals.hr) vitalScores.push(scoreHr(Number(vitals.hr)));
-    if (vitals.spo2) vitalScores.push(scoreSpo2(Number(vitals.spo2)));
-    if (vitals.bmi) { const r = scoreBmi(Number(vitals.bmi)); vitalScores.push(r.score); factors.push(r.factor); }
-  }
-  if (!vitals?.bmi && profileRes.data?.bmi) {
-    const r = scoreBmi(Number(profileRes.data.bmi)); vitalScores.push(r.score); factors.push(r.factor);
-  }
+  // Vitals — from derivedVitals (observations-based, not empty vitals table)
+  if (derivedVitals.sbp && derivedVitals.dbp) { const r = scoreBp(Number(derivedVitals.sbp), Number(derivedVitals.dbp)); vitalScores.push(r.score); factors.push(r.factor); }
+  if (derivedVitals.hr) vitalScores.push(scoreHr(Number(derivedVitals.hr)));
+  if (derivedVitals.spo2) vitalScores.push(scoreSpo2(Number(derivedVitals.spo2)));
+  const bmiVal = derivedVitals.bmi ?? (profileRes.data?.height_cm && profileRes.data?.weight_kg ? Number(profileRes.data.weight_kg) / ((Number(profileRes.data.height_cm) / 100) ** 2) : null);
+  if (bmiVal) { const r = scoreBmi(Number(bmiVal)); vitalScores.push(r.score); factors.push(r.factor); }
 
   // Activity
   let activityScore: number | null = null;
