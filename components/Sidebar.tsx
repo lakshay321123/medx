@@ -1,4 +1,5 @@
 "use client";
+import dynamic from "next/dynamic";
 import { Search, Settings, PenSquare, FileText, User, Activity } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -35,6 +36,10 @@ type NavItem = {
   panel?: string;
   action?: () => void;
 };
+
+
+const HealthScoreCard = dynamic(() => import("@/components/HealthScoreCard"), { ssr: false });
+const DailyCheckin = dynamic(() => import("@/components/DailyCheckin"), { ssr: false });
 
 export default function Sidebar() {
   const router = useRouter();
@@ -197,6 +202,12 @@ export default function Sidebar() {
             </div>
           );
         })}
+      </div>
+
+      {/* Health widgets */}
+      <div className="mt-4 space-y-3 px-3">
+        <HealthScoreCard />
+        <DailyCheckin />
       </div>
 
       {/* Preferences — bottom, inside flow */}
