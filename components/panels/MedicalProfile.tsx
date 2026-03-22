@@ -9,6 +9,11 @@ import ProfileSection from "@/components/profile/ProfileSection";
 import VitalsEditor from "@/components/profile/VitalsEditor";
 import ReportUpload from "@/components/profile/ReportUpload";
 import HealthReportExport from "@/components/HealthReportExport";
+import AllergiesSection from "@/components/profile/AllergiesSection";
+import LifestyleSection from "@/components/profile/LifestyleSection";
+import FamilyHistorySection from "@/components/profile/FamilyHistorySection";
+import EmergencyContactSection from "@/components/profile/EmergencyContactSection";
+import LabResultsSection from "@/components/profile/LabResultsSection";
 import MedicationInput from "@/components/meds/MedicationInput";
 import MedicationTag from "@/components/meds/MedicationTag";
 import { useT } from "@/components/hooks/useI18n";
@@ -797,7 +802,8 @@ export default function MedicalProfile() {
   const showWellnessSections = panelMode !== "clinical";
   const showClinicalSections = panelMode !== "wellness";
 
-  if (isLoading) return <PanelLoader label={t("Medical Profile")} />;
+  // Profile structure renders immediately — data fills in as it loads
+  const showSkeleton = isLoading;
   if (error) {
     return (
       <div className="p-6 text-sm text-red-500">
@@ -974,7 +980,7 @@ export default function MedicalProfile() {
         </div>
       </ProfileSection>
 
-      {showWellnessSections ? (
+      {/* Vitals — always visible */}
         <ProfileSection
           title={t("Vitals")}
           actions={
@@ -1030,9 +1036,8 @@ export default function MedicalProfile() {
             </dl>
           )}
         </ProfileSection>
-      ) : null}
 
-      {showWellnessSections || showClinicalSections ? (
+      {/* AI Summary — always visible */}
         <ProfileSection
           title={t("AI Summary")}
           actions={
@@ -1278,9 +1283,8 @@ export default function MedicalProfile() {
             ) : null}
           </div>
         </ProfileSection>
-      ) : null}
 
-      {showClinicalSections ? (
+      {/* Active medication — always visible */}
         <ProfileSection
           title={t("Active medication")}
           isEmpty={medsEmpty}
@@ -1301,7 +1305,6 @@ export default function MedicalProfile() {
             <MedicationInput onSave={handleAddMedication} />
           </div>
         </ProfileSection>
-      ) : null}
     </div>
   );
 }
