@@ -8,7 +8,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
   return (
     <label className="relative inline-flex cursor-pointer items-center shrink-0">
       <input type="checkbox" checked={checked} onChange={onChange} className="peer sr-only" />
-      <span className="h-6 w-11 rounded-full bg-slate-300/60 transition peer-checked:bg-blue-600 dark:bg-slate-600" />
+      <span className="h-6 w-11 rounded-full bg-slate-300/60 transition peer-checked:bg-[var(--so-accent,#06B6D4)] dark:bg-slate-600" />
       <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
     </label>
   );
@@ -93,7 +93,7 @@ export default function SchedulesPanel() {
                       <button key={idx} type="button" onClick={() => toggleDay(sched.id, idx)}
                         className={clsx("w-9 h-9 rounded-lg text-xs font-medium transition",
                           sched.days.includes(idx)
-                            ? "bg-blue-600 text-white"
+                            ? "text-white bg-[var(--so-accent,#06B6D4)]"
                             : "border border-black/10 bg-white/70 text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
                         )}>{label}</button>
                     ))}

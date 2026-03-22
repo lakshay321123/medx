@@ -139,7 +139,7 @@ export default function ThreadKebab({ id, title, onRenamed, onDeleted }: {
               <button className="px-3 py-1.5 text-sm rounded border"
                 onClick={()=>setAskRename(false)}>Cancel</button>
               <button
-                className="px-3 py-1.5 text-sm rounded border bg-blue-600 text-white dark:border-blue-600 disabled:opacity-50"
+                className="px-3 py-1.5 text-sm rounded border text-white dark:border-[#22D3EE] bg-[var(--so-accent,#06B6D4)] disabled:opacity-50"
                 onClick={()=>{
                   const nn = name.trim() || "Untitled";
                   renameThread(id, nn);

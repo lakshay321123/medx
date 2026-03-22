@@ -8,7 +8,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
   return (
     <label className="relative inline-flex cursor-pointer items-center shrink-0">
       <input type="checkbox" checked={checked} onChange={onChange} className="peer sr-only" />
-      <span className="h-6 w-11 rounded-full bg-slate-300/60 transition peer-checked:bg-blue-600 dark:bg-slate-600" />
+      <span className="h-6 w-11 rounded-full bg-slate-300/60 transition peer-checked:bg-[var(--so-accent,#06B6D4)] dark:bg-slate-600" />
       <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
     </label>
   );
@@ -106,7 +106,7 @@ export default function SecurityPanel() {
             {pwMsg && <div className={clsx("text-xs", pwMsg.type === "ok" ? "text-emerald-600" : "text-red-600")}>{pwMsg.text}</div>}
             <div className="flex gap-2">
               <button type="button" onClick={handlePwChange}
-                className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-sm font-medium text-white hover:bg-blue-500">Update</button>
+                className="rounded-lg bg-[var(--so-accent,#06B6D4)] px-3.5 py-1.5 text-sm font-medium text-white hover:bg-[var(--so-accent,#06B6D4)]">Update</button>
               <button type="button" onClick={() => { setShowPw(false); setPwMsg(null); }}
                 className="rounded-lg border border-black/10 px-3.5 py-1.5 text-sm dark:border-white/10">Cancel</button>
             </div>
@@ -140,7 +140,7 @@ export default function SecurityPanel() {
               className={clsx(
                 "rounded-lg border px-3.5 py-1.5 text-sm font-medium transition",
                 sessionTimeout === opt.value
-                  ? "border-blue-600 bg-blue-600 text-white"
+                  ? "border-[var(--so-accent,#06B6D4)] bg-[var(--so-accent,#06B6D4)] text-white"
                   : "border-black/10 bg-white/70 text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-200"
               )}>
               {opt.label}

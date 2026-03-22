@@ -64,7 +64,7 @@ export default function CountryGlobe() {
                   <span className="text-xs font-semibold tabular-nums text-slate-500 dark:text-slate-400">{c.code3}</span>
                 </div>
                 {country.code3 === c.code3 && (
-                  <Check className="h-4 w-4 text-blue-500" />
+                  <Check className="h-4 w-4 text-[var(--so-accent,#06B6D4)]" />
                 )}
               </button>
             ))}

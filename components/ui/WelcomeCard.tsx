@@ -32,8 +32,8 @@ export default function WelcomeCard({
       aria-label={t("Welcome")}
       className={joinClassNames(
         "relative rounded-lg border p-3 shadow-sm text-sm",
-        "bg-blue-600 text-white border-blue-500",
-        "dark:bg-blue-700 dark:border-blue-600",
+        "text-white border-[var(--so-accent,#06B6D4)] bg-[var(--so-accent,#06B6D4)]",
+        "dark:bg-[#22D3EE] dark:border-[var(--so-accent,#06B6D4)]",
         "break-words",
         className,
       )}
@@ -49,7 +49,7 @@ export default function WelcomeCard({
       </button>
       <div className="pr-6">
         <div className="text-[0.95rem] font-semibold">{displayHeader}</div>
-        <div className="mt-1 leading-snug text-blue-50 dark:text-blue-100">{displayBody}</div>
+        <div className="mt-1 leading-snug text-white/90 dark:text-white/80">{displayBody}</div>
         {status ? <div className="mt-1 text-xs opacity-90">{status}</div> : null}
       </div>
     </div>

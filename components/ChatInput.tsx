@@ -176,7 +176,7 @@ export function ChatInput({
               ? "Attach files is available before you start a new chat"
               : uploadText
           }
-          className="flex h-12 w-12 items-center justify-center rounded-full text-[color:var(--medx-text)] transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:text-[color:var(--medx-text)] dark:hover:bg-white/10 md:h-12 md:w-12"
+          className="flex h-12 w-12 items-center justify-center rounded-full text-[color:var(--medx-text)] transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--so-accent,#06B6D4)] disabled:cursor-not-allowed disabled:opacity-60 dark:text-[color:var(--medx-text)] dark:hover:bg-white/10 md:h-12 md:w-12"
           onClick={() => {
             if (currentId) {
               return;
@@ -264,14 +264,14 @@ export function ChatInput({
             void handleSend();
           }
         }}
-        className="min-h-[48px] max-h-[160px] flex-1 resize-none bg-transparent text-base leading-snug text-[color:var(--medx-text)] placeholder:text-slate-400 focus:outline-none dark:text-[color:var(--medx-text)] dark:placeholder:text-slate-500 md:min-h-[56px]"
+        className="min-h-[48px] max-h-[160px] flex-1 resize-none bg-transparent text-[14px] leading-snug placeholder:text-[#8E8E93] focus:outline-none md:min-h-[56px]" style={{ color: "var(--so-text, #000)" }}
       />
       <button
         type="submit"
         aria-label={sendText}
         title={sendText}
         disabled={!text.trim() || isSending}
-        className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-sky-500 dark:hover:bg-sky-400 md:h-12 md:w-12"
+        className="flex h-12 w-12 items-center justify-center rounded-full text-white bg-[var(--so-accent,#06B6D4)] transition hover:bg-[var(--so-accent,#06B6D4)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--so-accent,#06B6D4)] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#22D3EE] dark:hover:opacity-90 md:h-12 md:w-12"
       >
         <SendHorizontal className="h-5 w-5" />
       </button>

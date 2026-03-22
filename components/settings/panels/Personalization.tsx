@@ -50,7 +50,7 @@ export default function PersonalizationPanel() {
               key={key}
               type="button"
               onClick={() => set("personality", key)}
-              className={`${PILL} ${personality === key ? "bg-blue-600 text-white border-blue-600" : ""}`}
+              className={`${PILL} ${personality === key ? "text-white border-[var(--so-accent,#06B6D4)] bg-[var(--so-accent,#06B6D4)]" : ""}`}
               aria-pressed={personality === key}
             >
               {label}

@@ -38,7 +38,7 @@ export default function AccountPanel() {
         onClick={onClick}
         className={
           primary
-            ? "rounded-lg bg-blue-600 px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-blue-500"
+            ? "rounded-lg bg-[var(--so-accent,#06B6D4)] px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-[var(--so-accent,#06B6D4)]"
             : "rounded-lg border border-black/10 bg-white/70 px-3.5 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60"
         }
       >
