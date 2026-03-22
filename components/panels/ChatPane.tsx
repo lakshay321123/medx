@@ -4156,24 +4156,8 @@ ${systemCommon}` + baseSys;
             </div>
           )}
 
-          {ui.topic && (
-            <div className="mx-auto mb-2 max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--so-border,#E5E5EA)] bg-[var(--so-card,#fff)] px-3 py-1 text-xs dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
-                <span className="opacity-70">Topic:</span>
-                <strong className="truncate max-w-[16rem]">{ui.topic}</strong>
-                <button onClick={() => setUi(prev => ({ ...prev, topic: null }))} className="opacity-60 hover:opacity-100">Clear</button>
-              </div>
-            </div>
-          )}
-          {ui.contextFrom && (
-            <div className="mx-auto mb-2 max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--so-border,#E5E5EA)] bg-[var(--so-card,#fff)] px-3 py-1 text-xs dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
-                <span className="opacity-70">Using context from:</span>
-                <strong>{ui.contextFrom}</strong>
-                <button onClick={() => { clearContext(); setUi(prev => ({ ...prev, contextFrom: null })); }} className="opacity-60 hover:opacity-100">Clear</button>
-              </div>
-            </div>
-          )}
+          {/* Topic and Context pills hidden — they show raw text (e.g., "Both")
+              which is confusing. Re-enable when topic extraction is smarter. */}
 
           <div className="mx-auto w-full max-w-3xl space-y-4">
             {renderedMessages}
