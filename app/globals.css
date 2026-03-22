@@ -129,8 +129,8 @@ body * {
   --medx-bg-a: var(--so-bg, #FFFFFF);
   --medx-bg-b: var(--so-bg, #FFFFFF);
   --medx-bg-c: var(--so-bg, #FFFFFF);
-  --medx-text: #0F172A;
-  --medx-subtext: #334155;
+  --medx-text: var(--so-text, #000000);
+  --medx-subtext: var(--so-text-secondary, #8E8E93);
 
   /* accents from reference */
   --medx-accent:  var(--so-accent, #06B6D4);
@@ -142,14 +142,14 @@ body * {
   /* surfaces */
   --medx-surface: var(--so-card, #FFFFFF);
   --medx-panel:   var(--so-card, #FFFFFF);
-  --medx-outline: rgba(15, 23, 42, 0.10);
+  --medx-outline: var(--so-border, #E5E5EA);
 }
 .dark {
   --medx-bg-a: var(--so-bg, #000000);
   --medx-bg-b: var(--so-bg, #000000);
   --medx-bg-c: var(--so-bg, #000000);
-  --medx-text: #E6E9F1;
-  --medx-subtext: #B6C2D0;
+  --medx-text: var(--so-text, #FFFFFF);
+  --medx-subtext: var(--so-text-secondary, #98989D);
 
   --medx-accent:  var(--so-accent, #22D3EE);
   --medx-accent2: #22D3EE;  /* cyan */
@@ -157,9 +157,9 @@ body * {
   --medx-teal:    #2DD4BF;
   --medx-purple:  #A78BFA;
 
-  --medx-surface: rgba(0,0,0,0.35);
+  --medx-surface: var(--so-card, #1C1C1E);
   --medx-panel:   rgba(3,7,18,0.55);
-  --medx-outline: rgba(255,255,255,0.12);
+  --medx-outline: var(--so-border, #2C2C2E);
 }
 
 /* Background painted behind UI (never affects layout) */
@@ -933,9 +933,9 @@ body {
 /* Defaults (light) */
 @media (max-width: 480px) {
   .result-card {
-    --card-bg: #ffffff;
-    --card-fg: #0f172a;               /* slate-900 */
-    --card-border: rgba(2, 6, 23, 0.08);
+    --card-bg: var(--so-card, #ffffff);
+    --card-fg: var(--so-text, #000000);
+    --card-border: var(--so-border, #E5E5EA);
   }
 
   .result-card .meta {
