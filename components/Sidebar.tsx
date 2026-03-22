@@ -45,6 +45,7 @@ const WearableSync = dynamic(() => import("@/components/WearableSync"), { ssr: f
 const FamilyHub = dynamic(() => import("@/components/FamilyHub"), { ssr: false });
 const MedReminders = dynamic(() => import("@/components/MedReminders"), { ssr: false });
 const HealthReportExport = dynamic(() => import("@/components/HealthReportExport"), { ssr: false });
+const HealthAnalytics = dynamic(() => import("@/components/HealthAnalytics"), { ssr: false });
 
 export default function Sidebar() {
   const router = useRouter();
@@ -217,9 +218,16 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Health widgets */}
+      {/* Health Analytics */}
+      <div className="mt-4 px-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--so-text-secondary,#8E8E93)] mb-2 px-1">Health Analytics</h3>
+        <div className="rounded-2xl border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] overflow-hidden">
+          <HealthAnalytics />
+        </div>
+      </div>
+
+      {/* Daily Check-in */}
       <div className="mt-4 space-y-3 px-3">
-        <HealthScoreCard />
         <DailyCheckin />
       </div>
 

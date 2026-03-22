@@ -53,6 +53,33 @@ export async function POST(req: Request) {
     });
   }
 
+
+  // --- Instant greeting replies (no LLM call needed) ---
+  const lastMsg = messages?.[messages.length - 1];
+  const lastText = (typeof lastMsg?.content === 'string' ? lastMsg.content : '').trim();
+  const isGreeting = /^(h(i|ey|ello|ola|owdy)|yo|sup|good\s*(morning|afternoon|evening|night)|what'?s\s*up|namaste|gm)\s*[!?.]*$/i.test(lastText);
+  
+  if (isGreeting && lastText.length < 30) {
+    const greetings = [
+      "Hey! How can I help you with your health today?",
+      "Hi there! What health question can I help you with?",
+      "Hello! I'm here to help. What's on your mind?",
+      "Hey! Ask me anything about health, wellness, or your medical profile.",
+      "Hi! How would you like me to help you today?",
+    ];
+    const pick = greetings[Math.floor(Math.random() * greetings.length)];
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(pick));
+        controller.close();
+      }
+    });
+    return new Response(stream, {
+      headers: { "Content-Type": "text/plain; charset=utf-8", "X-Greeting": "1" },
+    });
+  }
+
   const t0 = Date.now();
   const payload = await req.json();
   const { messages = [], mode } = payload ?? {};
