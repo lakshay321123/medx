@@ -41,7 +41,8 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
         body: JSON.stringify(body),
       });
       onComplete();
-    } catch {
+    } catch (err) {
+      console.warn('[Onboarding] Profile save failed:', err);
       onComplete(); // don't block on error
     } finally {
       setSaving(false);
@@ -60,7 +61,7 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div role="dialog" aria-modal="true" aria-label="Setup your health profile" className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="w-full max-w-md mx-4 rounded-2xl bg-[var(--so-bg,#fff)] dark:bg-[var(--so-bg,#000)] border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] p-6 shadow-xl">
         
         {/* Progress */}
@@ -106,6 +107,7 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
             <input
               type="date"
               value={data.dob}
+              max={new Date().toISOString().split("T")[0]}
               onChange={e => setData(prev => ({ ...prev, dob: e.target.value }))}
               className="w-full rounded-xl border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] bg-transparent px-4 py-3 text-[var(--so-text,#000)] dark:text-[var(--so-text,#fff)] focus:border-[var(--so-accent,#06B6D4)] focus:outline-none mb-4"
             />

@@ -487,7 +487,7 @@ export default function MedicalProfile() {
         blood_group: bloodGroup || null,
         height_cm: heightInput ? parseFloat(heightInput) : null,
         weight_kg: weightInput ? parseFloat(weightInput) : null,
-        bmi: (heightInput && weightInput) ? parseFloat((parseFloat(weightInput) / ((parseFloat(heightInput)/100) ** 2)).toFixed(1)) : null,
+        bmi: (heightInput && weightInput && parseFloat(heightInput) > 0) ? parseFloat((parseFloat(weightInput) / ((parseFloat(heightInput)/100) ** 2)).toFixed(1)) : null,
         conditions_predisposition: predis,
         chronic_conditions: chronic,
       } as Record<string, unknown>;

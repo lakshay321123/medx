@@ -36,7 +36,7 @@ export default function FormatSelector({ mode, activeFormat, onSelect }: Props) 
       >
         Auto
       </button>
-      {available.slice(0, 6).map(f => (
+      {available.map(f => (
         <button
           key={f.id}
           type="button"

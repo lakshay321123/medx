@@ -101,7 +101,10 @@ export async function POST(req: Request) {
   const isTherapy = resolvedMode === 'therapy';
   const isClinical = resolvedMode === 'clinical' || resolvedMode === 'clinical_research' || resolvedMode === 'aidoc';
   const baseRules = isTherapy ? THERAPY_STYLE : isClinical ? CLINICAL_STYLE : qualityRules;
-  let system = [langDirective, formatInstruction, baseRules, calcPrelude].filter(Boolean).join('\n\n');
+  // Therapy mode: skip format/calc instructions that conflict with conversational style
+  let system = isTherapy
+    ? [langDirective, baseRules].filter(Boolean).join('\n\n')
+    : [langDirective, formatInstruction, baseRules, calcPrelude].filter(Boolean).join('\n\n');
 
   const modelStart = Date.now();
   const upstream = await callOpenAIChat(

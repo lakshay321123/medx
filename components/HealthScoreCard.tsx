@@ -40,7 +40,7 @@ export default function HealthScoreCard() {
     fetch("/api/health-score?userId=me", { credentials: "include" })
       .then(r => r.json())
       .then(d => { if (d?.overall_score != null) setData(d); })
-      .catch(() => {})
+      .catch((err) => console.error('Health score fetch failed:', err))
       .finally(() => setLoading(false));
   }, []);
 
@@ -50,8 +50,11 @@ export default function HealthScoreCard() {
       const r = await fetch("/api/health-score?userId=me&compute=1", { credentials: "include" });
       const d = await r.json();
       if (d?.overall_score != null) setData(d);
-    } catch {}
-    setComputing(false);
+    } catch (err) {
+      console.error('Health score compute failed:', err);
+    } finally {
+      setComputing(false);
+    }
   };
 
   if (loading) return null;

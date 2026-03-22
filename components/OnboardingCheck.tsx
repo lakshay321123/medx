@@ -23,7 +23,10 @@ export default function OnboardingCheck() {
           setShowOnboarding(true);
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.error('Profile check failed:', err);
+        setShowOnboarding(true); // show onboarding as fallback
+      })
       .finally(() => setChecked(true));
   }, []);
 

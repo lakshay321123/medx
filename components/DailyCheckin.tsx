@@ -10,6 +10,13 @@ const MOODS = [
 ];
 
 export default function DailyCheckin({ onDone }: { onDone?: () => void }) {
+  // Skip if already checked in today
+  const [alreadyDone] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("so:lastCheckin") === new Date().toDateString();
+  });
+  if (alreadyDone) return null;
+
   const [mood, setMood] = useState<number | null>(null);
   const [sleep, setSleep] = useState("");
   const [energy, setEnergy] = useState<number | null>(null);
@@ -32,8 +39,11 @@ export default function DailyCheckin({ onDone }: { onDone?: () => void }) {
       setSaved(true);
       localStorage.setItem("so:lastCheckin", new Date().toDateString());
       onDone?.();
-    } catch {}
-    setSaving(false);
+    } catch (err) {
+      console.error('Check-in save failed:', err);
+    } finally {
+      setSaving(false);
+    }
   }, [mood, energy, sleep, onDone]);
 
   if (saved) {
