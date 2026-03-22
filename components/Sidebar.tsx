@@ -63,7 +63,7 @@ export default function Sidebar() {
   };
   const filtered = threads.filter((t) => t.title.toLowerCase().includes(q.toLowerCase()));
   return (
-    <div className="sidebar-click-guard flex h-full w-full flex-col gap-5 px-4 pt-6 pb-0 text-medx">
+    <div className="so-sidebar sidebar-click-guard flex h-full w-full flex-col gap-5 px-4 pt-6 pb-0">
       <ul className="space-y-1">
         <li>
           <button
@@ -71,9 +71,8 @@ export default function Sidebar() {
             aria-label={t("threads.systemTitles.new_chat")}
             onClick={handleNewChat}
             className={[
-              "flex w-full items-center gap-2 rounded-md h-9 px-3",
-              "text-slate-600 hover:bg-slate-100/70 dark:text-slate-300 dark:hover:bg-white/5",
-              "text-sm leading-5 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 dark:focus-visible:outline-slate-500",
+              "so-sidebar-item w-full",
+              "text-sm leading-5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2",
             ].join(" ")}
           >
             <span className="flex h-4 w-4 items-center justify-center" aria-hidden>
@@ -100,7 +99,7 @@ export default function Sidebar() {
 
       <div className="relative">
         <input
-          className="h-10 w-full rounded-full border border-slate-200 bg-white/80 px-3 pr-8 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none focus:ring-0 dark:border-white/10 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-400"
+          className="so-input h-10 w-full rounded-so-full px-3 pr-8 text-sm placeholder:text-so-muted"
           placeholder={t("Search")}
           onChange={(e) => handleSearch(e.target.value)}
         />
@@ -109,7 +108,7 @@ export default function Sidebar() {
 
       {/* Section heading above chat threads */}
       <div className="px-3 pb-0 pt-1">
-        <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">
+        <h3 className="text-label-xs font-medium uppercase" style={{ color: "var(--so-muted)" }}>
           {t?.("Chats") ?? "Chats"}
         </h3>
       </div>
@@ -133,8 +132,8 @@ export default function Sidebar() {
                   "group flex items-center gap-2 rounded-md h-9 px-3",
                   "transition-colors focus-within:ring-2 focus-within:ring-offset-0",
                   active
-                    ? "bg-blue-600/10 font-semibold text-blue-600 dark:bg-sky-500/20 dark:text-sky-300"
-                    : "text-slate-600 hover:bg-slate-100/70 dark:text-slate-300 dark:hover:bg-white/5",
+                    ? "bg-so-accent-light font-semibold text-so-accent"
+                    : "so-sidebar-item",
                 ].join(" ")}
                 aria-current={active ? "page" : undefined}
                 title={displayTitle || rawTitle}
