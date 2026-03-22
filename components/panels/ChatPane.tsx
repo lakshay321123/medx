@@ -4048,7 +4048,7 @@ ${systemCommon}` + baseSys;
             : 'overflow-hidden mobile-chat-scroll-empty'
         }${showWelcomeCard ? ' mt-4' : ''} md:overflow-y-auto`}
       >
-        <div className={`flex min-h-full flex-col justify-end px-6${showWelcomeCard ? '' : ' pt-6'}`}>
+        <div className={`flex min-h-full flex-col ${mode === 'doctor' && researchMode ? 'justify-start' : 'justify-end'} px-6${showWelcomeCard ? '' : ' pt-6'}`}>
           {mode === "doctor" && researchMode && (
             <div className="mx-auto w-full max-w-3xl mb-6 space-y-4">
               <ResearchFilters mode="research" onResults={handleTrials} />
