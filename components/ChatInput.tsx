@@ -264,7 +264,7 @@ export function ChatInput({
             void handleSend();
           }
         }}
-        className="min-h-[48px] max-h-[160px] flex-1 resize-none bg-transparent text-[14px] leading-snug focus:outline-none md:min-h-[56px]" style={{ color: "var(--so-text, #000)", "--tw-placeholder-color": "var(--so-text-secondary, #8E8E93)" }}
+        className="min-h-[48px] max-h-[160px] flex-1 resize-none bg-transparent text-[14px] leading-snug placeholder:text-[#8E8E93] focus:outline-none md:min-h-[56px]" style={{ color: "var(--so-text, #000)" }}
       />
       <button
         type="submit"
