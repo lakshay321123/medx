@@ -65,7 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
                     <div className="grid grow min-h-0 grid-cols-12 mobile-content-offset md:pt-0">
                       {/* Desktop Sidebar */}
-                      <aside className="hidden min-h-0 overflow-y-auto border-r md:col-span-3 md:flex lg:col-span-2" style={{ borderColor: "var(--so-border, #E5E5EA)", background: "var(--so-bg-secondary, #F2F2F7)" }}>
+                      <aside className="hidden min-h-0 overflow-y-auto border-r md:col-span-3 md:flex lg:col-span-2" style={{ borderColor: "var(--so-border, #E5E5EA)", background: "#F9F9F9" }}>
                         <Suspense fallback={null}>
                           <Sidebar />
                         </Suspense>
