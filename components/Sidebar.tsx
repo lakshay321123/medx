@@ -144,7 +144,7 @@ export default function Sidebar() {
 
       {/* CHATS label */}
       <div className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.5px] text-[#8E8E93]">
-        {t?.("Chats") ?? "Chats"}
+        Chats
       </div>
 
       {/* Thread list */}
