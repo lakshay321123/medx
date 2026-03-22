@@ -2192,7 +2192,8 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             }))]);
           }
         }
-        // single readiness nudge (skip if asked recently)
+        // single readiness nudge — skip if boot messages were shown or asked recently
+        if (boot?.messages?.length) return;
         if (askedRecently(threadId, 'proactive', 60)) return;
         const rd = await safeJson(fetch('/api/predictions/readiness'));
         const miss = rd?.missing || [];
