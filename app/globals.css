@@ -1393,3 +1393,9 @@ textarea { overflow-y: auto; }
   font-size: 11px;
   color: var(--so-text-secondary, #8E8E93);
 }
+
+/* Reasoning step fade-in */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
