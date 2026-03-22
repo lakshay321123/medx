@@ -103,7 +103,7 @@ export default function PreferencesModal() {
           "fixed inset-x-0 bottom-0 z-[70]",
           "sm:inset-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2",
           "w-full sm:w-[min(96vw,980px)]",
-          "bg-[var(--surface-2)] text-[var(--text)]",
+          "bg-[var(--so-card,#fff)] text-[var(--so-text,#000)] dark:bg-[#1C1C1E] dark:text-white",
           "rounded-t-2xl sm:rounded-2xl shadow-xl",
           "grid grid-rows-[auto,1fr,auto] overflow-hidden",
           "min-h-[40svh] max-h-[85svh] [@supports(height:100dvh)]:max-h-[85dvh] sm:h-[min(92vh,620px)]"
@@ -111,7 +111,7 @@ export default function PreferencesModal() {
         onClick={(event) => event.stopPropagation()}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
+        <div className="flex items-center justify-between border-b border-[var(--so-border,#E5E5EA)] px-4 py-3">
           <h2
             id="preferences-title"
             ref={titleRef}
@@ -145,7 +145,7 @@ function FooterActions({ onCancel }: { onCancel: () => void }) {
   const t = useT();
 
   return (
-    <div className="border-t border-[var(--border)] bg-[var(--surface-2)]/85 px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-2 backdrop-blur">
+    <div className="border-t border-[var(--so-border,#E5E5EA)] bg-[var(--so-card,#fff)] px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-2">
       <div className="flex gap-2">
         <button
           type="button"

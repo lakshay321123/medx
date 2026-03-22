@@ -10,7 +10,7 @@ export default function SuggestionChips({ suggestions, onAction }: Props) {
   if (!suggestions?.length) return null;
 
   // Optional hard guard to strip accidental actionIds
-  const safe = suggestions.map((s) => (s.actionId ? s : { ...s, actionId: undefined as never }));
+  const safe = suggestions.map((s) => (s.actionId ? s : { ...s, actionId: undefined }));
   const t = useT();
 
   const translated = useMemo(
@@ -27,13 +27,13 @@ export default function SuggestionChips({ suggestions, onAction }: Props) {
   );
 
   return (
-    <div className="mt-2 flex flex-wrap gap-1">
+    <div className="mt-3 flex flex-wrap gap-1.5">
       {translated.map((s) =>
         isAction(s) ? (
           <button
             key={s.id}
             type="button"
-            className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700/80"
+            className="rounded-full px-3 py-1 text-xs font-medium transition hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--so-accent,#06B6D4)] bg-[var(--so-bg-secondary,#F2F2F7)] text-[var(--so-text,#000)] dark:bg-[var(--so-bg-secondary,#2C2C2E)] dark:text-[var(--so-text,#fff)]"
             onClick={() => onAction(s)}
             aria-label={s.label}
           >
@@ -42,7 +42,7 @@ export default function SuggestionChips({ suggestions, onAction }: Props) {
         ) : (
           <span
             key={s.id}
-            className="rounded-full border border-dashed border-slate-200 px-2 py-0.5 text-xs text-slate-500 cursor-default select-text dark:border-slate-700 dark:text-slate-300"
+            className="rounded-full px-3 py-1 text-xs cursor-default select-text bg-[var(--so-bg-secondary,#F2F2F7)] text-[var(--so-text-secondary,#8E8E93)] dark:bg-[var(--so-bg-secondary,#2C2C2E)] dark:text-[var(--so-text-secondary,#98989D)]"
             aria-disabled="true"
           >
             {s.label}

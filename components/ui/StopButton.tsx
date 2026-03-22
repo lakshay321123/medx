@@ -24,7 +24,7 @@ export function StopButton({ onClick, className, title = "Stop generating (Esc)"
         "ring-1 ring-zinc-300 hover:ring-red-400 dark:ring-zinc-700 shadow-sm",
         "flex items-center justify-center",
         "transition-colors hover:bg-white dark:hover:bg-zinc-900",
-        "focus:outline-none focus:ring-2 focus:ring-blue-500",
+        "focus:outline-none focus:ring-2 focus:ring-[var(--so-accent,#06B6D4)]",
         className || ""
       ].join(" ")}
     >

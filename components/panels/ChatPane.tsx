@@ -568,7 +568,7 @@ function AnalysisCard({
 }) {
   const header = titleForCategory(m.category);
   return (
-    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-start whitespace-normal max-w-3xl space-y-2">
+    <div className="rounded-2xl p-4 text-start whitespace-normal max-w-3xl space-y-2 bg-[var(--so-card,#fff)] border border-[var(--so-border,#E5E5EA)] text-[var(--so-text,#000)] dark:bg-[var(--so-card,#1C1C1E)] dark:border-[var(--so-border,#2C2C2E)] dark:text-[var(--so-text,#fff)]">
       <header className="flex items-center gap-2">
         <h2 className="text-lg md:text-xl font-semibold">{header}</h2>
         {researchOn && (
@@ -658,10 +658,10 @@ function ChatCard({
   }
   return (
     <div
-      className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-start whitespace-normal max-w-3xl"
+      className="rounded-2xl p-4 text-start whitespace-normal max-w-3xl bg-[var(--so-card,#fff)] border border-[var(--so-border,#E5E5EA)] text-[var(--so-text,#000)] dark:bg-[var(--so-card,#1C1C1E)] dark:border-[var(--so-border,#2C2C2E)] dark:text-[var(--so-text,#fff)]"
     >
       {m.replacedByNewer && (
-        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--so-text-secondary,#8E8E93)]">
           Replaced by a newer answer
         </div>
       )}
@@ -686,7 +686,7 @@ function ChatCard({
 function ImageCard({ m }: { m: Extract<ChatMessage, { kind: "image" }> }) {
   return (
     <div className="flex justify-end">
-      <div className="max-w-[65%] rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+      <div className="max-w-[65%] rounded-2xl overflow-hidden border border-[var(--so-border,#E5E5EA)] bg-[var(--so-card,#fff)] dark:border-[var(--so-border,#2C2C2E)] dark:bg-[var(--so-card,#1C1C1E)]">
         <img
           src={m.imageUrl}
           alt="Uploaded image"
@@ -706,7 +706,7 @@ function ImageCard({ m }: { m: Extract<ChatMessage, { kind: "image" }> }) {
 function SlimStatusPill({ text }: { text: string }) {
   return (
     <div className="mb-3">
-      <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+      <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs bg-[var(--so-bg-secondary,#F2F2F7)] text-[var(--so-text-secondary,#8E8E93)] dark:bg-[var(--so-bg-secondary,#2C2C2E)] dark:text-[var(--so-text-secondary,#98989D)]">
         <span>{text}</span>
         <span className="animate-pulse" aria-hidden="true">
           •
@@ -3808,7 +3808,7 @@ ${systemCommon}` + baseSys;
 
           return (
             <div key={derivedKey} className="space-y-2">
-              <div className="ml-auto max-w-3xl whitespace-normal rounded-2xl bg-slate-200 px-4 py-3 text-start text-slate-900 shadow-sm dark:bg-gray-700 dark:text-gray-100">
+              <div className="ml-auto w-fit max-w-[75%] whitespace-normal rounded-2xl px-4 py-3 text-start text-white bg-[var(--so-accent,#06B6D4)] dark:bg-[var(--so-accent,#22D3EE)] dark:text-white [&_.prose]:text-white [&_.prose-slate]:text-white [&_*]:text-white">
                 <ChatMarkdown content={m.content ?? ''} />
               </div>
             </div>
@@ -4053,12 +4053,12 @@ ${systemCommon}` + baseSys;
             <div className="mb-6 space-y-4">
               <ResearchFilters mode="research" onResults={handleTrials} />
               {searched && trialRows.length === 0 && (
-                <div className="rounded-xl border border-slate-200 bg-white/80 p-3 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">
+                <div className="rounded-xl border border-[var(--so-border,#E5E5EA)] bg-[var(--so-card,#fff)] p-3 text-sm text-[var(--so-text-secondary,#8E8E93)] shadow-sm dark:border-[#2C2C2E] dark:bg-[#1C1C1E] dark:text-[#98989D]">
                   No trials found. Try removing a filter, switching country, or using broader keywords.
                 </div>
               )}
               {summary && (
-                <div className="space-y-4 rounded-xl border border-slate-200 bg-white/85 p-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
+                <div className="space-y-4 rounded-xl border border-[var(--so-border,#E5E5EA)] bg-white/85 p-4 text-sm shadow-sm dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex items-start gap-2">
                       <div className="mt-0.5 shrink-0">
@@ -4075,7 +4075,7 @@ ${systemCommon}` + baseSys;
                       <button
                         type="button"
                         onClick={() => navigator.clipboard.writeText(summary!)}
-                        className="rounded-full border border-slate-200 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                        className="rounded-full border border-[var(--so-border,#E5E5EA)] px-2 py-1 text-xs hover:bg-[var(--so-bg-secondary,#F2F2F7)] dark:border-[#2C2C2E] dark:hover:bg-[#2C2C2E]"
                         title="Copy summary"
                       >
                         <span className="inline-flex items-center gap-1">
@@ -4085,7 +4085,7 @@ ${systemCommon}` + baseSys;
                       <button
                         type="button"
                         onClick={() => setShowDetails(s => !s)}
-                        className="rounded-full border border-slate-200 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                        className="rounded-full border border-[var(--so-border,#E5E5EA)] px-2 py-1 text-xs hover:bg-[var(--so-bg-secondary,#F2F2F7)] dark:border-[#2C2C2E] dark:hover:bg-[#2C2C2E]"
                         title="View details"
                       >
                         <span className="inline-flex items-center gap-1">
@@ -4098,8 +4098,8 @@ ${systemCommon}` + baseSys;
 
                   {showDetails && stats && (
                     <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                      <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                        <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Phases</div>
+                      <div className="rounded border border-[var(--so-border,#E5E5EA)] bg-white p-3 dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
+                        <div className="border-b border-[var(--so-border,#E5E5EA)] pb-2 font-medium dark:border-[#2C2C2E]">Phases</div>
                         <ul className="px-3 py-2 space-y-1">
                           {Object.entries(stats.byPhase).sort((a,b)=>b[1]-a[1]).map(([k,v])=>(
                             <li key={k} className="flex justify-between"><span>Phase {k}</span><span>{v}</span></li>
@@ -4108,8 +4108,8 @@ ${systemCommon}` + baseSys;
                         </ul>
                       </div>
 
-                      <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                        <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Statuses</div>
+                      <div className="rounded border border-[var(--so-border,#E5E5EA)] bg-white p-3 dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
+                        <div className="border-b border-[var(--so-border,#E5E5EA)] pb-2 font-medium dark:border-[#2C2C2E]">Statuses</div>
                         <ul className="px-3 py-2 space-y-1">
                           {Object.entries(stats.byStatus).sort((a,b)=>b[1]-a[1]).map(([k,v])=>(
                             <li key={k} className="flex justify-between"><span>{k}</span><span>{v}</span></li>
@@ -4118,8 +4118,8 @@ ${systemCommon}` + baseSys;
                         </ul>
                       </div>
 
-                      <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                        <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Top countries</div>
+                      <div className="rounded border border-[var(--so-border,#E5E5EA)] bg-white p-3 dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
+                        <div className="border-b border-[var(--so-border,#E5E5EA)] pb-2 font-medium dark:border-[#2C2C2E]">Top countries</div>
                         <ul className="px-3 py-2 space-y-1">
                           {Object.entries(stats.byCountry).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>(
                             <li key={k} className="flex justify-between"><span>{k}</span><span>{v}</span></li>
@@ -4128,8 +4128,8 @@ ${systemCommon}` + baseSys;
                         </ul>
                       </div>
 
-                      <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                        <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Top genes</div>
+                      <div className="rounded border border-[var(--so-border,#E5E5EA)] bg-white p-3 dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
+                        <div className="border-b border-[var(--so-border,#E5E5EA)] pb-2 font-medium dark:border-[#2C2C2E]">Top genes</div>
                         <ul className="px-3 py-2 space-y-1">
                           {stats.genesTop.length ? stats.genesTop.map(([g,c])=>(
                             <li key={g} className="flex justify-between"><span>{g}</span><span>{c}</span></li>
@@ -4137,8 +4137,8 @@ ${systemCommon}` + baseSys;
                         </ul>
                       </div>
 
-                      <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                        <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Top conditions</div>
+                      <div className="rounded border border-[var(--so-border,#E5E5EA)] bg-white p-3 dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
+                        <div className="border-b border-[var(--so-border,#E5E5EA)] pb-2 font-medium dark:border-[#2C2C2E]">Top conditions</div>
                         <ul className="px-3 py-2 space-y-1">
                           {stats.conditionsTop.length ? stats.conditionsTop.map(([k,c])=>(
                             <li key={k} className="flex justify-between capitalize"><span>{k}</span><span>{c}</span></li>
@@ -4155,7 +4155,7 @@ ${systemCommon}` + baseSys;
 
           {ui.topic && (
             <div className="mx-auto mb-2 max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs dark:border-slate-700 dark:bg-slate-900/70">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--so-border,#E5E5EA)] bg-[var(--so-card,#fff)] px-3 py-1 text-xs dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
                 <span className="opacity-70">Topic:</span>
                 <strong className="truncate max-w-[16rem]">{ui.topic}</strong>
                 <button onClick={() => setUi(prev => ({ ...prev, topic: null }))} className="opacity-60 hover:opacity-100">Clear</button>
@@ -4164,7 +4164,7 @@ ${systemCommon}` + baseSys;
           )}
           {ui.contextFrom && (
             <div className="mx-auto mb-2 max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs dark:border-slate-700 dark:bg-slate-900/70">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--so-border,#E5E5EA)] bg-[var(--so-card,#fff)] px-3 py-1 text-xs dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
                 <span className="opacity-70">Using context from:</span>
                 <strong>{ui.contextFrom}</strong>
                 <button onClick={() => { clearContext(); setUi(prev => ({ ...prev, contextFrom: null })); }} className="opacity-60 hover:opacity-100">Clear</button>
@@ -4178,7 +4178,7 @@ ${systemCommon}` + baseSys;
 
           {AIDOC_UI && aidoc && (
             <div className="mx-auto mt-6 w-full max-w-3xl">
-              <div className="space-y-2 rounded-xl border border-slate-200 bg-white/85 p-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
+              <div className="space-y-2 rounded-xl border border-[var(--so-border,#E5E5EA)] bg-white/85 p-4 text-sm shadow-sm dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
                 <div className="font-medium">Observations</div>
                 <div className="text-sm opacity-90">
                   {labSummaryCard ? (
@@ -4211,7 +4211,7 @@ ${systemCommon}` + baseSys;
                 )}
 
                 {Array.isArray(aidoc?.rulesFired) && aidoc.rulesFired.length > 0 && (
-                  <details className="rounded-lg border border-slate-200/70 p-3 text-sm dark:border-slate-700/60">
+                  <details className="rounded-lg border border-[var(--so-border,#E5E5EA)]/70 p-3 text-sm dark:border-[#2C2C2E]/60">
                     <summary className="cursor-pointer text-sm">Why these?</summary>
                     <ul className="list-disc pl-5">
                       {aidoc.rulesFired.map((r: string, i: number) => (
@@ -4226,7 +4226,7 @@ ${systemCommon}` + baseSys;
 
           {pendingCommitIds.length > 0 && (
             <div className="mx-auto my-4 w-full max-w-3xl">
-              <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/85 p-3 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
+              <div className="flex items-center gap-2 rounded-xl border border-[var(--so-border,#E5E5EA)] bg-white/85 p-3 text-sm shadow-sm dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
                 <span>Add this to your Medical Profile?</span>
                 {commitError && <span className="text-xs text-rose-600">{commitError}</span>}
                 <button
@@ -4251,7 +4251,7 @@ ${systemCommon}` + baseSys;
                     }
                   }}
                   disabled={commitBusy !== null}
-                  className="rounded-full border border-slate-200 px-3 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                  className="rounded-full border border-[var(--so-border,#E5E5EA)] px-3 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50 hover:bg-[var(--so-bg-secondary,#F2F2F7)] dark:border-[#2C2C2E] dark:hover:bg-[#2C2C2E]"
                 >{commitBusy === 'save' ? 'Saving…' : 'Save'}</button>
                 <button
                   onClick={async () => {
@@ -4274,7 +4274,7 @@ ${systemCommon}` + baseSys;
                     }
                   }}
                   disabled={commitBusy !== null}
-                  className="rounded-full border border-slate-200 px-3 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                  className="rounded-full border border-[var(--so-border,#E5E5EA)] px-3 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50 hover:bg-[var(--so-bg-secondary,#F2F2F7)] dark:border-[#2C2C2E] dark:hover:bg-[#2C2C2E]"
                 >{commitBusy === 'discard' ? 'Discarding…' : 'Discard'}</button>
               </div>
             </div>
@@ -4305,7 +4305,7 @@ ${systemCommon}` + baseSys;
               )}
 
               {pendingFiles.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/60 bg-white/80 px-3 py-2 text-xs text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200">
+                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[var(--so-border,#E5E5EA)]/60 bg-[var(--so-card,#fff)] px-3 py-2 text-xs text-[var(--so-text-secondary,#8E8E93)] dark:border-[#2C2C2E]/60 dark:bg-[#1C1C1E] dark:text-[#fff]">
                   <span className="font-medium">
                     {pendingFiles.length} file{pendingFiles.length === 1 ? '' : 's'} ready
                   </span>
@@ -4319,7 +4319,7 @@ ${systemCommon}` + baseSys;
                         <button
                           type="button"
                           onClick={() => removePendingFile(index)}
-                          className="text-slate-500 transition hover:text-slate-700 dark:hover:text-slate-300"
+                          className="text-slate-500 transition hover:text-[var(--so-text,#000)] dark:hover:text-slate-300"
                           aria-label={`Remove ${file.name}`}
                         >
                           ✕
@@ -4335,7 +4335,7 @@ ${systemCommon}` + baseSys;
                   e.preventDefault();
                   onSubmit();
                 }}
-                className="flex w-full flex-wrap items-end gap-2 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80 md:flex-nowrap md:gap-3"
+                className="flex w-full flex-wrap items-end gap-2 rounded-2xl border border-[var(--so-border,#E5E5EA)]/60 bg-white/90 px-3 py-2 dark:border-[#2C2C2E]/60 dark:bg-[#1C1C1E]/80 md:flex-nowrap md:gap-3"
               >
                 <div ref={plusMenuRef} className="relative inline-flex flex-shrink-0 items-center">
                   <button
@@ -4347,7 +4347,7 @@ ${systemCommon}` + baseSys;
                       e.stopPropagation();
                       setPlusMenuOpen((v) => !v);
                     }}
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300/70 hover:bg-slate-100/70 dark:border-slate-700/60 dark:hover:bg-slate-800/60"
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300/70 hover:bg-[var(--so-bg-secondary,#F2F2F7)]/70 dark:border-[#2C2C2E]/60 dark:hover:bg-[#2C2C2E]/60"
                     title={t('more')}
                   >
                     <Plus className="h-5 w-5" aria-hidden="true" />
@@ -4357,12 +4357,12 @@ ${systemCommon}` + baseSys;
                     <div
                       role="menu"
                       aria-label={t('composerMenu')}
-                      className="absolute bottom-12 left-0 z-50 w-64 overflow-hidden rounded-xl border border-slate-300/70 bg-white shadow-lg dark:border-slate-700/60 dark:bg-slate-900"
+                      className="absolute bottom-12 left-0 z-50 w-64 overflow-hidden rounded-xl border border-slate-300/70 bg-white shadow-lg dark:border-[#2C2C2E]/60 dark:bg-[#1C1C1E]"
                     >
                       <button
                         role="menuitem"
                         type="button"
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[var(--so-bg-secondary,#F2F2F7)] dark:hover:bg-[#2C2C2E]"
                         onClick={() => {
                           setPlusMenuOpen(false);
                           fileInputRef.current?.click();
@@ -4375,7 +4375,7 @@ ${systemCommon}` + baseSys;
                       <button
                         role="menuitem"
                         type="button"
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[var(--so-bg-secondary,#F2F2F7)] dark:hover:bg-[#2C2C2E]"
                         onClick={() => {
                           setPlusMenuOpen(false);
                           setActiveHelper('study');
@@ -4388,7 +4388,7 @@ ${systemCommon}` + baseSys;
                       <button
                         role="menuitem"
                         type="button"
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[var(--so-bg-secondary,#F2F2F7)] dark:hover:bg-[#2C2C2E]"
                         onClick={() => {
                           setPlusMenuOpen(false);
                           setActiveHelper('thinking');
@@ -4403,14 +4403,14 @@ ${systemCommon}` + baseSys;
 
                 {activeHelper && (
                   <span
-                    className="order-3 hidden min-h-[2.25rem] basis-full items-center gap-1 rounded-full border border-slate-300/70 bg-slate-50 px-2 py-1 text-xs text-foreground dark:border-slate-700/60 dark:bg-slate-900/60 md:inline-flex md:order-none md:ml-2 md:basis-auto md:gap-2 md:px-3 md:py-1 md:text-sm"
+                    className="order-3 hidden min-h-[2.25rem] basis-full items-center gap-1 rounded-full border border-slate-300/70 bg-slate-50 px-2 py-1 text-xs text-foreground dark:border-[#2C2C2E]/60 dark:bg-[#1C1C1E]/60 md:inline-flex md:order-none md:ml-2 md:basis-auto md:gap-2 md:px-3 md:py-1 md:text-sm"
                     aria-live="polite"
                   >
                     {activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
                     <button
                       type="button"
                       aria-label={t('clearSelection')}
-                      className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200/80 text-slate-600 transition hover:bg-slate-300 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-700"
+                      className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200/80 text-[var(--so-text-secondary,#8E8E93)] transition hover:bg-slate-300 dark:bg-slate-800/70 dark:text-[#fff] dark:hover:bg-slate-700"
                       onClick={() => setActiveHelper(null)}
                     >
                       <X className="h-3.5 w-3.5" aria-hidden="true" />

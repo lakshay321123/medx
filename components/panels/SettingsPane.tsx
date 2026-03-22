@@ -110,7 +110,7 @@ export default function SettingsPane({
       <nav
         className={clsx(
           "flex w-64 shrink-0 flex-col gap-1 overflow-auto pr-4",
-          "border-r border-[var(--border)]",
+          "border-r border-[var(--so-border,#E5E5EA)]",
           asMobile &&
             "max-sm:w-auto max-sm:flex-row max-sm:border-0 max-sm:pb-2 max-sm:pr-0 max-sm:pl-1 max-sm:pt-1 max-sm:overflow-x-auto max-sm:gap-2 no-scrollbar"
         )}
@@ -131,14 +131,14 @@ export default function SettingsPane({
               onClick={() => handleSelect(id)}
               className={clsx(
                 "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px]",
-                "hover:bg-[var(--surface)]",
-                active && "bg-[var(--surface)] ring-1 ring-[var(--border)]",
+                "hover:bg-[var(--so-bg-secondary,#F2F2F7)]",
+                active && "bg-[rgba(6,182,212,0.08)] text-[var(--so-accent,#06B6D4)] font-semibold dark:bg-[rgba(34,211,238,0.12)] dark:text-[#22D3EE]",
                 asMobile &&
                   "max-sm:w-auto max-sm:flex-none max-sm:items-center max-sm:justify-center max-sm:gap-2 max-sm:px-3 max-sm:py-1.5 max-sm:text-sm max-sm:rounded-full",
                 asMobile &&
                   (active
-                    ? "max-sm:bg-[var(--surface-2)] max-sm:border max-sm:border-[var(--border)] max-sm:text-[var(--text)]"
-                    : "max-sm:bg-[var(--surface)] max-sm:text-[var(--muted)]")
+                    ? "max-sm:bg-[var(--so-card,#fff)] max-sm:border max-sm:border-[var(--so-border,#E5E5EA)] max-sm:text-[var(--so-text,#000)]"
+                    : "max-sm:bg-[var(--so-bg-secondary,#F2F2F7)] max-sm:text-[var(--so-text-secondary,#8E8E93)]")
               )}
             >
               <Icon size={14} className="opacity-70" />
@@ -154,10 +154,10 @@ export default function SettingsPane({
         className="flex-1 sm:pl-6"
       >
         <form id="preferences-form" onSubmit={handleSubmit} className="flex h-full flex-col">
-          <header className="border-b border-[var(--border)] px-5 py-3 text-[15px] font-semibold">
+          <header className="border-b border-[var(--so-border,#E5E5EA)] px-5 py-3 text-[15px] font-semibold">
             {t(activeSection.titleKey)}
           </header>
-          <div className="flex-1 overflow-auto divide-y divide-[var(--border)]">
+          <div className="flex-1 overflow-auto divide-y divide-[var(--so-border,#E5E5EA)]">
             {renderPanel()}
           </div>
         </form>
