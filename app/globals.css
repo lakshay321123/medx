@@ -158,7 +158,7 @@ body * {
   --medx-purple:  #A78BFA;
 
   --medx-surface: var(--so-card, #1C1C1E);
-  --medx-panel:   rgba(3,7,18,0.55);
+  --medx-panel:   var(--so-card, #1C1C1E);
   --medx-outline: var(--so-border, #2C2C2E);
 }
 

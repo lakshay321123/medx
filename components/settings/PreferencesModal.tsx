@@ -103,7 +103,7 @@ export default function PreferencesModal() {
           "fixed inset-x-0 bottom-0 z-[70]",
           "sm:inset-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2",
           "w-full sm:w-[min(96vw,980px)]",
-          "bg-[var(--so-card,#fff)] text-[var(--so-text,#000)]",
+          "bg-[var(--so-card,#fff)] text-[var(--so-text,#000)] dark:bg-[#1C1C1E] dark:text-white",
           "rounded-t-2xl sm:rounded-2xl shadow-xl",
           "grid grid-rows-[auto,1fr,auto] overflow-hidden",
           "min-h-[40svh] max-h-[85svh] [@supports(height:100dvh)]:max-h-[85dvh] sm:h-[min(92vh,620px)]"
