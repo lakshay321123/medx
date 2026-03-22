@@ -3694,7 +3694,8 @@ ${systemCommon}` + baseSys;
   }
 
   function handleSuggestionAction(s: Suggestion) {
-    if (!s.actionId) return;
+    // Send the suggestion label as a new user message
+    // (works for both predefined actions and LLM follow-up questions)
     send(s.label, researchMode);
   }
 
