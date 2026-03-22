@@ -93,7 +93,7 @@ export default function Sidebar() {
             <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
-        <span className="text-[14px] font-semibold tracking-tight" style={{ color: "var(--so-text, #000)" }} className="text-[14px] font-semibold tracking-tight dark:text-white">
+        <span className="text-[14px] font-semibold tracking-tight text-[var(--so-text,#000)] dark:text-white">
           Second Opinion
         </span>
       </div>
