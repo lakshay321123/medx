@@ -20,7 +20,7 @@ export default function FamilyHub() {
     fetch("/api/family/members", { credentials: "include" })
       .then(r => r.json())
       .then(d => setMembers(Array.isArray(d?.members) ? d.members : []))
-      .catch(() => {});
+      .catch(err => console.error('Failed to load family members:', err));
   }, []);
 
   const addMember = async () => {

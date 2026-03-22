@@ -19,7 +19,7 @@ export default function AllergiesSection() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ observations: list.map(a => ({ kind: "allergy", value_text: a, meta: { source: "manual" } })) }),
-    }).catch(() => {});
+    }).catch(err => console.error('Failed to save allergies:', err));
   };
 
   const add = () => {

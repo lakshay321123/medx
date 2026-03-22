@@ -195,7 +195,7 @@ export async function POST(req: Request) {
           if (alerts.length) {
             triageContext += '⚠️ RED FLAGS DETECTED:\n' + alerts.map((a: string) => `- ${a}`).join('\n') + '\nAddress these FIRST before any other response.\n';
           }
-        } catch {}
+        } catch (err) { console.warn('[triage] redflagChecks failed:', err); }
         triageContext += 'Follow structured triage: (1) Address any red flags IMMEDIATELY, (2) Ask ONE focused follow-up about onset/duration/severity, (3) Only assess after gathering history.';
         intentBlock = triageContext;
       }
@@ -218,11 +218,12 @@ export async function POST(req: Request) {
         // Try to call drug interaction API if user has medications
         let drugContext = '[DRUG SAFETY MODE] The user is asking about drug interactions. Be cautious and thorough.';
         try {
+          // Extract medications for drug interaction context
           const meds = profileBlock.match(/Medications: (.+)/)?.[1]?.split(', ') || [];
           if (meds.length >= 2) {
             drugContext += `\nUser's current medications: ${meds.join(', ')}. Check for known interactions between these.`;
           }
-        } catch {}
+        } catch (err) { console.warn('[drug-safety] med extraction failed:', err); }
         intentBlock = drugContext;
       }
     } catch (err) {

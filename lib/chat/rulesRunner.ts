@@ -33,7 +33,7 @@ export function runConditionRules(ctx: ProfileContext): string {
       parts.push(`PERSONALIZED STEPS: ${plan.steps.slice(0, 5).join("; ")}`);
     }
     if (plan.nudges?.length) {
-      parts.push(`NUDGES: ${rulesOut.nudges.slice(0, 3).join("; ")}`);
+      parts.push(`NUDGES: ${(plan.nudges || rulesOut.nudges).slice(0, 3).join("; ")}`);
     }
     return parts.length ? `[CLINICAL RULES ENGINE]\n${parts.join("\n")}` : "";
   } catch (err) {

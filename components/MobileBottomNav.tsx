@@ -16,7 +16,7 @@ export default function MobileBottomNav() {
   const active = searchParams.get("panel") || "chat";
 
   return (
-    <nav className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] bg-[var(--so-bg,#fff)] dark:bg-[var(--so-bg,#000)] backdrop-blur-xl bg-opacity-90 safe-area-inset">
+    <nav aria-label="Main navigation" className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] bg-[var(--so-bg,#fff)] dark:bg-[var(--so-bg,#000)] backdrop-blur-xl bg-opacity-90 safe-area-inset">
       <div className="flex items-center justify-around py-2">
         {TABS.map(tab => {
           const Icon = tab.icon;

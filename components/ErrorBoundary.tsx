@@ -24,7 +24,7 @@ export default class ErrorBoundary extends Component<Props, State> {
               Something went wrong
             </p>
             <p className="text-xs text-[var(--so-text-secondary,#8E8E93)]">
-              {this.state.error?.message || "An unexpected error occurred"}
+              {"An unexpected error occurred. Please try again."}
             </p>
             <button
               type="button"

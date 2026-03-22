@@ -20,7 +20,7 @@ export default function EmergencyContactSection() {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ emergency_contact: contact }),
-    }).catch(() => {});
+    }).catch(err => console.error('Failed to save emergency contact:', err));
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };

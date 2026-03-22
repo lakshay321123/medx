@@ -26,7 +26,7 @@ export async function buildProfileContext(userId: string): Promise<ProfileContex
   // Extract latest vitals
   const vitals: Record<string, number> = {};
   for (const v of (vitalsRes.data || []) as any[]) {
-    if (v.kind && v.value_num != null && !vitals[v.kind]) vitals[v.kind] = Number(v.value_num);
+    if (v.kind && v.value_num != null && !(v.kind in vitals)) vitals[v.kind] = Number(v.value_num);
   }
 
   // Extract medications

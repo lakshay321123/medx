@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 async function getStats() {
   const sb = supabaseAdmin();
-  const [profiles, observations, predictions, threads, checkins, scores] = await Promise.all([
+  const results = await Promise.allSettled([
     sb.from("profiles").select("id", { count: "exact", head: true }),
     sb.from("observations").select("id", { count: "exact", head: true }),
     sb.from("predictions").select("id", { count: "exact", head: true }),
@@ -12,13 +12,14 @@ async function getStats() {
     sb.from("daily_checkins").select("id", { count: "exact", head: true }),
     sb.from("health_scores").select("id", { count: "exact", head: true }),
   ]);
+  const val = (i: number) => results[i].status === "fulfilled" ? (results[i] as any).value?.count || 0 : 0;
   return {
-    profiles: profiles.count || 0,
-    observations: observations.count || 0,
-    predictions: predictions.count || 0,
-    threads: threads.count || 0,
-    checkins: checkins.count || 0,
-    scores: scores.count || 0,
+    profiles: val(0),
+    observations: val(1),
+    predictions: val(2),
+    threads: val(3),
+    checkins: val(4),
+    scores: val(5),
   };
 }
 

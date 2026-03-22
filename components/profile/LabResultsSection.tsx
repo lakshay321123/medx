@@ -21,7 +21,7 @@ export default function LabResultsSection() {
           status: "normal" as const,
         })));
       })
-      .catch(() => {})
+      .catch(err => console.error('Failed to load labs:', err))
       .finally(() => setLoading(false));
   }, []);
 

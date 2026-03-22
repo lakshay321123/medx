@@ -97,10 +97,10 @@ export default function Page({ searchParams }: { searchParams: Search }) {
 
   return (
     <div className="flex flex-1 min-h-0 flex-col">
+      <MobileBottomNav />
       {mainPanel === "chat" ? (
         <ResearchFiltersProvider>
           <OnboardingCheck />
-          <MobileBottomNav />
           <ErrorBoundary>
             <ChatPane inputRef={chatInputRef} />
           </ErrorBoundary>
