@@ -41,6 +41,10 @@ type NavItem = {
 const HealthScoreCard = dynamic(() => import("@/components/HealthScoreCard"), { ssr: false });
 const DailyCheckin = dynamic(() => import("@/components/DailyCheckin"), { ssr: false });
 const HealthTimeline = dynamic(() => import("@/components/HealthTimeline"), { ssr: false });
+const WearableSync = dynamic(() => import("@/components/WearableSync"), { ssr: false });
+const FamilyHub = dynamic(() => import("@/components/FamilyHub"), { ssr: false });
+const MedReminders = dynamic(() => import("@/components/MedReminders"), { ssr: false });
+const HealthReportExport = dynamic(() => import("@/components/HealthReportExport"), { ssr: false });
 
 export default function Sidebar() {
   const router = useRouter();
@@ -217,6 +221,32 @@ export default function Sidebar() {
       <div className="mt-4 space-y-3 px-3">
         <HealthScoreCard />
         <DailyCheckin />
+      </div>
+
+      {/* Medication Reminders */}
+      <div className="mt-4 px-3">
+        <div className="rounded-2xl border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] p-3">
+          <MedReminders />
+        </div>
+      </div>
+
+      {/* Wearable Sync */}
+      <div className="mt-4 px-3">
+        <div className="rounded-2xl border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] p-3">
+          <WearableSync />
+        </div>
+      </div>
+
+      {/* Family Hub */}
+      <div className="mt-4 px-3">
+        <div className="rounded-2xl border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] p-3">
+          <FamilyHub />
+        </div>
+      </div>
+
+      {/* Export */}
+      <div className="mt-4 px-3 mb-4">
+        <HealthReportExport />
       </div>
 
       {/* Preferences — bottom, inside flow */}

@@ -4,6 +4,7 @@ import PreferencesModal from "@/components/settings/PreferencesModal";
 import { useRouter } from "next/navigation";
 import ChatPane from "@/components/panels/ChatPane";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import MobileBottomNav from "@/components/MobileBottomNav";
 import OnboardingCheck from "@/components/OnboardingCheck";
 import MedicalProfile from "@/components/panels/MedicalProfile";
 import Timeline from "@/components/panels/Timeline";
@@ -99,6 +100,7 @@ export default function Page({ searchParams }: { searchParams: Search }) {
       {mainPanel === "chat" ? (
         <ResearchFiltersProvider>
           <OnboardingCheck />
+          <MobileBottomNav />
           <ErrorBoundary>
             <ChatPane inputRef={chatInputRef} />
           </ErrorBoundary>

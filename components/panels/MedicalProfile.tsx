@@ -8,6 +8,7 @@ import PanelLoader from "@/components/mobile/PanelLoader";
 import ProfileSection from "@/components/profile/ProfileSection";
 import VitalsEditor from "@/components/profile/VitalsEditor";
 import ReportUpload from "@/components/profile/ReportUpload";
+import HealthReportExport from "@/components/HealthReportExport";
 import MedicationInput from "@/components/meds/MedicationInput";
 import MedicationTag from "@/components/meds/MedicationTag";
 import { useT } from "@/components/hooks/useI18n";
