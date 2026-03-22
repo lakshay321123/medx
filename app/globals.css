@@ -53,8 +53,8 @@
 }
 
 .mode-btn {
-  @apply h-8 rounded-so-full px-4 text-[12px] font-medium transition-all duration-200;
-  color: var(--so-muted);
+  @apply h-8 rounded-so-full px-4 text-[13px] font-medium transition-all duration-200;
+  color: var(--so-text);
   background: transparent;
   border: none;
   cursor: pointer;
@@ -222,4 +222,83 @@
   .bg-so-card { background: var(--so-card); }
   .bg-so-accent { background: var(--so-accent); }
   .border-so { border-color: var(--so-border); }
+}
+
+
+
+/* === Buttons (used by PreferencesModal and other components) === */
+.btn-ghost {
+  @apply rounded-lg px-4 py-2 text-sm font-medium transition;
+  color: var(--so-text);
+  background: transparent;
+  border: 1px solid var(--so-border);
+}
+.btn-ghost:hover {
+  background: var(--so-accent-light);
+}
+
+.btn-primary {
+  @apply rounded-lg px-4 py-2 text-sm font-medium transition;
+  background: var(--so-accent);
+  color: #fff;
+  border: 1px solid var(--so-accent);
+}
+.btn-primary:hover {
+  opacity: 0.9;
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* === Legacy variable aliases (backward compatibility) === */
+@layer base {
+  :root {
+    --bg: var(--so-bg);
+    --fg: var(--so-text);
+    --text: var(--so-text);
+    --muted: var(--so-muted);
+    --card: var(--so-card);
+    --card-2: var(--so-bg);
+    --surface: var(--so-card);
+    --surface-2: var(--so-card);
+    --border: var(--so-border);
+    --backdrop: rgba(0, 0, 0, 0.4);
+    --accent: var(--so-accent);
+    --accent-ink: #FFFFFF;
+    --primary: var(--so-accent);
+    --hover: var(--so-accent-light);
+    --bubble-bg: var(--so-card);
+    --card-border: var(--so-border);
+    --medx-panel: var(--so-card);
+    --medx-text: var(--so-text);
+    --medx-subtle-text: var(--so-muted);
+  }
+  .dark {
+    --bg: var(--so-bg);
+    --fg: var(--so-text);
+    --text: var(--so-text);
+    --muted: var(--so-muted);
+    --card: #1c1c1e;
+    --card-2: #1c1c1e;
+    --surface: #1c1c1e;
+    --surface-2: #1c1c1e;
+    --border: var(--so-border);
+    --backdrop: rgba(0, 0, 0, 0.6);
+    --accent: var(--so-accent);
+    --accent-ink: #FFFFFF;
+    --primary: var(--so-accent);
+    --hover: var(--so-accent-light);
+    --bubble-bg: #1c1c1e;
+    --card-border: var(--so-border);
+    --medx-panel: #1c1c1e;
+    --medx-text: var(--so-text);
+    --medx-subtle-text: var(--so-muted);
+  }
+}
+
+/* text-primary / bg-primary utility */
+@layer utilities {
+  .text-primary { color: var(--so-accent); }
+  .bg-primary { background-color: var(--so-accent); }
 }
