@@ -39,7 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Proxima Nova removed — using Inter via next/font */}
 
       </head>
-      <body className={`${inter.variable} h-full font-sans antialiased`} style={{ background: "var(--so-bg, #fff)", color: "var(--so-text, #000)" }}>
+      <body className={`${inter.variable} h-full font-sans antialiased bg-[var(--so-bg,#fff)] text-[var(--so-text,#000)]`}>
 
         <PreferencesProvider>
           <LangDirEffect />
@@ -65,7 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
                     <div className="grid grow min-h-0 grid-cols-12 mobile-content-offset md:pt-0">
                       {/* Desktop Sidebar */}
-                      <aside className="hidden min-h-0 overflow-y-auto border-r md:col-span-3 md:flex lg:col-span-2" style={{ borderColor: "var(--so-border)", background: "var(--so-bg-secondary)" }}>
+                      <aside className="hidden min-h-0 overflow-y-auto border-r md:col-span-3 md:flex lg:col-span-2" style={{ borderColor: "var(--so-border, #E5E5EA)", background: "var(--so-bg-secondary, #F2F2F7)" }}>
                         <Suspense fallback={null}>
                           <Sidebar />
                         </Suspense>

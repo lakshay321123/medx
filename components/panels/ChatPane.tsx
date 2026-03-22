@@ -568,7 +568,7 @@ function AnalysisCard({
 }) {
   const header = titleForCategory(m.category);
   return (
-    <div className="rounded-2xl p-4 text-start whitespace-normal max-w-3xl space-y-2" style={{ background: "var(--so-card, #fff)", border: "1px solid var(--so-border, #E5E5EA)" }}>
+    <div className="rounded-2xl p-4 text-start whitespace-normal max-w-3xl space-y-2 bg-[var(--so-card,#fff)] border border-[var(--so-border,#E5E5EA)] text-[var(--so-text,#000)] dark:bg-[var(--so-card,#1C1C1E)] dark:border-[var(--so-border,#2C2C2E)] dark:text-[var(--so-text,#fff)]">
       <header className="flex items-center gap-2">
         <h2 className="text-lg md:text-xl font-semibold">{header}</h2>
         {researchOn && (
@@ -658,10 +658,10 @@ function ChatCard({
   }
   return (
     <div
-      className="rounded-2xl p-4 text-start whitespace-normal max-w-3xl" style={{ background: "var(--so-card, #fff)", border: "1px solid var(--so-border, #E5E5EA)" }}
+      className="rounded-2xl p-4 text-start whitespace-normal max-w-3xl bg-[var(--so-card,#fff)] border border-[var(--so-border,#E5E5EA)] text-[var(--so-text,#000)] dark:bg-[var(--so-card,#1C1C1E)] dark:border-[var(--so-border,#2C2C2E)] dark:text-[var(--so-text,#fff)]"
     >
       {m.replacedByNewer && (
-        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--so-text-secondary, #8E8E93)" }}>
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--so-text-secondary,#8E8E93)]">
           Replaced by a newer answer
         </div>
       )}
@@ -686,7 +686,7 @@ function ChatCard({
 function ImageCard({ m }: { m: Extract<ChatMessage, { kind: "image" }> }) {
   return (
     <div className="flex justify-end">
-      <div className="max-w-[65%] rounded-2xl overflow-hidden" style={{ border: "1px solid var(--so-border, #E5E5EA)", background: "var(--so-card, #fff)" }}>
+      <div className="max-w-[65%] rounded-2xl overflow-hidden border border-[var(--so-border,#E5E5EA)] bg-[var(--so-card,#fff)] dark:border-[var(--so-border,#2C2C2E)] dark:bg-[var(--so-card,#1C1C1E)]">
         <img
           src={m.imageUrl}
           alt="Uploaded image"
@@ -706,7 +706,7 @@ function ImageCard({ m }: { m: Extract<ChatMessage, { kind: "image" }> }) {
 function SlimStatusPill({ text }: { text: string }) {
   return (
     <div className="mb-3">
-      <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs" style={{ background: "var(--so-bg-secondary, #F2F2F7)", color: "var(--so-text-secondary, #8E8E93)" }}>
+      <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs bg-[var(--so-bg-secondary,#F2F2F7)] text-[var(--so-text-secondary,#8E8E93)] dark:bg-[var(--so-bg-secondary,#2C2C2E)] dark:text-[var(--so-text-secondary,#98989D)]">
         <span>{text}</span>
         <span className="animate-pulse" aria-hidden="true">
           •
@@ -3808,7 +3808,7 @@ ${systemCommon}` + baseSys;
 
           return (
             <div key={derivedKey} className="space-y-2">
-              <div className="ml-auto max-w-3xl whitespace-normal rounded-2xl px-4 py-3 text-start text-white" style={{ background: "var(--so-accent, #06B6D4)" }}>
+              <div className="ml-auto max-w-3xl whitespace-normal rounded-2xl px-4 py-3 text-start text-white bg-[var(--so-accent,#06B6D4)] dark:bg-[var(--so-accent,#22D3EE)] dark:text-black">
                 <ChatMarkdown content={m.content ?? ''} />
               </div>
             </div>

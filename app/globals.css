@@ -17,7 +17,7 @@ body * {
 @layer base {
   html,
   body {
-    font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, Inter, system-ui, sans-serif;
   }
 }
 
@@ -1043,18 +1043,7 @@ body {
   scrollbar-width: none;
 }
 
-.btn-primary {
-  @apply inline-flex items-center justify-center px-4 py-2.5 text-sm font-medium rounded-lg focus-visible:outline-none focus-visible:ring-2;
-  background: var(--brand);
-  color: var(--on-brand);
-}
-
-.btn-ghost {
-  @apply inline-flex items-center justify-center px-4 py-2.5 text-sm font-medium rounded-lg border focus-visible:outline-none focus-visible:ring-2;
-  background: transparent;
-  border-color: var(--border);
-  color: var(--text);
-}
+/* btn-primary and btn-ghost defined in Second Opinion Design System section below */
 
 /* iOS Safari: prevent unexpected font zoom and clipping in inputs/textarea */
 html { -webkit-text-size-adjust: 100%; }

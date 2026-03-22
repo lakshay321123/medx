@@ -23,7 +23,7 @@ export default function UndoToast() {
           onClick={async () => {
             try {
               await fetch(`/api/memory?id=${encodeURIComponent(lastSaved!.id)}`, { method: "DELETE", credentials: "include" });
-            } catch {}
+            } catch (err) { console.error('Undo failed:', err); }
             setLastSaved(null);
           }}
         >

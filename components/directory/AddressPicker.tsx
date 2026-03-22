@@ -62,7 +62,7 @@ export default function AddressPicker({
         onFocus={() => q && setOpen(true)}
       />
       {open && opts.length > 0 && (
-        <div className="absolute z-20 mt-1 w-full max-h-64 overflow-auto rounded-[8px] border border-[var(--so-border,#E5E5EA)] bg-white/95 shadow-lg backdrop-blur-sm dark:border-white/10 dark:bg-slate-950/80 md:rounded-[12px]">
+        <div className="absolute z-20 mt-1 w-full max-h-64 overflow-auto rounded-[8px] border border-[var(--so-border,#E5E5EA)] bg-white/95 shadow-lg backdrop-blur-sm dark:border-[var(--so-border,#2C2C2E)] dark:bg-[#1C1C1E]/95 md:rounded-[12px]">
           {opts.map((option) => (
             <button
               key={`${option.label}-${option.lat}-${option.lng}`}
