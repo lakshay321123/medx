@@ -90,11 +90,45 @@ function ensureTable(content: string, formatId?: FormatId, userPrompt?: string) 
   return shapeToTable(subject, body);
 }
 
+
+// --- Thinking/Reasoning Block ---
+function ThinkingBlock({ content }: { content: string }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <details
+      open={open}
+      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
+      className="mb-4 rounded-lg border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] overflow-hidden"
+    >
+      <summary className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium cursor-pointer select-none bg-[var(--so-bg-secondary,#F2F2F7)] dark:bg-[var(--so-bg-secondary,#1C1C1E)] text-[var(--so-text-secondary,#8E8E93)]">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`transition-transform ${open ? 'rotate-90' : ''}`}>
+          <path d="M9 18l6-6-6-6" />
+        </svg>
+        <span>{open ? 'Reasoning' : 'Show reasoning'}</span>
+      </summary>
+      <div className="px-3 py-2 text-[13px] leading-relaxed text-[var(--so-text-secondary,#8E8E93)] border-t border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)]">
+        {content.split('\n').filter(Boolean).map((line, i) => (
+          <p key={i} className="my-1">{line.replace(/^[-•]\s*/, '')}</p>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function splitThinking(raw: string): { thinking: string | null; answer: string } {
+  const match = raw.match(/<thinking>([\s\S]*?)<\/thinking>/i);
+  if (!match) return { thinking: null, answer: raw };
+  const thinking = match[1].trim();
+  const answer = raw.replace(/<thinking>[\s\S]*?<\/thinking>/i, '').trim();
+  return { thinking, answer };
+}
+
 export default function ChatMarkdown({ content, formatId, userPrompt }: { content: string; formatId?: FormatId; userPrompt?: string }) {
   const { language } = useI18n();
   const guarded = ensureTable(content, formatId, userPrompt);
   const safeContent = enforceLocale(guarded, language ?? 'en', { forbidEnglishHeadings: true });
   const prepared = normalizeLLM(normalize(safeContent));
+  const { thinking, answer: answerContent } = splitThinking(prepared);
 
   return (
     <div
@@ -106,6 +140,7 @@ export default function ChatMarkdown({ content, formatId, userPrompt }: { conten
         leading-[1.7] text-[15px]
       "
     >
+      {thinking && <ThinkingBlock content={thinking} />}
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[[rehypeSanitize, tableSchema], rehypeKatex]}
@@ -168,7 +203,7 @@ export default function ChatMarkdown({ content, formatId, userPrompt }: { conten
           },
         }}
       >
-        {prepared}
+        {answerContent}
       </ReactMarkdown>
     </div>
   );
