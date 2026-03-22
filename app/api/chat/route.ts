@@ -507,9 +507,10 @@ export async function POST(req: Request) {
   await persistUpdatedSummary(threadId, updated);
 
   // 8) Optional pacing (default 0 = instant; set MIN_OUTPUT_DELAY_SECONDS to add delay)
-  const minDelay = Number(process.env.MIN_OUTPUT_DELAY_SECONDS || '0') * 1000;
-  if (minDelay > 0) {
-    await new Promise(r => setTimeout(r, minDelay + Math.random() * 400));
+  const minDelayMs = Number(process.env.MIN_OUTPUT_DELAY_SECONDS || '0') * 1000;
+  const jitterMs = Number(process.env.OUTPUT_DELAY_JITTER_MS || '0');
+  if (minDelayMs > 0) {
+    await new Promise(r => setTimeout(r, minDelayMs + Math.random() * jitterMs));
   }
 
   return respond({ ok: true, threadId, text: assistant, sources: researchSources });
