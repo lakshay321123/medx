@@ -71,7 +71,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       </aside>
 
                       {/* Main Content */}
-                      <main className="col-span-12 flex min-h-0 md:col-span-9 lg:col-span-10">
+                      <main className="col-span-12 flex min-h-0 overflow-y-auto md:col-span-9 lg:col-span-10">
                         <div className="flex flex-1 min-h-0 flex-col">
                           <Suspense fallback={<div className="flex-1 min-h-0" />}>
                             {children}
