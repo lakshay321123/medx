@@ -36,7 +36,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://api.groq.com" crossOrigin="anonymous" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
-        {/* Proxima Nova removed — using Inter via next/font */}
 
       </head>
       <body className={`${inter.variable} h-full font-sans antialiased bg-[var(--so-bg,#fff)] text-[var(--so-text,#000)]`}>

@@ -125,7 +125,6 @@ body * {
 
 /* === MedX Theme Tokens (Light & Dark) === */
 :root {
-  --font-proxima-nova: "Proxima Nova", "Proxima Nova Rg", "ProximaNova", "proxima-nova";
   --medx-bg-a: var(--so-bg, #FFFFFF);
   --medx-bg-b: var(--so-bg, #FFFFFF);
   --medx-bg-c: var(--so-bg, #FFFFFF);
