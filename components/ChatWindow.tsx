@@ -622,15 +622,11 @@ export function ChatWindow() {
               {pendingAssistantState && pendingAssistantState.id === pendingMessage.id ? (
                 <AssistantPendingMessage
                   stage={pendingAssistantState.stage}
-                  analyzingPhrase={pendingAssistantState.analyzingPhrase}
-                  thinkingLabel={pendingAssistantState.thinkingLabel}
                   content={pendingMessage.content}
                 />
               ) : (
                 <AssistantPendingMessage
                   stage={modeChoice === "therapy" ? "reflecting" : "thinking"}
-                  analyzingPhrase={null}
-                  thinkingLabel={modeChoice === "therapy" ? "Reflecting…" : undefined}
                   content={pendingMessage.content}
                 />
               )}

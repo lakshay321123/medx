@@ -175,12 +175,21 @@ export async function POST(req: NextRequest) {
   // 3) Build or auto-fetch sources if research is on
   let sources: WebHit[] = Array.isArray(body?.__sources) ? body.__sources as WebHit[] : [];
   console.log('research=', research, 'sources.len=', sources?.length);
-  if (research && (!sources || sources.length === 0) && latestUser?.content?.trim()) {
+  // Always fetch sources for health queries (even without Research toggle)
+  // This gives evidence-backed links in Wellness mode too
+  const rawSearchInput = String(latestUser?.content ?? '');
+  const searchQuery = rawSearchInput
+    .replace(/\n{2,}CONTEXT[\s\S]*$/i, '')
+    .replace(/\n{2,}Here is the ENTIRE conversation so far:[\s\S]*$/i, '')
+    .trim()
+    .slice(0, 240);
+  const shouldFetchSources = searchQuery.length > 10;
+  if (shouldFetchSources && (!sources || sources.length === 0)) {
     try {
       const r = await fetch(`${origin}/api/search`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ query: latestUser.content }),
+        body: JSON.stringify({ query: searchQuery }),
         cache: 'no-store',
       });
       if (r.ok) {
@@ -192,7 +201,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const srcBlock = research && Array.isArray(sources) && sources.length
+  const srcBlock = Array.isArray(sources) && sources.length
     ? sources.slice(0, 5)
         .map((s, i) => `[${i + 1}] ${s.title || s.url}\n${s.url}\n${s.snippet ?? ''}`)
         .join('\n\n')
@@ -222,7 +231,7 @@ export async function POST(req: NextRequest) {
 
   // 4) Tighter generation when research brief is active
   const modelOptions = (research && !long)
-    ? { temperature: 0.2, top_p: 0.9, max_tokens: 250, response_format: { type: 'json_object' } }
+    ? { temperature: 0.2, top_p: 0.9, max_tokens: 800 }
     : { temperature: 0.7, max_tokens: 900 };
 
   const messages = history.length ? history : [latestUser];
@@ -280,18 +289,20 @@ export async function POST(req: NextRequest) {
   const brevitySystem = [
     `You are ${BRAND_NAME}, an evidence-based health assistant. Be thorough yet clear.`,
     '',
+    '- Key medical concepts involved',  
     !formatId ? 'ANSWER STRUCTURE (use this when answering health questions):' : 'Structure your answer clearly.',
-    '1. **What it is** — Brief explanation of the condition/topic (2-3 sentences)',
-    '2. **What actually works** — Evidence-backed interventions with specific details',
-    '3. **What does NOT work** — Common myths or ineffective approaches',
-    '4. **When to see a doctor** — Red flags and professional guidance triggers',
+    '1. ## What it is — Brief explanation (2-3 sentences)',
+    '2. ## What actually works — Evidence-backed interventions',
+    '3. ## What does NOT work — Common myths',
+    '4. ## When to see a doctor — Red flags',
     '',
     'QUALITY RULES:',
     srcBlock ? '- Cite and link to the provided sources. Prefer them over memory.' : '- Reference well-known medical organizations (WHO, NIH, Mayo Clinic) but do NOT invent URLs or links.',
     '- Include specific numbers (dosages, durations, percentages) when evidence supports them',
     '- Mention if something is backed by strong evidence vs preliminary research',
     '- If the user has shared medical profile data, personalize the answer',
-    '- Use bold headings and bullet points for scannability',
+    '- ALWAYS use ## for section headings (never **bold** as heading). Use ### for sub-sections.',
+    '- Use bullet points under each heading for details.',
     isShortQuery
       ? `- Keep it concise: up to ${targetWordCap} words unless the topic needs depth.`
       : `- Aim for ${targetWordCap}-${targetWordCap + 100} words — thorough but not bloated.`,

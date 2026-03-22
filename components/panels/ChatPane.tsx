@@ -94,6 +94,7 @@ async function fetchAd(payload: {
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
 const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== '0';
+const ADS_ENABLED = process.env.NEXT_PUBLIC_ADS_ENABLED === '1'; // disabled by default
 
 const NEARBY_DEFAULT_RADIUS_KM = 2;
 const NEARBY_RADIUS_CHOICES = [1, 2, 3, 5, 8, 10] as const;
@@ -637,8 +638,6 @@ function ChatCard({
       return (
         <AssistantPendingMessage
           stage={pendingStageState.stage}
-          analyzingPhrase={pendingStageState.analyzingPhrase}
-          thinkingLabel={pendingStageState.thinkingLabel}
           content={typeof m.content === "string" ? m.content : ""}
           formatId={m.formatId}
           userPrompt={m.originUserText || m.userPrompt}
@@ -648,8 +647,6 @@ function ChatCard({
     return (
       <AssistantPendingMessage
         stage={therapyMode ? "reflecting" : "thinking"}
-        analyzingPhrase={null}
-        thinkingLabel={therapyMode ? "Reflecting…" : undefined}
         content={typeof m.content === "string" ? m.content : ""}
         formatId={m.formatId}
         userPrompt={m.originUserText || m.userPrompt}
@@ -3693,7 +3690,8 @@ ${systemCommon}` + baseSys;
   }
 
   function handleSuggestionAction(s: Suggestion) {
-    if (!s.actionId) return;
+    // Send the suggestion label as a new user message
+    // (works for both predefined actions and LLM follow-up questions)
     send(s.label, researchMode);
   }
 
@@ -3741,6 +3739,7 @@ ${systemCommon}` + baseSys;
       if (!shouldFetchAdForMessage(msg as any)) return;
 
       const messageId = msg.id as string;
+      if (!ADS_ENABLED) return;
       if (adsByMsg[messageId]) return;
       if (requestedAdsRef.current.has(messageId)) return;
 
@@ -3885,8 +3884,8 @@ ${systemCommon}` + baseSys;
                   />
                   {uiMode !== 'therapy' && m.role === 'assistant' && (m as any).kind === 'chat' && typeof m.id === 'string' ? (
                     <>
-                      {adLoadingByMsg[m.id] && !adsByMsg[m.id] ? <InlineSponsoredSkeleton /> : null}
-                      {adsByMsg[m.id] ? (
+                      {ADS_ENABLED && adLoadingByMsg[m.id] && !adsByMsg[m.id] ? <InlineSponsoredSkeleton /> : null}
+                      {ADS_ENABLED && adsByMsg[m.id] ? (
                         <TrackedInlineSponsoredCard
                           card={adsByMsg[m.id]}
                           messageId={m.id}
@@ -4153,24 +4152,8 @@ ${systemCommon}` + baseSys;
             </div>
           )}
 
-          {ui.topic && (
-            <div className="mx-auto mb-2 max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--so-border,#E5E5EA)] bg-[var(--so-card,#fff)] px-3 py-1 text-xs dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
-                <span className="opacity-70">Topic:</span>
-                <strong className="truncate max-w-[16rem]">{ui.topic}</strong>
-                <button onClick={() => setUi(prev => ({ ...prev, topic: null }))} className="opacity-60 hover:opacity-100">Clear</button>
-              </div>
-            </div>
-          )}
-          {ui.contextFrom && (
-            <div className="mx-auto mb-2 max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--so-border,#E5E5EA)] bg-[var(--so-card,#fff)] px-3 py-1 text-xs dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
-                <span className="opacity-70">Using context from:</span>
-                <strong>{ui.contextFrom}</strong>
-                <button onClick={() => { clearContext(); setUi(prev => ({ ...prev, contextFrom: null })); }} className="opacity-60 hover:opacity-100">Clear</button>
-              </div>
-            </div>
-          )}
+          {/* Topic and Context pills hidden — they show raw text (e.g., "Both")
+              which is confusing. Re-enable when topic extraction is smarter. */}
 
           <div className="mx-auto w-full max-w-3xl space-y-4">
             {renderedMessages}
