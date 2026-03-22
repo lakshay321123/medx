@@ -6,14 +6,23 @@ import { isAction, Suggestion } from "@/lib/chat/suggestions";
 
 type Props = { suggestions: Suggestion[]; onAction: (s: Suggestion) => void };
 
-// Extract options from questions like "Is it patchy or diffuse?"
+// Detect if a question has selectable options ("X or Y?")
 function extractOptions(label: string): string[] | null {
-  // Pattern: "X or Y?" or "X, Y, or Z?"
   const orMatch = label.match(/\b(\w[\w\s]*?)\s+or\s+(\w[\w\s]*?)\??$/i);
   if (orMatch) {
-    return [orMatch[1].trim(), orMatch[2].trim().replace(/\?$/, '')];
+    return [orMatch[1].trim(), orMatch[2].trim().replace(/\?$/, "")];
   }
   return null;
+}
+
+// Detect if a question is open-ended (needs typed answer, not a click)
+function isOpenEnded(label: string): boolean {
+  const q = label.toLowerCase();
+  // Open-ended patterns: "what...", "any...", "how...", "describe...", "tell me..."
+  if (/^(what|any|how|describe|tell me|share|list|which specific|do you have)/.test(q)) return true;
+  // Questions asking for specific input
+  if (/prefer|tried|currently|taking|experience|history|detail/.test(q)) return true;
+  return false;
 }
 
 export default function SuggestionChips({ suggestions, onAction }: Props) {
@@ -39,9 +48,10 @@ export default function SuggestionChips({ suggestions, onAction }: Props) {
     <div className="mt-4 pt-3 border-t border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] space-y-2">
       {translated.map((s) => {
         const options = extractOptions(s.label);
+        const openEnded = isOpenEnded(s.label);
         
-        // If question has options (e.g., "patchy or diffuse?"), show as option buttons
-        if (options && options.length >= 2) {
+        // Type 1: Question with selectable options ("patchy or diffuse?")
+        if (options && options.length >= 2 && !openEnded) {
           return (
             <div key={s.id} className="space-y-1.5">
               <p className="text-[14px] font-medium text-[var(--so-text,#000)] dark:text-[var(--so-text,#fff)]">
@@ -77,7 +87,30 @@ export default function SuggestionChips({ suggestions, onAction }: Props) {
           );
         }
         
-        // Regular follow-up: make it a clickable teal-outlined button
+        // Type 2: Open-ended question ("Any dietary preferences?") → show as prompt, click focuses input
+        if (openEnded) {
+          return (
+            <div
+              key={s.id}
+              className="flex items-start gap-2 rounded-xl border border-dashed border-[var(--so-border,#E5E5EA)] px-3.5 py-2.5 text-[14px] text-[var(--so-text-secondary,#8E8E93)] dark:border-[var(--so-border,#2C2C2E)] cursor-pointer hover:border-[var(--so-accent,#06B6D4)] hover:text-[var(--so-accent,#06B6D4)] transition"
+              onClick={() => {
+                // Focus the chat input and set placeholder text
+                const input = document.querySelector<HTMLTextAreaElement>("[data-chat-input], textarea");
+                if (input) {
+                  input.focus();
+                  input.placeholder = s.label.replace(/\?$/, "") + "...";
+                }
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 mt-0.5">
+                <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+              </svg>
+              <span>{s.label}</span>
+            </div>
+          );
+        }
+        
+        // Type 3: Regular follow-up (clickable, sends as message)
         return (
           <button
             key={s.id}
