@@ -1072,3 +1072,135 @@ html { -webkit-text-size-adjust: 100%; }
 /* Ensure textareas never push layout when they grow */
 textarea { overflow-y: auto; }
 
+
+/* ============================================================
+   SECOND OPINION DESIGN SYSTEM — Apple Health Inspired
+   Teal (#06B6D4) accent on pure white/black canvas
+   ============================================================ */
+
+@layer base {
+  :root {
+    /* Core */
+    --so-white: #FFFFFF;
+    --so-black: #000000;
+    --so-accent: #06B6D4;
+    
+    /* iOS System Grays */
+    --so-gray1: #8E8E93;
+    --so-gray2: #AEAEB2;
+    --so-gray3: #C7C7CC;
+    --so-gray4: #D1D1D6;
+    --so-gray5: #E5E5EA;
+    --so-gray6: #F2F2F7;
+    
+    /* Semantic */
+    --so-green: #34D399;
+    --so-orange: #FF9500;
+    --so-red: #FF3B30;
+    
+    /* Surfaces */
+    --so-bg: #FFFFFF;
+    --so-bg-secondary: #F2F2F7;
+    --so-card: #FFFFFF;
+    --so-border: #E5E5EA;
+    --so-text: #000000;
+    --so-text-secondary: #8E8E93;
+    
+    /* Legacy aliases (so old var(--border) etc still work) */
+    --bg: var(--so-bg);
+    --fg: var(--so-text);
+    --text: var(--so-text);
+    --muted: var(--so-text-secondary);
+    --card: var(--so-card);
+    --card-2: var(--so-bg-secondary);
+    --surface: var(--so-card);
+    --surface-2: var(--so-card);
+    --border: var(--so-border);
+    --backdrop: rgba(0,0,0,0.4);
+    --accent: var(--so-accent);
+    --accent-ink: #FFFFFF;
+    --primary: var(--so-accent);
+    --hover: rgba(6,182,212,0.08);
+    --bubble-bg: var(--so-card);
+    --card-border: var(--so-border);
+    --medx-panel: var(--so-card);
+    --medx-text: var(--so-text);
+    --medx-subtle-text: var(--so-text-secondary);
+  }
+
+  .dark {
+    --so-bg: #000000;
+    --so-bg-secondary: #1C1C1E;
+    --so-card: #1C1C1E;
+    --so-border: #2C2C2E;
+    --so-text: #FFFFFF;
+    --so-text-secondary: #98989D;
+    --so-accent: #22D3EE;
+    --so-green: #30D158;
+    --so-orange: #FF9F0A;
+    --so-red: #FF453A;
+    
+    /* Legacy dark aliases */
+    --bg: var(--so-bg);
+    --fg: var(--so-text);
+    --text: var(--so-text);
+    --muted: var(--so-text-secondary);
+    --card: var(--so-card);
+    --card-2: var(--so-bg-secondary);
+    --surface: var(--so-card);
+    --surface-2: var(--so-bg-secondary);
+    --border: var(--so-border);
+    --backdrop: rgba(0,0,0,0.6);
+    --accent: var(--so-accent);
+    --accent-ink: #FFFFFF;
+    --primary: var(--so-accent);
+    --hover: rgba(34,211,238,0.12);
+    --bubble-bg: var(--so-bg-secondary);
+    --card-border: var(--so-border);
+    --medx-panel: var(--so-bg-secondary);
+    --medx-text: var(--so-text);
+    --medx-subtle-text: var(--so-text-secondary);
+  }
+}
+
+/* text-primary / bg-primary that some components reference */
+@layer utilities {
+  .text-primary { color: var(--so-accent); }
+  .bg-primary { background-color: var(--so-accent); }
+}
+
+/* btn-ghost / btn-primary that PreferencesModal uses */
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  padding: 10px 20px;
+  font-size: 15px;
+  font-weight: 400;
+  font-family: inherit;
+  color: var(--so-text);
+  background: var(--so-bg);
+  border: 0.5px solid var(--so-border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-ghost:hover { background: var(--so-bg-secondary); }
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  padding: 10px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  color: #FFFFFF;
+  background: var(--so-accent);
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-primary:hover { opacity: 0.85; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }

@@ -1,12 +1,12 @@
 :root{
-  --bg:#0b0f18; --fg:#e7eefb; --muted:#9fb0c8;
-  --card:#111827; --card-2:#0f172a; --border:#23324d;
-  --accent:#22d3ee; --accent-ink:#002a32;
+  --bg:var(--so-bg,#fff); --fg:var(--so-text,#000); --muted:var(--so-text-secondary,#8E8E93);
+  --card:var(--so-card,#fff); --card-2:var(--so-bg-secondary,#F2F2F7); --border:var(--so-border,#E5E5EA);
+  --accent:var(--so-accent,#06B6D4); --accent-ink:#fff;
 }
 :root.light{
-  --bg:#f7fafc; --fg:#0b1526; --muted:#5a6b84;
-  --card:#ffffff; --card-2:#f2f6fb; --border:#e6eaf0;
-  --accent:#0ea5e9; --accent-ink:#002a32;
+  --bg:var(--so-bg,#fff); --fg:var(--so-text,#000); --muted:var(--so-text-secondary,#8E8E93);
+  --card:var(--so-card,#fff); --card-2:var(--so-bg-secondary,#F2F2F7); --border:var(--so-border,#E5E5EA);
+  --accent:var(--so-accent,#06B6D4); --accent-ink:#fff;
 }
 body[data-role="doctor"] { --accent:#7c3aed; }
 :root.light body[data-role="doctor"]{ --accent:#7c3aed; }
@@ -16,7 +16,7 @@ body[data-role="doctor"] { --accent:#7c3aed; }
 html,body{ height:100%; margin:0; padding:0 }
 body{
   background:var(--bg); color:var(--fg);
-  font:16px/1.55 "Proxima Nova", "Proxima Nova Rg", ProximaNova, "proxima-nova";
+  font:16px/1.55 var(--font-inter, -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif);
   -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
 }
 

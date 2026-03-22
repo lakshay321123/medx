@@ -1,5 +1,8 @@
 // app/layout.tsx
 import "./globals.css";
+import { Inter } from "next/font/google";
+
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 import { ThemeProvider } from "next-themes";
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
@@ -46,7 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <style>{"body.font-loading{opacity:1 !important}"}</style>
         </noscript>
       </head>
-      <body className="font-loading h-full bg-slate-100 text-slate-900 dark:bg-transparent dark:text-slate-100 font-sans antialiased">
+      <body className={`${inter.variable} font-loading h-full bg-white text-black dark:bg-black dark:text-white font-sans antialiased`}>
         <Script id="ensure-proxima-first" strategy="beforeInteractive">
           {`
             (function() {
@@ -106,7 +109,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
                     <div className="grid grow min-h-0 grid-cols-12 mobile-content-offset md:pt-0">
                       {/* Desktop Sidebar */}
-                      <aside className="hidden min-h-0 overflow-y-auto border-r border-black/5 bg-white/70 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/40 md:col-span-3 md:flex lg:col-span-2">
+                      <aside className="hidden min-h-0 overflow-y-auto border-r md:col-span-3 md:flex lg:col-span-2" style={{ borderColor: "var(--so-border)", background: "var(--so-bg-secondary)" }}>
                         <Suspense fallback={null}>
                           <Sidebar />
                         </Suspense>

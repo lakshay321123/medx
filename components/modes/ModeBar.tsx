@@ -14,29 +14,37 @@ export default function ModeBar() {
   } = useModeController();
   const t = useT();
 
-  const btn = (active: boolean, disabled?: boolean) =>
-    [
-      "h-9 rounded-full border px-4 text-sm font-medium transition",
-      active
-        ? "bg-blue-600 border-blue-600 text-white shadow-sm"
-        : "bg-white/70 text-slate-900 border-slate-200 hover:bg-slate-100 dark:bg-slate-800/70 dark:text-white dark:border-slate-700 dark:hover:bg-slate-800",
-      disabled ? "opacity-60 cursor-not-allowed" : "",
-    ].filter(Boolean).join(" ");
-
   const aidocOn = state.base === "aidoc";
   const wellnessActive = state.base === "patient" && !state.therapy;
   const doctorActive = state.base === "doctor";
 
+  const btn = (active: boolean, disabled?: boolean) =>
+    [
+      "h-9 rounded-full px-4 text-[13px] font-medium transition-all duration-200",
+      active
+        ? "text-white"
+        : "text-black dark:text-white",
+      disabled ? "opacity-40 cursor-not-allowed" : "",
+    ].filter(Boolean).join(" ");
+
+  const activeStyle = { background: "var(--so-accent, #06B6D4)" };
+  const inactiveStyle = {};
+
   return (
-    <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-black/10 bg-white/60 px-2 py-1 backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
+    <div
+      className="inline-flex flex-wrap items-center gap-1 rounded-full px-1.5 py-1"
+      style={{ background: "var(--so-bg-secondary, #F2F2F7)" }}
+    >
       <button
         className={btn(wellnessActive)}
+        style={wellnessActive ? activeStyle : inactiveStyle}
         onClick={() => togglePatient()}
       >
         {t("ui.modes.wellness")}
       </button>
       <button
         className={btn(state.therapy, aidocOn || state.base !== "patient" || therapyBusy)}
+        style={state.therapy ? activeStyle : inactiveStyle}
         disabled={aidocOn || state.base !== "patient" || therapyBusy}
         onClick={() => toggleTherapy()}
         aria-busy={therapyBusy}
@@ -50,6 +58,7 @@ export default function ModeBar() {
       </button>
       <button
         className={btn(state.research, aidocOn)}
+        style={state.research ? activeStyle : inactiveStyle}
         disabled={aidocOn}
         onClick={() => toggleResearch()}
       >
@@ -57,14 +66,19 @@ export default function ModeBar() {
       </button>
       <button
         className={btn(doctorActive)}
+        style={doctorActive ? activeStyle : inactiveStyle}
         onClick={() => toggleDoctor()}
       >
         {t("ui.modes.clinical")}
       </button>
 
-      <div className="mx-1 h-5 w-px bg-black/10 dark:bg-white/10" />
+      <div className="mx-1 h-5 w-px" style={{ background: "var(--so-border, #E5E5EA)" }} />
 
-      <button className={btn(aidocOn)} onClick={() => toggleAidoc()}>
+      <button
+        className={btn(aidocOn)}
+        style={aidocOn ? activeStyle : inactiveStyle}
+        onClick={() => toggleAidoc()}
+      >
         {t("ui.modes.ai_doc")}
       </button>
     </div>

@@ -14,12 +14,14 @@ module.exports = {
         "chat-lg": ["17px", { lineHeight: "24px" }],
       },
       fontFamily: {
-        // Used by className="font-sans"
         sans: [
-          "Proxima Nova",
-          "Proxima Nova Rg",
-          "ProximaNova",
-          "proxima-nova",
+          "var(--font-inter)",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "Inter",
+          "SF Pro Display",
+          "system-ui",
+          "sans-serif",
         ],
       },
     },
