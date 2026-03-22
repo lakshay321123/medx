@@ -622,8 +622,6 @@ export function ChatWindow() {
               {pendingAssistantState && pendingAssistantState.id === pendingMessage.id ? (
                 <AssistantPendingMessage
                   stage={pendingAssistantState.stage}
-                  analyzingPhrase={pendingAssistantState.analyzingPhrase}
-                  thinkingLabel={pendingAssistantState.thinkingLabel}
                   content={pendingMessage.content}
                 />
               ) : (
