@@ -1853,7 +1853,7 @@ function KV({ label, value }: { label: string; value: ReactNode }) {
 }
 
 function Divider() {
-  return <div className="my-2 h-px" style={{ background: "var(--so-border, #E5E5EA)" }}" aria-hidden="true" />;
+  return <div className="my-2 h-px" style={{ background: "var(--so-border, #E5E5EA)" }} aria-hidden="true" />;
 }
 
 function Empty({ text }: { text?: string }) {

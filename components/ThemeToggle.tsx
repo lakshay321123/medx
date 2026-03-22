@@ -18,7 +18,8 @@ export default function ThemeToggle() {
       aria-label={t("Toggle theme")}
       title={t("Toggle theme")}
       onClick={() => setTheme(next)}
-      className="inline-flex h-8 w-8 items-center justify-center rounded-full border transition" style={{ borderColor: "var(--so-border, #E5E5EA)", color: "var(--so-text, #000)" }}"
+      className="inline-flex h-8 w-8 items-center justify-center rounded-full border transition"
+      style={{ borderColor: "var(--so-border, #E5E5EA)", color: "var(--so-text, #000)" }}
     >
       {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
       <span className="sr-only">{t(theme === "dark" ? "Light" : "Dark")}</span>
