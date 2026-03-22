@@ -19,7 +19,7 @@ export async function GET(req: Request) {
   const { data, error } = await sb
     .from("observations")
     .select(
-      "id, kind, value_text, value_num, unit, observed_at, meta, file_path, file_bucket, upload_id",
+      "id, kind, value_text, value_num, unit, observed_at, meta, report_id",
     )
     .eq("user_id", userId)
     .eq("kind", "note")
