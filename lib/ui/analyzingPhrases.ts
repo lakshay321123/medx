@@ -109,7 +109,7 @@ function buildFinalizer(primaryKeyword?: string | null): string | null {
   if (!primaryKeyword) return null;
   const normalized = primaryKeyword.replace(/[^a-z0-9+\s]/gi, " ").trim();
   if (!normalized) return null;
-  return `Finalizing ${toTitleCase(normalized)}…`;
+  return `Preparing your answer…`;
 }
 
 type PhraseCandidate = {
