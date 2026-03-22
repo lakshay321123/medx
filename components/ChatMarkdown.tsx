@@ -20,7 +20,33 @@ function normalize(raw: string){
   const f = /^```([a-z0-9_-]*)\s*\n([\s\S]*?)\n```$/i.exec(s);
   if (f && (!f[1] || /^(txt|text)$/.test(f[1]))) s = f[2];
   s = s.replace(/^[=\-_]{4,}$/gm, "\n---\n");
-  s = s.replace(/^(?:\*\*|__)\s*([^*\n][^*\n]+?)\s*(?:\*\*|__)\s*$/gm, "### $1");
+  
+  // Convert standalone bold lines to ## headings (major sections)
+  s = s.replace(/^(?:\*\*|__)\s*([^*\n][^*\n]+?)\s*(?:\*\*|__)\s*$/gm, (match, p1) => {
+    const text = p1.trim();
+    // Major section headings get ##
+    if (/^(What it is|What actually works|What does not work|What does NOT work|When to see a doctor|Types|References|Summary)/i.test(text)) {
+      return "## " + text;
+    }
+    // Sub-section headings get ###
+    return "### " + text;
+  });
+  
+  // Convert bold text at START of bullet points into ### sub-headings
+  // Pattern: "- **Something:** rest of text" or "- **Something** (description)"
+  s = s.replace(/^(\s*[-*]\s+)\*\*([^*]+?)\*\*\s*[:()]?/gm, (match, prefix, heading) => {
+    const cleaned = heading.trim().replace(/:$/, "");
+    // Check if this looks like a sub-heading (short, descriptive)
+    if (cleaned.split(/\s+/).length <= 8 && !/\d{2,}/.test(cleaned)) {
+      return "\n### " + cleaned + "\n" + prefix;
+    }
+    return match;
+  });
+  
+  // Convert "What helps:" patterns that appear as bold in bullets
+  s = s.replace(/^(\s*[-*]\s+)?\*\*(What helps|What helps \(.*?\)|Clues|How to use|Safety|Product tips|References)\*\*\s*:?/gim, 
+    (match, bullet, heading) => "\n### " + heading.trim());
+  
   s = s.replace(/^\*\s+/gm, "- ");
   s = s.replace(/\n{3,}/g, "\n\n");
   return s + "\n";
