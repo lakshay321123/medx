@@ -223,3 +223,55 @@
   .bg-so-accent { background: var(--so-accent); }
   .border-so { border-color: var(--so-border); }
 }
+
+/* === Legacy CSS variable aliases (map old names to new design system) === */
+@layer base {
+  :root {
+    --bg: var(--so-bg);
+    --fg: var(--so-text);
+    --text: var(--so-text);
+    --muted: var(--so-muted);
+    --card: var(--so-card);
+    --card-2: var(--so-bg);
+    --surface: var(--so-card);
+    --surface-2: var(--so-card);
+    --border: var(--so-border);
+    --backdrop: rgba(0, 0, 0, 0.4);
+    --accent: var(--so-accent);
+    --accent-ink: #FFFFFF;
+    --primary: var(--so-accent);
+    --hover: var(--so-accent-light);
+    --bubble-bg: var(--so-card);
+    --card-border: var(--so-border);
+    --medx-panel: var(--so-card);
+    --medx-text: var(--so-text);
+    --medx-subtle-text: var(--so-muted);
+  }
+  .dark {
+    --bg: var(--so-bg);
+    --fg: var(--so-text);
+    --text: var(--so-text);
+    --muted: var(--so-muted);
+    --card: var(--so-card);
+    --card-2: #1c1c1e;
+    --surface: var(--so-card);
+    --surface-2: #1c1c1e;
+    --border: var(--so-border);
+    --backdrop: rgba(0, 0, 0, 0.6);
+    --accent: var(--so-accent);
+    --accent-ink: #FFFFFF;
+    --primary: var(--so-accent);
+    --hover: var(--so-accent-light);
+    --bubble-bg: #1c1c1e;
+    --card-border: var(--so-border);
+    --medx-panel: #1c1c1e;
+    --medx-text: var(--so-text);
+    --medx-subtle-text: var(--so-muted);
+  }
+}
+
+/* === text-primary / bg-primary Tailwind utility overrides === */
+@layer utilities {
+  .text-primary { color: var(--so-accent) !important; }
+  .bg-primary { background-color: var(--so-accent) !important; }
+}

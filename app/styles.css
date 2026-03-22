@@ -1,3 +1,25 @@
+/* Override legacy theme vars to use new design system */
+:root {
+  --bg: var(--so-bg, #F7F6F3);
+  --fg: var(--so-text, #2C2C2A);
+  --muted: var(--so-muted, #87A39F);
+  --card: var(--so-card, #FFFFFF);
+  --card-2: var(--so-bg, #F7F6F3);
+  --border: var(--so-border, #E8E6E1);
+  --accent: var(--so-accent, #2E3667);
+  --accent-ink: #FFFFFF;
+}
+:root.light {
+  --bg: var(--so-bg, #F7F6F3);
+  --fg: var(--so-text, #2C2C2A);
+  --muted: var(--so-muted, #87A39F);
+  --card: var(--so-card, #FFFFFF);
+  --card-2: var(--so-bg, #F7F6F3);
+  --border: var(--so-border, #E8E6E1);
+  --accent: var(--so-accent, #2E3667);
+  --accent-ink: #FFFFFF;
+}
+
 :root{
   --bg:#0b0f18; --fg:#e7eefb; --muted:#9fb0c8;
   --card:#111827; --card-2:#0f172a; --border:#23324d;
@@ -16,7 +38,7 @@ body[data-role="doctor"] { --accent:#7c3aed; }
 html,body{ height:100%; margin:0; padding:0 }
 body{
   background:var(--bg); color:var(--fg);
-  font:16px/1.55 "Proxima Nova", "Proxima Nova Rg", ProximaNova, "proxima-nova";
+  font:16px/1.55 var(--font-inter, "Inter", -apple-system, system-ui, sans-serif);
   -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
 }
 
