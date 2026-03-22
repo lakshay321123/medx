@@ -99,11 +99,11 @@ export default function ChatMarkdown({ content, formatId, userPrompt }: { conten
   return (
     <div
       className="
-        message-content prose prose-slate dark:prose-invert max-w-[72ch]
-        prose-headings:font-semibold prose-headings:mb-2 prose-headings:mt-3
-        prose-h3:text-lg prose-h4:text-base
-        prose-p:my-2 prose-li:my-1 prose-strong:font-medium
-        leading-7 text-[15px]
+        message-content prose prose-slate dark:prose-invert max-w-none prose-medx
+        prose-headings:font-bold
+        prose-h2:text-[1.15rem] prose-h3:text-[1.05rem] prose-h4:text-[0.95rem]
+        prose-p:my-2 prose-li:my-1
+        leading-[1.7] text-[15px]
       "
     >
       <ReactMarkdown

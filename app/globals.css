@@ -56,41 +56,88 @@ body * {
   pointer-events: auto;
 }
 
-/* Compact typography for AI content */
+/* Medical content typography — readable, structured, scannable */
 .prose-medx {
-  /* narrower line-height than Tailwind Typography defaults */
-  line-height: 1.55; /* roughly Tailwind leading-[1.55] */
+  line-height: 1.7;
 }
 
-/* Tighten paragraph margins */
+/* Paragraph spacing */
 .prose-medx :where(p):not(:where([class~="not-prose"] *)) {
-  margin-top: 0.35rem;
-  margin-bottom: 0.35rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
-/* Tighten lists */
+/* Lists with breathing room */
 .prose-medx :where(ul):not(:where([class~="not-prose"] *)) {
-  margin-top: 0.4rem;
-  margin-bottom: 0.4rem;
-  padding-left: 1.25rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding-left: 1.5rem;
 }
 
 .prose-medx :where(ol):not(:where([class~="not-prose"] *)) {
-  margin-top: 0.4rem;
-  margin-bottom: 0.4rem;
-  padding-left: 1.25rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding-left: 1.5rem;
 }
 
-/* Reduce gap between list items */
+/* List items */
 .prose-medx :where(li):not(:where([class~="not-prose"] *)) {
-  margin-top: 0.2rem;
-  margin-bottom: 0.2rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
 }
 
-/* Headings inside cards: smaller margins */
-.prose-medx :where(h2,h3,h4):not(:where([class~="not-prose"] *)) {
-  margin-top: 0.75rem;
+/* H2: Major sections — prominent, teal accent border */
+.prose-medx :where(h2):not(:where([class~="not-prose"] *)) {
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--so-accent, #06B6D4);
+  padding-bottom: 0.35rem;
+  border-bottom: 2px solid var(--so-accent, #06B6D4);
+}
+
+/* H3: Sub-sections — bold, slightly larger */
+.prose-medx :where(h3):not(:where([class~="not-prose"] *)) {
+  margin-top: 1.25rem;
   margin-bottom: 0.4rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--so-text, #000);
+}
+
+/* H4: Minor headings */
+.prose-medx :where(h4):not(:where([class~="not-prose"] *)) {
+  margin-top: 1rem;
+  margin-bottom: 0.3rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--so-text, #000);
+}
+
+/* Strong text — slightly bolder for emphasis */
+.prose-medx :where(strong):not(:where([class~="not-prose"] *)) {
+  font-weight: 600;
+  color: var(--so-text, #000);
+}
+
+/* Links — teal, underlined */
+.prose-medx :where(a):not(:where([class~="not-prose"] *)) {
+  color: var(--so-accent, #06B6D4);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Dark mode adjustments */
+.dark .prose-medx :where(h2):not(:where([class~="not-prose"] *)) {
+  color: var(--so-accent, #22D3EE);
+  border-bottom-color: var(--so-accent, #22D3EE);
+}
+.dark .prose-medx :where(h3,h4,strong):not(:where([class~="not-prose"] *)) {
+  color: var(--so-text, #fff);
+}
+.dark .prose-medx :where(a):not(:where([class~="not-prose"] *)) {
+  color: var(--so-accent, #22D3EE);
 }
 
 /* Ensure body/content contrast in dark */
