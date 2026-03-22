@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// ALL chat traffic routes to OpenAI for accuracy.
-// Groq routes remain available at /api/chat/stream for explicit use if needed.
+// ALL chat traffic routes to OpenAI (stream-final) for accuracy.
+// The Groq streaming route code exists but is not directly accessible via /api/chat/stream
+// because this middleware rewrites it to stream-final.
 export function middleware(req: NextRequest) {
   const url = req.nextUrl.clone();
   const path = url.pathname;

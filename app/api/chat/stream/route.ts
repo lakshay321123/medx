@@ -177,13 +177,19 @@ export async function POST(req: NextRequest) {
   console.log('research=', research, 'sources.len=', sources?.length);
   // Always fetch sources for health queries (even without Research toggle)
   // This gives evidence-backed links in Wellness mode too
-  const shouldFetchSources = latestUser?.content?.trim() && latestUser.content.trim().length > 10;
+  const rawSearchInput = String(latestUser?.content ?? '');
+  const searchQuery = rawSearchInput
+    .replace(/\n{2,}CONTEXT[\s\S]*$/i, '')
+    .replace(/\n{2,}Here is the ENTIRE conversation so far:[\s\S]*$/i, '')
+    .trim()
+    .slice(0, 240);
+  const shouldFetchSources = searchQuery.length > 10;
   if (shouldFetchSources && (!sources || sources.length === 0)) {
     try {
       const r = await fetch(`${origin}/api/search`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ query: latestUser.content }),
+        body: JSON.stringify({ query: searchQuery }),
         cache: 'no-store',
       });
       if (r.ok) {
@@ -285,10 +291,10 @@ export async function POST(req: NextRequest) {
     '',
     '- Key medical concepts involved',  
     !formatId ? 'ANSWER STRUCTURE (use this when answering health questions):' : 'Structure your answer clearly.',
-    '1. Use ## What it is — Brief explanation (2-3 sentences)',
-    '2. Use ## What actually works — Evidence-backed interventions',
-    '3. Use ## What does NOT work — Common myths',
-    '4. Use ## When to see a doctor — Red flags',
+    '1. ## What it is — Brief explanation (2-3 sentences)',
+    '2. ## What actually works — Evidence-backed interventions',
+    '3. ## What does NOT work — Common myths',
+    '4. ## When to see a doctor — Red flags',
     '',
     'QUALITY RULES:',
     srcBlock ? '- Cite and link to the provided sources. Prefer them over memory.' : '- Reference well-known medical organizations (WHO, NIH, Mayo Clinic) but do NOT invent URLs or links.',

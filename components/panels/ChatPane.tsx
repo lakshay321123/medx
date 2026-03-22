@@ -638,8 +638,6 @@ function ChatCard({
       return (
         <AssistantPendingMessage
           stage={pendingStageState.stage}
-          analyzingPhrase={pendingStageState.analyzingPhrase}
-          thinkingLabel={pendingStageState.thinkingLabel}
           content={typeof m.content === "string" ? m.content : ""}
           formatId={m.formatId}
           userPrompt={m.originUserText || m.userPrompt}

@@ -8,8 +8,6 @@ const PENDING_CONTAINER = "rounded-2xl p-4 text-left whitespace-normal max-w-3xl
 
 type Props = {
   stage: PendingAssistantStage;
-  analyzingPhrase: string | null;
-  thinkingLabel?: string | null;
   content: string;
   formatId?: FormatId;
   userPrompt?: string;
@@ -91,7 +89,7 @@ function SingleLineReasoning({ userPrompt }: { userPrompt?: string }) {
       )}
       <span 
         key={currentStep}
-        className="text-[var(--so-text-secondary,#8E8E93)] dark:text-[var(--so-text-secondary,#98989D)] animate-[fadeIn_0.3s_ease-in]"
+        className="text-[var(--so-text-secondary,#8E8E93)] dark:text-[var(--so-text-secondary,#98989D)] animate-[fade-in_0.3s_ease-in]"
       >
         {text}
       </span>
@@ -99,7 +97,7 @@ function SingleLineReasoning({ userPrompt }: { userPrompt?: string }) {
   );
 }
 
-export function AssistantPendingMessage({ stage, analyzingPhrase, thinkingLabel, content, formatId, userPrompt }: Props) {
+export function AssistantPendingMessage({ stage, content, formatId, userPrompt }: Props) {
   if (stage === "streaming") {
     return (
       <div className={PENDING_CONTAINER}>

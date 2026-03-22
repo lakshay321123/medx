@@ -38,7 +38,7 @@ function normalize(raw: string){
     const cleaned = heading.trim().replace(/:$/, "");
     // Check if this looks like a sub-heading (short, descriptive)
     if (cleaned.split(/\s+/).length <= 8 && !/\d{2,}/.test(cleaned)) {
-      return "\n### " + cleaned + "\n" + prefix;
+      return "\n### " + cleaned + "\n";
     }
     return match;
   });
