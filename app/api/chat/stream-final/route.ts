@@ -2,6 +2,8 @@
 import { callOpenAIChat } from "@/lib/medx/providers";
 import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 import { BRAND_NAME } from "@/lib/brand";
+import { THERAPY_STYLE } from "@/lib/prompts/therapy";
+import { CLINICAL_STYLE } from "@/lib/prompts/clinical";
 import { SUPPORTED_LANGS } from "@/lib/i18n/constants";
 import { createLocaleEnforcedStream, enforceLocale } from "@/lib/i18n/enforce";
 import { normalizeModeTag } from "@/lib/i18n/normalize";
@@ -95,7 +97,14 @@ export async function POST(req: Request) {
     } catch {}
   }
 
-  let system = [langDirective, formatInstruction, qualityRules, calcPrelude].filter(Boolean).join('\n\n');
+  // Use therapy-specific prompt for therapy mode
+  const isTherapy = resolvedMode === 'therapy';
+  const isClinical = resolvedMode === 'clinical' || resolvedMode === 'clinical_research' || resolvedMode === 'aidoc';
+  const baseRules = isTherapy ? THERAPY_STYLE : isClinical ? CLINICAL_STYLE : qualityRules;
+  // Therapy mode: skip format/calc instructions that conflict with conversational style
+  let system = isTherapy
+    ? [langDirective, baseRules].filter(Boolean).join('\n\n')
+    : [langDirective, formatInstruction, baseRules, calcPrelude].filter(Boolean).join('\n\n');
 
   const modelStart = Date.now();
   const upstream = await callOpenAIChat(

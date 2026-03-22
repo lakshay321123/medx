@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import PreferencesModal from "@/components/settings/PreferencesModal";
 import { useRouter } from "next/navigation";
 import ChatPane from "@/components/panels/ChatPane";
+import OnboardingCheck from "@/components/OnboardingCheck";
 import MedicalProfile from "@/components/panels/MedicalProfile";
 import Timeline from "@/components/panels/Timeline";
 import { ResearchFiltersProvider } from "@/store/researchFilters";
@@ -96,6 +97,7 @@ export default function Page({ searchParams }: { searchParams: Search }) {
     <div className="flex flex-1 min-h-0 flex-col">
       {mainPanel === "chat" ? (
         <ResearchFiltersProvider>
+          <OnboardingCheck />
           <ChatPane inputRef={chatInputRef} />
         </ResearchFiltersProvider>
       ) : (

@@ -299,12 +299,30 @@ export async function PUT(req: NextRequest) {
     "dob",
     "sex",
     "blood_group",
+    "height_cm",
+    "weight_kg",
+    "bmi",
+    "smoking",
+    "alcohol",
+    "family_history",
     "conditions_predisposition",
     "chronic_conditions",
+    "emergency_contact",
   ] as const;
 
   const patch: Record<string, any> = {};
-  for (const k of allowed) if (k in body) patch[k] = body[k];
+  for (const k of allowed) {
+    if (!(k in body)) continue;
+    const val = body[k];
+    // Validate numeric health fields
+    if ((k === "height_cm" || k === "weight_kg" || k === "bmi") && val != null) {
+      const n = Number(val);
+      if (!Number.isFinite(n) || n <= 0 || n > 1000) continue;
+      patch[k] = n;
+    } else {
+      patch[k] = val;
+    }
+  }
 
   // Create-or-update by primary key id
   const { data, error } = await supabaseAdmin()

@@ -2190,9 +2190,10 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
             setMessages(prev => [...prev, ...boot.messages.map((m:any) => ({
               id: uid(), role:m.role, kind:'chat', content:m.content, pending:false
             }))]);
+            return; // boot messages shown — skip readiness nudge
           }
         }
-        // single readiness nudge (skip if asked recently)
+        // single readiness nudge — skip if asked recently
         if (askedRecently(threadId, 'proactive', 60)) return;
         const rd = await safeJson(fetch('/api/predictions/readiness'));
         const miss = rd?.missing || [];

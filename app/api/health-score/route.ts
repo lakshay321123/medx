@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getUserId } from "@/lib/getUserId";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
   computeOverall, scoreHba1c, scoreLdl, scoreEgfr, scoreBmi, scoreBp,
@@ -10,7 +11,8 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const userId = url.searchParams.get("userId");
+  let userId = url.searchParams.get("userId");
+  if (userId === "me") userId = await getUserId() || null;
   if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
 
   const db = supabaseAdmin();
