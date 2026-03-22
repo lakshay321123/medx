@@ -36,7 +36,7 @@ export default function SuggestionChips({ suggestions, onAction }: Props) {
   );
 
   return (
-    <div className="mt-4 space-y-2">
+    <div className="mt-4 pt-3 border-t border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] space-y-2">
       {translated.map((s) => {
         const options = extractOptions(s.label);
         
@@ -44,7 +44,7 @@ export default function SuggestionChips({ suggestions, onAction }: Props) {
         if (options && options.length >= 2) {
           return (
             <div key={s.id} className="space-y-1.5">
-              <p className="text-[13px] text-[var(--so-text-secondary,#8E8E93)]">
+              <p className="text-[14px] font-medium text-[var(--so-text,#000)] dark:text-[var(--so-text,#fff)]">
                 {s.label}
               </p>
               <div className="flex flex-wrap gap-1.5">
