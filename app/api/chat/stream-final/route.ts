@@ -3,8 +3,13 @@ import { callOpenAIChat } from "@/lib/medx/providers";
 import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 import { BRAND_NAME } from "@/lib/brand";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { MODE_STYLES } from "@/lib/prompts/modeStyles";
 import { THERAPY_STYLE } from "@/lib/prompts/therapy";
-import { CLINICAL_STYLE } from "@/lib/prompts/clinical";
+import { buildProfileContext } from "@/lib/chat/profileContext";
+import { runConditionRules } from "@/lib/chat/rulesRunner";
+import { detectIntent, buildDataPullContext } from "@/lib/chat/intentRouter";
+import { getMemory, formatMemoryForPrompt } from "@/lib/chat/memory";
+import { getUserId } from "@/lib/getUserId";
 import { SUPPORTED_LANGS } from "@/lib/i18n/constants";
 import { createLocaleEnforcedStream, enforceLocale } from "@/lib/i18n/enforce";
 import { normalizeModeTag } from "@/lib/i18n/normalize";
@@ -108,14 +113,58 @@ export async function POST(req: Request) {
     } catch {}
   }
 
-  // Use therapy-specific prompt for therapy mode
+  // --- UNIFIED BRAIN: Connect ALL domain styles, profile, rules, memory, intent ---
   const isTherapy = resolvedMode === 'therapy';
-  const isClinical = resolvedMode === 'clinical' || resolvedMode === 'clinical_research' || resolvedMode === 'aidoc';
-  const baseRules = isTherapy ? THERAPY_STYLE : isClinical ? CLINICAL_STYLE : qualityRules;
-  // Therapy mode: skip format/calc instructions that conflict with conversational style
+  const userId = await getUserId();
+
+  // 1. Mode-specific expert style (all 15 styles mapped to 6 modes)
+  const modeStyle = MODE_STYLES[resolvedMode] || qualityRules;
+
+  // 2. Profile context (patient demographics, vitals, meds, conditions)
+  let profileBlock = '';
+  let rulesBlock = '';
+  let memoryBlock = '';
+  let intentBlock = '';
+  if (userId) {
+    try {
+      const [profileCtx, mem] = await Promise.all([
+        buildProfileContext(userId),
+        getMemory(userId),
+      ]);
+      profileBlock = profileCtx.text;
+      memoryBlock = formatMemoryForPrompt(mem);
+
+      // 3. Rules engine (fires for diabetes, HTN, lipids, thyroid, anemia)
+      if (profileCtx.conditions.length || profileCtx.vitals.hba1c || profileCtx.vitals.hemoglobin) {
+        rulesBlock = runConditionRules(profileCtx);
+      }
+
+      // 4. Intent detection (symptom triage, data pull, drug question, calculator)
+      const lastUserMsg = messages?.[messages.length - 1]?.content || '';
+      const intent = detectIntent(typeof lastUserMsg === 'string' ? lastUserMsg : '');
+      if (intent === 'pull_data') {
+        const { supabaseAdmin } = require("@/lib/supabase/admin");
+        const { data: obs } = await supabaseAdmin()
+          .from("observations").select("kind, value_num, value_text, unit, observed_at")
+          .eq("user_id", userId).order("observed_at", { ascending: false }).limit(30);
+        intentBlock = buildDataPullContext(obs || []);
+      } else if (intent === 'symptom_triage') {
+        intentBlock = '[TRIAGE MODE] The user is describing symptoms. Follow the structured triage protocol: (1) Check for red flags FIRST, (2) Ask ONE focused follow-up question about onset/duration/severity, (3) Only provide assessment after gathering sufficient history.';
+      } else if (intent === 'drug_question') {
+        intentBlock = '[DRUG SAFETY MODE] The user is asking about drug interactions. Be cautious. Check for known interactions. Always recommend consulting a pharmacist or doctor for medication changes.';
+      }
+    } catch (err) {
+      console.warn('[stream-final] Profile/rules/memory fetch failed:', err);
+    }
+  }
+
+  // 5. Build final system prompt with ALL context layers
+  const contextLayers = [profileBlock, memoryBlock, rulesBlock, intentBlock].filter(Boolean).join('\n\n');
+  const baseRules = isTherapy ? modeStyle : [modeStyle, qualityRules].filter(Boolean).join('\n\n');
+
   let system = isTherapy
-    ? [langDirective, baseRules].filter(Boolean).join('\n\n')
-    : [langDirective, formatInstruction, baseRules, calcPrelude].filter(Boolean).join('\n\n');
+    ? [langDirective, baseRules, contextLayers].filter(Boolean).join('\n\n')
+    : [langDirective, formatInstruction, baseRules, calcPrelude, contextLayers].filter(Boolean).join('\n\n');
 
   const modelStart = Date.now();
   const upstream = await callOpenAIChat(
