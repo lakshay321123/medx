@@ -173,7 +173,7 @@ export default function SecurityPanel() {
             disabled={revoking}
             className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-1.5 text-sm text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-400/30 dark:bg-red-400/10 dark:text-red-300"
           >
-            {revoking ? "Revoking..." : "Sign out all other devices"}
+            {revoking ? "Revoking" : "Sign out all other devices"}
           </button>
         </div>
       </Section>
