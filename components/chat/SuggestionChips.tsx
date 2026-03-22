@@ -53,7 +53,7 @@ export default function SuggestionChips({ suggestions, onAction }: Props) {
                     key={i}
                     type="button"
                     className="rounded-full border border-[var(--so-accent,#06B6D4)] px-3.5 py-1.5 text-[13px] font-medium text-[var(--so-accent,#06B6D4)] transition hover:bg-[var(--so-accent,#06B6D4)] hover:text-white dark:border-[#22D3EE] dark:text-[#22D3EE] dark:hover:bg-[#22D3EE] dark:hover:text-black"
-                    onClick={() => onAction({ ...s, label: opt } as Suggestion)}
+                    onClick={() => onAction({ id: `${s.id}-opt-${i}`, label: opt } as Suggestion)}
                   >
                     {opt.charAt(0).toUpperCase() + opt.slice(1)}
                   </button>
@@ -61,14 +61,14 @@ export default function SuggestionChips({ suggestions, onAction }: Props) {
                 <button
                   type="button"
                   className="rounded-full border border-[var(--so-border,#E5E5EA)] px-3.5 py-1.5 text-[13px] text-[var(--so-text-secondary,#8E8E93)] transition hover:bg-[var(--so-bg-secondary,#F2F2F7)] dark:border-[var(--so-border,#2C2C2E)] dark:hover:bg-[#2C2C2E]"
-                  onClick={() => onAction({ ...s, label: "Both" } as Suggestion)}
+                  onClick={() => onAction({ id: `${s.id}-both`, label: "Both" } as Suggestion)}
                 >
                   Both
                 </button>
                 <button
                   type="button"
                   className="rounded-full border border-[var(--so-border,#E5E5EA)] px-3.5 py-1.5 text-[13px] text-[var(--so-text-secondary,#8E8E93)] transition hover:bg-[var(--so-bg-secondary,#F2F2F7)] dark:border-[var(--so-border,#2C2C2E)] dark:hover:bg-[#2C2C2E]"
-                  onClick={() => onAction({ ...s, label: "Not sure" } as Suggestion)}
+                  onClick={() => onAction({ id: `${s.id}-unsure`, label: "Not sure" } as Suggestion)}
                 >
                   Not sure
                 </button>
