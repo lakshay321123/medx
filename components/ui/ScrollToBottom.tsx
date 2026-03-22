@@ -138,10 +138,10 @@ export default function ScrollToBottom({
   return (
     <div
       className={[
-        "pointer-events-none fixed left-1/2 z-[60] -translate-x-1/2 transition-all",
-        visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2",
+        "pointer-events-none fixed z-[60] transition-all",
+        visible ? "opacity-100" : "opacity-0",
       ].join(" ")}
-      style={{ bottom: offsetBottom }}
+      style={{ bottom: offsetBottom, left: "calc(50% + 110px)", transform: visible ? "translateX(-50%)" : "translateX(-50%) translateY(8px)" }}
       aria-hidden={!visible}
     >
       <button
