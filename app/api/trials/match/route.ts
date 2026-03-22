@@ -9,7 +9,6 @@ export async function POST(req: Request) {
 
   const db = supabaseAdmin();
 
-  // Load eligibility profile
   const { data: elig } = await db
     .from("trial_eligibility_profiles")
     .select("*")
@@ -17,12 +16,11 @@ export async function POST(req: Request) {
     .single();
 
   if (!elig || !elig.conditions?.length) {
-    return NextResponse.json({ error: "No eligibility profile found. Build one first via /api/trials/eligibility." }, { status: 400 });
+    return NextResponse.json({ error: "No eligibility profile. Build one first via /api/trials/eligibility." }, { status: 400 });
   }
 
-  // Search trials for top 3 conditions
   const conditions = (elig.conditions as string[]).slice(0, 3);
-  const allTrials = [];
+  const allTrials: any[] = [];
 
   for (const condition of conditions) {
     try {
@@ -31,60 +29,56 @@ export async function POST(req: Request) {
         status: "Recruiting,Enrolling by invitation",
         country: (elig.geographic as any)?.country || undefined,
       });
-      allTrials.push(...trials);
-    } catch { /* continue on error */ }
+      allTrials.push(...trials.map((t) => ({ ...t, _searchCondition: condition })));
+    } catch { /* continue */ }
   }
 
   const deduped = dedupeTrials(allTrials).sort((a, b) => rankValue(b) - rankValue(a));
   const top = deduped.slice(0, 20);
 
-  // Score each trial against patient profile
-  const matches = top.map((trial) => {
-    let matchScore = 50; // base score
+  const matches = top.map((trial: any) => {
+    let matchScore = 50;
     const reasons: any[] = [];
 
     // Condition match
-    const condMatch = conditions.some((c) =>
-      (trial.condition || "").toLowerCase().includes(c.toLowerCase())
-    );
-    if (condMatch) { matchScore += 20; reasons.push({ criterion: "Condition match", met: true }); }
+    const titleLower = (trial.title || "").toLowerCase();
+    const condMatch = conditions.some((c) => titleLower.includes(c.toLowerCase()));
+    if (condMatch) { matchScore += 20; reasons.push({ criterion: "Condition in title", met: true }); }
 
-    // Status bonus
+    // Recruiting bonus
     if (trial.status === "Recruiting") { matchScore += 10; reasons.push({ criterion: "Actively recruiting", met: true }); }
 
-    // Age check (if available)
-    if (elig.age && trial.eligibility) {
-      const eligText = typeof trial.eligibility === "string" ? trial.eligibility : JSON.stringify(trial.eligibility);
-      const ageMatch = eligText.match(/(\d+)\s*(?:to|-)?\s*(\d+)?\s*years/i);
-      if (ageMatch) {
-        const minAge = parseInt(ageMatch[1]);
-        const maxAge = ageMatch[2] ? parseInt(ageMatch[2]) : 999;
-        if (elig.age >= minAge && elig.age <= maxAge) {
-          matchScore += 10; reasons.push({ criterion: `Age ${elig.age} within ${minAge}-${maxAge}`, met: true });
-        } else {
-          matchScore -= 20; reasons.push({ criterion: `Age ${elig.age} outside ${minAge}-${maxAge}`, met: false });
-        }
+    // Country match
+    if (trial.country && elig.geographic) {
+      const trialCountry = (trial.country || "").toLowerCase();
+      const userCountry = ((elig.geographic as any)?.country || "").toLowerCase();
+      if (trialCountry.includes(userCountry) || userCountry.includes(trialCountry)) {
+        matchScore += 10; reasons.push({ criterion: "Same country", met: true });
       }
+    }
+
+    // Phase preference
+    if (trial.phase && !(elig.exclude_phases || []).includes(trial.phase)) {
+      matchScore += 5; reasons.push({ criterion: "Phase not excluded", met: true });
     }
 
     return {
       user_id: userId,
-      nct_id: trial.nctId || trial.id || "",
-      trial_title: trial.title || trial.briefTitle || "Untitled",
-      condition: trial.condition || conditions[0],
+      nct_id: trial.id || "",
+      trial_title: trial.title || "Untitled",
+      condition: trial._searchCondition || conditions[0],
       phase: trial.phase || null,
       status: trial.status || null,
-      sponsor: trial.sponsor || trial.leadSponsor || null,
+      sponsor: null,
       match_score: Math.max(0, Math.min(100, matchScore)),
       match_reasons: reasons,
       disqualifiers: reasons.filter((r: any) => !r.met),
       patient_status: "new",
       matched_at: new Date().toISOString(),
-      trial_locations: trial.locations || null,
+      trial_locations: null,
     };
   });
 
-  // Upsert matches
   for (const match of matches) {
     if (!match.nct_id) continue;
     await db.from("trial_matches").upsert(match, { onConflict: "user_id,nct_id" });
