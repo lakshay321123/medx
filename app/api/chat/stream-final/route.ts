@@ -1,6 +1,7 @@
 import { ensureMinDelay, minDelayMs } from "@/lib/utils/ensureMinDelay";
 import { callOpenAIChat } from "@/lib/medx/providers";
 import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
+import { BRAND_NAME } from "@/lib/brand";
 import { SUPPORTED_LANGS } from "@/lib/i18n/constants";
 import { createLocaleEnforcedStream, enforceLocale } from "@/lib/i18n/enforce";
 import { normalizeModeTag } from "@/lib/i18n/normalize";
@@ -59,19 +60,41 @@ export async function POST(req: Request) {
 
   // This endpoint is explicitly the OpenAI (final say) stream for non-basic modes.
   // Keep your current /api/chat/stream for Groq/basic.
-  let system = "Validate all calculations and medical logic before answering. Correct any inconsistencies.";
+  // Evidence-based structured answer format
+  const qualityRules = [
+    `You are ${BRAND_NAME}, an evidence-based health assistant.`,
+    '',
+    'ANSWER STRUCTURE (use for health questions):',
+    '1. **What it is** — Brief explanation (2-3 sentences)',
+    '2. **What actually works** — Evidence-backed interventions with specifics',
+    '3. **What does NOT work** — Common myths or ineffective approaches',
+    '4. **When to see a doctor** — Red flags and professional guidance',
+    '',
+    'QUALITY RULES:',
+    '- Reference well-known medical organizations (WHO, NIH, Mayo Clinic, NHS, ICMR) but do NOT invent URLs',
+    '- Include specific numbers (dosages, durations, percentages) when evidence supports them',
+    '- Mention if something is backed by strong evidence vs preliminary research',
+    '- Use bold headings and bullet points for scannability',
+    '- End with a focused follow-up question that helps narrow down their situation',
+    '',
+    'NEVER:',
+    '- Give generic advice without evidence backing',
+    '- Invent or hallucinate citation URLs',
+    '- Use filler phrases like "I hope this helps"',
+  ].join('\n');
+
+  let calcPrelude = '';
   if ((process.env.CALC_AI_DISABLE || "0") !== "1") {
     try {
       const extracted = extractAll?.(lastUserMessage);
       const canonical = canonicalizeInputs?.(extracted);
       const computed = computeAll?.(canonical);
       const prelude = composeCalcPrelude?.(computed);
-      if (prelude) system = `Use and verify these pre-computed values first:\n${prelude}`;
+      if (prelude) calcPrelude = `Use and verify these pre-computed values first:\n${prelude}`;
     } catch {}
   }
 
-  const systemChunks = [langDirective, formatInstruction, system].filter(Boolean);
-  system = systemChunks.join('\n\n');
+  let system = [langDirective, formatInstruction, qualityRules, calcPrelude].filter(Boolean).join('\n\n');
 
   const minMs = minDelayMs();
   const modelStart = Date.now();
