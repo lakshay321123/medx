@@ -55,7 +55,7 @@ export async function POST(req: Request) {
 
   const t0 = Date.now();
   const payload = await req.json();
-  const { messages = [], mode } = payload ?? {};
+  const { messages = [], mode, threadId } = payload ?? {};
 
   // --- Instant greeting replies (no LLM call needed) ---
   const greetLastMsg = messages?.[messages.length - 1];
@@ -332,6 +332,14 @@ export async function POST(req: Request) {
     "x-medx-provider": "openai",
     "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-4o",
   });
+
+  // Save chat to Supabase (fire-and-forget — doesn't block the stream)
+  if (userId && threadId) {
+    const userText = messages?.[messages.length - 1]?.content || '';
+    const msgText = typeof userText === 'string' ? userText : '';
+    saveThread(userId, threadId, msgText.slice(0, 100) || 'Chat', resolvedMode).catch(e => console.warn('[chat-save] thread:', e));
+    saveMessage(threadId, 'user', msgText).catch(e => console.warn('[chat-save] msg:', e));
+  }
 
   return new Response(enforcedStream, {
     status: 200,
