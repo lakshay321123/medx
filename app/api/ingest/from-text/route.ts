@@ -213,5 +213,26 @@ meta.category in {lab|vital|imaging|medication|diagnosis|procedure|immunization|
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const ids = (inserted || []).map((r: any) => r.id);
-  return NextResponse.json({ ok: true, ids, inserted: ids.length, usedFallback });
+
+  // Also populate observation_labs for structured lab values (feeds health score)
+  const labRows = items
+    .filter((x: any) => x.value_num != null && x.kind && x.meta?.category === "lab")
+    .map((x: any, i: number) => ({
+      user_id: userId,
+      observation_id: ids[i] || ids[0],
+      sample_date: reportDate || nowISO,
+      test_code: String(x.kind || "").toUpperCase().replace(/[^A-Z0-9_-]/g, ""),
+      test_name: String(x.kind || "").replace(/_/g, " "),
+      value: x.value_num,
+      unit: x.unit || null,
+      ref_low: x.meta?.ref_low ?? null,
+      ref_high: x.meta?.ref_high ?? null,
+    }))
+    .filter((r: any) => r.test_code && r.value != null);
+
+  if (labRows.length > 0) {
+    await sb.from("observation_labs").insert(labRows).select("id");
+  }
+
+  return NextResponse.json({ ok: true, ids, inserted: ids.length, labs: labRows.length, usedFallback });
 }
