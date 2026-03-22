@@ -299,8 +299,15 @@ export async function PUT(req: NextRequest) {
     "dob",
     "sex",
     "blood_group",
+    "height_cm",
+    "weight_kg",
+    "bmi",
+    "smoking",
+    "alcohol",
+    "family_history",
     "conditions_predisposition",
     "chronic_conditions",
+    "emergency_contact",
   ] as const;
 
   const patch: Record<string, any> = {};
