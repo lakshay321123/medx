@@ -131,7 +131,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
           onKeyDown={(e)=> e.key === 'Enter' && (e.currentTarget as any).form?.requestSubmit()}
           placeholder={t('Search trials (e.g., condition, gene, topic)')}
           aria-label={t('Search trials (e.g., condition, gene, topic)')}
-          className="w-full rounded-lg border px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700"
+          className="w-full rounded-lg border border-[var(--so-border,#E5E5EA)] bg-[var(--so-card,#fff)] px-3 py-2 text-sm text-[var(--so-text,#000)] dark:bg-[var(--so-card,#1C1C1E)] dark:border-[var(--so-border,#2C2C2E)] dark:text-white"
         />
         <button
           type="submit"
@@ -152,7 +152,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
             onClick={()=>togglePhase(phase.value)}
             className={`px-2 py-1 rounded border text-xs ${
               local.phase === phase.value ? 'text-white border-[var(--so-accent,#06B6D4)] bg-[var(--so-accent,#06B6D4)]' :
-              'bg-white dark:bg-slate-800 dark:border-slate-700'
+              'bg-[var(--so-card,#fff)] border-[var(--so-border,#E5E5EA)] dark:bg-[var(--so-card,#1C1C1E)] dark:border-[var(--so-border,#2C2C2E)]'
             }`}
           >
             {t(phase.labelKey)}
@@ -165,7 +165,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
         <select
           value={local.status}
           onChange={(e)=>setLocal(s=>({ ...s, status: e.target.value as StatusValue }))}
-          className="rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
+          className="rounded border border-[var(--so-border,#E5E5EA)] bg-[var(--so-card,#fff)] px-2 py-1 text-sm dark:bg-[var(--so-card,#1C1C1E)] dark:border-[var(--so-border,#2C2C2E)] dark:text-white"
           aria-label={t('Status')}
         >
           {STATUSES.map(option=>(
@@ -179,7 +179,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
         <select
           value={source}
           onChange={(e)=>setSource(e.target.value)}
-          className="rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
+          className="rounded border border-[var(--so-border,#E5E5EA)] bg-[var(--so-card,#fff)] px-2 py-1 text-sm dark:bg-[var(--so-card,#1C1C1E)] dark:border-[var(--so-border,#2C2C2E)] dark:text-white"
         >
           <option>All</option>
           <option>CTgov</option>
@@ -198,7 +198,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
             onClick={()=>toggleCountry(region.value)}
             className={`px-2 py-1 rounded border text-xs ${
               local.countries.includes(region.value) ? 'text-white border-[var(--so-accent,#06B6D4)] bg-[var(--so-accent,#06B6D4)]' :
-              'bg-white dark:bg-slate-800 dark:border-slate-700'
+              'bg-[var(--so-card,#fff)] border-[var(--so-border,#E5E5EA)] dark:bg-[var(--so-card,#1C1C1E)] dark:border-[var(--so-border,#2C2C2E)]'
             }`}
           >
             {t(region.labelKey)}
@@ -213,7 +213,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
           aria-label={t('Genes (comma separated)')}
           value={local.genes}
           onChange={(e)=>setLocal(s=>({ ...s, genes: e.target.value }))}
-          className="flex-1 rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
+          className="flex-1 rounded border border-[var(--so-border,#E5E5EA)] bg-[var(--so-card,#fff)] px-2 py-1 text-sm dark:bg-[var(--so-card,#1C1C1E)] dark:border-[var(--so-border,#2C2C2E)] dark:text-white"
         />
         <button
           type="submit"
@@ -226,7 +226,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
         <button
           type="button"
           onClick={onReset}
-          className="px-3 py-1.5 rounded-lg text-sm border"
+          className="px-3 py-1.5 rounded-lg text-sm border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)]"
           aria-label={t('Reset')}
         >
           {t('Reset')}
