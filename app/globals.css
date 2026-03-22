@@ -1204,3 +1204,165 @@ textarea { overflow-y: auto; }
 }
 .btn-primary:hover { opacity: 0.85; }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* === Chat bubble styles (from mockup page 2) === */
+.so-bubble-ai {
+  background: var(--so-card, #fff);
+  border: 1px solid var(--so-border, #E5E5EA);
+  border-radius: 16px;
+  padding: 14px 16px;
+  font-size: 14px;
+  line-height: 1.55;
+  max-width: 480px;
+  color: var(--so-text, #000);
+}
+
+.so-bubble-user {
+  background: var(--so-accent, #06B6D4);
+  border-radius: 16px;
+  padding: 12px 16px;
+  font-size: 14px;
+  line-height: 1.55;
+  max-width: 320px;
+  color: #fff;
+}
+
+/* === Suggestion chips (from mockup) === */
+.so-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+  background: var(--so-bg-secondary, #F2F2F7);
+  color: var(--so-text, #000);
+}
+.so-chip:hover {
+  background: var(--so-border, #E5E5EA);
+}
+.dark .so-chip {
+  background: #2C2C2E;
+  color: #fff;
+}
+.dark .so-chip:hover {
+  background: #3A3A3C;
+}
+
+/* === Lab range card (from mockup page 2) === */
+.so-lab-card {
+  background: var(--so-bg-secondary, #F9F9F9);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.dark .so-lab-card {
+  background: #000;
+}
+
+/* === AI avatar (teal circle with checkmark) === */
+.so-avatar-ai {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--so-accent, #06B6D4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* === User avatar (light gray circle with initial) === */
+.so-avatar-user {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--so-bg-secondary, #F2F2F7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--so-text, #000);
+}
+.dark .so-avatar-user {
+  background: #2C2C2E;
+  color: #fff;
+}
+
+/* === Dashboard card base (from mockup page 1) === */
+.so-dash-card {
+  border: 1px solid var(--so-border, #E5E5EA);
+  border-radius: 16px;
+  padding: 16px;
+  background: var(--so-card, #fff);
+}
+.dark .so-dash-card {
+  border-color: #2C2C2E;
+  background: #1C1C1E;
+}
+
+/* === Profile section card === */
+.so-section-card {
+  border: 1px solid var(--so-border, #E5E5EA);
+  border-radius: 16px;
+  padding: 20px;
+  background: var(--so-card, #fff);
+  margin-bottom: 16px;
+}
+.dark .so-section-card {
+  border-color: #2C2C2E;
+  background: #1C1C1E;
+}
+
+/* === Input fields (from mockup page 3) === */
+.so-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--so-border, #E5E5EA);
+  border-radius: 12px;
+  font-size: 14px;
+  background: var(--so-card, #fff);
+  color: var(--so-text, #000);
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: inherit;
+}
+.so-input:focus {
+  border-color: var(--so-accent, #06B6D4);
+}
+.so-input::placeholder {
+  color: var(--so-text-secondary, #8E8E93);
+}
+.dark .so-input {
+  background: #2C2C2E;
+  border-color: #2C2C2E;
+  color: #fff;
+}
+.dark .so-input:focus {
+  border-color: #22D3EE;
+}
+
+/* === Sidebar styles (from mockup) === */
+.so-sidebar {
+  background: #F9F9F9;
+  border-right: 1px solid var(--so-border, #E5E5EA);
+}
+.dark .so-sidebar {
+  background: #1C1C1E;
+  border-color: #2C2C2E;
+}
+
+/* === Disclaimer bar === */
+.so-disclaimer {
+  text-align: center;
+  padding: 6px 12px;
+  font-size: 11px;
+  color: var(--so-text-secondary, #8E8E93);
+}

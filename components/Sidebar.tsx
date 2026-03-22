@@ -63,7 +63,7 @@ export default function Sidebar() {
   };
   const filtered = threads.filter((t) => t.title.toLowerCase().includes(q.toLowerCase()));
   return (
-    <div className="sidebar-click-guard flex h-full w-full flex-col gap-5 px-4 pt-6 pb-0 text-medx">
+    <div className="sidebar-click-guard flex h-full w-full flex-col gap-4 px-3 pt-5 pb-0" style={{ color: "var(--so-text, #000)" }}>
       <ul className="space-y-1">
         <li>
           <button
@@ -72,7 +72,7 @@ export default function Sidebar() {
             onClick={handleNewChat}
             className={[
               "flex w-full items-center gap-2 rounded-md h-9 px-3",
-              "text-slate-600 hover:bg-slate-100/70 dark:text-slate-300 dark:hover:bg-white/5",
+              "hover:bg-[var(--so-bg-secondary,#F2F2F7)] dark:hover:bg-white/5",
               "text-sm leading-5 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 dark:focus-visible:outline-slate-500",
             ].join(" ")}
           >
@@ -100,16 +100,16 @@ export default function Sidebar() {
 
       <div className="relative">
         <input
-          className="h-10 w-full rounded-full border border-slate-200 bg-white/80 px-3 pr-8 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none focus:ring-0 dark:border-white/10 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-400"
+          className="so-input h-9 w-full rounded-xl text-[13px] pr-8"
           placeholder={t("Search")}
           onChange={(e) => handleSearch(e.target.value)}
         />
-        <Search size={16} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400" />
+        <Search size={16} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--so-text-secondary, #8E8E93)" }} />
       </div>
 
       {/* Section heading above chat threads */}
       <div className="px-3 pb-0 pt-1">
-        <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">
+        <h3 className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--so-text-secondary, #8E8E93)" }}>
           {t?.("Chats") ?? "Chats"}
         </h3>
       </div>
@@ -134,7 +134,7 @@ export default function Sidebar() {
                   "transition-colors focus-within:ring-2 focus-within:ring-offset-0",
                   active
                     ? "bg-[var(--so-accent,#06B6D4)]/10 font-semibold text-[var(--so-accent,#06B6D4)] dark:bg-[#22D3EE]/15 dark:text-[#22D3EE]"
-                    : "text-slate-600 hover:bg-slate-100/70 dark:text-slate-300 dark:hover:bg-white/5",
+                    : "hover:bg-[var(--so-bg-secondary,#F2F2F7)] dark:hover:bg-white/5",
                 ].join(" ")}
                 aria-current={active ? "page" : undefined}
                 title={displayTitle || rawTitle}
@@ -184,7 +184,7 @@ export default function Sidebar() {
           closeSidebar?.();
           openPrefs();
         }}
-        className="fixed bottom-3 left-3 z-20 flex items-center gap-1.5 rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm shadow-sm hover:bg-white/90 dark:border-white/10 dark:bg-slate-900/70 dark:hover:bg-slate-900"
+        className="fixed bottom-3 left-3 z-20 flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px]" style={{ color: "var(--so-text-secondary, #8E8E93)" }}
         aria-label={`${t("Preferences")} · ${locale.label}`}
       >
         <Settings size={14} />

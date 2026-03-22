@@ -1808,7 +1808,7 @@ type SectionProps = {
 
 function Section({ title, actionLabel, actionAriaLabel, onAction, primary = false, children }: SectionProps) {
   return (
-    <section className="rounded-2xl border border-slate-200/60 bg-white/90 p-4 shadow-sm dark:border-slate-800/60 dark:bg-slate-900/70">
+    <section className="so-section-card p-4">
       <header className="mb-3 flex items-start justify-between gap-3">
         <h2
           className={`text-xs font-semibold uppercase tracking-wide ${
@@ -1853,7 +1853,7 @@ function KV({ label, value }: { label: string; value: ReactNode }) {
 }
 
 function Divider() {
-  return <div className="my-2 h-px bg-slate-200/70 dark:bg-slate-700/60" aria-hidden="true" />;
+  return <div className="my-2 h-px" style={{ background: "var(--so-border, #E5E5EA)" }}" aria-hidden="true" />;
 }
 
 function Empty({ text }: { text?: string }) {
@@ -1875,7 +1875,7 @@ function Button({ children, onClick, variant = "ghost", primary = false, ...rest
   if (primary) {
     styles = "text-white border border-[#06B6D4] hover:opacity-90 dark:border-[#22D3EE] bg-[var(--so-accent,#06B6D4)]";
   } else if (variant === "outline") {
-    styles = "border border-slate-200 text-slate-700 hover:bg-white/70 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800/80";
+    styles = "border border-[var(--so-border,#E5E5EA)] hover:bg-[var(--so-bg-secondary,#F2F2F7)] dark:border-[#2C2C2E] dark:hover:bg-[#2C2C2E]";
   }
 
   return (
