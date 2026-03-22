@@ -1,7 +1,6 @@
 "use client";
 import { useModeController } from "@/hooks/useModeController";
 import { useT } from "@/components/hooks/useI18n";
-import clsx from "clsx";
 
 export default function ModeBar() {
   const {
@@ -15,24 +14,29 @@ export default function ModeBar() {
   } = useModeController();
   const t = useT();
 
+  const btn = (active: boolean, disabled?: boolean) =>
+    [
+      "h-9 rounded-full border px-4 text-sm font-medium transition",
+      active
+        ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+        : "bg-white/70 text-slate-900 border-slate-200 hover:bg-slate-100 dark:bg-slate-800/70 dark:text-white dark:border-slate-700 dark:hover:bg-slate-800",
+      disabled ? "opacity-60 cursor-not-allowed" : "",
+    ].filter(Boolean).join(" ");
+
   const aidocOn = state.base === "aidoc";
   const wellnessActive = state.base === "patient" && !state.therapy;
   const doctorActive = state.base === "doctor";
 
   return (
-    <div className="mode-bar">
+    <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-black/10 bg-white/60 px-2 py-1 backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
       <button
-        className={clsx("mode-btn", wellnessActive && "mode-btn-active")}
+        className={btn(wellnessActive)}
         onClick={() => togglePatient()}
       >
         {t("ui.modes.wellness")}
       </button>
       <button
-        className={clsx(
-          "mode-btn",
-          state.therapy && "mode-btn-active",
-          (aidocOn || state.base !== "patient" || therapyBusy) && "opacity-60 cursor-not-allowed"
-        )}
+        className={btn(state.therapy, aidocOn || state.base !== "patient" || therapyBusy)}
         disabled={aidocOn || state.base !== "patient" || therapyBusy}
         onClick={() => toggleTherapy()}
         aria-busy={therapyBusy}
@@ -45,25 +49,22 @@ export default function ModeBar() {
         ) : null}
       </button>
       <button
-        className={clsx("mode-btn", state.research && "mode-btn-active", aidocOn && "opacity-60 cursor-not-allowed")}
+        className={btn(state.research, aidocOn)}
         disabled={aidocOn}
         onClick={() => toggleResearch()}
       >
         {t("ui.modes.research")}
       </button>
       <button
-        className={clsx("mode-btn", doctorActive && "mode-btn-active")}
+        className={btn(doctorActive)}
         onClick={() => toggleDoctor()}
       >
         {t("ui.modes.clinical")}
       </button>
 
-      <div className="mx-0.5 h-4 w-px" style={{ background: "var(--so-border)" }} />
+      <div className="mx-1 h-5 w-px bg-black/10 dark:bg-white/10" />
 
-      <button
-        className={clsx("mode-btn", aidocOn && "mode-btn-active")}
-        onClick={() => toggleAidoc()}
-      >
+      <button className={btn(aidocOn)} onClick={() => toggleAidoc()}>
         {t("ui.modes.ai_doc")}
       </button>
     </div>
