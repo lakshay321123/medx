@@ -163,16 +163,14 @@ export default function Sidebar() {
             <div
               key={thread.id}
               className={[
-                "group flex items-center gap-2 rounded-lg px-3 py-1.5 transition-colors cursor-pointer",
+                "group flex items-center rounded-lg px-3 py-1.5 transition-colors cursor-pointer",
                 active
                   ? "bg-[rgba(6,182,212,0.06)] font-medium text-[var(--so-text,#000)] dark:text-white"
                   : "text-[#8E8E93] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.03)]",
               ].join(" ")}
               aria-current={active ? "page" : undefined}
             >
-              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0 fill-current">
-                <path d="M4 5h16v10H8l-3 3V5z" />
-              </svg>
+
               <button
                 onClick={() => {
                   closeSidebar();
