@@ -1165,6 +1165,8 @@ textarea { overflow-y: auto; }
   transition: background 0.15s;
 }
 .btn-ghost:hover { background: var(--so-bg-secondary); }
+.dark .btn-ghost { border-color: #2C2C2E; color: #fff; }
+.dark .btn-ghost:hover { background: #2C2C2E; }
 
 .btn-primary {
   display: inline-flex;

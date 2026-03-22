@@ -2,7 +2,7 @@
 import type { AdCard } from '@/types/ads';
 
 // Force a single blue accent for sponsored messaging
-const CHIP = 'text-sky-700 bg-sky-50 dark:text-sky-200 dark:bg-sky-900/30';
+const CHIP = 'text-sky-700 bg-sky-50 dark:text-sky-200 dark:bg-[#1C1C1E]';
 const RING = 'ring-sky-200';
 
 export default function InlineSponsoredCard({

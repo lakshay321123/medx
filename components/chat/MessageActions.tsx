@@ -4,7 +4,7 @@ import { Copy, RefreshCcw, Share2, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useMemo } from "react";
 
 const baseButtonClasses =
-  "inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700/70 dark:hover:text-slate-100";
+  "inline-flex h-8 w-8 items-center justify-center rounded-full text-[#8E8E93] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--so-accent,#06B6D4)] hover:bg-[var(--so-bg-secondary,#F2F2F7)] hover:text-[var(--so-text,#000)] dark:text-[#98989D] dark:hover:bg-[#2C2C2E] dark:hover:text-white";
 
 const disabledClasses = "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-inherit";
 
@@ -42,7 +42,7 @@ function ActionButton({
   const classes = [
     baseButtonClasses,
     disabled ? disabledClasses : "",
-    active ? "!text-indigo-500 dark:!text-indigo-400" : "",
+    active ? "!text-[var(--so-accent,#06B6D4)] dark:!text-[#22D3EE]" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -82,7 +82,7 @@ export default function MessageActions({
   const feedbackDisabled = loading || isRefreshing;
 
   const desktopRow = (
-    <div className="absolute right-3 top-3 hidden gap-2 rounded-full bg-white/80 px-2 py-1 text-slate-500 shadow-sm ring-1 ring-slate-200 transition md:flex md:opacity-0 md:group-hover:opacity-80 md:group-focus-within:opacity-100 dark:bg-slate-900/80 dark:text-slate-300 dark:ring-slate-700">
+    <div className="absolute right-3 top-3 hidden gap-2 rounded-full bg-white/80 px-2 py-1 text-[#8E8E93] shadow-sm ring-1 ring-[var(--so-border,#E5E5EA)] transition md:flex md:opacity-0 md:group-hover:opacity-80 md:group-focus-within:opacity-100 dark:bg-[#1C1C1E]/80 dark:text-[#98989D] dark:ring-[#2C2C2E]">
       <ActionButton label="Copy full answer" onClick={() => void onCopy()}>
         <Copy size={14} />
       </ActionButton>
