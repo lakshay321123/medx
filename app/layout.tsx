@@ -16,7 +16,6 @@ import MemorySnackbar from "@/components/memory/Snackbar";
 import UndoToast from "@/components/memory/UndoToast";
 import AppToastHost from "@/components/ui/AppToastHost";
 import dynamic from "next/dynamic";
-import Script from "next/script";
 import PreferencesProvider from "@/components/providers/PreferencesProvider";
 import LangDirEffect from "@/components/providers/LangDirEffect";
 
@@ -37,54 +36,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://api.groq.com" crossOrigin="anonymous" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
-        <link rel="dns-prefetch" href="https://fonts.cdnfonts.com" />
-        <link rel="preconnect" href="https://fonts.cdnfonts.com" crossOrigin="anonymous" />
-        {/* Keep this ONLY if you still rely on the CDN font.
-           If you've migrated to a local/next-font, remove this link. */}
-        <link
-          rel="stylesheet"
-          href="https://fonts.cdnfonts.com/css/proxima-nova-2"
-        />
-        <noscript>
-          <style>{"body.font-loading{opacity:1 !important}"}</style>
-        </noscript>
+        {/* Proxima Nova removed — using Inter via next/font */}
+
       </head>
-      <body className={`${inter.variable} font-loading h-full bg-white text-black dark:bg-black dark:text-white font-sans antialiased`}>
-        <Script id="ensure-proxima-first" strategy="beforeInteractive">
-          {`
-            (function() {
-              var className = "font-loading";
-              var removeClass = function() {
-                var body = document.body;
-                if (!body || !body.classList.contains(className)) return;
-                body.classList.remove(className);
-                try {
-                  window.sessionStorage.setItem("proxima-font-loaded", "1");
-                } catch (e) {
-                  // ignore
-                }
-              };
+      <body className={`${inter.variable} h-full font-sans antialiased`} style={{ background: "var(--so-bg, #fff)", color: "var(--so-text, #000)" }}>
 
-              try {
-                if (window.sessionStorage.getItem("proxima-font-loaded")) {
-                  removeClass();
-                  return;
-                }
-              } catch (e) {
-                // ignore
-              }
-
-              if (document.fonts && document.fonts.ready) {
-                document.fonts.ready.then(removeClass);
-                if (document.fonts.status === "loaded") {
-                  removeClass();
-                }
-              } else {
-                window.addEventListener("load", removeClass, { once: true });
-              }
-            })();
-          `}
-        </Script>
         <PreferencesProvider>
           <LangDirEffect />
           <ThemeProvider
@@ -96,7 +52,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <CountryProvider>
               <ContextProvider>
                 <TopicProvider>
-                  <div className="flex h-full min-h-screen flex-col medx-gradient">
+                  <div className="flex h-full min-h-screen flex-col">
                     {/* Desktop Header */}
                     <Suspense fallback={<div className="h-[62px]" />}>
                       <div className="hidden md:block">

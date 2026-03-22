@@ -11,29 +11,21 @@ body * {
   transition: color 0.15s ease, border-color 0.15s ease;
 }
 
-/* Prevent any fallback face from flashing before Proxima Nova is ready */
-body.font-loading {
-  opacity: 0;
-}
-
-body.font-loading *,
-body.font-loading *::before,
-body.font-loading *::after {
-  transition: none !important;
-}
+/* Font loading class — no longer needed with next/font */
 
 /* === Base font: single source of truth via CSS variable with sensible fallbacks === */
 @layer base {
   html,
   body {
-    font-family: var(--font-proxima-nova, "Proxima Nova", "Proxima Nova Rg", "ProximaNova", "proxima-nova");
+    font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
   }
 }
 
 .btn-secondary{
-  @apply inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm transition
-         bg-white text-slate-700 border-slate-200 hover:bg-slate-50
-         dark:bg-gray-800 dark:text-slate-100 dark:border-gray-600 dark:hover:bg-gray-700;
+  @apply inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm transition;
+  background: var(--so-card, #fff);
+  border-color: var(--so-border, #E5E5EA);
+  color: var(--so-text, #000);
 }
 
 /* Compact action buttons for mobile trial cards */
@@ -49,11 +41,11 @@ body.font-loading *::after {
 
 @layer utilities {
   .text-primary {
-    @apply text-blue-600 dark:text-sky-400;
+    color: var(--so-accent, #06B6D4);
   }
 
   .bg-primary {
-    @apply bg-blue-600 text-white dark:bg-sky-500;
+    background: var(--so-accent, #06B6D4); color: #fff;
   }
 }
 
@@ -102,9 +94,7 @@ body.font-loading *::after {
 }
 
 /* Ensure body/content contrast in dark */
-.dark body { color: rgb(229 231 235); }           /* text-gray-200 */
-.dark .card,.dark .panel { background: #0f172a; } /* slate-900 */
-.dark .border { border-color: rgb(71 85 105); }   /* slate-600 */
+/* Dark mode handled by --so-* tokens in @layer base below */
 .dark .prose-medx :where(li)::marker { color: rgb(148 163 184); }
 
 :root.therapy-mode, .therapy-mode body {
@@ -136,32 +126,32 @@ body.font-loading *::after {
 /* === MedX Theme Tokens (Light & Dark) === */
 :root {
   --font-proxima-nova: "Proxima Nova", "Proxima Nova Rg", "ProximaNova", "proxima-nova";
-  --medx-bg-a: #e9efff;   /* light indigo */
-  --medx-bg-b: #d0f3ff;   /* light cyan */
-  --medx-bg-c: #ffffff;   /* fallback third stop */
+  --medx-bg-a: var(--so-bg, #FFFFFF);
+  --medx-bg-b: var(--so-bg, #FFFFFF);
+  --medx-bg-c: var(--so-bg, #FFFFFF);
   --medx-text: #0F172A;
   --medx-subtext: #334155;
 
   /* accents from reference */
-  --medx-accent:  #2563EB;  /* blue */
+  --medx-accent:  var(--so-accent, #06B6D4);
   --medx-accent2: #0891B2;  /* teal/cyan */
   --medx-red:     #F97316;  /* orange-red */
   --medx-teal:    #14B8A6;  /* teal */
   --medx-purple:  #7C3AED;  /* purple */
 
   /* surfaces */
-  --medx-surface: rgba(255,255,255,0.80);
-  --medx-panel:   rgba(255,255,255,0.90);
+  --medx-surface: var(--so-card, #FFFFFF);
+  --medx-panel:   var(--so-card, #FFFFFF);
   --medx-outline: rgba(15, 23, 42, 0.10);
 }
 .dark {
-  --medx-bg-a: #06122E;   /* deep navy */
-  --medx-bg-b: #071534;   /* mid navy */
-  --medx-bg-c: #0A1C45;   /* rich midnight */
+  --medx-bg-a: var(--so-bg, #000000);
+  --medx-bg-b: var(--so-bg, #000000);
+  --medx-bg-c: var(--so-bg, #000000);
   --medx-text: #E6E9F1;
   --medx-subtext: #B6C2D0;
 
-  --medx-accent:  #60A5FA;  /* blue */
+  --medx-accent:  var(--so-accent, #22D3EE);
   --medx-accent2: #22D3EE;  /* cyan */
   --medx-red:     #F97316;
   --medx-teal:    #2DD4BF;
@@ -180,7 +170,7 @@ body.font-loading *::after {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: linear-gradient(135deg, var(--medx-bg-a), var(--medx-bg-b), var(--medx-bg-c));
+  background: var(--so-bg, #FFFFFF);
 }
 
 /* Glass helpers */
