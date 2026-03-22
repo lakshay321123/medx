@@ -421,7 +421,7 @@ export default function LegalPrivacyFooter() {
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="rounded-md p-2 text-slate-500 transition hover:bg-slate-200/70 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:text-slate-300 dark:hover:bg-slate-800/80 dark:focus-visible:ring-offset-slate-900"
+                className="rounded-md p-2 text-slate-500 transition hover:bg-slate-200/70 focus-visible:ring-2 focus-visible:ring-[var(--so-accent,#06B6D4)] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:text-slate-300 dark:hover:bg-slate-800/80 dark:focus-visible:ring-offset-black"
                 aria-label={t("Close dialog")}
               >
                 <span aria-hidden="true">×</span>
@@ -452,7 +452,7 @@ export default function LegalPrivacyFooter() {
                         <p className="text-sm text-slate-600 dark:text-slate-300">{t("Essential description")}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="rounded-full bg-blue-500 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
+                        <span className="rounded-full bg-[var(--so-accent,#06B6D4)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
                           {t("On")}
                         </span>
                         <span className="text-xs text-slate-500 dark:text-slate-400">{t("Required")}</span>
@@ -488,7 +488,7 @@ export default function LegalPrivacyFooter() {
                               toggleCookie(option.key);
                             }
                           }}
-                          className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900 ${
+                          className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-[var(--so-accent,#06B6D4)] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-black ${
                             option.value
                               ? "bg-primary"
                               : "bg-slate-300 dark:bg-slate-700"
@@ -542,14 +542,14 @@ export default function LegalPrivacyFooter() {
                   <button
                     type="button"
                     onClick={() => setIsOpen(false)}
-                    className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900"
+                    className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-[var(--so-accent,#06B6D4)] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-black"
                   >
                     {t("Cancel")}
                   </button>
                   <button
                     type="button"
                     onClick={handleReject}
-                    className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900"
+                    className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-[var(--so-accent,#06B6D4)] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-black"
                   >
                     {t("Reject Non-Essential")}
                   </button>
@@ -557,7 +557,7 @@ export default function LegalPrivacyFooter() {
                     type="button"
                     onClick={handleAccept}
                     disabled={!agreeChecked}
-                    className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-sky-400/90 dark:focus-visible:ring-offset-slate-900"
+                    className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:opacity-85 focus-visible:ring-2 focus-visible:ring-[var(--so-accent,#06B6D4)] focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60 dark:hover:opacity-90 dark:focus-visible:ring-offset-black"
                   >
                     {t("Accept")}
                   </button>

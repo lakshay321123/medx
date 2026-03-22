@@ -42,7 +42,7 @@ export default function MemorySnackbar() {
       <div className="text-sm mb-2">{label}</div>
       <div className="flex gap-2 justify-end">
         <button type="button" onClick={onDismiss} className="px-3 py-1 rounded border text-sm">No</button>
-        <button type="button" onClick={onSave} className="px-3 py-1 rounded bg-blue-600 text-white text-sm">Save</button>
+        <button type="button" onClick={onSave} className="px-3 py-1 rounded text-white bg-[var(--so-accent,#06B6D4)] text-sm">Save</button>
       </div>
     </div>
   );

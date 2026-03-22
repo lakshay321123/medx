@@ -49,7 +49,7 @@ export function SidebarNavLink({
       }}
       className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm transition ${
         active
-          ? "bg-blue-600/10 font-semibold text-blue-600 dark:bg-sky-500/20 dark:text-sky-300"
+          ? "bg-[var(--so-accent,#06B6D4)]/10 font-semibold text-[var(--so-accent,#06B6D4)] dark:bg-[#22D3EE]/15 dark:text-[#22D3EE]"
           : "text-slate-600 hover:bg-slate-100/70 dark:text-slate-300 dark:hover:bg-white/5"
       }`}
       data-testid={`nav-${panel}`}

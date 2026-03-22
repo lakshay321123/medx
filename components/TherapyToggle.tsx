@@ -31,7 +31,7 @@ export default function TherapyToggle({
   }
 
   const baseChip = 'rounded-full px-3 h-9 inline-flex items-center gap-2 border text-sm font-medium';
-  const onChip = 'bg-blue-100 text-blue-900 border-blue-300';
+  const onChip = 'bg-cyan-100 text-cyan-900 border-cyan-300';
   const offChip = 'bg-white text-neutral-900 border-neutral-300';
 
   if (variant === 'floating') {

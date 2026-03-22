@@ -1870,10 +1870,10 @@ type ButtonProps = {
 };
 
 function Button({ children, onClick, variant = "ghost", primary = false, ...rest }: ButtonProps) {
-  const base = "inline-flex h-11 min-w-[44px] items-center justify-center rounded-full px-4 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900";
+  const base = "inline-flex h-11 min-w-[44px] items-center justify-center rounded-full px-4 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--so-accent,#06B6D4)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-black";
   let styles = "bg-transparent text-slate-600 dark:text-slate-200 border border-transparent";
   if (primary) {
-    styles = "bg-blue-600 text-white hover:bg-blue-500 border border-blue-600 dark:bg-blue-500 dark:hover:bg-blue-400";
+    styles = "text-white border border-[#06B6D4] hover:opacity-90 dark:border-[#22D3EE] bg-[var(--so-accent,#06B6D4)]";
   } else if (variant === "outline") {
     styles = "border border-slate-200 text-slate-700 hover:bg-white/70 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800/80";
   }

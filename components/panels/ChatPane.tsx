@@ -4472,7 +4472,7 @@ ${systemCommon}` + baseSys;
 
                 {!busy && (
                   <button
-                    className="order-3 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50 md:order-none"
+                    className="order-3 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-white bg-[var(--so-accent,#06B6D4)] transition hover:bg-[var(--so-accent,#06B6D4)] disabled:opacity-50 md:order-none"
                     type="submit"
                     disabled={pendingFiles.length === 0 && !userText.trim()}
                     aria-label="Send"
@@ -4492,7 +4492,7 @@ ${systemCommon}` + baseSys;
                           setActiveHelper(prev => (prev === 'study' ? null : prev));
                           setPlusMenuOpen(false);
                         }}
-                        className="flex flex-1 items-center justify-center gap-1 rounded-full border border-blue-600 bg-blue-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                        className="flex flex-1 items-center justify-center gap-1 rounded-full border border-[var(--so-accent,#06B6D4)] bg-[var(--so-accent,#06B6D4)] px-3 py-1 text-xs font-medium text-white shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--so-accent,#06B6D4)]"
                       >
                         <GraduationCap className="h-4 w-4" aria-hidden="true" />
                         <span>{t('studyLearn')}</span>
@@ -4505,7 +4505,7 @@ ${systemCommon}` + baseSys;
                           setActiveHelper(prev => (prev === 'thinking' ? null : prev));
                           setPlusMenuOpen(false);
                         }}
-                        className="flex flex-1 items-center justify-center gap-1 rounded-full border border-blue-600 bg-blue-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                        className="flex flex-1 items-center justify-center gap-1 rounded-full border border-[var(--so-accent,#06B6D4)] bg-[var(--so-accent,#06B6D4)] px-3 py-1 text-xs font-medium text-white shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--so-accent,#06B6D4)]"
                       >
                         <Brain className="h-4 w-4" aria-hidden="true" />
                         <span>{t('thinkingMode')}</span>

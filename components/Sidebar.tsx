@@ -133,7 +133,7 @@ export default function Sidebar() {
                   "group flex items-center gap-2 rounded-md h-9 px-3",
                   "transition-colors focus-within:ring-2 focus-within:ring-offset-0",
                   active
-                    ? "bg-blue-600/10 font-semibold text-blue-600 dark:bg-sky-500/20 dark:text-sky-300"
+                    ? "bg-[var(--so-accent,#06B6D4)]/10 font-semibold text-[var(--so-accent,#06B6D4)] dark:bg-[#22D3EE]/15 dark:text-[#22D3EE]"
                     : "text-slate-600 hover:bg-slate-100/70 dark:text-slate-300 dark:hover:bg-white/5",
                 ].join(" ")}
                 aria-current={active ? "page" : undefined}

@@ -135,7 +135,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
         />
         <button
           type="submit"
-          className="px-3 py-2 rounded-lg text-sm border bg-blue-600 text-white dark:border-blue-600 disabled:opacity-50"
+          className="px-3 py-2 rounded-lg text-sm border text-white dark:border-[#22D3EE] bg-[var(--so-accent,#06B6D4)] disabled:opacity-50"
           disabled={busy}
           aria-label={t('Search')}
         >
@@ -151,7 +151,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
             type="button"
             onClick={()=>togglePhase(phase.value)}
             className={`px-2 py-1 rounded border text-xs ${
-              local.phase === phase.value ? 'bg-blue-600 text-white border-blue-600' :
+              local.phase === phase.value ? 'text-white border-[var(--so-accent,#06B6D4)] bg-[var(--so-accent,#06B6D4)]' :
               'bg-white dark:bg-slate-800 dark:border-slate-700'
             }`}
           >
@@ -197,7 +197,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
             type="button"
             onClick={()=>toggleCountry(region.value)}
             className={`px-2 py-1 rounded border text-xs ${
-              local.countries.includes(region.value) ? 'bg-blue-600 text-white border-blue-600' :
+              local.countries.includes(region.value) ? 'text-white border-[var(--so-accent,#06B6D4)] bg-[var(--so-accent,#06B6D4)]' :
               'bg-white dark:bg-slate-800 dark:border-slate-700'
             }`}
           >
@@ -217,7 +217,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
         />
         <button
           type="submit"
-          className="px-3 py-1.5 rounded-lg text-sm border bg-blue-600 text-white dark:border-blue-600 disabled:opacity-50"
+          className="px-3 py-1.5 rounded-lg text-sm border text-white dark:border-[#22D3EE] bg-[var(--so-accent,#06B6D4)] disabled:opacity-50"
           disabled={busy}
           aria-label={t('Apply')}
         >

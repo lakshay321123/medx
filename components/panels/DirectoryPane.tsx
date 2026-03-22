@@ -123,7 +123,7 @@ export default function DirectoryPane() {
           <span className="min-w-0 flex-1 text-left sm:truncate">{t("Using:")} {locationLabel}</span>
           <button
             onClick={actions.useMyLocation}
-            className="mt-1 inline-flex h-[30px] w-full items-center justify-center gap-1 rounded-full border border-slate-200 px-2.5 text-[11px] font-medium text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 sm:ml-auto sm:mt-0 sm:w-auto md:h-9 md:px-3 md:text-[11px]"
+            className="mt-1 inline-flex h-[30px] w-full items-center justify-center gap-1 rounded-full border border-slate-200 px-2.5 text-[11px] font-medium text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--so-accent,#06B6D4)]/40 focus-visible:ring-offset-1 dark:border-white/10 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus-visible:ring-[var(--so-accent,#06B6D4)]/50 dark:focus-visible:ring-offset-slate-950 sm:ml-auto sm:mt-0 sm:w-auto md:h-9 md:px-3 md:text-[11px]"
           >
             {t("Use my location")}
           </button>
@@ -150,9 +150,9 @@ export default function DirectoryPane() {
               <button
                 key={option.value}
                 onClick={() => actions.setType(option.value)}
-                className={`inline-flex h-[26px] min-w-[64px] items-center justify-center whitespace-nowrap rounded-full border px-2.5 text-[11.5px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-[30px] md:min-w-[72px] md:px-3 md:text-[12.5px] ${
+                className={`inline-flex h-[26px] min-w-[64px] items-center justify-center whitespace-nowrap rounded-full border px-2.5 text-[11.5px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--so-accent,#06B6D4)]/40 focus-visible:ring-offset-1 dark:focus-visible:ring-[var(--so-accent,#06B6D4)]/50 dark:focus-visible:ring-offset-slate-950 md:h-[30px] md:min-w-[72px] md:px-3 md:text-[12.5px] ${
                   selected
-                    ? "border-blue-500 bg-blue-500 text-white"
+                    ? "border-[var(--so-accent,#06B6D4)] text-white bg-[var(--so-accent,#06B6D4)]"
                     : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-800"
                 }`}
                 aria-pressed={selected}
@@ -166,9 +166,9 @@ export default function DirectoryPane() {
         <div className="flex flex-wrap gap-1 pb-0.5 md:flex-nowrap md:gap-2 md:overflow-x-auto">
           <button
             onClick={() => actions.setOpenNow((v) => !v)}
-            className={`inline-flex h-[26px] items-center justify-center whitespace-nowrap rounded-full border px-2.5 text-[11.5px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-[30px] md:px-3 md:text-[12px] ${
+            className={`inline-flex h-[26px] items-center justify-center whitespace-nowrap rounded-full border px-2.5 text-[11.5px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--so-accent,#06B6D4)]/40 focus-visible:ring-offset-1 dark:focus-visible:ring-[var(--so-accent,#06B6D4)]/50 dark:focus-visible:ring-offset-slate-950 md:h-[30px] md:px-3 md:text-[12px] ${
               openNow
-                ? "border-blue-500 bg-blue-500 text-white"
+                ? "border-[var(--so-accent,#06B6D4)] text-white bg-[var(--so-accent,#06B6D4)]"
                 : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-800"
             }`}
             aria-pressed={openNow}
@@ -177,9 +177,9 @@ export default function DirectoryPane() {
           </button>
           <button
             onClick={() => actions.setMinRating((r) => (r ? null : 4))}
-            className={`inline-flex h-[26px] items-center justify-center whitespace-nowrap rounded-full border px-2.5 text-[11.5px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-[30px] md:px-3 md:text-[12px] ${
+            className={`inline-flex h-[26px] items-center justify-center whitespace-nowrap rounded-full border px-2.5 text-[11.5px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--so-accent,#06B6D4)]/40 focus-visible:ring-offset-1 dark:focus-visible:ring-[var(--so-accent,#06B6D4)]/50 dark:focus-visible:ring-offset-slate-950 md:h-[30px] md:px-3 md:text-[12px] ${
               minRating
-                ? "border-blue-500 bg-blue-500 text-white"
+                ? "border-[var(--so-accent,#06B6D4)] text-white bg-[var(--so-accent,#06B6D4)]"
                 : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-800"
             }`}
             aria-pressed={Boolean(minRating)}
@@ -188,9 +188,9 @@ export default function DirectoryPane() {
           </button>
           <button
             onClick={() => actions.setMaxKm((k) => (k ? null : 3))}
-            className={`inline-flex h-[26px] items-center justify-center whitespace-nowrap rounded-full border px-2.5 text-[11.5px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-[30px] md:px-3 md:text-[12px] ${
+            className={`inline-flex h-[26px] items-center justify-center whitespace-nowrap rounded-full border px-2.5 text-[11.5px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--so-accent,#06B6D4)]/40 focus-visible:ring-offset-1 dark:focus-visible:ring-[var(--so-accent,#06B6D4)]/50 dark:focus-visible:ring-offset-slate-950 md:h-[30px] md:px-3 md:text-[12px] ${
               maxKm
-                ? "border-blue-500 bg-blue-500 text-white"
+                ? "border-[var(--so-accent,#06B6D4)] text-white bg-[var(--so-accent,#06B6D4)]"
                 : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-800"
             }`}
             aria-pressed={Boolean(maxKm)}
@@ -239,7 +239,7 @@ export default function DirectoryPane() {
                   href={`https://www.google.com/maps/dir/?api=1&destination=${place.geo.lat},${place.geo.lng}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
+                  className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--so-accent,#06B6D4)]/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-[var(--so-accent,#06B6D4)]/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
                 >
                   <Navigation size={14} aria-hidden /> {t("Directions")}
                 </a>
@@ -251,7 +251,7 @@ export default function DirectoryPane() {
                   render: (
                     <a
                       href={`tel:${place.phones[0].replace(/\s+/g, "")}`}
-                      className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
+                      className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--so-accent,#06B6D4)]/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-[var(--so-accent,#06B6D4)]/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
                     >
                       <Phone size={14} aria-hidden /> {t("Call")}
                     </a>
@@ -266,7 +266,7 @@ export default function DirectoryPane() {
                       href={`https://wa.me/${place.whatsapp.replace(/\D/g, "")}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
+                      className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--so-accent,#06B6D4)]/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-[var(--so-accent,#06B6D4)]/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
                     >
                       <MessageSquare size={14} aria-hidden /> {t("Message")}
                     </a>
@@ -281,7 +281,7 @@ export default function DirectoryPane() {
                       href={reviewsUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-blue-500/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
+                      className="flex h-[30px] w-full items-center justify-center gap-1 rounded-[10px] border border-slate-200 bg-white/90 px-2.5 text-[11.5px] font-medium text-slate-900 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--so-accent,#06B6D4)]/40 focus-visible:ring-offset-1 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus-visible:ring-[var(--so-accent,#06B6D4)]/50 dark:focus-visible:ring-offset-slate-950 md:h-9 md:rounded-[10px] md:px-2.5 md:text-[12.5px]"
                     >
                       <Star size={14} aria-hidden /> {t("Reviews")}
                     </a>
@@ -307,7 +307,7 @@ export default function DirectoryPane() {
                     >
                       {displayName}
                     </div>
-                    <div className="inline-flex h-[16px] items-center whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-1.5 text-[9px] capitalize text-blue-900 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-100 md:h-[22px] md:px-2 md:text-[11px]">
+                    <div className="inline-flex h-[16px] items-center whitespace-nowrap rounded-full border border-cyan-200 bg-cyan-50 px-1.5 text-[9px] capitalize text-cyan-900 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-100 md:h-[22px] md:px-2 md:text-[11px]">
                       {typeLabel}
                     </div>
                   </div>
