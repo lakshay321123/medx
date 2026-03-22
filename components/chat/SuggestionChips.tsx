@@ -6,10 +6,19 @@ import { isAction, Suggestion } from "@/lib/chat/suggestions";
 
 type Props = { suggestions: Suggestion[]; onAction: (s: Suggestion) => void };
 
+// Extract options from questions like "Is it patchy or diffuse?"
+function extractOptions(label: string): string[] | null {
+  // Pattern: "X or Y?" or "X, Y, or Z?"
+  const orMatch = label.match(/\b(\w[\w\s]*?)\s+or\s+(\w[\w\s]*?)\??$/i);
+  if (orMatch) {
+    return [orMatch[1].trim(), orMatch[2].trim().replace(/\?$/, '')];
+  }
+  return null;
+}
+
 export default function SuggestionChips({ suggestions, onAction }: Props) {
   if (!suggestions?.length) return null;
 
-  // Optional hard guard to strip accidental actionIds
   const safe = suggestions.map((s) => (s.actionId ? s : { ...s, actionId: undefined }));
   const t = useT();
 
@@ -27,28 +36,59 @@ export default function SuggestionChips({ suggestions, onAction }: Props) {
   );
 
   return (
-    <div className="mt-3 flex flex-wrap gap-1.5">
-      {translated.map((s) =>
-        isAction(s) ? (
+    <div className="mt-4 space-y-2">
+      {translated.map((s) => {
+        const options = extractOptions(s.label);
+        
+        // If question has options (e.g., "patchy or diffuse?"), show as option buttons
+        if (options && options.length >= 2) {
+          return (
+            <div key={s.id} className="space-y-1.5">
+              <p className="text-[13px] text-[var(--so-text-secondary,#8E8E93)]">
+                {s.label}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {options.map((opt, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    className="rounded-full border border-[var(--so-accent,#06B6D4)] px-3.5 py-1.5 text-[13px] font-medium text-[var(--so-accent,#06B6D4)] transition hover:bg-[var(--so-accent,#06B6D4)] hover:text-white dark:border-[#22D3EE] dark:text-[#22D3EE] dark:hover:bg-[#22D3EE] dark:hover:text-black"
+                    onClick={() => onAction({ ...s, label: opt } as Suggestion)}
+                  >
+                    {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="rounded-full border border-[var(--so-border,#E5E5EA)] px-3.5 py-1.5 text-[13px] text-[var(--so-text-secondary,#8E8E93)] transition hover:bg-[var(--so-bg-secondary,#F2F2F7)] dark:border-[var(--so-border,#2C2C2E)] dark:hover:bg-[#2C2C2E]"
+                  onClick={() => onAction({ ...s, label: "Both" } as Suggestion)}
+                >
+                  Both
+                </button>
+                <button
+                  type="button"
+                  className="rounded-full border border-[var(--so-border,#E5E5EA)] px-3.5 py-1.5 text-[13px] text-[var(--so-text-secondary,#8E8E93)] transition hover:bg-[var(--so-bg-secondary,#F2F2F7)] dark:border-[var(--so-border,#2C2C2E)] dark:hover:bg-[#2C2C2E]"
+                  onClick={() => onAction({ ...s, label: "Not sure" } as Suggestion)}
+                >
+                  Not sure
+                </button>
+              </div>
+            </div>
+          );
+        }
+        
+        // Regular follow-up: make it a clickable teal-outlined button
+        return (
           <button
             key={s.id}
             type="button"
-            className="rounded-full px-3 py-1 text-xs font-medium transition hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--so-accent,#06B6D4)] bg-[var(--so-bg-secondary,#F2F2F7)] text-[var(--so-text,#000)] dark:bg-[var(--so-bg-secondary,#2C2C2E)] dark:text-[var(--so-text,#fff)]"
+            className="block w-full text-left rounded-xl border border-[var(--so-border,#E5E5EA)] px-3.5 py-2.5 text-[13px] text-[var(--so-text,#000)] transition hover:border-[var(--so-accent,#06B6D4)] hover:bg-[rgba(6,182,212,0.04)] dark:border-[var(--so-border,#2C2C2E)] dark:text-[var(--so-text,#fff)] dark:hover:border-[#22D3EE]"
             onClick={() => onAction(s)}
-            aria-label={s.label}
           >
             {s.label}
           </button>
-        ) : (
-          <span
-            key={s.id}
-            className="rounded-full px-3 py-1 text-xs cursor-default select-text bg-[var(--so-bg-secondary,#F2F2F7)] text-[var(--so-text-secondary,#8E8E93)] dark:bg-[var(--so-bg-secondary,#2C2C2E)] dark:text-[var(--so-text-secondary,#98989D)]"
-            aria-disabled="true"
-          >
-            {s.label}
-          </span>
-        ),
-      )}
+        );
+      })}
     </div>
   );
 }
