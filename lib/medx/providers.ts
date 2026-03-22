@@ -35,7 +35,7 @@ export async function callOpenAIChat(
   messages: any[],
   { stream = false, temperature = 0.1 }: { stream?: boolean; temperature?: number } = {},
 ): Promise<string | Response> {
-  const primary = process.env.OPENAI_TEXT_MODEL || "gpt-5";
+  const primary = process.env.OPENAI_TEXT_MODEL || "gpt-4o";
   const fallbacks = (process.env.OPENAI_FALLBACK_MODELS || "gpt-4o,gpt-4o-mini")
     .split(",")
     .map(s => s.trim())

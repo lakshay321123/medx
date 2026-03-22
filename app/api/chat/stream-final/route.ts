@@ -1,4 +1,4 @@
-import { ensureMinDelay, minDelayMs } from "@/lib/utils/ensureMinDelay";
+// ensureMinDelay removed — we want first byte ASAP for streaming
 import { callOpenAIChat } from "@/lib/medx/providers";
 import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 import { BRAND_NAME } from "@/lib/brand";
@@ -97,11 +97,10 @@ export async function POST(req: Request) {
 
   let system = [langDirective, formatInstruction, qualityRules, calcPrelude].filter(Boolean).join('\n\n');
 
-  const minMs = minDelayMs();
   const modelStart = Date.now();
-  const upstream = await ensureMinDelay<Response>(
-    callOpenAIChat([{ role: "system", content: system }, ...messages], { stream: true }),
-    minMs,
+  const upstream = await callOpenAIChat(
+    [{ role: "system", content: system }, ...messages],
+    { stream: true }
   );
   const modelMs = Date.now() - modelStart;
 
@@ -153,7 +152,7 @@ export async function POST(req: Request) {
       "Transfer-Encoding": "chunked",
       "Server-Timing": `app;dur=${appMs},model;dur=${modelMs}`,
       "x-medx-provider": "openai",
-      "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-5",
+      "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-4o",
     });
 
     return new Response(stream, {
@@ -189,7 +188,7 @@ export async function POST(req: Request) {
     "Transfer-Encoding": "chunked",
     "Server-Timing": `app;dur=${appMs},model;dur=${modelMs}`,
     "x-medx-provider": "openai",
-    "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-5",
+    "x-medx-model": process.env.OPENAI_TEXT_MODEL || "gpt-4o",
   });
 
   return new Response(enforcedStream, {
