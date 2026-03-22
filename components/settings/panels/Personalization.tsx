@@ -3,10 +3,10 @@
 import { usePrefsDraft } from "@/components/providers/PrefsDraftProvider";
 
 const PILL =
-  "px-3 py-1.5 text-sm rounded-full border border-slate-200 hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/5";
+  "px-3 py-1.5 text-sm rounded-full border border-so-border hover:bg-black/5 dark:border-so-border dark:hover:bg-so-accent/10";
 const LABEL = "text-xs uppercase tracking-wide opacity-60";
 const ROW =
-  "rounded-xl border border-slate-200 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 p-4 shadow-sm backdrop-blur";
+  "rounded-xl border border-so-border dark:border-so-border bg-so-card dark:bg-so-card p-4 shadow-sm backdrop-blur";
 
 export default function PersonalizationPanel() {
   const { draft, set } = usePrefsDraft();
@@ -50,7 +50,7 @@ export default function PersonalizationPanel() {
               key={key}
               type="button"
               onClick={() => set("personality", key)}
-              className={`${PILL} ${personality === key ? "bg-blue-600 text-white border-blue-600" : ""}`}
+              className={`${PILL} ${personality === key ? "bg-so-accent text-white border-so-accent" : ""}`}
               aria-pressed={personality === key}
             >
               {label}
@@ -62,7 +62,7 @@ export default function PersonalizationPanel() {
       <div className={ROW}>
         <div className="font-medium">Custom instructions</div>
         <textarea
-          className="w-full rounded-lg border border-slate-200 bg-transparent p-2 outline-none dark:border-white/10"
+          className="w-full rounded-lg border border-so-border bg-transparent p-2 outline-none dark:border-so-border"
           rows={3}
           value={(draft.customInstructions as string) ?? ""}
           onChange={(event) => set("customInstructions", event.target.value)}
@@ -77,7 +77,7 @@ export default function PersonalizationPanel() {
             <div className={LABEL}>Nickname</div>
             <input
               type="text"
-              className="mt-1 w-full rounded-lg border border-slate-200 bg-transparent p-2 outline-none dark:border-white/10"
+              className="mt-1 w-full rounded-lg border border-so-border bg-transparent p-2 outline-none dark:border-so-border"
               value={(draft.nickname as string) ?? ""}
               onChange={(event) => set("nickname", event.target.value)}
               placeholder="What should we call you?"
@@ -88,7 +88,7 @@ export default function PersonalizationPanel() {
             <div className={LABEL}>Occupation</div>
             <input
               type="text"
-              className="mt-1 w-full rounded-lg border border-slate-200 bg-transparent p-2 outline-none dark:border-white/10"
+              className="mt-1 w-full rounded-lg border border-so-border bg-transparent p-2 outline-none dark:border-so-border"
               value={(draft.occupation as string) ?? ""}
               onChange={(event) => set("occupation", event.target.value)}
               placeholder="Interior designer"
@@ -99,7 +99,7 @@ export default function PersonalizationPanel() {
         <div className="mt-3">
           <div className={LABEL}>More about you</div>
           <textarea
-            className="mt-1 w-full rounded-lg border border-slate-200 bg-transparent p-2 outline-none dark:border-white/10"
+            className="mt-1 w-full rounded-lg border border-so-border bg-transparent p-2 outline-none dark:border-so-border"
             rows={3}
             value={(draft.about as string) ?? ""}
             onChange={(event) => set("about", event.target.value)}

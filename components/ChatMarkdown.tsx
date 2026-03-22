@@ -42,7 +42,7 @@ function CodeBlock({ children, className }: { children: string; className?: stri
           setCopied(true);
           window.setTimeout(() => setCopied(false), 1200);
         }}
-        className="absolute right-2 top-2 rounded bg-black/10 px-2 py-1 text-xs text-black/80 transition hover:bg-black/20 dark:bg-white/10 dark:text-white/80 dark:hover:bg-white/20"
+        className="absolute right-2 top-2 rounded bg-black/10 px-2 py-1 text-xs text-black/80 transition hover:bg-black/20 dark:bg-white/10 dark:text-so-text/80 dark:hover:bg-white/20"
       >
         {copied ? "Copied" : "Copy"}
       </button>

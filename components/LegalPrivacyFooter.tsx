@@ -364,9 +364,9 @@ export default function LegalPrivacyFooter() {
     <>
       <footer
         ref={footerRef}
-        className="mobile-footer flex-shrink-0 border-t border-black/10 bg-white/80 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/60"
+        className="mobile-footer flex-shrink-0 border-t border-so-border bg-so-card backdrop-blur-sm dark:border-so-border dark:bg-so-card"
       >
-        <div className="mobile-footer-inner mx-auto flex w-full max-w-screen-2xl items-center justify-center gap-1.5 px-6 text-center text-[11px] text-slate-600 dark:text-slate-300 md:gap-3 md:py-1.5 md:pl-56 md:text-xs">
+        <div className="mobile-footer-inner mx-auto flex w-full max-w-screen-2xl items-center justify-center gap-1.5 px-6 text-center text-[11px] text-so-muted dark:text-so-muted md:gap-3 md:py-1.5 md:pl-56 md:text-xs">
           <div
             ref={marqueeContainerRef}
             className={`mobile-footer-message${marqueeVars ? " mobile-footer-marquee-active" : ""}`}
@@ -412,16 +412,16 @@ export default function LegalPrivacyFooter() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="legal-privacy-title"
-            className="relative z-10 w-full max-w-3xl overflow-hidden rounded-2xl border border-black/10 bg-white shadow-xl dark:border-white/10 dark:bg-slate-900"
+            className="relative z-10 w-full max-w-3xl overflow-hidden rounded-2xl border border-so-border bg-white shadow-xl dark:border-so-border dark:bg-so-card"
           >
-            <div className="flex items-center justify-between border-b border-black/5 bg-slate-50/70 px-5 py-4 dark:border-white/10 dark:bg-slate-900/40">
+            <div className="flex items-center justify-between border-b border-so-border bg-so-bg/70 px-5 py-4 dark:border-so-border dark:bg-so-card">
               <h2 id="legal-privacy-title" className="text-lg font-semibold text-primary">
                 {t("Legal & Privacy")}
               </h2>
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="rounded-md p-2 text-slate-500 transition hover:bg-slate-200/70 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:text-slate-300 dark:hover:bg-slate-800/80 dark:focus-visible:ring-offset-slate-900"
+                className="rounded-md p-2 text-so-muted transition hover:bg-so-accent/5 focus-visible:ring-2 focus-visible:ring-so-accent focus-visible:ring-offset-2 focus-visible:ring-offset-so-bg dark:text-so-muted dark:hover:bg-so-accent/10/80 dark:focus-visible:ring-offset-[#131316]"
                 aria-label={t("Close dialog")}
               >
                 <span aria-hidden="true">×</span>
@@ -429,11 +429,11 @@ export default function LegalPrivacyFooter() {
             </div>
 
             <div className="px-5 pb-5 pt-4">
-              <div className="max-h-[50vh] space-y-6 overflow-y-auto pr-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
+              <div className="max-h-[50vh] space-y-6 overflow-y-auto pr-1 text-sm leading-6 text-so-muted dark:text-so-muted">
                 {sectionCopy.map(section => (
                   <section key={section.title}>
                     <h3 className="mb-2 text-base font-semibold text-primary">{section.title}</h3>
-                    <div className="space-y-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                    <div className="space-y-3 text-sm leading-6 text-so-muted dark:text-so-muted">
                       {section.body.map((paragraph, index) => (
                         <p key={index}>{paragraph}</p>
                       ))}
@@ -446,31 +446,31 @@ export default function LegalPrivacyFooter() {
                   <p className="mb-3">{cookieIntro}</p>
 
                   <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-4 rounded-lg border border-black/5 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-slate-900/40">
+                    <div className="flex items-start justify-between gap-4 rounded-lg border border-so-border bg-so-bg/70 p-3 dark:border-so-border dark:bg-so-card">
                       <div>
-                        <div className="text-sm font-medium text-slate-700 dark:text-slate-200">{t("Essential")}</div>
-                        <p className="text-sm text-slate-600 dark:text-slate-300">{t("Essential description")}</p>
+                        <div className="text-sm font-medium text-so-text dark:text-so-text">{t("Essential")}</div>
+                        <p className="text-sm text-so-muted dark:text-so-muted">{t("Essential description")}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="rounded-full bg-blue-500 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
+                        <span className="rounded-full bg-so-accent px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
                           {t("On")}
                         </span>
-                        <span className="text-xs text-slate-500 dark:text-slate-400">{t("Required")}</span>
+                        <span className="text-xs text-so-muted dark:text-so-muted">{t("Required")}</span>
                       </div>
                     </div>
 
                     {cookieToggles.map(option => (
                       <div
                         key={option.key}
-                        className="flex items-start justify-between gap-4 rounded-lg border border-black/5 bg-white/70 p-3 transition dark:border-white/10 dark:bg-slate-900/40"
+                        className="flex items-start justify-between gap-4 rounded-lg border border-so-border bg-so-card p-3 transition dark:border-so-border dark:bg-so-card"
                       >
                         <div>
-                          <span id={option.labelId} className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                          <span id={option.labelId} className="block text-sm font-medium text-so-text dark:text-so-text">
                             {option.label}
                           </span>
                           <p
                             id={option.descriptionId}
-                            className="text-sm text-slate-600 dark:text-slate-300"
+                            className="text-sm text-so-muted dark:text-so-muted"
                           >
                             {option.description}
                           </p>
@@ -488,10 +488,10 @@ export default function LegalPrivacyFooter() {
                               toggleCookie(option.key);
                             }
                           }}
-                          className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900 ${
+                          className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-so-accent focus-visible:ring-offset-2 focus-visible:ring-offset-so-bg dark:focus-visible:ring-offset-[#131316] ${
                             option.value
                               ? "bg-primary"
-                              : "bg-slate-300 dark:bg-slate-700"
+                              : "bg-so-border dark:bg-so-card"
                           }`}
                         >
                           <span
@@ -508,14 +508,14 @@ export default function LegalPrivacyFooter() {
 
                 <section>
                   <h3 className="mb-2 text-base font-semibold text-primary">{t("Liability & Governing Law")}</h3>
-                  <div className="space-y-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                  <div className="space-y-3 text-sm leading-6 text-so-muted dark:text-so-muted">
                     <p>{liabilityCopy}</p>
                   </div>
                 </section>
 
                 <section>
                   <h3 className="mb-2 text-base font-semibold text-primary">{t("Contact")}</h3>
-                  <div className="space-y-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                  <div className="space-y-3 text-sm leading-6 text-so-muted dark:text-so-muted">
                     <p>
                       {contactPrefix}{" "}
                       <a className="text-primary underline" href={`mailto:${PRIVACY_EMAIL}`}>
@@ -527,11 +527,11 @@ export default function LegalPrivacyFooter() {
                 </section>
               </div>
 
-              <div className="mt-5 border-t border-black/5 pt-4 dark:border-white/10">
-                <label className="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-200">
+              <div className="mt-5 border-t border-so-border pt-4 dark:border-so-border">
+                <label className="flex items-start gap-3 text-sm text-so-text dark:text-so-text">
                   <input
                     type="checkbox"
-                    className="mt-1 h-4 w-4 rounded border border-slate-400 text-primary focus:ring-blue-500 focus:ring-offset-0 dark:focus:ring-sky-400"
+                    className="mt-1 h-4 w-4 rounded border border-so-border text-primary focus:ring-so-accent focus:ring-offset-0 dark:focus:ring-so-accent"
                     checked={agreeChecked}
                     onChange={event => setAgreeChecked(event.target.checked)}
                   />
@@ -542,14 +542,14 @@ export default function LegalPrivacyFooter() {
                   <button
                     type="button"
                     onClick={() => setIsOpen(false)}
-                    className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900"
+                    className="rounded-md border border-so-border px-4 py-2 text-sm font-medium text-so-muted transition hover:bg-so-bg focus-visible:ring-2 focus-visible:ring-so-accent focus-visible:ring-offset-2 focus-visible:ring-offset-so-bg dark:border-so-border dark:text-so-muted dark:hover:bg-so-accent/10 dark:focus-visible:ring-offset-[#131316]"
                   >
                     {t("Cancel")}
                   </button>
                   <button
                     type="button"
                     onClick={handleReject}
-                    className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900"
+                    className="rounded-md border border-so-border px-4 py-2 text-sm font-medium text-so-muted transition hover:bg-so-bg focus-visible:ring-2 focus-visible:ring-so-accent focus-visible:ring-offset-2 focus-visible:ring-offset-so-bg dark:border-so-border dark:text-so-muted dark:hover:bg-so-accent/10 dark:focus-visible:ring-offset-[#131316]"
                   >
                     {t("Reject Non-Essential")}
                   </button>
@@ -557,7 +557,7 @@ export default function LegalPrivacyFooter() {
                     type="button"
                     onClick={handleAccept}
                     disabled={!agreeChecked}
-                    className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-sky-400/90 dark:focus-visible:ring-offset-slate-900"
+                    className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-so-accent/90 focus-visible:ring-2 focus-visible:ring-so-accent focus-visible:ring-offset-2 focus-visible:ring-offset-so-bg disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-so-accent/90 dark:focus-visible:ring-offset-[#131316]"
                   >
                     {t("Accept")}
                   </button>

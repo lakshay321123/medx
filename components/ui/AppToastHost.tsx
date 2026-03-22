@@ -38,7 +38,7 @@ export default function AppToastHost() {
         const destructive = variant === "destructive";
         const classes = destructive
           ? "pointer-events-auto rounded-xl border border-red-200/80 bg-red-50/90 px-4 py-3 text-sm text-red-900 shadow-lg backdrop-blur dark:border-red-900/60 dark:bg-red-950/60 dark:text-red-100"
-          : "pointer-events-auto rounded-xl border border-black/10 bg-white/90 px-4 py-3 text-sm text-slate-900 shadow-lg backdrop-blur dark:border-white/10 dark:bg-slate-900/70 dark:text-slate-100";
+          : "pointer-events-auto rounded-xl border border-so-border bg-so-card px-4 py-3 text-sm text-so-text shadow-lg backdrop-blur dark:border-so-border dark:bg-so-card dark:text-so-text";
         return (
           <div key={id} className={classes} role="status" aria-live="polite">
             <div className="font-medium">{title}</div>

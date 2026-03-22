@@ -28,18 +28,18 @@ export default function AccountPanel() {
     primary?: boolean;
     onClick?: () => void;
   }) => (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-black/10 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-slate-900/60">
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-so-border bg-so-card px-4 py-3 dark:border-so-border dark:bg-so-card">
       <div>
         <div className="text-[13px] font-semibold">{title}</div>
-        <div className="text-xs text-slate-500 dark:text-slate-400">{sub}</div>
+        <div className="text-xs text-so-muted dark:text-so-muted">{sub}</div>
       </div>
       <button
         type="button"
         onClick={onClick}
         className={
           primary
-            ? "rounded-lg bg-blue-600 px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-blue-500"
-            : "rounded-lg border border-black/10 bg-white/70 px-3.5 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60"
+            ? "rounded-lg bg-so-accent px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-so-accent/90"
+            : "rounded-lg border border-so-border bg-so-card px-3.5 py-1.5 text-sm dark:border-so-border dark:bg-so-card"
         }
       >
         {cta}
@@ -51,11 +51,11 @@ export default function AccountPanel() {
     <div className="space-y-3 p-5">
       <div className="text-xs opacity-70">Plan</div>
       <div className="flex items-center gap-2 text-[13px]">
-        <span className="rounded-full border border-black/10 bg-white/70 px-2 py-0.5 dark:border-white/10 dark:bg-slate-900/60">
+        <span className="rounded-full border border-so-border bg-so-card px-2 py-0.5 dark:border-so-border dark:bg-so-card">
           Current: {plan === "pro" ? "Pro" : "Free"}
         </span>
         {plan === "free" && (
-          <span className="text-xs text-slate-500">Remaining this window: {remaining}</span>
+          <span className="text-xs text-so-muted">Remaining this window: {remaining}</span>
         )}
       </div>
       <Card title="Free" sub="Up to 10 prompts/month" cta="Stay on Free" onClick={() => set("plan", "free")} />
@@ -67,12 +67,12 @@ export default function AccountPanel() {
         onClick={() => set("plan", "pro")}
       />
       <div className="h-px w-full bg-black/5 dark:bg-white/10" />
-      {/* <div className="flex items-center justify-between"><div className="text-[13px]">Manage subscription</div><button className="rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60">Open</button></div> */}
+      {/* <div className="flex items-center justify-between"><div className="text-[13px]">Manage subscription</div><button className="rounded-lg border border-so-border bg-so-card px-3 py-1.5 text-sm dark:border-so-border dark:bg-so-card">Open</button></div> */}
       <div className="flex items-center justify-between">
         <div className="text-[13px]">Sign out</div>
         <button
           type="button"
-          className="rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-slate-900/60"
+          className="rounded-lg border border-so-border bg-so-card px-3 py-1.5 text-sm dark:border-so-border dark:bg-so-card"
         >
           Sign out
         </button>

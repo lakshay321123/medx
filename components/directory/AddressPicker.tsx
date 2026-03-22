@@ -55,14 +55,14 @@ export default function AddressPicker({
   return (
     <div className="relative w-full min-w-0">
       <input
-        className="h-[34px] w-full rounded-[10px] border border-slate-200 bg-white/90 px-3 text-[12px] text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-slate-300 focus:outline-none dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 md:h-10 md:rounded-[10px] md:px-3 md:text-[13px] md:w-full md:max-w-full md:overflow-x-auto md:whitespace-nowrap"
+        className="h-[34px] w-full rounded-[10px] border border-so-border bg-so-card px-3 text-[12px] text-so-text placeholder:text-so-muted shadow-sm transition focus:border-so-border focus:outline-none dark:border-so-border dark:bg-so-card/80 dark:text-so-text md:h-10 md:rounded-[10px] md:px-3 md:text-[13px] md:w-full md:max-w-full md:overflow-x-auto md:whitespace-nowrap"
         placeholder={placeholder}
         value={q}
         onChange={(event) => setQ(event.target.value)}
         onFocus={() => q && setOpen(true)}
       />
       {open && opts.length > 0 && (
-        <div className="absolute z-20 mt-1 w-full max-h-64 overflow-auto rounded-[8px] border border-slate-200 bg-white/95 shadow-lg backdrop-blur-sm dark:border-white/10 dark:bg-slate-950/80 md:rounded-[12px]">
+        <div className="absolute z-20 mt-1 w-full max-h-64 overflow-auto rounded-[8px] border border-so-border bg-white/95 shadow-lg backdrop-blur-sm dark:border-so-border dark:bg-[#131316] md:rounded-[12px]">
           {opts.map((option) => (
             <button
               key={`${option.label}-${option.lat}-${option.lng}`}
@@ -71,7 +71,7 @@ export default function AddressPicker({
                 setQ(option.label);
                 setOpen(false);
               }}
-              className="block w-full px-2.5 py-1.5 text-left text-[11px] text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus-visible:bg-slate-800 md:px-3 md:py-2 md:text-[12.5px]"
+              className="block w-full px-2.5 py-1.5 text-left text-[11px] text-so-text transition hover:bg-so-bg focus-visible:outline-none focus-visible:bg-so-bg dark:text-so-text dark:hover:bg-so-accent/10 dark:focus-visible:bg-so-accent/10 md:px-3 md:py-2 md:text-[12.5px]"
             >
               {option.label}
             </button>

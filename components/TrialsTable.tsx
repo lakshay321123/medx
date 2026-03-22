@@ -22,7 +22,7 @@ export default function TrialsTable({ rows }: { rows: TrialRow[] }) {
 
         {/* debug: counts per source */}
         {process.env.NODE_ENV !== "production" && (
-          <div className="mb-2 text-xs text-slate-500">
+          <div className="mb-2 text-xs text-so-muted">
             Source counts: {JSON.stringify(
               rows.reduce((m: Record<string, number>, r: any) => {
                 const s = (r.source || "unknown").toUpperCase();

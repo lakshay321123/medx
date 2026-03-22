@@ -24,7 +24,7 @@ export function AssistantPendingMessage({ stage, analyzingPhrase, thinkingLabel,
 
   if (stage === "streaming") {
     return (
-      <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl min-h-[64px]">
+      <div className="rounded-2xl bg-so-card dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl min-h-[64px]">
         <ChatMarkdown content={content || ""} formatId={formatId} userPrompt={userPrompt} />
       </div>
     );
@@ -36,10 +36,10 @@ export function AssistantPendingMessage({ stage, analyzingPhrase, thinkingLabel,
 
   return (
     <div
-      className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl min-h-[64px]"
+      className="rounded-2xl bg-so-card dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl min-h-[64px]"
       aria-live="polite"
     >
-      <div className="flex min-h-[24px] flex-col justify-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+      <div className="flex min-h-[24px] flex-col justify-center gap-2 text-sm text-so-muted dark:text-so-muted">
         {stage === "reflecting" ? (
           <span className="status-label status-label--breathe text-emerald-600 dark:text-emerald-300">{label}</span>
         ) : null}

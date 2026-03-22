@@ -1669,13 +1669,13 @@ export function MedicalProfileMobile(props: MedicalProfileMobileProps) {
         actionAriaLabel={t("Edit vitals")}
         primary
       >
-        <Row label={t("BLOOD PRESSURE")} value={<span className="text-slate-400">{safeBp}</span>} />
+        <Row label={t("BLOOD PRESSURE")} value={<span className="text-so-muted">{safeBp}</span>} />
         <Row label={t("HEART RATE")} value={<span className="font-semibold">{safeHeartRate}</span>} />
         <Row label={t("BMI")} value={<span className="font-semibold">{safeBmi}</span>} />
       </Section>
 
       <Section title={t("AI Summary")}>
-        <p className="text-[13px] leading-5 text-slate-600 dark:text-slate-300">
+        <p className="text-[13px] leading-5 text-so-muted dark:text-so-muted">
           {t("Patient")}: {safeName} (
           {t("Sex")}: {safeSex === noDataDisplay ? "—" : safeSexDisplay}, {t("Age")}: {safeAge}, {t("Blood group")}: {safeBloodGroup === noDataDisplay ? "—" : safeBloodGroup})
           <br />
@@ -1808,11 +1808,11 @@ type SectionProps = {
 
 function Section({ title, actionLabel, actionAriaLabel, onAction, primary = false, children }: SectionProps) {
   return (
-    <section className="rounded-2xl border border-slate-200/60 bg-white/90 p-4 shadow-sm dark:border-slate-800/60 dark:bg-slate-900/70">
+    <section className="rounded-2xl border border-so-border/60 bg-so-card p-4 shadow-sm dark:border-so-border/60 dark:bg-so-card">
       <header className="mb-3 flex items-start justify-between gap-3">
         <h2
           className={`text-xs font-semibold uppercase tracking-wide ${
-            primary ? "text-slate-900 dark:text-slate-100" : "text-slate-500 dark:text-slate-300"
+            primary ? "text-so-text dark:text-so-text" : "text-so-muted dark:text-so-muted"
           }`}
         >
           {title}
@@ -1827,7 +1827,7 @@ function Section({ title, actionLabel, actionAriaLabel, onAction, primary = fals
           </Button>
         ) : null}
       </header>
-      <div className="space-y-3 text-[13px] leading-5 text-slate-600 dark:text-slate-300">{children}</div>
+      <div className="space-y-3 text-[13px] leading-5 text-so-muted dark:text-so-muted">{children}</div>
     </section>
   );
 }
@@ -1835,10 +1835,10 @@ function Section({ title, actionLabel, actionAriaLabel, onAction, primary = fals
 function Row({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-4">
-      <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-so-muted dark:text-so-muted">
         {label}
       </span>
-      <span className="text-sm text-slate-700 dark:text-slate-100">{value}</span>
+      <span className="text-sm text-so-text dark:text-so-text">{value}</span>
     </div>
   );
 }
@@ -1846,19 +1846,19 @@ function Row({ label, value }: { label: string; value: ReactNode }) {
 function KV({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="space-y-1">
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</div>
-      <div className="text-sm text-slate-800 dark:text-slate-100">{value}</div>
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-so-muted dark:text-so-muted">{label}</div>
+      <div className="text-sm text-so-text dark:text-so-text">{value}</div>
     </div>
   );
 }
 
 function Divider() {
-  return <div className="my-2 h-px bg-slate-200/70 dark:bg-slate-700/60" aria-hidden="true" />;
+  return <div className="my-2 h-px bg-so-bg dark:bg-so-card/60" aria-hidden="true" />;
 }
 
 function Empty({ text }: { text?: string }) {
   if (!text) return null;
-  return <p className="text-sm text-slate-500 dark:text-slate-400">{text}</p>;
+  return <p className="text-sm text-so-muted dark:text-so-muted">{text}</p>;
 }
 
 type ButtonProps = {
@@ -1870,12 +1870,12 @@ type ButtonProps = {
 };
 
 function Button({ children, onClick, variant = "ghost", primary = false, ...rest }: ButtonProps) {
-  const base = "inline-flex h-11 min-w-[44px] items-center justify-center rounded-full px-4 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900";
-  let styles = "bg-transparent text-slate-600 dark:text-slate-200 border border-transparent";
+  const base = "inline-flex h-11 min-w-[44px] items-center justify-center rounded-full px-4 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-so-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-so-bg dark:focus-visible:ring-offset-[#131316]";
+  let styles = "bg-transparent text-so-muted dark:text-so-text border border-transparent";
   if (primary) {
-    styles = "bg-blue-600 text-white hover:bg-blue-500 border border-blue-600 dark:bg-blue-500 dark:hover:bg-blue-400";
+    styles = "so-btn-primary";
   } else if (variant === "outline") {
-    styles = "border border-slate-200 text-slate-700 hover:bg-white/70 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800/80";
+    styles = "border border-so-border text-so-text hover:bg-so-card dark:border-so-border dark:text-so-text dark:hover:bg-so-accent/10/80";
   }
 
   return (

@@ -33,7 +33,7 @@ export default function SuggestionChips({ suggestions, onAction }: Props) {
           <button
             key={s.id}
             type="button"
-            className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700/80"
+            className="rounded-full border border-so-border bg-so-bg px-2 py-0.5 text-xs text-so-text transition hover:bg-so-bg dark:border-so-border dark:bg-so-card dark:text-so-text dark:hover:bg-so-accent/10/80"
             onClick={() => onAction(s)}
             aria-label={s.label}
           >
@@ -42,7 +42,7 @@ export default function SuggestionChips({ suggestions, onAction }: Props) {
         ) : (
           <span
             key={s.id}
-            className="rounded-full border border-dashed border-slate-200 px-2 py-0.5 text-xs text-slate-500 cursor-default select-text dark:border-slate-700 dark:text-slate-300"
+            className="rounded-full border border-dashed border-so-border px-2 py-0.5 text-xs text-so-muted cursor-default select-text dark:border-so-border dark:text-so-muted"
             aria-disabled="true"
           >
             {s.label}

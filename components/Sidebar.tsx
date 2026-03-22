@@ -79,7 +79,7 @@ export default function Sidebar() {
               <IconNewChat
                 title={t("threads.systemTitles.new_chat")}
                 size={16}
-                className="text-slate-500 dark:text-slate-300"
+                className="text-so-muted dark:text-so-muted"
               />
             </span>
             <span className="truncate">{t("threads.systemTitles.new_chat")}</span>
@@ -103,7 +103,7 @@ export default function Sidebar() {
           placeholder={t("Search")}
           onChange={(e) => handleSearch(e.target.value)}
         />
-        <Search size={16} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400" />
+        <Search size={16} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-so-muted dark:text-so-muted" />
       </div>
 
       {/* Section heading above chat threads */}
@@ -183,12 +183,12 @@ export default function Sidebar() {
           closeSidebar?.();
           openPrefs();
         }}
-        className="fixed bottom-3 left-3 z-20 flex items-center gap-1.5 rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm shadow-sm hover:bg-white/90 dark:border-white/10 dark:bg-slate-900/70 dark:hover:bg-slate-900"
+        className="fixed bottom-3 left-3 z-20 flex items-center gap-1.5 rounded-md border border-so-border bg-so-card px-3 py-2 text-sm shadow-sm hover:bg-so-card dark:border-so-border dark:bg-so-card dark:hover:bg-so-accent/10"
         aria-label={`${t("Preferences")} · ${locale.label}`}
       >
         <Settings size={14} />
         <span>{t("Preferences")}</span>
-        <span className="ml-1 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
+        <span className="ml-1 whitespace-nowrap text-xs text-so-muted dark:text-so-muted">
           {locale.label}
         </span>
       </button>

@@ -42,9 +42,9 @@ export default function InlineSponsoredCard({
             className={[
               'shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium',
               'backdrop-blur-md bg-white/50 dark:bg-white/10',
-              'text-zinc-900 dark:text-white ring-1 ring-inset',
+              'text-zinc-900 dark:text-so-text ring-1 ring-inset',
               RING,
-              'transition-colors hover:bg-white/70 dark:hover:bg-white/20',
+              'transition-colors hover:bg-so-card dark:hover:bg-white/20',
               'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900',
             ].join(' ')}
             onClick={onCtaClick}

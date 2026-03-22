@@ -15,7 +15,7 @@ function markerClasses(marker: string) {
   if (value.includes('high')) return 'text-rose-600 bg-rose-50 dark:bg-rose-500/20 dark:text-rose-100';
   if (value.includes('low')) return 'text-amber-600 bg-amber-50 dark:bg-amber-500/20 dark:text-amber-100';
   if (value.includes('normal')) return 'text-emerald-600 bg-emerald-50 dark:bg-emerald-500/20 dark:text-emerald-100';
-  return 'text-slate-700 bg-slate-100 dark:bg-slate-700/40 dark:text-slate-100';
+  return 'text-so-text bg-so-bg dark:bg-so-card/40 dark:text-so-text';
 }
 
 export default function AiDocPane() {
@@ -49,11 +49,11 @@ export default function AiDocPane() {
   return (
     <div className="flex min-h-full flex-col gap-4 p-4">
       {structured.patient && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <div className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        <div className="rounded-xl border border-so-border bg-white p-4 shadow-sm dark:border-so-border dark:bg-so-card">
+          <div className="text-sm font-semibold uppercase tracking-wide text-so-muted dark:text-so-muted">
             Patient Info
           </div>
-          <div className="mt-2 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+          <div className="mt-2 space-y-1 text-sm text-so-text dark:text-so-text">
             <div><span className="font-medium">Name:</span> {structured.patient.name}</div>
             {structured.patient.age != null && <div><span className="font-medium">Age:</span> {structured.patient.age}</div>}
             {structured.patient.predispositions.length > 0 && (
@@ -76,24 +76,24 @@ export default function AiDocPane() {
       )}
 
       {structured.reports.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <div className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        <div className="rounded-xl border border-so-border bg-white p-4 shadow-sm dark:border-so-border dark:bg-so-card">
+          <div className="text-sm font-semibold uppercase tracking-wide text-so-muted dark:text-so-muted">
             Reports
           </div>
           <div className="mt-3 space-y-2">
             {structured.reports.map(report => (
-              <details key={report.date + report.summary} className="group rounded-lg border border-slate-200/70 bg-slate-50/60 p-3 dark:border-slate-700/60 dark:bg-slate-900/60" open>
-                <summary className="cursor-pointer text-sm font-medium text-slate-700 marker:text-slate-400 dark:text-slate-200">
-                  <span className="mr-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{formatDateLabel(report.date)}</span>
+              <details key={report.date + report.summary} className="group rounded-lg border border-so-border/70 bg-so-bg/60 p-3 dark:border-so-border/60 dark:bg-so-card" open>
+                <summary className="cursor-pointer text-sm font-medium text-so-text marker:text-so-muted dark:text-so-text">
+                  <span className="mr-2 text-xs uppercase tracking-wide text-so-muted dark:text-so-muted">{formatDateLabel(report.date)}</span>
                   {report.summary}
                 </summary>
                 {report.labs.length > 0 && (
                   <ul className="mt-2 space-y-1 text-sm">
                     {report.labs.map(lab => (
-                      <li key={`${report.date}-${lab.name}`} className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-slate-700 shadow-sm dark:bg-slate-800 dark:text-slate-200">
+                      <li key={`${report.date}-${lab.name}`} className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-so-text shadow-sm dark:bg-so-card dark:text-so-text">
                         <div>
                           <div className="font-medium">{lab.name}</div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
+                          <div className="text-xs text-so-muted dark:text-so-muted">
                             {lab.value ?? '—'} {lab.unit}
                           </div>
                         </div>
@@ -102,7 +102,7 @@ export default function AiDocPane() {
                             {lab.marker}
                           </span>
                           {lab.ideal && (
-                            <span className="text-[11px] text-slate-500 dark:text-slate-400">Ideal: {lab.ideal}</span>
+                            <span className="text-[11px] text-so-muted dark:text-so-muted">Ideal: {lab.ideal}</span>
                           )}
                         </div>
                       </li>
@@ -116,13 +116,13 @@ export default function AiDocPane() {
       )}
 
       {hasComparisons && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <div className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        <div className="rounded-xl border border-so-border bg-white p-4 shadow-sm dark:border-so-border dark:bg-so-card">
+          <div className="text-sm font-semibold uppercase tracking-wide text-so-muted dark:text-so-muted">
             Comparisons
           </div>
-          <ul className="mt-2 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+          <ul className="mt-2 space-y-1 text-sm text-so-text dark:text-so-text">
             {Object.entries(structured.comparisons).map(([metric, summary]) => (
-              <li key={metric} className="rounded-lg bg-slate-50/70 px-3 py-2 dark:bg-slate-800/70">
+              <li key={metric} className="rounded-lg bg-so-bg/70 px-3 py-2 dark:bg-so-card">
                 <span className="font-semibold">{metric}:</span> {summary}
               </li>
             ))}
@@ -131,20 +131,20 @@ export default function AiDocPane() {
       )}
 
       {structured.summary && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <div className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        <div className="rounded-xl border border-so-border bg-white p-4 shadow-sm dark:border-so-border dark:bg-so-card">
+          <div className="text-sm font-semibold uppercase tracking-wide text-so-muted dark:text-so-muted">
             AI Summary
           </div>
-          <p className="mt-2 text-sm text-slate-700 dark:text-slate-200">{structured.summary}</p>
+          <p className="mt-2 text-sm text-so-text dark:text-so-text">{structured.summary}</p>
         </div>
       )}
 
       {structured.nextSteps.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <div className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        <div className="rounded-xl border border-so-border bg-white p-4 shadow-sm dark:border-so-border dark:bg-so-card">
+          <div className="text-sm font-semibold uppercase tracking-wide text-so-muted dark:text-so-muted">
             Next Steps
           </div>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700 dark:text-slate-200">
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-so-text dark:text-so-text">
             {structured.nextSteps.map((step, index) => (
               <li key={index}>{step}</li>
             ))}
@@ -153,7 +153,7 @@ export default function AiDocPane() {
       )}
 
       {!structured.reports.length && !structured.summary && (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
+        <div className="rounded-xl border border-dashed border-so-border bg-so-bg p-6 text-center text-sm text-so-muted dark:border-so-border dark:bg-so-card dark:text-so-muted">
           Ask AI Doc to pull your medical reports to see structured insights here.
         </div>
       )}

@@ -38,7 +38,7 @@ export default function SuggestBar({ suggestions, onPick, title, className = "" 
 
   return (
     <div className={`mt-2 ${className}`}>
-      <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+      <div className="mb-1 text-xs font-medium uppercase tracking-wide text-so-muted dark:text-so-muted">
         {header}
       </div>
       <div className="flex flex-wrap gap-1 pb-1">
@@ -52,7 +52,7 @@ export default function SuggestBar({ suggestions, onPick, title, className = "" 
               key={`${raw}-${index}`}
               type="button"
               onClick={() => onPick(label)}
-              className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700/80"
+              className="rounded-full border border-so-border bg-so-bg px-2 py-0.5 text-xs text-so-text transition hover:bg-so-bg dark:border-so-border dark:bg-so-card dark:text-so-text dark:hover:bg-so-accent/10/80"
               title={label}
               aria-label={label}
               data-suggestion-button="true"

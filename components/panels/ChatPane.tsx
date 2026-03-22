@@ -568,7 +568,7 @@ function AnalysisCard({
 }) {
   const header = titleForCategory(m.category);
   return (
-    <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-start whitespace-normal max-w-3xl space-y-2">
+    <div className="rounded-2xl bg-so-card dark:bg-zinc-900/60 p-4 text-start whitespace-normal max-w-3xl space-y-2">
       <header className="flex items-center gap-2">
         <h2 className="text-lg md:text-xl font-semibold">{header}</h2>
         {researchOn && (
@@ -658,10 +658,10 @@ function ChatCard({
   }
   return (
     <div
-      className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-start whitespace-normal max-w-3xl"
+      className="rounded-2xl bg-so-card dark:bg-zinc-900/60 p-4 text-start whitespace-normal max-w-3xl"
     >
       {m.replacedByNewer && (
-        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-so-muted dark:text-so-muted">
           Replaced by a newer answer
         </div>
       )}
@@ -686,7 +686,7 @@ function ChatCard({
 function ImageCard({ m }: { m: Extract<ChatMessage, { kind: "image" }> }) {
   return (
     <div className="flex justify-end">
-      <div className="max-w-[65%] rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+      <div className="max-w-[65%] rounded-2xl overflow-hidden border border-so-border dark:border-so-border bg-white dark:bg-so-card">
         <img
           src={m.imageUrl}
           alt="Uploaded image"
@@ -706,7 +706,7 @@ function ImageCard({ m }: { m: Extract<ChatMessage, { kind: "image" }> }) {
 function SlimStatusPill({ text }: { text: string }) {
   return (
     <div className="mb-3">
-      <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+      <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs bg-so-bg dark:bg-so-card text-so-text dark:text-so-muted">
         <span>{text}</span>
         <span className="animate-pulse" aria-hidden="true">
           •
@@ -3808,7 +3808,7 @@ ${systemCommon}` + baseSys;
 
           return (
             <div key={derivedKey} className="space-y-2">
-              <div className="ml-auto max-w-3xl whitespace-normal rounded-2xl bg-slate-200 px-4 py-3 text-start text-slate-900 shadow-sm dark:bg-gray-700 dark:text-gray-100">
+              <div className="ml-auto max-w-3xl whitespace-normal rounded-2xl bg-so-bg px-4 py-3 text-start text-so-text shadow-sm dark:bg-so-accent dark:text-white">
                 <ChatMarkdown content={m.content ?? ''} />
               </div>
             </div>
@@ -4053,12 +4053,12 @@ ${systemCommon}` + baseSys;
             <div className="mb-6 space-y-4">
               <ResearchFilters mode="research" onResults={handleTrials} />
               {searched && trialRows.length === 0 && (
-                <div className="rounded-xl border border-slate-200 bg-white/80 p-3 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">
+                <div className="rounded-xl border border-so-border bg-so-card p-3 text-sm text-so-muted shadow-sm dark:border-so-border dark:bg-so-card dark:text-so-muted">
                   No trials found. Try removing a filter, switching country, or using broader keywords.
                 </div>
               )}
               {summary && (
-                <div className="space-y-4 rounded-xl border border-slate-200 bg-white/85 p-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
+                <div className="space-y-4 rounded-xl border border-so-border bg-white/85 p-4 text-sm shadow-sm dark:border-so-border dark:bg-so-card">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex items-start gap-2">
                       <div className="mt-0.5 shrink-0">
@@ -4075,7 +4075,7 @@ ${systemCommon}` + baseSys;
                       <button
                         type="button"
                         onClick={() => navigator.clipboard.writeText(summary!)}
-                        className="rounded-full border border-slate-200 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                        className="rounded-full border border-so-border px-2 py-1 text-xs hover:bg-so-bg dark:border-so-border dark:hover:bg-so-accent/10"
                         title="Copy summary"
                       >
                         <span className="inline-flex items-center gap-1">
@@ -4085,7 +4085,7 @@ ${systemCommon}` + baseSys;
                       <button
                         type="button"
                         onClick={() => setShowDetails(s => !s)}
-                        className="rounded-full border border-slate-200 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                        className="rounded-full border border-so-border px-2 py-1 text-xs hover:bg-so-bg dark:border-so-border dark:hover:bg-so-accent/10"
                         title="View details"
                       >
                         <span className="inline-flex items-center gap-1">
@@ -4098,51 +4098,51 @@ ${systemCommon}` + baseSys;
 
                   {showDetails && stats && (
                     <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                      <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                        <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Phases</div>
+                      <div className="rounded border border-so-border bg-white p-3 dark:border-so-border dark:bg-so-card">
+                        <div className="border-b border-so-border pb-2 font-medium dark:border-so-border">Phases</div>
                         <ul className="px-3 py-2 space-y-1">
                           {Object.entries(stats.byPhase).sort((a,b)=>b[1]-a[1]).map(([k,v])=>(
                             <li key={k} className="flex justify-between"><span>Phase {k}</span><span>{v}</span></li>
                           ))}
-                          {Object.keys(stats.byPhase).length===0 && <li className="text-slate-500">—</li>}
+                          {Object.keys(stats.byPhase).length===0 && <li className="text-so-muted">—</li>}
                         </ul>
                       </div>
 
-                      <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                        <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Statuses</div>
+                      <div className="rounded border border-so-border bg-white p-3 dark:border-so-border dark:bg-so-card">
+                        <div className="border-b border-so-border pb-2 font-medium dark:border-so-border">Statuses</div>
                         <ul className="px-3 py-2 space-y-1">
                           {Object.entries(stats.byStatus).sort((a,b)=>b[1]-a[1]).map(([k,v])=>(
                             <li key={k} className="flex justify-between"><span>{k}</span><span>{v}</span></li>
                           ))}
-                          {Object.keys(stats.byStatus).length===0 && <li className="text-slate-500">—</li>}
+                          {Object.keys(stats.byStatus).length===0 && <li className="text-so-muted">—</li>}
                         </ul>
                       </div>
 
-                      <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                        <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Top countries</div>
+                      <div className="rounded border border-so-border bg-white p-3 dark:border-so-border dark:bg-so-card">
+                        <div className="border-b border-so-border pb-2 font-medium dark:border-so-border">Top countries</div>
                         <ul className="px-3 py-2 space-y-1">
                           {Object.entries(stats.byCountry).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>(
                             <li key={k} className="flex justify-between"><span>{k}</span><span>{v}</span></li>
                           ))}
-                          {Object.keys(stats.byCountry).length===0 && <li className="text-slate-500">—</li>}
+                          {Object.keys(stats.byCountry).length===0 && <li className="text-so-muted">—</li>}
                         </ul>
                       </div>
 
-                      <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                        <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Top genes</div>
+                      <div className="rounded border border-so-border bg-white p-3 dark:border-so-border dark:bg-so-card">
+                        <div className="border-b border-so-border pb-2 font-medium dark:border-so-border">Top genes</div>
                         <ul className="px-3 py-2 space-y-1">
                           {stats.genesTop.length ? stats.genesTop.map(([g,c])=>(
                             <li key={g} className="flex justify-between"><span>{g}</span><span>{c}</span></li>
-                          )) : <li className="text-slate-500">—</li>}
+                          )) : <li className="text-so-muted">—</li>}
                         </ul>
                       </div>
 
-                      <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                        <div className="border-b border-slate-200 pb-2 font-medium dark:border-slate-700">Top conditions</div>
+                      <div className="rounded border border-so-border bg-white p-3 dark:border-so-border dark:bg-so-card">
+                        <div className="border-b border-so-border pb-2 font-medium dark:border-so-border">Top conditions</div>
                         <ul className="px-3 py-2 space-y-1">
                           {stats.conditionsTop.length ? stats.conditionsTop.map(([k,c])=>(
                             <li key={k} className="flex justify-between capitalize"><span>{k}</span><span>{c}</span></li>
-                          )) : <li className="text-slate-500">—</li>}
+                          )) : <li className="text-so-muted">—</li>}
                         </ul>
                       </div>
                     </div>
@@ -4155,7 +4155,7 @@ ${systemCommon}` + baseSys;
 
           {ui.topic && (
             <div className="mx-auto mb-2 max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs dark:border-slate-700 dark:bg-slate-900/70">
+              <div className="inline-flex items-center gap-2 rounded-full border border-so-border bg-so-card px-3 py-1 text-xs dark:border-so-border dark:bg-so-card">
                 <span className="opacity-70">Topic:</span>
                 <strong className="truncate max-w-[16rem]">{ui.topic}</strong>
                 <button onClick={() => setUi(prev => ({ ...prev, topic: null }))} className="opacity-60 hover:opacity-100">Clear</button>
@@ -4164,7 +4164,7 @@ ${systemCommon}` + baseSys;
           )}
           {ui.contextFrom && (
             <div className="mx-auto mb-2 max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs dark:border-slate-700 dark:bg-slate-900/70">
+              <div className="inline-flex items-center gap-2 rounded-full border border-so-border bg-so-card px-3 py-1 text-xs dark:border-so-border dark:bg-so-card">
                 <span className="opacity-70">Using context from:</span>
                 <strong>{ui.contextFrom}</strong>
                 <button onClick={() => { clearContext(); setUi(prev => ({ ...prev, contextFrom: null })); }} className="opacity-60 hover:opacity-100">Clear</button>
@@ -4178,7 +4178,7 @@ ${systemCommon}` + baseSys;
 
           {AIDOC_UI && aidoc && (
             <div className="mx-auto mt-6 w-full max-w-3xl">
-              <div className="space-y-2 rounded-xl border border-slate-200 bg-white/85 p-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
+              <div className="space-y-2 rounded-xl border border-so-border bg-white/85 p-4 text-sm shadow-sm dark:border-so-border dark:bg-so-card">
                 <div className="font-medium">Observations</div>
                 <div className="text-sm opacity-90">
                   {labSummaryCard ? (
@@ -4211,7 +4211,7 @@ ${systemCommon}` + baseSys;
                 )}
 
                 {Array.isArray(aidoc?.rulesFired) && aidoc.rulesFired.length > 0 && (
-                  <details className="rounded-lg border border-slate-200/70 p-3 text-sm dark:border-slate-700/60">
+                  <details className="rounded-lg border border-so-border/70 p-3 text-sm dark:border-so-border/60">
                     <summary className="cursor-pointer text-sm">Why these?</summary>
                     <ul className="list-disc pl-5">
                       {aidoc.rulesFired.map((r: string, i: number) => (
@@ -4226,7 +4226,7 @@ ${systemCommon}` + baseSys;
 
           {pendingCommitIds.length > 0 && (
             <div className="mx-auto my-4 w-full max-w-3xl">
-              <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/85 p-3 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
+              <div className="flex items-center gap-2 rounded-xl border border-so-border bg-white/85 p-3 text-sm shadow-sm dark:border-so-border dark:bg-so-card">
                 <span>Add this to your Medical Profile?</span>
                 {commitError && <span className="text-xs text-rose-600">{commitError}</span>}
                 <button
@@ -4251,7 +4251,7 @@ ${systemCommon}` + baseSys;
                     }
                   }}
                   disabled={commitBusy !== null}
-                  className="rounded-full border border-slate-200 px-3 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                  className="rounded-full border border-so-border px-3 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50 hover:bg-so-bg dark:border-so-border dark:hover:bg-so-accent/10"
                 >{commitBusy === 'save' ? 'Saving…' : 'Save'}</button>
                 <button
                   onClick={async () => {
@@ -4274,7 +4274,7 @@ ${systemCommon}` + baseSys;
                     }
                   }}
                   disabled={commitBusy !== null}
-                  className="rounded-full border border-slate-200 px-3 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                  className="rounded-full border border-so-border px-3 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50 hover:bg-so-bg dark:border-so-border dark:hover:bg-so-accent/10"
                 >{commitBusy === 'discard' ? 'Discarding…' : 'Discard'}</button>
               </div>
             </div>
@@ -4305,7 +4305,7 @@ ${systemCommon}` + baseSys;
               )}
 
               {pendingFiles.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/60 bg-white/80 px-3 py-2 text-xs text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200">
+                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-so-border/60 bg-so-card px-3 py-2 text-xs text-so-muted dark:border-so-border/60 dark:bg-so-card dark:text-so-text">
                   <span className="font-medium">
                     {pendingFiles.length} file{pendingFiles.length === 1 ? '' : 's'} ready
                   </span>
@@ -4313,13 +4313,13 @@ ${systemCommon}` + baseSys;
                     {pendingFiles.map((file, index) => (
                       <span
                         key={`${file.name}-${index}`}
-                        className="flex items-center gap-1 rounded-full bg-slate-100/70 px-2 py-0.5 dark:bg-slate-800/70"
+                        className="flex items-center gap-1 rounded-full bg-so-bg/70 px-2 py-0.5 dark:bg-so-card"
                       >
                         <span className="max-w-[7rem] truncate">{file.name}</span>
                         <button
                           type="button"
                           onClick={() => removePendingFile(index)}
-                          className="text-slate-500 transition hover:text-slate-700 dark:hover:text-slate-300"
+                          className="text-so-muted transition hover:text-so-text dark:hover:text-so-text"
                           aria-label={`Remove ${file.name}`}
                         >
                           ✕
@@ -4335,7 +4335,7 @@ ${systemCommon}` + baseSys;
                   e.preventDefault();
                   onSubmit();
                 }}
-                className="flex w-full flex-wrap items-end gap-2 rounded-2xl border border-slate-200/60 bg-white/90 px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900/80 md:flex-nowrap md:gap-3"
+                className="flex w-full flex-wrap items-end gap-2 rounded-2xl border border-so-border/60 bg-so-card px-3 py-2 dark:border-so-border/60 dark:bg-so-card/80 md:flex-nowrap md:gap-3"
               >
                 <div ref={plusMenuRef} className="relative inline-flex flex-shrink-0 items-center">
                   <button
@@ -4347,7 +4347,7 @@ ${systemCommon}` + baseSys;
                       e.stopPropagation();
                       setPlusMenuOpen((v) => !v);
                     }}
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300/70 hover:bg-slate-100/70 dark:border-slate-700/60 dark:hover:bg-slate-800/60"
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-so-border/70 hover:bg-so-bg/70 dark:border-so-border/60 dark:hover:bg-so-accent/10/60"
                     title={t('more')}
                   >
                     <Plus className="h-5 w-5" aria-hidden="true" />
@@ -4357,12 +4357,12 @@ ${systemCommon}` + baseSys;
                     <div
                       role="menu"
                       aria-label={t('composerMenu')}
-                      className="absolute bottom-12 left-0 z-50 w-64 overflow-hidden rounded-xl border border-slate-300/70 bg-white shadow-lg dark:border-slate-700/60 dark:bg-slate-900"
+                      className="absolute bottom-12 left-0 z-50 w-64 overflow-hidden rounded-xl border border-so-border/70 bg-white shadow-lg dark:border-so-border/60 dark:bg-so-card"
                     >
                       <button
                         role="menuitem"
                         type="button"
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-so-bg dark:hover:bg-so-accent/10"
                         onClick={() => {
                           setPlusMenuOpen(false);
                           fileInputRef.current?.click();
@@ -4375,7 +4375,7 @@ ${systemCommon}` + baseSys;
                       <button
                         role="menuitem"
                         type="button"
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-so-bg dark:hover:bg-so-accent/10"
                         onClick={() => {
                           setPlusMenuOpen(false);
                           setActiveHelper('study');
@@ -4388,7 +4388,7 @@ ${systemCommon}` + baseSys;
                       <button
                         role="menuitem"
                         type="button"
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-so-bg dark:hover:bg-so-accent/10"
                         onClick={() => {
                           setPlusMenuOpen(false);
                           setActiveHelper('thinking');
@@ -4403,14 +4403,14 @@ ${systemCommon}` + baseSys;
 
                 {activeHelper && (
                   <span
-                    className="order-3 hidden min-h-[2.25rem] basis-full items-center gap-1 rounded-full border border-slate-300/70 bg-slate-50 px-2 py-1 text-xs text-foreground dark:border-slate-700/60 dark:bg-slate-900/60 md:inline-flex md:order-none md:ml-2 md:basis-auto md:gap-2 md:px-3 md:py-1 md:text-sm"
+                    className="order-3 hidden min-h-[2.25rem] basis-full items-center gap-1 rounded-full border border-so-border/70 bg-so-bg px-2 py-1 text-xs text-foreground dark:border-so-border/60 dark:bg-so-card md:inline-flex md:order-none md:ml-2 md:basis-auto md:gap-2 md:px-3 md:py-1 md:text-sm"
                     aria-live="polite"
                   >
                     {activeHelper === 'study' ? t('studyLearn') : t('thinkingMode')}
                     <button
                       type="button"
                       aria-label={t('clearSelection')}
-                      className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200/80 text-slate-600 transition hover:bg-slate-300 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-700"
+                      className="flex h-7 w-7 items-center justify-center rounded-full bg-so-bg text-so-muted transition hover:bg-so-border dark:bg-so-card dark:text-so-text dark:hover:bg-so-accent/10"
                       onClick={() => setActiveHelper(null)}
                     >
                       <X className="h-3.5 w-3.5" aria-hidden="true" />
@@ -4434,7 +4434,7 @@ ${systemCommon}` + baseSys;
                   <textarea
                     ref={inputRef as unknown as RefObject<HTMLTextAreaElement>}
                     rows={1}
-                    className="w-full resize-none bg-transparent px-2 pr-12 text-sm leading-6 text-slate-900 outline-none placeholder:text-slate-500 dark:text-slate-100 dark:placeholder:text-slate-400"
+                    className="w-full resize-none bg-transparent px-2 pr-12 text-sm leading-6 text-so-text outline-none placeholder:text-so-muted dark:text-so-text dark:placeholder:text-so-muted"
                     placeholder={
                       pendingFiles.length > 0
                         ? documentNotePlaceholder
@@ -4472,7 +4472,7 @@ ${systemCommon}` + baseSys;
 
                 {!busy && (
                   <button
-                    className="order-3 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-500 disabled:opacity-50 md:order-none"
+                    className="order-3 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-so-accent text-white transition hover:bg-so-accent/90 disabled:opacity-50 md:order-none"
                     type="submit"
                     disabled={pendingFiles.length === 0 && !userText.trim()}
                     aria-label="Send"
@@ -4492,7 +4492,7 @@ ${systemCommon}` + baseSys;
                           setActiveHelper(prev => (prev === 'study' ? null : prev));
                           setPlusMenuOpen(false);
                         }}
-                        className="flex flex-1 items-center justify-center gap-1 rounded-full border border-blue-600 bg-blue-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                        className="flex flex-1 items-center justify-center gap-1 rounded-full border border-so-accent bg-so-accent px-3 py-1 text-xs font-medium text-white shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-so-accent"
                       >
                         <GraduationCap className="h-4 w-4" aria-hidden="true" />
                         <span>{t('studyLearn')}</span>
@@ -4505,7 +4505,7 @@ ${systemCommon}` + baseSys;
                           setActiveHelper(prev => (prev === 'thinking' ? null : prev));
                           setPlusMenuOpen(false);
                         }}
-                        className="flex flex-1 items-center justify-center gap-1 rounded-full border border-blue-600 bg-blue-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                        className="flex flex-1 items-center justify-center gap-1 rounded-full border border-so-accent bg-so-accent px-3 py-1 text-xs font-medium text-white shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-so-accent"
                       >
                         <Brain className="h-4 w-4" aria-hidden="true" />
                         <span>{t('thinkingMode')}</span>

@@ -45,7 +45,7 @@ const STATUS_LABELS: Record<ConnectorStatus, string> = {
 function StatusBadge({ status }: { status: ConnectorStatus }) {
   const cls: Record<ConnectorStatus, string> = {
     connected: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-300",
-    disconnected: "border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400",
+    disconnected: "border-so-border bg-so-bg text-so-muted dark:border-so-border dark:bg-so-card dark:text-so-muted",
     expired: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300",
   };
   return <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${cls[status]}`}>{STATUS_LABELS[status]}</span>;
@@ -90,7 +90,7 @@ export default function ConnectorsPanel() {
 
   return (
     <div className="space-y-5 p-5">
-      <div className="text-xs text-slate-500 dark:text-slate-400">
+      <div className="text-xs text-so-muted dark:text-so-muted">
         Connect your health apps, wearables, and medical services. Data syncs securely and stays private.
       </div>
       {CATEGORIES.map((cat) => {
@@ -101,12 +101,12 @@ export default function ConnectorsPanel() {
             <div className="mb-2 text-[13px] font-semibold">{cat.label}</div>
             <div className="space-y-2">
               {items.map((conn) => (
-                <div key={conn.id} className="flex items-center gap-3 rounded-xl border border-black/10 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-slate-900/60">
+                <div key={conn.id} className="flex items-center gap-3 rounded-xl border border-so-border bg-so-card px-4 py-3 dark:border-so-border dark:bg-so-card">
                   <span className="text-xl shrink-0" aria-hidden>{conn.icon}</span>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium">{conn.name}</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 truncate">{conn.description}</div>
-                    {conn.lastSync && <div className="text-[10px] text-slate-400 mt-0.5">Last sync: {conn.lastSync}</div>}
+                    <div className="text-xs text-so-muted dark:text-so-muted truncate">{conn.description}</div>
+                    {conn.lastSync && <div className="text-[10px] text-so-muted mt-0.5">Last sync: {conn.lastSync}</div>}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <StatusBadge status={conn.status} />
@@ -117,7 +117,7 @@ export default function ConnectorsPanel() {
                       </button>
                     ) : (
                       <button type="button" onClick={() => handleConnect(conn.id)} disabled={connecting === conn.id}
-                        className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50">
+                        className="rounded-lg bg-so-accent px-2.5 py-1 text-xs font-medium text-white hover:bg-so-accent/90 disabled:opacity-50">
                         {connecting === conn.id ? "Connecting" : "Connect"}
                       </button>
                     )}

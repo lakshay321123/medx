@@ -93,7 +93,7 @@ function MessageRow({ m }: { m: ChatMessage }) {
   const meta = m as { formatId?: FormatId; originUserText?: string; userPrompt?: string };
   return (
     <div className="p-2 space-y-1">
-      <div className="text-xs uppercase tracking-wide text-slate-500">{m.role}</div>
+      <div className="text-xs uppercase tracking-wide text-so-muted">{m.role}</div>
       <ChatMarkdown content={m.content} formatId={meta.formatId} userPrompt={meta.originUserText || meta.userPrompt} />
     </div>
   );

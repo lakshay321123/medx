@@ -49,8 +49,8 @@ export function SidebarNavLink({
       }}
       className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm transition ${
         active
-          ? "bg-blue-600/10 font-semibold text-blue-600 dark:bg-sky-500/20 dark:text-sky-300"
-          : "text-slate-600 hover:bg-slate-100/70 dark:text-slate-300 dark:hover:bg-white/5"
+          ? "bg-so-accent/10 font-semibold text-so-accent dark:bg-so-accent/15 dark:text-so-accent"
+          : "text-so-muted hover:bg-so-bg/70 dark:text-so-muted dark:hover:bg-so-accent/10"
       }`}
       data-testid={`nav-${panel}`}
       aria-current={active ? "page" : undefined}

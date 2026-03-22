@@ -288,13 +288,13 @@ export default function UnifiedUpload() {
                   {out.views.detected.map((view: string) => (
                     <span
                       key={view}
-                      className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium uppercase tracking-wide"
+                      className="rounded-full border border-so-border bg-so-bg px-2 py-0.5 font-medium uppercase tracking-wide"
                     >
                       {view}
                     </span>
                   ))}
                   {out.views.duplicatesPruned > 0 && (
-                    <span className="rounded-full border border-dashed border-slate-200 px-2 py-0.5">
+                    <span className="rounded-full border border-dashed border-so-border px-2 py-0.5">
                       Duplicates removed: {out.views.duplicatesPruned}
                     </span>
                   )}

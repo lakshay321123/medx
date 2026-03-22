@@ -131,11 +131,11 @@ export default function ResearchFilters({ mode, onResults }: Props) {
           onKeyDown={(e)=> e.key === 'Enter' && (e.currentTarget as any).form?.requestSubmit()}
           placeholder={t('Search trials (e.g., condition, gene, topic)')}
           aria-label={t('Search trials (e.g., condition, gene, topic)')}
-          className="w-full rounded-lg border px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700"
+          className="w-full rounded-lg border px-3 py-2 text-sm dark:bg-so-card dark:border-so-border"
         />
         <button
           type="submit"
-          className="px-3 py-2 rounded-lg text-sm border bg-blue-600 text-white dark:border-blue-600 disabled:opacity-50"
+          className="px-3 py-2 rounded-lg text-sm border bg-so-accent text-white dark:border-so-accent disabled:opacity-50"
           disabled={busy}
           aria-label={t('Search')}
         >
@@ -151,8 +151,8 @@ export default function ResearchFilters({ mode, onResults }: Props) {
             type="button"
             onClick={()=>togglePhase(phase.value)}
             className={`px-2 py-1 rounded border text-xs ${
-              local.phase === phase.value ? 'bg-blue-600 text-white border-blue-600' :
-              'bg-white dark:bg-slate-800 dark:border-slate-700'
+              local.phase === phase.value ? 'bg-so-accent text-white border-so-accent' :
+              'bg-white dark:bg-so-card dark:border-so-border'
             }`}
           >
             {t(phase.labelKey)}
@@ -165,7 +165,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
         <select
           value={local.status}
           onChange={(e)=>setLocal(s=>({ ...s, status: e.target.value as StatusValue }))}
-          className="rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
+          className="rounded border px-2 py-1 text-sm dark:bg-so-card dark:border-so-border"
           aria-label={t('Status')}
         >
           {STATUSES.map(option=>(
@@ -179,7 +179,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
         <select
           value={source}
           onChange={(e)=>setSource(e.target.value)}
-          className="rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
+          className="rounded border px-2 py-1 text-sm dark:bg-so-card dark:border-so-border"
         >
           <option>All</option>
           <option>CTgov</option>
@@ -197,8 +197,8 @@ export default function ResearchFilters({ mode, onResults }: Props) {
             type="button"
             onClick={()=>toggleCountry(region.value)}
             className={`px-2 py-1 rounded border text-xs ${
-              local.countries.includes(region.value) ? 'bg-blue-600 text-white border-blue-600' :
-              'bg-white dark:bg-slate-800 dark:border-slate-700'
+              local.countries.includes(region.value) ? 'bg-so-accent text-white border-so-accent' :
+              'bg-white dark:bg-so-card dark:border-so-border'
             }`}
           >
             {t(region.labelKey)}
@@ -213,11 +213,11 @@ export default function ResearchFilters({ mode, onResults }: Props) {
           aria-label={t('Genes (comma separated)')}
           value={local.genes}
           onChange={(e)=>setLocal(s=>({ ...s, genes: e.target.value }))}
-          className="flex-1 rounded border px-2 py-1 text-sm dark:bg-slate-800 dark:border-slate-700"
+          className="flex-1 rounded border px-2 py-1 text-sm dark:bg-so-card dark:border-so-border"
         />
         <button
           type="submit"
-          className="px-3 py-1.5 rounded-lg text-sm border bg-blue-600 text-white dark:border-blue-600 disabled:opacity-50"
+          className="px-3 py-1.5 rounded-lg text-sm border bg-so-accent text-white dark:border-so-accent disabled:opacity-50"
           disabled={busy}
           aria-label={t('Apply')}
         >

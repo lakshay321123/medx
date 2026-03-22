@@ -17,7 +17,7 @@ export default function WelcomeCard({ header, body, status, onDismiss }: Welcome
   const resolvedBody = body ?? fallbackBody;
 
   return (
-    <div className="rounded-2xl border border-[color:var(--medx-outline)] bg-[color:var(--medx-panel)] p-6 text-center shadow-sm dark:border-white/10 dark:bg-[color:var(--medx-panel)]">
+    <div className="rounded-2xl border border-[color:var(--medx-outline)] bg-[color:var(--medx-panel)] p-6 text-center shadow-sm dark:border-so-border dark:bg-[color:var(--medx-panel)]">
       {resolvedHeader ? (
         <h2 className="text-lg font-semibold text-[color:var(--medx-text)]">{resolvedHeader}</h2>
       ) : null}

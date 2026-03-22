@@ -28,13 +28,13 @@ export default function AlertsPane() {
             <li key={a.id} className="rounded-xl border p-3 flex items-center gap-2 text-sm">
               <span className="px-2 py-0.5 rounded-full border text-xs">{a.severity}</span>
               <span className="flex-1">{a.title}</span>
-              <span className="text-xs text-slate-500">{new Date(a.createdAt).toLocaleDateString()}</span>
+              <span className="text-xs text-so-muted">{new Date(a.createdAt).toLocaleDateString()}</span>
               <button onClick={() => ack(a.id)} className="text-xs underline">Ack</button>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-slate-500">No alerts.</p>
+        <p className="text-sm text-so-muted">No alerts.</p>
       )}
     </div>
   );

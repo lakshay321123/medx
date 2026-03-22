@@ -8,7 +8,7 @@ export function MemorySettings() {
       <div className="flex items-center justify-between">
         <div>
           <div className="font-medium">Smart Memory</div>
-          <div className="text-sm text-slate-500">
+          <div className="text-sm text-so-muted">
             Remember preferences and key facts with your consent. You can turn this off anytime.
           </div>
         </div>
@@ -22,7 +22,7 @@ export function MemorySettings() {
         </label>
       </div>
       <div className="mt-3 flex items-center justify-between">
-        <div className="text-sm text-slate-600">Auto-save detected memories</div>
+        <div className="text-sm text-so-muted">Auto-save detected memories</div>
         <label className="inline-flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"

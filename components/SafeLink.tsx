@@ -39,7 +39,7 @@ export const SafeAnchor: React.FC<React.AnchorHTMLAttributes<HTMLAnchorElement>>
   if (!safe) {
     return (
       <span
-        className="text-slate-500 dark:text-slate-400 cursor-not-allowed"
+        className="text-so-muted dark:text-so-muted cursor-not-allowed"
         title="Link unavailable"
       >
         {children}
@@ -51,7 +51,7 @@ export const SafeAnchor: React.FC<React.AnchorHTMLAttributes<HTMLAnchorElement>>
       href={safe}
       target="_blank"
       rel="noopener noreferrer"
-      className="underline underline-offset-2 decoration-slate-400 hover:decoration-slate-600 dark:decoration-slate-500 dark:hover:decoration-slate-300"
+      className="underline underline-offset-2 decoration-so-muted hover:decoration-so-text dark:decoration-so-muted dark:hover:decoration-so-text"
       {...rest}
     >
       {children}
@@ -138,7 +138,7 @@ export function LinkBadge(props: React.AnchorHTMLAttributes<HTMLAnchorElement>) 
   if (!safe || verdict === "dead") {
     const disabledClass =
       "inline-flex items-center rounded-full border px-2 py-1 text-xs opacity-70 cursor-not-allowed " +
-      "border-slate-200 dark:border-gray-700 text-slate-400" +
+      "border-so-border dark:border-gray-700 text-so-muted" +
       (className ? " " + className : "");
     return (
       <span className={disabledClass} title="Link unavailable">
@@ -154,8 +154,8 @@ export function LinkBadge(props: React.AnchorHTMLAttributes<HTMLAnchorElement>) 
       rel="noopener noreferrer"
       aria-busy={verdict === null ? "true" : "false"}
       className={
-        "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs shadow-sm hover:bg-slate-50 dark:hover:bg-gray-800 transition " +
-        "border-slate-200 dark:border-gray-700" +
+        "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs shadow-sm hover:bg-so-bg dark:hover:bg-gray-800 transition " +
+        "border-so-border dark:border-gray-700" +
         (className ? " " + className : "")
       }
       {...rest}

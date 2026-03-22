@@ -4,7 +4,7 @@ import { Copy, RefreshCcw, Share2, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useMemo } from "react";
 
 const baseButtonClasses =
-  "inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700/70 dark:hover:text-slate-100";
+  "inline-flex h-8 w-8 items-center justify-center rounded-full text-so-muted transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-so-accent hover:bg-so-accent/5 hover:text-so-text dark:text-so-muted dark:hover:bg-so-accent/10/70 dark:hover:text-so-text";
 
 const disabledClasses = "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-inherit";
 
@@ -82,7 +82,7 @@ export default function MessageActions({
   const feedbackDisabled = loading || isRefreshing;
 
   const desktopRow = (
-    <div className="absolute right-3 top-3 hidden gap-2 rounded-full bg-white/80 px-2 py-1 text-slate-500 shadow-sm ring-1 ring-slate-200 transition md:flex md:opacity-0 md:group-hover:opacity-80 md:group-focus-within:opacity-100 dark:bg-slate-900/80 dark:text-slate-300 dark:ring-slate-700">
+    <div className="absolute right-3 top-3 hidden gap-2 rounded-full bg-so-card px-2 py-1 text-so-muted shadow-sm ring-1 ring-so-border transition md:flex md:opacity-0 md:group-hover:opacity-80 md:group-focus-within:opacity-100 dark:bg-so-card/80 dark:text-so-muted dark:ring-so-border">
       <ActionButton label="Copy full answer" onClick={() => void onCopy()}>
         <Copy size={14} />
       </ActionButton>

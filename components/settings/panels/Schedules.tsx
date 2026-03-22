@@ -8,7 +8,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
   return (
     <label className="relative inline-flex cursor-pointer items-center shrink-0">
       <input type="checkbox" checked={checked} onChange={onChange} className="peer sr-only" />
-      <span className="h-6 w-11 rounded-full bg-slate-300/60 transition peer-checked:bg-blue-600 dark:bg-slate-600" />
+      <span className="h-6 w-11 rounded-full bg-so-border transition peer-checked:bg-so-accent dark:bg-so-card" />
       <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
     </label>
   );
@@ -16,7 +16,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-black/10 bg-white/70 p-4 dark:border-white/10 dark:bg-slate-900/60">
+    <div className="rounded-xl border border-so-border bg-so-card p-4 dark:border-so-border dark:bg-so-card">
       <div className="mb-3 text-[13px] font-semibold">{title}</div>
       {children}
     </div>
@@ -64,7 +64,7 @@ export default function SchedulesPanel() {
 
   return (
     <div className="space-y-4 p-5">
-      <div className="text-xs text-slate-500 dark:text-slate-400">
+      <div className="text-xs text-so-muted dark:text-so-muted">
         Configure automated schedules for health check-ins, reports, data syncing, and backups.
       </div>
       {schedules.map((sched) => (
@@ -72,7 +72,7 @@ export default function SchedulesPanel() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="rounded-full border border-black/10 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300">
+                <span className="rounded-full border border-so-border bg-so-bg px-2 py-0.5 text-[11px] font-medium text-so-muted dark:border-so-border dark:bg-so-card dark:text-so-muted">
                   {TYPE_LABELS[sched.type]}
                 </span>
                 <span className="text-sm">{sched.enabled ? "Enabled" : "Disabled"}</span>
@@ -82,19 +82,19 @@ export default function SchedulesPanel() {
             {sched.enabled && (
               <>
                 <div className="flex items-center gap-2">
-                  <label className="text-xs text-slate-500">Time</label>
+                  <label className="text-xs text-so-muted">Time</label>
                   <input type="time" value={sched.time} onChange={(e) => updateTime(sched.id, e.target.value)}
-                    className="rounded-lg border border-black/10 bg-white px-2.5 py-1.5 text-sm dark:border-white/10 dark:bg-slate-800 dark:text-white" />
+                    className="rounded-lg border border-so-border bg-white px-2.5 py-1.5 text-sm dark:border-so-border dark:bg-so-card dark:text-so-text" />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-500 mb-1 block">Days</label>
+                  <label className="text-xs text-so-muted mb-1 block">Days</label>
                   <div className="flex gap-1.5">
                     {DAYS.map((label, idx) => (
                       <button key={idx} type="button" onClick={() => toggleDay(sched.id, idx)}
                         className={clsx("w-9 h-9 rounded-lg text-xs font-medium transition",
                           sched.days.includes(idx)
-                            ? "bg-blue-600 text-white"
-                            : "border border-black/10 bg-white/70 text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
+                            ? "bg-so-accent text-white"
+                            : "border border-so-border bg-so-card text-so-muted hover:bg-so-bg dark:border-so-border dark:bg-so-card dark:text-so-muted"
                         )}>{label}</button>
                     ))}
                   </div>

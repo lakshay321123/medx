@@ -158,11 +158,11 @@ export default function TrialsResults({ trials }: { trials: TrialRow[] }) {
   return (
     <>
       <section className="hidden md:block">
-        <div className="rounded-xl border border-slate-200 bg-white/85 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
+        <div className="rounded-xl border border-so-border bg-white/85 p-4 shadow-sm dark:border-so-border dark:bg-so-card">
           <div className="mb-2 flex justify-end">
             <button
               onClick={() => exportTrials(trials)}
-              className="rounded-full border border-slate-200 px-3 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+              className="rounded-full border border-so-border px-3 py-1 text-xs hover:bg-so-bg dark:border-so-border dark:hover:bg-so-accent/10"
             >
               Export CSV
             </button>

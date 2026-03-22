@@ -52,10 +52,10 @@ export default function SharePanel({
   if (!open) return null;
 
   const makeActionClass = (disabled?: boolean) =>
-    `flex w-full items-center gap-3 rounded-lg border border-slate-200/80 px-3 py-2 text-sm transition dark:border-slate-700/70 ${
+    `flex w-full items-center gap-3 rounded-lg border border-so-border/80 px-3 py-2 text-sm transition dark:border-so-border/70 ${
       disabled
         ? "opacity-60"
-        : "hover:border-slate-300 hover:bg-slate-100/70 dark:hover:border-slate-600 dark:hover:bg-slate-800/60"
+        : "hover:border-so-border hover:bg-so-bg/70 dark:hover:border-so-border dark:hover:bg-so-accent/10/60"
     }`;
 
   const handleClick = async (cb?: () => Promise<void> | void, eventName?: string) => {
@@ -65,20 +65,20 @@ export default function SharePanel({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 px-4 pb-6 pt-10 sm:items-center sm:bg-slate-900/60">
-      <div className="w-full max-w-md rounded-3xl bg-white p-5 shadow-xl ring-1 ring-slate-200 transition dark:bg-slate-950 dark:ring-slate-800 sm:p-6">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#131316]/40 px-4 pb-6 pt-10 sm:items-center sm:bg-[#131316]/60">
+      <div className="w-full max-w-md rounded-3xl bg-white p-5 shadow-xl ring-1 ring-so-border transition dark:bg-[#131316] dark:ring-so-border sm:p-6">
         <div className="mb-4 flex items-start">
           <div>
-            <div className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Share safely</div>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Privacy check</h2>
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+            <div className="text-xs uppercase tracking-wide text-so-muted dark:text-so-muted">Share safely</div>
+            <h2 className="text-lg font-semibold text-so-text dark:text-so-text">Privacy check</h2>
+            <p className="mt-2 text-sm text-so-muted dark:text-so-muted">
               Make sure this doesn’t include personal info before sharing.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="ml-auto rounded-full p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+            className="ml-auto rounded-full p-1 text-so-muted transition hover:bg-so-bg hover:text-so-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-so-accent dark:text-so-muted dark:hover:bg-so-accent/10 dark:hover:text-white"
             aria-label="Close"
           >
             <X size={16} />
@@ -148,7 +148,7 @@ export default function SharePanel({
           </button>
         </div>
 
-        <p className="mt-5 text-center text-xs text-slate-500 dark:text-slate-500">
+        <p className="mt-5 text-center text-xs text-so-muted dark:text-so-muted">
           Sharing from {BRAND_NAME}
         </p>
       </div>

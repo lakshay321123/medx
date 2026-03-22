@@ -21,7 +21,7 @@ export default function PanelLoader({ label }: { label: string }) {
         </span>
       </div>
       {showHint ? (
-        <p className="max-w-[220px] text-xs text-slate-500 dark:text-slate-400">
+        <p className="max-w-[220px] text-xs text-so-muted dark:text-so-muted">
           Fetching your data securely…
         </p>
       ) : null}

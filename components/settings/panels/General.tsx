@@ -109,7 +109,7 @@ export default function GeneralPanel() {
     <div className="flex items-center justify-between gap-4 px-5 py-4">
       <div>
         <div className="text-[13px] font-semibold">{title}</div>
-        {sub && <div className="text-xs text-slate-500 dark:text-slate-400">{sub}</div>}
+        {sub && <div className="text-xs text-so-muted dark:text-so-muted">{sub}</div>}
       </div>
       <div className="flex items-center gap-2">{right}</div>
     </div>
@@ -122,7 +122,7 @@ export default function GeneralPanel() {
 
   return (
     <>
-      <div className="px-5 py-3 text-[13px] text-slate-500 dark:text-slate-400">
+      <div className="px-5 py-3 text-[13px] text-so-muted dark:text-so-muted">
         {t("Adjust how MedX behaves and personalizes your care.")}
       </div>
       <Row
