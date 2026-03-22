@@ -1,54 +1,38 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getUserId } from "@/lib/getUserId";
 
-export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const userId = url.searchParams.get("userId");
-  if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
+export async function GET() {
+  const userId = await getUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const db = supabaseAdmin();
-  // Get families where user is owner or member
-  const { data: owned } = await db.from("families").select("*").eq("owner_id", userId);
-  const { data: memberOf } = await db
-    .from("family_members")
-    .select("family_id, families(*)")
-    .eq("user_id", userId)
-    .eq("invite_status", "active");
+  const [{ data: owned }, { data: memberOf }] = await Promise.all([
+    db.from("families").select("*").eq("owner_id", userId),
+    db.from("family_members").select("family_id, families(*)").eq("user_id", userId).eq("invite_status", "active"),
+  ]);
 
+  const seen = new Set<string>();
   const families = [
     ...(owned ?? []),
-    ...(memberOf ?? []).map((m: any) => m.families).filter(Boolean),
-  ];
-  // Dedupe by id
-  const seen = new Set<string>();
-  const unique = families.filter((f) => { if (seen.has(f.id)) return false; seen.add(f.id); return true; });
+    ...(memberOf ?? []).map((m: Record<string, unknown>) => m.families).filter(Boolean),
+  ].filter((f: Record<string, unknown>) => { const id = f.id as string; if (seen.has(id)) return false; seen.add(id); return true; });
 
-  return NextResponse.json(unique);
+  return NextResponse.json(families);
 }
 
 export async function POST(req: Request) {
+  const userId = await getUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const body = await req.json().catch(() => ({}));
-  const { userId, name } = body;
-  if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
-
   const db = supabaseAdmin();
-  const { data: family, error } = await db
-    .from("families")
-    .insert({ owner_id: userId, name: name || "My Family" })
-    .select()
-    .single();
+  const { data: family, error } = await db.from("families").insert({ owner_id: userId, name: body.name || "My Family" }).select().single();
+  if (error) { console.error("[family] create:", error); return NextResponse.json({ error: "Could not create family." }, { status: 500 }); }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  // Auto-add owner as "self" member
   await db.from("family_members").insert({
-    family_id: family.id,
-    user_id: userId,
-    display_name: "Me",
-    relationship: "self",
-    role: "admin",
-    invite_status: "active",
+    family_id: family.id, user_id: userId, display_name: "Me",
+    relationship: "self", role: "admin", invite_status: "active",
   });
-
   return NextResponse.json({ ok: true, family });
 }
