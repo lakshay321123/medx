@@ -30,7 +30,7 @@ const DEFAULT_DIGITS_POLICY: DigitsPolicy = "latn";
 
 const BASE_DICTIONARY: Record<string, Record<string, string>> = {
   en: {
-    "ui.composer.placeholder": "Send a message",
+    "ui.composer.placeholder": "Ask about your health",
     "ui.composer.document_note_placeholder": "Add a note or question for this document (optional)",
     "ui.composer.send": "Send",
     "ui.composer.upload": "Upload photos/files",
