@@ -4050,7 +4050,7 @@ ${systemCommon}` + baseSys;
       >
         <div className={`flex min-h-full flex-col justify-end px-6${showWelcomeCard ? '' : ' pt-6'}`}>
           {mode === "doctor" && researchMode && (
-            <div className="mb-6 space-y-4">
+            <div className="mx-auto w-full max-w-3xl mb-6 space-y-4">
               <ResearchFilters mode="research" onResults={handleTrials} />
               {searched && trialRows.length === 0 && (
                 <div className="rounded-xl border border-[var(--so-border,#E5E5EA)] bg-[var(--so-card,#fff)] p-3 text-sm text-[var(--so-text-secondary,#8E8E93)] shadow-sm dark:border-[#2C2C2E] dark:bg-[#1C1C1E] dark:text-[#98989D]">
