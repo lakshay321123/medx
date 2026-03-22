@@ -18,7 +18,7 @@ function extractOptions(label: string): string[] | null {
 // Detect if a question is open-ended (needs typed answer, not a click)
 function isOpenEnded(label: string): boolean {
   const q = label.toLowerCase();
-  // Open-ended patterns: "what...", "any...", "how...", "describe...", "tell me..."
+  // Open-ended patterns: what, any, how, describe, tell me (followed by ellipsis)
   if (/^(what|any|how|describe|tell me|share|list|which specific|do you have)/.test(q)) return true;
   // Questions asking for specific input
   if (/prefer|tried|currently|taking|experience|history|detail/.test(q)) return true;
@@ -98,7 +98,7 @@ export default function SuggestionChips({ suggestions, onAction }: Props) {
                 const input = document.querySelector<HTMLTextAreaElement>("[data-chat-input], textarea");
                 if (input) {
                   input.focus();
-                  input.placeholder = s.label.replace(/\?$/, "") + "...";
+                  input.placeholder = s.label.replace(/\?$/, "") + "\u2026";
                 }
               }}
             >
