@@ -53,13 +53,16 @@ export async function POST(req: Request) {
     });
   }
 
+  const t0 = Date.now();
+  const payload = await req.json();
+  const { messages = [], mode } = payload ?? {};
 
   // --- Instant greeting replies (no LLM call needed) ---
-  const lastMsg = messages?.[messages.length - 1];
-  const lastText = (typeof lastMsg?.content === 'string' ? lastMsg.content : '').trim();
-  const isGreeting = /^(h(i|ey|ello|ola|owdy)|yo|sup|good\s*(morning|afternoon|evening|night)|what'?s\s*up|namaste|gm)\s*[!?.]*$/i.test(lastText);
+  const greetLastMsg = messages?.[messages.length - 1];
+  const greetText = (typeof greetLastMsg?.content === 'string' ? greetLastMsg.content : '').trim();
+  const isGreeting = /^(h(i|ey|ello|ola|owdy)|yo|sup|good\s*(morning|afternoon|evening|night)|what'?s\s*up|namaste|gm)\s*[!?.]*$/i.test(greetText);
   
-  if (isGreeting && lastText.length < 30) {
+  if (isGreeting && greetText.length < 30) {
     const greetings = [
       "Hey! How can I help you with your health today?",
       "Hi there! What health question can I help you with?",
@@ -79,10 +82,6 @@ export async function POST(req: Request) {
       headers: { "Content-Type": "text/plain; charset=utf-8", "X-Greeting": "1" },
     });
   }
-
-  const t0 = Date.now();
-  const payload = await req.json();
-  const { messages = [], mode } = payload ?? {};
   const rawFormat = typeof payload?.formatId === 'string'
     ? payload.formatId.trim().toLowerCase()
     : '';
