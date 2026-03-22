@@ -1399,3 +1399,17 @@ textarea { overflow-y: auto; }
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ========================================= */
+/* Mobile Responsive — Apple-style bottom nav */
+/* ========================================= */
+@media (max-width: 768px) {
+  .sidebar-desktop { display: none !important; }
+  .mobile-bottom-nav { display: flex !important; }
+  .chat-container { padding-bottom: 72px; }
+  .chat-input-area { bottom: 64px; }
+}
+
+@media (min-width: 769px) {
+  .mobile-bottom-nav { display: none !important; }
+}

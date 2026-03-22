@@ -40,6 +40,11 @@ type NavItem = {
 
 const HealthScoreCard = dynamic(() => import("@/components/HealthScoreCard"), { ssr: false });
 const DailyCheckin = dynamic(() => import("@/components/DailyCheckin"), { ssr: false });
+const HealthTimeline = dynamic(() => import("@/components/HealthTimeline"), { ssr: false });
+const WearableSync = dynamic(() => import("@/components/WearableSync"), { ssr: false });
+const FamilyHub = dynamic(() => import("@/components/FamilyHub"), { ssr: false });
+const MedReminders = dynamic(() => import("@/components/MedReminders"), { ssr: false });
+const HealthReportExport = dynamic(() => import("@/components/HealthReportExport"), { ssr: false });
 
 export default function Sidebar() {
   const router = useRouter();
@@ -204,10 +209,59 @@ export default function Sidebar() {
         })}
       </div>
 
-      {/* Health widgets */}
+      {/* Health Analytics link */}
+      <div className="mt-4 px-3">
+        <a
+          href="/analytics"
+          className="flex items-center gap-3 rounded-2xl border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] p-3 transition hover:border-[var(--so-accent,#06B6D4)] hover:bg-[rgba(6,182,212,0.02)]"
+        >
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[rgba(6,182,212,0.08)]">
+            <Activity className="h-5 w-5 text-[var(--so-accent,#06B6D4)]" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-[var(--so-text,#000)] dark:text-[var(--so-text,#fff)]">Health Analytics</p>
+            <p className="text-[10px] text-[var(--so-text-secondary,#8E8E93)]">Charts, scores & predictions</p>
+          </div>
+        </a>
+      </div>
+
+      {/* Health Timeline */}
+      <div className="mt-4 px-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--so-text-secondary,#8E8E93)] mb-2 px-1">Timeline</h3>
+        <div className="rounded-2xl border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] overflow-hidden">
+          <HealthTimeline />
+        </div>
+      </div>
+
+      {/* Daily Check-in */}
       <div className="mt-4 space-y-3 px-3">
-        <HealthScoreCard />
         <DailyCheckin />
+      </div>
+
+      {/* Medication Reminders */}
+      <div className="mt-4 px-3">
+        <div className="rounded-2xl border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] p-3">
+          <MedReminders />
+        </div>
+      </div>
+
+      {/* Wearable Sync */}
+      <div className="mt-4 px-3">
+        <div className="rounded-2xl border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] p-3">
+          <WearableSync />
+        </div>
+      </div>
+
+      {/* Family Hub */}
+      <div className="mt-4 px-3">
+        <div className="rounded-2xl border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] p-3">
+          <FamilyHub />
+        </div>
+      </div>
+
+      {/* Export */}
+      <div className="mt-4 px-3 mb-4">
+        <HealthReportExport />
       </div>
 
       {/* Preferences — bottom, inside flow */}

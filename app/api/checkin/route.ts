@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getUserId } from "@/lib/getUserId";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
-  const { userId, date, mood, energy, sleepHours, waterCups, exerciseMinutes, painLevel, notes } = body;
+  const authUserId = await getUserId();
+  const userId = body.userId || authUserId;
   if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
+  const { date, mood, energy, sleepHours, waterCups, exerciseMinutes, painLevel, notes } = body;
 
   const db = supabaseAdmin();
   // Use client-provided date if available, else UTC today

@@ -23,8 +23,9 @@ export async function GET(req: Request) {
   // Parallel queries for independent data
   const [labsRes, vitalsRes, profileRes, checkinRes, wearableRes, adherenceRes, prevScoreRes, checkinsRes] = await Promise.all([
     db.from("observation_labs").select("test_code, value, unit").eq("user_id", userId).order("sample_date", { ascending: false }).limit(50),
-    db.from("vitals").select("sbp, dbp, hr, spo2, bmi").eq("patient_id", userId).order("taken_at", { ascending: false }).limit(1).single(),
-    db.from("profiles").select("bmi").eq("id", userId).single(),
+    // Read vitals from observations (user_id) instead of vitals table (patient_id, empty)
+    db.from("observations").select("kind, value_num, unit").eq("user_id", userId).in("kind", ["bp_systolic","bp_diastolic","heart_rate","spo2","bmi"]).order("observed_at", { ascending: false }).limit(10),
+    db.from("profiles").select("bmi, height_cm, weight_kg").eq("id", userId).single(),
     db.from("daily_checkins").select("mood, sleep_hours, exercise_minutes").eq("user_id", userId).order("check_date", { ascending: false }).limit(1).single(),
     db.from("wearable_daily_agg").select("steps, sleep_minutes, resting_hr_avg, spo2_avg, active_minutes").eq("user_id", userId).order("agg_date", { ascending: false }).limit(1).single(),
     db.from("med_adherence_log").select("status").eq("user_id", userId).gte("scheduled_at", new Date(Date.now() - 7 * MS_PER_DAY).toISOString()),
@@ -32,7 +33,20 @@ export async function GET(req: Request) {
     db.from("daily_checkins").select("check_date").eq("user_id", userId).order("check_date", { ascending: false }).limit(90),
   ]);
 
-  // Labs
+  // Extract vitals from observations
+  const vitalObs: Record<string, number> = {};
+  for (const v of (vitalsRes.data ?? []) as any[]) {
+    if (v.kind && v.value_num != null && !vitalObs[v.kind]) vitalObs[v.kind] = Number(v.value_num);
+  }
+  const derivedVitals = {
+    sbp: vitalObs["bp_systolic"] ?? null,
+    dbp: vitalObs["bp_diastolic"] ?? null,
+    hr: vitalObs["heart_rate"] ?? null,
+    spo2: vitalObs["spo2"] ?? null,
+    bmi: vitalObs["bmi"] ?? profileRes.data?.bmi ?? null,
+  };
+
+  // Labs from observation_labs
   const latestLab: Record<string, number> = {};
   for (const l of labsRes.data ?? []) {
     if (l.test_code && l.value != null && !latestLab[l.test_code]) latestLab[l.test_code] = Number(l.value);
@@ -41,17 +55,12 @@ export async function GET(req: Request) {
   if (latestLab["LDL-C"]) { const r = scoreLdl(latestLab["LDL-C"]); labScores.push(r.score); factors.push(r.factor); }
   if (latestLab["EGFR"] || latestLab["eGFR"]) { const r = scoreEgfr(latestLab["EGFR"] || latestLab["eGFR"]); labScores.push(r.score); factors.push(r.factor); }
 
-  // Vitals — BMI goes to vitalScores (not labScores)
-  const vitals = vitalsRes.data;
-  if (vitals) {
-    if (vitals.sbp && vitals.dbp) { const r = scoreBp(Number(vitals.sbp), Number(vitals.dbp)); vitalScores.push(r.score); factors.push(r.factor); }
-    if (vitals.hr) vitalScores.push(scoreHr(Number(vitals.hr)));
-    if (vitals.spo2) vitalScores.push(scoreSpo2(Number(vitals.spo2)));
-    if (vitals.bmi) { const r = scoreBmi(Number(vitals.bmi)); vitalScores.push(r.score); factors.push(r.factor); }
-  }
-  if (!vitals?.bmi && profileRes.data?.bmi) {
-    const r = scoreBmi(Number(profileRes.data.bmi)); vitalScores.push(r.score); factors.push(r.factor);
-  }
+  // Vitals — from derivedVitals (observations-based, not empty vitals table)
+  if (derivedVitals.sbp && derivedVitals.dbp) { const r = scoreBp(Number(derivedVitals.sbp), Number(derivedVitals.dbp)); vitalScores.push(r.score); factors.push(r.factor); }
+  if (derivedVitals.hr) vitalScores.push(scoreHr(Number(derivedVitals.hr)));
+  if (derivedVitals.spo2) vitalScores.push(scoreSpo2(Number(derivedVitals.spo2)));
+  const bmiVal = derivedVitals.bmi ?? (profileRes.data?.height_cm && profileRes.data?.weight_kg ? Number(profileRes.data.weight_kg) / ((Number(profileRes.data.height_cm) / 100) ** 2) : null);
+  if (bmiVal) { const r = scoreBmi(Number(bmiVal)); vitalScores.push(r.score); factors.push(r.factor); }
 
   // Activity
   let activityScore: number | null = null;

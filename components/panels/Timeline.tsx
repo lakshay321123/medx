@@ -532,7 +532,25 @@ export default function Timeline(){
 
   if (!isAiDoc) return null;
 
-  if (isLoading) return <PanelLoader label={t("Timeline")} />;
+  // Render structure immediately with loading skeleton
+  if (isLoading) return (
+    <div className="space-y-3 p-4">
+      <div className="flex items-center gap-3">
+        <div className="h-8 w-20 animate-pulse rounded-lg bg-[var(--so-border,#E5E5EA)]" />
+        <div className="h-8 w-20 animate-pulse rounded-lg bg-[var(--so-border,#E5E5EA)]" />
+        <div className="h-8 w-20 animate-pulse rounded-lg bg-[var(--so-border,#E5E5EA)]" />
+      </div>
+      {[1,2,3,4,5].map(i => (
+        <div key={i} className="flex gap-3 items-start">
+          <div className="h-3 w-3 rounded-full animate-pulse bg-[var(--so-border,#E5E5EA)] mt-1" />
+          <div className="flex-1 space-y-1">
+            <div className="h-3 w-2/3 animate-pulse rounded bg-[var(--so-border,#E5E5EA)]" />
+            <div className="h-3 w-1/3 animate-pulse rounded bg-[var(--so-border,#E5E5EA)]" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
   if (error)
     return (
       <div className="p-6 text-sm text-red-500">{t("Couldn’t load timeline. Retrying…")}</div>

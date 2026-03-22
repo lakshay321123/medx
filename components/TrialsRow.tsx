@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { ExternalLink, FlaskConical } from "lucide-react";
 
 function useIsDoctor() {
   if (typeof window === "undefined") return false;
@@ -21,49 +22,82 @@ export function TrialsRow({
   row: { nctId: string; title: string; phase?: string; status?: string; country?: string };
 }) {
   const isDoctor = useIsDoctor();
+  const nct = extractNctId(row.nctId);
+  const trialUrl = nct
+    ? `https://clinicaltrials.gov/study/${nct}`
+    : row.nctId.startsWith("http") ? row.nctId : `https://clinicaltrials.gov/study/${row.nctId}`;
+
+  const [summarizing, setSummarizing] = React.useState(false);
 
   const onSummarize = async (e: React.MouseEvent) => {
-    if (e.metaKey || e.ctrlKey || e.button === 1) return; // allow new tab
-    if (!isDoctor) return; // non-doctors keep default navigation
     e.preventDefault();
+    e.stopPropagation();
+    if (!nct) return;
 
-    const nct = extractNctId(row.nctId);
-    if (!nct) {
-      pushAssistantToChat(`⚠️ Could not summarize: invalid Registry ID`);
-      return;
-    }
-
-    pushAssistantToChat("_Summarizing trial…_");
+    setSummarizing(true);
+    pushAssistantToChat("_Summarizing trial\u2026_");
     try {
       const r = await fetch(`/api/trials/${nct}/summary`, { cache: "no-store" });
       const text = await r.text();
       let j: any = null;
       try { j = JSON.parse(text); } catch {}
       if (!r.ok || !j || j.error) throw new Error(j?.error || `HTTP ${r.status}`);
-
-      const md = formatTrialBriefMarkdown(nct, j);
-      pushAssistantToChat(md);
+      pushAssistantToChat(formatTrialBriefMarkdown(nct, j));
     } catch (err: any) {
-      pushAssistantToChat(`⚠️ Could not summarize **${nct}**: ${err?.message || "error"}`);
+      pushAssistantToChat(`Could not summarize **${nct}**: ${err?.message || "error"}`);
+    } finally {
+      setSummarizing(false);
     }
   };
 
+  const statusColor = (row.status || "").toLowerCase().includes("recruiting")
+    ? "text-emerald-600 dark:text-emerald-400"
+    : "text-[var(--so-text-secondary,#8E8E93)]";
+
   return (
-    <tr>
-      <td className="whitespace-nowrap">
-        <a
-          href={`https://clinicaltrials.gov/study/${row.nctId}`}
-          onClick={onSummarize}
-          className={isDoctor ? "underline decoration-dotted hover:decoration-solid" : "underline"}
-        >
-          {row.nctId}
-        </a>
-      </td>
-      <td>{row.title}</td>
-      <td>{row.phase || "—"}</td>
-      <td>{row.status || "—"}</td>
-      <td>{row.country || "—"}</td>
-    </tr>
+    <a
+      href={trialUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block rounded-2xl border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] p-4 transition hover:border-[var(--so-accent,#06B6D4)] hover:bg-[rgba(6,182,212,0.02)] group"
+    >
+      {/* Title + external link */}
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="text-sm font-medium text-[var(--so-text,#000)] dark:text-[var(--so-text,#fff)] leading-snug flex-1">
+          {row.title}
+        </h3>
+        <ExternalLink className="h-4 w-4 shrink-0 text-[var(--so-text-secondary,#8E8E93)] opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" />
+      </div>
+
+      {/* Meta row: NCT ID + Phase + Status + Country */}
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+        <span className="font-mono text-[var(--so-accent,#06B6D4)]">{nct || row.nctId}</span>
+        {row.phase && (
+          <span className="rounded-full bg-[rgba(139,92,246,0.1)] px-2 py-0.5 text-[11px] font-medium text-violet-600 dark:text-violet-400">
+            Phase {row.phase}
+          </span>
+        )}
+        <span className={`font-medium ${statusColor}`}>{row.status || "Unknown"}</span>
+        {row.country && (
+          <span className="text-[var(--so-text-secondary,#8E8E93)]">{row.country}</span>
+        )}
+      </div>
+
+      {/* Summarize button */}
+      {nct && (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={onSummarize}
+            disabled={summarizing}
+            className="flex items-center gap-1.5 rounded-lg border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] px-3 py-1.5 text-xs font-medium text-[var(--so-accent,#06B6D4)] transition hover:bg-[rgba(6,182,212,0.05)] disabled:opacity-40"
+          >
+            <FlaskConical className="h-3.5 w-3.5" />
+            {summarizing ? "Summarizing\u2026" : "Get Full Summary"}
+          </button>
+        </div>
+      )}
+    </a>
   );
 }
 
@@ -85,54 +119,49 @@ export function TrialsMobileCard({
   onSummarize,
 }: TrialsMobileCardProps) {
   return (
-    <div
-      className="
-        result-card
-        rounded-xl border transition p-4
-        bg-[var(--card-bg)] text-[var(--card-fg)] border-[var(--card-border)]
-      "
-    >
-      <h3 className="text-[15px] font-semibold leading-5 break-words hyphens-auto">{title}</h3>
-      <p className="meta mt-1 text-[12.5px] opacity-80">{statusLine}</p>
-      <p className="meta text-[11px] opacity-70">{registryLine}</p>
+    <div className="rounded-2xl border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] p-4 transition hover:border-[var(--so-accent,#06B6D4)]">
+      <h3 className="text-sm font-semibold leading-5">{title}</h3>
+      <p className="mt-1 text-xs text-[var(--so-text-secondary,#8E8E93)]">{statusLine}</p>
+      <p className="text-[11px] text-[var(--so-text-secondary,#8E8E93)]">{registryLine}</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
-        <span className="chip chip-sm">Recruiting: {recruitingLabel}</span>
-        <button type="button" className="btn chip-sm" onClick={onCopy}>
-          Copy
-        </button>
-        <button type="button" className="btn chip-sm" onClick={onSummarize}>
-          Summarize
-        </button>
+        <span className="rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+          Recruiting: {recruitingLabel}
+        </span>
+        <button type="button" onClick={onCopy} className="rounded-lg border border-[var(--so-border,#E5E5EA)] px-2 py-0.5 text-[11px]">Copy</button>
+        <button type="button" onClick={onSummarize} className="rounded-lg border border-[var(--so-accent,#06B6D4)] px-2 py-0.5 text-[11px] text-[var(--so-accent,#06B6D4)]">Summarize</button>
       </div>
     </div>
   );
 }
 
 function formatTrialBriefMarkdown(nctId: string, brief: any) {
-  const bullets = (brief.bullets ?? []).slice(0, 3).map((b: string) => `- ${b}`).join("\n");
-  const cite = (brief.citations ?? [])
-    .slice(0, 5)
-    .map((c: any, i: number) => `[${i + 1}] ${c.title || new URL(c.url).hostname} — ${c.url}`)
-    .join("\n");
-
   const d = brief.details || {};
   const lines = [
-    d.design && `**Design:** ${d.design}`,
-    d.population && `**Population:** ${d.population}`,
-    d.interventions && `**Interventions:** ${d.interventions}`,
-    d.primary_outcomes && `**Primary outcomes:** ${d.primary_outcomes}`,
-    d.key_eligibility && `**Key eligibility:** ${d.key_eligibility}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+    `### ${nctId} — Clinical Trial Summary`,
+    "",
+    brief.tldr ? `**Summary:** ${brief.tldr}` : "",
+    "",
+    d.design ? `**Study Design:** ${d.design}` : "",
+    d.population ? `**Target Population:** ${d.population}` : "",
+    d.interventions ? `**Interventions:** ${d.interventions}` : "",
+    d.primary_outcomes ? `**Primary Outcomes:** ${d.primary_outcomes}` : "",
+    d.secondary_outcomes ? `**Secondary Outcomes:** ${d.secondary_outcomes}` : "",
+    d.key_eligibility ? `**Eligibility Criteria:** ${d.key_eligibility}` : "",
+    d.enrollment ? `**Enrollment:** ${d.enrollment}` : "",
+    d.start_date ? `**Start Date:** ${d.start_date}` : "",
+    d.completion_date ? `**Expected Completion:** ${d.completion_date}` : "",
+    d.sponsor ? `**Sponsor:** ${d.sponsor}` : "",
+    "",
+    (brief.bullets ?? []).length ? "**Key Points:**" : "",
+    ...(brief.bullets ?? []).map((b: string) => `- ${b}`),
+    "",
+    (brief.citations ?? []).length ? "**References:**" : "",
+    ...(brief.citations ?? []).slice(0, 5).map((c: any, i: number) =>
+      `${i + 1}. [${c.title || "Source"}](${c.url})`
+    ),
+    "",
+    `[View on ClinicalTrials.gov](https://clinicaltrials.gov/study/${nctId})`,
+  ].filter(Boolean);
 
-  return [
-    `### ${nctId} — Clinical Brief`,
-    brief.tldr ? `**TL;DR:** ${brief.tldr}` : "",
-    bullets,
-    lines,
-    cite ? `\n**Sources**\n${cite}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  return lines.join("\n");
 }

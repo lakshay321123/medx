@@ -39,7 +39,11 @@ export default function HealthScoreCard() {
   useEffect(() => {
     fetch("/api/health-score?userId=me", { credentials: "include" })
       .then(r => r.json())
-      .then(d => { if (d?.overall_score != null) setData(d); })
+      .then(d => {
+        // API may return overall_score directly or nested in result
+        const score = d?.overall_score ?? d?.result?.overall_score;
+        if (score != null) setData(d?.result || d);
+      })
       .catch((err) => console.error('Health score fetch failed:', err))
       .finally(() => setLoading(false));
   }, []);

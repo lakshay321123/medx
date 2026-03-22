@@ -349,20 +349,22 @@ async function savePrediction({
 }) {
   const payload: any = {
     user_id: userId,
+    patient_id: userId, // backwards compat with FK
     thread_id: threadId,
     model: MODEL_NAME,
-    name: "AI Risk Summary",
-    risk_score: null,
-    band: null,
-    factors: null,
-    recommendations: null,
-    probability: null,
+    risk_score: structured?.risk_score ?? 0,
+    band: structured?.band ?? "unknown",
+    condition: structured?.condition ?? null,
+    risk_label: structured?.risk_label ?? null,
+    factors: structured?.factors ?? null,
+    recommendations: structured?.recommendations ?? null,
+    features: structured?.features ?? null,
+    top_factors: structured?.top_factors ?? null,
     inputs_snapshot: snapshot,
-    details: {
-      structured,
-      summary,
-    },
+    name: "AI Risk Summary",
     summary,
+    details: { structured, summary },
+    probability: structured?.probability ?? null,
   };
 
   const { data, error } = await supa
