@@ -94,6 +94,7 @@ async function fetchAd(payload: {
 const AIDOC_UI = process.env.NEXT_PUBLIC_AIDOC_UI === '1';
 const AIDOC_PREFLIGHT = process.env.NEXT_PUBLIC_AIDOC_PREFLIGHT === '1';
 const CHAT_UX_V2_ENABLED = process.env.NEXT_PUBLIC_CHAT_UX_V2 !== '0';
+const ADS_ENABLED = process.env.NEXT_PUBLIC_ADS_ENABLED === '1'; // disabled by default
 
 const NEARBY_DEFAULT_RADIUS_KM = 2;
 const NEARBY_RADIUS_CHOICES = [1, 2, 3, 5, 8, 10] as const;
@@ -3741,6 +3742,7 @@ ${systemCommon}` + baseSys;
       if (!shouldFetchAdForMessage(msg as any)) return;
 
       const messageId = msg.id as string;
+      if (!ADS_ENABLED) return;
       if (adsByMsg[messageId]) return;
       if (requestedAdsRef.current.has(messageId)) return;
 
@@ -3885,8 +3887,8 @@ ${systemCommon}` + baseSys;
                   />
                   {uiMode !== 'therapy' && m.role === 'assistant' && (m as any).kind === 'chat' && typeof m.id === 'string' ? (
                     <>
-                      {adLoadingByMsg[m.id] && !adsByMsg[m.id] ? <InlineSponsoredSkeleton /> : null}
-                      {adsByMsg[m.id] ? (
+                      {ADS_ENABLED && adLoadingByMsg[m.id] && !adsByMsg[m.id] ? <InlineSponsoredSkeleton /> : null}
+                      {ADS_ENABLED && adsByMsg[m.id] ? (
                         <TrackedInlineSponsoredCard
                           card={adsByMsg[m.id]}
                           messageId={m.id}

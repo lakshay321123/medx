@@ -175,7 +175,10 @@ export async function POST(req: NextRequest) {
   // 3) Build or auto-fetch sources if research is on
   let sources: WebHit[] = Array.isArray(body?.__sources) ? body.__sources as WebHit[] : [];
   console.log('research=', research, 'sources.len=', sources?.length);
-  if (research && (!sources || sources.length === 0) && latestUser?.content?.trim()) {
+  // Always fetch sources for health queries (even without Research toggle)
+  // This gives evidence-backed links in Wellness mode too
+  const shouldFetchSources = latestUser?.content?.trim() && latestUser.content.trim().length > 10;
+  if (shouldFetchSources && (!sources || sources.length === 0)) {
     try {
       const r = await fetch(`${origin}/api/search`, {
         method: 'POST',
@@ -192,7 +195,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const srcBlock = research && Array.isArray(sources) && sources.length
+  const srcBlock = Array.isArray(sources) && sources.length
     ? sources.slice(0, 5)
         .map((s, i) => `[${i + 1}] ${s.title || s.url}\n${s.url}\n${s.snippet ?? ''}`)
         .join('\n\n')
