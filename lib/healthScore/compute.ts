@@ -29,17 +29,6 @@ export type HealthScoreResult = {
 
 const WEIGHTS = { labs: 0.25, vitals: 0.25, activity: 0.20, adherence: 0.20, mental: 0.10 };
 
-// --- Labs scoring ---
-function scoreInRange(value: number, low: number, high: number, dangerLow?: number, dangerHigh?: number): number {
-  if (value >= low && value <= high) return 100;
-  const dist = value < low ? (low - value) / low : (value - high) / high;
-  if (dangerLow !== undefined && value < dangerLow) return 10;
-  if (dangerHigh !== undefined && value > dangerHigh) return 10;
-  if (dist < 0.15) return 70;
-  if (dist < 0.30) return 40;
-  return 20;
-}
-
 export function scoreHba1c(v: number): { score: number; factor: HealthFactor } {
   let score = 100;
   if (v >= 8.5) score = 20;
@@ -85,7 +74,7 @@ export function scoreBmi(v: number): { score: number; factor: HealthFactor } {
   let score = 100;
   if (v < 16 || v > 40) score = 20;
   else if (v < 18.5 || v > 35) score = 40;
-  else if (v < 18.5 || v > 30) score = 60;
+  else if (v > 30) score = 60;
   else if (v > 25) score = 80;
   return {
     score,
@@ -102,7 +91,7 @@ export function scoreBp(sys: number, dia: number): { score: number; factor: Heal
   else if (sys < 90 || dia < 60) score = 50;
   return {
     score,
-    factor: { name: "Blood pressure", value: `${sys}/${dia} mmHg`, impact: score >= 80 ? "positive" : score >= 60 ? "neutral" : "negative", detail: score >= 80 ? "Normal" : score >= 60 ? "Elevated" : "High" },
+    factor: { name: "Blood pressure", value: `${sys}/${dia} mmHg`, impact: score >= 80 ? "positive" : score >= 60 ? "neutral" : "negative", detail: score >= 80 ? "Normal" : score === 70 ? "Elevated" : (sys < 90 || dia < 60) ? "Low" : "High" },
   };
 }
 
@@ -169,8 +158,6 @@ export function computeOverall(sub: SubScores): number {
 
 export function generateRecommendations(sub: SubScores, factors: HealthFactor[]): string[] {
   const recs: string[] = [];
-  const neg = factors.filter((f) => f.impact === "negative");
-
   if (sub.activity !== null && sub.activity < 60) {
     recs.push("Try adding a 20-minute walk to your daily routine to boost your activity score.");
   }
