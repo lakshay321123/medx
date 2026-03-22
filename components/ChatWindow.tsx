@@ -627,8 +627,6 @@ export function ChatWindow() {
               ) : (
                 <AssistantPendingMessage
                   stage={modeChoice === "therapy" ? "reflecting" : "thinking"}
-                  analyzingPhrase={null}
-                  thinkingLabel={modeChoice === "therapy" ? "Reflecting…" : undefined}
                   content={pendingMessage.content}
                 />
               )}

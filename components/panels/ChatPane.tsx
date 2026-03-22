@@ -647,8 +647,6 @@ function ChatCard({
     return (
       <AssistantPendingMessage
         stage={therapyMode ? "reflecting" : "thinking"}
-        analyzingPhrase={null}
-        thinkingLabel={therapyMode ? "Reflecting…" : undefined}
         content={typeof m.content === "string" ? m.content : ""}
         formatId={m.formatId}
         userPrompt={m.originUserText || m.userPrompt}
