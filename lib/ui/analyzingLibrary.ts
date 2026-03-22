@@ -8,7 +8,7 @@ export const genericAnalyzing = [
   "Gathering information…",
   "Structuring a response…",
   "Lining up key facts…",
-  "Finalizing notes…",
+  "Putting it together…",
 ];
 
 export const aiDocAnalyzing = [
@@ -36,7 +36,7 @@ export const aiDocAnalyzing = [
   "Checking family history cues…",
   "Checking social history cues…",
   "Flagging follow-up needs…",
-  "Finalizing AI Doc summary…",
+  "Wrapping up your summary…",
 ];
 
 export const clinicalAnalyzing = [
@@ -59,7 +59,7 @@ export const clinicalAnalyzing = [
   "Clarifying missing information…",
   "Prioritizing assessment items…",
   "Consolidating plan steps…",
-  "Finalizing clinical outline…",
+  "Building clinical summary…",
 ];
 
 export const wellnessAnalyzing = [
@@ -76,7 +76,7 @@ export const wellnessAnalyzing = [
   "Identifying easy wins…",
   "Prioritizing habit loops…",
   "Summarizing wellness focus…",
-  "Finalizing practical tips…",
+  "Almost ready…",
 ];
 
 export const clinicalResearchAnalyzing = [
@@ -91,7 +91,7 @@ export const clinicalResearchAnalyzing = [
   "Identifying literature gaps…",
   "Aligning evidence with presentation…",
   "Cross-checking recommendations…",
-  "Finalizing evidence-aware view…",
+  "Reviewing the evidence…",
 ];
 
 export const wellnessResearchAnalyzing = [
@@ -102,5 +102,5 @@ export const wellnessResearchAnalyzing = [
   "Noting mindfulness evidence…",
   "Aligning outcomes with goals…",
   "Weighing practical implications…",
-  "Finalizing research-aware tips…",
+  "Compiling findings…",
 ];
