@@ -1,11 +1,12 @@
 "use client";
 
+import clsx from "clsx";
 import { usePrefsDraft } from "@/components/providers/PrefsDraftProvider";
 
 const CHANNELS = [
-  { key: "push", label: "Push notifications", sub: "Browser and mobile push alerts" },
-  { key: "email", label: "Email notifications", sub: "Receive updates in your inbox" },
-  { key: "sms", label: "SMS alerts", sub: "Text messages for critical alerts only" },
+  { key: "push", label: "Push notifications", sub: "Browser and mobile push alerts", def: true },
+  { key: "email", label: "Email notifications", sub: "Receive updates in your inbox", def: false },
+  { key: "sms", label: "SMS alerts", sub: "Text messages for critical alerts only", def: false },
 ] as const;
 
 const CATEGORIES = [
@@ -48,15 +49,15 @@ function Section({ title, sub, children }: { title: string; sub?: string; childr
 export default function NotificationsPanel() {
   const { draft, set } = usePrefsDraft();
 
-  const g = (k: string, def: boolean = false) => {
-    const v = (draft as any)?.[k];
-    return v === undefined ? def : Boolean(v);
+  const getBoolean = (key: string, fallback: boolean): boolean => {
+    const raw = (draft as Record<string, unknown>)?.[key];
+    return raw === undefined ? fallback : Boolean(raw);
   };
-  const s = (k: string, v: unknown) => set(k as any, v);
+  const setKey = (key: string, value: unknown) => set(key as keyof typeof draft, value);
 
-  const digest = ((draft as any)?.["notify.digest"] as string) ?? "off";
-  const quietStart = ((draft as any)?.["notify.quiet.start"] as string) ?? "22:00";
-  const quietEnd = ((draft as any)?.["notify.quiet.end"] as string) ?? "07:00";
+  const digest = String((draft as Record<string, unknown>)?.["notify.digest"] ?? "off");
+  const quietStart = String((draft as Record<string, unknown>)?.["notify.quiet.start"] ?? "22:00");
+  const quietEnd = String((draft as Record<string, unknown>)?.["notify.quiet.end"] ?? "07:00");
 
   return (
     <div className="space-y-4 p-5">
@@ -67,7 +68,7 @@ export default function NotificationsPanel() {
               <div className="text-sm">{ch.label}</div>
               <div className="text-xs text-slate-500 dark:text-slate-400">{ch.sub}</div>
             </div>
-            <Toggle checked={g(`notify.${ch.key}`, ch.key === "push")} onChange={() => s(`notify.${ch.key}`, !g(`notify.${ch.key}`, ch.key === "push"))} />
+            <Toggle checked={getBoolean(`notify.${ch.key}`, ch.def)} onChange={() => setKey(`notify.${ch.key}`, !getBoolean(`notify.${ch.key}`, ch.def))} />
           </div>
         ))}
       </Section>
@@ -79,7 +80,7 @@ export default function NotificationsPanel() {
               <div className="text-sm">{cat.label}</div>
               <div className="text-xs text-slate-500 dark:text-slate-400">{cat.sub}</div>
             </div>
-            <Toggle checked={g(`notify.cat.${cat.key}`, cat.def)} onChange={() => s(`notify.cat.${cat.key}`, !g(`notify.cat.${cat.key}`, cat.def))} />
+            <Toggle checked={getBoolean(`notify.cat.${cat.key}`, cat.def)} onChange={() => setKey(`notify.cat.${cat.key}`, !getBoolean(`notify.cat.${cat.key}`, cat.def))} />
           </div>
         ))}
       </Section>
@@ -90,13 +91,13 @@ export default function NotificationsPanel() {
             <button
               key={opt.value}
               type="button"
-              onClick={() => s("notify.digest", opt.value)}
-              className={[
+              onClick={() => setKey("notify.digest", opt.value)}
+              className={clsx(
                 "rounded-lg border px-3.5 py-1.5 text-sm font-medium transition",
                 digest === opt.value
                   ? "border-blue-600 bg-blue-600 text-white"
-                  : "border-black/10 bg-white/70 text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800",
-              ].join(" ")}
+                  : "border-black/10 bg-white/70 text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800"
+              )}
             >
               {opt.label}
             </button>
@@ -111,7 +112,7 @@ export default function NotificationsPanel() {
             <input
               type="time"
               value={quietStart}
-              onChange={(e) => s("notify.quiet.start", e.target.value)}
+              onChange={(e) => setKey("notify.quiet.start", e.target.value)}
               className="rounded-lg border border-black/10 bg-white px-2.5 py-1.5 text-sm dark:border-white/10 dark:bg-slate-800 dark:text-white"
             />
           </div>
@@ -120,7 +121,7 @@ export default function NotificationsPanel() {
             <input
               type="time"
               value={quietEnd}
-              onChange={(e) => s("notify.quiet.end", e.target.value)}
+              onChange={(e) => setKey("notify.quiet.end", e.target.value)}
               className="rounded-lg border border-black/10 bg-white px-2.5 py-1.5 text-sm dark:border-white/10 dark:bg-slate-800 dark:text-white"
             />
           </div>
