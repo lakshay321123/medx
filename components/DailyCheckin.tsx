@@ -27,13 +27,20 @@ export default function DailyCheckin({ onDone }: { onDone?: () => void }) {
     if (!mood) return;
     setSaving(true);
     try {
+      // Get userId from profile check
+      const profileRes = await fetch("/api/profile", { credentials: "include" });
+      const profileData = await profileRes.json().catch(() => ({}));
+      const userId = profileData?.profile?.id;
+      if (!userId) throw new Error("Not logged in");
+      
       await fetch("/api/checkin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          userId,
           mood,
           energy,
-          sleep_hours: sleep ? parseFloat(sleep) : null,
+          sleepHours: sleep ? parseFloat(sleep) : null,
         }),
       });
       setSaved(true);
