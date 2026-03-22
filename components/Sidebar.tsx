@@ -40,6 +40,7 @@ type NavItem = {
 
 const HealthScoreCard = dynamic(() => import("@/components/HealthScoreCard"), { ssr: false });
 const DailyCheckin = dynamic(() => import("@/components/DailyCheckin"), { ssr: false });
+const HealthTimeline = dynamic(() => import("@/components/HealthTimeline"), { ssr: false });
 
 export default function Sidebar() {
   const router = useRouter();
@@ -202,6 +203,14 @@ export default function Sidebar() {
             </div>
           );
         })}
+      </div>
+
+      {/* Health Timeline */}
+      <div className="mt-4 px-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--so-text-secondary,#8E8E93)] mb-2 px-1">Timeline</h3>
+        <div className="rounded-2xl border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] overflow-hidden">
+          <HealthTimeline />
+        </div>
       </div>
 
       {/* Health widgets */}
