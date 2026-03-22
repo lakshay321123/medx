@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import PreferencesModal from "@/components/settings/PreferencesModal";
 import { useRouter } from "next/navigation";
 import ChatPane from "@/components/panels/ChatPane";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import OnboardingCheck from "@/components/OnboardingCheck";
 import MedicalProfile from "@/components/panels/MedicalProfile";
 import Timeline from "@/components/panels/Timeline";
@@ -98,7 +99,9 @@ export default function Page({ searchParams }: { searchParams: Search }) {
       {mainPanel === "chat" ? (
         <ResearchFiltersProvider>
           <OnboardingCheck />
-          <ChatPane inputRef={chatInputRef} />
+          <ErrorBoundary>
+            <ChatPane inputRef={chatInputRef} />
+          </ErrorBoundary>
         </ResearchFiltersProvider>
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto mobile-scroll-safe">

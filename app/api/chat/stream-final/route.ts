@@ -2,6 +2,7 @@
 import { callOpenAIChat } from "@/lib/medx/providers";
 import { languageDirectiveFor, SYSTEM_DEFAULT_LANG } from "@/lib/prompt/system";
 import { BRAND_NAME } from "@/lib/brand";
+import { checkRateLimit } from "@/lib/rateLimit";
 import { THERAPY_STYLE } from "@/lib/prompts/therapy";
 import { CLINICAL_STYLE } from "@/lib/prompts/clinical";
 import { SUPPORTED_LANGS } from "@/lib/i18n/constants";
@@ -32,6 +33,16 @@ function normalizeLangTag(tag?: string | null) {
 }
 
 export async function POST(req: Request) {
+  // Rate limiting
+  const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const { allowed, remaining } = checkRateLimit(clientIp);
+  if (!allowed) {
+    return new Response("Rate limit exceeded. Please wait a moment.", {
+      status: 429,
+      headers: { "Retry-After": "60", "X-RateLimit-Remaining": "0" },
+    });
+  }
+
   const t0 = Date.now();
   const payload = await req.json();
   const { messages = [], mode } = payload ?? {};
