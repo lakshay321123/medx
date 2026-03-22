@@ -42,13 +42,13 @@ type BeginConfig = {
 
 type PendingMeta = PendingIntent & { messageId: string };
 
-const ANALYZING_DELAY_MS = 900;
-const ANALYZING_ROTATE_MS = 800;
+const ANALYZING_DELAY_MS = 200;
+const ANALYZING_ROTATE_MS = 500;
 const ANALYZING_MAX_PHRASES = 2;
-const TYPEWRITER_SPEED = 50;
-const TYPEWRITER_MIN_BATCH = 4;
-const TYPEWRITER_MAX_BATCH = 8;
-const THINKING_LABEL = "Analyzing";
+const TYPEWRITER_SPEED = 200;
+const TYPEWRITER_MIN_BATCH = 12;
+const TYPEWRITER_MAX_BATCH = 40;
+const THINKING_LABEL = "Thinking";
 const THERAPY_LABEL = "Reflecting…";
 
 export function usePendingAssistantStages({ enabled, onContentUpdate, onFinalize }: Options) {

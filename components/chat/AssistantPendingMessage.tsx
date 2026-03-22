@@ -24,7 +24,7 @@ export function AssistantPendingMessage({ stage, analyzingPhrase, thinkingLabel,
 
   if (stage === "streaming") {
     return (
-      <div className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl min-h-[64px]">
+      <div className="rounded-2xl p-4 text-left whitespace-normal max-w-3xl min-h-[48px] bg-[var(--so-card,#fff)] border border-[var(--so-border,#E5E5EA)] dark:bg-[var(--so-card,#1C1C1E)] dark:border-[var(--so-border,#2C2C2E)]">
         <ChatMarkdown content={content || ""} formatId={formatId} userPrompt={userPrompt} />
       </div>
     );
@@ -36,10 +36,10 @@ export function AssistantPendingMessage({ stage, analyzingPhrase, thinkingLabel,
 
   return (
     <div
-      className="rounded-2xl bg-white/90 dark:bg-zinc-900/60 p-4 text-left whitespace-normal max-w-3xl min-h-[64px]"
+      className="rounded-2xl p-4 text-left whitespace-normal max-w-3xl min-h-[48px] bg-[var(--so-card,#fff)] border border-[var(--so-border,#E5E5EA)] dark:bg-[var(--so-card,#1C1C1E)] dark:border-[var(--so-border,#2C2C2E)]"
       aria-live="polite"
     >
-      <div className="flex min-h-[24px] flex-col justify-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+      <div className="flex min-h-[24px] flex-col justify-center gap-2 text-sm text-[var(--so-text-secondary,#8E8E93)]">
         {stage === "reflecting" ? (
           <span className="status-label status-label--breathe text-emerald-600 dark:text-emerald-300">{label}</span>
         ) : null}
