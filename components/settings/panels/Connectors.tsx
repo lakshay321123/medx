@@ -129,7 +129,7 @@ export default function ConnectorsPanel() {
                         disabled={connecting === conn.id}
                         className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50"
                       >
-                        {connecting === conn.id ? "..." : "Connect"}
+                        {connecting === conn.id ? "Connecting" : "Connect"}
                       </button>
                     )}
                   </div>
