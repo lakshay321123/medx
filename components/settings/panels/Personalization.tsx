@@ -22,13 +22,11 @@ export default function PersonalizationPanel() {
             <div className="font-medium">Enable customization</div>
             <div className="text-xs opacity-70">Customize how the assistant responds to you.</div>
           </div>
-          <div className="inline-flex cursor-pointer items-center gap-2">
-            <label className="relative inline-flex cursor-pointer items-center shrink-0">
-              <input type="checkbox" checked={personalizationEnabled} onChange={(event) => set("personalizationEnabled", event.target.checked)} className="peer sr-only" aria-label="Enable customization" />
-              <span className="h-6 w-11 rounded-full bg-slate-300/60 transition peer-checked:bg-[var(--so-accent,#06B6D4)] dark:bg-slate-600" />
-              <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
-            </label>
-          </div>
+          <label className="relative inline-flex cursor-pointer items-center shrink-0">
+            <input type="checkbox" checked={personalizationEnabled} onChange={(event) => set("personalizationEnabled", event.target.checked)} className="peer sr-only" aria-label="Enable customization" />
+            <span className="h-6 w-11 rounded-full bg-slate-300/60 transition peer-checked:bg-[var(--so-accent,#06B6D4)] dark:bg-slate-600" />
+            <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
+          </label>
         </div>
       </div>
 

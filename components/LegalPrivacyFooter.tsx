@@ -414,7 +414,7 @@ export default function LegalPrivacyFooter() {
             aria-labelledby="legal-privacy-title"
             className="relative z-10 w-full max-w-3xl overflow-hidden rounded-2xl border border-black/10 bg-white shadow-xl dark:border-[var(--so-border,#2C2C2E)] dark:bg-[var(--so-card,#1C1C1E)]"
           >
-            <div className="flex items-center justify-between border-b border-black/5 bg-slate-50/70 px-5 py-4 dark:border-[var(--so-border,#2C2C2E)] dark:bg-[var(--so-bg-secondary,#1C1C1E)]">
+            <div className="flex items-center justify-center justify-between border-b border-black/5 bg-slate-50/70 px-5 py-4 dark:border-[var(--so-border,#2C2C2E)] dark:bg-[var(--so-bg-secondary,#1C1C1E)]">
               <h2 id="legal-privacy-title" className="text-lg font-semibold text-primary">
                 {t("Legal & Privacy")}
               </h2>
@@ -451,7 +451,7 @@ export default function LegalPrivacyFooter() {
                         <div className="text-sm font-medium text-[var(--so-text,#000)] dark:text-[var(--so-text,#fff)]">{t("Essential")}</div>
                         <p className="text-sm text-[var(--so-text-secondary,#8E8E93)] dark:text-[var(--so-text-secondary,#98989D)]">{t("Essential description")}</p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-center gap-2">
                         <span className="rounded-full bg-[var(--so-accent,#06B6D4)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
                           {t("On")}
                         </span>

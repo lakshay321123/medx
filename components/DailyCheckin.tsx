@@ -83,7 +83,6 @@ export default function DailyCheckin({ onDone }: { onDone?: () => void }) {
               onClick={() => setMood(m.value)}
               aria-pressed={mood === m.value}
               className="flex flex-col items-center gap-1.5 transition-transform"
-              aria-pressed={mood === m.value}
               aria-label={`Mood: ${m.label}`}
               style={{ transform: mood === m.value ? "scale(1.15)" : "scale(1)" }}
             >
