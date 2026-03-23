@@ -84,7 +84,7 @@ export default function Sidebar() {
               type="button"
               onClick={() => item.action ? item.action() : item.panel ? navigate(item.panel) : null}
               className={[
-                "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-semibold transition-all duration-150 cursor-pointer",
+                "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-150 cursor-pointer",
                 isActive
                   ? "bg-[rgba(6,182,212,0.08)] text-[var(--so-accent,#06B6D4)] dark:bg-[rgba(34,211,238,0.12)] dark:text-[#22D3EE]"
                   : "text-[var(--so-text,#000)] dark:text-[#E5E5EA] hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.05)]",
@@ -100,7 +100,7 @@ export default function Sidebar() {
       {/* Search */}
       <div className="relative px-3 mb-3">
         <input
-          className="w-full rounded-xl border border-[var(--so-border,#E5E5EA)] bg-white/80 px-3 py-1.5 text-[12px] font-medium outline-none transition focus:border-[var(--so-accent,#06B6D4)] dark:bg-[#2C2C2E] dark:border-[#3A3A3C] dark:text-white placeholder:text-[#8E8E93]"
+          className="w-full rounded-xl border border-[var(--so-border,#E5E5EA)] bg-white/80 px-3 py-1.5 text-[12px] font-normal outline-none transition focus:border-[var(--so-accent,#06B6D4)] dark:bg-[#2C2C2E] dark:border-[#3A3A3C] dark:text-white placeholder:text-[#8E8E93]"
           placeholder={t("Search")}
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -109,7 +109,7 @@ export default function Sidebar() {
       </div>
 
       {/* CHATS label */}
-      <div className="mb-1 px-4 text-[10px] font-bold uppercase tracking-[0.5px] text-[#8E8E93]">
+      <div className="mb-1 px-4 text-[10px] font-semibold uppercase tracking-[0.5px] text-[#8E8E93]">
         Chats
       </div>
 
@@ -131,8 +131,8 @@ export default function Sidebar() {
               className={[
                 "group flex items-center rounded-lg px-3 py-1.5 transition-colors cursor-pointer",
                 active
-                  ? "bg-[rgba(6,182,212,0.06)] font-bold text-[var(--so-text,#000)] dark:text-white"
-                  : "font-medium text-[var(--so-text,#000)] dark:text-[#C7C7CC] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.03)]",
+                  ? "bg-[rgba(6,182,212,0.06)] font-medium text-[var(--so-text,#000)] dark:text-white"
+                  : "font-normal text-[var(--so-text,#000)] dark:text-[#C7C7CC] hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.03)]",
               ].join(" ")}
               aria-current={active ? "page" : undefined}
             >
