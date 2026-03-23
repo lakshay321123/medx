@@ -7,12 +7,13 @@ export async function GET() {
   const userId = await getUserId();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data } = await supabaseAdmin()
+  const { data, error } = await supabaseAdmin()
     .from("profiles")
     .select("consents")
     .eq("id", userId)
     .single();
 
+  if (error && error.code !== "PGRST116") return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ preferences: data?.consents?.notifications || {} });
 }
 

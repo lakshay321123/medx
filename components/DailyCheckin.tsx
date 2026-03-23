@@ -32,7 +32,7 @@ export default function DailyCheckin({ onDone }: { onDone?: () => void }) {
       const userId = profileData?.profile?.id;
       if (!userId) throw new Error("Not logged in");
       
-      await fetch("/api/checkin", {
+      const resp = await fetch("/api/checkin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -42,6 +42,7 @@ export default function DailyCheckin({ onDone }: { onDone?: () => void }) {
           sleepHours: sleep ? parseFloat(sleep) : null,
         }),
       });
+      if (!resp.ok) throw new Error("Check-in failed");
       setSaved(true);
       localStorage.setItem("so:lastCheckin", new Date().toDateString());
       onDone?.();
@@ -82,6 +83,8 @@ export default function DailyCheckin({ onDone }: { onDone?: () => void }) {
               onClick={() => setMood(m.value)}
               aria-pressed={mood === m.value}
               className="flex flex-col items-center gap-1.5 transition-transform"
+              aria-pressed={mood === m.value}
+              aria-label={`Mood: ${m.label}`}
               style={{ transform: mood === m.value ? "scale(1.15)" : "scale(1)" }}
             >
               <div className={`flex h-14 w-14 items-center justify-center rounded-2xl text-2xl transition-all ${
@@ -112,6 +115,7 @@ export default function DailyCheckin({ onDone }: { onDone?: () => void }) {
           step="0.5"
           value={sleep}
           onChange={e => setSleep(e.target.value)}
+          aria-label="Hours of sleep"
           className="w-full h-2 rounded-full appearance-none bg-[var(--so-border,#E5E5EA)] dark:bg-[#2C2C2E] accent-[var(--so-accent,#06B6D4)]"
         />
         <div className="flex justify-between text-[10px] text-[var(--so-text-secondary,#8E8E93)] mt-1">

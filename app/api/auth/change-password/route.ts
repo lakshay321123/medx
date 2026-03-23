@@ -12,5 +12,5 @@ export async function POST(req: Request) {
 
   // TODO: When real auth is implemented, verify currentPassword against stored hash
   // For now, return success stub
-  return NextResponse.json({ ok: true, message: "Password updated. (Auth system not yet configured)" });
+  return NextResponse.json({ error: "Password change not yet available. Auth system coming soon." }, { status: 501 });
 }

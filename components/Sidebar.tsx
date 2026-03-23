@@ -48,7 +48,7 @@ export default function Sidebar() {
     router.push(`/?panel=chat&threadId=${id}`);
   };
 
-  const filtered = threads.filter((th) => th.title.toLowerCase().includes(q.toLowerCase()));
+  const filtered = threads.filter((th) => (th.title || "").toLowerCase().includes(q.toLowerCase()));
 
   const navItems = [
     { key: "new-chat", label: t("threads.systemTitles.new_chat"), icon: PenSquare, action: handleNewChat },

@@ -63,7 +63,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     {/* Right column: header + main content */}
                     <div className="flex flex-1 min-w-0 flex-col">
                       {/* Desktop Header */}
-                      <Suspense fallback={<div className="h-[62px]" />}>
+                      <Suspense fallback={<div className="h-[48px]" />}>
                         <div className="hidden md:block">
                           <Header />
                         </div>
