@@ -297,9 +297,9 @@ export default function MedicalProfile() {
     setChronic(Array.isArray(prof.chronic_conditions) ? prof.chronic_conditions : []);
     setMedications(extractedMedications);
 
-    const profVitals = (prof as any)?.vitals ?? {};
-    const heightFromProfile = parseNumber(profVitals?.height_cm);
-    const weightFromProfile = parseNumber(profVitals?.weight_kg);
+    // height_cm and weight_kg are top-level profile columns, not nested in .vitals
+    const heightFromProfile = parseNumber((prof as any)?.height_cm);
+    const weightFromProfile = parseNumber((prof as any)?.weight_kg);
     const fallbackHeight =
       profileVitals.heightMeters != null ? Number((profileVitals.heightMeters * 100).toFixed(1)) : null;
     const fallbackWeight =
@@ -323,9 +323,9 @@ export default function MedicalProfile() {
 
   useEffect(() => {
     if (!bootstrapped) return;
-    const profVitals = (data?.profile as any)?.vitals ?? {};
-    const heightFromProfile = parseNumber(profVitals?.height_cm);
-    const weightFromProfile = parseNumber(profVitals?.weight_kg);
+    // height_cm and weight_kg are top-level profile columns, not nested in .vitals
+    const heightFromProfile = parseNumber((data?.profile as any)?.height_cm);
+    const weightFromProfile = parseNumber((data?.profile as any)?.weight_kg);
     const fallbackHeight =
       profileVitals.heightMeters != null ? Number((profileVitals.heightMeters * 100).toFixed(1)) : null;
     const fallbackWeight =
