@@ -66,11 +66,16 @@ export default function Sidebar() {
   return (
     <div className="flex h-full w-full flex-col">
 
-      {/* Brand name at top — like "Claude" in Claude's sidebar */}
+      {/* Brand logo text */}
       <div className="px-4 pt-4 pb-3">
-        <span className="text-[15px] font-bold tracking-tight text-[var(--so-text,#000)] dark:text-white">
-          {BRAND_NAME}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[18px] font-light tracking-[-0.02em] text-[var(--so-text,#000)] dark:text-white">
+            opinion
+          </span>
+          <span className="text-[18px] font-bold tracking-[-0.02em] text-[var(--so-accent,#06B6D4)]">
+            labs
+          </span>
+        </div>
       </div>
 
       {/* Nav items — bold text */}
