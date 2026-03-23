@@ -191,7 +191,7 @@ export async function GET(_req: NextRequest) {
   const { data: profile, error: perr } = await sb
     .from("profiles")
     .select(
-      "id, full_name, dob, sex, blood_group, conditions_predisposition, chronic_conditions"
+      "id, full_name, dob, sex, blood_group, height_cm, weight_kg, bmi, conditions_predisposition, chronic_conditions, emergency_contact"
     )
     .eq("id", userId)
     .maybeSingle();
