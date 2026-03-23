@@ -829,7 +829,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const { t, language: uiLanguage } = useI18n();
   // Rotating placeholder suggestions
   const placeholders = [
-    "Ask about your health...",
+    "Ask about your health…",
     "What does my blood report mean?",
     "Suggest a diet for high cholesterol",
     "What are side effects of metformin?",
