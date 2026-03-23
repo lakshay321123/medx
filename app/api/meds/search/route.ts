@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 
-const ENABLED = (process.env.MEDS_FLOW_ENABLED || "").toLowerCase() === "true";
+const ENABLED = (process.env.MEDS_FLOW_ENABLED || "true").toLowerCase() !== "false";
 const STABLE = (process.env.API_STABLE_CONTRACTS || "").toLowerCase() === "true";
 const VERSION = process.env.API_CONTRACT_VERSION || "v1";
 const SOURCE_VERSION = process.env.MEDS_SOURCE_VERSION || null;

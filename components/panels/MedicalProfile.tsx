@@ -501,6 +501,7 @@ export default function MedicalProfile() {
 
       const res = await fetch("/api/profile", {
         method: "PUT",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -535,6 +536,7 @@ export default function MedicalProfile() {
     const observedAt = new Date().toISOString();
     const res = await fetch("/api/observations/bulk", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         observations: [
@@ -605,6 +607,7 @@ export default function MedicalProfile() {
       : trimmed || title;
     const res = await fetch("/api/observations/bulk", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         observations: [
