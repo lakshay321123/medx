@@ -1,5 +1,5 @@
 "use client";
-import { Search, Settings, PenSquare, FileText, User, Activity } from "lucide-react";
+import { Search, Settings, PenSquare, FileText, User, Activity, Heart } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createNewThreadId, listThreads, Thread } from "@/lib/chatThreads";
@@ -55,6 +55,7 @@ export default function Sidebar() {
     { key: "directory", label: t("ui.nav.directory"), icon: FileText, panel: "directory" },
     { key: "profile", label: t("ui.nav.medical_profile"), icon: User, panel: "profile" },
     { key: "timeline", label: t("ui.nav.timeline"), icon: Activity, panel: "timeline" },
+    { key: "analytics", label: "Health Analytics", icon: Heart, action: () => { closeSidebar(); router.push("/analytics"); } },
   ];
 
   const navigate = (panel: string) => {
