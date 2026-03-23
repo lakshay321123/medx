@@ -34,7 +34,7 @@ export default function SidebarWrapper({ children }: { children: React.ReactNode
   }
 
   return (
-    <aside className="hidden min-h-0 overflow-y-auto border-r border-[var(--so-border,#E5E5EA)] md:flex md:w-[260px] lg:w-[280px] shrink-0 bg-[#F9F9F9] dark:bg-[#1C1C1E] dark:border-[#2C2C2E] relative group">
+    <aside className="hidden overflow-hidden border-r border-[var(--so-border,#E5E5EA)] md:flex md:w-[260px] lg:w-[280px] shrink-0 bg-[#F9F9F9] dark:bg-[#1C1C1E] dark:border-[#2C2C2E] relative group">
       <button
         type="button"
         onClick={toggle}

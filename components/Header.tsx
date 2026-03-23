@@ -1,6 +1,5 @@
 'use client';
 import CountryGlobe from '@/components/CountryGlobe';
-import Brand from '@/components/nav/Brand';
 import ModeBar from '@/components/modes/ModeBar';
 import ThemeToggle from '@/components/ThemeToggle';
 
@@ -8,9 +7,8 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--so-border,#E5E5EA)] bg-[var(--so-card,#fff)] dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
       <div className="mx-auto flex h-[62px] w-full max-w-screen-2xl items-center gap-4 px-6">
-        <div className="flex shrink-0 items-center gap-3 text-base font-semibold md:text-lg">
-          <Brand />
-        </div>
+        {/* Brand removed from header — it's in the sidebar now */}
+        <div className="w-0 md:w-0" />
 
         <div className="flex flex-1 justify-center md:pl-28 lg:pl-44">
           <ModeBar />
