@@ -117,10 +117,8 @@ export default function MedicationInput({ onSave, placeholder = "Add a medicatio
     const source = confirmedSuggestion;
     const finalDose = trimmedDose;
     const isZeroDose = /^0+(\.0+)?$/.test(finalDose);
-    if (!finalDose && !isZeroDose && !needsDose) {
-      setNeedsDose(true);
-      return;
-    }
+    // Dose is optional — save immediately if name is provided
+    // (dose input is shown but not required)
     try {
       const finalName = (source?.name ?? name).trim();
       if (!finalName) {

@@ -22,6 +22,7 @@ import LangDirEffect from "@/components/providers/LangDirEffect";
 // Mobile-only UI (loaded client-side)
 const MobileHeader = dynamic(() => import("@/components/mobile/MobileHeader"), { ssr: false });
 const MobileSidebarOverlay = dynamic(() => import("@/components/mobile/MobileSidebarOverlay"), { ssr: false });
+const SidebarWrapper = dynamic(() => import("@/components/SidebarWrapper"), { ssr: false });
 const MobileActionsSheet = dynamic(() => import("@/components/mobile/MobileActionsSheet"), { ssr: false });
 
 export const metadata = { title: BRAND_NAME, description: "Global medical AI" };
@@ -51,37 +52,38 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <CountryProvider>
               <ContextProvider>
                 <TopicProvider>
-                  <div className="flex h-full min-h-screen flex-col">
-                    {/* Desktop Header */}
-                    <Suspense fallback={<div className="h-[62px]" />}>
-                      <div className="hidden md:block">
-                        <Header />
-                      </div>
-                    </Suspense>
+                  <div className="flex h-full min-h-screen">
+                    {/* Desktop Sidebar — full height, top to bottom */}
+                    <SidebarWrapper>
+                      <Suspense fallback={null}>
+                        <Sidebar />
+                      </Suspense>
+                    </SidebarWrapper>
 
-                    {/* Mobile Header (always rendered; CSS shows it only on mobile) */}
-                    <MobileHeader />
+                    {/* Right column: header + main content */}
+                    <div className="flex flex-1 min-w-0 flex-col">
+                      {/* Desktop Header */}
+                      <Suspense fallback={<div className="h-[48px]" />}>
+                        <div className="hidden md:block">
+                          <Header />
+                        </div>
+                      </Suspense>
 
-                    <div className="grid grow min-h-0 grid-cols-12 mobile-content-offset md:pt-0">
-                      {/* Desktop Sidebar */}
-                      <aside className="hidden min-h-0 overflow-y-auto border-r border-[var(--so-border,#E5E5EA)] md:col-span-3 md:flex lg:col-span-2 bg-[#F9F9F9] dark:bg-[#1C1C1E] dark:border-[#2C2C2E]">
-                        <Suspense fallback={null}>
-                          <Sidebar />
-                        </Suspense>
-                      </aside>
+                      {/* Mobile Header */}
+                      <MobileHeader />
 
                       {/* Main Content */}
-                      <main className="col-span-12 flex min-h-0 overflow-y-auto md:col-span-9 lg:col-span-10">
+                      <main className="flex-1 flex min-h-0 overflow-y-auto">
                         <div className="flex flex-1 min-h-0 flex-col">
                           <Suspense fallback={<div className="flex-1 min-h-0" />}>
                             {children}
                           </Suspense>
                         </div>
                       </main>
-                    </div>
 
-                    {/* Fixed Legal & Privacy footer (mobile-aware) */}
-                    <LegalPrivacyFooter />
+                      {/* Fixed Legal & Privacy footer (mobile-aware) */}
+                      <LegalPrivacyFooter />
+                    </div>
 
                     {/* App Toasts */}
                     <MemorySnackbar />

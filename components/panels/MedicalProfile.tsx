@@ -297,9 +297,9 @@ export default function MedicalProfile() {
     setChronic(Array.isArray(prof.chronic_conditions) ? prof.chronic_conditions : []);
     setMedications(extractedMedications);
 
-    const profVitals = (prof as any)?.vitals ?? {};
-    const heightFromProfile = parseNumber(profVitals?.height_cm);
-    const weightFromProfile = parseNumber(profVitals?.weight_kg);
+    // height_cm and weight_kg are top-level profile columns, not nested in .vitals
+    const heightFromProfile = parseNumber((prof as any)?.height_cm);
+    const weightFromProfile = parseNumber((prof as any)?.weight_kg);
     const fallbackHeight =
       profileVitals.heightMeters != null ? Number((profileVitals.heightMeters * 100).toFixed(1)) : null;
     const fallbackWeight =
@@ -323,9 +323,9 @@ export default function MedicalProfile() {
 
   useEffect(() => {
     if (!bootstrapped) return;
-    const profVitals = (data?.profile as any)?.vitals ?? {};
-    const heightFromProfile = parseNumber(profVitals?.height_cm);
-    const weightFromProfile = parseNumber(profVitals?.weight_kg);
+    // height_cm and weight_kg are top-level profile columns, not nested in .vitals
+    const heightFromProfile = parseNumber((data?.profile as any)?.height_cm);
+    const weightFromProfile = parseNumber((data?.profile as any)?.weight_kg);
     const fallbackHeight =
       profileVitals.heightMeters != null ? Number((profileVitals.heightMeters * 100).toFixed(1)) : null;
     const fallbackWeight =
@@ -501,6 +501,7 @@ export default function MedicalProfile() {
 
       const res = await fetch("/api/profile", {
         method: "PUT",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -535,6 +536,7 @@ export default function MedicalProfile() {
     const observedAt = new Date().toISOString();
     const res = await fetch("/api/observations/bulk", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         observations: [
@@ -605,6 +607,7 @@ export default function MedicalProfile() {
       : trimmed || title;
     const res = await fetch("/api/observations/bulk", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         observations: [
@@ -1881,7 +1884,7 @@ function Button({ children, onClick, variant = "ghost", primary = false, ...rest
   const base = "inline-flex h-11 min-w-[44px] items-center justify-center rounded-full px-4 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--so-accent,#06B6D4)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-black";
   let styles = "bg-transparent text-slate-600 dark:text-slate-200 border border-transparent";
   if (primary) {
-    styles = "text-white border border-[#06B6D4] hover:opacity-90 dark:border-[#22D3EE] bg-[var(--so-accent,#06B6D4)]";
+    styles = "text-white border border-[#06B6D4] hover:opacity-90 dark:border-[#06B6D4] bg-[var(--so-accent,#06B6D4)]";
   } else if (variant === "outline") {
     styles = "border border-[var(--so-border,#E5E5EA)] hover:bg-[var(--so-bg-secondary,#F2F2F7)] dark:border-[#2C2C2E] dark:hover:bg-[#2C2C2E]";
   }

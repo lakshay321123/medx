@@ -2,12 +2,10 @@
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
-import { useT } from "@/components/hooks/useI18n";
 
 export default function ThemeToggle() {
-  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const t = useT();
   useEffect(() => setMounted(true), []);
   if (!mounted) return null;
 
@@ -15,14 +13,11 @@ export default function ThemeToggle() {
   return (
     <button
       type="button"
-      aria-label={t("Toggle theme")}
-      title={t("Toggle theme")}
+      aria-label="Toggle theme"
       onClick={() => setTheme(next)}
-      className="inline-flex h-8 w-8 items-center justify-center rounded-full border transition"
-      style={{ borderColor: "var(--so-border, #E5E5EA)", color: "var(--so-text, #000)" }}
+      className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[var(--so-text-secondary,#8E8E93)] transition hover:bg-[rgba(0,0,0,0.06)] dark:hover:bg-[rgba(255,255,255,0.06)]"
     >
-      {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-      <span className="sr-only">{t(resolvedTheme === "dark" ? "Light" : "Dark")}</span>
+      {resolvedTheme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
     </button>
   );
 }

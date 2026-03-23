@@ -132,7 +132,7 @@ export default function SettingsPane({
               className={clsx(
                 "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px]",
                 "hover:bg-[var(--so-bg-secondary,#F2F2F7)]",
-                active && "bg-[rgba(6,182,212,0.08)] text-[var(--so-accent,#06B6D4)] font-semibold dark:bg-[rgba(34,211,238,0.12)] dark:text-[#22D3EE]",
+                active && "bg-[rgba(6,182,212,0.08)] text-[var(--so-accent,#06B6D4)] font-semibold dark:bg-[rgba(34,211,238,0.12)] dark:text-[#06B6D4]",
                 asMobile &&
                   "max-sm:w-auto max-sm:flex-none max-sm:items-center max-sm:justify-center max-sm:gap-2 max-sm:px-3 max-sm:py-1.5 max-sm:text-sm max-sm:rounded-full",
                 asMobile &&

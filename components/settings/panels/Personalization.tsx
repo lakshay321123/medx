@@ -22,20 +22,16 @@ export default function PersonalizationPanel() {
             <div className="font-medium">Enable customization</div>
             <div className="text-xs opacity-70">Customize how the assistant responds to you.</div>
           </div>
-          <label className="inline-flex cursor-pointer items-center gap-2">
-            <input
-              type="checkbox"
-              checked={personalizationEnabled}
-              onChange={(event) => set("personalizationEnabled", event.target.checked)}
-              aria-label="Enable customization"
-            />
-            <span>{personalizationEnabled ? "On" : "Off"}</span>
+          <label className="relative inline-flex cursor-pointer items-center shrink-0">
+            <input type="checkbox" checked={personalizationEnabled} onChange={(event) => set("personalizationEnabled", event.target.checked)} className="peer sr-only" aria-label="Enable customization" />
+            <span className="h-6 w-11 rounded-full bg-slate-300/60 transition peer-checked:bg-[var(--so-accent,#06B6D4)] dark:bg-slate-600" />
+            <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
           </label>
         </div>
       </div>
 
       <div className={ROW}>
-        <div className="font-medium">ChatGPT personality</div>
+        <div className="font-medium">Personality</div>
         <div className="mb-3 text-xs opacity-70">Style and tone when responding.</div>
         <div className="flex flex-wrap gap-2">
           {[
@@ -146,17 +142,16 @@ function ToggleRow({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <label className="flex items-center justify-between py-2">
+    <div className="flex items-center justify-between py-2">
       <div>
         <div>{label}</div>
         <div className="text-xs opacity-70">{sub}</div>
       </div>
-      <input
-        type="checkbox"
-        checked={value}
-        onChange={(event) => onChange(event.target.checked)}
-        aria-label={label}
-      />
-    </label>
+      <label className="relative inline-flex cursor-pointer items-center shrink-0">
+        <input type="checkbox" checked={value} onChange={(event) => onChange(event.target.checked)} className="peer sr-only" aria-label={label} />
+        <span className="h-6 w-11 rounded-full bg-slate-300/60 transition peer-checked:bg-[var(--so-accent,#06B6D4)] dark:bg-slate-600" />
+        <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
+      </label>
+    </div>
   );
 }

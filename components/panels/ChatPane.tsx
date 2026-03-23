@@ -827,7 +827,29 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const lang = prefs.lang;
   const allowHistory = prefs.allowHistory !== false && prefs.referenceChatHistory !== false;
   const { t, language: uiLanguage } = useI18n();
-  const composerPlaceholder = t('ui.composer.placeholder');
+  // Rotating placeholder suggestions
+  const placeholders = [
+    "Ask about your health…",
+    "What does my blood report mean?",
+    "Suggest a diet for high cholesterol",
+    "What are side effects of metformin?",
+    "How can I improve my sleep?",
+    "Is my BP normal for my age?",
+    "What vaccines do I need at 35?",
+    "Explain my HbA1c results",
+    "Best exercises for lower back pain?",
+    "Should I take vitamin D supplements?",
+    "How much water should I drink daily?",
+    "What foods help reduce inflammation?",
+  ];
+  const [placeholderIdx, setPlaceholderIdx] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPlaceholderIdx(prev => (prev + 1) % placeholders.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+  const composerPlaceholder = placeholders[placeholderIdx];
   const documentNotePlaceholder = t('ui.composer.document_note_placeholder');
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -3007,6 +3029,7 @@ ${systemCommon}` + baseSys;
           personalization,
           allowHistory,
           formatId: formatIdForSend,
+          country: country?.code3 || undefined,
         }),
         cache: 'no-store',
         signal: ctrl.signal
@@ -3808,7 +3831,7 @@ ${systemCommon}` + baseSys;
 
           return (
             <div key={derivedKey} className="space-y-2">
-              <div className="ml-auto w-fit max-w-[75%] whitespace-normal rounded-2xl px-4 py-3 text-start text-white bg-[var(--so-accent,#06B6D4)] dark:bg-[var(--so-accent,#22D3EE)] dark:text-white [&_.prose]:text-white [&_.prose-slate]:text-white [&_*]:text-white">
+              <div className="ml-auto w-fit max-w-[75%] whitespace-normal rounded-2xl px-4 py-3 text-start text-white bg-[var(--so-accent,#06B6D4)] dark:bg-[var(--so-accent,#06B6D4)] dark:text-white [&_.prose]:text-white [&_.prose-slate]:text-white [&_*]:text-white">
                 <ChatMarkdown content={m.content ?? ''} />
               </div>
             </div>
@@ -4331,10 +4354,10 @@ ${systemCommon}` + baseSys;
                       e.stopPropagation();
                       setPlusMenuOpen((v) => !v);
                     }}
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300/70 hover:bg-[var(--so-bg-secondary,#F2F2F7)]/70 dark:border-[#2C2C2E]/60 dark:hover:bg-[#2C2C2E]/60"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-300/70 hover:bg-[var(--so-bg-secondary,#F2F2F7)]/70 dark:border-[#2C2C2E]/60 dark:hover:bg-[#2C2C2E]/60"
                     title={t('more')}
                   >
-                    <Plus className="h-5 w-5" aria-hidden="true" />
+                    <Stethoscope className="h-4 w-4" aria-hidden="true" />
                   </button>
 
                   {isPlusMenuOpen && (
@@ -4456,7 +4479,7 @@ ${systemCommon}` + baseSys;
 
                 {!busy && (
                   <button
-                    className="order-3 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-white bg-[var(--so-accent,#06B6D4)] transition hover:bg-[var(--so-accent,#06B6D4)] disabled:opacity-50 md:order-none"
+                    className="order-3 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-white bg-[var(--so-accent,#06B6D4)] transition hover:bg-[var(--so-accent,#06B6D4)] disabled:opacity-50 md:order-none"
                     type="submit"
                     disabled={pendingFiles.length === 0 && !userText.trim()}
                     aria-label="Send"

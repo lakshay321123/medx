@@ -130,14 +130,14 @@ body * {
 
 /* Dark mode adjustments */
 .dark .prose-medx :where(h2):not(:where([class~="not-prose"] *)) {
-  color: var(--so-accent, #22D3EE);
-  border-bottom-color: var(--so-accent, #22D3EE);
+  color: var(--so-accent, #06B6D4);
+  border-bottom-color: var(--so-accent, #06B6D4);
 }
 .dark .prose-medx :where(h3,h4,strong):not(:where([class~="not-prose"] *)) {
   color: var(--so-text, #fff);
 }
 .dark .prose-medx :where(a):not(:where([class~="not-prose"] *)) {
-  color: var(--so-accent, #22D3EE);
+  color: var(--so-accent, #06B6D4);
 }
 
 /* Ensure body/content contrast in dark */
@@ -197,8 +197,8 @@ body * {
   --medx-text: var(--so-text, #FFFFFF);
   --medx-subtext: var(--so-text-secondary, #98989D);
 
-  --medx-accent:  var(--so-accent, #22D3EE);
-  --medx-accent2: #22D3EE;  /* cyan */
+  --medx-accent:  var(--so-accent, #06B6D4);
+  --medx-accent2: #06B6D4;  /* cyan */
   --medx-red:     #F97316;
   --medx-teal:    #2DD4BF;
   --medx-purple:  #A78BFA;
@@ -1160,7 +1160,7 @@ textarea { overflow-y: auto; }
     --so-border: #2C2C2E;
     --so-text: #FFFFFF;
     --so-text-secondary: #98989D;
-    --so-accent: #22D3EE;
+    --so-accent: #06B6D4;
     --so-green: #30D158;
     --so-orange: #FF9F0A;
     --so-red: #FF453A;
@@ -1373,7 +1373,7 @@ textarea { overflow-y: auto; }
   color: #fff;
 }
 .dark .so-input:focus {
-  border-color: #22D3EE;
+  border-color: #06B6D4;
 }
 
 /* === Sidebar styles (from mockup) === */

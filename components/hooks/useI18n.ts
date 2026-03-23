@@ -56,6 +56,7 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "ui.modes.therapy": "Therapy",
     "ui.modes.research": "Research",
     "ui.modes.clinical": "Clinical",
+    "ui.modes.aidoc": "AI Doc",
     "ui.modes.ai_doc": "AI Doc",
     "system.autoGreeting.therapy":
       "I'm here to support you, but I'm not a licensed therapist. What would you like to talk about today?",
@@ -364,6 +365,7 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "ui.modes.therapy": "थेरेपी",
     "ui.modes.research": "रिसर्च",
     "ui.modes.clinical": "क्लिनिकल",
+    "ui.modes.aidoc": "AI डॉक",
     "ui.modes.ai_doc": "एआई डॉक",
     "system.autoGreeting.therapy":
       "मैं आपकी मदद के लिए यहाँ हूँ, पर मैं लाइसेंसधारी चिकित्सक नहीं हूँ। आज आप किस बारे में बात करना चाहेंगे?",
@@ -672,6 +674,7 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "ui.modes.therapy": "العلاج",
     "ui.modes.research": "البحث",
     "ui.modes.clinical": "السريري",
+    "ui.modes.aidoc": "طبيب AI",
     "ui.modes.ai_doc": "مستندات الذكاء",
     "system.autoGreeting.therapy":
       "أنا هنا لدعمك، لكنني لست معالجًا مرخصًا. عن ماذا تود التحدث اليوم؟",
@@ -979,6 +982,7 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "ui.modes.therapy": "Terapia",
     "ui.modes.research": "Ricerca",
     "ui.modes.clinical": "Clinico",
+    "ui.modes.aidoc": "AI Doc",
     "ui.modes.ai_doc": "AI Doc",
     "system.autoGreeting.therapy":
       "Sono qui per sostenerti, ma non sono uno psicoterapeuta abilitato. Di cosa vuoi parlare oggi?",
@@ -1286,6 +1290,7 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "ui.modes.therapy": "治疗",
     "ui.modes.research": "研究",
     "ui.modes.clinical": "临床",
+    "ui.modes.aidoc": "AI 医生",
     "ui.modes.ai_doc": "AI 文档",
     "system.autoGreeting.therapy": "我会尽力支持你，但我不是持证治疗师。今天你想聊些什么？",
     "system.autoGreeting.ai_doc": "分享你的文档或问题，我会帮你分析。",
@@ -1587,6 +1592,7 @@ const BASE_DICTIONARY: Record<string, Record<string, string>> = {
     "ui.modes.therapy": "Terapia",
     "ui.modes.research": "Investigación",
     "ui.modes.clinical": "Clínico",
+    "ui.modes.aidoc": "AI Doc",
     "ui.modes.ai_doc": "AI Doc",
     "system.autoGreeting.therapy":
       "Estoy aquí para apoyarte, pero no soy un terapeuta con licencia. ¿De qué quieres hablar hoy?",

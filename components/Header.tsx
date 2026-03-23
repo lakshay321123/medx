@@ -1,22 +1,17 @@
 'use client';
 import CountryGlobe from '@/components/CountryGlobe';
-import Brand from '@/components/nav/Brand';
 import ModeBar from '@/components/modes/ModeBar';
 import ThemeToggle from '@/components/ThemeToggle';
 
 export default function Header() {
   return (
-    <header className="sticky top-0 z-40 border-b border-[var(--so-border,#E5E5EA)] bg-[var(--so-card,#fff)] dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
-      <div className="mx-auto flex h-[62px] w-full max-w-screen-2xl items-center gap-4 px-6">
-        <div className="flex shrink-0 items-center gap-3 text-base font-semibold md:text-lg">
-          <Brand />
-        </div>
+    <header className="sticky top-0 z-40 border-b border-[var(--so-border,#E5E5EA)] bg-[var(--so-card,#fff)]/95 backdrop-blur-md dark:border-[#2C2C2E] dark:bg-[#1C1C1E]/95">
+      <div className="flex h-[48px] w-full items-center justify-center px-4 relative">
+        {/* Mode bar — centered */}
+        <ModeBar />
 
-        <div className="flex flex-1 justify-center md:pl-28 lg:pl-44">
-          <ModeBar />
-        </div>
-
-        <div className="flex items-center gap-3">
+        {/* Right controls */}
+        <div className="absolute right-4 flex items-center gap-1">
           <ThemeToggle />
           <CountryGlobe />
         </div>

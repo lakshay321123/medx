@@ -191,7 +191,7 @@ export async function GET(_req: NextRequest) {
   const { data: profile, error: perr } = await sb
     .from("profiles")
     .select(
-      "id, full_name, dob, sex, blood_group, conditions_predisposition, chronic_conditions"
+      "id, full_name, dob, sex, blood_group, height_cm, weight_kg, bmi, conditions_predisposition, chronic_conditions, emergency_contact"
     )
     .eq("id", userId)
     .maybeSingle();
@@ -314,8 +314,9 @@ export async function PUT(req: NextRequest) {
   for (const k of allowed) {
     if (!(k in body)) continue;
     const val = body[k];
-    // Validate numeric health fields
-    if ((k === "height_cm" || k === "weight_kg" || k === "bmi") && val != null) {
+    // Validate numeric health fields — skip null to avoid overwriting existing values
+    if (k === "height_cm" || k === "weight_kg" || k === "bmi") {
+      if (val == null) continue; // Don't overwrite existing value with null
       const n = Number(val);
       if (!Number.isFinite(n) || n <= 0 || n > 1000) continue;
       patch[k] = n;

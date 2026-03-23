@@ -14,12 +14,12 @@ type CookiePrefs = {
 
 type ToggleableCookie = Exclude<keyof CookiePrefs, "essential">;
 
-const CONSENT_KEY = "secondopinion.consent.v1.0";
-const COOKIE_KEY = "secondopinion.cookies.v1.0";
+const CONSENT_KEY = "opinionlabs.consent.v1.0";
+const COOKIE_KEY = "opinionlabs.cookies.v1.0";
 
-const BRAND = process.env.NEXT_PUBLIC_BRAND_NAME ?? "Second Opinion";
+const BRAND = process.env.NEXT_PUBLIC_BRAND_NAME ?? "Opinion Labs";
 const PRIVACY_EMAIL =
-  process.env.NEXT_PUBLIC_PRIVACY_EMAIL ?? "privacy@secondopinion.ai";
+  process.env.NEXT_PUBLIC_PRIVACY_EMAIL ?? "privacy@opinionlabs.health";
 const GOVERNING_LAW =
   process.env.NEXT_PUBLIC_GOVERNING_LAW ?? "Delaware, USA";
 
@@ -366,7 +366,7 @@ export default function LegalPrivacyFooter() {
         ref={footerRef}
         className="mobile-footer flex-shrink-0 border-t border-black/10 bg-white/80 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/60"
       >
-        <div className="mobile-footer-inner mx-auto flex w-full max-w-screen-2xl items-center justify-center gap-1.5 px-6 text-center text-[11px] md:gap-3 md:py-1.5 md:pl-56 md:text-xs" style={{ color: "var(--so-text-secondary, #8E8E93)" }}>
+        <div className="mobile-footer-inner mx-auto flex w-full max-w-screen-2xl items-center justify-center gap-1.5 px-6 text-center text-[11px] md:gap-3 md:py-1.5 md:text-xs" style={{ color: "var(--so-text-secondary, #8E8E93)" }}>
           <div
             ref={marqueeContainerRef}
             className={`mobile-footer-message${marqueeVars ? " mobile-footer-marquee-active" : ""}`}
@@ -414,7 +414,7 @@ export default function LegalPrivacyFooter() {
             aria-labelledby="legal-privacy-title"
             className="relative z-10 w-full max-w-3xl overflow-hidden rounded-2xl border border-black/10 bg-white shadow-xl dark:border-[var(--so-border,#2C2C2E)] dark:bg-[var(--so-card,#1C1C1E)]"
           >
-            <div className="flex items-center justify-between border-b border-black/5 bg-slate-50/70 px-5 py-4 dark:border-[var(--so-border,#2C2C2E)] dark:bg-[var(--so-bg-secondary,#1C1C1E)]">
+            <div className="flex items-center justify-center justify-between border-b border-black/5 bg-slate-50/70 px-5 py-4 dark:border-[var(--so-border,#2C2C2E)] dark:bg-[var(--so-bg-secondary,#1C1C1E)]">
               <h2 id="legal-privacy-title" className="text-lg font-semibold text-primary">
                 {t("Legal & Privacy")}
               </h2>
@@ -451,7 +451,7 @@ export default function LegalPrivacyFooter() {
                         <div className="text-sm font-medium text-[var(--so-text,#000)] dark:text-[var(--so-text,#fff)]">{t("Essential")}</div>
                         <p className="text-sm text-[var(--so-text-secondary,#8E8E93)] dark:text-[var(--so-text-secondary,#98989D)]">{t("Essential description")}</p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-center gap-2">
                         <span className="rounded-full bg-[var(--so-accent,#06B6D4)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
                           {t("On")}
                         </span>
@@ -531,7 +531,7 @@ export default function LegalPrivacyFooter() {
                 <label className="flex items-start gap-3 text-sm text-[var(--so-text,#000)] dark:text-[var(--so-text,#fff)]">
                   <input
                     type="checkbox"
-                    className="mt-1 h-4 w-4 rounded border border-[var(--so-border,#E5E5EA)] text-primary focus:ring-[var(--so-accent,#06B6D4)] focus:ring-offset-0 dark:focus:ring-[#22D3EE]"
+                    className="mt-1 h-4 w-4 rounded border border-[var(--so-border,#E5E5EA)] text-primary focus:ring-[var(--so-accent,#06B6D4)] focus:ring-offset-0 dark:focus:ring-[#06B6D4]"
                     checked={agreeChecked}
                     onChange={event => setAgreeChecked(event.target.checked)}
                   />

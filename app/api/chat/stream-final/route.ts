@@ -55,7 +55,8 @@ export async function POST(req: Request) {
 
   const t0 = Date.now();
   const payload = await req.json();
-  const { messages = [], mode, threadId } = payload ?? {};
+  const { messages = [], mode, threadId, country: rawCountry } = payload ?? {};
+  const country = typeof rawCountry === 'string' && /^[A-Z]{2,3}$/i.test(rawCountry.trim()) ? rawCountry.trim().toUpperCase() : undefined;
 
   // --- Instant greeting replies (no LLM call needed) ---
   const greetLastMsg = messages?.[messages.length - 1];
@@ -232,7 +233,8 @@ export async function POST(req: Request) {
   }
 
   // 5. Build final system prompt with ALL context layers
-  const contextLayers = [profileBlock, memoryBlock, rulesBlock, intentBlock].filter(Boolean).join('\n\n');
+  const countryBlock = country ? `[USER COUNTRY: ${country}] Tailor advice to this country. Use local drug names, OTC availability, healthcare system, emergency numbers, and guidelines specific to this region.` : '';
+  const contextLayers = [countryBlock, profileBlock, memoryBlock, rulesBlock, intentBlock].filter(Boolean).join('\n\n');
   // Use mode-specific style as primary rules. qualityRules only as fallback.
   const baseRules = modeStyle || qualityRules;
 
