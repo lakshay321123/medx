@@ -22,6 +22,7 @@ import LangDirEffect from "@/components/providers/LangDirEffect";
 // Mobile-only UI (loaded client-side)
 const MobileHeader = dynamic(() => import("@/components/mobile/MobileHeader"), { ssr: false });
 const MobileSidebarOverlay = dynamic(() => import("@/components/mobile/MobileSidebarOverlay"), { ssr: false });
+const SidebarWrapper = dynamic(() => import("@/components/SidebarWrapper"), { ssr: false });
 const MobileActionsSheet = dynamic(() => import("@/components/mobile/MobileActionsSheet"), { ssr: false });
 
 export const metadata = { title: BRAND_NAME, description: "Global medical AI" };
