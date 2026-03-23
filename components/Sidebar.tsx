@@ -67,7 +67,7 @@ export default function Sidebar() {
     <div className="flex h-full w-full flex-col">
 
       {/* Brand logo */}
-      <div className="px-4 pt-4 pb-3 text-[var(--so-text,#000)] dark:text-white">
+      <div className="px-4 pt-4 pb-5 text-[var(--so-text,#000)] dark:text-white">
         <OpinionLabsLogo />
       </div>
 

@@ -20,29 +20,17 @@ export default function OpinionLabsLogo({ size = "default" }: { size?: "small" |
       aria-label="Opinion Labs"
       role="img"
     >
-      {/* "opinion" — light geometric sans */}
+      {/* "opinion labs" as single line, tight spacing */}
       <text
         x="0"
         y="21"
         fontFamily="'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif"
         fontSize="22"
-        fontWeight="300"
         letterSpacing="-0.5"
         fill="currentColor"
       >
-        opinion
-      </text>
-      {/* "labs" — bold teal */}
-      <text
-        x="93"
-        y="21"
-        fontFamily="'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif"
-        fontSize="22"
-        fontWeight="700"
-        letterSpacing="-0.5"
-        fill="#06B6D4"
-      >
-        labs
+        <tspan fontWeight="300">opinion</tspan>
+        <tspan fontWeight="700" fill="#06B6D4" dx="4">labs</tspan>
       </text>
     </svg>
   );
