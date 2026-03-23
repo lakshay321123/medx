@@ -52,24 +52,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <CountryProvider>
               <ContextProvider>
                 <TopicProvider>
-                  <div className="flex h-full min-h-screen flex-col">
-                    {/* Desktop Header */}
-                    <Suspense fallback={<div className="h-[62px]" />}>
-                      <div className="hidden md:block">
-                        <Header />
-                      </div>
-                    </Suspense>
+                  <div className="flex h-full min-h-screen">
+                    {/* Desktop Sidebar — full height, top to bottom */}
+                    <SidebarWrapper>
+                      <Suspense fallback={null}>
+                        <Sidebar />
+                      </Suspense>
+                    </SidebarWrapper>
 
-                    {/* Mobile Header (always rendered; CSS shows it only on mobile) */}
-                    <MobileHeader />
+                    {/* Right column: header + main content */}
+                    <div className="flex flex-1 min-w-0 flex-col">
+                      {/* Desktop Header */}
+                      <Suspense fallback={<div className="h-[62px]" />}>
+                        <div className="hidden md:block">
+                          <Header />
+                        </div>
+                      </Suspense>
 
-                    <div className="flex grow min-h-0 mobile-content-offset md:pt-0">
-                      {/* Desktop Sidebar — collapsible */}
-                      <SidebarWrapper>
-                        <Suspense fallback={null}>
-                          <Sidebar />
-                        </Suspense>
-                      </SidebarWrapper>
+                      {/* Mobile Header */}
+                      <MobileHeader />
 
                       {/* Main Content */}
                       <main className="flex-1 flex min-h-0 overflow-y-auto">
@@ -79,10 +80,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                           </Suspense>
                         </div>
                       </main>
-                    </div>
 
-                    {/* Fixed Legal & Privacy footer (mobile-aware) */}
-                    <LegalPrivacyFooter />
+                      {/* Fixed Legal & Privacy footer (mobile-aware) */}
+                      <LegalPrivacyFooter />
+                    </div>
 
                     {/* App Toasts */}
                     <MemorySnackbar />
