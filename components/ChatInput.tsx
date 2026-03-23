@@ -271,7 +271,7 @@ export function ChatInput({
         aria-label={sendText}
         title={sendText}
         disabled={!text.trim() || isSending}
-        className="flex h-12 w-12 items-center justify-center rounded-full text-white bg-[var(--so-accent,#06B6D4)] transition hover:bg-[var(--so-accent,#06B6D4)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--so-accent,#06B6D4)] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#5EBDCC] dark:hover:opacity-90 md:h-12 md:w-12"
+        className="flex h-12 w-12 items-center justify-center rounded-full text-white bg-[var(--so-accent,#06B6D4)] transition hover:bg-[var(--so-accent,#06B6D4)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--so-accent,#06B6D4)] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#06B6D4] dark:hover:opacity-90 md:h-12 md:w-12"
       >
         <SendHorizontal className="h-5 w-5" />
       </button>

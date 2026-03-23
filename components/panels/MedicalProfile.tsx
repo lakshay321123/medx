@@ -1881,7 +1881,7 @@ function Button({ children, onClick, variant = "ghost", primary = false, ...rest
   const base = "inline-flex h-11 min-w-[44px] items-center justify-center rounded-full px-4 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--so-accent,#06B6D4)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-black";
   let styles = "bg-transparent text-slate-600 dark:text-slate-200 border border-transparent";
   if (primary) {
-    styles = "text-white border border-[#06B6D4] hover:opacity-90 dark:border-[#5EBDCC] bg-[var(--so-accent,#06B6D4)]";
+    styles = "text-white border border-[#06B6D4] hover:opacity-90 dark:border-[#06B6D4] bg-[var(--so-accent,#06B6D4)]";
   } else if (variant === "outline") {
     styles = "border border-[var(--so-border,#E5E5EA)] hover:bg-[var(--so-bg-secondary,#F2F2F7)] dark:border-[#2C2C2E] dark:hover:bg-[#2C2C2E]";
   }

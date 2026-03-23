@@ -3831,7 +3831,7 @@ ${systemCommon}` + baseSys;
 
           return (
             <div key={derivedKey} className="space-y-2">
-              <div className="ml-auto w-fit max-w-[75%] whitespace-normal rounded-2xl px-4 py-3 text-start text-white bg-[var(--so-accent,#06B6D4)] dark:bg-[var(--so-accent,#5EBDCC)] dark:text-white [&_.prose]:text-white [&_.prose-slate]:text-white [&_*]:text-white">
+              <div className="ml-auto w-fit max-w-[75%] whitespace-normal rounded-2xl px-4 py-3 text-start text-white bg-[var(--so-accent,#06B6D4)] dark:bg-[var(--so-accent,#06B6D4)] dark:text-white [&_.prose]:text-white [&_.prose-slate]:text-white [&_*]:text-white">
                 <ChatMarkdown content={m.content ?? ''} />
               </div>
             </div>

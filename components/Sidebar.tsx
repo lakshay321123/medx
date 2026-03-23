@@ -84,7 +84,7 @@ export default function Sidebar() {
               className={[
                 "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-150 cursor-pointer",
                 isActive
-                  ? "bg-[rgba(6,182,212,0.08)] text-[var(--so-accent,#06B6D4)] dark:bg-[rgba(34,211,238,0.12)] dark:text-[#5EBDCC]"
+                  ? "bg-[rgba(6,182,212,0.08)] text-[var(--so-accent,#06B6D4)] dark:bg-[rgba(34,211,238,0.12)] dark:text-[#06B6D4]"
                   : "text-[var(--so-text,#000)] dark:text-[#E5E5EA] hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.05)]",
               ].join(" ")}
             >

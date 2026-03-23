@@ -531,7 +531,7 @@ export default function LegalPrivacyFooter() {
                 <label className="flex items-start gap-3 text-sm text-[var(--so-text,#000)] dark:text-[var(--so-text,#fff)]">
                   <input
                     type="checkbox"
-                    className="mt-1 h-4 w-4 rounded border border-[var(--so-border,#E5E5EA)] text-primary focus:ring-[var(--so-accent,#06B6D4)] focus:ring-offset-0 dark:focus:ring-[#5EBDCC]"
+                    className="mt-1 h-4 w-4 rounded border border-[var(--so-border,#E5E5EA)] text-primary focus:ring-[var(--so-accent,#06B6D4)] focus:ring-offset-0 dark:focus:ring-[#06B6D4]"
                     checked={agreeChecked}
                     onChange={event => setAgreeChecked(event.target.checked)}
                   />
