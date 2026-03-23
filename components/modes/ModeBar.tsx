@@ -76,7 +76,7 @@ export default function ModeBar() {
               disabled={m.disabled}
               onClick={m.action}
               className={[
-                "relative z-10 rounded-full px-3 py-1 text-[11px] font-medium transition-colors duration-200",
+                "relative z-10 rounded-full px-3 py-1 text-[12px] font-medium transition-colors duration-200",
                 isActive ? "text-white" : "text-[var(--so-text-secondary,#8E8E93)] hover:text-[var(--so-text,#000)] dark:hover:text-white",
                 m.disabled ? "opacity-30 cursor-not-allowed" : "",
               ].join(" ")}
@@ -93,14 +93,14 @@ export default function ModeBar() {
           type="button"
           onClick={toggleResearch}
           className={[
-            "rounded-full px-2.5 py-1 text-[11px] font-medium border transition-all duration-200",
+            "rounded-full px-2.5 py-1 text-[12px] font-medium border transition-all duration-200",
             researchOn
               ? "bg-[var(--so-accent,#06B6D4)] text-white border-[var(--so-accent,#06B6D4)] shadow-sm"
               : "bg-transparent text-[var(--so-text-secondary,#8E8E93)] border-[var(--so-border,#E5E5EA)] dark:border-[#3A3A3C] hover:border-[var(--so-accent,#06B6D4)] hover:text-[var(--so-accent,#06B6D4)]",
           ].join(" ")}
         >
           {t("ui.modes.research")}
-          {researchOn && <span className="ml-1 text-[9px] opacity-80">+</span>}
+          {researchOn && <span className="ml-1 text-[10px] opacity-80">+</span>}
         </button>
       )}
     </div>

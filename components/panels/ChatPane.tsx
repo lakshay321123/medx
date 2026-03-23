@@ -4354,10 +4354,10 @@ ${systemCommon}` + baseSys;
                       e.stopPropagation();
                       setPlusMenuOpen((v) => !v);
                     }}
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300/70 hover:bg-[var(--so-bg-secondary,#F2F2F7)]/70 dark:border-[#2C2C2E]/60 dark:hover:bg-[#2C2C2E]/60"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-300/70 hover:bg-[var(--so-bg-secondary,#F2F2F7)]/70 dark:border-[#2C2C2E]/60 dark:hover:bg-[#2C2C2E]/60"
                     title={t('more')}
                   >
-                    <Stethoscope className="h-4.5 w-4.5" aria-hidden="true" />
+                    <Stethoscope className="h-4 w-4" aria-hidden="true" />
                   </button>
 
                   {isPlusMenuOpen && (
@@ -4479,7 +4479,7 @@ ${systemCommon}` + baseSys;
 
                 {!busy && (
                   <button
-                    className="order-3 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-white bg-[var(--so-accent,#06B6D4)] transition hover:bg-[var(--so-accent,#06B6D4)] disabled:opacity-50 md:order-none"
+                    className="order-3 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-white bg-[var(--so-accent,#06B6D4)] transition hover:bg-[var(--so-accent,#06B6D4)] disabled:opacity-50 md:order-none"
                     type="submit"
                     disabled={pendingFiles.length === 0 && !userText.trim()}
                     aria-label="Send"
