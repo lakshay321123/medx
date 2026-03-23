@@ -62,16 +62,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     {/* Mobile Header (always rendered; CSS shows it only on mobile) */}
                     <MobileHeader />
 
-                    <div className="grid grow min-h-0 grid-cols-12 mobile-content-offset md:pt-0">
-                      {/* Desktop Sidebar */}
-                      <aside className="hidden min-h-0 overflow-y-auto border-r border-[var(--so-border,#E5E5EA)] md:col-span-3 md:flex lg:col-span-2 bg-[#F9F9F9] dark:bg-[#1C1C1E] dark:border-[#2C2C2E]">
+                    <div className="flex grow min-h-0 mobile-content-offset md:pt-0">
+                      {/* Desktop Sidebar — collapsible */}
+                      <SidebarWrapper>
                         <Suspense fallback={null}>
                           <Sidebar />
                         </Suspense>
-                      </aside>
+                      </SidebarWrapper>
 
                       {/* Main Content */}
-                      <main className="col-span-12 flex min-h-0 overflow-y-auto md:col-span-9 lg:col-span-10">
+                      <main className="flex-1 flex min-h-0 overflow-y-auto">
                         <div className="flex flex-1 min-h-0 flex-col">
                           <Suspense fallback={<div className="flex-1 min-h-0" />}>
                             {children}

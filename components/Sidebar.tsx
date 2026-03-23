@@ -1,6 +1,4 @@
 "use client";
-import dynamic from "next/dynamic";
-import { BRAND_NAME } from "@/lib/brand";
 import { Search, Settings, PenSquare, FileText, User, Activity } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -12,39 +10,16 @@ import { useLocale } from "@/components/hooks/useLocale";
 import { useUIStore } from "@/components/hooks/useUIStore";
 
 const LEGACY_NEW_CHAT_TITLES = new Set([
-  "New chat",
-  "Nueva conversación",
-  "Nouvelle discussion",
-  "Nuova chat",
-  "新建对话",
-  "नई चैट",
-  "محادثة جديدة",
+  "New chat", "Nueva conversación", "Nouvelle discussion", "Nuova chat",
+  "新建对话", "नई चैट", "محادثة جديدة",
 ]);
 
 const LEGACY_THERAPY_TITLES = new Set([
-  "Therapy session",
-  "Sesión de terapia",
-  "Sessione di terapia",
-  "治疗会话",
-  "थेरेपी सत्र",
-  "جلسة علاج",
+  "Therapy session", "Sesión de terapia", "Sessione di terapia",
+  "治疗会话", "थेरेपी सत्र", "جلسة علاج",
 ]);
 
-type NavItem = {
-  key: string;
-  label: string;
-  icon: typeof Search;
-  panel?: string;
-  action?: () => void;
-};
-
-
-const HealthScoreCard = dynamic(() => import("@/components/HealthScoreCard"), { ssr: false });
-const HealthTimeline = dynamic(() => import("@/components/HealthTimeline"), { ssr: false });
-const FamilyHub = dynamic(() => import("@/components/FamilyHub"), { ssr: false });
-
 export default function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const threadId = searchParams.get("threadId") ?? "";
@@ -73,14 +48,9 @@ export default function Sidebar() {
     router.push(`/?panel=chat&threadId=${id}`);
   };
 
-  const handleSearch = (value: string) => {
-    setQ(value);
-    window.dispatchEvent(new CustomEvent("search-chats", { detail: value }));
-  };
-
   const filtered = threads.filter((t) => t.title.toLowerCase().includes(q.toLowerCase()));
 
-  const navItems: NavItem[] = [
+  const navItems = [
     { key: "new-chat", label: t("threads.systemTitles.new_chat"), icon: PenSquare, action: handleNewChat },
     { key: "directory", label: t("ui.nav.directory"), icon: FileText, panel: "directory" },
     { key: "profile", label: t("ui.nav.medical_profile"), icon: User, panel: "profile" },
@@ -93,46 +63,26 @@ export default function Sidebar() {
   };
 
   return (
-    <div className="sidebar-click-guard flex h-full w-full flex-col" style={{ padding: "16px 12px" }}>
-      {/* Logo */}
-      <div className="flex items-center gap-2 mb-5 px-1">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--so-accent,#06B6D4)]">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" className="h-3.5 w-3.5">
-            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </div>
-        <span className="text-[14px] font-semibold tracking-tight text-[var(--so-text,#000)] dark:text-white">
-          {BRAND_NAME}
-        </span>
-      </div>
+    <div className="flex h-full w-full flex-col px-2 py-3">
 
       {/* Nav items */}
-      <nav className="flex flex-col gap-px mb-4">
+      <nav className="flex flex-col gap-px mb-3">
         {navItems.map((item) => {
-          const isActive = item.panel
-            ? currentPanel === item.panel && !threadId
-            : false;
+          const isActive = item.panel ? currentPanel === item.panel && !threadId : false;
           const Icon = item.icon;
-
           return (
             <button
               key={item.key}
               type="button"
-              onClick={() => {
-                if (item.action) {
-                  item.action();
-                } else if (item.panel) {
-                  navigate(item.panel);
-                }
-              }}
+              onClick={() => item.action ? item.action() : item.panel ? navigate(item.panel) : null}
               className={[
-                "flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2 text-[13px] transition-all duration-150 cursor-pointer",
+                "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] transition-all duration-150 cursor-pointer",
                 isActive
                   ? "bg-[rgba(6,182,212,0.08)] text-[var(--so-accent,#06B6D4)] font-semibold dark:bg-[rgba(34,211,238,0.12)] dark:text-[#22D3EE]"
-                  : "text-[#3C3C43] opacity-70 hover:opacity-100 hover:bg-[rgba(0,0,0,0.03)] dark:text-[#98989D] dark:hover:bg-[rgba(255,255,255,0.05)]",
+                  : "text-[#3C3C43] opacity-70 hover:opacity-100 hover:bg-[rgba(0,0,0,0.04)] dark:text-[#98989D] dark:hover:bg-[rgba(255,255,255,0.05)]",
               ].join(" ")}
             >
-              <Icon size={18} strokeWidth={1.5} className="shrink-0" />
+              <Icon size={17} strokeWidth={1.5} className="shrink-0" />
               <span className="truncate">{item.label}</span>
             </button>
           );
@@ -140,23 +90,23 @@ export default function Sidebar() {
       </nav>
 
       {/* Search */}
-      <div className="relative mb-3">
+      <div className="relative mb-3 px-1">
         <input
-          className="w-full rounded-[10px] border border-[var(--so-border,#E5E5EA)] bg-white px-3 py-2 text-[12px] outline-none transition focus:border-[var(--so-accent,#06B6D4)] dark:bg-[#2C2C2E] dark:border-[#2C2C2E] dark:text-white"
+          className="w-full rounded-xl border border-[var(--so-border,#E5E5EA)] bg-white/80 px-3 py-1.5 text-[12px] outline-none transition focus:border-[var(--so-accent,#06B6D4)] dark:bg-[#2C2C2E] dark:border-[#3A3A3C] dark:text-white placeholder:text-[#8E8E93]"
           placeholder={t("Search")}
           value={q}
-          onChange={(e) => handleSearch(e.target.value)}
+          onChange={(e) => setQ(e.target.value)}
         />
-        <Search size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8E8E93]" />
+        <Search size={13} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8E8E93]" />
       </div>
 
       {/* CHATS label */}
-      <div className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.5px] text-[#8E8E93]">
+      <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.5px] text-[#8E8E93]">
         Chats
       </div>
 
-      {/* Thread list */}
-      <div className="flex-1 overflow-y-auto space-y-px pb-12">
+      {/* Thread list — scrollable, takes remaining space */}
+      <div className="flex-1 overflow-y-auto space-y-px min-h-0">
         {filtered.map((thread) => {
           const rawTitle = (thread.title ?? "").trim();
           const systemKey = thread.therapy && LEGACY_THERAPY_TITLES.has(rawTitle)
@@ -178,12 +128,8 @@ export default function Sidebar() {
               ].join(" ")}
               aria-current={active ? "page" : undefined}
             >
-
               <button
-                onClick={() => {
-                  closeSidebar();
-                  router.push(`/?panel=chat&threadId=${thread.id}`);
-                }}
+                onClick={() => { closeSidebar(); router.push(`/?panel=chat&threadId=${thread.id}`); }}
                 className="min-w-0 flex-1 truncate text-left text-[12px] leading-5"
               >
                 {displayTitle || t("threads.systemTitles.new_chat")}
@@ -192,14 +138,8 @@ export default function Sidebar() {
                 <ThreadKebab
                   id={thread.id}
                   title={thread.title}
-                  onRenamed={(nt) => {
-                    setThreads((prev) =>
-                      prev.map((x) => (x.id === thread.id ? { ...x, title: nt, updatedAt: Date.now() } : x))
-                    );
-                  }}
-                  onDeleted={() => {
-                    setThreads((prev) => prev.filter((x) => x.id !== thread.id));
-                  }}
+                  onRenamed={(nt) => setThreads((prev) => prev.map((x) => (x.id === thread.id ? { ...x, title: nt, updatedAt: Date.now() } : x)))}
+                  onDeleted={() => setThreads((prev) => prev.filter((x) => x.id !== thread.id))}
                 />
               </div>
             </div>
@@ -207,69 +147,16 @@ export default function Sidebar() {
         })}
       </div>
 
-      {/* Collapse toggle */}
-      <button
-        type="button"
-        onClick={() => setCollapsed(!collapsed)}
-        className="mx-3 mt-2 mb-1 flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-[var(--so-text-secondary,#8E8E93)] hover:bg-[rgba(6,182,212,0.05)] transition"
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-      >
-        <svg className={`h-4 w-4 transition-transform ${collapsed ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-        </svg>
-        {!collapsed && <span>Collapse</span>}
-      </button>
-
-      {!collapsed && <>
-      {/* Health Analytics link */}
-      <div className="mt-4 px-3">
-        <a
-          href="/analytics"
-          className="flex items-center gap-3 rounded-2xl border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] p-3 transition hover:border-[var(--so-accent,#06B6D4)] hover:bg-[rgba(6,182,212,0.02)]"
-        >
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[rgba(6,182,212,0.08)]">
-            <Activity className="h-5 w-5 text-[var(--so-accent,#06B6D4)]" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-[var(--so-text,#000)] dark:text-[var(--so-text,#fff)]">Health Analytics</p>
-            <p className="text-[10px] text-[var(--so-text-secondary,#8E8E93)]">Charts, scores & predictions</p>
-          </div>
-        </a>
-      </div>
-
-      {/* Health Timeline */}
-      <div className="mt-4 px-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--so-text-secondary,#8E8E93)] mb-2 px-1">Timeline</h3>
-        <div className="rounded-2xl border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] overflow-hidden">
-          <HealthTimeline />
-        </div>
-      </div>
-
-
-
-      </>}
-
-      {/* Preferences — bottom, inside flow */}
-      <div className="mt-auto pt-2">
-        {/* Family Members (under preferences) */}
-        {!collapsed && (
-          <div className="mx-3 mb-3 rounded-2xl border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] p-3">
-            <FamilyHub />
-          </div>
-        )}
+      {/* Bottom: Preferences only */}
+      <div className="border-t border-[var(--so-border,#E5E5EA)] dark:border-[#2C2C2E] pt-2 mt-2">
         <button
           type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            closeSidebar?.();
-            openPrefs();
-          }}
-          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[12px] text-[#8E8E93] transition hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.05)]"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); closeSidebar?.(); openPrefs(); }}
+          className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] text-[#8E8E93] transition hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.05)]"
         >
-          <Settings size={16} strokeWidth={1.5} />
+          <Settings size={17} strokeWidth={1.5} />
           <span>{t("Preferences")}</span>
-          <span className="ml-auto text-[11px]">{locale.label}</span>
+          <span className="ml-auto text-[11px] opacity-60">{locale.label}</span>
         </button>
       </div>
     </div>
