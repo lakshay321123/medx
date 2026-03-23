@@ -3007,7 +3007,7 @@ ${systemCommon}` + baseSys;
           personalization,
           allowHistory,
           formatId: formatIdForSend,
-          country: country?.code3 || 'IND',
+          country: country?.code3 || undefined,
         }),
         cache: 'no-store',
         signal: ctrl.signal

@@ -32,7 +32,7 @@ export async function GET() {
 </head>
 <body>
   <h1>Opinion Labs \u2014 Health Report</h1>
-  <p class="meta">Generated: ${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })} | For: ${ctx.text.split("\n")[0]?.replace("[PATIENT CONTEXT]", "").trim() || "Patient"}</p>
+  <p class="meta">Generated: ${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })} | For: ${escapeHtml(ctx.text.split("\n")[0]?.replace("[PATIENT CONTEXT]", "").trim() || "Patient")}</p>
 
   <h2>Patient Profile</h2>
   <div class="card">

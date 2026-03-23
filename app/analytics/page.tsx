@@ -1,3 +1,4 @@
+"use client";
 import dynamic from "next/dynamic";
 
 const HealthAnalytics = dynamic(() => import("@/components/HealthAnalytics"), { ssr: false });

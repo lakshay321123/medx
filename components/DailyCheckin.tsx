@@ -18,7 +18,7 @@ export default function DailyCheckin({ onDone }: { onDone?: () => void }) {
   if (alreadyDone) return null;
 
   const [mood, setMood] = useState<number | null>(null);
-  const [sleep, setSleep] = useState("");
+  const [sleep, setSleep] = useState("7");
   const [energy, setEnergy] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -80,6 +80,7 @@ export default function DailyCheckin({ onDone }: { onDone?: () => void }) {
               key={m.value}
               type="button"
               onClick={() => setMood(m.value)}
+              aria-pressed={mood === m.value}
               className="flex flex-col items-center gap-1.5 transition-transform"
               style={{ transform: mood === m.value ? "scale(1.15)" : "scale(1)" }}
             >
@@ -109,7 +110,7 @@ export default function DailyCheckin({ onDone }: { onDone?: () => void }) {
           min="0"
           max="12"
           step="0.5"
-          value={sleep || "7"}
+          value={sleep}
           onChange={e => setSleep(e.target.value)}
           className="w-full h-2 rounded-full appearance-none bg-[var(--so-border,#E5E5EA)] dark:bg-[#2C2C2E] accent-[var(--so-accent,#06B6D4)]"
         />
@@ -127,6 +128,7 @@ export default function DailyCheckin({ onDone }: { onDone?: () => void }) {
               key={e}
               type="button"
               onClick={() => setEnergy(e)}
+              aria-pressed={energy === e}
               className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition-all ${
                 energy === e
                   ? "bg-[var(--so-accent,#06B6D4)] text-white shadow-md"

@@ -1,5 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
+import { BRAND_NAME } from "@/lib/brand";
 import { Search, Settings, PenSquare, FileText, User, Activity } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -101,7 +102,7 @@ export default function Sidebar() {
           </svg>
         </div>
         <span className="text-[14px] font-semibold tracking-tight text-[var(--so-text,#000)] dark:text-white">
-          Opinion Labs
+          {BRAND_NAME}
         </span>
       </div>
 

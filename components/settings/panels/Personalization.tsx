@@ -144,7 +144,7 @@ function ToggleRow({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <label className="flex items-center justify-between py-2">
+    <div className="flex items-center justify-between py-2">
       <div>
         <div>{label}</div>
         <div className="text-xs opacity-70">{sub}</div>
@@ -154,6 +154,6 @@ function ToggleRow({
         <span className="h-6 w-11 rounded-full bg-slate-300/60 transition peer-checked:bg-[var(--so-accent,#06B6D4)] dark:bg-slate-600" />
         <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
       </label>
-    </label>
+    </div>
   );
 }
