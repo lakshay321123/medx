@@ -42,7 +42,7 @@ export default async function AdminPage() {
           Admin Dashboard
         </h1>
         <p className="text-sm text-[var(--so-text-secondary,#8E8E93)] mb-8">
-          Second Opinion system overview
+          Opinion Labs system overview
         </p>
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">

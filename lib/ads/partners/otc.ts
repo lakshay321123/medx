@@ -6,7 +6,7 @@ export async function getOtcOffer(region: string): Promise<AdCard|null> {
     title: 'Vitamin D3 Supplement — 60 Tabs',
     body: 'Clinically dosed • Free shipping',
     cta: { label: 'Buy Now', url: 'https://example.com/vitd?src=secondop' },
-    sponsor: { id: 'pharmacy_inc', name: 'Second Opinion Pharmacy' },
+    sponsor: { id: 'pharmacy_inc', name: 'Opinion Labs Pharmacy' },
     labels: { sponsored: true, whyThis: 'Mentioned low Vitamin D.' },
     compliance: { contextualOnly: true, region }
   };

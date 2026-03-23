@@ -39,14 +39,11 @@ type NavItem = {
 
 
 const HealthScoreCard = dynamic(() => import("@/components/HealthScoreCard"), { ssr: false });
-const DailyCheckin = dynamic(() => import("@/components/DailyCheckin"), { ssr: false });
 const HealthTimeline = dynamic(() => import("@/components/HealthTimeline"), { ssr: false });
-const WearableSync = dynamic(() => import("@/components/WearableSync"), { ssr: false });
 const FamilyHub = dynamic(() => import("@/components/FamilyHub"), { ssr: false });
-const MedReminders = dynamic(() => import("@/components/MedReminders"), { ssr: false });
-const HealthReportExport = dynamic(() => import("@/components/HealthReportExport"), { ssr: false });
 
 export default function Sidebar() {
+  const [collapsed, setCollapsed] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const threadId = searchParams.get("threadId") ?? "";
@@ -104,7 +101,7 @@ export default function Sidebar() {
           </svg>
         </div>
         <span className="text-[14px] font-semibold tracking-tight text-[var(--so-text,#000)] dark:text-white">
-          Second Opinion
+          Opinion Labs
         </span>
       </div>
 
@@ -209,6 +206,20 @@ export default function Sidebar() {
         })}
       </div>
 
+      {/* Collapse toggle */}
+      <button
+        type="button"
+        onClick={() => setCollapsed(!collapsed)}
+        className="mx-3 mt-2 mb-1 flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-[var(--so-text-secondary,#8E8E93)] hover:bg-[rgba(6,182,212,0.05)] transition"
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+      >
+        <svg className={`h-4 w-4 transition-transform ${collapsed ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+        </svg>
+        {!collapsed && <span>Collapse</span>}
+      </button>
+
+      {!collapsed && <>
       {/* Health Analytics link */}
       <div className="mt-4 px-3">
         <a
@@ -233,39 +244,18 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Daily Check-in */}
-      <div className="mt-4 space-y-3 px-3">
-        <DailyCheckin />
-      </div>
 
-      {/* Medication Reminders */}
-      <div className="mt-4 px-3">
-        <div className="rounded-2xl border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] p-3">
-          <MedReminders />
-        </div>
-      </div>
 
-      {/* Wearable Sync */}
-      <div className="mt-4 px-3">
-        <div className="rounded-2xl border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] p-3">
-          <WearableSync />
-        </div>
-      </div>
-
-      {/* Family Hub */}
-      <div className="mt-4 px-3">
-        <div className="rounded-2xl border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] p-3">
-          <FamilyHub />
-        </div>
-      </div>
-
-      {/* Export */}
-      <div className="mt-4 px-3 mb-4">
-        <HealthReportExport />
-      </div>
+      </>}
 
       {/* Preferences — bottom, inside flow */}
       <div className="mt-auto pt-2">
+        {/* Family Members (under preferences) */}
+        {!collapsed && (
+          <div className="mx-3 mb-3 rounded-2xl border border-[var(--so-border,#E5E5EA)] dark:border-[var(--so-border,#2C2C2E)] p-3">
+            <FamilyHub />
+          </div>
+        )}
         <button
           type="button"
           onClick={(e) => {

@@ -17,7 +17,7 @@ type ToggleableCookie = Exclude<keyof CookiePrefs, "essential">;
 const CONSENT_KEY = "secondopinion.consent.v1.0";
 const COOKIE_KEY = "secondopinion.cookies.v1.0";
 
-const BRAND = process.env.NEXT_PUBLIC_BRAND_NAME ?? "Second Opinion";
+const BRAND = process.env.NEXT_PUBLIC_BRAND_NAME ?? "Opinion Labs";
 const PRIVACY_EMAIL =
   process.env.NEXT_PUBLIC_PRIVACY_EMAIL ?? "privacy@secondopinion.ai";
 const GOVERNING_LAW =
