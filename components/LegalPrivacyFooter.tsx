@@ -366,7 +366,7 @@ export default function LegalPrivacyFooter() {
         ref={footerRef}
         className="mobile-footer flex-shrink-0 border-t border-black/10 bg-white/80 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/60"
       >
-        <div className="mobile-footer-inner mx-auto flex w-full max-w-screen-2xl items-center justify-center gap-1.5 px-6 text-center text-[11px] md:gap-3 md:py-1.5 md:pl-56 md:text-xs" style={{ color: "var(--so-text-secondary, #8E8E93)" }}>
+        <div className="mobile-footer-inner mx-auto flex w-full max-w-screen-2xl items-center justify-center gap-1.5 px-6 text-center text-[11px] md:gap-3 md:py-1.5 md:text-xs" style={{ color: "var(--so-text-secondary, #8E8E93)" }}>
           <div
             ref={marqueeContainerRef}
             className={`mobile-footer-message${marqueeVars ? " mobile-footer-marquee-active" : ""}`}
