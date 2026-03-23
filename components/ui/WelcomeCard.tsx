@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { useT } from "@/components/hooks/useI18n";
 
@@ -25,6 +26,14 @@ export default function WelcomeCard({
   const { t } = useT();
   const displayHeader = header ?? t("Start a new conversation");
   const displayBody = body ?? t("Ask about wellness, therapy, research or clinical topics.");
+  const [fading, setFading] = useState(false);
+
+  // Auto-dismiss after 10 seconds
+  useEffect(() => {
+    const fadeTimer = setTimeout(() => setFading(true), 8000);
+    const dismissTimer = setTimeout(() => onDismiss(), 10000);
+    return () => { clearTimeout(fadeTimer); clearTimeout(dismissTimer); };
+  }, [onDismiss]);
 
   return (
     <div
@@ -34,7 +43,8 @@ export default function WelcomeCard({
         "relative rounded-lg border p-3 shadow-sm text-sm",
         "text-white border-[var(--so-accent,#06B6D4)] bg-[var(--so-accent,#06B6D4)]",
         "dark:bg-[#5EBDCC] dark:border-[var(--so-accent,#06B6D4)]",
-        "break-words",
+        "break-words transition-opacity duration-[2000ms]",
+        fading && "opacity-0",
         className,
       )}
     >
