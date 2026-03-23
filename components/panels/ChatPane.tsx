@@ -827,7 +827,25 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const lang = prefs.lang;
   const allowHistory = prefs.allowHistory !== false && prefs.referenceChatHistory !== false;
   const { t, language: uiLanguage } = useI18n();
-  const composerPlaceholder = t('ui.composer.placeholder');
+  // Rotating placeholder suggestions
+  const placeholders = [
+    "Ask about your health",
+    "What does my blood report mean?",
+    "Suggest a diet for high cholesterol",
+    "What are side effects of metformin?",
+    "How can I sleep better?",
+    "Is my BP normal for my age?",
+    "What vaccines do I need?",
+    "Explain my HbA1c results",
+  ];
+  const [placeholderIdx, setPlaceholderIdx] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPlaceholderIdx(prev => (prev + 1) % placeholders.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
+  const composerPlaceholder = placeholders[placeholderIdx];
   const documentNotePlaceholder = t('ui.composer.document_note_placeholder');
   const { active, setFromAnalysis, setFromChat, clear: clearContext } = useActiveContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -4335,7 +4353,7 @@ ${systemCommon}` + baseSys;
                     className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300/70 hover:bg-[var(--so-bg-secondary,#F2F2F7)]/70 dark:border-[#2C2C2E]/60 dark:hover:bg-[#2C2C2E]/60"
                     title={t('more')}
                   >
-                    <Plus className="h-5 w-5" aria-hidden="true" />
+                    <Stethoscope className="h-4.5 w-4.5" aria-hidden="true" />
                   </button>
 
                   {isPlusMenuOpen && (

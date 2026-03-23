@@ -6,15 +6,12 @@ import ThemeToggle from '@/components/ThemeToggle';
 export default function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--so-border,#E5E5EA)] bg-[var(--so-card,#fff)] dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
-      <div className="mx-auto flex h-[62px] w-full max-w-screen-2xl items-center gap-4 px-6">
-        {/* Brand removed from header — it's in the sidebar now */}
-        <div className="w-0 md:w-0" />
+      <div className="mx-auto flex h-[52px] w-full items-center justify-center px-4 relative">
+        {/* Mode bar — centered */}
+        <ModeBar />
 
-        <div className="flex flex-1 justify-center md:pl-28 lg:pl-44">
-          <ModeBar />
-        </div>
-
-        <div className="flex items-center gap-3">
+        {/* Right controls — absolute positioned */}
+        <div className="absolute right-4 flex items-center gap-2">
           <ThemeToggle />
           <CountryGlobe />
         </div>
