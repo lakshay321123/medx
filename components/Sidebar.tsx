@@ -2,7 +2,7 @@
 import { Search, Settings, PenSquare, FileText, User, Activity, Heart } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BRAND_NAME } from "@/lib/brand";
+import OpinionLabsLogo from "@/components/brand/OpinionLabsLogo";
 import { createNewThreadId, listThreads, Thread } from "@/lib/chatThreads";
 import ThreadKebab from "@/components/chat/ThreadKebab";
 import { useMobileUiStore } from "@/lib/state/mobileUiStore";
@@ -66,16 +66,9 @@ export default function Sidebar() {
   return (
     <div className="flex h-full w-full flex-col">
 
-      {/* Brand logo text */}
-      <div className="px-4 pt-4 pb-3">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[18px] font-light tracking-[-0.02em] text-[var(--so-text,#000)] dark:text-white">
-            opinion
-          </span>
-          <span className="text-[18px] font-bold tracking-[-0.02em] text-[var(--so-accent,#06B6D4)]">
-            labs
-          </span>
-        </div>
+      {/* Brand logo */}
+      <div className="px-4 pt-4 pb-3 text-[var(--so-text,#000)] dark:text-white">
+        <OpinionLabsLogo />
       </div>
 
       {/* Nav items — bold text */}
