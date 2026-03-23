@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 type ConnectorStatus = "connected" | "disconnected";
 type Connector = {
@@ -36,6 +36,19 @@ const CATEGORIES = [
 
 export default function ConnectorsPanel() {
   const [connectors, setConnectors] = useState(CONNECTORS);
+
+  // Load actual connection status from Supabase
+  useEffect(() => {
+    fetch("/api/wearables/connections", { credentials: "include" })
+      .then(r => r.json())
+      .then(d => {
+        const active = new Set((d.connections || []).filter((c: any) => c.status === "connected").map((c: any) => c.provider));
+        if (active.size > 0) {
+          setConnectors(prev => prev.map(c => active.has(c.id) ? { ...c, status: "connected" as const } : c));
+        }
+      })
+      .catch(err => console.error("Failed to load connections:", err));
+  }, []);
   const [connecting, setConnecting] = useState<string | null>(null);
 
   const handleConnect = async (id: string) => {
