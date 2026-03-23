@@ -48,7 +48,7 @@ export default function ModeBar() {
   return (
     <div
       ref={containerRef}
-      className="relative inline-flex items-center gap-0.5 rounded-full px-1 py-0.5"
+      className="relative inline-flex items-center gap-0 rounded-full px-0.5 py-0.5"
       style={{ background: "var(--so-bg-secondary, #F2F2F7)" }}
     >
       {/* Animated sliding pill */}
@@ -58,7 +58,7 @@ export default function ModeBar() {
           left: pillStyle.left,
           width: pillStyle.width,
           background: "var(--so-accent, #06B6D4)",
-          boxShadow: "0 1px 3px rgba(6,182,212,0.3)",
+          boxShadow: "0 1px 4px rgba(6,182,212,0.25)",
         }}
       />
 
@@ -72,7 +72,7 @@ export default function ModeBar() {
             disabled={m.disabled}
             onClick={m.action}
             className={[
-              "relative z-10 rounded-full px-3.5 py-1.5 text-[12px] font-medium transition-colors duration-200",
+              "relative z-10 rounded-full px-3 py-1 text-[11px] font-medium transition-colors duration-200",
               isActive ? "text-white" : "text-[var(--so-text-secondary,#8E8E93)] hover:text-[var(--so-text,#000)] dark:hover:text-white",
               m.disabled ? "opacity-30 cursor-not-allowed" : "",
             ].join(" ")}

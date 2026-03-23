@@ -829,20 +829,24 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
   const { t, language: uiLanguage } = useI18n();
   // Rotating placeholder suggestions
   const placeholders = [
-    "Ask about your health",
+    "Ask about your health...",
     "What does my blood report mean?",
     "Suggest a diet for high cholesterol",
     "What are side effects of metformin?",
-    "How can I sleep better?",
+    "How can I improve my sleep?",
     "Is my BP normal for my age?",
-    "What vaccines do I need?",
+    "What vaccines do I need at 35?",
     "Explain my HbA1c results",
+    "Best exercises for lower back pain?",
+    "Should I take vitamin D supplements?",
+    "How much water should I drink daily?",
+    "What foods help reduce inflammation?",
   ];
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   useEffect(() => {
     const interval = setInterval(() => {
       setPlaceholderIdx(prev => (prev + 1) % placeholders.length);
-    }, 4000);
+    }, 3000);
     return () => clearInterval(interval);
   }, []);
   const composerPlaceholder = placeholders[placeholderIdx];
