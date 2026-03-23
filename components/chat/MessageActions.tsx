@@ -42,7 +42,7 @@ function ActionButton({
   const classes = [
     baseButtonClasses,
     disabled ? disabledClasses : "",
-    active ? "!text-[var(--so-accent,#06B6D4)] dark:!text-[#22D3EE]" : "",
+    active ? "!text-[var(--so-accent,#06B6D4)] dark:!text-[#5EBDCC]" : "",
   ]
     .filter(Boolean)
     .join(" ");

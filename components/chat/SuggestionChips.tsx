@@ -62,7 +62,7 @@ export default function SuggestionChips({ suggestions, onAction }: Props) {
                   <button
                     key={i}
                     type="button"
-                    className="rounded-full border border-[var(--so-accent,#06B6D4)] px-3.5 py-1.5 text-[13px] font-medium text-[var(--so-accent,#06B6D4)] transition hover:bg-[var(--so-accent,#06B6D4)] hover:text-white dark:border-[#22D3EE] dark:text-[#22D3EE] dark:hover:bg-[#22D3EE] dark:hover:text-black"
+                    className="rounded-full border border-[var(--so-accent,#06B6D4)] px-3.5 py-1.5 text-[13px] font-medium text-[var(--so-accent,#06B6D4)] transition hover:bg-[var(--so-accent,#06B6D4)] hover:text-white dark:border-[#5EBDCC] dark:text-[#5EBDCC] dark:hover:bg-[#5EBDCC] dark:hover:text-black"
                     onClick={() => onAction({ id: `${s.id}-opt-${i}`, label: `${opt.charAt(0).toUpperCase() + opt.slice(1)} — answering: ${s.label}` } as Suggestion)}
                   >
                     {opt.charAt(0).toUpperCase() + opt.slice(1)}
@@ -115,7 +115,7 @@ export default function SuggestionChips({ suggestions, onAction }: Props) {
           <button
             key={s.id}
             type="button"
-            className="block w-full text-left rounded-xl border border-[var(--so-border,#E5E5EA)] px-3.5 py-2.5 text-[13px] text-[var(--so-text,#000)] transition hover:border-[var(--so-accent,#06B6D4)] hover:bg-[rgba(6,182,212,0.04)] dark:border-[var(--so-border,#2C2C2E)] dark:text-[var(--so-text,#fff)] dark:hover:border-[#22D3EE]"
+            className="block w-full text-left rounded-xl border border-[var(--so-border,#E5E5EA)] px-3.5 py-2.5 text-[13px] text-[var(--so-text,#000)] transition hover:border-[var(--so-accent,#06B6D4)] hover:bg-[rgba(6,182,212,0.04)] dark:border-[var(--so-border,#2C2C2E)] dark:text-[var(--so-text,#fff)] dark:hover:border-[#5EBDCC]"
             onClick={() => onAction(s)}
           >
             {s.label}

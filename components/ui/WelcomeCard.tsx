@@ -33,7 +33,7 @@ export default function WelcomeCard({
       className={joinClassNames(
         "relative rounded-lg border p-3 shadow-sm text-sm",
         "text-white border-[var(--so-accent,#06B6D4)] bg-[var(--so-accent,#06B6D4)]",
-        "dark:bg-[#22D3EE] dark:border-[var(--so-accent,#06B6D4)]",
+        "dark:bg-[#5EBDCC] dark:border-[var(--so-accent,#06B6D4)]",
         "break-words",
         className,
       )}

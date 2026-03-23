@@ -135,7 +135,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
         />
         <button
           type="submit"
-          className="px-3 py-2 rounded-lg text-sm border text-white dark:border-[#22D3EE] bg-[var(--so-accent,#06B6D4)] disabled:opacity-50"
+          className="px-3 py-2 rounded-lg text-sm border text-white dark:border-[#5EBDCC] bg-[var(--so-accent,#06B6D4)] disabled:opacity-50"
           disabled={busy}
           aria-label={t('Search')}
         >
@@ -217,7 +217,7 @@ export default function ResearchFilters({ mode, onResults }: Props) {
         />
         <button
           type="submit"
-          className="px-3 py-1.5 rounded-lg text-sm border text-white dark:border-[#22D3EE] bg-[var(--so-accent,#06B6D4)] disabled:opacity-50"
+          className="px-3 py-1.5 rounded-lg text-sm border text-white dark:border-[#5EBDCC] bg-[var(--so-accent,#06B6D4)] disabled:opacity-50"
           disabled={busy}
           aria-label={t('Apply')}
         >
