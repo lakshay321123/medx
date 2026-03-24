@@ -227,6 +227,38 @@ export async function POST(req: Request) {
         } catch (err) { console.warn('[drug-safety] med extraction failed:', err); }
         intentBlock = drugContext;
       }
+
+      // Health score intent — compute and inject as context
+      if (intent === 'health_score' && userId) {
+        try {
+          const { supabaseAdmin } = require("@/lib/supabase/admin");
+          const db = supabaseAdmin();
+          // Fetch latest health score
+          const { data: latestScore } = await db
+            .from("health_scores")
+            .select("overall_score, labs_score, vitals_score, activity_score, adherence_score, mental_score, factors, recommendations, streak_days, computed_at")
+            .eq("user_id", userId)
+            .order("computed_at", { ascending: false })
+            .limit(1)
+            .single();
+
+          if (latestScore) {
+            const sub = [
+              latestScore.labs_score != null ? `Labs: ${latestScore.labs_score}/100` : null,
+              latestScore.vitals_score != null ? `Vitals: ${latestScore.vitals_score}/100` : null,
+              latestScore.activity_score != null ? `Activity: ${latestScore.activity_score}/100` : null,
+              latestScore.adherence_score != null ? `Adherence: ${latestScore.adherence_score}/100` : null,
+              latestScore.mental_score != null ? `Mental: ${latestScore.mental_score}/100` : null,
+            ].filter(Boolean).join(', ');
+            const recs = Array.isArray(latestScore.recommendations)
+              ? latestScore.recommendations.slice(0, 3).join('; ')
+              : '';
+            intentBlock = `[HEALTH SCORE DATA]\nOverall: ${latestScore.overall_score}/100\nSub-scores: ${sub}\nStreak: ${latestScore.streak_days} days\n${recs ? `Recommendations: ${recs}` : ''}\nComputed: ${latestScore.computed_at?.split('T')[0] || 'recently'}\nPresent this data clearly to the user and explain what the scores mean.`;
+          } else {
+            intentBlock = '[HEALTH SCORE] No health score computed yet. Suggest the user complete a daily check-in or upload lab results to generate their health score.';
+          }
+        } catch (err) { console.warn('[stream-final] Health score fetch failed:', err); }
+      }
     } catch (err) {
       console.warn('[stream-final] Profile/rules/memory fetch failed:', err);
     }

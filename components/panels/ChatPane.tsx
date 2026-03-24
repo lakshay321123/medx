@@ -2667,7 +2667,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
         {
           const tfb = since('send');
           if (!Number.isNaN(tfb)) {
-            console.log('[latency] Tfb(ms)=', tfb);
+            console.debug('[latency] Tfb(ms)=', tfb);
           }
         }
         if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
@@ -2697,7 +2697,7 @@ export default function ChatPane({ inputRef: externalInputRef }: { inputRef?: Re
                   try {
                     const tft = since('send', { clearBase: true });
                     if (!Number.isNaN(tft)) {
-                      console.log('[latency] Tft(ms)=', tft);
+                      console.debug('[latency] Tft(ms)=', tft);
                     }
                   } catch {
                     // ignore timing failures; keep streaming
@@ -3044,7 +3044,7 @@ ${systemCommon}` + baseSys;
       {
         const tfb = since('send');
         if (!Number.isNaN(tfb)) {
-          console.log('[latency] Tfb(ms)=', tfb);
+          console.debug('[latency] Tfb(ms)=', tfb);
         }
       }
       if (!res.ok || !res.body) throw new Error(`Chat API error ${res.status}`);
@@ -3079,7 +3079,7 @@ ${systemCommon}` + baseSys;
               try {
                 const tft = since('send', { clearBase: true });
                 if (!Number.isNaN(tft)) {
-                  console.log('[latency] Tft(ms)=', tft);
+                  console.debug('[latency] Tft(ms)=', tft);
                 }
               } catch {
                 // ignore timing failures; keep streaming

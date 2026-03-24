@@ -5,6 +5,7 @@ export type ChatIntent =
   | "pull_data"         // "Show my labs" → query observations
   | "drug_question"     // "Can I take X with Y?" → drug interactions
   | "calculator"        // "What's my BMI?" → compute
+  | "health_score"      // "What's my health score?" → compute & return score
   | "general"           // Everything else → standard LLM
   ;
 
@@ -20,6 +21,11 @@ const DRUG_PATTERNS = [
   /\b(drug|medication)\b.*\b(interaction|clash|conflict)/i,
 ];
 
+const HEALTH_SCORE_PATTERNS = [
+  /\b(health score|my score|overall score|wellness score|how healthy|how am i doing)\b/i,
+  /\b(check.in|daily check|how('?s| is) my health)\b/i,
+];
+
 const CALCULATOR_PATTERNS = [
   /\b(calculate|compute|what('?s| is) my)\b.*(bmi|egfr|creatinine|risk|score|heart|wells|curb)/i,
   /\b(bmi|body mass|egfr|gfr|creatinine clearance)\b.*\b(for|with|given)\b/i,
@@ -31,6 +37,7 @@ export function detectIntent(text: string): ChatIntent {
   if (detectExperientialIntent(text)) return "symptom_triage";
   if (PULL_DATA_PATTERNS.some(p => p.test(t))) return "pull_data";
   if (DRUG_PATTERNS.some(p => p.test(t))) return "drug_question";
+  if (HEALTH_SCORE_PATTERNS.some(p => p.test(t))) return "health_score";
   if (CALCULATOR_PATTERNS.some(p => p.test(t))) return "calculator";
   
   return "general";
