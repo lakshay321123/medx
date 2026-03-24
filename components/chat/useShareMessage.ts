@@ -22,7 +22,7 @@ export function useShareMessage() {
     async (content: string, messageId: string) => {
       if (shareUrls[messageId]) {
         await navigator.clipboard.writeText(shareUrls[messageId]);
-        pushToast("Link copied!");
+        pushToast({ title: "Link copied!" });
         return;
       }
       setShareBusy("link");
@@ -36,10 +36,10 @@ export function useShareMessage() {
         if (data?.url) {
           setShareUrls((prev) => ({ ...prev, [messageId]: data.url }));
           await navigator.clipboard.writeText(data.url);
-          pushToast("Link copied!");
+          pushToast({ title: "Link copied!" });
         }
       } catch {
-        pushToast("Failed to create share link");
+        pushToast({ title: "Failed to create share link", variant: "destructive" });
       } finally {
         setShareBusy(null);
       }
@@ -54,7 +54,7 @@ export function useShareMessage() {
       try {
         await exportMessageToPng(messageEl, `opinion-labs-${messageId}.png`);
       } catch {
-        pushToast("Failed to export image");
+        pushToast({ title: "Failed to export image", variant: "destructive" });
       } finally {
         setShareBusy(null);
       }
