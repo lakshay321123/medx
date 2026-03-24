@@ -52,7 +52,7 @@ export function useShareMessage() {
       if (!messageEl) return;
       setShareBusy("download");
       try {
-        await exportMessageToPng(messageEl, `opinion-labs-${messageId}.png`);
+        await exportMessageToPng(messageEl);
       } catch {
         pushToast({ title: "Failed to export image", variant: "destructive" });
       } finally {
