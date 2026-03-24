@@ -178,7 +178,7 @@ export default function MedReminders() {
               className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg bg-[var(--so-accent,#06B6D4)] text-white disabled:opacity-50 transition"
             >
               {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
-              {saving ? "Saving..." : "Save"}
+              {saving ? "Saving\u2026" : "Save"}
             </button>
             <button
               onClick={() => setShowAdd(false)}
