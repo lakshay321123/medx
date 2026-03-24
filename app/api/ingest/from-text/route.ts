@@ -60,29 +60,65 @@ type OutObs = {
 };
 
 function crudeRegexExtract(text: string): OutObs[] {
-  // Very simple regex fallbacks so something gets stored immediately
-  // Extend as you like; safe and deterministic.
+  // Regex fallback for when OpenAI is unavailable — covers 25+ common biomarkers
   const items: OutObs[] = [];
-  const add = (kind: string, value_text: string | null, value_num?: number | null, unit?: string | null) =>
-    items.push({ kind, value_text, value_num: value_num ?? null, unit: unit ?? null, meta: { category: "lab" } });
+  const add = (kind: string, value_num: number, unit: string, refLow?: number, refHigh?: number) =>
+    items.push({
+      kind, value_text: null, value_num, unit,
+      meta: { category: "lab", ...(refLow != null ? { ref_low: refLow } : {}), ...(refHigh != null ? { ref_high: refHigh } : {}) },
+    });
 
-  const num = (s: string) => (s ? parseFloat(s) : NaN);
+  const num = (s: string) => { const n = parseFloat(s); return Number.isFinite(n) ? n : NaN; };
+  const tryMatch = (pattern: RegExp, kind: string, unit: string, group = 1, refLow?: number, refHigh?: number) => {
+    const m = text.match(pattern);
+    if (m) { const v = num(m[group]); if (!isNaN(v)) add(kind, v, unit, refLow, refHigh); }
+  };
 
-  const hb = text.match(/hemoglobin[^0-9]*([\d.]+)/i);
-  if (hb) add("hemoglobin", null, num(hb[1]), "g/dL");
+  // CBC
+  tryMatch(/hemoglobin[^0-9]*([\d.]+)/i, "hemoglobin", "g/dL", 1, 12.0, 17.5);
+  tryMatch(/\bWBC[^0-9]*([\d.]+)/i, "wbc", "x10³/µL", 1, 4.0, 11.0);
+  tryMatch(/\bRBC[^0-9]*([\d.]+)/i, "rbc", "x10⁶/µL", 1, 4.2, 5.9);
+  tryMatch(/platelet[s]?[^0-9]*([\d.]+)/i, "platelets", "x10³/µL", 1, 150, 400);
+  tryMatch(/\bMCV[^0-9]*([\d.]+)/i, "mcv", "fL", 1, 80, 100);
+  tryMatch(/hematocrit[^0-9]*([\d.]+)/i, "hematocrit", "%", 1, 36, 52);
 
-  const alt = text.match(/\bALT[^0-9]*([\d.]+)/i);
-  if (alt) add("alt", null, num(alt[1]), "U/L");
+  // Metabolic
+  tryMatch(/\b(HbA1c|HBA1C|glycated)[^0-9]*([\d.]+)/i, "HBA1C", "%", 2, 4.0, 5.6);
+  tryMatch(/fasting.*glucose[^0-9]*([\d.]+)|glucose.*fasting[^0-9]*([\d.]+)/i, "fasting_glucose", "mg/dL", 1, 70, 100);
+  tryMatch(/\bcreatinine[^0-9]*([\d.]+)/i, "creatinine", "mg/dL", 1, 0.6, 1.2);
+  tryMatch(/\begfr[^0-9]*([\d.]+)/i, "EGFR", "mL/min/1.73m²", 1, 90);
+  tryMatch(/\burea[^0-9]*([\d.]+)|\bBUN[^0-9]*([\d.]+)/i, "bun", "mg/dL", 1, 7, 20);
+  tryMatch(/uric\s*acid[^0-9]*([\d.]+)/i, "uric_acid", "mg/dL", 1, 3.5, 7.2);
 
-  const ast = text.match(/\bAST[^0-9]*([\d.]+)/i);
-  if (ast) add("ast", null, num(ast[1]), "U/L");
+  // Lipid panel
+  tryMatch(/total\s*cholesterol[^0-9]*([\d.]+)/i, "total_cholesterol", "mg/dL", 1, undefined, 200);
+  tryMatch(/\bLDL[^0-9]*([\d.]+)/i, "LDL-C", "mg/dL", 1, undefined, 100);
+  tryMatch(/\bHDL[^0-9]*([\d.]+)/i, "HDL-C", "mg/dL", 1, 40);
+  tryMatch(/triglyceride[s]?[^0-9]*([\d.]+)/i, "triglycerides", "mg/dL", 1, undefined, 150);
 
-  const hba1c = text.match(/\b(HbA1c|HBA1C)[^0-9]*([\d.]+)/i);
-  if (hba1c) add("hba1c", null, num(hba1c[2]), "%");
+  // Liver
+  tryMatch(/\bALT[^0-9]*([\d.]+)/i, "alt", "U/L", 1, 7, 56);
+  tryMatch(/\bAST[^0-9]*([\d.]+)/i, "ast", "U/L", 1, 10, 40);
+  tryMatch(/\bALP[^0-9]*([\d.]+)|alkaline\s*phosphatase[^0-9]*([\d.]+)/i, "alp", "U/L", 1, 44, 147);
+  tryMatch(/bilirubin.*total[^0-9]*([\d.]+)|total.*bilirubin[^0-9]*([\d.]+)/i, "bilirubin_total", "mg/dL", 1, 0.1, 1.2);
+  tryMatch(/albumin[^0-9]*([\d.]+)/i, "albumin", "g/dL", 1, 3.5, 5.5);
 
-  const egfr = text.match(/\begfr[^0-9]*([\d.]+)/i);
-  if (egfr) add("egfr", null, num(egfr[1]), "mL/min/1.73m²");
+  // Thyroid
+  tryMatch(/\bTSH[^0-9]*([\d.]+)/i, "tsh", "mIU/L", 1, 0.4, 4.0);
+  tryMatch(/\bT3[^0-9]*([\d.]+)/i, "t3", "ng/dL", 1, 80, 200);
+  tryMatch(/\bT4[^0-9]*([\d.]+)|thyroxine[^0-9]*([\d.]+)/i, "t4", "µg/dL", 1, 4.5, 12.0);
 
+  // Inflammatory
+  tryMatch(/\bCRP[^0-9]*([\d.]+)/i, "crp", "mg/L", 1, undefined, 3.0);
+  tryMatch(/\bESR[^0-9]*([\d.]+)/i, "esr", "mm/hr", 1, undefined, 20);
+
+  // Vitamins / Minerals
+  tryMatch(/vitamin\s*D[^0-9]*([\d.]+)/i, "vitamin_d", "ng/mL", 1, 30, 100);
+  tryMatch(/vitamin\s*B12[^0-9]*([\d.]+)/i, "vitamin_b12", "pg/mL", 1, 200, 900);
+  tryMatch(/ferritin[^0-9]*([\d.]+)/i, "ferritin", "ng/mL", 1, 12, 300);
+  tryMatch(/iron[^0-9]*([\d.]+)/i, "iron", "µg/dL", 1, 60, 170);
+
+  // Imaging fallback
   const mri = text.match(/\bMRI\b.*?(normal|unremarkable|no (significant )?abnormalit(y|ies))/i);
   if (mri) items.push({ kind: "mri_report", value_text: mri[0].slice(0, 160), meta: { category: "imaging", modality: "MRI" } });
 
@@ -216,10 +252,11 @@ meta.category in {lab|vital|imaging|medication|diagnosis|procedure|immunization|
 
   // Also populate observation_labs for structured lab values (feeds health score)
   const labRows = items
-    .filter((x: any) => x.value_num != null && x.kind && x.meta?.category === "lab")
-    .map((x: any, i: number) => ({
+    .map((x: any, originalIdx: number) => ({ x, originalIdx }))
+    .filter(({ x }) => x.value_num != null && x.kind && x.meta?.category === "lab")
+    .map(({ x, originalIdx }) => ({
       user_id: userId,
-      observation_id: ids[i] || ids[0],
+      observation_id: ids[originalIdx] || ids[0],
       sample_date: reportDate || nowISO,
       test_code: String(x.kind || "").toUpperCase().replace(/[^A-Z0-9_-]/g, ""),
       test_name: String(x.kind || "").replace(/_/g, " "),
