@@ -6,3 +6,13 @@ node_modules
 # SQLite database
 *.db
 tsconfig.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+
+# Lock file (standardized on pnpm)
+package-lock.json
