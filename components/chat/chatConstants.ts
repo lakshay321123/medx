@@ -12,9 +12,11 @@ export const ADS_ENABLED = process.env.NEXT_PUBLIC_ADS_ENABLED === '1';
 export const FORMAT_STORAGE_KEY = 'medx.format.map.v1';
 
 export const DEFAULT_FORMAT_BY_MODE: Partial<Record<FormatMode, FormatId>> = {
-  wellness: 'auto',
-  therapy: 'auto',
-  research: 'research_brief',
+  wellness: 'bullet_summary',
+  clinical: 'soap_note',
+  therapy: 'essay',
+  wellness_research: 'abstract_imrad',
+  clinical_research: 'abstract_imrad',
   aidoc: 'json_structured',
 };
 
